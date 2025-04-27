@@ -1,53 +1,23 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: deploy-rds-stack – VPC + Subnets + NAT Gateway + Free-Tier Postgres RDS
+Description: network-stack – VPC + public/private subnets + IGW + NAT Gateway
 
 Parameters:
   VpcCidr:
     Type: String
     Default: "10.0.0.0/16"
     Description: CIDR block for the VPC
-
   PublicSubnetCidr1:
     Type: String
     Default: "10.0.1.0/24"
-    Description: CIDR for Public Subnet AZ1
-
   PublicSubnetCidr2:
     Type: String
     Default: "10.0.2.0/24"
-    Description: CIDR for Public Subnet AZ2
-
   PrivateSubnetCidr1:
     Type: String
     Default: "10.0.101.0/24"
-    Description: CIDR for Private Subnet AZ1
-
   PrivateSubnetCidr2:
     Type: String
     Default: "10.0.102.0/24"
-    Description: CIDR for Private Subnet AZ2
-
-  RDSUsername:
-    Type: String
-    Default: "rds_username"
-    Description: Master DB username
-
-  RDSPassword:
-    Type: String
-    NoEcho: true
-    Description: Master DB password
-
-  DBInstanceClass:
-    Type: String
-    Default: "db.t3.micro"
-    AllowedValues:
-      - db.t3.micro
-    Description: RDS instance class (free-tier eligible)
-
-  DBAllocatedStorage:
-    Type: Number
-    Default: "20"
-    Description: Allocated storage (GiB) [Free-tier limit]
 
 Resources:
   StocksVPC:
@@ -56,18 +26,11 @@ Resources:
       CidrBlock: !Ref VpcCidr
       EnableDnsSupport: true
       EnableDnsHostnames: true
-      Tags:
-        - Key: Name
-          Value: stocks-vpc
 
   StocksIGW:
     Type: AWS::EC2::InternetGateway
-    Properties:
-      Tags:
-        - Key: Name
-          Value: stocks-igw
 
-  StocksVPCGatewayAttachment:
+  VPCGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
       VpcId: !Ref StocksVPC
@@ -80,9 +43,6 @@ Resources:
       CidrBlock: !Ref PublicSubnetCidr1
       AvailabilityZone: !Select [0, !GetAZs '']
       MapPublicIpOnLaunch: true
-      Tags:
-        - Key: Name
-          Value: stocks-public-1
 
   PublicSubnet2:
     Type: AWS::EC2::Subnet
@@ -91,33 +51,27 @@ Resources:
       CidrBlock: !Ref PublicSubnetCidr2
       AvailabilityZone: !Select [1, !GetAZs '']
       MapPublicIpOnLaunch: true
-      Tags:
-        - Key: Name
-          Value: stocks-public-2
 
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref StocksVPC
-      Tags:
-        - Key: Name
-          Value: stocks-public-rt
 
   PublicDefaultRoute:
     Type: AWS::EC2::Route
-    DependsOn: StocksVPCGatewayAttachment
+    DependsOn: VPCGatewayAttachment
     Properties:
       RouteTableId: !Ref PublicRouteTable
       DestinationCidrBlock: "0.0.0.0/0"
       GatewayId: !Ref StocksIGW
 
-  PublicSubnet1RouteTableAssociation:
+  PubSubnet1RouteAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref PublicSubnet1
       RouteTableId: !Ref PublicRouteTable
 
-  PublicSubnet2RouteTableAssociation:
+  PubSubnet2RouteAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref PublicSubnet2
@@ -133,9 +87,6 @@ Resources:
     Properties:
       AllocationId: !GetAtt NatEIP.AllocationId
       SubnetId: !Ref PublicSubnet1
-      Tags:
-        - Key: Name
-          Value: stocks-nat-gw
 
   PrivateSubnet1:
     Type: AWS::EC2::Subnet
@@ -144,9 +95,6 @@ Resources:
       CidrBlock: !Ref PrivateSubnetCidr1
       AvailabilityZone: !Select [0, !GetAZs '']
       MapPublicIpOnLaunch: false
-      Tags:
-        - Key: Name
-          Value: stocks-private-1
 
   PrivateSubnet2:
     Type: AWS::EC2::Subnet
@@ -155,17 +103,11 @@ Resources:
       CidrBlock: !Ref PrivateSubnetCidr2
       AvailabilityZone: !Select [1, !GetAZs '']
       MapPublicIpOnLaunch: false
-      Tags:
-        - Key: Name
-          Value: stocks-private-2
 
   PrivateRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref StocksVPC
-      Tags:
-        - Key: Name
-          Value: stocks-private-rt
 
   PrivateDefaultRoute:
     Type: AWS::EC2::Route
@@ -174,75 +116,33 @@ Resources:
       DestinationCidrBlock: "0.0.0.0/0"
       NatGatewayId: !Ref NatGateway
 
-  PrivateSubnet1RouteTableAssociation:
+  PrivSubnet1RouteAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref PrivateSubnet1
       RouteTableId: !Ref PrivateRouteTable
 
-  PrivateSubnet2RouteTableAssociation:
+  PrivSubnet2RouteAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref PrivateSubnet2
       RouteTableId: !Ref PrivateRouteTable
 
-  StocksDBSubnetGroup:
-    Type: AWS::RDS::DBSubnetGroup
-    Properties:
-      DBSubnetGroupDescription: "Subnet group for RDS"
-      SubnetIds:
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
-      DBSubnetGroupName: stocks-db-subnet-group
-
-  StocksDBSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: "Allow Postgres from VPC"
-      VpcId: !Ref StocksVPC
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 5432
-          ToPort: 5432
-          CidrIp: !Ref VpcCidr
-      Tags:
-        - Key: Name
-          Value: stocks-db-sg
-
-  StocksDB:
-    Type: AWS::RDS::DBInstance
-    Properties:
-      DBInstanceIdentifier: stocks-db
-      AllocatedStorage: !Ref DBAllocatedStorage
-      DBInstanceClass: !Ref DBInstanceClass
-      Engine: postgres
-      EngineVersion: "13.4"
-      MasterUsername: !Ref RDSUsername
-      MasterUserPassword: !Ref RDSPassword
-      VPCSecurityGroups:
-        - !Ref StocksDBSecurityGroup
-      DBSubnetGroupName: !Ref StocksDBSubnetGroup
-      MultiAZ: false
-      PubliclyAccessible: false
-      DeletionProtection: false
-
 Outputs:
   VpcId:
     Description: "VPC ID"
     Value: !Ref StocksVPC
-
-  PublicSubnets:
-    Description: "Public subnet IDs"
-    Value: !Join [",", [!Ref PublicSubnet1, !Ref PublicSubnet2]]
+    Export:
+      Name: network-VpcId
 
   PrivateSubnets:
     Description: "Private subnet IDs"
     Value: !Join [",", [!Ref PrivateSubnet1, !Ref PrivateSubnet2]]
+    Export:
+      Name: network-PrivateSubnets
 
-  DBEndpoint:
-    Description: "RDS endpoint address"
-    Value: !GetAtt StocksDB.Endpoint.Address
-
-  DBPort:
-    Description: "RDS endpoint port"
-    Value: !GetAtt StocksDB.Endpoint.Port
+  VpcCidr:
+    Description: "VPC CIDR"
+    Value: !Ref VpcCidr
+    Export:
+      Name: network-VpcCidr
