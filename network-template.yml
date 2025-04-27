@@ -20,21 +20,33 @@ Parameters:
     Default: "10.0.102.0/24"
 
 Resources:
+
+  ## VPC & Internet
+
   StocksVPC:
     Type: AWS::EC2::VPC
     Properties:
       CidrBlock: !Ref VpcCidr
       EnableDnsSupport: true
       EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: stocks-vpc
 
   StocksIGW:
     Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: stocks-igw
 
   VPCGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
       VpcId: !Ref StocksVPC
       InternetGatewayId: !Ref StocksIGW
+
+  ## Public subnets + routing
 
   PublicSubnet1:
     Type: AWS::EC2::Subnet
@@ -65,17 +77,19 @@ Resources:
       DestinationCidrBlock: "0.0.0.0/0"
       GatewayId: !Ref StocksIGW
 
-  Pub1RouteAssoc:
+  PubSubnet1RouteAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref PublicSubnet1
       RouteTableId: !Ref PublicRouteTable
 
-  Pub2RouteAssoc:
+  PubSubnet2RouteAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref PublicSubnet2
       RouteTableId: !Ref PublicRouteTable
+
+  ## NAT gateway for private subnets
 
   NatEIP:
     Type: AWS::EC2::EIP
@@ -87,6 +101,8 @@ Resources:
     Properties:
       AllocationId: !GetAtt NatEIP.AllocationId
       SubnetId: !Ref PublicSubnet1
+
+  ## Private subnets + routing
 
   PrivateSubnet1:
     Type: AWS::EC2::Subnet
@@ -116,13 +132,13 @@ Resources:
       DestinationCidrBlock: "0.0.0.0/0"
       NatGatewayId: !Ref NatGateway
 
-  Priv1RouteAssoc:
+  PrivSubnet1RouteAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref PrivateSubnet1
       RouteTableId: !Ref PrivateRouteTable
 
-  Priv2RouteAssoc:
+  PrivSubnet2RouteAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref PrivateSubnet2
