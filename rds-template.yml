@@ -14,11 +14,6 @@ Parameters:
     Default: 20
     Description: Allocated storage (GiB)
 
-  DBName:
-    Type: String
-    Default: stocks
-    Description: Name of the initial database to create
-
 Resources:
   StocksDBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -39,32 +34,31 @@ Resources:
         - !Select [0, !Split [",", !ImportValue network-PrivateSubnets]]
         - !Select [1, !Split [",", !ImportValue network-PrivateSubnets]]
 
-  StocksDB:
+  StocksDBInstance:
     Type: AWS::RDS::DBInstance
     Properties:
       DBInstanceIdentifier: stocks-db
-      DBName: !Ref DBName
-      AllocatedStorage: !Ref DBAllocatedStorage
-      DBInstanceClass: !Ref DBInstanceClass
-      Engine: postgres
-      MasterUsername: "{{resolve:secretsmanager:stocks-db-credentials:SecretString:username}}"
-      MasterUserPassword: "{{resolve:secretsmanager:stocks-db-credentials:SecretString:password}}"
+      AllocatedStorage:     !Ref DBAllocatedStorage
+      DBInstanceClass:      !Ref DBInstanceClass
+      Engine:               postgres
+      MasterUsername:       "{{resolve:secretsmanager:stocks-db-credentials:SecretString:username}}"
+      MasterUserPassword:   "{{resolve:secretsmanager:stocks-db-credentials:SecretString:password}}"
       VPCSecurityGroups:
         - !Ref StocksDBSecurityGroup
-      DBSubnetGroupName: !Ref StocksDBSubnetGroup
-      MultiAZ: false
-      PubliclyAccessible: false
-      DeletionProtection: false
+      DBSubnetGroupName:    !Ref StocksDBSubnetGroup
+      MultiAZ:              false
+      PubliclyAccessible:   false
+      DeletionProtection:   false
 
 Outputs:
   DBEndpoint:
     Description: RDS endpoint address
-    Value: !GetAtt StocksDB.Endpoint.Address
+    Value: !GetAtt StocksDBInstance.Endpoint.Address
     Export:
       Name: rds-DBEndpoint
 
   DBPort:
     Description: RDS endpoint port
-    Value: !GetAtt StocksDB.Endpoint.Port
+    Value: !GetAtt StocksDBInstance.Endpoint.Port
     Export:
       Name: rds-DBPort
