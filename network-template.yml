@@ -1,6 +1,7 @@
 # File: network-template.yml
+
 AWSTemplateFormatVersion: '2010-09-09'
-Description: network-stack – VPC + public & private subnets + IGW + NAT
+Description: network-stack – VPC + public & private subnets + IGW + NAT + Lambda SG
 
 Parameters:
   VpcCidr:
@@ -144,6 +145,20 @@ Resources:
       SubnetId: !Ref PrivateSubnet2
       RouteTableId: !Ref PrivateRouteTable
 
+  ## Security Group for Lambdas
+
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Lambda SG in stocks VPC"
+      VpcId: !Ref StocksVPC
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: "0.0.0.0/0"
+      Tags:
+        - Key: Name
+          Value: stocks-lambda-sg
+
 Outputs:
   VpcId:
     Value: !Ref StocksVPC
@@ -159,6 +174,12 @@ Outputs:
     Value: !Join [",", [!Ref PrivateSubnet1, !Ref PrivateSubnet2]]
     Export:
       Name: network-PrivateSubnets
+
+  LambdaSecurityGroupId:
+    Description: Security Group ID for VPC’d Lambdas
+    Value: !Ref LambdaSecurityGroup
+    Export:
+      Name: network-LambdaSecurityGroupId
 
   VpcCidr:
     Value: !Ref VpcCidr
