@@ -1,7 +1,7 @@
 # File: network-template.yml
 
 AWSTemplateFormatVersion: '2010-09-09'
-Description: network-stack – VPC + public & private subnets + IGW + NAT + Lambda SG
+Description: network-stack – VPC + subnets + IGW + NAT + Lambda SG + RDS SG
 
 Parameters:
   VpcCidr:
@@ -36,10 +36,6 @@ Resources:
 
   StocksIGW:
     Type: AWS::EC2::InternetGateway
-    Properties:
-      Tags:
-        - Key: Name
-          Value: stocks-igw
 
   VPCGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
@@ -155,9 +151,19 @@ Resources:
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: "0.0.0.0/0"
-      Tags:
-        - Key: Name
-          Value: stocks-lambda-sg
+
+  ## Security Group for RDS
+
+  StocksDBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Allow Postgres access"
+      VpcId: !Ref StocksVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: !Ref VpcCidr
 
 Outputs:
   VpcId:
@@ -176,10 +182,16 @@ Outputs:
       Name: network-PrivateSubnets
 
   LambdaSecurityGroupId:
-    Description: Security Group ID for VPC’d Lambdas
+    Description: SG for VPC Lambdas
     Value: !Ref LambdaSecurityGroup
     Export:
       Name: network-LambdaSecurityGroupId
+
+  DBSecurityGroupId:
+    Description: SG for RDS Postgres
+    Value: !Ref StocksDBSecurityGroup
+    Export:
+      Name: network-DBSecurityGroupId
 
   VpcCidr:
     Value: !Ref VpcCidr
