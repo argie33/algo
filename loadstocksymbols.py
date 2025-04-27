@@ -25,10 +25,102 @@ OTHER_LISTED_URL  = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt
 # Regex Patterns for Filtering Out Unwanted Securities
 # -------------------------------
 patterns = [
-    # (paste in your full list here)
-    r"\bpreferred\b", r"\bredeemable warrant(s)?\b", r"\bwarrant(s)?\b",
-    # …
-    r"\btrust etf\b", r"\bcapital trust\b"
+    # (include your full list here)
+    r"\bpreferred\b",
+    r"\bredeemable warrant(s)?\b",
+    r"\bwarrant(s)?\b",
+    r"\bunit(s)?\b",
+    r"\bsubordinated\b",
+    r"\bperpetual subordinated notes\b",
+    r"\bconvertible\b",
+    r"\bsenior note(s)?\b",
+    r"\bcapital investments\b",
+    r"\bnotes due\b",
+    r"\bincome trust\b",
+    r"\blimited partnership units\b",
+    r"\bsubordinate\b",
+    r"\s*-\s*(one\s+)?right(s)?\b",
+    r"\bclosed end fund\b",
+    r"\bpreferred securities\b",
+    r"\bnon-cumulative\b",
+    r"\bredeemable preferred\b",
+    r"\bpreferred class\b",
+    r"\bpreferred share(s)?\b",
+    r"\betns\b",
+    r"\bFixed-to-Floating Rate\b",
+    r"\bseries d\b",
+    r"\bseries b\b",
+    r"\bseries f\b",
+    r"\bseries h\b",
+    r"\bperpetual preferred\b",
+    r"\bincome fund\b",
+    r"\bfltg rate\b",
+    r"\bclass c-1\b",
+    r"\bbeneficial interest\b",
+    r"\bfund\b",
+    r"\bcapital obligation notes\b",
+    r"\bfixed rate\b",
+    r"\bdep shs\b",
+    r"\bopportunities trust\b",
+    r"\bnyse tick pilot test\b",
+    r"\bpreference share\b",
+    r"\bseries g\b",
+    r"\bfutures etn\b",
+    r"\btrust for\b",
+    r"\btest stock\b",
+    r"\bnastdaq symbology test\b",
+    r"\biex test\b",
+    r"\bnasdaq test\b",
+    r"\bnyse arca test\b",
+    r"\bpreference\b",
+    r"\bredeemable\b",
+    r"\bperpetual preference\b",
+    r"\btax free income\b",
+    r"\bstructured products\b",
+    r"\bcorporate backed trust\b",
+    r"\bfloating rate\b",
+    r"\btrust securities\b",
+    r"\bfixed-income\b",
+    r"\bpfd ser\b",
+    r"\bpfd\b",
+    r"\bmortgage bonds\b",
+    r"\bmortgage capital\b",
+    r"\bseries due\b",
+    r"\btarget term\b",
+    r"\bterm trust\b",
+    r"\bperpetual conv\b",
+    r"\bmunicipal bond\b",
+    r"\bdigitalbridge group\b",
+    r"\bnyse test\b",
+    r"\bctest\b",
+    r"\btick pilot test\b",
+    r"\bexchange test\b",
+    r"\bbats bzx\b",
+    r"\bdividend trust\b",
+    r"\bbond trust\b",
+    r"\bmunicipal trust\b",
+    r"\bmortgage trust\b",
+    r"\btrust etf\b",
+    r"\bcapital trust\b",
+    r"\bopportunity trust\b",
+    r"\binvestors trust\b",
+    r"\bincome securities trust\b",
+    r"\bresources trust\b",
+    r"\benergy trust\b",
+    r"\bsciences trust\b",
+    r"\bequity trust\b",
+    r"\bmulti-media trust\b",
+    r"\bmedia trust\b",
+    r"\bmicro-cap trust\b",
+    r"\bmicro-cap\b",
+    r"\bsmall-cap trust\b",
+    r"\bglobal trust\b",
+    r"\bsmall-cap\b",
+    r"\bsce trust\b",
+    r"\bacquisition\b",
+    r"\bcontingent\b",
+    r"\bii inc\b",
+    r"\bnasdaq symbology\b",
 ]
 
 excluded_records = []
@@ -37,82 +129,105 @@ def should_filter(name):
     return any(re.search(p, name, flags=re.IGNORECASE) for p in patterns)
 
 def download_text_file(url):
-    resp = requests.get(url); resp.raise_for_status(); return resp.text
+    resp = requests.get(url)
+    resp.raise_for_status()
+    return resp.text
 
 def parse_listed(text, source):
-    records = []
-    key = "Symbol" if source=="NASDAQ" else "ACT Symbol"
-    exchanger = "NASDAQ" if source=="NASDAQ" else None
+    rows = []
+    key = "Symbol" if source == "NASDAQ" else "ACT Symbol"
     reader = csv.DictReader(text.splitlines(), delimiter="|")
     for row in reader:
         if row[key].startswith("File Creation Time"):
             continue
+
         name = row["Security Name"].strip()
-        if row.get("ETF","").upper()=="Y" or should_filter(name):
-            excluded_records.append({"source":source,"symbol":row[key].strip(),"security_name":name})
+        is_etf = row.get("ETF","").upper() == "Y"
+        filter_match = should_filter(name)
+
+        if is_etf:
+            excluded_records.append({
+                "source": source,
+                "symbol": row[key].strip(),
+                "security_name": name
+            })
             continue
-        try: lot = int(row.get("Round Lot Size","0") or 0)
-        except: lot = None
-        records.append({
-            "symbol":           row[key].strip(),
-            "security_name":    name,
-            "exchange":         source if source=="NASDAQ" else row.get("Exchange","").strip(),
-            "cqs_symbol":       row.get("CQS Symbol") if source!="NASDAQ" else None,
-            "market_category":  row.get("Market Category") if source=="NASDAQ" else None,
-            "test_issue":       row.get("Test Issue","").strip(),
-            "financial_status": row.get("Financial Status") if source=="NASDAQ" else None,
-            "round_lot_size":   lot,
-            "etf":              row.get("ETF","").strip(),
-            "secondary_symbol": row.get("NextShares") if source=="NASDAQ" else row.get("NASDAQ Symbol")
+
+        security_type = "other security" if filter_match else "standard"
+
+        try:
+            lot = int(row.get("Round Lot Size","0") or 0)
+        except:
+            lot = None
+
+        rows.append({
+            "symbol":         row[key].strip(),
+            "security_name":  name,
+            "exchange":       source,
+            "test_issue":     row.get("Test Issue","").strip(),
+            "round_lot_size": lot,
+            "security_type":  security_type
         })
-    return records
+    return rows
 
 def dedupe(records):
     seen = {}
     for r in records:
-        if r["symbol"] not in seen:
-            seen[r["symbol"]] = r
+        seen.setdefault(r["symbol"], r)
     return list(seen.values())
 
-def insert_into_postgres(recs):
+def insert_into_postgres(records):
     conn = psycopg2.connect(
-        host=PG_HOST, port=PG_PORT,
-        user=PG_USER, password=PG_PASSWORD,
-        dbname=PG_DB, cursor_factory=DictCursor
+        host=PG_HOST,
+        port=PG_PORT,
+        user=PG_USER,
+        password=PG_PASSWORD,
+        dbname=PG_DB,
+        cursor_factory=DictCursor
     )
-    create_sql = """
-      CREATE TABLE IF NOT EXISTS stock_symbols (
-        symbol VARCHAR(50) PRIMARY KEY,
-        security_name TEXT,
-        exchange VARCHAR(100),
-        test_issue CHAR(1),
-        round_lot_size INT
-      );
-    """
-    upsert_sql = """
-      INSERT INTO stock_symbols(symbol,security_name,exchange,test_issue,round_lot_size)
-      VALUES(%s,%s,%s,%s,%s)
-      ON CONFLICT(symbol) DO UPDATE
-        SET security_name = EXCLUDED.security_name,
-            exchange      = EXCLUDED.exchange,
-            test_issue    = EXCLUDED.test_issue,
-            round_lot_size= EXCLUDED.round_lot_size;
-    """
     with conn:
         with conn.cursor() as cur:
-            cur.execute("DROP TABLE IF EXISTS stock_symbols;")
-            cur.execute(create_sql)
-            for r in recs:
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS stock_symbols (
+              symbol           VARCHAR(50) PRIMARY KEY,
+              security_name    TEXT,
+              exchange         VARCHAR(20),
+              test_issue       CHAR(1),
+              round_lot_size   INT,
+              security_type    VARCHAR(20)
+            );
+            """)
+            cur.execute("TRUNCATE TABLE stock_symbols;")
+            upsert_sql = """
+            INSERT INTO stock_symbols(
+              symbol, security_name, exchange, test_issue, round_lot_size, security_type
+            ) VALUES (%s,%s,%s,%s,%s,%s)
+            ON CONFLICT(symbol) DO UPDATE SET
+              security_name  = EXCLUDED.security_name,
+              exchange       = EXCLUDED.exchange,
+              test_issue     = EXCLUDED.test_issue,
+              round_lot_size = EXCLUDED.round_lot_size,
+              security_type  = EXCLUDED.security_type;
+            """
+            for r in records:
                 cur.execute(upsert_sql, (
-                    r["symbol"], r["security_name"], r["exchange"],
-                    r["test_issue"], r["round_lot_size"]
+                    r["symbol"],
+                    r["security_name"],
+                    r["exchange"],
+                    r["test_issue"],
+                    r["round_lot_size"],
+                    r["security_type"]
                 ))
     conn.close()
 
 def handler(event, context):
     nas = parse_listed(download_text_file(NASDAQ_LISTED_URL), "NASDAQ")
-    oth = parse_listed(download_text_file(OTHER_LISTED_URL), "Other")
-    allrec = dedupe(nas + oth)
-    final = [r for r in allrec if "$" not in r["symbol"]]
+    oth = parse_listed(download_text_file(OTHER_LISTED_URL),  "Other")
+    all_records = dedupe(nas + oth)
+    final = [r for r in all_records if "$" not in r["symbol"]]
     insert_into_postgres(final)
-    return {"statusCode":200, "body": f"Loaded {len(final)} symbols"}
+    return {
+        "statusCode": 200,
+        "body": f"Loaded {len(final)} symbols (incl. classified 'other security')"
+    }
+
