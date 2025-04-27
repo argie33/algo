@@ -1,0 +1,32 @@
+# File: timestream-template.yml
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: timestream-stack – Timestream database & table for time-series data
+
+Resources:
+  TimestreamDatabase:
+    Type: AWS::Timestream::Database
+    Properties:
+      DatabaseName: stocks_db
+
+  TimestreamTable:
+    Type: AWS::Timestream::Table
+    Properties:
+      DatabaseName: !Ref TimestreamDatabase
+      TableName:      argo_metrics_tbl
+      RetentionProperties:
+        MemoryStoreRetentionPeriodInHours:  24     # keep hot data 1 day
+        MagneticStoreRetentionPeriodInDays:  7      # archive 1 week
+
+Outputs:
+  DatabaseName:
+    Description: Name of the Timestream database
+    Value: !Ref TimestreamDatabase
+    Export:
+      Name: timestream-DatabaseName
+
+  TableName:
+    Description: Name of the Timestream table
+    Value: !Ref TimestreamTable
+    Export:
+      Name: timestream-TableName

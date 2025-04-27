@@ -1,0 +1,31 @@
+# File: .github/workflows/deploy-timestream.yml
+
+name: deploy-timestream
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy_timestream:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            us-east-1
+
+      - name: Deploy Timestream stack
+        run: |
+          aws cloudformation deploy \
+            --stack-name timestream-stack \
+            --template-file timestream-template.yml \
+            --capabilities CAPABILITY_NAMED_IAM
