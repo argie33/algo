@@ -4,38 +4,48 @@ Description: deploy-rds-stack – VPC + Subnets + NAT Gateway + Free-Tier Postgr
 Parameters:
   VpcCidr:
     Type: String
-    Default: 10.0.0.0/16
+    Default: "10.0.0.0/16"
+    Description: CIDR block for the VPC
   PublicSubnetCidr1:
     Type: String
-    Default: 10.0.1.0/24
+    Default: "10.0.1.0/24"
+    Description: CIDR for Public Subnet AZ1
   PublicSubnetCidr2:
     Type: String
-    Default: 10.0.2.0/24
+    Default: "10.0.2.0/24"
+    Description: CIDR for Public Subnet AZ2
   PrivateSubnetCidr1:
     Type: String
-    Default: 10.0.101.0/24
+    Default: "10.0.101.0/24"
+    Description: CIDR for Private Subnet AZ1
   PrivateSubnetCidr2:
     Type: String
-    Default: 10.0.102.0/24
+    Default: "10.0.102.0/24"
+    Description: CIDR for Private Subnet AZ2
   AvailabilityZones:
     Type: List<AWS::EC2::AvailabilityZone::Name>
     Default:
       - !Select [0, !GetAZs '' ]
       - !Select [1, !GetAZs '' ]
+    Description: Two AZs for subnets
   RDSUsername:
     Type: String
-    Default: rds_username
+    Default: "rds_username"
+    Description: Master DB username
   RDSPassword:
     Type: String
     NoEcho: true
+    Description: Master DB password
   DBInstanceClass:
     Type: String
-    Default: db.t3.micro
+    Default: "db.t3.micro"
     AllowedValues:
       - db.t3.micro
+    Description: RDS instance class (free-tier eligible)
   DBAllocatedStorage:
     Type: Number
-    Default: 20
+    Default: "20"
+    Description: Allocated storage (GiB) [Free-tier limit]
 
 Resources:
   StocksVPC:
