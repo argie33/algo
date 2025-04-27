@@ -1,0 +1,68 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: rds-stack – Postgres RDS in imported network
+
+Parameters:
+  RDSUsername:
+    Type: String
+    Default: "rds_username"
+  RDSPassword:
+    Type: String
+    NoEcho: true
+  DBInstanceClass:
+    Type: String
+    Default: "db.t3.micro"
+    AllowedValues:
+      - db.t3.micro
+  DBAllocatedStorage:
+    Type: Number
+    Default: "20"
+
+Resources:
+  StocksDBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Allow Postgres from within VPC"
+      VpcId: !ImportValue network-VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: !ImportValue network-VpcCidr
+
+  StocksDBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: "Subnets for RDS"
+      SubnetIds:
+        - !Select [0, !Split [",", !ImportValue network-PrivateSubnets]]
+        - !Select [1, !Split [",", !ImportValue network-PrivateSubnets]]
+
+  StocksDB:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: stocks-db
+      AllocatedStorage: !Ref DBAllocatedStorage
+      DBInstanceClass: !Ref DBInstanceClass
+      Engine: postgres
+      EngineVersion: "13.4"
+      MasterUsername: !Ref RDSUsername
+      MasterUserPassword: !Ref RDSPassword
+      VPCSecurityGroups:
+        - !Ref StocksDBSecurityGroup
+      DBSubnetGroupName: !Ref StocksDBSubnetGroup
+      MultiAZ: false
+      PubliclyAccessible: false
+      DeletionProtection: false
+
+Outputs:
+  DBEndpoint:
+    Description: "RDS endpoint"
+    Value: !GetAtt StocksDB.Endpoint.Address
+    Export:
+      Name: rds-DBEndpoint
+
+  DBPort:
+    Description: "RDS port"
+    Value: !GetAtt StocksDB.Endpoint.Port
+    Export:
+      Name: rds-DBPort
