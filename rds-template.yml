@@ -1,3 +1,5 @@
+# File: rds-template.yml
+
 AWSTemplateFormatVersion: '2010-09-09'
 Description: rds-stack — Postgres RDS using credentials from Secrets Manager
 
@@ -15,17 +17,6 @@ Parameters:
     Description: Allocated storage (GiB)
 
 Resources:
-  StocksDBSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Allow Postgres access
-      VpcId: !ImportValue network-VpcId
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 5432
-          ToPort: 5432
-          CidrIp: !ImportValue network-VpcCidr
-
   StocksDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
@@ -38,17 +29,17 @@ Resources:
     Type: AWS::RDS::DBInstance
     Properties:
       DBInstanceIdentifier: stocks-db
-      AllocatedStorage:     !Ref DBAllocatedStorage
-      DBInstanceClass:      !Ref DBInstanceClass
-      Engine:               postgres
-      MasterUsername:       "{{resolve:secretsmanager:stocks-db-credentials:SecretString:username}}"
-      MasterUserPassword:   "{{resolve:secretsmanager:stocks-db-credentials:SecretString:password}}"
+      AllocatedStorage:   !Ref DBAllocatedStorage
+      DBInstanceClass:    !Ref DBInstanceClass
+      Engine:             postgres
+      MasterUsername:     "{{resolve:secretsmanager:stocks-db-credentials:SecretString:username}}"
+      MasterUserPassword: "{{resolve:secretsmanager:stocks-db-credentials:SecretString:password}}"
       VPCSecurityGroups:
-        - !Ref StocksDBSecurityGroup
-      DBSubnetGroupName:    !Ref StocksDBSubnetGroup
-      MultiAZ:              false
-      PubliclyAccessible:   false
-      DeletionProtection:   false
+        - !ImportValue network-DBSecurityGroupId
+      DBSubnetGroupName:  !Ref StocksDBSubnetGroup
+      MultiAZ:            false
+      PubliclyAccessible: false
+      DeletionProtection: false
 
 Outputs:
   DBEndpoint:
