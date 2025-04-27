@@ -1,0 +1,67 @@
+name: deploy-lambdas
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        lambda:
+          - name: loadstocksymbols
+            script:       loadstocksymbols.py
+            requirements: requirements-loadstocksymbols.txt
+            template:     lambda-loadstocksymbols-template.yml
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies for ${{ matrix.lambda.name }}
+        run: |
+          rm -rf package
+          mkdir package
+          if [ -f "${{ matrix.lambda.requirements }}" ]; then
+            python -m pip install --upgrade pip
+            pip install -r "${{ matrix.lambda.requirements }}" -t package
+          fi
+
+      - name: Package ${{ matrix.lambda.name }}
+        run: |
+          cp "${{ matrix.lambda.script }}" package/index.py
+          cd package
+          zip -r ../${{ matrix.lambda.name }}.zip .
+          cd ..
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            us-east-1
+
+      - name: Upload ${{ matrix.lambda.name }} to S3
+        run: |
+          aws s3 cp \
+            ${{ matrix.lambda.name }}.zip \
+            s3://argofinancial-code/${{ matrix.lambda.name }}-${{ github.sha }}.zip
+
+      - name: Deploy ${{ matrix.lambda.name }} stack
+        run: |
+          aws cloudformation deploy \
+            --stack-name ${{ matrix.lambda.name }}-stack \
+            --template-file ${{ matrix.lambda.template }} \
+            --parameter-overrides \
+              CodeBucket=argofinancial-code \
+              CodeKey=${{ matrix.lambda.name }}-${{ github.sha }}.zip \
+              DBPassword=${{ secrets.RDS_PASSWORD }} \
+            --capabilities CAPABILITY_NAMED_IAM

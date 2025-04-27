@@ -1,0 +1,73 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: loadstocksymbols λ – download & load symbols into Postgres RDS
+
+Parameters:
+  CodeBucket:
+    Type: String
+    Default: !ImportValue storage-CodeBucketName
+  CodeKey:
+    Type: String
+  IAMRoleArn:
+    Type: String
+    Default: !ImportValue iam-RoleArn
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Default: !ImportValue network-VpcId
+  PrivateSubnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: !Split [",", !ImportValue network-PrivateSubnets]
+  DBEndpoint:
+    Type: String
+    Default: !ImportValue rds-DBEndpoint
+  DBPort:
+    Type: String
+    Default: !ImportValue rds-DBPort
+  DBUsername:
+    Type: String
+    Default: "rds_username"
+  DBPassword:
+    Type: String
+    NoEcho: true
+  DBName:
+    Type: String
+    Default: "stocks"
+
+Resources:
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Lambda SG in stocks VPC"
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: "0.0.0.0/0"
+
+  LoadStockSymbolsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: loadstocksymbols
+      Runtime: python3.9
+      Handler: loadstocksymbols.handler
+      Role: !Ref IAMRoleArn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key:    !Ref CodeKey
+      Timeout: 300
+      VpcConfig:
+        SubnetIds:    !Ref PrivateSubnets
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+      Environment:
+        Variables:
+          DB_ENDPOINT: !Ref DBEndpoint
+          DB_PORT:     !Ref DBPort
+          DB_USER:     !Ref DBUsername
+          DB_PASS:     !Ref DBPassword
+          DB_NAME:     !Ref DBName
+
+Outputs:
+  FunctionArn:
+    Description: "ARN of the loadstocksymbols Lambda"
+    Value: !GetAtt LoadStockSymbolsFunction.Arn
+    Export:
+      Name: lambda-loadstocksymbols-FunctionArn
