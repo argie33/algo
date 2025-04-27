@@ -29,17 +29,18 @@ Resources:
     Type: AWS::RDS::DBInstance
     Properties:
       DBInstanceIdentifier: stocks-db
-      AllocatedStorage:   !Ref DBAllocatedStorage
-      DBInstanceClass:    !Ref DBInstanceClass
-      Engine:             postgres
-      MasterUsername:     "{{resolve:secretsmanager:stocks-db-credentials:SecretString:username}}"
-      MasterUserPassword: "{{resolve:secretsmanager:stocks-db-credentials:SecretString:password}}"
+      DBName:               stocks                         # ← Creates your “stocks” database
+      AllocatedStorage:     !Ref DBAllocatedStorage
+      DBInstanceClass:      !Ref DBInstanceClass
+      Engine:               postgres
+      MasterUsername:       "{{resolve:secretsmanager:stocks-db-credentials:SecretString:username}}"
+      MasterUserPassword:   "{{resolve:secretsmanager:stocks-db-credentials:SecretString:password}}"
       VPCSecurityGroups:
         - !ImportValue network-DBSecurityGroupId
-      DBSubnetGroupName:  !Ref StocksDBSubnetGroup
-      MultiAZ:            false
-      PubliclyAccessible: false
-      DeletionProtection: false
+      DBSubnetGroupName:    !Ref StocksDBSubnetGroup
+      MultiAZ:              false
+      PubliclyAccessible:   false
+      DeletionProtection:   false
 
 Outputs:
   DBEndpoint:
