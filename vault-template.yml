@@ -1,0 +1,28 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: vault-stack - store RDS credentials in AWS Secrets Manager
+
+Parameters:
+  RDSUsername:
+    Type: String
+    Description: RDS master username
+
+  RDSPassword:
+    Type: String
+    NoEcho: true
+    Description: RDS master password
+
+Resources:
+  DBCredentialsSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: stocks-db-credentials
+      Description: "RDS master user credentials"
+      SecretString: !Sub |
+        {"username":"${RDSUsername}","password":"${RDSPassword}"}
+
+Outputs:
+  SecretArn:
+    Description: "ARN of the DB credentials secret"
+    Value: !Ref DBCredentialsSecret
+    Export:
+      Name: vault-DBCredentialsSecretArn

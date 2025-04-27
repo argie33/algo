@@ -1,28 +1,22 @@
-# File: rds-template.yml
 AWSTemplateFormatVersion: '2010-09-09'
-Description: rds-stack – Postgres RDS in imported network
+Description: rds-stack - Postgres RDS using credentials from Secrets Manager
 
 Parameters:
-  RDSUsername:
-    Type: String
-    Default: "rds_username"
-  RDSPassword:
-    Type: String
-    NoEcho: true
   DBInstanceClass:
     Type: String
     Default: "db.t3.micro"
     AllowedValues:
       - db.t3.micro
+
   DBAllocatedStorage:
     Type: Number
-    Default: "20"
+    Default: 20
 
 Resources:
   StocksDBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: "Allow Postgres access from within VPC"
+      GroupDescription: "Allow Postgres access"
       VpcId: !ImportValue network-VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -45,8 +39,8 @@ Resources:
       AllocatedStorage: !Ref DBAllocatedStorage
       DBInstanceClass: !Ref DBInstanceClass
       Engine: postgres
-      MasterUsername: !Ref RDSUsername
-      MasterUserPassword: !Ref RDSPassword
+      MasterUsername: "{{resolve:secretsmanager:stocks-db-credentials:SecretString:username}}"
+      MasterUserPassword: "{{resolve:secretsmanager:stocks-db-credentials:SecretString:password}}"
       VPCSecurityGroups:
         - !Ref StocksDBSecurityGroup
       DBSubnetGroupName: !Ref StocksDBSubnetGroup

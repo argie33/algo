@@ -1,15 +1,10 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: loadstocksymbols λ – download & load symbols into Postgres RDS
+Description: loadstocksymbols λ – download & load symbols into Postgres RDS via Secret
 
 Parameters:
   CodeKey:
     Type: String
     Description: S3 key of the Lambda ZIP
-
-  DBPassword:
-    Type: String
-    NoEcho: true
-    Description: RDS master password
 
 Resources:
   LambdaSecurityGroup:
@@ -26,7 +21,7 @@ Resources:
     Properties:
       FunctionName: loadstocksymbols
       Runtime: python3.9
-      Handler: index.handler               # ← updated to match package/index.py
+      Handler: index.handler
       Role: !ImportValue iam-RoleArn
       Code:
         S3Bucket: !ImportValue storage-CodeBucketName
@@ -38,11 +33,10 @@ Resources:
           - !Ref LambdaSecurityGroup
       Environment:
         Variables:
-          DB_ENDPOINT: !ImportValue rds-DBEndpoint
-          DB_PORT:     !ImportValue rds-DBPort
-          DB_USER:     "rds_username"
-          DB_PASS:     !Ref DBPassword
-          DB_NAME:     "stocks"
+          DB_ENDPOINT:   !ImportValue rds-DBEndpoint
+          DB_PORT:       !ImportValue rds-DBPort
+          DB_NAME:       stocks
+          DB_SECRET_ARN: !ImportValue vault-DBCredentialsSecretArn
 
 Outputs:
   FunctionArn:

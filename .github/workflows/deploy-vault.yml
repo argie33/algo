@@ -1,0 +1,31 @@
+name: deploy-vault
+
+on:
+  push:
+    paths:
+      - vault-template.yml
+  workflow_dispatch:
+
+jobs:
+  deploy_vault:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            us-east-1
+
+      - name: Deploy vault stack
+        run: |
+          aws cloudformation deploy \
+            --stack-name vault-stack \
+            --template-file vault-template.yml \
+            --parameter-overrides \
+              RDSUsername=${{ secrets.RDS_USERNAME }} \
+              RDSPassword=${{ secrets.RDS_PASSWORD }} \
+            --capabilities CAPABILITY_NAMED_IAM
