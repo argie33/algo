@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Hello World Lambda + Execution Role (now with Admin)
+Description: Hello World Lambda + Execution Role (with Admin)
 
 Resources:
 
@@ -15,7 +15,6 @@ Resources:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
-        # full admin privileges
         - arn:aws:iam::aws:policy/AdministratorAccess
 
   HelloWorldFunction:

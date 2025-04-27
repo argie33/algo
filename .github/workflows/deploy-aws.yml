@@ -1,9 +1,10 @@
-name: Deploy HelloWorld Lambda
+name: deploy-aws
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -20,14 +21,14 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Deploy CloudFormation
+      - name: Deploy CloudFormation stack
         run: |
           aws cloudformation deploy \
             --stack-name HelloWorldStack \
             --template-file template.yaml \
             --capabilities CAPABILITY_NAMED_IAM
 
-      - name: Invoke for test
+      - name: Invoke function for test
         run: |
           aws lambda invoke \
             --function-name HelloWorldFunction \
