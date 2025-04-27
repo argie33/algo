@@ -1,22 +1,29 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: rds-stack - Postgres RDS using credentials from Secrets Manager
+Description: rds-stack — Postgres RDS using credentials from Secrets Manager
 
 Parameters:
   DBInstanceClass:
     Type: String
-    Default: "db.t3.micro"
+    Default: db.t3.micro
     AllowedValues:
       - db.t3.micro
+    Description: RDS instance class (free-tier)
 
   DBAllocatedStorage:
     Type: Number
     Default: 20
+    Description: Allocated storage (GiB)
+
+  DBName:
+    Type: String
+    Default: stocks
+    Description: Name of the initial database to create
 
 Resources:
   StocksDBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: "Allow Postgres access"
+      GroupDescription: Allow Postgres access
       VpcId: !ImportValue network-VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -27,7 +34,7 @@ Resources:
   StocksDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
-      DBSubnetGroupDescription: "Subnet group for RDS"
+      DBSubnetGroupDescription: Subnet group for RDS
       SubnetIds:
         - !Select [0, !Split [",", !ImportValue network-PrivateSubnets]]
         - !Select [1, !Split [",", !ImportValue network-PrivateSubnets]]
@@ -36,6 +43,7 @@ Resources:
     Type: AWS::RDS::DBInstance
     Properties:
       DBInstanceIdentifier: stocks-db
+      DBName: !Ref DBName
       AllocatedStorage: !Ref DBAllocatedStorage
       DBInstanceClass: !Ref DBInstanceClass
       Engine: postgres
@@ -50,11 +58,13 @@ Resources:
 
 Outputs:
   DBEndpoint:
+    Description: RDS endpoint address
     Value: !GetAtt StocksDB.Endpoint.Address
     Export:
       Name: rds-DBEndpoint
 
   DBPort:
+    Description: RDS endpoint port
     Value: !GetAtt StocksDB.Endpoint.Port
     Export:
       Name: rds-DBPort

@@ -1,70 +1,33 @@
-AWSTemplateFormatVersion: '2010-09-09'
-Description: rds-stack — Postgres RDS using credentials from Secrets Manager
+name: deploy-rds
 
-Parameters:
-  DBInstanceClass:
-    Type: String
-    Default: db.t3.micro
-    AllowedValues:
-      - db.t3.micro
-    Description: RDS instance class (free tier)
+on:
+  push:
+    paths:
+      - rds-template.yml
+  workflow_dispatch:
 
-  DBAllocatedStorage:
-    Type: Number
-    Default: 20
-    Description: Allocated storage (GiB)
+jobs:
+  deploy_rds:
+    runs-on: ubuntu-latest
 
-  DBName:
-    Type: String
-    Default: stocks
-    Description: Name of the initial database to create
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-Resources:
-  StocksDBSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Allow Postgres access
-      VpcId: !ImportValue network-VpcId
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 5432
-          ToPort: 5432
-          CidrIp: !ImportValue network-VpcCidr
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            us-east-1
 
-  StocksDBSubnetGroup:
-    Type: AWS::RDS::DBSubnetGroup
-    Properties:
-      DBSubnetGroupDescription: Subnet group for RDS
-      SubnetIds:
-        - !Select [ 0, !Split [ ",", !ImportValue network-PrivateSubnets ] ]
-        - !Select [ 1, !Split [ ",", !ImportValue network-PrivateSubnets ] ]
-
-  StocksDB:
-    Type: AWS::RDS::DBInstance
-    Properties:
-      DBInstanceIdentifier: stocks-db
-      DBName: !Ref DBName
-      AllocatedStorage: !Ref DBAllocatedStorage
-      DBInstanceClass: !Ref DBInstanceClass
-      Engine: postgres
-      MasterUsername: "{{resolve:secretsmanager:stocks-db-credentials:SecretString:username}}"
-      MasterUserPassword: "{{resolve:secretsmanager:stocks-db-credentials:SecretString:password}}"
-      VPCSecurityGroups:
-        - !Ref StocksDBSecurityGroup
-      DBSubnetGroupName: !Ref StocksDBSubnetGroup
-      MultiAZ: false
-      PubliclyAccessible: false
-      DeletionProtection: false
-
-Outputs:
-  DBEndpoint:
-    Description: RDS endpoint address
-    Value: !GetAtt StocksDB.Endpoint.Address
-    Export:
-      Name: rds-DBEndpoint
-
-  DBPort:
-    Description: RDS endpoint port
-    Value: !GetAtt StocksDB.Endpoint.Port
-    Export:
-      Name: rds-DBPort
+      - name: Deploy RDS stack
+        run: |
+          aws cloudformation deploy \
+            --stack-name rds-stack \
+            --template-file rds-template.yml \
+            --parameter-overrides \
+              DBName=stocks \
+              DBInstanceClass=db.t3.micro \
+              DBAllocatedStorage=20 \
+            --capabilities CAPABILITY_NAMED_IAM
