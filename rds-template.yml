@@ -44,7 +44,6 @@ Resources:
       AllocatedStorage: !Ref DBAllocatedStorage
       DBInstanceClass: !Ref DBInstanceClass
       Engine: postgres
-      EngineVersion: "13.4"
       MasterUsername: !Ref RDSUsername
       MasterUserPassword: !Ref RDSPassword
       VPCSecurityGroups:
