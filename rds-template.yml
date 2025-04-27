@@ -5,66 +5,48 @@ Parameters:
   VpcCidr:
     Type: String
     Default: 10.0.0.0/16
-    Description: CIDR block for the VPC
   PublicSubnetCidr1:
     Type: String
     Default: 10.0.1.0/24
-    Description: CIDR for Public Subnet AZ1
   PublicSubnetCidr2:
     Type: String
     Default: 10.0.2.0/24
-    Description: CIDR for Public Subnet AZ2
   PrivateSubnetCidr1:
     Type: String
     Default: 10.0.101.0/24
-    Description: CIDR for Private Subnet AZ1
   PrivateSubnetCidr2:
     Type: String
     Default: 10.0.102.0/24
-    Description: CIDR for Private Subnet AZ2
   AvailabilityZones:
     Type: List<AWS::EC2::AvailabilityZone::Name>
     Default:
       - !Select [0, !GetAZs '' ]
       - !Select [1, !GetAZs '' ]
-    Description: Two AZs for subnets
   RDSUsername:
     Type: String
     Default: rds_username
-    Description: Master DB username
   RDSPassword:
     Type: String
     NoEcho: true
-    Description: Master DB password
   DBInstanceClass:
     Type: String
     Default: db.t3.micro
     AllowedValues:
       - db.t3.micro
-    Description: RDS instance class (free-tier eligible)
   DBAllocatedStorage:
     Type: Number
     Default: 20
-    Description: Allocated storage (GiB) [Free-tier limit]
 
 Resources:
-
   StocksVPC:
     Type: AWS::EC2::VPC
     Properties:
       CidrBlock: !Ref VpcCidr
       EnableDnsSupport: true
       EnableDnsHostnames: true
-      Tags:
-        - Key: Name
-          Value: stocks-vpc
 
   StocksIGW:
     Type: AWS::EC2::InternetGateway
-    Properties:
-      Tags:
-        - Key: Name
-          Value: stocks-igw
 
   StocksVPCGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
@@ -79,9 +61,6 @@ Resources:
       CidrBlock: !Ref PublicSubnetCidr1
       AvailabilityZone: !Select [0, !Ref AvailabilityZones]
       MapPublicIpOnLaunch: true
-      Tags:
-        - Key: Name
-          Value: stocks-public-1
 
   PublicSubnet2:
     Type: AWS::EC2::Subnet
@@ -90,17 +69,11 @@ Resources:
       CidrBlock: !Ref PublicSubnetCidr2
       AvailabilityZone: !Select [1, !Ref AvailabilityZones]
       MapPublicIpOnLaunch: true
-      Tags:
-        - Key: Name
-          Value: stocks-public-2
 
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref StocksVPC
-      Tags:
-        - Key: Name
-          Value: stocks-public-rt
 
   PublicDefaultRoute:
     Type: AWS::EC2::Route
@@ -132,9 +105,6 @@ Resources:
     Properties:
       AllocationId: !GetAtt NatEIP.AllocationId
       SubnetId: !Ref PublicSubnet1
-      Tags:
-        - Key: Name
-          Value: stocks-nat-gw
 
   PrivateSubnet1:
     Type: AWS::EC2::Subnet
@@ -143,9 +113,6 @@ Resources:
       CidrBlock: !Ref PrivateSubnetCidr1
       AvailabilityZone: !Select [0, !Ref AvailabilityZones]
       MapPublicIpOnLaunch: false
-      Tags:
-        - Key: Name
-          Value: stocks-private-1
 
   PrivateSubnet2:
     Type: AWS::EC2::Subnet
@@ -154,17 +121,11 @@ Resources:
       CidrBlock: !Ref PrivateSubnetCidr2
       AvailabilityZone: !Select [1, !Ref AvailabilityZones]
       MapPublicIpOnLaunch: false
-      Tags:
-        - Key: Name
-          Value: stocks-private-2
 
   PrivateRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref StocksVPC
-      Tags:
-        - Key: Name
-          Value: stocks-private-rt
 
   PrivateDefaultRoute:
     Type: AWS::EC2::Route
@@ -192,7 +153,6 @@ Resources:
       SubnetIds:
         - !Ref PrivateSubnet1
         - !Ref PrivateSubnet2
-      DBSubnetGroupName: stocks-db-subnet-group
 
   StocksDBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -204,9 +164,6 @@ Resources:
           FromPort: 5432
           ToPort: 5432
           CidrIp: !Ref VpcCidr
-      Tags:
-        - Key: Name
-          Value: stocks-db-sg
 
   StocksDB:
     Type: AWS::RDS::DBInstance
@@ -227,17 +184,12 @@ Resources:
 
 Outputs:
   VpcId:
-    Description: VPC ID
     Value: !Ref StocksVPC
   PublicSubnets:
-    Description: Public subnet IDs
     Value: !Join [",", [!Ref PublicSubnet1, !Ref PublicSubnet2]]
   PrivateSubnets:
-    Description: Private subnet IDs
     Value: !Join [",", [!Ref PrivateSubnet1, !Ref PrivateSubnet2]]
   DBEndpoint:
-    Description: RDS endpoint
     Value: !GetAtt StocksDB.Endpoint.Address
   DBPort:
-    Description: RDS port
     Value: !GetAtt StocksDB.Endpoint.Port

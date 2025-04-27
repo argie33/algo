@@ -1,5 +1,4 @@
-# File: .github/workflows/deploy-aws.yml
-name: deploy-aws
+name: deploy-rds
 
 on:
   push:
@@ -8,14 +7,14 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  deploy:
+  deploy-rds:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: "Debug: list files"
+      - name: Debug: list files
         run: ls -R .
 
       - name: Configure AWS credentials
@@ -25,17 +24,23 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Deploy CloudFormation stack
+      - name: Deploy deploy-rds-stack
         run: |
           aws cloudformation deploy \
-            --stack-name HelloWorldStack \
-            --template-file template.yaml \
+            --stack-name deploy-rds-stack \
+            --template-file rds-template.yml \
+            --parameter-overrides \
+              VpcCidr=10.0.0.0/16 \
+              PublicSubnetCidr1=10.0.1.0/24 \
+              PublicSubnetCidr2=10.0.2.0/24 \
+              PrivateSubnetCidr1=10.0.101.0/24 \
+              PrivateSubnetCidr2=10.0.102.0/24 \
+              RDSUsername=${{ secrets.RDS_USERNAME }} \
+              RDSPassword=${{ secrets.RDS_PASSWORD }} \
             --capabilities CAPABILITY_NAMED_IAM
 
-      - name: Invoke function for test
+      - name: Show deploy-rds-stack outputs
         run: |
-          aws lambda invoke \
-            --function-name HelloWorldFunction \
-            --payload '{}' \
-            response.json
-          cat response.json
+          aws cloudformation describe-stacks \
+            --stack-name deploy-rds-stack \
+            --query "Stacks[0].Outputs" --output table
