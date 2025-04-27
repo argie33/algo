@@ -4,17 +4,17 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 jobs:
-  deploy-rds:
+  deploy_rds:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Debug: list files
+      - name: Debug list files
         run: ls -R .
 
       - name: Configure AWS credentials
@@ -24,7 +24,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Deploy deploy-rds-stack
+      - name: Deploy RDS stack
         run: |
           aws cloudformation deploy \
             --stack-name deploy-rds-stack \
@@ -39,7 +39,7 @@ jobs:
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
             --capabilities CAPABILITY_NAMED_IAM
 
-      - name: Show deploy-rds-stack outputs
+      - name: Show stack outputs
         run: |
           aws cloudformation describe-stacks \
             --stack-name deploy-rds-stack \
