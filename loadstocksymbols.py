@@ -1,3 +1,7 @@
+
+
+
+
 #!/usr/bin/env python3
 import re
 import csv
@@ -7,6 +11,11 @@ import boto3
 import psycopg2
 from psycopg2.extras import DictCursor
 from os import getenv
+
+# -------------------------------
+# Script metadata
+# -------------------------------
+SCRIPT_NAME = "loadstocksymbols.py"
 
 # -------------------------------
 # Environment-driven configuration
@@ -143,7 +152,6 @@ def parse_listed(text, source):
         match  = any(re.search(p, name, flags=re.IGNORECASE) for p in patterns)
         if is_etf:
             continue
-        sec_type = "other security" if match else "standard"
         try:
             lot = int(row.get("Round Lot Size","0") or 0)
         except:
@@ -154,7 +162,7 @@ def parse_listed(text, source):
             "exchange":       source,
             "test_issue":     row.get("Test Issue","").strip(),
             "round_lot_size": lot,
-            "security_type":  sec_type
+            "security_type":  "other security" if match else "standard"
         })
     return rows
 
@@ -177,6 +185,7 @@ def insert_into_postgres(records):
     )
     with conn:
         with conn.cursor() as cur:
+            # 1. Ensure tables exist
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS stock_symbols (
                   symbol           VARCHAR(50) PRIMARY KEY,
@@ -187,7 +196,22 @@ def insert_into_postgres(records):
                   security_type    VARCHAR(20)
                 );
             """)
-            cur.execute("TRUNCATE TABLE stock_symbols;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS last_updated (
+                  script_name      VARCHAR(255) PRIMARY KEY,
+                  last_run         TIMESTAMPTZ
+                );
+            """)
+
+            # 2. Determine existing vs incoming symbols
+            cur.execute("SELECT symbol FROM stock_symbols;")
+            existing = {row["symbol"] for row in cur.fetchall()}
+            incoming = {r["symbol"] for r in records}
+
+            new_symbols     = incoming - existing
+            removed_symbols = existing - incoming
+
+            # 3. Upsert all incoming (inserts new + updates metadata if changed)
             upsert = """
                 INSERT INTO stock_symbols
                   (symbol, security_name, exchange, test_issue, round_lot_size, security_type)
@@ -208,10 +232,25 @@ def insert_into_postgres(records):
                     r["round_lot_size"],
                     r["security_type"]
                 ))
+
+            # 4. Delete any symbols no longer returned
+            if removed_symbols:
+                cur.execute(
+                    "DELETE FROM stock_symbols WHERE symbol = ANY(%s);",
+                    (list(removed_symbols),)
+                )
+
+            # 5. Record this run in last_updated
+            cur.execute("""
+                INSERT INTO last_updated (script_name, last_run)
+                VALUES (%s, NOW())
+                ON CONFLICT (script_name) DO UPDATE
+                  SET last_run = EXCLUDED.last_run;
+            """, (SCRIPT_NAME,))
+
     conn.close()
 
 def handler(event, context):
-    # Create CloudWatch log entry
     print("Starting loadstocksymbols, connecting to", PG_HOST)
     nas = parse_listed(download_text_file(NASDAQ_URL), "NASDAQ")
     oth = parse_listed(download_text_file(OTHER_URL),  "Other")
@@ -220,5 +259,5 @@ def handler(event, context):
     insert_into_postgres(final)
     return {
         "statusCode": 200,
-        "body": f"Loaded {len(final)} symbols with classification"
+        "body": f"Processed {len(final)} symbols; inventory is now up-to-date."
     }
