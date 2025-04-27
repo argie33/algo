@@ -1,3 +1,5 @@
+# File: .github/workflows/deploy-lambdas.yml
+
 name: deploy-lambdas
 
 on:
@@ -16,6 +18,11 @@ jobs:
             script:       loadstocksymbols.py
             requirements: requirements-loadstocksymbols.txt
             template:     lambda-loadstocksymbols-template.yml
+          # add more functions here:
+          # - name: process-trades
+          #   script:       lambda-process-trades.py
+          #   requirements: requirements-process-trades.txt
+          #   template:     lambda-process-trades-template.yml
 
     steps:
       - name: Checkout code
@@ -65,3 +72,11 @@ jobs:
               CodeKey=${{ matrix.lambda.name }}-${{ github.sha }}.zip \
               DBPassword=${{ secrets.RDS_PASSWORD }} \
             --capabilities CAPABILITY_NAMED_IAM
+
+      - name: Invoke ${{ matrix.lambda.name }} for first run
+        run: |
+          aws lambda invoke \
+            --function-name ${{ matrix.lambda.name }} \
+            --payload '{}' \
+            response-${{ matrix.lambda.name }}.json \
+          && cat response-${{ matrix.lambda.name }}.json
