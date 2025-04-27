@@ -1,3 +1,4 @@
+# File: rds-template.yml
 AWSTemplateFormatVersion: '2010-09-09'
 Description: rds-stack – Postgres RDS in imported network
 
@@ -21,7 +22,7 @@ Resources:
   StocksDBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: "Allow Postgres from within VPC"
+      GroupDescription: "Allow Postgres access from within VPC"
       VpcId: !ImportValue network-VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -32,7 +33,7 @@ Resources:
   StocksDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
-      DBSubnetGroupDescription: "Subnets for RDS"
+      DBSubnetGroupDescription: "Subnet group for RDS"
       SubnetIds:
         - !Select [0, !Split [",", !ImportValue network-PrivateSubnets]]
         - !Select [1, !Split [",", !ImportValue network-PrivateSubnets]]
@@ -55,13 +56,11 @@ Resources:
 
 Outputs:
   DBEndpoint:
-    Description: "RDS endpoint"
     Value: !GetAtt StocksDB.Endpoint.Address
     Export:
       Name: rds-DBEndpoint
 
   DBPort:
-    Description: "RDS port"
     Value: !GetAtt StocksDB.Endpoint.Port
     Export:
       Name: rds-DBPort
