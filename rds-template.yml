@@ -1,7 +1,7 @@
 # File: rds-template.yml
 
 AWSTemplateFormatVersion: '2010-09-09'
-Description: rds-stack — Postgres RDS using credentials from Secrets Manager
+Description: rds-db-stack — Postgres RDS using credentials from Secrets Manager
 
 Parameters:
   DBInstanceClass:
