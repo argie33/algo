@@ -26,7 +26,7 @@ Resources:
     Properties:
       FunctionName: loadstocksymbols
       Runtime: python3.9
-      Handler: loadstocksymbols.handler
+      Handler: index.handler               # ← updated to match package/index.py
       Role: !ImportValue iam-RoleArn
       Code:
         S3Bucket: !ImportValue storage-CodeBucketName
