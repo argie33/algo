@@ -20,6 +20,18 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
+      - name: Cleanup failed core stack if needed
+        run: |
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-core-stack \
+            --query "Stacks[0].StackStatus" \
+            --output text 2>/dev/null || echo "NOT_FOUND")
+          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+            echo "Found ROLLBACK_COMPLETE – deleting core stack..."
+            aws cloudformation delete-stack --stack-name stocks-core-stack
+            aws cloudformation wait stack-delete-complete --stack-name stocks-core-stack
+          fi
+
       - name: Deploy core CloudFormation stack
         run: |
           aws cloudformation deploy \
