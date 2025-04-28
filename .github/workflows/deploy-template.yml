@@ -78,7 +78,7 @@ jobs:
         run: |
           aws cloudformation deploy \
             --stack-name stocks-infra-stack \
-            --template-file combined-template.yml \
+            --template.yml \
             --parameter-overrides \
               CodeKey=${{ needs.build_and_upload_lambda.outputs.CodeKey }} \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
