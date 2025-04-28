@@ -1,22 +1,22 @@
-# .github/workflows/deploy-full-stack.yml
+# File: .github/workflows/deploy-full-stack.yml
 
 name: Deploy full stack (Lambda + Infrastructure)
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main ]      # trigger on any push to main branch
   workflow_dispatch:
 
 env:
   LAMBDA_NAME: loadstocksymbols
+  DUMMY_CODE_KEY: dummy.zip
 
 jobs:
   deploy_core_infra:
-    name: Deploy core infrastructure (including S3 bucket)
+    name: Deploy core infrastructure
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v3
 
       - name: Configure AWS credentials
@@ -26,26 +26,26 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Deploy core infrastructure
+      - name: Deploy core CloudFormation stack
         run: |
           aws cloudformation deploy \
             --stack-name stocks-infra-stack \
             --template-file template.yml \
             --parameter-overrides \
-              CodeKey=placeholder.zip \
+              CodeKey=${{ env.DUMMY_CODE_KEY }} \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
             --capabilities CAPABILITY_NAMED_IAM
 
   build_and_upload_lambda:
     name: Build & upload Lambda package
-    needs: deploy_core_infra
     runs-on: ubuntu-latest
+    needs: deploy_core_infra
     outputs:
-      CodeKey: ${{ steps.upload.outputs.code_key }}
+      code_key: ${{ steps.upload.outputs.code_key }}
 
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v3
 
       - name: Set up Python
@@ -57,16 +57,16 @@ jobs:
         run: |
           rm -rf package
           mkdir package
-          if [ -f "requirements-${LAMBDA_NAME}.txt" ]; then
+          if [ -f "requirements-${{ env.LAMBDA_NAME }}.txt" ]; then
             python -m pip install --upgrade pip
-            pip install -r "requirements-${LAMBDA_NAME}.txt" -t package
+            pip install -r "requirements-${{ env.LAMBDA_NAME }}.txt" -t package
           fi
 
       - name: Package Lambda
         run: |
-          cp "${LAMBDA_NAME}.py" package/index.py
+          cp "${{ env.LAMBDA_NAME }}.py" package/index.py
           cd package
-          zip -r ../${LAMBDA_NAME}-${GITHUB_SHA}.zip .
+          zip -r "../${{ env.LAMBDA_NAME }}-${{ github.sha }}.zip" .
           cd ..
 
       - name: Configure AWS credentials
@@ -80,17 +80,17 @@ jobs:
         id: upload
         run: |
           aws s3 cp \
-            ${LAMBDA_NAME}-${GITHUB_SHA}.zip \
-            s3://argofinancial-code/${LAMBDA_NAME}-${GITHUB_SHA}.zip
-          echo "code_key=${LAMBDA_NAME}-${GITHUB_SHA}.zip" >> $GITHUB_OUTPUT
+            "${{ env.LAMBDA_NAME }}-${{ github.sha }}.zip" \
+            s3://argofinancial-code/${{ env.LAMBDA_NAME }}-${{ github.sha }}.zip
+          echo "code_key=${{ env.LAMBDA_NAME }}-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
   update_deployment_with_lambda:
-    name: Update infrastructure with Lambda
-    needs: build_and_upload_lambda
+    name: Update stack with Lambda
     runs-on: ubuntu-latest
+    needs: build_and_upload_lambda
 
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v3
 
       - name: Configure AWS credentials
@@ -100,13 +100,13 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Deploy CloudFormation stack with Lambda
+      - name: Update CloudFormation stack with real Lambda code
         run: |
           aws cloudformation deploy \
             --stack-name stocks-infra-stack \
             --template-file template.yml \
             --parameter-overrides \
-              CodeKey=${{ needs.build_and_upload_lambda.outputs.CodeKey }} \
+              CodeKey=${{ needs.build_and_upload_lambda.outputs.code_key }} \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
             --capabilities CAPABILITY_NAMED_IAM
