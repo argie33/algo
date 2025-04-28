@@ -39,7 +39,7 @@ Resources:
         - !ImportValue network-DBSecurityGroupId
       DBSubnetGroupName:    !Ref StocksDBSubnetGroup
       MultiAZ:              false
-      PubliclyAccessible:   false
+      PubliclyAccessible:   true
       DeletionProtection:   false
 
 Outputs:
