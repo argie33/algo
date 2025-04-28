@@ -1,0 +1,54 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: bastion-stack – Bastion host for SSH tunneling
+
+Parameters:
+  BastionKeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of an existing EC2 KeyPair to SSH into the bastion
+  AllowedMyIP:
+    Type: String
+    Description: Your laptop public IP in CIDR notation (e.g. 75.195.241.36/32)
+  BastionAMI:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Description: SSM Parameter for Amazon Linux 2 AMI
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+
+Resources:
+
+  BastionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Bastion host SG for SSH"
+      VpcId: !ImportValue network-VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref AllowedMyIP
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: "0.0.0.0/0"
+
+  BastionHost:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.micro
+      KeyName: !Ref BastionKeyName
+      SubnetId:
+        !Select [0, !Split [",", !ImportValue network-PublicSubnets]]
+      SecurityGroupIds:
+        - !Ref BastionSecurityGroup
+      ImageId: !Ref BastionAMI
+
+Outputs:
+  BastionSecurityGroupId:
+    Description: SG for Bastion host
+    Value: !Ref BastionSecurityGroup
+    Export:
+      Name: bastion-SecurityGroupId
+
+  BastionHostPublicIP:
+    Description: Public IP of the Bastion host
+    Value: !GetAtt BastionHost.PublicIp
+    Export:
+      Name: bastion-PublicIP

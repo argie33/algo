@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: network-stack – VPC + subnets + IGW + NAT + Lambda SG + RDS SG
+Description: network-stack – VPC + subnets + IGW + NAT + Lambda SG + (private) RDS SG
 
 Parameters:
   VpcCidr:
@@ -17,14 +17,10 @@ Parameters:
   PrivateSubnetCidr2:
     Type: String
     Default: "10.0.102.0/24"
-  AllowedMyIP:
-    Type: String
-    Description: "Your laptop public IP in CIDR notation (e.g. 75.195.241.36/32)"
-    Default: "75.195.241.36/32"
 
 Resources:
 
-  ## VPC & Internet
+  ### VPC & Internet
 
   StocksVPC:
     Type: AWS::EC2::VPC
@@ -45,7 +41,7 @@ Resources:
       VpcId: !Ref StocksVPC
       InternetGatewayId: !Ref StocksIGW
 
-  ## Public subnets + routing
+  ### Public subnets & routing
 
   PublicSubnet1:
     Type: AWS::EC2::Subnet
@@ -88,7 +84,7 @@ Resources:
       SubnetId: !Ref PublicSubnet2
       RouteTableId: !Ref PublicRouteTable
 
-  ## NAT gateway for private subnets
+  ### NAT for private subnets
 
   NatEIP:
     Type: AWS::EC2::EIP
@@ -101,7 +97,7 @@ Resources:
       AllocationId: !GetAtt NatEIP.AllocationId
       SubnetId: !Ref PublicSubnet1
 
-  ## Private subnets + routing
+  ### Private subnets & routing
 
   PrivateSubnet1:
     Type: AWS::EC2::Subnet
@@ -143,7 +139,7 @@ Resources:
       SubnetId: !Ref PrivateSubnet2
       RouteTableId: !Ref PrivateRouteTable
 
-  ## Security Group for Lambdas
+  ### Lambda Security Group
 
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -154,22 +150,18 @@ Resources:
         - IpProtocol: -1
           CidrIp: "0.0.0.0/0"
 
-  ## Security Group for RDS
+  ### RDS Security Group (private-only)
 
   StocksDBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: "Allow Postgres access"
+      GroupDescription: "Allow Postgres access from within VPC"
       VpcId: !Ref StocksVPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 5432
           ToPort: 5432
-          CidrIp: !Ref VpcCidr       # internal VPC access
-        - IpProtocol: tcp
-          FromPort: 5432
-          ToPort: 5432
-          CidrIp: !Ref AllowedMyIP   # your laptop public IP
+          CidrIp: !Ref VpcCidr
 
 Outputs:
   VpcId:
@@ -198,8 +190,3 @@ Outputs:
     Value: !Ref StocksDBSecurityGroup
     Export:
       Name: network-DBSecurityGroupId
-
-  VpcCidr:
-    Value: !Ref VpcCidr
-    Export:
-      Name: network-VpcCidr
