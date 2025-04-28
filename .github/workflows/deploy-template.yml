@@ -4,13 +4,10 @@ name: Deploy full stack (Lambda + Infrastructure)
 
 on:
   push:
-    branches: [ main ]
-    paths:
-      - combined-template.yml
-      - loadstocksymbols.py
-      - requirements-loadstocksymbols.txt
+    branches: [ main ]  # trigger on any push to main branch
   workflow_dispatch:
 
+# Global environment variables
 env:
   LAMBDA_NAME: loadstocksymbols
 
