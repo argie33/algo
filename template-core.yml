@@ -1,0 +1,215 @@
+# template-core.yml
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Core infrastructure stack – IAM, Network, and Storage
+
+Parameters:
+  VpcCidr:
+    Type: String
+    Default: "10.0.0.0/16"
+  PublicSubnetCidr1:
+    Type: String
+    Default: "10.0.1.0/24"
+  PublicSubnetCidr2:
+    Type: String
+    Default: "10.0.2.0/24"
+  PrivateSubnetCidr1:
+    Type: String
+    Default: "10.0.101.0/24"
+  PrivateSubnetCidr2:
+    Type: String
+    Default: "10.0.102.0/24"
+
+Resources:
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: lambda-execution-admin-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [lambda.amazonaws.com]
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+  StocksVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: stocks-vpc
+
+  StocksIGW:
+    Type: AWS::EC2::InternetGateway
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    DependsOn: StocksIGW
+    Properties:
+      VpcId: !Ref StocksVPC
+      InternetGatewayId: !Ref StocksIGW
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref StocksVPC
+      CidrBlock: !Ref PublicSubnetCidr1
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref StocksVPC
+      CidrBlock: !Ref PublicSubnetCidr2
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref StocksVPC
+
+  PublicDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref StocksIGW
+
+  PubSubnet1RouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PubSubnet2RouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  NatEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    DependsOn: NatEIP
+    Properties:
+      AllocationId: !GetAtt NatEIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref StocksVPC
+      CidrBlock: !Ref PrivateSubnetCidr1
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: false
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref StocksVPC
+      CidrBlock: !Ref PrivateSubnetCidr2
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: false
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref StocksVPC
+
+  PrivateDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: NatGateway
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      NatGatewayId: !Ref NatGateway
+
+  PrivSubnet1RouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivSubnet2RouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Lambda SG in stocks VPC"
+      VpcId: !Ref StocksVPC
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: "0.0.0.0/0"
+
+  CodeBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: argofinancial-code
+      VersioningConfiguration:
+        Status: Enabled
+    DeletionPolicy: Retain
+
+Outputs:
+  VpcId:
+    Description: VPC ID
+    Value: !Ref StocksVPC
+    Export:
+      Name: StocksCore-VpcId
+
+  PublicSubnet1Id:
+    Description: First public subnet
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: StocksCore-PublicSubnet1Id
+
+  PublicSubnet2Id:
+    Description: Second public subnet
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: StocksCore-PublicSubnet2Id
+
+  PrivateSubnet1Id:
+    Description: First private subnet
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: StocksCore-PrivateSubnet1Id
+
+  PrivateSubnet2Id:
+    Description: Second private subnet
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: StocksCore-PrivateSubnet2Id
+
+  LambdaSecurityGroupId:
+    Description: SG for VPC Lambdas
+    Value: !Ref LambdaSecurityGroup
+    Export:
+      Name: StocksCore-LambdaSecurityGroupId
+
+  CodeBucketName:
+    Description: Code bucket name
+    Value: !Ref CodeBucket
+    Export:
+      Name: StocksCore-CodeBucketName
+
+  LambdaExecutionRoleArn:
+    Description: Lambda execution role ARN
+    Value: !GetAtt LambdaExecutionRole.Arn
+    Export:
+      Name: StocksCore-LambdaExecutionRoleArn

@@ -1,0 +1,75 @@
+# .github/workflows/deploy-app-template.yml
+name: deploy-app-template
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build_and_upload_lambda:
+    name: Build & upload Lambda package
+    runs-on: ubuntu-latest
+    outputs:
+      code_key: ${{ steps.upload.outputs.code_key }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          rm -rf package && mkdir package
+          python -m pip install --upgrade pip
+          if [ -f "requirements-loadstocksymbols.txt" ]; then
+            pip install -r requirements-loadstocksymbols.txt -t package
+          fi
+
+      - name: Package Lambda
+        run: |
+          cp loadstocksymbols.py package/index.py
+          cd package
+          zip -r "../loadstocksymbols-${{ github.sha }}.zip" .
+          cd ..
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            us-east-1
+
+      - name: Upload Lambda to S3
+        id: upload
+        run: |
+          aws s3 cp "loadstocksymbols-${{ github.sha }}.zip" \
+            s3://argofinancial-code/loadstocksymbols-${{ github.sha }}.zip
+          echo "code_key=loadstocksymbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
+
+  deploy_db_lambda:
+    name: Deploy DB & Lambda CloudFormation
+    needs: build_and_upload_lambda
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            us-east-1
+
+      - name: Deploy DB & Lambda stack
+        run: |
+          aws cloudformation deploy \
+            --stack-name stocks-db-lambda-stack \
+            --template-file app-template.yml \
+            --parameter-overrides \
+              CodeKey=${{ needs.build_and_upload_lambda.outputs.code_key }} \
+              RDSUsername=${{ secrets.RDS_USERNAME }} \
+              RDSPassword=${{ secrets.RDS_PASSWORD }} \
+            --capabilities CAPABILITY_NAMED_IAM
