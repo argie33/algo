@@ -13,7 +13,8 @@ jobs:
     outputs:
       code_key: ${{ steps.upload.outputs.code_key }}
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -54,7 +55,8 @@ jobs:
     needs: build_and_upload_lambda
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -62,6 +64,18 @@ jobs:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
+
+      - name: Cleanup failed stack if needed
+        run: |
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-db-lambda-stack \
+            --query "Stacks[0].StackStatus" \
+            --output text 2>/dev/null || echo "NOT_FOUND")
+          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+            echo "Found ROLLBACK_COMPLETE – deleting stack..."
+            aws cloudformation delete-stack --stack-name stocks-db-lambda-stack
+            aws cloudformation wait stack-delete-complete --stack-name stocks-db-lambda-stack
+          fi
 
       - name: Deploy DB & Lambda stack
         run: |
@@ -73,3 +87,11 @@ jobs:
               RDSUsername=${{ secrets.RDS_USERNAME }} \
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
             --capabilities CAPABILITY_NAMED_IAM
+
+      - name: Invoke loadstocksymbols Lambda
+        run: |
+          aws lambda invoke \
+            --function-name loadstocksymbols \
+            --payload '{}' \
+            response.json
+          cat response.json
