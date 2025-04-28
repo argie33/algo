@@ -1,0 +1,342 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Combined stack – IAM, Network, Storage, Vault, RDS, Timestream, and Lambda resources
+
+Parameters:
+  CodeKey:
+    Type: String
+    Description: S3 key of the Lambda ZIP
+  VpcCidr:
+    Type: String
+    Default: "10.0.0.0/16"
+  PublicSubnetCidr1:
+    Type: String
+    Default: "10.0.1.0/24"
+  PublicSubnetCidr2:
+    Type: String
+    Default: "10.0.2.0/24"
+  PrivateSubnetCidr1:
+    Type: String
+    Default: "10.0.101.0/24"
+  PrivateSubnetCidr2:
+    Type: String
+    Default: "10.0.102.0/24"
+  DBInstanceClass:
+    Type: String
+    Default: db.t3.micro
+    AllowedValues:
+      - db.t3.micro
+    Description: RDS instance class (free-tier)
+  DBAllocatedStorage:
+    Type: Number
+    Default: 20
+    Description: Allocated storage (GiB)
+  RDSUsername:
+    Type: String
+    Description: RDS master username
+  RDSPassword:
+    Type: String
+    NoEcho: true
+    Description: RDS master password
+
+Resources:
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: lambda-execution-admin-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+  StocksVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: stocks-vpc
+
+  StocksIGW:
+    Type: AWS::EC2::InternetGateway
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    DependsOn: StocksIGW
+    Properties:
+      VpcId: !Ref StocksVPC
+      InternetGatewayId: !Ref StocksIGW
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref StocksVPC
+      CidrBlock: !Ref PublicSubnetCidr1
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref StocksVPC
+      CidrBlock: !Ref PublicSubnetCidr2
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref StocksVPC
+
+  PublicDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref StocksIGW
+
+  PubSubnet1RouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn: PublicRouteTable
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PubSubnet2RouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn: PublicRouteTable
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  NatEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    DependsOn: NatEIP
+    Properties:
+      AllocationId: !GetAtt NatEIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref StocksVPC
+      CidrBlock: !Ref PrivateSubnetCidr1
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: false
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref StocksVPC
+      CidrBlock: !Ref PrivateSubnetCidr2
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: false
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref StocksVPC
+
+  PrivateDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: NatGateway
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      NatGatewayId: !Ref NatGateway
+
+  PrivSubnet1RouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn: PrivateRouteTable
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivSubnet2RouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn: PrivateRouteTable
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Lambda SG in stocks VPC"
+      VpcId: !Ref StocksVPC
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: "0.0.0.0/0"
+
+  StocksDBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Allow Postgres access from within VPC"
+      VpcId: !Ref StocksVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: !Ref VpcCidr
+
+  CodeBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: argofinancial-code
+      VersioningConfiguration:
+        Status: Enabled
+    DeletionPolicy: Retain
+
+  DBCredentialsSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: stocks-db-credentials
+      Description: "RDS master user credentials"
+      SecretString: !Sub |
+        {"username":"${RDSUsername}","password":"${RDSPassword}"}
+
+  StocksDBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    DependsOn:
+      - PrivateSubnet1
+      - PrivateSubnet2
+    Properties:
+      DBSubnetGroupDescription: Subnet group for RDS (private only)
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+
+  StocksDBInstance:
+    Type: AWS::RDS::DBInstance
+    DependsOn:
+      - DBCredentialsSecret
+      - StocksDBSubnetGroup
+      - StocksDBSecurityGroup
+    Properties:
+      DBInstanceIdentifier: stocks
+      DBName:               stocks
+      AllocatedStorage:     !Ref DBAllocatedStorage
+      DBInstanceClass:      !Ref DBInstanceClass
+      Engine:               postgres
+      MasterUsername:       "{{resolve:secretsmanager:stocks-db-credentials:SecretString:username}}"
+      MasterUserPassword:   "{{resolve:secretsmanager:stocks-db-credentials:SecretString:password}}"
+      VPCSecurityGroups:
+        - !Ref StocksDBSecurityGroup
+      DBSubnetGroupName:    !Ref StocksDBSubnetGroup
+      MultiAZ:              false
+      PubliclyAccessible:   false
+      DeletionProtection:   false
+
+  TimestreamDatabase:
+    Type: AWS::Timestream::Database
+    Properties:
+      DatabaseName: stocks_db
+
+  TimestreamTable:
+    Type: AWS::Timestream::Table
+    DependsOn: TimestreamDatabase
+    Properties:
+      DatabaseName: !Ref TimestreamDatabase
+      TableName:      argo_metrics_tbl
+      RetentionProperties:
+        MemoryStoreRetentionPeriodInHours:  24
+        MagneticStoreRetentionPeriodInDays:  7
+
+  LoadStockSymbolsFunction:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - CodeBucket
+      - LambdaExecutionRole
+      - StocksDBInstance
+    Properties:
+      FunctionName: loadstocksymbols
+      Runtime: python3.9
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key:    !Ref CodeKey
+      Timeout: 300
+      VpcConfig:
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+      Environment:
+        Variables:
+          DB_ENDPOINT:   !GetAtt StocksDBInstance.Endpoint.Address
+          DB_PORT:       !GetAtt StocksDBInstance.Endpoint.Port
+          DB_NAME:       stocks
+          DB_SECRET_ARN: !Ref DBCredentialsSecret
+
+Outputs:
+  LambdaExecutionRoleArn:
+    Description: Lambda execution role ARN
+    Value: !GetAtt LambdaExecutionRole.Arn
+
+  LambdaExecutionRoleName:
+    Description: Lambda execution role name
+    Value: !Ref LambdaExecutionRole
+
+  VpcId:
+    Description: VPC ID
+    Value: !Ref StocksVPC
+
+  PublicSubnetIds:
+    Description: Public Subnet IDs
+    Value: !Join [",", [!Ref PublicSubnet1, !Ref PublicSubnet2]]
+
+  PrivateSubnetIds:
+    Description: Private Subnet IDs
+    Value: !Join [",", [!Ref PrivateSubnet1, !Ref PrivateSubnet2]]
+
+  LambdaSecurityGroupId:
+    Description: SG for VPC Lambdas
+    Value: !Ref LambdaSecurityGroup
+
+  DBSecurityGroupId:
+    Description: SG for RDS Postgres
+    Value: !Ref StocksDBSecurityGroup
+
+  CodeBucketName:
+    Description: Name of the S3 bucket for Lambda code
+    Value: !Ref CodeBucket
+
+  DBCredentialsSecretArn:
+    Description: ARN of the DB credentials secret
+    Value: !Ref DBCredentialsSecret
+
+  DBEndpoint:
+    Description: RDS endpoint address
+    Value: !GetAtt StocksDBInstance.Endpoint.Address
+
+  DBPort:
+    Description: RDS endpoint port
+    Value: !GetAtt StocksDBInstance.Endpoint.Port
+
+  TimestreamDatabaseName:
+    Description: Timestream database name
+    Value: !Ref TimestreamDatabase
+
+  TimestreamTableName:
+    Description: Timestream table name
+    Value: !Ref TimestreamTable
+
+  LoadStockSymbolsFunctionArn:
+    Description: ARN of the loadstocksymbols Lambda
+    Value: !GetAtt LoadStockSymbolsFunction.Arn

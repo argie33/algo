@@ -1,0 +1,88 @@
+# .github/workflows/deploy-full-stack.yml
+
+name: Deploy full stack (Lambda + Infrastructure)
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - combined-template.yml
+      - loadstocksymbols.py
+      - requirements-loadstocksymbols.txt
+  workflow_dispatch:
+
+jobs:
+  build_and_upload_lambda:
+    name: Build & upload Lambda package
+    runs-on: ubuntu-latest
+    env:
+      LAMBDA_NAME: loadstocksymbols
+      ZIP_FILE: ${{ env.LAMBDA_NAME }}-${{ github.sha }}.zip
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          rm -rf package
+          mkdir package
+          if [ -f "requirements-${{ env.LAMBDA_NAME }}.txt" ]; then
+            python -m pip install --upgrade pip
+            pip install -r "requirements-${{ env.LAMBDA_NAME }}.txt" -t package
+          fi
+
+      - name: Package Lambda
+        run: |
+          cp "${{ env.LAMBDA_NAME }}.py" package/index.py
+          cd package
+          zip -r ../${{ env.ZIP_FILE }} .
+          cd ..
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            us-east-1
+
+      - name: Upload Lambda to S3
+        id: upload
+        run: |
+          aws s3 cp \
+            ${{ env.ZIP_FILE }} \
+            s3://argofinancial-code/${{ env.ZIP_FILE }}
+          echo "code_key=${{ env.ZIP_FILE }}" >> $GITHUB_OUTPUT
+
+    outputs:
+      CodeKey: ${{ steps.upload.outputs.code_key }}
+
+  deploy_infrastructure:
+    name: Deploy combined CloudFormation stack
+    needs: build_and_upload_lambda
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            us-east-1
+
+      - name: Deploy CloudFormation
+        run: |
+          aws cloudformation deploy \
+            --stack-name stocks-infra-stack \
+            --template-file combined-template.yml \
+            --parameter-overrides \
+              CodeKey=${{ needs.build_and_upload_lambda.outputs.CodeKey }} \
+              RDSUsername=${{ secrets.RDS_USERNAME }} \
+              RDSPassword=${{ secrets.RDS_PASSWORD }} \
+            --capabilities CAPABILITY_NAMED_IAM
