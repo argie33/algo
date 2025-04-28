@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Combined stack – IAM, Network, Storage, Vault, RDS, Timestream, and Lambda resources
+Description: Combined stack – IAM, Network, Storage, Vault, RDS, Timestream, Lambda, and Bastion resources
 
 Parameters:
   CodeKey:
@@ -37,6 +37,16 @@ Parameters:
     Type: String
     NoEcho: true
     Description: RDS master password
+  BastionKeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of an existing EC2 KeyPair to SSH into the bastion
+  AllowedMyIP:
+    Type: String
+    Description: Your laptop public IP in CIDR notation (e.g. 75.195.241.36/32)
+  BastionAMI:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Description: SSM Parameter for Amazon Linux 2 AMI
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
 
 Resources:
   LambdaExecutionRole:
@@ -48,12 +58,9 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service:
-                - lambda.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AdministratorAccess
+              Service: [lambda.amazonaws.com]
+            Action: [sts:AssumeRole]
+      ManagedPolicyArns: [arn:aws:iam::aws:policy/AdministratorAccess]
 
   StocksVPC:
     Type: AWS::EC2::VPC
@@ -182,16 +189,18 @@ Resources:
         - IpProtocol: -1
           CidrIp: "0.0.0.0/0"
 
+  # Restrict RDS access to Bastion host only
   StocksDBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
+    DependsOn: BastionSecurityGroup
     Properties:
-      GroupDescription: "Allow Postgres access from within VPC"
+      GroupDescription: "Allow Postgres access via Bastion"
       VpcId: !Ref StocksVPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 5432
           ToPort: 5432
-          CidrIp: !Ref VpcCidr
+          SourceSecurityGroupId: !Ref BastionSecurityGroup
 
   CodeBucket:
     Type: AWS::S3::Bucket
@@ -228,18 +237,18 @@ Resources:
       - StocksDBSecurityGroup
     Properties:
       DBInstanceIdentifier: stocks
-      DBName:               stocks
-      AllocatedStorage:     !Ref DBAllocatedStorage
-      DBInstanceClass:      !Ref DBInstanceClass
-      Engine:               postgres
-      MasterUsername:       "{{resolve:secretsmanager:stocks-db-credentials:SecretString:username}}"
-      MasterUserPassword:   "{{resolve:secretsmanager:stocks-db-credentials:SecretString:password}}"
+      DBName: stocks
+      AllocatedStorage: !Ref DBAllocatedStorage
+      DBInstanceClass: !Ref DBInstanceClass
+      Engine: postgres
+      MasterUsername: "{{resolve:secretsmanager:stocks-db-credentials:SecretString:username}}"
+      MasterUserPassword: "{{resolve:secretsmanager:stocks-db-credentials:SecretString:password}}"
       VPCSecurityGroups:
         - !Ref StocksDBSecurityGroup
-      DBSubnetGroupName:    !Ref StocksDBSubnetGroup
-      MultiAZ:              false
-      PubliclyAccessible:   false
-      DeletionProtection:   false
+      DBSubnetGroupName: !Ref StocksDBSubnetGroup
+      MultiAZ: false
+      PubliclyAccessible: false
+      DeletionProtection: false
 
   TimestreamDatabase:
     Type: AWS::Timestream::Database
@@ -251,10 +260,10 @@ Resources:
     DependsOn: TimestreamDatabase
     Properties:
       DatabaseName: !Ref TimestreamDatabase
-      TableName:      argo_metrics_tbl
+      TableName: argo_metrics_tbl
       RetentionProperties:
-        MemoryStoreRetentionPeriodInHours:  24
-        MagneticStoreRetentionPeriodInDays:  7
+        MemoryStoreRetentionPeriodInHours: 24
+        MagneticStoreRetentionPeriodInDays: 7
 
   LoadStockSymbolsFunction:
     Type: AWS::Lambda::Function
@@ -269,7 +278,7 @@ Resources:
       Role: !GetAtt LambdaExecutionRole.Arn
       Code:
         S3Bucket: !Ref CodeBucket
-        S3Key:    !Ref CodeKey
+        S3Key: !Ref CodeKey
       Timeout: 300
       VpcConfig:
         SubnetIds:
@@ -279,10 +288,38 @@ Resources:
           - !Ref LambdaSecurityGroup
       Environment:
         Variables:
-          DB_ENDPOINT:   !GetAtt StocksDBInstance.Endpoint.Address
-          DB_PORT:       !GetAtt StocksDBInstance.Endpoint.Port
-          DB_NAME:       stocks
+          DB_ENDPOINT: !GetAtt StocksDBInstance.Endpoint.Address
+          DB_PORT: !GetAtt StocksDBInstance.Endpoint.Port
+          DB_NAME: stocks
           DB_SECRET_ARN: !Ref DBCredentialsSecret
+
+  BastionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn: StocksVPC
+    Properties:
+      GroupDescription: "Bastion host SG for SSH"
+      VpcId: !Ref StocksVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref AllowedMyIP
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: "0.0.0.0/0"
+
+  BastionHost:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - BastionSecurityGroup
+      - PublicSubnet1
+    Properties:
+      InstanceType: t3.micro
+      KeyName: !Ref BastionKeyName
+      SubnetId: !Ref PublicSubnet1
+      SecurityGroupIds:
+        - !Ref BastionSecurityGroup
+      ImageId: !Ref BastionAMI
 
 Outputs:
   LambdaExecutionRoleArn:
@@ -340,3 +377,15 @@ Outputs:
   LoadStockSymbolsFunctionArn:
     Description: ARN of the loadstocksymbols Lambda
     Value: !GetAtt LoadStockSymbolsFunction.Arn
+
+  BastionSecurityGroupId:
+    Description: SG for Bastion host
+    Value: !Ref BastionSecurityGroup
+    Export:
+      Name: bastion-SecurityGroupId
+
+  BastionHostPublicIP:
+    Description: Public IP of the Bastion host
+    Value: !GetAtt BastionHost.PublicIp
+    Export:
+      Name: bastion-PublicIP
