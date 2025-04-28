@@ -1,0 +1,111 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Application stack – RDS, Secrets and Lambda
+
+Parameters:
+  CodeKey:
+    Type: String
+    Description: S3 key of the Lambda ZIP
+  RDSUsername:
+    Type: String
+    Description: RDS master username
+  RDSPassword:
+    Type: String
+    NoEcho: true
+    Description: RDS master password
+  VpcCidr:
+    Type: String
+    Default: "10.0.0.0/16"
+    Description: VPC CIDR for DB SG ingress
+
+Resources:
+  # store DB creds in Secrets Manager
+  DBCredentialsSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: stocks-db-credentials
+      Description: RDS master user credentials
+      SecretString: !Sub |
+        {"username":"${RDSUsername}","password":"${RDSPassword}"}
+
+  # group RDS into your private subnets exported from core
+  StocksDBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for RDS (private only)
+      SubnetIds:
+        - !ImportValue StocksCore-PrivateSubnet1Id
+        - !ImportValue StocksCore-PrivateSubnet2Id
+
+  # allow only VPC-internal Postgres
+  StocksDBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow Postgres access within VPC
+      VpcId: !ImportValue StocksCore-VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: !Ref VpcCidr
+
+  # the actual RDS instance
+  StocksDBInstance:
+    Type: AWS::RDS::DBInstance
+    DependsOn:
+      - DBCredentialsSecret
+      - StocksDBSubnetGroup
+      - StocksDBSecurityGroup
+    Properties:
+      DBInstanceIdentifier: stocks
+      DBName: stocks
+      AllocatedStorage: 20
+      DBInstanceClass: db.t3.micro
+      Engine: postgres
+      MasterUsername: "{{resolve:secretsmanager:stocks-db-credentials:SecretString:username}}"
+      MasterUserPassword: "{{resolve:secretsmanager:stocks-db-credentials:SecretString:password}}"
+      VPCSecurityGroups:
+        - !Ref StocksDBSecurityGroup
+      DBSubnetGroupName: !Ref StocksDBSubnetGroup
+      MultiAZ: false
+      PubliclyAccessible: false
+      DeletionProtection: false
+
+  # your Lambda, waiting until the RDS is up (and core’s bucket & role exist)
+  LoadStockSymbolsFunction:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - StocksDBInstance
+    Properties:
+      FunctionName: loadstocksymbols
+      Runtime: python3.9
+      Handler: index.handler
+      Role: !ImportValue StocksCore-LambdaExecutionRoleArn
+      Code:
+        S3Bucket: !ImportValue StocksCore-CodeBucketName
+        S3Key: !Ref CodeKey
+      Timeout: 300
+      VpcConfig:
+        SubnetIds:
+          - !ImportValue StocksCore-PrivateSubnet1Id
+          - !ImportValue StocksCore-PrivateSubnet2Id
+        SecurityGroupIds:
+          - !ImportValue StocksCore-LambdaSecurityGroupId
+      Environment:
+        Variables:
+          DB_ENDPOINT: !GetAtt StocksDBInstance.Endpoint.Address
+          DB_PORT: !GetAtt StocksDBInstance.Endpoint.Port
+          DB_NAME: stocks
+          DB_SECRET_ARN: !Ref DBCredentialsSecret
+
+Outputs:
+  DBEndpoint:
+    Description: RDS endpoint address
+    Value: !GetAtt StocksDBInstance.Endpoint.Address
+
+  DBPort:
+    Description: RDS endpoint port
+    Value: !GetAtt StocksDBInstance.Endpoint.Port
+
+  LoadStockSymbolsFunctionArn:
+    Description: ARN of the loadstocksymbols Lambda
+    Value: !GetAtt LoadStockSymbolsFunction.Arn

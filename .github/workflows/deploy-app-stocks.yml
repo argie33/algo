@@ -67,7 +67,7 @@ jobs:
         run: |
           aws cloudformation deploy \
             --stack-name stocks-db-lambda-stack \
-            --template-file app-template.yml \
+            --template-file template-app-stocks.yml \
             --parameter-overrides \
               CodeKey=${{ needs.build_and_upload_lambda.outputs.code_key }} \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
