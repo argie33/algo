@@ -1,10 +1,15 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Application stack – RDS, Secrets, S3 Code bucket, and Lambda
+Description: >
+  Application stack – RDS, Secrets, S3 Code bucket, Lambda (symbols-loader),
+  plus ECR & ECS Fargate Service for financial-data
 
 Parameters:
   CodeKey:
     Type: String
-    Description: S3 key of the Lambda ZIP
+    Description: S3 key of the symbols-loader Lambda ZIP
+  ImageTag:
+    Type: String
+    Description: Tag of the financial-data Docker image in ECR
   RDSUsername:
     Type: String
     Description: RDS master username
@@ -77,8 +82,8 @@ Resources:
       BucketName: stocks-algo-app-code
       VersioningConfiguration:
         Status: Enabled
-    DeletionPolicy: Delete               # delete when stack is deleted
-    UpdateReplacePolicy: Retain          # keep on in-place updates
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
 
   ## Lambda to load stock symbols ##
   LoadStockSymbolsFunction:
@@ -103,10 +108,65 @@ Resources:
           - !ImportValue StocksCore-LambdaSecurityGroupId
       Environment:
         Variables:
-          DB_ENDPOINT: !GetAtt StocksDBInstance.Endpoint.Address
-          DB_PORT: !GetAtt StocksDBInstance.Endpoint.Port
-          DB_NAME: stocks
+          DB_ENDPOINT:   !GetAtt StocksDBInstance.Endpoint.Address
+          DB_PORT:       !GetAtt StocksDBInstance.Endpoint.Port
+          DB_NAME:       stocks
           DB_SECRET_ARN: !Ref DBCredentialsSecret
+
+  ## ECR repository for financial-data ##
+  FinancialDataRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: financial-data
+
+  ## ECS Fargate task for financial-data ##
+  FinancialDataTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: financial-data-task
+      Cpu: '256'
+      Memory: '512'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !ImportValue StocksCore-LambdaExecutionRoleArn
+      ContainerDefinitions:
+        - Name: financial-data
+          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/financial-data:${ImageTag}"
+          Essential: true
+          Environment:
+            - Name: DB_ENDPOINT
+              Value: !GetAtt StocksDBInstance.Endpoint.Address
+            - Name: DB_PORT
+              Value: !GetAtt StocksDBInstance.Endpoint.Port
+            - Name: DB_NAME
+              Value: stocks
+            - Name: DB_SECRET_ARN
+              Value: !Ref DBCredentialsSecret
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/financial-data
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  ## ECS Service ##
+  FinancialDataService:
+    Type: AWS::ECS::Service
+    DependsOn: FinancialDataTaskDefinition
+    Properties:
+      ServiceName: financial-data-service
+      Cluster: !ImportValue StocksCore-EcsClusterArn
+      TaskDefinition: !Ref FinancialDataTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PrivateSubnet1Id
+            - !ImportValue StocksCore-PrivateSubnet2Id
+          SecurityGroups:
+            - !Ref StocksDBSecurityGroup
 
 Outputs:
   DBEndpoint:
@@ -124,3 +184,11 @@ Outputs:
   CodeBucketName:
     Description: S3 bucket for Lambda code
     Value: !Ref CodeBucket
+
+  FinancialDataRepoUri:
+    Description: URI of the financial-data ECR repo
+    Value: !GetAtt FinancialDataRepository.RepositoryUri
+
+  FinancialDataServiceArn:
+    Description: ARN of the ECS service running financial-data
+    Value: !GetAtt FinancialDataService.Arn

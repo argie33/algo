@@ -6,25 +6,25 @@ on:
   workflow_dispatch:
 
 jobs:
+  # 1) Package & upload symbols Lambda
   build_and_upload_lambda:
     name: Build & upload Lambda package
     runs-on: ubuntu-latest
     outputs:
       code_key: ${{ steps.upload.outputs.code_key }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      - name: Install dependencies
+      - name: Install Lambda dependencies
         run: |
           rm -rf package && mkdir package
           python -m pip install --upgrade pip
-          if [ -f "requirements-loadstocksymbols.txt" ]; then
+          if [ -f requirements-loadstocksymbols.txt ]; then
             pip install -r requirements-loadstocksymbols.txt -t package
           fi
 
@@ -35,8 +35,7 @@ jobs:
           zip -r "../loadstocksymbols-${{ github.sha }}.zip" .
           cd ..
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
+      - uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -44,7 +43,6 @@ jobs:
 
       - name: Ensure S3 bucket exists
         run: |
-          # if bucket missing, create it
           aws s3api head-bucket --bucket stocks-algo-app-code || \
             aws s3api create-bucket --bucket stocks-algo-app-code
 
@@ -55,16 +53,55 @@ jobs:
             s3://stocks-algo-app-code/loadstocksymbols-${{ github.sha }}.zip
           echo "code_key=loadstocksymbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  deploy_db_lambda:
-    name: Deploy DB & Lambda CloudFormation
+  # 2) Build & push the financial-data container
+  build_and_push_fin_container:
+    name: Build & Push financial-data Docker image
+    runs-on: ubuntu-latest
     needs: build_and_upload_lambda
+    outputs:
+      image_tag: ${{ steps.tag.outputs.IMAGE_TAG }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            us-east-1
+
+      - name: Login to ECR
+        run: |
+          aws ecr get-login-password | docker login \
+            --username AWS \
+            --password-stdin "${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com"
+
+      - name: Ensure ECR repo exists
+        run: |
+          aws ecr describe-repositories --repository-names financial-data || \
+            aws ecr create-repository --repository-name financial-data
+
+      - name: Build & tag Docker image
+        id: tag
+        run: |
+          IMAGE_TAG="${{ github.sha }}"
+          docker build -t financial-data:${IMAGE_TAG} .
+          docker tag financial-data:${IMAGE_TAG} \
+            "${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/financial-data:${IMAGE_TAG}"
+          echo "::set-output name=IMAGE_TAG::$IMAGE_TAG"
+
+      - name: Push to ECR
+        run: |
+          docker push "${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/financial-data:${{ needs.build_and_push_fin_container.outputs.image_tag }}"
+
+  # 3) Deploy CFN with both CodeKey & ImageTag
+  deploy_db_lambda:
+    name: Deploy DB, Lambda & ECS CloudFormation
+    needs: [ build_and_upload_lambda, build_and_push_fin_container ]
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
+      - uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -81,13 +118,14 @@ jobs:
             aws cloudformation wait stack-delete-complete --stack-name stocks-db-lambda-stack
           fi
 
-      - name: Deploy DB & Lambda stack
+      - name: Deploy DB & Lambda & ECS stack
         run: |
           aws cloudformation deploy \
             --stack-name stocks-db-lambda-stack \
             --template-file template-app-stocks.yml \
             --parameter-overrides \
               CodeKey=${{ needs.build_and_upload_lambda.outputs.code_key }} \
+              ImageTag=${{ needs.build_and_push_fin_container.outputs.image_tag }} \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
             --capabilities CAPABILITY_NAMED_IAM

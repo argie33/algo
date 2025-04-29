@@ -157,14 +157,6 @@ Resources:
         - IpProtocol: -1
           CidrIp: "0.0.0.0/0"
 
-  CodeBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: argofinancial-code
-      VersioningConfiguration:
-        Status: Enabled
-    DeletionPolicy: Retain
-
   ### Bastion for SSM port-forwarding ###
   BastionInstanceRole:
     Type: AWS::IAM::Role
@@ -211,16 +203,15 @@ Resources:
           GroupSet:
             - !Ref BastionSecurityGroup
       IamInstanceProfile: !Ref BastionInstanceProfile
+      Tags:
+        - Key: Name
+          Value: stocks-bastion
       UserData: !Base64 |
         #!/bin/bash
         set -eux
         yum update -y
         # install Postgres client
         yum install -y postgresql
-        # tag the instance for easy identification
-        aws ec2 create-tags \
-          --resources $(curl -s http://169.254.169.254/latest/meta-data/instance-id) \
-          --tags Key=Name,Value=stocks-bastion
 
   ### Lambda + EventBridge to stop bastion at 6 PM CT (23:00 UTC) ###
   BastionStopRole:
@@ -311,12 +302,6 @@ Outputs:
     Value: !Ref LambdaSecurityGroup
     Export:
       Name: StocksCore-LambdaSecurityGroupId
-
-  CodeBucketName:
-    Description: Code bucket name
-    Value: !Ref CodeBucket
-    Export:
-      Name: StocksCore-CodeBucketName
 
   LambdaExecutionRoleArn:
     Description: Lambda execution role ARN

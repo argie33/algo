@@ -1,3 +1,4 @@
+# .github/workflows/deploy-core.yml
 name: Deploy core infrastructure
 
 on:
@@ -44,9 +45,9 @@ jobs:
             --filters "Name=tag:Name,Values=stocks-bastion" \
                      "Name=instance-state-name,Values=pending,running" \
             --query "Reservations[0].Instances[0].InstanceId" --output text)
-          echo "Bastion instance is $INSTANCE_ID"
+          echo "Found Bastion instance: $INSTANCE_ID"
           aws ec2 wait instance-running --instance-ids "$INSTANCE_ID"
-          echo "::set-output name=id::$INSTANCE_ID"
+          echo "id=$INSTANCE_ID" >> $GITHUB_OUTPUT
 
       - name: Verify Bastion setup via SSM
         id: verify_bastion
@@ -60,6 +61,7 @@ jobs:
             --parameters commands=["psql --version"] \
             --query "Command.CommandId" --output text)
 
+          # give SSM a moment to execute
           sleep 15
 
           echo "Fetching output for command $COMMAND_ID..."
@@ -72,4 +74,5 @@ jobs:
           echo "$OUTPUT"
           echo "-------------------------------"
 
+          # fail the workflow if psql isn't installed
           echo "$OUTPUT" | grep -q "psql" || (echo "ERROR: psql client not installed" && exit 1)
