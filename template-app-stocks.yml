@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Application stack – RDS, Secrets and Lambda
+Description: Application stack – RDS, Secrets, S3 Code bucket, and Lambda
 
 Parameters:
   CodeKey:
@@ -18,7 +18,7 @@ Parameters:
     Description: VPC CIDR for DB SG ingress
 
 Resources:
-  # store DB creds in Secrets Manager
+  ## Secret for DB credentials ##
   DBCredentialsSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
@@ -27,7 +27,7 @@ Resources:
       SecretString: !Sub |
         {"username":"${RDSUsername}","password":"${RDSPassword}"}
 
-  # group RDS into your private subnets exported from core
+  ## RDS Subnet Group ##
   StocksDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
@@ -36,7 +36,7 @@ Resources:
         - !ImportValue StocksCore-PrivateSubnet1Id
         - !ImportValue StocksCore-PrivateSubnet2Id
 
-  # allow only VPC-internal Postgres
+  ## RDS Security Group ##
   StocksDBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -48,7 +48,7 @@ Resources:
           ToPort: 5432
           CidrIp: !Ref VpcCidr
 
-  # the actual RDS instance
+  ## RDS Instance ##
   StocksDBInstance:
     Type: AWS::RDS::DBInstance
     DependsOn:
@@ -70,18 +70,29 @@ Resources:
       PubliclyAccessible: false
       DeletionProtection: false
 
-  # your Lambda, waiting until the RDS is up (and core’s bucket & role exist)
+  ## S3 bucket for Lambda code ##
+  CodeBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: argofinancial-code
+      VersioningConfiguration:
+        Status: Enabled
+    DeletionPolicy: Delete               # Deletes bucket on stack deletion
+    UpdateReplacePolicy: Retain          # Keeps bucket if replaced during updates
+
+  ## Lambda to load stock symbols ##
   LoadStockSymbolsFunction:
     Type: AWS::Lambda::Function
     DependsOn:
       - StocksDBInstance
+      - CodeBucket
     Properties:
       FunctionName: loadstocksymbols
       Runtime: python3.9
       Handler: index.handler
       Role: !ImportValue StocksCore-LambdaExecutionRoleArn
       Code:
-        S3Bucket: !ImportValue StocksCore-CodeBucketName
+        S3Bucket: !Ref CodeBucket
         S3Key: !Ref CodeKey
       Timeout: 300
       VpcConfig:
@@ -109,3 +120,7 @@ Outputs:
   LoadStockSymbolsFunctionArn:
     Description: ARN of the loadstocksymbols Lambda
     Value: !GetAtt LoadStockSymbolsFunction.Arn
+
+  CodeBucketName:
+    Description: S3 bucket for Lambda code
+    Value: !Ref CodeBucket
