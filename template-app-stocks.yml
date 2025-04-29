@@ -74,7 +74,7 @@ Resources:
   CodeBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: argofinancial-code
+      BucketName: stock-algo-app-code
       VersioningConfiguration:
         Status: Enabled
     DeletionPolicy: Delete               # Deletes bucket on stack deletion
