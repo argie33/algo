@@ -47,7 +47,7 @@ jobs:
         id: upload
         run: |
           aws s3 cp "loadstocksymbols-${{ github.sha }}.zip" \
-            s3://argofinancial-code/loadstocksymbols-${{ github.sha }}.zip
+            s3://stocks-algo-app-code/loadstocksymbols-${{ github.sha }}.zip
           echo "code_key=loadstocksymbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
   deploy_db_lambda:
