@@ -1,6 +1,5 @@
-# template-core.yml
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Core infrastructure stack – IAM, Network, and Storage
+Description: Core infrastructure stack – IAM, Network, Storage, and Bastion for DB access
 
 Parameters:
   VpcCidr:
@@ -164,6 +163,65 @@ Resources:
       VersioningConfiguration:
         Status: Enabled
     DeletionPolicy: Retain
+
+  # ─── Bastion for SSM port-forwarding ───────────────────────────
+  BastionInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [ec2.amazonaws.com]
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  BastionInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref BastionInstanceRole
+
+  BastionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref StocksVPC
+      GroupDescription: Bastion host SG
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  BastionHost:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.micro
+      ImageId: ami-0c94855ba95c71c99  # Amazon Linux 2 in us-east-1
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: 0
+          SubnetId: !Ref PublicSubnet1
+          GroupSet:
+            - !Ref BastionSecurityGroup
+      IamInstanceProfile: !Ref BastionInstanceProfile
+      UserData: !Base64 |
+        #!/bin/bash
+        set -eux
+        yum update -y
+        # install Postgres client
+        yum install -y postgresql
+        # install MySQL client
+        yum install -y mariadb
+        # tag the instance for easy identification
+        aws ec2 create-tags \
+          --resources $(curl -s http://169.254.169.254/latest/meta-data/instance-id) \
+          --tags Key=Name,Value=stocks-bastion
 
 Outputs:
   VpcId:
