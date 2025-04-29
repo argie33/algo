@@ -1,4 +1,3 @@
-# .github/workflows/deploy-app-template.yml
 name: deploy-app-template
 
 on:
@@ -43,6 +42,12 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
+      - name: Ensure S3 bucket exists
+        run: |
+          # if bucket missing, create it
+          aws s3api head-bucket --bucket stocks-algo-app-code || \
+            aws s3api create-bucket --bucket stocks-algo-app-code
+
       - name: Upload Lambda to S3
         id: upload
         run: |
@@ -72,7 +77,6 @@ jobs:
             --query "Stacks[0].StackStatus" \
             --output text 2>/dev/null || echo "NOT_FOUND")
           if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            echo "Found ROLLBACK_COMPLETE – deleting stack..."
             aws cloudformation delete-stack --stack-name stocks-db-lambda-stack
             aws cloudformation wait stack-delete-complete --stack-name stocks-db-lambda-stack
           fi

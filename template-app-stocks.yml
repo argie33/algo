@@ -74,11 +74,11 @@ Resources:
   CodeBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: argofinancial-code
+      BucketName: stocks-algo-app-code
       VersioningConfiguration:
         Status: Enabled
-    DeletionPolicy: Delete               # Deletes bucket on stack deletion
-    UpdateReplacePolicy: Retain          # Keeps bucket if replaced during updates
+    DeletionPolicy: Delete               # delete when stack is deleted
+    UpdateReplacePolicy: Retain          # keep on in-place updates
 
   ## Lambda to load stock symbols ##
   LoadStockSymbolsFunction:
