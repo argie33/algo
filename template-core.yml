@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Core infrastructure stack – IAM, Network, Storage, and Bastion for DB access
+Description: Core infrastructure stack – IAM, Network, Storage, Bastion, and auto-shutdown
 
 Parameters:
   VpcCidr:
@@ -19,6 +19,7 @@ Parameters:
     Default: "10.0.102.0/24"
 
 Resources:
+  ### IAM & VPC Core ###
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -164,7 +165,7 @@ Resources:
         Status: Enabled
     DeletionPolicy: Retain
 
-  # ─── Bastion for SSM port-forwarding ───────────────────────────
+  ### Bastion for SSM port‐forwarding ###
   BastionInstanceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -202,7 +203,7 @@ Resources:
     Type: AWS::EC2::Instance
     Properties:
       InstanceType: t3.micro
-      ImageId: ami-0c94855ba95c71c99  # Amazon Linux 2 in us-east-1
+      ImageId: ami-0c94855ba95c71c99  # Amazon Linux 2 (us-east-1)
       NetworkInterfaces:
         - AssociatePublicIpAddress: true
           DeviceIndex: 0
@@ -214,14 +215,63 @@ Resources:
         #!/bin/bash
         set -eux
         yum update -y
-        # install Postgres client
-        yum install -y postgresql
-        # install MySQL client
-        yum install -y mariadb
-        # tag the instance for easy identification
+        yum install -y postgresql mariadb
         aws ec2 create-tags \
           --resources $(curl -s http://169.254.169.254/latest/meta-data/instance-id) \
           --tags Key=Name,Value=stocks-bastion
+
+  ### Lambda + EventBridge to stop bastion at 6 PM CT (23:00 UTC) ###
+  BastionStopRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [lambda.amazonaws.com]
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: StopBastion
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action: ec2:StopInstances
+                Resource: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${BastionHost}
+
+  BastionStopFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.9
+      Handler: index.handler
+      Role: !GetAtt BastionStopRole.Arn
+      Environment:
+        Variables:
+          BASTION_ID: !Ref BastionHost
+      Code:
+        ZipFile: |
+          import boto3, os
+          ec2 = boto3.client('ec2')
+          def handler(event, context):
+              ec2.stop_instances(InstanceIds=[os.environ['BASTION_ID']])
+
+  BastionStopRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Daily stop of bastion at 6 PM CT"
+      ScheduleExpression: cron(0 23 * * ? *)
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt BastionStopFunction.Arn
+          Id: StopBastionTarget
+
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref BastionStopFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt BastionStopRule.Arn
 
 Outputs:
   VpcId:
