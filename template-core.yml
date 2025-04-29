@@ -157,14 +157,6 @@ Resources:
         - IpProtocol: -1
           CidrIp: "0.0.0.0/0"
 
-  CodeBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: argofinancial-code
-      VersioningConfiguration:
-        Status: Enabled
-    DeletionPolicy: Retain
-
   ### Bastion for SSM port‐forwarding ###
   BastionInstanceRole:
     Type: AWS::IAM::Role
@@ -309,12 +301,6 @@ Outputs:
     Value: !Ref LambdaSecurityGroup
     Export:
       Name: StocksCore-LambdaSecurityGroupId
-
-  CodeBucketName:
-    Description: Code bucket name
-    Value: !Ref CodeBucket
-    Export:
-      Name: StocksCore-CodeBucketName
 
   LambdaExecutionRoleArn:
     Description: Lambda execution role ARN
