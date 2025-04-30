@@ -103,7 +103,7 @@ jobs:
         run: |
           docker push "${{ steps.aws_account.outputs.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/financial-data:${{ steps.tag.outputs.IMAGE_TAG }}"
 
-  # 3) Deploy everything via CloudFormation
+  # 3) Deploy everything via CloudFormation, including EcsClusterArn
   deploy_db_lambda:
     name: Deploy DB, Lambda & ECS CloudFormation
     needs: [ build_and_upload_lambda, build_and_push_fin_container ]
@@ -140,6 +140,7 @@ jobs:
               ImageTag=${{ needs.build_and_push_fin_container.outputs.image_tag }} \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
+              EcsClusterArn=${{ secrets.ECS_CLUSTER_ARN }} \
             --capabilities CAPABILITY_NAMED_IAM
 
       - name: Invoke loadstocksymbols Lambda
