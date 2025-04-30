@@ -1,3 +1,4 @@
+# .github/workflows/deploy-app-template.yml
 name: deploy-app-template
 
 on:
@@ -129,7 +130,7 @@ jobs:
             aws cloudformation wait stack-delete-complete --stack-name stocks-db-lambda-stack
           fi
 
-      - name: Deploy DB & Lambda & ECS stack
+      - name: Deploy DB, Lambda & ECS stack
         run: |
           aws cloudformation deploy \
             --stack-name stocks-db-lambda-stack \
