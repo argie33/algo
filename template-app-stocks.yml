@@ -21,6 +21,9 @@ Parameters:
     Type: String
     Default: "10.0.0.0/16"
     Description: VPC CIDR for DB SG ingress
+  EcsClusterArn:
+    Type: String
+    Description: ARN of the existing ECS cluster to run the financial-data task
 
 Resources:
   ## Secret for DB credentials ##
@@ -156,7 +159,7 @@ Resources:
     DependsOn: FinancialDataTaskDefinition
     Properties:
       ServiceName: financial-data-service
-      Cluster: !ImportValue StocksCore-EcsClusterArn
+      Cluster: !Ref EcsClusterArn
       TaskDefinition: !Ref FinancialDataTaskDefinition
       DesiredCount: 1
       LaunchType: FARGATE
