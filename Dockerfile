@@ -1,17 +1,16 @@
-# Dockerfile
-
-# 1) Base image with Python 3.9
+# Use the same Python version as your Lambda for consistency
 FROM python:3.9-slim
 
-# 2) Set working dir
+# set working dir
 WORKDIR /app
 
-# 3) Copy & install dependencies
+# copy & install dependencies
 COPY requirements-loadfinancialdata.txt .
-RUN pip install --no-cache-dir -r requirements-loadfinancialdata.txt
+RUN pip install --upgrade pip \
+ && pip install -r requirements-loadfinancialdata.txt
 
-# 4) Copy the loader script
+# copy your script (and any other modules)
 COPY loadfinancialdata.py .
 
-# 5) Default command
+# default command: run the loader once
 CMD ["python", "loadfinancialdata.py"]
