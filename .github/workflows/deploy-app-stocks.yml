@@ -1,4 +1,3 @@
-# .github/workflows/deploy-app-stocks.yml
 name: deploy-app-template
 
 on:
@@ -9,11 +8,13 @@ on:
 jobs:
   # 1) Package & upload symbols-loader Lambda
   build_and_upload_lambda:
+    name: Build & upload Lambda package
     runs-on: ubuntu-latest
     outputs:
       code_key: ${{ steps.upload.outputs.code_key }}
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -51,12 +52,14 @@ jobs:
 
   # 2) Build & push the financial-data Docker image
   build_and_push_fin_container:
-    needs: build_and_upload_lambda
+    name: Build & Push financial-data Docker image
     runs-on: ubuntu-latest
+    needs: build_and_upload_lambda
     outputs:
       image_tag: ${{ steps.tag.outputs.IMAGE_TAG }}
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -95,12 +98,14 @@ jobs:
         run: |
           docker push "${{ steps.aws_account.outputs.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/financial-data:${{ steps.tag.outputs.IMAGE_TAG }}"
 
-  # 3) Deploy DB, Lambda & ECS stack (with in-stack cluster)
+  # 3) Deploy everything via CloudFormation
   deploy_db_lambda:
+    name: Deploy DB, Lambda & ECS CloudFormation
     needs: [ build_and_upload_lambda, build_and_push_fin_container ]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2

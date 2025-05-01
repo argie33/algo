@@ -1,7 +1,8 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Application stack – RDS, Secrets, imported S3 Code bucket, Lambda (symbols-loader),
-  plus ECS Cluster & Fargate Service for financial-data using the core ECR registry
+  Application stack – RDS, Secrets (full DB connection info), imported S3 bucket,
+  Lambda (symbols-loader), ECS Cluster & Fargate Service for financial-data
+  using the core ECR registry, plus a scheduled RunTask option
 
 Parameters:
   CodeKey:
@@ -23,20 +24,8 @@ Parameters:
     Description: VPC CIDR for DB SG ingress
 
 Resources:
-  ## Secret for DB credentials + connection info ##
-  DBCredentialsSecret:
-    Type: AWS::SecretsManager::Secret
-    Properties:
-      Name: stocks-db-credentials
-      Description: RDS master user credentials and connection info
-      SecretString: !Sub |
-        {"username":"${RDSUsername}",
-         "password":"${RDSPassword}",
-         "host":"${StocksDBInstance.Endpoint.Address}",
-         "port":"${StocksDBInstance.Endpoint.Port}",
-         "dbname":"stocks"}
-  
-  ## RDS Subnet Group ##
+
+  ### RDS Subnet Group ###
   StocksDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
@@ -45,7 +34,7 @@ Resources:
         - !ImportValue StocksCore-PrivateSubnet1Id
         - !ImportValue StocksCore-PrivateSubnet2Id
 
-  ## RDS Security Group ##
+  ### RDS Security Group ###
   StocksDBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -57,7 +46,7 @@ Resources:
           ToPort: 5432
           CidrIp: !Ref VpcCidr
 
-  ## RDS Instance ##
+  ### RDS Instance ###
   StocksDBInstance:
     Type: AWS::RDS::DBInstance
     DependsOn:
@@ -69,8 +58,8 @@ Resources:
       AllocatedStorage: 20
       DBInstanceClass: db.t3.micro
       Engine: postgres
-      MasterUsername: "{{resolve:secretsmanager:stocks-db-credentials:SecretString:username}}"
-      MasterUserPassword: "{{resolve:secretsmanager:stocks-db-credentials:SecretString:password}}"
+      MasterUsername: !Ref RDSUsername
+      MasterUserPassword: !Ref RDSPassword
       VPCSecurityGroups:
         - !Ref StocksDBSecurityGroup
       DBSubnetGroupName: !Ref StocksDBSubnetGroup
@@ -78,11 +67,32 @@ Resources:
       PubliclyAccessible: false
       DeletionProtection: false
 
-  ## Lambda to load stock symbols ##
+  ### Secrets Manager: full DB connection JSON ###
+  DBCredentialsSecret:
+    Type: AWS::SecretsManager::Secret
+    DependsOn: StocksDBInstance
+    Properties:
+      Name: stocks-db-credentials
+      Description: JSON with username, password, host, port, dbname
+      SecretString:
+        Fn::Join:
+          - ""
+          - - '{"username":"'
+            - !Ref RDSUsername
+            - '","password":"'
+            - !Ref RDSPassword
+            - '","host":"'
+            - !GetAtt StocksDBInstance.Endpoint.Address
+            - '","port":"'
+            - !GetAtt StocksDBInstance.Endpoint.Port
+            - '","dbname":"stocks"}'
+
+  ### Lambda: symbols-loader ###
   LoadStockSymbolsFunction:
     Type: AWS::Lambda::Function
     DependsOn:
       - StocksDBInstance
+      - DBCredentialsSecret
     Properties:
       FunctionName: loadstocksymbols
       Runtime: python3.9
@@ -100,10 +110,6 @@ Resources:
           - !ImportValue StocksCore-LambdaSecurityGroupId
       Environment:
         Variables:
-          # still provided for backwards-compatibility in your code
-          DB_ENDPOINT: "{{resolve:secretsmanager:stocks-db-credentials:SecretString:host}}"
-          DB_PORT:     "{{resolve:secretsmanager:stocks-db-credentials:SecretString:port}}"
-          DB_NAME:     "{{resolve:secretsmanager:stocks-db-credentials:SecretString:dbname}}"
           DB_SECRET_ARN: !Ref DBCredentialsSecret
 
   ### ECS Cluster ###
@@ -112,7 +118,7 @@ Resources:
     Properties:
       ClusterName: stocks-cluster
 
-  ## ECS Fargate task pulling from the core ECR registry ##
+  ### ECS Task Definition ###
   FinancialDataTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -132,12 +138,6 @@ Resources:
                 - !Ref ImageTag
           Essential: true
           Environment:
-            - Name: DB_ENDPOINT
-              Value: "{{resolve:secretsmanager:stocks-db-credentials:SecretString:host}}"
-            - Name: DB_PORT
-              Value: "{{resolve:secretsmanager:stocks-db-credentials:SecretString:port}}"
-            - Name: DB_NAME
-              Value: "{{resolve:secretsmanager:stocks-db-credentials:SecretString:dbname}}"
             - Name: DB_SECRET_ARN
               Value: !Ref DBCredentialsSecret
           LogConfiguration:
@@ -147,7 +147,7 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
-  ## ECS Service ##
+  ### ECS Service ###
   FinancialDataService:
     Type: AWS::ECS::Service
     DependsOn:
@@ -166,6 +166,50 @@ Resources:
           SecurityGroups:
             - !Ref StocksDBSecurityGroup
 
+  ### Scheduled RunTask (hourly) ###
+  EventsInvokeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: Allow_ECS_RunTask
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:RunTask
+                  - iam:PassRole
+                Resource:
+                  - !Ref FinancialDataTaskDefinition
+
+  FinancialDataScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Run financial-data task every hour"
+      ScheduleExpression: "rate(1 hour)"
+      State: "ENABLED"
+      Targets:
+        - Id: "RunFinancialData"
+          Arn: !Ref StocksEcsCluster
+          RoleArn: !GetAtt EventsInvokeRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref FinancialDataTaskDefinition
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PrivateSubnet1Id
+                  - !ImportValue StocksCore-PrivateSubnet2Id
+                SecurityGroups:
+                  - !Ref StocksDBSecurityGroup
+
 Outputs:
   DBEndpoint:
     Description: RDS endpoint address
@@ -175,13 +219,9 @@ Outputs:
     Description: RDS endpoint port
     Value: !GetAtt StocksDBInstance.Endpoint.Port
 
-  LoadStockSymbolsFunctionArn:
-    Description: ARN of the loadstocksymbols Lambda
-    Value: !GetAtt LoadStockSymbolsFunction.Arn
-
-  CodeBucketName:
-    Description: S3 bucket for Lambda code
-    Value: !ImportValue StocksCore-CodeBucketName
+  SecretArn:
+    Description: ARN of the DB credentials secret
+    Value: !Ref DBCredentialsSecret
 
   ClusterArn:
     Description: ARN of the ECS cluster
