@@ -8,7 +8,6 @@ on:
 env:
   AWS_REGION: us-east-1
   STACK_NAME: stocks-serverless-webapp
-  STATIC_BUCKET: ${{ env.STACK_NAME }}-static
   LAMBDA_CODE_KEY: api.zip
 
 jobs:
@@ -26,7 +25,9 @@ jobs:
           aws-region:            ${{ env.AWS_REGION }}
 
       - name: Sync SPA to S3
-        run: aws s3 sync webapp/spa/ s3://${{ env.STATIC_BUCKET }} --delete
+        # compute bucket name here using STACK_NAME
+        run: |
+          aws s3 sync webapp/spa/ s3://${{ env.STACK_NAME }}-static --delete
 
       - name: Package API Lambda
         run: |
@@ -34,7 +35,8 @@ jobs:
           zip -r ../../${{ env.LAMBDA_CODE_KEY }} .
 
       - name: Upload Lambda code to S3
-        run: aws s3 cp ${{ env.LAMBDA_CODE_KEY }} s3://${{ secrets.CODE_BUCKET_NAME }}/${{ env.LAMBDA_CODE_KEY }}
+        run: |
+          aws s3 cp ${{ env.LAMBDA_CODE_KEY }} s3://${{ secrets.CODE_BUCKET_NAME }}/${{ env.LAMBDA_CODE_KEY }}
 
       - name: Deploy CloudFormation stack
         run: |
