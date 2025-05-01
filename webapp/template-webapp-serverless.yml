@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Serverless SPA → CloudFront + API Gateway + Lambda (RDS), using imported S3 buckets
+Description: Serverless SPA → CloudFront + API Gateway + Lambda (RDS), using imported S3 & network resources
 
 Parameters:
   LambdaCodeKey:
@@ -8,9 +8,6 @@ Parameters:
   DBSecretArn:
     Type: String
     Description: ARN of the SecretsManager secret (stocks-db-credentials)
-  RdsSecurityGroupId:
-    Type: String
-    Description: ID of the RDS Security Group
   CertificateArn:
     Type: String
     Default: ''
@@ -23,14 +20,14 @@ Conditions:
       - Fn::Not: [ !Equals [ !Ref CertificateArn, '' ] ]
 
 Resources:
-  # 1) Origin Access Identity for CloudFront
+  # 1) Origin Access Identity
   OAI:
     Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
     Properties:
       CloudFrontOriginAccessIdentityConfig:
-        Comment: Access SPA bucket via OAI
+        Comment: Access SPA bucket
 
-  # 2) Bucket policy to allow that OAI to read from the imported SPA bucket
+  # 2) Bucket policy for SPA bucket
   BucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -48,7 +45,7 @@ Resources:
                   - !ImportValue StocksCore-SiteCodeBucketName
                   - '/*'
 
-  # 3) CloudFront distribution serving the imported SPA bucket
+  # 3) CloudFront distribution
   SPACloudFront:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -76,7 +73,7 @@ Resources:
               SslSupportMethod: sni-only
             - CloudFrontDefaultCertificate: true
 
-  # 4) API Lambda (pulls code from the imported app-code bucket)
+  # 4) API Lambda
   ApiLambda:
     Type: AWS::Lambda::Function
     Properties:
@@ -93,7 +90,7 @@ Resources:
           - !ImportValue StocksCore-PrivateSubnet1Id
           - !ImportValue StocksCore-PrivateSubnet2Id
         SecurityGroupIds:
-          - !Ref RdsSecurityGroupId
+          - !ImportValue StocksCore-LambdaSecurityGroupId
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DBSecretArn
