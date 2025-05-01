@@ -16,6 +16,12 @@ Parameters:
     Default: ''
     Description: ACM certificate ARN (us-east-1) for CloudFront
 
+Conditions:
+  UseCert: 
+    Fn::And:
+      - Fn::Not: [ !Equals [ !Ref CertificateArn, '' ] ]
+      - Fn::Not: [ !Equals [ !Ref CertificateArn, '' ] ]
+
 Resources:
   # 1) Origin Access Identity for CloudFront
   OAI:
@@ -70,13 +76,7 @@ Resources:
               SslSupportMethod: sni-only
             - CloudFrontDefaultCertificate: true
 
-  # 4) Helper condition for custom cert
-  UseCert:
-    Fn::And:
-      - Fn::Not: [ Fn::Equals: [ !Ref CertificateArn, '' ] ]
-      - Fn::Not: [ Fn::Equals: [ !Ref CertificateArn, '' ] ]
-
-  # 5) API Lambda (pulls code from the imported app-code bucket)
+  # 4) API Lambda (pulls code from the imported app-code bucket)
   ApiLambda:
     Type: AWS::Lambda::Function
     Properties:
@@ -98,7 +98,7 @@ Resources:
         Variables:
           DB_SECRET_ARN: !Ref DBSecretArn
 
-  # 6) HTTP API (API Gateway v2)
+  # 5) HTTP API (API Gateway v2)
   StocksApi:
     Type: AWS::ApiGatewayV2::Api
     Properties:
