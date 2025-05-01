@@ -1,5 +1,6 @@
+# template-core.yml
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Core infrastructure stack – IAM, Network, Storage, Bastion, and auto-shutdown
+Description: Core infrastructure stack – IAM, Network, Storage, Bastion, auto-shutdown, and ECR registry
 
 Parameters:
   VpcCidr:
@@ -302,6 +303,32 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn: !GetAtt BastionStopRule.Arn
 
+  ### New: ECR Container Registry ###
+  ContainerRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    Properties:
+      RepositoryName: stocks-app-registry
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Expire images older than 30 days",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "sinceImagePushed",
+                  "countUnit": "days",
+                  "countNumber": 30
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+
 Outputs:
   VpcId:
     Description: VPC ID
@@ -344,3 +371,9 @@ Outputs:
     Value: !GetAtt LambdaExecutionRole.Arn
     Export:
       Name: StocksCore-LambdaExecutionRoleArn
+
+  ContainerRepositoryUri:
+    Description: ECR repository URI
+    Value: !GetAtt ContainerRepository.RepositoryUri
+    Export:
+      Name: StocksCore-ContainerRepositoryUri
