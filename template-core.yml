@@ -1,6 +1,5 @@
-# template-core.yml
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Core infrastructure stack – IAM, Network, Storage, Bastion, auto-shutdown, and ECR registry
+Description: Core infrastructure stack – IAM, Network, Storage, Bastion, auto-shutdown, ECR registry, and S3 code bucket
 
 Parameters:
   VpcCidr:
@@ -306,6 +305,7 @@ Resources:
   ### New: ECR Container Registry ###
   ContainerRepository:
     Type: AWS::ECR::Repository
+    DeletionPolicy: Delete
     Properties:
       RepositoryName: stocks-app-registry
       LifecyclePolicy:
@@ -327,6 +327,16 @@ Resources:
               }
             ]
           }
+
+  ### New: S3 bucket for Lambda code ###
+  CodeBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: stocks-algo-app-code
+      VersioningConfiguration:
+        Status: Enabled
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
 
 Outputs:
   VpcId:
@@ -376,3 +386,9 @@ Outputs:
     Value: !GetAtt ContainerRepository.RepositoryUri
     Export:
       Name: StocksCore-ContainerRepositoryUri
+
+  CodeBucketName:
+    Description: S3 bucket for Lambda code
+    Value: !Ref CodeBucket
+    Export:
+      Name: StocksCore-CodeBucketName
