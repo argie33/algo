@@ -1,4 +1,3 @@
-# template-app-stocks.yml
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Application stack – RDS, Secrets, imported S3 Code bucket, Lambda (symbols-loader),
@@ -24,15 +23,19 @@ Parameters:
     Description: VPC CIDR for DB SG ingress
 
 Resources:
-  ## Secret for DB credentials ##
+  ## Secret for DB credentials + connection info ##
   DBCredentialsSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
       Name: stocks-db-credentials
-      Description: RDS master user credentials
+      Description: RDS master user credentials and connection info
       SecretString: !Sub |
-        {"username":"${RDSUsername}","password":"${RDSPassword}"}
-
+        {"username":"${RDSUsername}",
+         "password":"${RDSPassword}",
+         "host":"${StocksDBInstance.Endpoint.Address}",
+         "port":"${StocksDBInstance.Endpoint.Port}",
+         "dbname":"stocks"}
+  
   ## RDS Subnet Group ##
   StocksDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
@@ -58,7 +61,6 @@ Resources:
   StocksDBInstance:
     Type: AWS::RDS::DBInstance
     DependsOn:
-      - DBCredentialsSecret
       - StocksDBSubnetGroup
       - StocksDBSecurityGroup
     Properties:
@@ -98,9 +100,10 @@ Resources:
           - !ImportValue StocksCore-LambdaSecurityGroupId
       Environment:
         Variables:
-          DB_ENDPOINT:   !GetAtt StocksDBInstance.Endpoint.Address
-          DB_PORT:       !GetAtt StocksDBInstance.Endpoint.Port
-          DB_NAME:       stocks
+          # still provided for backwards-compatibility in your code
+          DB_ENDPOINT: "{{resolve:secretsmanager:stocks-db-credentials:SecretString:host}}"
+          DB_PORT:     "{{resolve:secretsmanager:stocks-db-credentials:SecretString:port}}"
+          DB_NAME:     "{{resolve:secretsmanager:stocks-db-credentials:SecretString:dbname}}"
           DB_SECRET_ARN: !Ref DBCredentialsSecret
 
   ### ECS Cluster ###
@@ -130,11 +133,11 @@ Resources:
           Essential: true
           Environment:
             - Name: DB_ENDPOINT
-              Value: !GetAtt StocksDBInstance.Endpoint.Address
+              Value: "{{resolve:secretsmanager:stocks-db-credentials:SecretString:host}}"
             - Name: DB_PORT
-              Value: !GetAtt StocksDBInstance.Endpoint.Port
+              Value: "{{resolve:secretsmanager:stocks-db-credentials:SecretString:port}}"
             - Name: DB_NAME
-              Value: stocks
+              Value: "{{resolve:secretsmanager:stocks-db-credentials:SecretString:dbname}}"
             - Name: DB_SECRET_ARN
               Value: !Ref DBCredentialsSecret
           LogConfiguration:
