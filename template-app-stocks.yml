@@ -1,7 +1,8 @@
+# template-app-stocks.yml
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Application stack – RDS, Secrets, imported S3 Code bucket, Lambda (symbols-loader),
-  plus ECS Fargate Service for financial-data using the core ECR registry
+  plus ECS Cluster & Fargate Service for financial-data using the core ECR registry
 
 Parameters:
   CodeKey:
@@ -21,9 +22,6 @@ Parameters:
     Type: String
     Default: "10.0.0.0/16"
     Description: VPC CIDR for DB SG ingress
-  EcsClusterArn:
-    Type: String
-    Description: ARN of the existing ECS cluster to run the financial-data task
 
 Resources:
   ## Secret for DB credentials ##
@@ -105,6 +103,12 @@ Resources:
           DB_NAME:       stocks
           DB_SECRET_ARN: !Ref DBCredentialsSecret
 
+  ### ECS Cluster ###
+  StocksEcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: stocks-cluster
+
   ## ECS Fargate task pulling from the core ECR registry ##
   FinancialDataTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -121,7 +125,7 @@ Resources:
           Image:
             Fn::Join:
               - ":"
-              - - Fn::ImportValue: StocksCore-ContainerRepositoryUri
+              - - !ImportValue StocksCore-ContainerRepositoryUri
                 - !Ref ImageTag
           Essential: true
           Environment:
@@ -143,10 +147,11 @@ Resources:
   ## ECS Service ##
   FinancialDataService:
     Type: AWS::ECS::Service
-    DependsOn: FinancialDataTaskDefinition
+    DependsOn:
+      - FinancialDataTaskDefinition
     Properties:
       ServiceName: financial-data-service
-      Cluster: !Ref EcsClusterArn
+      Cluster: !Ref StocksEcsCluster
       TaskDefinition: !Ref FinancialDataTaskDefinition
       DesiredCount: 1
       LaunchType: FARGATE
@@ -174,6 +179,10 @@ Outputs:
   CodeBucketName:
     Description: S3 bucket for Lambda code
     Value: !ImportValue StocksCore-CodeBucketName
+
+  ClusterArn:
+    Description: ARN of the ECS cluster
+    Value: !GetAtt StocksEcsCluster.Arn
 
   FinancialDataServiceArn:
     Description: ARN of the ECS service running financial-data
