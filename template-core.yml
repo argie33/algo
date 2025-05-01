@@ -1,3 +1,4 @@
+# template-core.yml
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Core infrastructure stack – IAM, Network, Storage, Bastion, auto-shutdown, ECR registry, and S3 code bucket
 
@@ -17,6 +18,16 @@ Parameters:
   PrivateSubnetCidr2:
     Type: String
     Default: "10.0.102.0/24"
+
+  # NEW: where the DB lives and secret name
+  DBStackName:
+    Type: String
+    Default: "stocks-db-lambda-stack"
+    Description: Name of the CFN stack exporting DBEndpoint, DBPort, and SecretArn
+  DBSecretName:
+    Type: String
+    Default: "stocks-db-credentials"
+    Description: Name of the SecretsManager secret holding DB connection JSON
 
 Resources:
   ### IAM & VPC Core ###
@@ -212,40 +223,41 @@ Resources:
         yum update -y
         yum install -y jq postgresql
         aws configure set region us-east-1
-        
-        # Fetch DB credentials and connection info
+
+        # Fetch DB credentials and connection info from SecretsManager
         CREDS=$(aws secretsmanager get-secret-value \
-          --secret-id stocks-db-credentials \
+          --secret-id "${DBSecretName}" \
           --query SecretString --output text)
-        DB_USER=$(echo "$CREDS" | jq -r .username)
-        DB_PASSWORD=$(echo "$CREDS" | jq -r .password)
-        STACK_NAME=stocks-db-lambda-stack
+        DB_USER=$(echo "$CREDS"    | jq -r .username)
+        DB_PASSWORD=$(echo "$CREDS"| jq -r .password)
+        DB_NAME=$(echo "$CREDS"    | jq -r .dbname)
+
+        # Lookup endpoint and port from the specified stack
         DB_HOST=$(aws cloudformation describe-stacks \
-          --stack-name $STACK_NAME \
+          --stack-name "${DBStackName}" \
           --query "Stacks[0].Outputs[?OutputKey=='DBEndpoint'].OutputValue" \
           --output text)
         DB_PORT=$(aws cloudformation describe-stacks \
-          --stack-name $STACK_NAME \
+          --stack-name "${DBStackName}" \
           --query "Stacks[0].Outputs[?OutputKey=='DBPort'].OutputValue" \
           --output text)
-        DB_NAME=stocks
-        
+
         # Configure psql access via .pgpass
-        echo "$DB_HOST:$DB_PORT:$DB_NAME:$DB_USER:$DB_PASSWORD" > /home/ec2-user/.pgpass
+        echo "${DB_HOST}:${DB_PORT}:${DB_NAME}:${DB_USER}:${DB_PASSWORD}" > /home/ec2-user/.pgpass
         chmod 600 /home/ec2-user/.pgpass
         chown ec2-user:ec2-user /home/ec2-user/.pgpass
-        
-        # Add environment variables to bash profile
+
+        # Export env vars for interactive sessions
         cat << 'EOF' >> /home/ec2-user/.bash_profile
         export AWS_DEFAULT_REGION=us-east-1
-        export DB_HOST=$DB_HOST
-        export DB_PORT=$DB_PORT
-        export DB_USER=$DB_USER
-        export DB_NAME=$DB_NAME
-        export PGHOST=$DB_HOST
-        export PGPORT=$DB_PORT
-        export PGUSER=$DB_USER
-        export PGDATABASE=$DB_NAME
+        export DB_HOST=${DB_HOST}
+        export DB_PORT=${DB_PORT}
+        export DB_USER=${DB_USER}
+        export DB_NAME=${DB_NAME}
+        export PGHOST=${DB_HOST}
+        export PGPORT=${DB_PORT}
+        export PGUSER=${DB_USER}
+        export PGDATABASE=${DB_NAME}
         EOF
         chown ec2-user:ec2-user /home/ec2-user/.bash_profile
 
@@ -302,7 +314,7 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn: !GetAtt BastionStopRule.Arn
 
-  ### New: ECR Container Registry ###
+  ### ECR Container Registry ###
   ContainerRepository:
     Type: AWS::ECR::Repository
     DeletionPolicy: Delete
@@ -311,24 +323,17 @@ Resources:
       LifecyclePolicy:
         LifecyclePolicyText: |
           {
-            "rules": [
+            "rules":[
               {
-                "rulePriority": 1,
-                "description": "Expire images older than 30 days",
-                "selection": {
-                  "tagStatus": "any",
-                  "countType": "sinceImagePushed",
-                  "countUnit": "days",
-                  "countNumber": 30
-                },
-                "action": {
-                  "type": "expire"
-                }
+                "rulePriority":1,
+                "description":"Expire images older than 30 days",
+                "selection":{"tagStatus":"any","countType":"sinceImagePushed","countUnit":"days","countNumber":30},
+                "action":{"type":"expire"}
               }
             ]
           }
 
-  ### New: S3 bucket for Lambda code ###
+  ### S3 bucket for Lambda code ###
   CodeBucket:
     Type: AWS::S3::Bucket
     Properties:
