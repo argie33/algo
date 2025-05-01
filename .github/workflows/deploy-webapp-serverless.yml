@@ -8,7 +8,6 @@ on:
 env:
   AWS_REGION: us-east-1
   STACK_NAME: stocks-serverless-webapp
-  STATIC_BUCKET: ${{ env.STACK_NAME }}-static
   LAMBDA_CODE_KEY: api.zip
 
 jobs:
@@ -49,4 +48,4 @@ jobs:
 
       - name: Sync SPA to S3
         run: |
-          aws s3 sync webapp/spa/ s3://${{ env.STATIC_BUCKET }} --delete
+          aws s3 sync webapp/spa/ s3://${{ env.STACK_NAME }}-static --delete
