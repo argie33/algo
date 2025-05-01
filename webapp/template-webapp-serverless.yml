@@ -1,0 +1,146 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Serverless SPA → S3 + CloudFront + API Gateway + Lambda (RDS)
+
+Parameters:
+  LambdaCodeKey:
+    Type: String
+    Description: S3 key for the API Lambda zip (e.g. api.zip)
+  DBSecretArn:
+    Type: String
+    Description: ARN of SecretsManager secret (stocks-db-credentials)
+  RdsSecurityGroupId:
+    Type: String
+    Description: ID of the RDS Security Group
+  CertificateArn:
+    Type: String
+    Default: ''
+    Description: ACM certificate ARN (us-east-1) for CloudFront
+
+Resources:
+  # 1) Static SPA Hosting
+  StaticBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${AWS::StackName}-static'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  OAI:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: Access S3 for SPA
+
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref StaticBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !GetAtt OAI.S3CanonicalUserId
+            Action: s3:GetObject
+            Resource: !Sub '${StaticBucket.Arn}/*'
+
+  SPACloudFront:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Origins:
+          - Id: SPA
+            DomainName: !GetAtt StaticBucket.DomainName
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${OAI}'
+        DefaultCacheBehavior:
+          TargetOriginId: SPA
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET,HEAD]
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+        ViewerCertificate:
+          Fn::If:
+            - UseCert
+            - AcmCertificateArn: !Ref CertificateArn
+              SslSupportMethod: sni-only
+            - CloudFrontDefaultCertificate: true
+      DependsOn: BucketPolicy
+
+  UseCert:
+    Fn::And:
+      - Fn::Not: [ Fn::Equals: [ !Ref CertificateArn, '' ] ]
+      - Fn::Not: [ Fn::Equals: [ !Ref CertificateArn, ''] ]
+
+  # 2) API Lambda
+  ApiLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: api-handler
+      Runtime: python3.9
+      Handler: index.handler
+      Role: !ImportValue StocksCore-LambdaExecutionRoleArn
+      Code:
+        S3Bucket: !ImportValue StocksCore-CodeBucketName
+        S3Key: !Ref LambdaCodeKey
+      Timeout: 30
+      VpcConfig:
+        SubnetIds:
+          - !ImportValue StocksCore-PrivateSubnet1Id
+          - !ImportValue StocksCore-PrivateSubnet2Id
+        SecurityGroupIds:
+          - !Ref RdsSecurityGroupId
+      Environment:
+        Variables:
+          DB_SECRET_ARN: !Ref DBSecretArn
+
+  # 3) HTTP API (API Gateway v2)
+  StocksApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: stocks-api
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowOrigins: ['*']
+        AllowMethods: ['GET','OPTIONS']
+
+  ApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref StocksApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt ApiLambda.Arn
+      PayloadFormatVersion: '2.0'
+
+  ApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref StocksApi
+      RouteKey: 'GET /'
+      Target: !Sub 'integrations/${ApiIntegration}'
+
+  ApiDeploy:
+    Type: AWS::ApiGatewayV2::Deployment
+    Properties:
+      ApiId: !Ref StocksApi
+    DependsOn:
+      - ApiRoute
+
+  ApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref StocksApi
+      StageName: '$default'
+      DeploymentId: !Ref ApiDeploy
+      AutoDeploy: true
+
+Outputs:
+  SPAUrl:
+    Description: CloudFront URL for SPA
+    Value: !GetAtt SPACloudFront.DomainName
+  ApiEndpoint:
+    Description: HTTP API invoke URL
+    Value: !Sub '${StocksApi}.execute-api.${AWS::Region}.amazonaws.com'
