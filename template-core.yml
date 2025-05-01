@@ -1,6 +1,5 @@
-# template-core.yml
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Core infrastructure stack – IAM, Network, Storage, Bastion, auto-shutdown, ECR registry, and S3 code bucket
+Description: Core infrastructure stack – IAM, Network, Storage, Bastion, auto-shutdown, ECR registry, and S3 code buckets
 
 Parameters:
   VpcCidr:
@@ -19,7 +18,7 @@ Parameters:
     Type: String
     Default: "10.0.102.0/24"
 
-  # NEW: where the DB lives and secret name
+  # where the DB lives and secret name
   DBStackName:
     Type: String
     Default: "stocks-db-lambda-stack"
@@ -224,7 +223,6 @@ Resources:
         yum install -y jq postgresql
         aws configure set region us-east-1
 
-        # Fetch DB credentials and connection info from SecretsManager
         CREDS=$(aws secretsmanager get-secret-value \
           --secret-id "${DBSecretName}" \
           --query SecretString --output text)
@@ -232,7 +230,6 @@ Resources:
         DB_PASSWORD=$(echo "$CREDS"| jq -r .password)
         DB_NAME=$(echo "$CREDS"    | jq -r .dbname)
 
-        # Lookup endpoint and port from the specified stack
         DB_HOST=$(aws cloudformation describe-stacks \
           --stack-name "${DBStackName}" \
           --query "Stacks[0].Outputs[?OutputKey=='DBEndpoint'].OutputValue" \
@@ -242,12 +239,10 @@ Resources:
           --query "Stacks[0].Outputs[?OutputKey=='DBPort'].OutputValue" \
           --output text)
 
-        # Configure psql access via .pgpass
         echo "${DB_HOST}:${DB_PORT}:${DB_NAME}:${DB_USER}:${DB_PASSWORD}" > /home/ec2-user/.pgpass
         chmod 600 /home/ec2-user/.pgpass
         chown ec2-user:ec2-user /home/ec2-user/.pgpass
 
-        # Export env vars for interactive sessions
         cat << 'EOF' >> /home/ec2-user/.bash_profile
         export AWS_DEFAULT_REGION=us-east-1
         export DB_HOST=${DB_HOST}
@@ -343,6 +338,19 @@ Resources:
     DeletionPolicy: Delete
     UpdateReplacePolicy: Retain
 
+  ### S3 bucket for site code ###
+  SiteCodeBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: stocks-algo-site-code
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+
 Outputs:
   VpcId:
     Description: VPC ID
@@ -397,3 +405,9 @@ Outputs:
     Value: !Ref CodeBucket
     Export:
       Name: StocksCore-CodeBucketName
+
+  SiteCodeBucketName:
+    Description: S3 bucket for site code
+    Value: !Ref SiteCodeBucket
+    Export:
+      Name: StocksCore-SiteCodeBucketName
