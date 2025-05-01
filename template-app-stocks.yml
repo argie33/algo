@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Application stack – RDS, Secrets, S3 Code bucket, Lambda (symbols-loader),
-  plus ECR & ECS Fargate Service for financial-data
+  plus ECS Fargate Service for financial-data using the core ECR registry
 
 Parameters:
   CodeKey:
@@ -116,13 +116,7 @@ Resources:
           DB_NAME:       stocks
           DB_SECRET_ARN: !Ref DBCredentialsSecret
 
-  ## ECR repository for financial-data ##
-  FinancialDataRepository:
-    Type: AWS::ECR::Repository
-    Properties:
-      RepositoryName: financial-data
-
-  ## ECS Fargate task for financial-data ##
+  ## ECS Fargate task pulling from the core ECR registry ##
   FinancialDataTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -135,7 +129,11 @@ Resources:
       ExecutionRoleArn: !ImportValue StocksCore-LambdaExecutionRoleArn
       ContainerDefinitions:
         - Name: financial-data
-          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/financial-data:${ImageTag}"
+          Image:
+            Fn::Join:
+              - ":"
+              - - Fn::ImportValue: StocksCore-ContainerRepositoryUri
+                - !Ref ImageTag
           Essential: true
           Environment:
             - Name: DB_ENDPOINT
@@ -187,10 +185,6 @@ Outputs:
   CodeBucketName:
     Description: S3 bucket for Lambda code
     Value: !Ref CodeBucket
-
-  FinancialDataRepoUri:
-    Description: URI of the financial-data ECR repo
-    Value: !GetAtt FinancialDataRepository.RepositoryUri
 
   FinancialDataServiceArn:
     Description: ARN of the ECS service running financial-data
