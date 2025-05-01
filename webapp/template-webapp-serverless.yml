@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Serverless SPA → S3 + CloudFront + API Gateway + Lambda (RDS)
+Description: Serverless SPA → CloudFront + API Gateway + Lambda (RDS), using imported S3 buckets
 
 Parameters:
   LambdaCodeKey:
@@ -17,35 +17,30 @@ Parameters:
     Description: ACM certificate ARN (us-east-1) for CloudFront
 
 Resources:
-  # 1) Static SPA Hosting
-  StaticBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub '${AWS::StackName}-static'
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-
+  # 1) Origin Access Identity for CloudFront
   OAI:
     Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
     Properties:
       CloudFrontOriginAccessIdentityConfig:
         Comment: Access S3 for SPA
 
+  # 2) Bucket policy granting that OAI read access to the imported site-code bucket
   BucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
-      Bucket: !Ref StaticBucket
+      Bucket: !ImportValue StocksCore-SiteCodeBucketName
       PolicyDocument:
         Statement:
           - Effect: Allow
             Principal:
               AWS: !GetAtt OAI.S3CanonicalUserId
             Action: s3:GetObject
-            Resource: !Sub '${StaticBucket.Arn}/*'
+            Resource: !Sub '${ImportedBucketArn}/*'
+      # helper substitution
+    Metadata:
+      ImportedBucketArn: !ImportValue StocksCore-SiteCodeBucketName
 
+  # 3) CloudFront distribution serving the imported bucket
   SPACloudFront:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -54,7 +49,7 @@ Resources:
         DefaultRootObject: index.html
         Origins:
           - Id: SPA
-            DomainName: !GetAtt StaticBucket.DomainName
+            DomainName: !Sub '${ImportedBucket}.s3.amazonaws.com'
             S3OriginConfig:
               OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${OAI}'
         DefaultCacheBehavior:
@@ -68,25 +63,16 @@ Resources:
             - AcmCertificateArn: !Ref CertificateArn
               SslSupportMethod: sni-only
             - CloudFrontDefaultCertificate: true
-      DependsOn: BucketPolicy
+    Metadata:
+      ImportedBucket: !ImportValue StocksCore-SiteCodeBucketName
 
+  # 4) Helper condition for custom cert
   UseCert:
     Fn::And:
       - Fn::Not: [ Fn::Equals: [ !Ref CertificateArn, '' ] ]
       - Fn::Not: [ Fn::Equals: [ !Ref CertificateArn, '' ] ]
 
-  # 2) Code bucket for Lambda artifacts (explicit name)
-  CodeBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: stocks-algo-site-code
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-
-  # 3) API Lambda
+  # 5) API Lambda (pulls code from the imported app-code bucket)
   ApiLambda:
     Type: AWS::Lambda::Function
     Properties:
@@ -95,7 +81,7 @@ Resources:
       Handler: index.handler
       Role: !ImportValue StocksCore-LambdaExecutionRoleArn
       Code:
-        S3Bucket: !Ref CodeBucket
+        S3Bucket: !ImportValue StocksCore-CodeBucketName
         S3Key: !Ref LambdaCodeKey
       Timeout: 30
       VpcConfig:
@@ -108,7 +94,7 @@ Resources:
         Variables:
           DB_SECRET_ARN: !Ref DBSecretArn
 
-  # 4) HTTP API (API Gateway v2)
+  # 6) HTTP API (API Gateway v2)
   StocksApi:
     Type: AWS::ApiGatewayV2::Api
     Properties:
@@ -156,9 +142,3 @@ Outputs:
   ApiEndpoint:
     Description: HTTP API invoke URL
     Value: !Sub '${StocksApi}.execute-api.${AWS::Region}.amazonaws.com'
-
-  CodeBucketName:
-    Description: S3 bucket for Lambda code zips
-    Value: stocks-algo-site-code
-    Export:
-      Name: stocks-algo-site-code

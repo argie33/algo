@@ -338,7 +338,7 @@ Resources:
     DeletionPolicy: Delete
     UpdateReplacePolicy: Retain
 
-  ### S3 bucket for site code ###
+  ### S3 bucket for site static assets ###
   SiteCodeBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -349,6 +349,21 @@ Resources:
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
     DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+
+  ### S3 bucket for site application code ###
+  SiteAppCodeBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: stocks-algo-site-app-code
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+    DeletionPolicy: Delete
     UpdateReplacePolicy: Retain
 
 Outputs:
@@ -407,7 +422,13 @@ Outputs:
       Name: StocksCore-CodeBucketName
 
   SiteCodeBucketName:
-    Description: S3 bucket for site code
+    Description: S3 bucket for site static assets
     Value: !Ref SiteCodeBucket
     Export:
       Name: StocksCore-SiteCodeBucketName
+
+  SiteAppCodeBucketName:
+    Description: S3 bucket for site application code
+    Value: !Ref SiteAppCodeBucket
+    Export:
+      Name: StocksCore-SiteAppCodeBucketName
