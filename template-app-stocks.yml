@@ -86,7 +86,6 @@ Resources:
       VersioningConfiguration:
         Status: Enabled
     DeletionPolicy: Delete
-    UpdateReplacePolicy: Retain
 
   ## Lambda to load stock symbols ##
   LoadStockSymbolsFunction:

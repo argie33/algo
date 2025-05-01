@@ -306,7 +306,6 @@ Resources:
   ### New: ECR Container Registry ###
   ContainerRepository:
     Type: AWS::ECR::Repository
-    DeletionPolicy: Retain
     Properties:
       RepositoryName: stocks-app-registry
       LifecyclePolicy:
