@@ -7,7 +7,7 @@ Parameters:
     Description: S3 key for the API Lambda zip (e.g. api.zip)
   DBSecretArn:
     Type: String
-    Description: ARN of SecretsManager secret (stocks-db-credentials)
+    Description: ARN of the SecretsManager secret (stocks-db-credentials)
   RdsSecurityGroupId:
     Type: String
     Description: ID of the RDS Security Group
@@ -22,9 +22,9 @@ Resources:
     Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
     Properties:
       CloudFrontOriginAccessIdentityConfig:
-        Comment: Access S3 for SPA
+        Comment: Access SPA bucket via OAI
 
-  # 2) Bucket policy granting that OAI read access to the imported site-code bucket
+  # 2) Bucket policy to allow that OAI to read from the imported SPA bucket
   BucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -35,12 +35,14 @@ Resources:
             Principal:
               AWS: !GetAtt OAI.S3CanonicalUserId
             Action: s3:GetObject
-            Resource: !Sub '${ImportedBucketArn}/*'
-      # helper substitution
-    Metadata:
-      ImportedBucketArn: !ImportValue StocksCore-SiteCodeBucketName
+            Resource:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:s3:::'
+                  - !ImportValue StocksCore-SiteCodeBucketName
+                  - '/*'
 
-  # 3) CloudFront distribution serving the imported bucket
+  # 3) CloudFront distribution serving the imported SPA bucket
   SPACloudFront:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -49,7 +51,11 @@ Resources:
         DefaultRootObject: index.html
         Origins:
           - Id: SPA
-            DomainName: !Sub '${ImportedBucket}.s3.amazonaws.com'
+            DomainName:
+              Fn::Join:
+                - ''
+                - - !ImportValue StocksCore-SiteCodeBucketName
+                  - '.s3.amazonaws.com'
             S3OriginConfig:
               OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${OAI}'
         DefaultCacheBehavior:
@@ -63,8 +69,6 @@ Resources:
             - AcmCertificateArn: !Ref CertificateArn
               SslSupportMethod: sni-only
             - CloudFrontDefaultCertificate: true
-    Metadata:
-      ImportedBucket: !ImportValue StocksCore-SiteCodeBucketName
 
   # 4) Helper condition for custom cert
   UseCert:
@@ -81,7 +85,7 @@ Resources:
       Handler: index.handler
       Role: !ImportValue StocksCore-LambdaExecutionRoleArn
       Code:
-        S3Bucket: !ImportValue StocksCore-CodeBucketName
+        S3Bucket: !ImportValue StocksCore-SiteAppCodeBucketName
         S3Key: !Ref LambdaCodeKey
       Timeout: 30
       VpcConfig:
