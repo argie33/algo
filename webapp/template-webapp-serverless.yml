@@ -73,9 +73,20 @@ Resources:
   UseCert:
     Fn::And:
       - Fn::Not: [ Fn::Equals: [ !Ref CertificateArn, '' ] ]
-      - Fn::Not: [ Fn::Equals: [ !Ref CertificateArn, ''] ]
+      - Fn::Not: [ Fn::Equals: [ !Ref CertificateArn, '' ] ]
 
-  # 2) API Lambda
+  # 2) Code bucket for Lambda artifacts (explicit name)
+  CodeBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: stocks-algo-site-code
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # 3) API Lambda
   ApiLambda:
     Type: AWS::Lambda::Function
     Properties:
@@ -84,7 +95,7 @@ Resources:
       Handler: index.handler
       Role: !ImportValue StocksCore-LambdaExecutionRoleArn
       Code:
-        S3Bucket: !ImportValue StocksCore-CodeBucketName
+        S3Bucket: !Ref CodeBucket
         S3Key: !Ref LambdaCodeKey
       Timeout: 30
       VpcConfig:
@@ -97,7 +108,7 @@ Resources:
         Variables:
           DB_SECRET_ARN: !Ref DBSecretArn
 
-  # 3) HTTP API (API Gateway v2)
+  # 4) HTTP API (API Gateway v2)
   StocksApi:
     Type: AWS::ApiGatewayV2::Api
     Properties:
@@ -141,6 +152,13 @@ Outputs:
   SPAUrl:
     Description: CloudFront URL for SPA
     Value: !GetAtt SPACloudFront.DomainName
+
   ApiEndpoint:
     Description: HTTP API invoke URL
     Value: !Sub '${StocksApi}.execute-api.${AWS::Region}.amazonaws.com'
+
+  CodeBucketName:
+    Description: S3 bucket for Lambda code zips
+    Value: stocks-algo-site-code
+    Export:
+      Name: stocks-algo-site-code
