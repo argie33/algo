@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Application stack – RDS, Secrets, S3 Code bucket, Lambda (symbols-loader),
+  Application stack – RDS, Secrets, imported S3 Code bucket, Lambda (symbols-loader),
   plus ECS Fargate Service for financial-data using the core ECR registry
 
 Parameters:
@@ -78,28 +78,18 @@ Resources:
       PubliclyAccessible: false
       DeletionProtection: false
 
-  ## S3 bucket for Lambda code ##
-  CodeBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: stocks-algo-app-code
-      VersioningConfiguration:
-        Status: Enabled
-    DeletionPolicy: Delete
-
   ## Lambda to load stock symbols ##
   LoadStockSymbolsFunction:
     Type: AWS::Lambda::Function
     DependsOn:
       - StocksDBInstance
-      - CodeBucket
     Properties:
       FunctionName: loadstocksymbols
       Runtime: python3.9
       Handler: index.handler
       Role: !ImportValue StocksCore-LambdaExecutionRoleArn
       Code:
-        S3Bucket: !Ref CodeBucket
+        S3Bucket: !ImportValue StocksCore-CodeBucketName
         S3Key: !Ref CodeKey
       Timeout: 300
       VpcConfig:
@@ -183,7 +173,7 @@ Outputs:
 
   CodeBucketName:
     Description: S3 bucket for Lambda code
-    Value: !Ref CodeBucket
+    Value: !ImportValue StocksCore-CodeBucketName
 
   FinancialDataServiceArn:
     Description: ARN of the ECS service running financial-data

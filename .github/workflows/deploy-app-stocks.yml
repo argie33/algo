@@ -43,11 +43,6 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Ensure S3 bucket exists
-        run: |
-          aws s3api head-bucket --bucket stocks-algo-app-code || \
-            aws s3api create-bucket --bucket stocks-algo-app-code
-
       - name: Upload Lambda to S3
         id: upload
         run: |
@@ -97,7 +92,7 @@ jobs:
           docker build -t financial-data:${IMAGE_TAG} .
           docker tag financial-data:${IMAGE_TAG} \
             "${{ steps.aws_account.outputs.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/financial-data:${IMAGE_TAG}"
-          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_OUTPUT
 
       - name: Push to ECR
         run: |
