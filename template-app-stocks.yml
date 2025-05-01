@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Application stack – RDS, Secrets (full DB connection info), imported S3 bucket,
   Lambda (symbols-loader), ECS Cluster & Fargate Service for financial-data
-  using the core ECR registry, plus a scheduled RunTask option
+  using the core ECR registry, plus scheduled RunTask rules.
 
 Parameters:
   CodeKey:
@@ -67,7 +67,7 @@ Resources:
       PubliclyAccessible: false
       DeletionProtection: false
 
-  ### Secrets Manager: full DB connection JSON ###
+  ### Secrets Manager: DB credentials ###
   DBCredentialsSecret:
     Type: AWS::SecretsManager::Secret
     DependsOn: StocksDBInstance
@@ -118,7 +118,7 @@ Resources:
     Properties:
       ClusterName: stocks-cluster
 
-  ### ECS Task Definition ###
+  ### ECS Task Definition: continuous financial-data ###
   FinancialDataTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -147,7 +147,7 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
-  ### ECS Service ###
+  ### ECS Service: continuous financial-data ###
   FinancialDataService:
     Type: AWS::ECS::Service
     DependsOn:
@@ -166,7 +166,7 @@ Resources:
           SecurityGroups:
             - !Ref StocksDBSecurityGroup
 
-  ### Scheduled RunTask (hourly) ###
+  ### Scheduled RunTask: continuous financial-data (hourly) ###
   EventsInvokeRole:
     Type: AWS::IAM::Role
     Properties:
@@ -188,6 +188,7 @@ Resources:
                   - iam:PassRole
                 Resource:
                   - !Ref FinancialDataTaskDefinition
+                  - !Ref PriceDataTaskDefinition
 
   FinancialDataScheduleRule:
     Type: AWS::Events::Rule
@@ -196,11 +197,63 @@ Resources:
       ScheduleExpression: "rate(1 hour)"
       State: "ENABLED"
       Targets:
-        - Id: "RunFinancialData"
-          Arn: !Ref StocksEcsCluster
+        - Id: RunFinancialData
+          Arn: !GetAtt StocksEcsCluster.Arn
           RoleArn: !GetAtt EventsInvokeRole.Arn
           EcsParameters:
             TaskDefinitionArn: !Ref FinancialDataTaskDefinition
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PrivateSubnet1Id
+                  - !ImportValue StocksCore-PrivateSubnet2Id
+                SecurityGroups:
+                  - !Ref StocksDBSecurityGroup
+
+  ### ECS Task Definition: price-data-daily ###
+  PriceDataTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: price-data-daily
+      Cpu: '256'
+      Memory: '512'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !ImportValue StocksCore-LambdaExecutionRoleArn
+      ContainerDefinitions:
+        - Name: price-data-daily
+          Image:
+            Fn::Join:
+              - ":"
+              - - !ImportValue StocksCore-ContainerRepositoryUri
+                - !Ref ImageTag
+          Essential: true
+          Command: ["python","loadpricedaily.py"]
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !Ref DBCredentialsSecret
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/price-data-daily
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  ### Scheduled RunTask: price-data-daily (once per day) ###
+  PriceDataScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Run price-data-daily task once a day"
+      ScheduleExpression: "rate(1 day)"
+      State: "ENABLED"
+      Targets:
+        - Id: RunPriceDataDaily
+          Arn: !GetAtt StocksEcsCluster.Arn
+          RoleArn: !GetAtt EventsInvokeRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref PriceDataTaskDefinition
             LaunchType: FARGATE
             NetworkConfiguration:
               AwsVpcConfiguration:
