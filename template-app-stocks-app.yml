@@ -45,7 +45,7 @@ Resources:
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksInfra-SecretArn
+              Value: !ImportValue stocks-db-lambda-stack-SecretArn
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -74,7 +74,7 @@ Resources:
           Command: ["python","loadpricedaily.py"]
           Environment:
             - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksInfra-SecretArn
+              Value: !ImportValue stocks-db-lambda-stack-SecretArn
           LogConfiguration:
             LogDriver: awslogs
             Options:
