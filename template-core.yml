@@ -200,20 +200,21 @@ Resources:
           SubnetId: !Ref PublicSubnet1
           GroupSet: [!Ref BastionSecurityGroup]
       IamInstanceProfile: !Ref BastionInstanceProfile
-      Tags:
-        - Key: Name
-          Value: stocks-bastion
-      UserData: !Base64 |
-        #!/bin/bash
-        set -eux
 
-        export AWS_DEFAULT_REGION=${AWS::Region}
-        export DB_STACK_NAME='!Ref DBStackName'
-        export DB_SECRET_NAME='!Ref DBSecretName'
+      # ——— FIXED UserData: use Fn::Sub so ${…} vars are valid ———
+      UserData:
+        Fn::Base64:
+          Fn::Sub: |
+            #!/bin/bash
+            set -eux
 
-        aws s3 cp s3://stocks-algo-app-code/bastion/bootstrap.sh /tmp/bootstrap.sh
-        chmod +x /tmp/bootstrap.sh
-        /tmp/bootstrap.sh
+            export AWS_DEFAULT_REGION=${AWS::Region}
+            export DB_STACK_NAME=${DBStackName}
+            export DB_SECRET_NAME=${DBSecretName}
+
+            aws s3 cp s3://stocks-algo-app-code/bastion/bootstrap.sh /tmp/bootstrap.sh
+            chmod +x /tmp/bootstrap.sh
+            /tmp/bootstrap.sh
 
   ### Auto‑shutdown Lambda ###
   BastionStopRole:
@@ -232,7 +233,9 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: ec2:StopInstances
-                Resource: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${BastionHost}
+                # ——— FIXED Fn::Sub here, all var names are valid ———
+                Resource:
+                  Fn::Sub: arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${BastionHost}
 
   BastionStopFunction:
     Type: AWS::Lambda::Function
