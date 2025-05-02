@@ -107,13 +107,6 @@ Resources:
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DBCredentialsSecret
-
-  ### ECS Cluster ###
-  StocksEcsCluster:
-    Type: AWS::ECS::Cluster
-    Properties:
-      ClusterName: stocks-cluster
-
   ### ECS Task Execution Role ###
   EcsTaskExecutionRole:
     Type: AWS::IAM::Role
@@ -128,6 +121,16 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:                              # <<< ADD THIS BLOCK
+        - PolicyName: AllowSecretsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref DBCredentialsSecret
+
 
 Outputs:
   DBEndpoint:
