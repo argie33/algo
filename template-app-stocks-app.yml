@@ -1,0 +1,95 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  App stack – ECS Service for financial-data and scheduled RunTask rules.
+
+Parameters:
+  ImageTag:
+    Type: String
+    Description: Tag of the financial-data Docker image in ECR
+
+Resources:
+
+  ### ECS Service: continuous financial-data ###
+  FinancialDataService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: financial-data-service
+      Cluster: !ImportValue StocksCore-ClusterArn
+      TaskDefinition: !ImportValue StocksCore-FinancialDataTaskDefArn
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PrivateSubnet1Id
+            - !ImportValue StocksCore-PrivateSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksCore-DBSecurityGroupId
+
+  ### IAM Role for EventBridge to invoke ECS ###
+  EventsInvokeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: Allow_ECS_RunTask
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:RunTask
+                  - iam:PassRole
+                Resource:
+                  - !ImportValue StocksCore-FinancialDataTaskDefArn
+                  - !ImportValue StocksCore-PriceDataTaskDefArn
+
+  ### Scheduled RunTask: continuous financial-data (hourly) ###
+  FinancialDataScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Run financial-data task every hour"
+      ScheduleExpression: "rate(1 hour)"
+      State: "ENABLED"
+      Targets:
+        - Id: RunFinancialData
+          Arn: !ImportValue StocksCore-ClusterArn
+          RoleArn: !GetAtt EventsInvokeRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !ImportValue StocksCore-FinancialDataTaskDefArn
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PrivateSubnet1Id
+                  - !ImportValue StocksCore-PrivateSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksCore-DBSecurityGroupId
+
+  ### Scheduled RunTask: price-data-daily (once per day) ###
+  PriceDataScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Run price-data-daily task once a day"
+      ScheduleExpression: "rate(1 day)"
+      State: "ENABLED"
+      Targets:
+        - Id: RunPriceDataDaily
+          Arn: !ImportValue StocksCore-ClusterArn
+          RoleArn: !GetAtt EventsInvokeRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !ImportValue StocksCore-PriceDataTaskDefArn
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PrivateSubnet1Id
+                  - !ImportValue StocksCore-PrivateSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksCore-DBSecurityGroupId

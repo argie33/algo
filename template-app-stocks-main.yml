@@ -1,8 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Application stack – RDS, Secrets (full DB connection info), imported S3 bucket,
-  Lambda (symbols-loader), ECS Cluster & Fargate Services for financial-data
-  and price-data-daily, plus scheduled RunTask rules.
+  Core stack – RDS, Secrets, Lambda (symbols-loader), ECS Cluster,
+  TaskExecutionRole, and both TaskDefinitions for financial-data and price-data-daily.
 
 Parameters:
   CodeKey:
@@ -133,7 +132,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
 
-  ### ECS Task Definition: continuous financial-data ###
+  ### TaskDefinition: continuous financial-data ###
   FinancialDataTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -162,26 +161,7 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
-  ### ECS Service: continuous financial-data ###
-  FinancialDataService:
-    Type: AWS::ECS::Service
-    DependsOn:
-      - FinancialDataTaskDefinition
-    Properties:
-      ServiceName: financial-data-service
-      Cluster: !Ref StocksEcsCluster
-      TaskDefinition: !Ref FinancialDataTaskDefinition
-      DesiredCount: 1
-      LaunchType: FARGATE
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          Subnets:
-            - !ImportValue StocksCore-PrivateSubnet1Id
-            - !ImportValue StocksCore-PrivateSubnet2Id
-          SecurityGroups:
-            - !Ref StocksDBSecurityGroup
-
-  ### ECS Task Definition: price-data-daily ###
+  ### TaskDefinition: price-data-daily ###
   PriceDataTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -211,93 +191,39 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
-  ### Single Invoke Role for EventBridge ###
-  EventsInvokeRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: events.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: Allow_ECS_RunTask
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ecs:RunTask
-                  - iam:PassRole
-                Resource:
-                  - !Ref FinancialDataTaskDefinition
-                  - !Ref PriceDataTaskDefinition
-
-  ### Scheduled RunTask: continuous financial-data (hourly) ###
-  FinancialDataScheduleRule:
-    Type: AWS::Events::Rule
-    Properties:
-      Description: "Run financial-data task every hour"
-      ScheduleExpression: "rate(1 hour)"
-      State: "ENABLED"
-      Targets:
-        - Id: RunFinancialData
-          Arn: !GetAtt StocksEcsCluster.Arn
-          RoleArn: !GetAtt EventsInvokeRole.Arn
-          EcsParameters:
-            TaskDefinitionArn: !Ref FinancialDataTaskDefinition
-            LaunchType: FARGATE
-            NetworkConfiguration:
-              AwsVpcConfiguration:
-                Subnets:
-                  - !ImportValue StocksCore-PrivateSubnet1Id
-                  - !ImportValue StocksCore-PrivateSubnet2Id
-                SecurityGroups:
-                  - !Ref StocksDBSecurityGroup
-
-  ### Scheduled RunTask: price-data-daily (once per day) ###
-  PriceDataScheduleRule:
-    Type: AWS::Events::Rule
-    Properties:
-      Description: "Run price-data-daily task once a day"
-      ScheduleExpression: "rate(1 day)"
-      State: "ENABLED"
-      Targets:
-        - Id: RunPriceDataDaily
-          Arn: !GetAtt StocksEcsCluster.Arn
-          RoleArn: !GetAtt EventsInvokeRole.Arn
-          EcsParameters:
-            TaskDefinitionArn: !Ref PriceDataTaskDefinition
-            LaunchType: FARGATE
-            NetworkConfiguration:
-              AwsVpcConfiguration:
-                Subnets:
-                  - !ImportValue StocksCore-PrivateSubnet1Id
-                  - !ImportValue StocksCore-PrivateSubnet2Id
-                SecurityGroups:
-                  - !Ref StocksDBSecurityGroup
-
 Outputs:
-  DBEndpoint:
-    Description: RDS endpoint address
-    Value: !GetAtt StocksDBInstance.Endpoint.Address
+  ClusterArn:
+    Description: ARN of the ECS cluster
+    Value: !GetAtt StocksEcsCluster.Arn
+    Export:
+      Name: StocksCore-ClusterArn
 
-  DBPort:
-    Description: RDS endpoint port
-    Value: !GetAtt StocksDBInstance.Endpoint.Port
+  ExecutionRoleArn:
+    Description: ECS TaskExecutionRole ARN
+    Value: !GetAtt EcsTaskExecutionRole.Arn
+    Export:
+      Name: StocksCore-ExecutionRoleArn
+
+  FinancialDataTaskDefArn:
+    Description: ARN of the financial-data TaskDefinition
+    Value: !Ref FinancialDataTaskDefinition
+    Export:
+      Name: StocksCore-FinancialDataTaskDefArn
+
+  PriceDataTaskDefArn:
+    Description: ARN of the price-data-daily TaskDefinition
+    Value: !Ref PriceDataTaskDefinition
+    Export:
+      Name: StocksCore-PriceDataTaskDefArn
 
   SecretArn:
     Description: ARN of the DB credentials secret
     Value: !Ref DBCredentialsSecret
     Export:
-      Name: !Sub "${AWS::StackName}-SecretArn"
+      Name: StocksCore-SecretArn
 
-  ClusterArn:
-    Description: ARN of the ECS cluster
-    Value: !GetAtt StocksEcsCluster.Arn
-
-  FinancialDataServiceArn:
-    Description: ARN of the ECS service running financial-data
-    Value: !GetAtt FinancialDataService.Arn
+  DBSecurityGroupId:
+    Description: SecurityGroup for RDS and ECS Service
+    Value: !Ref StocksDBSecurityGroup
+    Export:
+      Name: StocksCore-DBSecurityGroupId

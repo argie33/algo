@@ -8,23 +8,21 @@ on:
 jobs:
   # 1) Package & upload symbols-loader Lambda
   build_and_upload_lambda:
-    name: Build & upload Lambda package
     runs-on: ubuntu-latest
     outputs:
       code_key: ${{ steps.upload.outputs.code_key }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      - name: Install Lambda dependencies
+      - name: Install Lambda deps
         run: |
           rm -rf package && mkdir package
-          python -m pip install --upgrade pip
+          pip install --upgrade pip
           if [ -f requirements-loadstocksymbols.txt ]; then
             pip install -r requirements-loadstocksymbols.txt -t package
           fi
@@ -36,7 +34,7 @@ jobs:
           zip -r "../loadstocksymbols-${{ github.sha }}.zip" .
           cd ..
 
-      - name: Configure AWS credentials
+      - name: AWS creds
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -50,25 +48,23 @@ jobs:
             s3://stocks-algo-app-code/loadstocksymbols-${{ github.sha }}.zip
           echo "code_key=loadstocksymbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  # 2) Build & push the financial-data Docker image into stocks-app-registry
+  # 2) Build & push Docker image
   build_and_push_fin_container:
-    name: Build & Push financial-data Docker image
-    runs-on: ubuntu-latest
     needs: build_and_upload_lambda
+    runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.tag.outputs.IMAGE_TAG }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Configure AWS credentials
+      - name: AWS creds
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Get AWS Account ID
+      - name: Get AWS Account
         id: aws_account
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -85,13 +81,11 @@ jobs:
           aws ecr describe-repositories --repository-names stocks-app-registry || \
             aws ecr create-repository --repository-name stocks-app-registry
 
-      - name: Build & tag Docker image
+      - name: Build & tag image
         id: tag
         run: |
           IMAGE_TAG="${{ github.sha }}"
-          # build with local name
           docker build -t stocks-app-registry:${IMAGE_TAG} .
-          # tag for ECR
           docker tag stocks-app-registry:${IMAGE_TAG} \
             "${{ steps.aws_account.outputs.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/stocks-app-registry:${IMAGE_TAG}"
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
@@ -100,38 +94,25 @@ jobs:
         run: |
           docker push "${{ steps.aws_account.outputs.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/stocks-app-registry:${{ needs.build_and_push_fin_container.outputs.image_tag }}"
 
-  # 3) Deploy DB, Lambda & ECS stack via CloudFormation
-  deploy_db_lambda:
-    name: Deploy DB, Lambda & ECS CloudFormation
-    needs: [ build_and_upload_lambda, build_and_push_fin_container ]
+  # 3) Deploy core stack
+  deploy_core:
+    needs: build_and_push_fin_container
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Configure AWS credentials
+      - name: AWS creds
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Cleanup failed stack if needed
-        run: |
-          STATUS=$(aws cloudformation describe-stacks \
-            --stack-name stocks-db-lambda-stack \
-            --query "Stacks[0].StackStatus" \
-            --output text 2>/dev/null || echo "NOT_FOUND")
-          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            aws cloudformation delete-stack --stack-name stocks-db-lambda-stack
-            aws cloudformation wait stack-delete-complete --stack-name stocks-db-lambda-stack
-          fi
-
-      - name: Deploy DB, Lambda & ECS stack
+      - name: Deploy core
         run: |
           aws cloudformation deploy \
-            --stack-name stocks-db-lambda-stack \
-            --template-file template-app-stocks.yml \
+            --stack-name stocks-core-stack \
+            --template-file template-app-stocks-core.yml \
             --parameter-overrides \
               CodeKey=${{ needs.build_and_upload_lambda.outputs.code_key }} \
               ImageTag=${{ needs.build_and_push_fin_container.outputs.image_tag }} \
@@ -139,10 +120,25 @@ jobs:
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
             --capabilities CAPABILITY_NAMED_IAM
 
-      - name: Invoke loadstocksymbols Lambda
+  # 4) Deploy app stack
+  deploy_app:
+    needs: deploy_core
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: AWS creds
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            us-east-1
+
+      - name: Deploy app
         run: |
-          aws lambda invoke \
-            --function-name loadstocksymbols \
-            --payload '{}' \
-            response.json
-          cat response.json
+          aws cloudformation deploy \
+            --stack-name stocks-app-stack \
+            --template-file template-app-stocks-app.yml \
+            --parameter-overrides \
+              ImageTag=${{ needs.build_and_push_fin_container.outputs.image_tag }} \
+            --capabilities CAPABILITY_NAMED_IAM
