@@ -97,7 +97,6 @@ jobs:
             response.json
           cat response.json
 
-  # 3) Build & push Docker image for ECS tasks
   build_and_push_container:
     name: Build & push Docker image
     needs: deploy_db_lambda
@@ -106,11 +105,9 @@ jobs:
       uri: ${{ steps.get_uri.outputs.uri }}
       tag: ${{ steps.build.outputs.tag }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
+      - uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -120,8 +117,7 @@ jobs:
         id: get_uri
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          REGION=$(aws configure get region)
-          REPO_URI="$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/stocks-app-registry"
+          REPO_URI="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/stocks-app-registry"
           echo "uri=$REPO_URI" >> $GITHUB_OUTPUT
 
       - name: Login to Amazon ECR
