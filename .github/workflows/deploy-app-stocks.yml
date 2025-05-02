@@ -96,7 +96,7 @@ jobs:
           IMAGE_TAG=${{ steps.tag.outputs.IMAGE_TAG }}
           docker push "${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/stocks-app-registry:${IMAGE_TAG}"
 
-  # 3) Deploy core infra (RDS, Secret, Lambda, ECS Cluster) using the app template
+  # 3) Deploy infra (RDS, Secret, Lambda, ECS Cluster)
   deploy_infra:
     needs: build_and_push_fin_container
     runs-on: ubuntu-latest
