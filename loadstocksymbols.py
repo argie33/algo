@@ -1,16 +1,13 @@
-
-
-
-
 #!/usr/bin/env python3
+import os
 import re
 import csv
-import requests
 import json
+import logging
+import requests
 import boto3
 import psycopg2
 from psycopg2.extras import DictCursor
-from os import getenv
 
 # -------------------------------
 # Script metadata
@@ -18,19 +15,21 @@ from os import getenv
 SCRIPT_NAME = "loadstocksymbols.py"
 
 # -------------------------------
-# Environment-driven configuration
+# Runtime configuration
 # -------------------------------
-PG_HOST       = getenv("DB_ENDPOINT")
-PG_PORT       = int(getenv("DB_PORT", "5432"))
-PG_DB         = getenv("DB_NAME")
-DB_SECRET_ARN = getenv("DB_SECRET_ARN")
+# We no longer rely on DB_ENDPOINT/DB_PORT/DB_NAME env-vars;
+# instead we pull host/port/dbname/user/password from SecretsManager.
+DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
+_secret_cache = None    # cache the secret JSON
+_conn_cache   = None    # cache the psycopg2 connection
 
 # -------------------------------
 # Data URLs & regex for classification
 # -------------------------------
 NASDAQ_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
 OTHER_URL  = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
-patterns   = [
+
+patterns = [
     r"\bpreferred\b",
     r"\bredeemable warrant(s)?\b",
     r"\bwarrant(s)?\b",
@@ -125,37 +124,66 @@ patterns   = [
     r"\bacquisition\b",
     r"\bcontingent\b",
     r"\bii inc\b",    
-    r"\bnasdaq symbology\b",  
-    ]
+    r"\bnasdaq symbology\b",
+]
 
-def get_db_creds():
-    """Fetch username/password from Secrets Manager."""
-    client = boto3.client("secretsmanager")
-    resp = client.get_secret_value(SecretId=DB_SECRET_ARN)
-    sec = json.loads(resp["SecretString"])
-    return sec["username"], sec["password"]
+# -------------------------------
+# Database helpers
+# -------------------------------
+def _load_secret():
+    """Fetch & cache DB creds JSON from SecretsManager."""
+    global _secret_cache
+    if _secret_cache is None:
+        sm = boto3.client("secretsmanager")
+        j = sm.get_secret_value(SecretId=DB_SECRET_ARN)["SecretString"]
+        _secret_cache = json.loads(j)
+    return _secret_cache
 
+def _get_conn():
+    """Get or open a psycopg2 connection with explicit host/port/db."""
+    global _conn_cache
+    if _conn_cache and _conn_cache.closed == 0:
+        return _conn_cache
+    s = _load_secret()
+    _conn_cache = psycopg2.connect(
+        host     = s["host"],
+        port     = s["port"],
+        dbname   = s["dbname"],
+        user     = s["username"],
+        password = s["password"],
+        sslmode  = "require",
+        cursor_factory = DictCursor,
+    )
+    _conn_cache.autocommit = True
+    return _conn_cache
+
+# -------------------------------
+# CSV parsing logic (unchanged)
+# -------------------------------
 def download_text_file(url):
-    r = requests.get(url)
+    r = requests.get(url, timeout=30)
     r.raise_for_status()
     return r.text
 
 def parse_listed(text, source):
     rows = []
-    key = "Symbol" if source == "NASDAQ" else "ACT Symbol"
+    key  = "Symbol" if source == "NASDAQ" else "ACT Symbol"
     reader = csv.DictReader(text.splitlines(), delimiter="|")
     for row in reader:
         if row[key].startswith("File Creation Time"):
             continue
         name   = row["Security Name"].strip()
-        is_etf = row.get("ETF","").upper() == "Y"
-        match  = any(re.search(p, name, flags=re.IGNORECASE) for p in patterns)
+        is_etf = (row.get("ETF","").upper() == "Y")
         if is_etf:
             continue
+
+        match = any(re.search(p, name, flags=re.IGNORECASE) for p in patterns)
+
         try:
             lot = int(row.get("Round Lot Size","0") or 0)
-        except:
+        except ValueError:
             lot = None
+
         rows.append({
             "symbol":         row[key].strip(),
             "security_name":  name,
@@ -172,91 +200,84 @@ def dedupe(records):
         seen.setdefault(r["symbol"], r)
     return list(seen.values())
 
+# -------------------------------
+# Upsert + cleanup logic (unchanged)
+# -------------------------------
 def insert_into_postgres(records):
-    user, pwd = get_db_creds()
-    conn = psycopg2.connect(
-        host=PG_HOST,
-        port=PG_PORT,
-        user=user,
-        password=pwd,
-        dbname=PG_DB,
-        sslmode='require',
-        cursor_factory=DictCursor
-    )
-    with conn:
-        with conn.cursor() as cur:
-            # 1. Ensure tables exist
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS stock_symbols (
-                  symbol           VARCHAR(50) PRIMARY KEY,
-                  security_name    TEXT,
-                  exchange         VARCHAR(20),
-                  test_issue       CHAR(1),
-                  round_lot_size   INT,
-                  security_type    VARCHAR(20)
-                );
-            """)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS last_updated (
-                  script_name      VARCHAR(255) PRIMARY KEY,
-                  last_run         TIMESTAMPTZ
-                );
-            """)
+    conn = _get_conn()
+    with conn.cursor() as cur:
+        # Create tables if missing
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS stock_symbols (
+              symbol          VARCHAR(50) PRIMARY KEY,
+              security_name   TEXT,
+              exchange        VARCHAR(20),
+              test_issue      CHAR(1),
+              round_lot_size  INT,
+              security_type   VARCHAR(20)
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS last_updated (
+              script_name VARCHAR(255) PRIMARY KEY,
+              last_run    TIMESTAMPTZ
+            );
+        """)
 
-            # 2. Determine existing vs incoming symbols
-            cur.execute("SELECT symbol FROM stock_symbols;")
-            existing = {row["symbol"] for row in cur.fetchall()}
-            incoming = {r["symbol"] for r in records}
+        # Determine deltas
+        cur.execute("SELECT symbol FROM stock_symbols;")
+        existing = {r["symbol"] for r in cur.fetchall()}
+        incoming = {r["symbol"] for r in records}
 
-            new_symbols     = incoming - existing
-            removed_symbols = existing - incoming
+        removed = existing - incoming
 
-            # 3. Upsert all incoming (inserts new + updates metadata if changed)
-            upsert = """
-                INSERT INTO stock_symbols
-                  (symbol, security_name, exchange, test_issue, round_lot_size, security_type)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT(symbol) DO UPDATE SET
-                  security_name  = EXCLUDED.security_name,
-                  exchange       = EXCLUDED.exchange,
-                  test_issue     = EXCLUDED.test_issue,
-                  round_lot_size = EXCLUDED.round_lot_size,
-                  security_type  = EXCLUDED.security_type;
-            """
-            for r in records:
-                cur.execute(upsert, (
-                    r["symbol"],
-                    r["security_name"],
-                    r["exchange"],
-                    r["test_issue"],
-                    r["round_lot_size"],
-                    r["security_type"]
-                ))
+        upsert_sql = """
+            INSERT INTO stock_symbols
+              (symbol,security_name,exchange,test_issue,round_lot_size,security_type)
+            VALUES (%s,%s,%s,%s,%s,%s)
+            ON CONFLICT(symbol) DO UPDATE SET
+              security_name  = EXCLUDED.security_name,
+              exchange       = EXCLUDED.exchange,
+              test_issue     = EXCLUDED.test_issue,
+              round_lot_size = EXCLUDED.round_lot_size,
+              security_type  = EXCLUDED.security_type;
+        """
+        for r in records:
+            cur.execute(upsert_sql, (
+                r["symbol"],
+                r["security_name"],
+                r["exchange"],
+                r["test_issue"],
+                r["round_lot_size"],
+                r["security_type"],
+            ))
 
-            # 4. Delete any symbols no longer returned
-            if removed_symbols:
-                cur.execute(
-                    "DELETE FROM stock_symbols WHERE symbol = ANY(%s);",
-                    (list(removed_symbols),)
-                )
+        if removed:
+            cur.execute(
+                "DELETE FROM stock_symbols WHERE symbol = ANY(%s);",
+                (list(removed),)
+            )
 
-            # 5. Record this run in last_updated
-            cur.execute("""
-                INSERT INTO last_updated (script_name, last_run)
-                VALUES (%s, NOW())
-                ON CONFLICT (script_name) DO UPDATE
-                  SET last_run = EXCLUDED.last_run;
-            """, (SCRIPT_NAME,))
+        # Record last run
+        cur.execute("""
+            INSERT INTO last_updated (script_name,last_run)
+            VALUES (%s,NOW())
+            ON CONFLICT (script_name) DO UPDATE
+              SET last_run = EXCLUDED.last_run;
+        """, (SCRIPT_NAME,))
 
-    conn.close()
-
+# -------------------------------
+# Lambda handler
+# -------------------------------
 def handler(event, context):
-    print("Starting loadstocksymbols, connecting to", PG_HOST)
-    nas = parse_listed(download_text_file(NASDAQ_URL), "NASDAQ")
-    oth = parse_listed(download_text_file(OTHER_URL),  "Other")
-    all_records = dedupe(nas + oth)
-    final = [r for r in all_records if "$" not in r["symbol"]]
+    logging.info("Starting loadstocksymbols…")
+    nas   = parse_listed(download_text_file(NASDAQ_URL), "NASDAQ")
+    oth   = parse_listed(download_text_file(OTHER_URL),  "Other")
+    final = [r for r in dedupe(nas + oth) if "$" not in r["symbol"]]
+
+    logging.info("Upserting %d records into Postgres", len(final))
     insert_into_postgres(final)
+
     return {
         "statusCode": 200,
         "body": f"Processed {len(final)} symbols; inventory is now up-to-date."
