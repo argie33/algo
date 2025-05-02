@@ -83,6 +83,16 @@ Resources:
             - !GetAtt StocksDBInstance.Endpoint.Port
             - '","dbname":"stocks"}'
 
+  ### Lambda Security Group (moved here) ###
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !ImportValue StocksCore-VpcId
+      GroupDescription: Allow egress for Lambdas
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
   ### Lambda: symbols‑loader ###
   LoadStockSymbolsFunction:
     Type: AWS::Lambda::Function
@@ -103,10 +113,11 @@ Resources:
           - !ImportValue StocksCore-PrivateSubnet1Id
           - !ImportValue StocksCore-PrivateSubnet2Id
         SecurityGroupIds:
-          - !ImportValue StocksCore-LambdaSecurityGroupId
+          - !Ref LambdaSecurityGroup
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DBCredentialsSecret
+
   ### ECS Task Execution Role ###
   EcsTaskExecutionRole:
     Type: AWS::IAM::Role
@@ -121,7 +132,7 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
-      Policies:                              # <<< ADD THIS BLOCK
+      Policies:
         - PolicyName: AllowSecretsAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -131,6 +142,7 @@ Resources:
                   - secretsmanager:GetSecretValue
                 Resource: !Ref DBCredentialsSecret
 
+  ### (your ECS Cluster, Services, etc.) ###
 
 Outputs:
   DBEndpoint:
