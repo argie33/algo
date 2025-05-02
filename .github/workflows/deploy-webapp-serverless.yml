@@ -11,7 +11,6 @@ env:
   LAMBDA_CODE_KEY: api.zip
   APP_BUCKET: stocks-algo-app-code
   SITE_BUCKET: stocks-algo-site-code
-  DB_STACK_NAME: stocks-db-lambda-stack
   CERT_ARN: ${{ secrets.CERT_ARN }}
 
 jobs:
@@ -43,13 +42,12 @@ jobs:
         run: |
           aws s3 sync webapp/spa/ s3://${{ env.SITE_BUCKET }} --delete
 
-      - name: Deploy CloudFormation stack
+      - name: Deploy Serverless Webapp
         run: |
           aws cloudformation deploy \
             --stack-name ${{ env.STACK_NAME }} \
             --template-file webapp/template-webapp-serverless.yml \
             --parameter-overrides \
               LambdaCodeKey=${{ env.LAMBDA_CODE_KEY }} \
-              DBStackName=${{ env.DB_STACK_NAME }} \
               CertificateArn=${{ env.CERT_ARN }} \
             --capabilities CAPABILITY_NAMED_IAM

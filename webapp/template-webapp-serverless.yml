@@ -1,17 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Serverless SPA → CloudFront + HTTP API Gateway + Lambda (RDS)
-  — imports S3, network & IAM from core infra; DB Secret ARN from DB stack.
+  — imports S3, network & IAM from core infra; DB Secret ARN from stocks-infra-stack.
 
 Parameters:
   LambdaCodeKey:
     Type: String
     Description: S3 key for the API Lambda zip (e.g. api.zip)
-
-  DBStackName:
-    Type: String
-    Default: stocks-db-lambda-stack
-    Description: Name of the stack exporting your DB Secret ARN
 
   CertificateArn:
     Type: String
@@ -26,6 +21,7 @@ Conditions:
           - ''
 
 Resources:
+
   ## 1) Origin Access Identity
   OAI:
     Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
@@ -60,13 +56,9 @@ Resources:
         DefaultRootObject: index.html
         Origins:
           - Id: SPA
-            DomainName:
-              Fn::Join:
-                - ''
-                - - !ImportValue StocksCore-SiteCodeBucketName
-                  - '.s3.amazonaws.com'
+            DomainName: !Sub "${StocksCore-SiteCodeBucketName}.s3.amazonaws.com"
             S3OriginConfig:
-              OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${OAI}'
+              OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${OAI}"
         DefaultCacheBehavior:
           TargetOriginId: SPA
           ViewerProtocolPolicy: redirect-to-https
@@ -101,9 +93,7 @@ Resources:
           - !ImportValue StocksCore-LambdaSecurityGroupId
       Environment:
         Variables:
-          DB_SECRET_ARN:
-            Fn::ImportValue:
-              Fn::Sub: "${DBStackName}-SecretArn"
+          DB_SECRET_ARN: !ImportValue StocksInfra-SecretArn
 
   ## 5) HTTP API (API Gateway v2)
   StocksApi:
@@ -112,11 +102,8 @@ Resources:
       Name: stocks-api
       ProtocolType: HTTP
       CorsConfiguration:
-        AllowOrigins:
-          - '*'
-        AllowMethods:
-          - GET
-          - OPTIONS
+        AllowOrigins: ['*']
+        AllowMethods: ['GET','OPTIONS']
 
   ApiIntegration:
     Type: AWS::ApiGatewayV2::Integration
@@ -137,8 +124,7 @@ Resources:
     Type: AWS::ApiGatewayV2::Deployment
     Properties:
       ApiId: !Ref StocksApi
-    DependsOn:
-      - ApiRoute
+    DependsOn: ApiRoute
 
   ApiStage:
     Type: AWS::ApiGatewayV2::Stage
