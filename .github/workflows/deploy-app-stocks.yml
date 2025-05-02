@@ -1,3 +1,4 @@
+# .github/workflows/deploy-app-template.yml
 name: deploy-app-template
 
 on:
@@ -7,7 +8,7 @@ on:
 
 jobs:
 
-  # 1) Package & upload symbols-loader Lambda
+  # 1) Package & upload symbols‑loader Lambda
   build_and_upload_lambda:
     name: Build & upload Lambda package
     runs-on: ubuntu-latest
@@ -35,7 +36,6 @@ jobs:
       - name: Copy function code & verify dependencies
         run: |
           cp loadstocksymbols.py package/index.py
-          echo "Contents of package/:"
           ls -R package
 
       - name: Zip Lambda bundle
@@ -181,24 +181,21 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Debug repo URI & tag
+      - name: Fetch ECR repo URI
+        id: fetch_ecr
         run: |
-          echo "→ ContainerRepositoryUri='${{ needs.build_and_push_container.outputs.uri }}'"
-          echo "→ ImageTag='${{ needs.build_and_push_container.outputs.tag }}'"
-          if [ -z "${{ needs.build_and_push_container.outputs.uri }}" ]; then
-            echo "✖ ERROR: ContainerRepositoryUri is empty!" >&2
-            exit 1
-          fi
+          ECR_URI=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-ContainerRepositoryUri'].Value" \
+            --output text)
+          echo "ECR_URI=$ECR_URI" >> $GITHUB_ENV
 
-      - name: Cleanup failed ECS-tasks stack if needed
+      - name: Debug ECR URI & Tag
         run: |
-          STATUS=$(aws cloudformation describe-stacks \
-            --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].StackStatus" \
-            --output text 2>/dev/null || echo NOT_FOUND)
-          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
-            aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+          echo "→ ECR_URI='${ECR_URI}'"
+          echo "→ IMAGE_TAG='${GITHUB_SHA}'"
+          if [ -z "$ECR_URI" ]; then
+            echo "✖ ERROR: ECR_URI is empty!" >&2
+            exit 1
           fi
 
       - name: Deploy ECS tasks stack
@@ -207,30 +204,15 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --template-file template-app-ecs-tasks.yml \
             --parameter-overrides \
-              ClusterName=stocks-cluster \
-              ContainerRepositoryUri=${{ needs.build_and_push_container.outputs.uri }} \
-              ImageTag=${{ needs.build_and_push_container.outputs.tag }} \
-              DBSecretArn=$(aws cloudformation describe-stacks \
-                --stack-name stocks-db-lambda-stack \
-                --query "Stacks[0].Outputs[?OutputKey=='SecretArn'].OutputValue" \
-                --output text) \
-              Subnet1Id=$(aws cloudformation list-exports \
-                --query "Exports[?Name=='StocksCore-PrivateSubnet1Id'].Value" \
-                --output text) \
-              Subnet2Id=$(aws cloudformation list-exports \
-                --query "Exports[?Name=='StocksCore-PrivateSubnet2Id'].Value" \
-                --output text) \
-              SecurityGroupId=$(aws cloudformation list-exports \
-                --query "Exports[?Name=='StocksCore-LambdaSecurityGroupId'].Value" \
-                --output text) \
+              ImageTag=${GITHUB_SHA} \
             --capabilities CAPABILITY_NAMED_IAM
 
       - name: Run ECS DataLoader task immediately
         run: |
-          SUBNET1=$(aws cloudformation list-exports \
+          SN1=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PrivateSubnet1Id'].Value" \
             --output text)
-          SUBNET2=$(aws cloudformation list-exports \
+          SN2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PrivateSubnet2Id'].Value" \
             --output text)
           SG=$(aws cloudformation list-exports \
@@ -241,7 +223,7 @@ jobs:
             --cluster stocks-cluster \
             --launch-type FARGATE \
             --task-definition stocks-data-loader \
-            --network-configuration "awsvpcConfiguration={subnets=[$SUBNET1,$SUBNET2],securityGroups=[$SG],assignPublicIp=DISABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[$SN1,$SN2],securityGroups=[$SG],assignPublicIp=DISABLED}" \
             --count 1
 
           echo "Triggered one run of stocks-data-loader on Fargate."
