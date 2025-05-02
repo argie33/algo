@@ -9,7 +9,8 @@ env:
   AWS_REGION: us-east-1
   STACK_NAME: stocks-serverless-webapp
   LAMBDA_CODE_KEY: api.zip
-  CODE_BUCKET: stocks-algo-site-code
+  APP_BUCKET: stocks-algo-site-app-code    # where your Lambda ZIP lives
+  SITE_BUCKET: stocks-algo-site-code       # where your SPA lives
 
 jobs:
   deploy:
@@ -30,10 +31,15 @@ jobs:
           cd webapp/api
           zip -r ../../${{ env.LAMBDA_CODE_KEY }} .
 
-      - name: Upload Lambda code to code bucket
+      - name: Upload Lambda code
         run: |
-          aws s3 cp ${{ env.LAMBDA_CODE_KEY }} \
-            s3://${{ env.CODE_BUCKET }}/${{ env.LAMBDA_CODE_KEY }}
+          aws s3 cp \
+            ${{ env.LAMBDA_CODE_KEY }} \
+            s3://${{ env.APP_BUCKET }}/${{ env.LAMBDA_CODE_KEY }}
+
+      - name: Sync SPA to site bucket
+        run: |
+          aws s3 sync webapp/spa/ s3://${{ env.SITE_BUCKET }} --delete
 
       - name: Deploy CloudFormation stack
         run: |
@@ -43,10 +49,5 @@ jobs:
             --parameter-overrides \
               LambdaCodeKey=${{ env.LAMBDA_CODE_KEY }} \
               DBSecretArn=${{ secrets.DB_SECRET_ARN }} \
-              RdsSecurityGroupId=${{ secrets.RDS_SG_ID }} \
               CertificateArn=${{ secrets.CERT_ARN }} \
             --capabilities CAPABILITY_NAMED_IAM
-
-      - name: Sync SPA to S3
-        run: |
-          aws s3 sync webapp/spa/ s3://${{ env.STACK_NAME }}-static --delete
