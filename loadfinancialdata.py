@@ -3,6 +3,7 @@ import json
 import time
 import logging
 import functools
+import os
 
 import boto3
 import psycopg2
@@ -11,8 +12,6 @@ import requests
 from yahooquery import Ticker
 import pandas as pd
 import math
-import re
-from os import getenv
 
 # -------------------------------
 # Script metadata
@@ -22,10 +21,7 @@ SCRIPT_NAME = "loadfinancialdata.py"
 # -------------------------------
 # Environment-driven configuration
 # -------------------------------
-PG_HOST       = getenv("DB_ENDPOINT")
-PG_PORT       = int(getenv("DB_PORT", "5432"))
-PG_DB         = getenv("DB_NAME")
-DB_SECRET_ARN = getenv("DB_SECRET_ARN")
+DB_SECRET_ARN = os.getenv("DB_SECRET_ARN")
 
 # --- Logging setup ---
 logging.basicConfig(
@@ -34,12 +30,18 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s:%(message)s"
 )
 
-def get_db_creds():
-    """Fetch username/password from Secrets Manager."""
+def get_db_config():
+    """Fetch host, port, dbname, username & password from Secrets Manager."""
     client = boto3.client("secretsmanager")
     resp = client.get_secret_value(SecretId=DB_SECRET_ARN)
     sec = json.loads(resp["SecretString"])
-    return sec["username"], sec["password"]
+    return (
+        sec["username"],
+        sec["password"],
+        sec["host"],
+        int(sec["port"]),
+        sec["dbname"]
+    )
 
 def retry(max_attempts=3, initial_delay=2, backoff=2):
     """Retry decorator with exponential backoff."""
@@ -138,7 +140,6 @@ def process_symbol(symbol, conn):
         "profitmargins","financialcurrency"
     ]
     values = [ row.get(c) for c in cols[1:] ]
-    # build upsert
     placeholders = ", ".join(["%s"] * len(cols))
     updates = ", ".join([f"{c}=EXCLUDED.{c}" for c in cols[1:]])
     sql = f"""
@@ -162,29 +163,35 @@ def update_last_run(conn):
     conn.commit()
 
 def main():
-    # 1. get creds & open connection
-    user, pwd = get_db_creds()
+    # 1) get all DB connection info from Secrets Manager
+    user, pwd, host, port, dbname = get_db_config()
+
+    # 2) open a TCP connection (no local socket)
     conn = psycopg2.connect(
-        host=PG_HOST, port=PG_PORT,
-        user=user, password=pwd,
-        dbname=PG_DB, sslmode="require",
+        host=host,
+        port=port,
+        user=user,
+        password=pwd,
+        dbname=dbname,
+        sslmode="require",
         cursor_factory=DictCursor
     )
+
     ensure_tables(conn)
 
-    # 2. fetch symbols
+    # 3) fetch symbols
     with conn.cursor() as cur:
         cur.execute("SELECT symbol FROM stock_symbols;")
         symbols = [r["symbol"] for r in cur.fetchall()]
 
-    # 3. process each
+    # 4) process each symbol
     for s in symbols:
         try:
             process_symbol(s, conn)
         except Exception as e:
             logging.error(f"Failed symbol {s}: {e}", exc_info=True)
 
-    # 4. record run time
+    # 5) record run time
     update_last_run(conn)
     conn.close()
     print("loadfinancialdata complete.")
