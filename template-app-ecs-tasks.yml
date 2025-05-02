@@ -8,7 +8,15 @@ Parameters:
 
 Resources:
 
-  ### IAM role for EventBridge to invoke ECS RunTask ###
+  ### 0) Create the CloudWatch Logs group ###
+  DataLoaderLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/stocks-data-loader
+      RetentionInDays: 14
+      # (adjust retention days as you like)
+
+  ### 1) IAM role for EventBridge to invoke ECS RunTask ###
   DataLoaderEventsRole:
     Type: AWS::IAM::Role
     Properties:
@@ -31,13 +39,12 @@ Resources:
                 Resource:
                   - !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
 
-  ### ECS TaskDefinition ###
+  ### 2) ECS TaskDefinition ###
   DataLoaderTaskDef:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: stocks-data-loader
-      RequiresCompatibilities:
-        - FARGATE
+      RequiresCompatibilities: [ FARGATE ]
       Cpu:    '256'
       Memory: '512'
       NetworkMode: awsvpc
@@ -60,7 +67,7 @@ Resources:
               awslogs-region:        !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
-  ### EventBridge schedule: run daily at 12:00 UTC ###
+  ### 3) EventBridge schedule: run daily at 12:00 UTC ###
   DataLoaderSchedule:
     Type: AWS::Events::Rule
     Properties:
