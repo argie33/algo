@@ -1,15 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: >
-  Tasks & schedules – ECS TaskExecutionRole, TaskDefinitions, ECS Service
-  (financial-data) and scheduled RunTask rules for both tasks.
+Description: Tasks & schedules – TaskDefinitions, Service and EventBridge.
 
 Parameters:
   ImageTag:
     Type: String
-    Description: Tag of your Docker image in ECR
+    Description: Tag of the Docker image in ECR
 
 Resources:
-
   EcsTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -35,8 +32,7 @@ Resources:
       ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
       ContainerDefinitions:
         - Name: financial-data
-          Image:
-            Fn::Sub: "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/stocks-app-registry:${ImageTag}"
+          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/stocks-app-registry:${ImageTag}"
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -59,8 +55,7 @@ Resources:
       ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
       ContainerDefinitions:
         - Name: price-data-daily
-          Image:
-            Fn::Sub: "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/stocks-app-registry:${ImageTag}"
+          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/stocks-app-registry:${ImageTag}"
           Essential: true
           Command: ["python","loadpricedaily.py"]
           Environment:
@@ -115,7 +110,7 @@ Resources:
   FinancialDataScheduleRule:
     Type: AWS::Events::Rule
     Properties:
-      Description: "Run financial-data task every hour"
+      Description: "Run financial-data every hour"
       ScheduleExpression: "rate(1 hour)"
       State: "ENABLED"
       Targets:
@@ -136,7 +131,7 @@ Resources:
   PriceDataScheduleRule:
     Type: AWS::Events::Rule
     Properties:
-      Description: "Run price-data-daily task once per day"
+      Description: "Run price-data-daily once per day"
       ScheduleExpression: "rate(1 day)"
       State: "ENABLED"
       Targets:
