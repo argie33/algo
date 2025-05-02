@@ -110,7 +110,6 @@ jobs:
           fi
 
   # 3) Build & push Docker image for ECS tasks
-  # 3) Build & push Docker image for ECS tasks
   build_and_push_container:
     name: Build & push Docker image
     needs: deploy_db_lambda
@@ -129,30 +128,17 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Ensure ECR repository exists & get URI
+      - name: Get ECR repository URI from core stack export
         id: get_uri
         run: |
-          set -e
-          REPO_NAME=stocks-app-registry
-
-          # If the repo doesn’t exist yet, create it
-          if ! aws ecr describe-repositories --repository-names "$REPO_NAME" >/dev/null 2>&1; then
-            echo "→ ECR repo '$REPO_NAME' not found; creating it..."
-            aws ecr create-repository --repository-name "$REPO_NAME" >/dev/null
-          fi
-
-          # Now fetch its URI
-          REPO_URI=$(aws ecr describe-repositories \
-            --repository-names "$REPO_NAME" \
-            --query 'repositories[0].repositoryUri' \
+          REPO_URI=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-ContainerRepositoryUri'].Value" \
             --output text)
-          
           if [ -z "$REPO_URI" ]; then
-            echo "✖ ERROR: failed to fetch URI for ECR repo '$REPO_NAME'!" >&2
+            echo "✖ Export StocksCore-ContainerRepositoryUri not found!" >&2
             exit 1
           fi
-
-          echo "→ Found ECR URI: $REPO_URI"
+          echo "Found ECR URI: $REPO_URI"
           echo "uri=$REPO_URI" >> $GITHUB_OUTPUT
 
       - name: Login to Amazon ECR
@@ -162,11 +148,10 @@ jobs:
         id: build
         run: |
           IMAGE_URI="${{ steps.get_uri.outputs.uri }}:${{ github.sha }}"
-          echo "→ Building $IMAGE_URI"
+          echo "→ Building & pushing $IMAGE_URI"
           docker build -t "$IMAGE_URI" .
           docker push "$IMAGE_URI"
           echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
-
 
   # 4) Deploy ECS Tasks stack and run one immediately
   deploy_ecs_tasks:
@@ -185,15 +170,6 @@ jobs:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
-
-      - name: Debug repo URI & tag
-        run: |
-          echo "→ ContainerRepositoryUri='${{ needs.build_and_push_container.outputs.uri }}'"
-          echo "→ ImageTag='${{ needs.build_and_push_container.outputs.tag }}'"
-          if [ -z "${{ needs.build_and_push_container.outputs.uri }}" ]; then
-            echo "✖ ERROR: ContainerRepositoryUri is empty!" >&2
-            exit 1
-          fi
 
       - name: Cleanup failed ECS‑tasks stack if needed
         run: |
