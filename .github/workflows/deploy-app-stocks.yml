@@ -8,11 +8,13 @@ on:
 jobs:
   # 1) Package & upload symbols-loader Lambda
   build_and_upload_lambda:
+    name: Build & upload Lambda package
     runs-on: ubuntu-latest
     outputs:
       code_key: ${{ steps.upload.outputs.code_key }}
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -22,7 +24,7 @@ jobs:
       - name: Install Lambda dependencies
         run: |
           rm -rf package && mkdir package
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           if [ -f requirements-loadstocksymbols.txt ]; then
             pip install -r requirements-loadstocksymbols.txt -t package
           fi
@@ -41,22 +43,23 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - id: upload
-        name: Upload Lambda to S3
+      - name: Upload Lambda to S3
+        id: upload
         run: |
           aws s3 cp "loadstocksymbols-${{ github.sha }}.zip" \
             s3://stocks-algo-app-code/loadstocksymbols-${{ github.sha }}.zip
-          # Publish the key so deploy_infra gets a non‐empty CodeKey
           echo "code_key=loadstocksymbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  # 2) Build & push the financial-data Docker image
+  # 2) Build & push the financial-data Docker image into stocks-app-registry
   build_and_push_fin_container:
-    needs: build_and_upload_lambda
+    name: Build & Push financial-data Docker image
     runs-on: ubuntu-latest
+    needs: build_and_upload_lambda
     outputs:
-      image_tag: ${{ steps.build_push.outputs.image_tag }}
+      image_tag: ${{ steps.tag.outputs.IMAGE_TAG }}
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -65,34 +68,46 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - id: aws_account
-        name: Get AWS Account ID
+      - name: Get AWS Account ID
+        id: aws_account
         run: |
-          echo "::set-output name=account_id::$(aws sts get-caller-identity --query Account --output text)"
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          echo "ACCOUNT_ID=$ACCOUNT_ID" >> $GITHUB_OUTPUT
 
-      - id: build_push
-        name: Build, tag & push Docker image
+      - name: Login to ECR
+        run: |
+          aws ecr get-login-password | docker login \
+            --username AWS \
+            --password-stdin "${{ steps.aws_account.outputs.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com"
+
+      - name: Ensure ECR repo exists
+        run: |
+          aws ecr describe-repositories --repository-names stocks-app-registry || \
+            aws ecr create-repository --repository-name stocks-app-registry
+
+      - name: Build & tag Docker image
+        id: tag
         run: |
           IMAGE_TAG="${{ github.sha }}"
-          # export the tag so deploy_tasks gets a value
-          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          # build with local name
+          docker build -t stocks-app-registry:${IMAGE_TAG} .
+          # tag for ECR
+          docker tag stocks-app-registry:${IMAGE_TAG} \
+            "${{ steps.aws_account.outputs.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/stocks-app-registry:${IMAGE_TAG}"
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-          # ensure repo
-          aws ecr describe-repositories --repository-names stocks-app-registry \
-            || aws ecr create-repository --repository-name stocks-app-registry
+      - name: Push to ECR
+        run: |
+          docker push "${{ steps.aws_account.outputs.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/stocks-app-registry:${{ needs.build_and_push_fin_container.outputs.image_tag }}"
 
-          # push
-          aws ecr get-login-password --region us-east-1 \
-            | docker login --username AWS --password-stdin ${{ steps.aws_account.outputs.account_id }}.dkr.ecr.us-east-1.amazonaws.com
-          docker build -t ${{ steps.aws_account.outputs.account_id }}.dkr.ecr.us-east-1.amazonaws.com/stocks-app-registry:${IMAGE_TAG} .
-          docker push ${{ steps.aws_account.outputs.account_id }}.dkr.ecr.us-east-1.amazonaws.com/stocks-app-registry:${IMAGE_TAG}
-
-  # 3) Deploy infra stack (no ImageTag here!)
-  deploy_infra:
-    needs: build_and_push_fin_container
+  # 3) Deploy DB, Lambda & ECS stack via CloudFormation
+  deploy_db_lambda:
+    name: Deploy DB, Lambda & ECS CloudFormation
+    needs: [ build_and_upload_lambda, build_and_push_fin_container ]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -101,56 +116,33 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Cleanup failed infra stack if needed
+      - name: Cleanup failed stack if needed
         run: |
           STATUS=$(aws cloudformation describe-stacks \
-            --stack-name stocks-infra-stack \
-            --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo "NOT_FOUND")
+            --stack-name stocks-db-lambda-stack \
+            --query "Stacks[0].StackStatus" \
+            --output text 2>/dev/null || echo "NOT_FOUND")
           if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            aws cloudformation delete-stack --stack-name stocks-infra-stack
-            aws cloudformation wait stack-delete-complete --stack-name stocks-infra-stack
+            aws cloudformation delete-stack --stack-name stocks-db-lambda-stack
+            aws cloudformation wait stack-delete-complete --stack-name stocks-db-lambda-stack
           fi
 
-      - name: Deploy infra stack
+      - name: Deploy DB, Lambda & ECS stack
         run: |
           aws cloudformation deploy \
-            --stack-name stocks-infra-stack \
-            --template-file template-app-stocks-main.yml \
+            --stack-name stocks-db-lambda-stack \
+            --template-file template-app-stocks.yml \
             --parameter-overrides \
               CodeKey=${{ needs.build_and_upload_lambda.outputs.code_key }} \
+              ImageTag=${{ needs.build_and_push_fin_container.outputs.image_tag }} \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
             --capabilities CAPABILITY_NAMED_IAM
 
-  # 4) Deploy tasks & schedules stack (only ImageTag)
-  deploy_tasks:
-    needs: deploy_infra
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            us-east-1
-
-      - name: Cleanup failed tasks stack if needed
+      - name: Invoke loadstocksymbols Lambda
         run: |
-          STATUS=$(aws cloudformation describe-stacks \
-            --stack-name stocks-tasks-stack \
-            --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo "NOT_FOUND")
-          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            aws cloudformation delete-stack --stack-name stocks-tasks-stack
-            aws cloudformation wait stack-delete-complete --stack-name stocks-tasks-stack
-          fi
-
-      - name: Deploy tasks stack
-        run: |
-          aws cloudformation deploy \
-            --stack-name stocks-tasks-stack \
-            --template-file template-app-stocks-app.yml \
-            --parameter-overrides \
-              ImageTag=${{ needs.build_and_push_fin_container.outputs.image_tag }} \
-            --capabilities CAPABILITY_NAMED_IAM
+          aws lambda invoke \
+            --function-name loadstocksymbols \
+            --payload '{}' \
+            response.json
+          cat response.json

@@ -1,129 +1,78 @@
-name: Deploy full stocks stack
+name: Deploy core infrastructure
+
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
 
-env:
-  AWS_REGION: us-east-1
-  CORE_STACK:   stocks-core-stack
-  MAIN_STACK:  stocks-main-stack
-  TASKS_STACK:  stocks-tasks-stack
-  CODE_BUCKET:  stocks-algo-app-code   # created by template-core.yml
-
 jobs:
-  build:
-    name: Build & publish artifacts
+  deploy_core:
     runs-on: ubuntu-latest
-    outputs:
-      code_key:  ${{ steps.outs.outputs.code_key }}
-      image_tag: ${{ steps.outs.outputs.image_tag }}
-
     steps:
-      - uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with: { python-version: '3.9' }
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Package symbols-loader Lambda
-        run: |
-          rm -rf package && mkdir package
-          python -m pip install --upgrade pip
-          if [ -f requirements-loadstocksymbols.txt ]; then
-            pip install -r requirements-loadstocksymbols.txt -t package
-          fi
-          cp loadstocksymbols.py package/index.py
-          cd package
-          ZIP="loadstocksymbols-${GITHUB_SHA}.zip"
-          zip -r "../$ZIP" .
-          echo "ZIP=$ZIP" >> $GITHUB_ENV
-
-      - name: Configure AWS
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ env.AWS_REGION }}
+          aws-region:            us-east-1
 
-      - name: Upload Lambda ZIP to S3
-        run: aws s3 cp "$ZIP" "s3://${{ env.CODE_BUCKET }}/$ZIP"
-
-      - name: Build & push Docker image
-        id: buildpush
-        run: |
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          REPO_URI="$ACCOUNT_ID.dkr.ecr.${AWS_REGION}.amazonaws.com/stocks-app-registry"
-          IMAGE_TAG="${GITHUB_SHA}"
-
-          aws ecr describe-repositories --repository-names stocks-app-registry \
-            || aws ecr create-repository --repository-name stocks-app-registry
-
-          aws ecr get-login-password --region $AWS_REGION | \
-            docker login --username AWS --password-stdin $REPO_URI
-
-          docker build -t $REPO_URI:$IMAGE_TAG .
-          docker push $REPO_URI:$IMAGE_TAG
-
-          echo "code_key=$ZIP"   >> $GITHUB_OUTPUT
-          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
-
-      - name: Expose outputs
-        id: outs
-        run: |
-          echo "code_key=${{ steps.buildpush.outputs.code_key }}"  >> $GITHUB_OUTPUT
-          echo "image_tag=${{ steps.buildpush.outputs.image_tag }}" >> $GITHUB_OUTPUT
-
-  deploy:
-    name: Deploy CloudFormation stacks
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Configure AWS
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ env.AWS_REGION }}
-
-      # --- 1) core infrastructure ------------------------------------------
-      - name: Ensure core stack
+      - name: Cleanup failed core stack if needed
         run: |
           STATUS=$(aws cloudformation describe-stacks \
-                     --stack-name $CORE_STACK \
-                     --query 'Stacks[0].StackStatus' \
-                     --output text 2>/dev/null || echo NOT_FOUND)
-
-          if [[ "$STATUS" == "ROLLBACK_COMPLETE" ]]; then
-            aws cloudformation delete-stack --stack-name $CORE_STACK
-            aws cloudformation wait stack-delete-complete --stack-name $CORE_STACK
+            --stack-name stocks-core-stack \
+            --query "Stacks[0].StackStatus" \
+            --output text 2>/dev/null || echo "NOT_FOUND")
+          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+            aws cloudformation delete-stack --stack-name stocks-core-stack
+            aws cloudformation wait stack-delete-complete --stack-name stocks-core-stack
           fi
 
+      - name: Deploy core CloudFormation stack
+        run: |
           aws cloudformation deploy \
-            --stack-name $CORE_STACK \
+            --stack-name stocks-core-stack \
             --template-file template-core.yml \
-            --capabilities CAPABILITY_NAMED_IAM
-
-      # --- 2) main (RDS, secret, Lambda, ECS cluster) ----------------------
-      - name: Deploy main stack
-        run: |
-          aws cloudformation deploy \
-            --stack-name $MAIN_STACK \
-            --template-file template-app-stocks-main.yml \
             --capabilities CAPABILITY_NAMED_IAM \
             --parameter-overrides \
-              CodeKey=${{ needs.build.outputs.code_key }} \
-              RDSUsername=${{ secrets.RDS_USERNAME }} \
-              RDSPassword='${{ secrets.RDS_PASSWORD }}'
+              DBStackName=stocks-db-lambda-stack \
+              DBSecretName=stocks-db-credentials
 
-      # --- 3) tasks & schedules --------------------------------------------
-      - name: Deploy tasks stack
+      - name: Wait for Bastion to be running
+        id: wait_bastion
         run: |
-          aws cloudformation deploy \
-            --stack-name $TASKS_STACK \
-            --template-file template-app-stocks-app.yml \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --parameter-overrides \
-              ImageTag=${{ needs.build.outputs.image_tag }}
+          INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=stocks-bastion" \
+                     "Name=instance-state-name,Values=pending,running" \
+            --query "Reservations[0].Instances[0].InstanceId" --output text)
+          echo "Found Bastion instance: $INSTANCE_ID"
+          aws ec2 wait instance-running --instance-ids "$INSTANCE_ID"
+          echo "id=$INSTANCE_ID" >> $GITHUB_OUTPUT
+
+      - name: Verify Bastion setup via SSM
+        id: verify_bastion
+        run: |
+          INSTANCE_ID=${{ steps.wait_bastion.outputs.id }}
+          echo "Sending SSM command to $INSTANCE_ID..."
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "Verify PSQL installed" \
+            --parameters commands=["psql --version"] \
+            --query "Command.CommandId" --output text)
+
+          sleep 15
+
+          OUTPUT=$(aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$INSTANCE_ID" \
+            --query "StandardOutputContent" --output text)
+
+          echo "---- Bastion psql version ----"
+          echo "$OUTPUT"
+          echo "-------------------------------"
+
+          echo "$OUTPUT" | grep -q "psql" || (echo "ERROR: psql client not installed" && exit 1)
