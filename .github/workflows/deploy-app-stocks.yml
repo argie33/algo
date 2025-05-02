@@ -7,7 +7,7 @@ on:
 
 jobs:
 
-  # 1) Package & upload symbols‑loader Lambda
+  # 1) Package & upload symbols-loader Lambda
   build_and_upload_lambda:
     name: Build & upload Lambda package
     runs-on: ubuntu-latest
@@ -79,7 +79,7 @@ jobs:
           STATUS=$(aws cloudformation describe-stacks \
             --stack-name stocks-db-lambda-stack \
             --query "Stacks[0].StackStatus" \
-            --output text 2>/dev/null || echo "NOT_FOUND")
+            --output text 2>/dev/null || echo NOT_FOUND)
           if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
             aws cloudformation delete-stack --stack-name stocks-db-lambda-stack
             aws cloudformation wait stack-delete-complete --stack-name stocks-db-lambda-stack
@@ -128,17 +128,28 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Get ECR repository URI from core stack export
+      - name: Ensure ECR repository exists & get URI
         id: get_uri
         run: |
-          REPO_URI=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksCore-ContainerRepositoryUri'].Value" \
+          set -e
+          REPO_NAME=stocks-app-registry
+
+          # Create the repo if it doesn’t exist
+          if ! aws ecr describe-repositories --repository-names "$REPO_NAME" >/dev/null 2>&1; then
+            aws ecr create-repository --repository-name "$REPO_NAME" >/dev/null
+          fi
+
+          # Fetch its full URI
+          REPO_URI=$(aws ecr describe-repositories \
+            --repository-names "$REPO_NAME" \
+            --query 'repositories[0].repositoryUri' \
             --output text)
+
           if [ -z "$REPO_URI" ]; then
-            echo "✖ Export StocksCore-ContainerRepositoryUri not found!" >&2
+            echo "✖ ERROR: failed to fetch URI for ECR repo '$REPO_NAME'!" >&2
             exit 1
           fi
-          echo "Found ECR URI: $REPO_URI"
+
           echo "uri=$REPO_URI" >> $GITHUB_OUTPUT
 
       - name: Login to Amazon ECR
@@ -148,7 +159,6 @@ jobs:
         id: build
         run: |
           IMAGE_URI="${{ steps.get_uri.outputs.uri }}:${{ github.sha }}"
-          echo "→ Building & pushing $IMAGE_URI"
           docker build -t "$IMAGE_URI" .
           docker push "$IMAGE_URI"
           echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
@@ -171,12 +181,21 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Cleanup failed ECS‑tasks stack if needed
+      - name: Debug repo URI & tag
+        run: |
+          echo "→ ContainerRepositoryUri='${{ needs.build_and_push_container.outputs.uri }}'"
+          echo "→ ImageTag='${{ needs.build_and_push_container.outputs.tag }}'"
+          if [ -z "${{ needs.build_and_push_container.outputs.uri }}" ]; then
+            echo "✖ ERROR: ContainerRepositoryUri is empty!" >&2
+            exit 1
+          fi
+
+      - name: Cleanup failed ECS-tasks stack if needed
         run: |
           STATUS=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].StackStatus" \
-            --output text 2>/dev/null || echo "NOT_FOUND")
+            --output text 2>/dev/null || echo NOT_FOUND)
           if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
             aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
             aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
