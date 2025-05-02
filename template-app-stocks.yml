@@ -118,7 +118,7 @@ Resources:
     Properties:
       ClusterName: stocks-cluster
 
-  ### NEW: ECS Task Execution Role ###
+  ### ECS Task Execution Role ###
   EcsTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -291,6 +291,8 @@ Outputs:
   SecretArn:
     Description: ARN of the DB credentials secret
     Value: !Ref DBCredentialsSecret
+    Export:
+      Name: !Sub "${AWS::StackName}-SecretArn"
 
   ClusterArn:
     Description: ARN of the ECS cluster

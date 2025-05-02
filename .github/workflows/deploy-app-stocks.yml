@@ -50,7 +50,7 @@ jobs:
             s3://stocks-algo-app-code/loadstocksymbols-${{ github.sha }}.zip
           echo "code_key=loadstocksymbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  # 2) Build & push the financial-data Docker image
+  # 2) Build & push the financial-data Docker image into stocks-app-registry
   build_and_push_fin_container:
     name: Build & Push financial-data Docker image
     runs-on: ubuntu-latest
@@ -82,23 +82,25 @@ jobs:
 
       - name: Ensure ECR repo exists
         run: |
-          aws ecr describe-repositories --repository-names financial-data || \
-            aws ecr create-repository --repository-name financial-data
+          aws ecr describe-repositories --repository-names stocks-app-registry || \
+            aws ecr create-repository --repository-name stocks-app-registry
 
       - name: Build & tag Docker image
         id: tag
         run: |
           IMAGE_TAG="${{ github.sha }}"
-          docker build -t financial-data:${IMAGE_TAG} .
-          docker tag financial-data:${IMAGE_TAG} \
-            "${{ steps.aws_account.outputs.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/financial-data:${IMAGE_TAG}"
+          # build with local name
+          docker build -t stocks-app-registry:${IMAGE_TAG} .
+          # tag for ECR
+          docker tag stocks-app-registry:${IMAGE_TAG} \
+            "${{ steps.aws_account.outputs.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/stocks-app-registry:${IMAGE_TAG}"
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
       - name: Push to ECR
         run: |
-          docker push "${{ steps.aws_account.outputs.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/financial-data:${{ steps.tag.outputs.IMAGE_TAG }}"
+          docker push "${{ steps.aws_account.outputs.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/stocks-app-registry:${{ needs.build_and_push_fin_container.outputs.image_tag }}"
 
-  # 3) Deploy everything via CloudFormation
+  # 3) Deploy DB, Lambda & ECS stack via CloudFormation
   deploy_db_lambda:
     name: Deploy DB, Lambda & ECS CloudFormation
     needs: [ build_and_upload_lambda, build_and_push_fin_container ]
