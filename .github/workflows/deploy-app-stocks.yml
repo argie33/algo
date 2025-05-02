@@ -26,13 +26,20 @@ jobs:
         run: |
           rm -rf package && mkdir package
           python -m pip install --upgrade pip
-          if [ -f requirements‑loadstocksymbols.txt ]; then
-            pip install -r requirements‑loadstocksymbols.txt -t package
+          if [ ! -f requirements.txt ]; then
+            echo "✖ requirements.txt not found!" >&2
+            exit 1
           fi
+          pip install -r requirements.txt -t package
 
-      - name: Package Lambda
+      - name: Copy function code & verify dependencies
         run: |
           cp loadstocksymbols.py package/index.py
+          echo "Contents of package/:"
+          ls -R package
+
+      - name: Zip Lambda bundle
+        run: |
           cd package
           zip -r "../loadstocksymbols-${{ github.sha }}.zip" .
           cd ..
@@ -89,13 +96,19 @@ jobs:
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
             --capabilities CAPABILITY_NAMED_IAM
 
-      - name: Invoke loadstocksymbols Lambda
+      - name: Invoke loadstocksymbols Lambda and fail on error
         run: |
           aws lambda invoke \
             --function-name loadstocksymbols \
             --payload '{}' \
+            --cli-binary-format raw-in-base64-out \
             response.json
           cat response.json
+          # If FunctionError is present, exit non-zero:
+          if grep -q '"FunctionError"' response.json; then
+            echo "✖ Lambda execution failed" >&2
+            exit 1
+          fi
 
   # 3) Build & push Docker image for ECS tasks
   build_and_push_container:
