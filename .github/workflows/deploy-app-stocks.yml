@@ -7,7 +7,7 @@ on:
 
 jobs:
 
-  # 1) Package & upload symbols-loader Lambda
+  # 1) Package & upload symbols‑loader Lambda
   build_and_upload_lambda:
     name: Build & upload Lambda package
     runs-on: ubuntu-latest
@@ -26,8 +26,8 @@ jobs:
         run: |
           rm -rf package && mkdir package
           python -m pip install --upgrade pip
-          if [ -f requirements-loadstocksymbols.txt ]; then
-            pip install -r requirements-loadstocksymbols.txt -t package
+          if [ -f requirements‑loadstocksymbols.txt ]; then
+            pip install -r requirements‑loadstocksymbols.txt -t package
           fi
 
       - name: Package Lambda
@@ -97,6 +97,7 @@ jobs:
             response.json
           cat response.json
 
+  # 3) Build & push Docker image for ECS tasks
   build_and_push_container:
     name: Build & push Docker image
     needs: deploy_db_lambda
@@ -105,9 +106,11 @@ jobs:
       uri: ${{ steps.get_uri.outputs.uri }}
       tag: ${{ steps.build.outputs.tag }}
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - uses: aws-actions/configure-aws-credentials@v2
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -130,7 +133,7 @@ jobs:
           docker push ${{ steps.get_uri.outputs.uri }}:${{ github.sha }}
           echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
 
-  # 4) Deploy ECS Tasks stack
+  # 4) Deploy ECS Tasks stack and run one immediately
   deploy_ecs_tasks:
     name: Deploy ECS Tasks
     needs:
@@ -148,7 +151,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Cleanup failed ECS-tasks stack if needed
+      - name: Cleanup failed ECS‑tasks stack if needed
         run: |
           STATUS=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
@@ -182,3 +185,24 @@ jobs:
                 --query "Exports[?Name=='StocksCore-LambdaSecurityGroupId'].Value" \
                 --output text) \
             --capabilities CAPABILITY_NAMED_IAM
+
+      - name: Run ECS DataLoader task immediately
+        run: |
+          SUBNET1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PrivateSubnet1Id'].Value" \
+            --output text)
+          SUBNET2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PrivateSubnet2Id'].Value" \
+            --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-LambdaSecurityGroupId'].Value" \
+            --output text)
+
+          aws ecs run-task \
+            --cluster stocks-cluster \
+            --launch-type FARGATE \
+            --task-definition stocks-data-loader \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNET1,$SUBNET2],securityGroups=[$SG],assignPublicIp=DISABLED}" \
+            --count 1
+
+          echo "Triggered one run of stocks-data-loader on Fargate."
