@@ -4,6 +4,7 @@ import time
 import logging
 import functools
 import os
+import sys
 
 import boto3
 import psycopg2
@@ -23,11 +24,14 @@ SCRIPT_NAME = "loadfinancialdata.py"
 # -------------------------------
 DB_SECRET_ARN = os.getenv("DB_SECRET_ARN")
 
-# --- Logging setup ---
+# --- Logging setup: output to both file and stdout for ECS to capture ---
 logging.basicConfig(
-    filename="loadfinancialdata.log",
     level=logging.INFO,
-    format="%(asctime)s %(levelname)s:%(message)s"
+    format="%(asctime)s %(levelname)s:%(message)s",
+    handlers=[
+        logging.FileHandler("loadfinancialdata.log"),
+        logging.StreamHandler(sys.stdout),
+    ]
 )
 
 def get_db_config():
@@ -122,14 +126,16 @@ def clean_row(row):
 
 @retry(max_attempts=3)
 def process_symbol(symbol, conn):
-    """Fetch from YahooQuery & upsert into PostgreSQL."""
-    yq_symbol = symbol.replace(".", "-").lower()
+    """Fetch from yahooquery & upsert into PostgreSQL, only if data changed."""
+    yq_symbol = symbol.upper().replace(".", "-")
     ticker = Ticker(yq_symbol)
-    data = ticker.financial_data.get(yq_symbol)
-    if not isinstance(data, dict):
-        raise ValueError(f"Bad payload for {symbol}: {data!r}")
+    raw = ticker.financial_data.get(yq_symbol)
+    if not isinstance(raw, dict):
+        raise ValueError(f"Bad payload for {symbol}: {raw!r}")
 
+    data = {k.lower(): v for k, v in raw.items()}
     row = clean_row(data)
+
     cols = [
         "symbol","maxage","currentprice","targethighprice","targetlowprice",
         "targetmeanprice","targetmedianprice","recommendationmean","recommendationkey",
@@ -139,18 +145,26 @@ def process_symbol(symbol, conn):
         "earningsgrowth","revenuegrowth","grossmargins","ebitdamargins","operatingmargins",
         "profitmargins","financialcurrency"
     ]
-    values = [ row.get(c) for c in cols[1:] ]
+    values = [row.get(c) for c in cols[1:]]
     placeholders = ", ".join(["%s"] * len(cols))
     updates = ", ".join([f"{c}=EXCLUDED.{c}" for c in cols[1:]])
+
+    # only update if any value actually differs
+    diff_conds = " OR ".join(
+        f"financial_data.{c} IS DISTINCT FROM EXCLUDED.{c}" for c in cols[1:]
+    )
+
     sql = f"""
         INSERT INTO financial_data ({','.join(cols)})
         VALUES ({placeholders})
         ON CONFLICT(symbol) DO UPDATE
-          SET {updates}, fetched_at = NOW();
+          SET {updates}, fetched_at = NOW()
+          WHERE {diff_conds};
     """
     with conn.cursor() as cur:
         cur.execute(sql, [symbol] + values)
     conn.commit()
+    logging.info(f"✅ upserted {symbol}")
 
 def update_last_run(conn):
     with conn.cursor() as cur:
@@ -163,10 +177,7 @@ def update_last_run(conn):
     conn.commit()
 
 def main():
-    # 1) get all DB connection info from Secrets Manager
     user, pwd, host, port, dbname = get_db_config()
-
-    # 2) open a TCP connection (no local socket)
     conn = psycopg2.connect(
         host=host,
         port=port,
@@ -179,19 +190,16 @@ def main():
 
     ensure_tables(conn)
 
-    # 3) fetch symbols
     with conn.cursor() as cur:
         cur.execute("SELECT symbol FROM stock_symbols;")
         symbols = [r["symbol"] for r in cur.fetchall()]
 
-    # 4) process each symbol
     for s in symbols:
         try:
             process_symbol(s, conn)
         except Exception as e:
             logging.error(f"Failed symbol {s}: {e}", exc_info=True)
 
-    # 5) record run time
     update_last_run(conn)
     conn.close()
     print("loadfinancialdata complete.")
