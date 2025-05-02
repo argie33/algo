@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Tasks & schedules – ECS TaskExecutionRole, TaskDefinitions, ECS Service
-  and EventBridge rules (financial-data & price-data-daily).
+  (financial-data) and scheduled RunTask rules for both tasks.
 
 Parameters:
   ImageTag:
@@ -10,7 +10,6 @@ Parameters:
 
 Resources:
 
-  ### ECS Task Execution Role ###
   EcsTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -25,7 +24,6 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
 
-  ### TaskDefinition: continuous financial-data ###
   FinancialDataTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -38,14 +36,11 @@ Resources:
       ContainerDefinitions:
         - Name: financial-data
           Image:
-            Fn::Join:
-              - ":"
-              - - !ImportValue StocksCore-ContainerRepositoryUri
-                - !Ref ImageTag
+            Fn::Sub: "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/stocks-app-registry:${ImageTag}"
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
-              Value: !ImportValue stocks-db-lambda-stack-SecretArn
+              Value: !ImportValue StocksInfra-SecretArn
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -53,7 +48,6 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
-  ### TaskDefinition: price-data-daily ###
   PriceDataTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -66,15 +60,12 @@ Resources:
       ContainerDefinitions:
         - Name: price-data-daily
           Image:
-            Fn::Join:
-              - ":"
-              - - !ImportValue StocksCore-ContainerRepositoryUri
-                - !Ref ImageTag
+            Fn::Sub: "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/stocks-app-registry:${ImageTag}"
           Essential: true
           Command: ["python","loadpricedaily.py"]
           Environment:
             - Name: DB_SECRET_ARN
-              Value: !ImportValue stocks-db-lambda-stack-SecretArn
+              Value: !ImportValue StocksInfra-SecretArn
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -82,7 +73,6 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
-  ### ECS Service: continuous financial-data ###
   FinancialDataService:
     Type: AWS::ECS::Service
     Properties:
@@ -99,7 +89,6 @@ Resources:
           SecurityGroups:
             - !ImportValue StocksInfra-DBSecurityGroupId
 
-  ### IAM Role for EventBridge ###
   EventsInvokeRole:
     Type: AWS::IAM::Role
     Properties:
@@ -123,11 +112,10 @@ Resources:
                   - !Ref FinancialDataTaskDefinition
                   - !Ref PriceDataTaskDefinition
 
-  ### Scheduled RunTask: financial-data (hourly) ###
   FinancialDataScheduleRule:
     Type: AWS::Events::Rule
     Properties:
-      Description: "Run financial-data every hour"
+      Description: "Run financial-data task every hour"
       ScheduleExpression: "rate(1 hour)"
       State: "ENABLED"
       Targets:
@@ -145,11 +133,10 @@ Resources:
                 SecurityGroups:
                   - !ImportValue StocksInfra-DBSecurityGroupId
 
-  ### Scheduled RunTask: price-data-daily (daily) ###
   PriceDataScheduleRule:
     Type: AWS::Events::Rule
     Properties:
-      Description: "Run price-data-daily once per day"
+      Description: "Run price-data-daily task once per day"
       ScheduleExpression: "rate(1 day)"
       State: "ENABLED"
       Targets:

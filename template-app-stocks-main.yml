@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Core infra – RDS, Secrets (full DB connection info), Lambda (symbols-loader)
-  and ECS Cluster.  No TaskDefinitions or Services yet.
+  Infra stack – RDS instance & subnet group, SecretsManager DB secret,
+  Lambda (symbols-loader), and ECS Cluster only.
 
 Parameters:
   CodeKey:
@@ -21,7 +21,6 @@ Parameters:
 
 Resources:
 
-  ### RDS Subnet Group ###
   StocksDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
@@ -30,11 +29,10 @@ Resources:
         - !ImportValue StocksCore-PrivateSubnet1Id
         - !ImportValue StocksCore-PrivateSubnet2Id
 
-  ### RDS Security Group ###
   StocksDBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow Postgres
+      GroupDescription: Allow Postgres access
       VpcId: !ImportValue StocksCore-VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -42,7 +40,6 @@ Resources:
           ToPort: 5432
           CidrIp: !Ref VpcCidr
 
-  ### RDS Instance ###
   StocksDBInstance:
     Type: AWS::RDS::DBInstance
     DependsOn:
@@ -56,13 +53,11 @@ Resources:
       MasterUserPassword: !Ref RDSPassword
       DBInstanceClass: db.t3.micro
       AllocatedStorage: 20
-      VPCSecurityGroups:
-        - !Ref StocksDBSecurityGroup
+      VPCSecurityGroups: [ !Ref StocksDBSecurityGroup ]
       DBSubnetGroupName: !Ref StocksDBSubnetGroup
       MultiAZ: false
       PubliclyAccessible: false
 
-  ### Secrets Manager ###
   DBCredentialsSecret:
     Type: AWS::SecretsManager::Secret
     DependsOn: StocksDBInstance
@@ -82,7 +77,6 @@ Resources:
             - !GetAtt StocksDBInstance.Endpoint.Port
             - '","dbname":"stocks"}'
 
-  ### Lambda: symbols-loader ###
   LoadStockSymbolsFunction:
     Type: AWS::Lambda::Function
     DependsOn:
@@ -107,7 +101,6 @@ Resources:
         Variables:
           DB_SECRET_ARN: !Ref DBCredentialsSecret
 
-  ### ECS Cluster ###
   StocksEcsCluster:
     Type: AWS::ECS::Cluster
     Properties:
@@ -115,31 +108,19 @@ Resources:
 
 Outputs:
   ClusterArn:
-    Description: ARN of the ECS cluster
+    Description: ECS Cluster ARN
     Value: !GetAtt StocksEcsCluster.Arn
     Export:
       Name: StocksInfra-ClusterArn
 
   SecretArn:
-    Description: ARN of the DB credentials secret
+    Description: DB credentials secret ARN
     Value: !Ref DBCredentialsSecret
     Export:
       Name: StocksInfra-SecretArn
 
   DBSecurityGroupId:
-    Description: SecurityGroup for RDS & ECS tasks
+    Description: Security Group for RDS & ECS tasks
     Value: !Ref StocksDBSecurityGroup
     Export:
       Name: StocksInfra-DBSecurityGroupId
-
-  DBEndpoint:
-    Description: RDS endpoint
-    Value: !GetAtt StocksDBInstance.Endpoint.Address
-    Export:
-      Name: StocksInfra-DBEndpoint
-
-  DBPort:
-    Description: RDS port
-    Value: !GetAtt StocksDBInstance.Endpoint.Port
-    Export:
-      Name: StocksInfra-DBPort
