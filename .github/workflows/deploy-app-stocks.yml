@@ -128,12 +128,12 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Get ECR repository URI from ECR
+      - name: Get ECR repository URI from core stack
         id: get_uri
         run: |
-          REPO_URI=$(aws ecr describe-repositories \
-            --repository-names stocks-app-registry \
-            --query "repositories[0].repositoryUri" \
+          REPO_URI=$(aws cloudformation describe-stacks \
+            --stack-name stocks-core-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='ContainerRepositoryUri'].OutputValue" \
             --output text)
           echo "repo URI is: $REPO_URI"
           echo "uri=$REPO_URI" >> $GITHUB_OUTPUT
