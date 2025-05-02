@@ -96,7 +96,7 @@ jobs:
           IMAGE_TAG=${{ steps.tag.outputs.IMAGE_TAG }}
           docker push "${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/stocks-app-registry:${IMAGE_TAG}"
 
-  # 3) Deploy core infra (RDS, Secret, Lambda, ECS Cluster)
+  # 3) Deploy core infra (RDS, Secret, Lambda, ECS Cluster) using the app template
   deploy_infra:
     needs: build_and_push_fin_container
     runs-on: ubuntu-latest
@@ -125,7 +125,7 @@ jobs:
         run: |
           aws cloudformation deploy \
             --stack-name stocks-infra-stack \
-            --template-file template-app-stocks-infra.yml \
+            --template-file template-app-stocks-app.yml \
             --parameter-overrides \
               CodeKey=${{ needs.build_and_upload_lambda.outputs.code_key }} \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
