@@ -46,9 +46,10 @@ jobs:
         run: |
           aws s3 cp "loadstocksymbols-${{ github.sha }}.zip" \
             s3://stocks-algo-app-code/loadstocksymbols-${{ github.sha }}.zip
+          # Publish the key so deploy_infra gets a non‐empty CodeKey
           echo "code_key=loadstocksymbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  # 2) Build & push Docker image, set image_tag output
+  # 2) Build & push the financial-data Docker image
   build_and_push_fin_container:
     needs: build_and_upload_lambda
     runs-on: ubuntu-latest
@@ -73,18 +74,20 @@ jobs:
         name: Build, tag & push Docker image
         run: |
           IMAGE_TAG="${{ github.sha }}"
+          # export the tag so deploy_tasks gets a value
           echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-          aws ecr describe-repositories --repository-names stocks-app-registry || \
-            aws ecr create-repository --repository-name stocks-app-registry
+          # ensure repo
+          aws ecr describe-repositories --repository-names stocks-app-registry \
+            || aws ecr create-repository --repository-name stocks-app-registry
 
-          aws ecr get-login-password --region us-east-1 | \
-            docker login --username AWS --password-stdin ${{ steps.aws_account.outputs.account_id }}.dkr.ecr.us-east-1.amazonaws.com
-
+          # push
+          aws ecr get-login-password --region us-east-1 \
+            | docker login --username AWS --password-stdin ${{ steps.aws_account.outputs.account_id }}.dkr.ecr.us-east-1.amazonaws.com
           docker build -t ${{ steps.aws_account.outputs.account_id }}.dkr.ecr.us-east-1.amazonaws.com/stocks-app-registry:${IMAGE_TAG} .
           docker push ${{ steps.aws_account.outputs.account_id }}.dkr.ecr.us-east-1.amazonaws.com/stocks-app-registry:${IMAGE_TAG}
 
-  # 3) Deploy infra stack (RDS, Secret, Lambda, ECS Cluster) using template-app-stocks-main.yml
+  # 3) Deploy infra stack (no ImageTag here!)
   deploy_infra:
     needs: build_and_push_fin_container
     runs-on: ubuntu-latest
@@ -98,20 +101,20 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Cleanup failed infra stack
+      - name: Cleanup failed infra stack if needed
         run: |
           STATUS=$(aws cloudformation describe-stacks \
-            --stack-name stocks-main-stack \
+            --stack-name stocks-infra-stack \
             --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo "NOT_FOUND")
           if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            aws cloudformation delete-stack --stack-name stocks-main-stack
-            aws cloudformation wait stack-delete-complete --stack-name stocks-main-stack
+            aws cloudformation delete-stack --stack-name stocks-infra-stack
+            aws cloudformation wait stack-delete-complete --stack-name stocks-infra-stack
           fi
 
       - name: Deploy infra stack
         run: |
           aws cloudformation deploy \
-            --stack-name stocks-main-stack \
+            --stack-name stocks-infra-stack \
             --template-file template-app-stocks-main.yml \
             --parameter-overrides \
               CodeKey=${{ needs.build_and_upload_lambda.outputs.code_key }} \
@@ -119,7 +122,7 @@ jobs:
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
             --capabilities CAPABILITY_NAMED_IAM
 
-  # 4) Deploy tasks & schedules using template-app-stocks-app.yml (takes only ImageTag)
+  # 4) Deploy tasks & schedules stack (only ImageTag)
   deploy_tasks:
     needs: deploy_infra
     runs-on: ubuntu-latest
@@ -133,7 +136,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Cleanup failed tasks stack
+      - name: Cleanup failed tasks stack if needed
         run: |
           STATUS=$(aws cloudformation describe-stacks \
             --stack-name stocks-tasks-stack \
