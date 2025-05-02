@@ -1,3 +1,4 @@
+# template-app-stocks.yml
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Application stack – RDS, Secrets (full DB connection info), imported S3 bucket,
@@ -20,7 +21,6 @@ Parameters:
     Description: VPC CIDR for DB SG ingress
 
 Resources:
-
   ### RDS Subnet Group ###
   StocksDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
@@ -83,16 +83,6 @@ Resources:
             - !GetAtt StocksDBInstance.Endpoint.Port
             - '","dbname":"stocks"}'
 
-  ### Lambda Security Group (moved here) ###
-  LambdaSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      VpcId: !ImportValue StocksCore-VpcId
-      GroupDescription: Allow egress for Lambdas
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
-
   ### Lambda: symbols‑loader ###
   LoadStockSymbolsFunction:
     Type: AWS::Lambda::Function
@@ -113,10 +103,16 @@ Resources:
           - !ImportValue StocksCore-PrivateSubnet1Id
           - !ImportValue StocksCore-PrivateSubnet2Id
         SecurityGroupIds:
-          - !Ref LambdaSecurityGroup
+          - !ImportValue StocksCore-LambdaSecurityGroupId
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DBCredentialsSecret
+
+  ### ECS Cluster ###
+  StocksEcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: stocks-cluster
 
   ### ECS Task Execution Role ###
   EcsTaskExecutionRole:
@@ -132,17 +128,6 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
-      Policies:
-        - PolicyName: AllowSecretsAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                Resource: !Ref DBCredentialsSecret
-
-  ### (your ECS Cluster, Services, etc.) ###
 
 Outputs:
   DBEndpoint:
@@ -156,14 +141,10 @@ Outputs:
   SecretArn:
     Description: ARN of the DB credentials secret
     Value: !Ref DBCredentialsSecret
-    Export:
-      Name: StocksDBLambdaStack-SecretArn
 
   ClusterArn:
     Description: ARN of the ECS cluster
     Value: !GetAtt StocksEcsCluster.Arn
-    Export:
-      Name: StocksDBLambdaStack-ClusterArn
 
   EcsTaskExecutionRoleArn:
     Description: ARN of the ECS Task Execution Role
