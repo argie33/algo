@@ -1,12 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Application stack – RDS, Secrets (full DB connection info), imported S3 bucket,
-  Lambda (symbols-loader), and ECS cluster.
+  Lambda (symbols‑loader), and ECS cluster.
 
 Parameters:
   CodeKey:
     Type: String
-    Description: S3 key of the symbols-loader Lambda ZIP
+    Description: S3 key of the symbols‑loader Lambda ZIP
   RDSUsername:
     Type: String
     Description: RDS master username
@@ -83,7 +83,17 @@ Resources:
             - !GetAtt StocksDBInstance.Endpoint.Port
             - '","dbname":"stocks"}'
 
-  ### Lambda: symbols-loader ###
+  ### Lambda Security Group (moved here) ###
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !ImportValue StocksCore-VpcId
+      GroupDescription: Allow egress for Lambdas
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  ### Lambda: symbols‑loader ###
   LoadStockSymbolsFunction:
     Type: AWS::Lambda::Function
     DependsOn:
@@ -103,16 +113,10 @@ Resources:
           - !ImportValue StocksCore-PrivateSubnet1Id
           - !ImportValue StocksCore-PrivateSubnet2Id
         SecurityGroupIds:
-          - !ImportValue StocksCore-LambdaSecurityGroupId
+          - !Ref LambdaSecurityGroup
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DBCredentialsSecret
-
-  ### ECS Cluster ###
-  StocksEcsCluster:
-    Type: AWS::ECS::Cluster
-    Properties:
-      ClusterName: stocks-cluster
 
   ### ECS Task Execution Role ###
   EcsTaskExecutionRole:
@@ -137,6 +141,8 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource: !Ref DBCredentialsSecret
+
+  ### (your ECS Cluster, Services, etc.) ###
 
 Outputs:
   DBEndpoint:

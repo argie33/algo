@@ -1,6 +1,5 @@
-# template-core.yml
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Core infrastructure stack – IAM, VPC, Subnets, Internet/NAT, Bastion host (bootstrap via S3 script), auto-shutdown Lambda, ECR registry, and S3 code bucket
+Description: Core infrastructure stack – IAM, VPC, Subnets, Internet/NAT, Bastion host (bootstrap via S3 script), auto‑shutdown Lambda, ECR registry, and S3 code bucket
 
 Parameters:
   VpcCidr:
@@ -158,15 +157,6 @@ Resources:
       SubnetId: !Ref PrivateSubnet2
       RouteTableId: !Ref PrivateRouteTable
 
-  LambdaSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      VpcId: !Ref StocksVPC
-      GroupDescription: Allow egress for Lambdas
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
-
   ### Bastion Host ###
   BastionInstanceRole:
     Type: AWS::IAM::Role
@@ -203,7 +193,7 @@ Resources:
     Type: AWS::EC2::Instance
     Properties:
       InstanceType: t3.micro
-      ImageId: ami-0c94855ba95c71c99    # Amazon Linux 2
+      ImageId: ami-0c94855ba95c71c99
       NetworkInterfaces:
         - AssociatePublicIpAddress: true
           DeviceIndex: 0
@@ -217,17 +207,15 @@ Resources:
         #!/bin/bash
         set -eux
 
-        # pass parameters into env
         export AWS_DEFAULT_REGION=${AWS::Region}
         export DB_STACK_NAME='!Ref DBStackName'
         export DB_SECRET_NAME='!Ref DBSecretName'
 
-        # download & run the bootstrap script from S3
         aws s3 cp s3://stocks-algo-app-code/bastion/bootstrap.sh /tmp/bootstrap.sh
         chmod +x /tmp/bootstrap.sh
         /tmp/bootstrap.sh
 
-  ### Auto-shutdown Lambda ###
+  ### Auto‑shutdown Lambda ###
   BastionStopRole:
     Type: AWS::IAM::Role
     Properties:
@@ -252,7 +240,9 @@ Resources:
       Runtime: python3.9
       Handler: index.handler
       Role: !GetAtt BastionStopRole.Arn
-      Environment: { Variables: { BASTION_ID: !Ref BastionHost } }
+      Environment:
+        Variables:
+          BASTION_ID: !Ref BastionHost
       Code:
         ZipFile: |
           import boto3, os
@@ -264,7 +254,9 @@ Resources:
       Description: "Daily stop of bastion at 6 PM CT"
       ScheduleExpression: cron(0 23 * * ? *)
       State: ENABLED
-      Targets: [{ Arn: !GetAtt BastionStopFunction.Arn, Id: StopBastion }]
+      Targets:
+        - Arn: !GetAtt BastionStopFunction.Arn
+          Id: StopBastion
 
   LambdaInvokePermission:
     Type: AWS::Lambda::Permission
@@ -289,17 +281,41 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: stocks-algo-app-code
-      VersioningConfiguration: { Status: Enabled }
+      VersioningConfiguration:
+        Status: Enabled
     DeletionPolicy: Delete
     UpdateReplacePolicy: Retain
 
 Outputs:
-  VpcId:                  { Value: !Ref StocksVPC,                Export: { Name: StocksCore-VpcId } }
-  PublicSubnet1Id:        { Value: !Ref PublicSubnet1,             Export: { Name: StocksCore-PublicSubnet1Id } }
-  PublicSubnet2Id:        { Value: !Ref PublicSubnet2,             Export: { Name: StocksCore-PublicSubnet2Id } }
-  PrivateSubnet1Id:       { Value: !Ref PrivateSubnet1,            Export: { Name: StocksCore-PrivateSubnet1Id } }
-  PrivateSubnet2Id:       { Value: !Ref PrivateSubnet2,            Export: { Name: StocksCore-PrivateSubnet2Id } }
-  LambdaSecurityGroupId:  { Value: !Ref LambdaSecurityGroup,       Export: { Name: StocksCore-LambdaSecurityGroupId } }
-  LambdaExecutionRoleArn: { Value: !GetAtt LambdaExecutionRole.Arn, Export: { Name: StocksCore-LambdaExecutionRoleArn } }
-  ContainerRepositoryUri: { Value: !GetAtt ContainerRepository.RepositoryUri, Export: { Name: StocksCore-ContainerRepositoryUri } }
-  CodeBucketName:         { Value: !Ref CodeBucket,                Export: { Name: StocksCore-CodeBucketName } }
+  VpcId:
+    Value: !Ref StocksVPC
+    Export:
+      Name: StocksCore-VpcId
+  PublicSubnet1Id:
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: StocksCore-PublicSubnet1Id
+  PublicSubnet2Id:
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: StocksCore-PublicSubnet2Id
+  PrivateSubnet1Id:
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: StocksCore-PrivateSubnet1Id
+  PrivateSubnet2Id:
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: StocksCore-PrivateSubnet2Id
+  LambdaExecutionRoleArn:
+    Value: !GetAtt LambdaExecutionRole.Arn
+    Export:
+      Name: StocksCore-LambdaExecutionRoleArn
+  ContainerRepositoryUri:
+    Value: !GetAtt ContainerRepository.RepositoryUri
+    Export:
+      Name: StocksCore-ContainerRepositoryUri
+  CodeBucketName:
+    Value: !Ref CodeBucket
+    Export:
+      Name: StocksCore-CodeBucketName
