@@ -1,12 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: >
-  Infra stack – RDS instance & subnet group, SecretsManager DB secret,
-  Lambda (symbols-loader), and ECS Cluster only.
+Description: Infra stack – RDS instance & subnet group, SecretsManager DB secret, Lambda (symbols-loader), and ECS Cluster.
 
 Parameters:
-  CodeKey:
-    Type: String
-    Description: S3 key of the symbols-loader Lambda ZIP
   RDSUsername:
     Type: String
     Description: RDS master username
@@ -53,7 +48,8 @@ Resources:
       MasterUserPassword: !Ref RDSPassword
       DBInstanceClass: db.t3.micro
       AllocatedStorage: 20
-      VPCSecurityGroups: [ !Ref StocksDBSecurityGroup ]
+      VPCSecurityGroups: 
+        - !Ref StocksDBSecurityGroup
       DBSubnetGroupName: !Ref StocksDBSubnetGroup
       MultiAZ: false
       PubliclyAccessible: false
@@ -89,7 +85,7 @@ Resources:
       Role: !ImportValue StocksCore-LambdaExecutionRoleArn
       Code:
         S3Bucket: !ImportValue StocksCore-CodeBucketName
-        S3Key: !Ref CodeKey
+        S3Key: loadstocksymbols.zip               # <— hard‑coded here
       Timeout: 300
       VpcConfig:
         SubnetIds:

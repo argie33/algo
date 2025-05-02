@@ -1,12 +1,13 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Tasks & schedules – TaskDefinitions, Service and EventBridge.
+Description: Tasks & schedules – ECS TaskExecutionRole, TaskDefinitions, ECS Service (financial-data) and scheduled RunTask rules.
 
 Parameters:
   ImageTag:
     Type: String
-    Description: Tag of the Docker image in ECR
+    Description: Tag of your Docker image in ECR
 
 Resources:
+
   EcsTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -110,7 +111,7 @@ Resources:
   FinancialDataScheduleRule:
     Type: AWS::Events::Rule
     Properties:
-      Description: "Run financial-data every hour"
+      Description: "Run financial-data task every hour"
       ScheduleExpression: "rate(1 hour)"
       State: "ENABLED"
       Targets:
@@ -131,7 +132,7 @@ Resources:
   PriceDataScheduleRule:
     Type: AWS::Events::Rule
     Properties:
-      Description: "Run price-data-daily once per day"
+      Description: "Run price-data-daily task once per day"
       ScheduleExpression: "rate(1 day)"
       State: "ENABLED"
       Targets:
