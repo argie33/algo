@@ -26,11 +26,11 @@ jobs:
         run: |
           rm -rf package && mkdir package
           python -m pip install --upgrade pip
-          if [ ! -f requirements.txt ]; then
-            echo "✖ requirements.txt not found!" >&2
+          if [ ! -f requirements-loadstocksymbols.txt ]; then
+            echo "✖ requirements-loadstocksymbols.txt not found!" >&2
             exit 1
           fi
-          pip install -r requirements.txt -t package
+          pip install -r requirements-loadstocksymbols.txt -t package
 
       - name: Copy function code & verify dependencies
         run: |
@@ -104,7 +104,6 @@ jobs:
             --cli-binary-format raw-in-base64-out \
             response.json
           cat response.json
-          # If FunctionError is present, exit non-zero:
           if grep -q '"FunctionError"' response.json; then
             echo "✖ Lambda execution failed" >&2
             exit 1
@@ -129,11 +128,14 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Get ECR repository URI
+      - name: Get ECR repository URI from ECR
         id: get_uri
         run: |
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          REPO_URI="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/stocks-app-registry"
+          REPO_URI=$(aws ecr describe-repositories \
+            --repository-names stocks-app-registry \
+            --query "repositories[0].repositoryUri" \
+            --output text)
+          echo "repo URI is: $REPO_URI"
           echo "uri=$REPO_URI" >> $GITHUB_OUTPUT
 
       - name: Login to Amazon ECR
@@ -163,6 +165,15 @@ jobs:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
+
+      - name: Debug repo URI & tag
+        run: |
+          echo "→ ContainerRepositoryUri='${{ needs.build_and_push_container.outputs.uri }}'"
+          echo "→ ImageTag='${{ needs.build_and_push_container.outputs.tag }}'"
+          if [ -z "${{ needs.build_and_push_container.outputs.uri }}" ]; then
+            echo "✖ ERROR: ContainerRepositoryUri is empty!" >&2
+            exit 1
+          fi
 
       - name: Cleanup failed ECS‑tasks stack if needed
         run: |
