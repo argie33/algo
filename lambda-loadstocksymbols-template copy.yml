@@ -1,0 +1,37 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: loadstocksymbols λ – download & load symbols into Postgres RDS via Secret
+
+Parameters:
+  CodeKey:
+    Type: String
+    Description: S3 key of the Lambda ZIP
+
+Resources:
+  LoadStockSymbolsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: loadstocksymbols
+      Runtime: python3.9
+      Handler: index.handler
+      Role: !ImportValue iam-RoleArn                            # from iam-stack :contentReference[oaicite:0]{index=0}&#8203;:contentReference[oaicite:1]{index=1}
+      Code:
+        S3Bucket: !ImportValue storage-CodeBucketName           # from storage-stack :contentReference[oaicite:2]{index=2}&#8203;:contentReference[oaicite:3]{index=3}
+        S3Key:    !Ref CodeKey
+      Timeout: 300
+      VpcConfig:
+        SubnetIds: !Split [",", !ImportValue network-PrivateSubnets]  # from network-stack :contentReference[oaicite:4]{index=4}&#8203;:contentReference[oaicite:5]{index=5}
+        SecurityGroupIds:
+          - !ImportValue network-LambdaSecurityGroupId             # from network-stack :contentReference[oaicite:6]{index=6}&#8203;:contentReference[oaicite:7]{index=7}
+      Environment:
+        Variables:
+          DB_ENDPOINT:   !ImportValue rds-DBEndpoint               # from rds-stack :contentReference[oaicite:8]{index=8}&#8203;:contentReference[oaicite:9]{index=9}
+          DB_PORT:       !ImportValue rds-DBPort                   # from rds-stack :contentReference[oaicite:10]{index=10}&#8203;:contentReference[oaicite:11]{index=11}
+          DB_NAME:       "stocks"
+          DB_SECRET_ARN: !ImportValue vault-DBCredentialsSecretArn  # from vault-stack :contentReference[oaicite:12]{index=12}&#8203;:contentReference[oaicite:13]{index=13}
+
+Outputs:
+  FunctionArn:
+    Description: "ARN of the loadstocksymbols Lambda"
+    Value: !GetAtt LoadStockSymbolsFunction.Arn
+    Export:
+      Name: lambda-loadstocksymbols-FunctionArn

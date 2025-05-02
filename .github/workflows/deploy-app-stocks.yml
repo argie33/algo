@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  # 1) Package & upload symbols-loader Lambda
+  # 1) Package & upload symbols‑loader Lambda
   build_and_upload_lambda:
     name: Build & upload Lambda package
     runs-on: ubuntu-latest
@@ -50,59 +50,10 @@ jobs:
             s3://stocks-algo-app-code/loadstocksymbols-${{ github.sha }}.zip
           echo "code_key=loadstocksymbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  # 2) Build & push the financial-data Docker image into stocks-app-registry
-  build_and_push_fin_container:
-    name: Build & Push financial-data Docker image
-    runs-on: ubuntu-latest
-    needs: build_and_upload_lambda
-    outputs:
-      image_tag: ${{ steps.tag.outputs.IMAGE_TAG }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            us-east-1
-
-      - name: Get AWS Account ID
-        id: aws_account
-        run: |
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          echo "ACCOUNT_ID=$ACCOUNT_ID" >> $GITHUB_OUTPUT
-
-      - name: Login to ECR
-        run: |
-          aws ecr get-login-password | docker login \
-            --username AWS \
-            --password-stdin "${{ steps.aws_account.outputs.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com"
-
-      - name: Ensure ECR repo exists
-        run: |
-          aws ecr describe-repositories --repository-names stocks-app-registry || \
-            aws ecr create-repository --repository-name stocks-app-registry
-
-      - name: Build & tag Docker image
-        id: tag
-        run: |
-          IMAGE_TAG="${{ github.sha }}"
-          docker build -t stocks-app-registry:${IMAGE_TAG} .
-          docker tag stocks-app-registry:${IMAGE_TAG} \
-            "${{ steps.aws_account.outputs.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/stocks-app-registry:${IMAGE_TAG}"
-          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
-
-      - name: Push to ECR
-        run: |
-          IMAGE_TAG=${{ steps.tag.outputs.IMAGE_TAG }}
-          docker push "${{ steps.aws_account.outputs.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/stocks-app-registry:${IMAGE_TAG}"
-
-  # 3) Deploy DB, Lambda & ECS stack via CloudFormation
+  # 2) Deploy RDS, SecretsManager, Lambda & ECS Cluster
   deploy_db_lambda:
-    name: Deploy DB, Lambda & ECS CloudFormation
-    needs: [ build_and_upload_lambda, build_and_push_fin_container ]
+    name: Deploy DB, Lambda & ECS Cluster
+    needs: build_and_upload_lambda
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -126,14 +77,13 @@ jobs:
             aws cloudformation wait stack-delete-complete --stack-name stocks-db-lambda-stack
           fi
 
-      - name: Deploy DB, Lambda & ECS stack
+      - name: Deploy DB, Lambda & ECS Cluster
         run: |
           aws cloudformation deploy \
             --stack-name stocks-db-lambda-stack \
             --template-file template-app-stocks.yml \
             --parameter-overrides \
               CodeKey=${{ needs.build_and_upload_lambda.outputs.code_key }} \
-              ImageTag=${{ needs.build_and_push_fin_container.outputs.image_tag }} \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
             --capabilities CAPABILITY_NAMED_IAM
