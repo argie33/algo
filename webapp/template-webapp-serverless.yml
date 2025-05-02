@@ -60,7 +60,11 @@ Resources:
         DefaultRootObject: index.html
         Origins:
           - Id: SPA
-            DomainName: !Sub '${Bucket}.s3.amazonaws.com'
+            DomainName:
+              Fn::Join:
+                - ''
+                - - !ImportValue StocksCore-SiteCodeBucketName
+                  - '.s3.amazonaws.com'
             S3OriginConfig:
               OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${OAI}'
         DefaultCacheBehavior:
