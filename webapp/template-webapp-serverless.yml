@@ -11,7 +11,7 @@ Parameters:
   DBStackName:
     Type: String
     Default: stocks-db-lambda-stack
-    Description: Name of the stack exporting your DB secret ARN
+    Description: Name of the stack exporting your DB Secret ARN
 
   CertificateArn:
     Type: String
@@ -63,8 +63,6 @@ Resources:
             DomainName: !Sub '${Bucket}.s3.amazonaws.com'
             S3OriginConfig:
               OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${OAI}'
-            # use local alias for clarity
-          # note: Bucket is an alias for the imported bucket name
         DefaultCacheBehavior:
           TargetOriginId: SPA
           ViewerProtocolPolicy: redirect-to-https
@@ -97,10 +95,8 @@ Resources:
           - !ImportValue StocksCore-LambdaSecurityGroupId
       Environment:
         Variables:
-          # import your secret ARN from the DB stack’s exports:
           DB_SECRET_ARN:
-            Fn::ImportValue:
-              Fn::Sub: "${DBStackName}-SecretArn"
+            Fn::ImportValue: !Sub "${DBStackName}-SecretArn"
 
   # 5) HTTP API (API Gateway v2)
   StocksApi:

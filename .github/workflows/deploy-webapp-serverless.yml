@@ -9,8 +9,10 @@ env:
   AWS_REGION: us-east-1
   STACK_NAME: stocks-serverless-webapp
   LAMBDA_CODE_KEY: api.zip
-  APP_BUCKET: stocks-algo-site-app-code    # where your Lambda ZIP lives
-  SITE_BUCKET: stocks-algo-site-code       # where your SPA lives
+  APP_BUCKET: stocks-algo-app-code
+  SITE_BUCKET: stocks-algo-site-code
+  DB_STACK_NAME: stocks-db-lambda-stack
+  CERT_ARN: ${{ secrets.CERT_ARN }}
 
 jobs:
   deploy:
@@ -48,6 +50,6 @@ jobs:
             --template-file webapp/template-webapp-serverless.yml \
             --parameter-overrides \
               LambdaCodeKey=${{ env.LAMBDA_CODE_KEY }} \
-              DBSecretArn=${{ secrets.DB_SECRET_ARN }} \
-              CertificateArn=${{ secrets.CERT_ARN }} \
+              DBStackName=${{ env.DB_STACK_NAME }} \
+              CertificateArn=${{ env.CERT_ARN }} \
             --capabilities CAPABILITY_NAMED_IAM
