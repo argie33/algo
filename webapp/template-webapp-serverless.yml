@@ -1,23 +1,29 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Serverless SPA → CloudFront + API Gateway + Lambda (RDS), using imported S3 & network resources
+Description: >
+  Serverless SPA → CloudFront + HTTP API Gateway + Lambda (RDS)
+  — imports S3, network & IAM from core infra; DB Secret ARN from DB stack.
 
 Parameters:
   LambdaCodeKey:
     Type: String
     Description: S3 key for the API Lambda zip (e.g. api.zip)
-  DBSecretArn:
+
+  DBStackName:
     Type: String
-    Description: ARN of the SecretsManager secret (stocks-db-credentials)
+    Default: stocks-db-lambda-stack
+    Description: Name of the stack exporting your DB secret ARN
+
   CertificateArn:
     Type: String
     Default: ''
     Description: ACM certificate ARN (us-east-1) for CloudFront
 
 Conditions:
-  UseCert: 
-    Fn::And:
-      - Fn::Not: [ !Equals [ !Ref CertificateArn, '' ] ]
-      - Fn::Not: [ !Equals [ !Ref CertificateArn, '' ] ]
+  UseCert:
+    Fn::Not:
+      - Fn::Equals:
+          - !Ref CertificateArn
+          - ''
 
 Resources:
   # 1) Origin Access Identity
@@ -54,13 +60,11 @@ Resources:
         DefaultRootObject: index.html
         Origins:
           - Id: SPA
-            DomainName:
-              Fn::Join:
-                - ''
-                - - !ImportValue StocksCore-SiteCodeBucketName
-                  - '.s3.amazonaws.com'
+            DomainName: !Sub '${Bucket}.s3.amazonaws.com'
             S3OriginConfig:
               OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${OAI}'
+            # use local alias for clarity
+          # note: Bucket is an alias for the imported bucket name
         DefaultCacheBehavior:
           TargetOriginId: SPA
           ViewerProtocolPolicy: redirect-to-https
@@ -73,7 +77,7 @@ Resources:
               SslSupportMethod: sni-only
             - CloudFrontDefaultCertificate: true
 
-  # 4) API Lambda
+  # 4) API Lambda backed by RDS (via Secret)
   ApiLambda:
     Type: AWS::Lambda::Function
     Properties:
@@ -82,7 +86,7 @@ Resources:
       Handler: index.handler
       Role: !ImportValue StocksCore-LambdaExecutionRoleArn
       Code:
-        S3Bucket: !ImportValue StocksCore-SiteAppCodeBucketName
+        S3Bucket: !ImportValue StocksCore-CodeBucketName
         S3Key: !Ref LambdaCodeKey
       Timeout: 30
       VpcConfig:
@@ -93,7 +97,10 @@ Resources:
           - !ImportValue StocksCore-LambdaSecurityGroupId
       Environment:
         Variables:
-          DB_SECRET_ARN: !Ref DBSecretArn
+          # import your secret ARN from the DB stack’s exports:
+          DB_SECRET_ARN:
+            Fn::ImportValue:
+              Fn::Sub: "${DBStackName}-SecretArn"
 
   # 5) HTTP API (API Gateway v2)
   StocksApi:
@@ -142,4 +149,4 @@ Outputs:
 
   ApiEndpoint:
     Description: HTTP API invoke URL
-    Value: !Sub '${StocksApi}.execute-api.${AWS::Region}.amazonaws.com'
+    Value: !Sub 'https://${StocksApi}.execute-api.${AWS::Region}.amazonaws.com'

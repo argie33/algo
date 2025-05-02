@@ -351,21 +351,6 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
 
-  ### S3 bucket for site application code ###
-  SiteAppCodeBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: stocks-algo-site-app-code
-      VersioningConfiguration:
-        Status: Enabled
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-    DeletionPolicy: Delete
-    UpdateReplacePolicy: Retain
-
 Outputs:
   VpcId:
     Description: VPC ID
@@ -426,9 +411,3 @@ Outputs:
     Value: !Ref SiteCodeBucket
     Export:
       Name: StocksCore-SiteCodeBucketName
-
-  SiteAppCodeBucketName:
-    Description: S3 bucket for site application code
-    Value: !Ref SiteAppCodeBucket
-    Export:
-      Name: StocksCore-SiteAppCodeBucketName
