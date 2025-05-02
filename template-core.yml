@@ -1,7 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: >
-  Core infrastructure stack – IAM, VPC, Subnets, Internet/NAT, Bastion host
-  (bootstrap via S3 script), auto‑shutdown Lambda, ECR registry, and S3 code bucket
+Description: Core infrastructure stack – IAM, VPC, Subnets, Internet/NAT, Bastion host (bootstrap via S3 script), auto-shutdown Lambda, ECR registry, and S3 code bucket
 
 Parameters:
   VpcCidr:
@@ -159,6 +157,15 @@ Resources:
       SubnetId: !Ref PrivateSubnet2
       RouteTableId: !Ref PrivateRouteTable
 
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref StocksVPC
+      GroupDescription: Allow egress for Lambdas
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
   ### Bastion Host ###
   BastionInstanceRole:
     Type: AWS::IAM::Role
@@ -195,35 +202,31 @@ Resources:
     Type: AWS::EC2::Instance
     Properties:
       InstanceType: t3.micro
-      ImageId: ami-0c94855ba95c71c99
+      ImageId: ami-0c94855ba95c71c99    # Amazon Linux 2
       NetworkInterfaces:
         - AssociatePublicIpAddress: true
           DeviceIndex: 0
           SubnetId: !Ref PublicSubnet1
           GroupSet: [!Ref BastionSecurityGroup]
       IamInstanceProfile: !Ref BastionInstanceProfile
+      Tags:
+        - Key: Name
+          Value: stocks-bastion
+      UserData: !Base64 |
+        #!/bin/bash
+        set -eux
 
-      # two‑arg Fn::Sub for UserData
-      UserData:
-        Fn::Base64:
-          Fn::Sub:
-            - |
-              #!/bin/bash
-              set -eux
+        # pass parameters into env
+        export AWS_DEFAULT_REGION=${AWS::Region}
+        export DB_STACK_NAME='!Ref DBStackName'
+        export DB_SECRET_NAME='!Ref DBSecretName'
 
-              export AWS_DEFAULT_REGION=${AWS::Region}
-              export DB_STACK_NAME=${DBStackName}
-              export DB_SECRET_NAME=${DBSecretName}
+        # download & run the bootstrap script from S3
+        aws s3 cp s3://stocks-algo-app-code/bastion/bootstrap.sh /tmp/bootstrap.sh
+        chmod +x /tmp/bootstrap.sh
+        /tmp/bootstrap.sh
 
-              aws s3 cp s3://stocks-algo-app-code/bastion/bootstrap.sh /tmp/bootstrap.sh
-              chmod +x /tmp/bootstrap.sh
-              /tmp/bootstrap.sh
-            - {
-                DBStackName: !Ref DBStackName,
-                DBSecretName: !Ref DBSecretName
-              }
-
-  ### Auto‑shutdown Lambda ###
+  ### Auto-shutdown Lambda ###
   BastionStopRole:
     Type: AWS::IAM::Role
     Properties:
@@ -240,10 +243,7 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: ec2:StopInstances
-                Resource:
-                  Fn::Sub:
-                    - arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${BastionId}
-                    - { BastionId: !Ref BastionHost }
+                Resource: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${BastionHost}
 
   BastionStopFunction:
     Type: AWS::Lambda::Function
@@ -251,9 +251,7 @@ Resources:
       Runtime: python3.9
       Handler: index.handler
       Role: !GetAtt BastionStopRole.Arn
-      Environment:
-        Variables:
-          BASTION_ID: !Ref BastionHost
+      Environment: { Variables: { BASTION_ID: !Ref BastionHost } }
       Code:
         ZipFile: |
           import boto3, os
@@ -265,9 +263,7 @@ Resources:
       Description: "Daily stop of bastion at 6 PM CT"
       ScheduleExpression: cron(0 23 * * ? *)
       State: ENABLED
-      Targets:
-        - Arn: !GetAtt BastionStopFunction.Arn
-          Id: StopBastion
+      Targets: [{ Arn: !GetAtt BastionStopFunction.Arn, Id: StopBastion }]
 
   LambdaInvokePermission:
     Type: AWS::Lambda::Permission
@@ -292,41 +288,176 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: stocks-algo-app-code
-      VersioningConfiguration:
-        Status: Enabled
+      VersioningConfiguration: { Status: Enabled }
     DeletionPolicy: Delete
     UpdateReplacePolicy: Retain
 
 Outputs:
-  VpcId:
-    Value: !Ref StocksVPC
+  VpcId:                  { Value: !Ref StocksVPC,                Export: { Name: StocksCore-VpcId } }
+  PublicSubnet1Id:        { Value: !Ref PublicSubnet1,             Export: { Name: StocksCore-PublicSubnet1Id } }
+  PublicSubnet2Id:        { Value: !Ref PublicSubnet2,             Export: { Name: StocksCore-PublicSubnet2Id } }
+  PrivateSubnet1Id:       { Value: !Ref PrivateSubnet1,            Export: { Name: StocksCore-PrivateSubnet1Id } }
+  PrivateSubnet2Id:       { Value: !Ref PrivateSubnet2,            Export: { Name: StocksCore-PrivateSubnet2Id } }
+  LambdaSecurityGroupId:  { Value: !Ref LambdaSecurityGroup,       Export: { Name: StocksCore-LambdaSecurityGroupId } }
+  LambdaExecutionRoleArn: { Value: !GetAtt LambdaExecutionRole.Arn, Export: { Name: StocksCore-LambdaExecutionRoleArn } }
+  ContainerRepositoryUri: { Value: !GetAtt ContainerRepository.RepositoryUri, Export: { Name: StocksCore-ContainerRepositoryUri } }
+  CodeBucketName:         { Value: !Ref CodeBucket,                Export: { Name: StocksCore-CodeBucketName } }  to AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Application stack – RDS, Secrets (full DB connection info), imported S3 bucket,
+  Lambda (symbols‑loader), and ECS cluster.
+
+Parameters:
+  CodeKey:
+    Type: String
+    Description: S3 key of the symbols‑loader Lambda ZIP
+  RDSUsername:
+    Type: String
+    Description: RDS master username
+  RDSPassword:
+    Type: String
+    NoEcho: true
+    Description: RDS master password
+  VpcCidr:
+    Type: String
+    Default: "10.0.0.0/16"
+    Description: VPC CIDR for DB SG ingress
+
+Resources:
+
+  ### RDS Subnet Group ###
+  StocksDBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for RDS (private only)
+      SubnetIds:
+        - !ImportValue StocksCore-PrivateSubnet1Id
+        - !ImportValue StocksCore-PrivateSubnet2Id
+
+  ### RDS Security Group ###
+  StocksDBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow Postgres access within VPC
+      VpcId: !ImportValue StocksCore-VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: !Ref VpcCidr
+
+  ### RDS Instance ###
+  StocksDBInstance:
+    Type: AWS::RDS::DBInstance
+    DependsOn:
+      - StocksDBSubnetGroup
+      - StocksDBSecurityGroup
+    Properties:
+      DBInstanceIdentifier: stocks
+      DBName: stocks
+      AllocatedStorage: 20
+      DBInstanceClass: db.t3.micro
+      Engine: postgres
+      MasterUsername: !Ref RDSUsername
+      MasterUserPassword: !Ref RDSPassword
+      VPCSecurityGroups:
+        - !Ref StocksDBSecurityGroup
+      DBSubnetGroupName: !Ref StocksDBSubnetGroup
+      MultiAZ: false
+      PubliclyAccessible: false
+      DeletionProtection: false
+
+  ### Secrets Manager: DB credentials ###
+  DBCredentialsSecret:
+    Type: AWS::SecretsManager::Secret
+    DependsOn: StocksDBInstance
+    Properties:
+      Name: stocks-db-credentials
+      Description: JSON with username, password, host, port, dbname
+      SecretString:
+        Fn::Join:
+          - ""
+          - - '{"username":"'
+            - !Ref RDSUsername
+            - '","password":"'
+            - !Ref RDSPassword
+            - '","host":"'
+            - !GetAtt StocksDBInstance.Endpoint.Address
+            - '","port":"'
+            - !GetAtt StocksDBInstance.Endpoint.Port
+            - '","dbname":"stocks"}'
+
+  ### Lambda: symbols‑loader ###
+  LoadStockSymbolsFunction:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - StocksDBInstance
+      - DBCredentialsSecret
+    Properties:
+      FunctionName: loadstocksymbols
+      Runtime: python3.9
+      Handler: index.handler
+      Role: !ImportValue StocksCore-LambdaExecutionRoleArn
+      Code:
+        S3Bucket: !ImportValue StocksCore-CodeBucketName
+        S3Key: !Ref CodeKey
+      Timeout: 300
+      VpcConfig:
+        SubnetIds:
+          - !ImportValue StocksCore-PrivateSubnet1Id
+          - !ImportValue StocksCore-PrivateSubnet2Id
+        SecurityGroupIds:
+          - !ImportValue StocksCore-LambdaSecurityGroupId
+      Environment:
+        Variables:
+          DB_SECRET_ARN: !Ref DBCredentialsSecret
+  ### ECS Task Execution Role ###
+  EcsTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ecs-task-execution-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:                              # <<< ADD THIS BLOCK
+        - PolicyName: AllowSecretsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref DBCredentialsSecret
+
+
+Outputs:
+  DBEndpoint:
+    Description: RDS endpoint address
+    Value: !GetAtt StocksDBInstance.Endpoint.Address
+
+  DBPort:
+    Description: RDS endpoint port
+    Value: !GetAtt StocksDBInstance.Endpoint.Port
+
+  SecretArn:
+    Description: ARN of the DB credentials secret
+    Value: !Ref DBCredentialsSecret
     Export:
-      Name: StocksCore-VpcId
-  PublicSubnet1Id:
-    Value: !Ref PublicSubnet1
+      Name: StocksDBLambdaStack-SecretArn
+
+  ClusterArn:
+    Description: ARN of the ECS cluster
+    Value: !GetAtt StocksEcsCluster.Arn
     Export:
-      Name: StocksCore-PublicSubnet1Id
-  PublicSubnet2Id:
-    Value: !Ref PublicSubnet2
+      Name: StocksDBLambdaStack-ClusterArn
+
+  EcsTaskExecutionRoleArn:
+    Description: ARN of the ECS Task Execution Role
+    Value: !GetAtt EcsTaskExecutionRole.Arn
     Export:
-      Name: StocksCore-PublicSubnet2Id
-  PrivateSubnet1Id:
-    Value: !Ref PrivateSubnet1
-    Export:
-      Name: StocksCore-PrivateSubnet1Id
-  PrivateSubnet2Id:
-    Value: !Ref PrivateSubnet2
-    Export:
-      Name: StocksCore-PrivateSubnet2Id
-  LambdaExecutionRoleArn:
-    Value: !GetAtt LambdaExecutionRole.Arn
-    Export:
-      Name: StocksCore-LambdaExecutionRoleArn
-  ContainerRepositoryUri:
-    Value: !GetAtt ContainerRepository.RepositoryUri
-    Export:
-      Name: StocksCore-ContainerRepositoryUri
-  CodeBucketName:
-    Value: !Ref CodeBucket
-    Export:
-      Name: StocksCore-CodeBucketName
+      Name: StocksDBLambdaStack-EcsTaskExecutionRoleArn
