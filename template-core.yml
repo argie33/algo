@@ -19,11 +19,10 @@ Parameters:
     Type: String
     Default: "10.0.102.0/24"
 
-  # DB stack exports and secret name
   DBStackName:
     Type: String
     Default: "stocks-db-lambda-stack"
-    Description: Name of the CFN stack exporting DBEndpoint, DBPort, and SecretArn
+    Description: Name of the CFN stack exporting DBEndpoint & DBPort
   DBSecretName:
     Type: String
     Default: "stocks-db-credentials"
@@ -206,7 +205,7 @@ Resources:
     Type: AWS::EC2::Instance
     Properties:
       InstanceType: t3.micro
-      ImageId: ami-0c94855ba95c71c99  # Amazon Linux 2 (us-east-1)
+      ImageId: ami-0c94855ba95c71c99  # Amazon Linux 2 (us-east-1)
       NetworkInterfaces:
         - AssociatePublicIpAddress: true
           DeviceIndex: 0
@@ -221,18 +220,18 @@ Resources:
         #!/bin/bash
         set -eux
 
-        # 1) System updates
+        # System updates
         yum update -y
 
-        # 2) Enable & install PostgreSQL client v10+ for SCRAM auth support
+        # Enable & install PostgreSQL client v10+ for SCRAM auth
         amazon-linux-extras enable postgresql10
         yum clean metadata
         yum install -y jq postgresql
 
-        # 3) Ensure AWS CLI is set to the correct region
+        # Configure AWS CLI default region
         aws configure set region us-east-1
 
-        # 4) Fetch DB credentials JSON from Secrets Manager
+        # Fetch DB credentials JSON
         CREDS=$(aws secretsmanager get-secret-value \
           --secret-id "${DBSecretName}" \
           --query SecretString --output text)
@@ -240,7 +239,7 @@ Resources:
         DB_PASSWORD=$(echo "$CREDS"| jq -r .password)
         DB_NAME=$(echo "$CREDS"    | jq -r .dbname)
 
-        # 5) Look up RDS endpoint & port from the specified CFN stack
+        # Lookup RDS endpoint & port from CFN outputs
         DB_HOST=$(aws cloudformation describe-stacks \
           --stack-name "${DBStackName}" \
           --query "Stacks[0].Outputs[?OutputKey=='DBEndpoint'].OutputValue" \
@@ -250,13 +249,13 @@ Resources:
           --query "Stacks[0].Outputs[?OutputKey=='DBPort'].OutputValue" \
           --output text)
 
-        # 6) Create .pgpass for passwordless psql access
+        # Create .pgpass for passwordless psql
         echo "${DB_HOST}:${DB_PORT}:${DB_NAME}:${DB_USER}:${DB_PASSWORD}" \
           > /home/ec2-user/.pgpass
         chmod 600 /home/ec2-user/.pgpass
         chown ec2-user:ec2-user /home/ec2-user/.pgpass
 
-        # 7) Export environment variables for interactive sessions
+        # Export env vars for interactive sessions
         cat << 'EOF' >> /home/ec2-user/.bash_profile
         export AWS_DEFAULT_REGION=us-east-1
         export DB_HOST=${DB_HOST}
@@ -270,7 +269,7 @@ Resources:
         EOF
         chown ec2-user:ec2-user /home/ec2-user/.bash_profile
 
-  ### Lambda + EventBridge to stop bastion at 6 PM CT (23:00 UTC) ###
+  ### Lambda & EventBridge to stop bastion daily ###
   BastionStopRole:
     Type: AWS::IAM::Role
     Properties:
@@ -308,7 +307,7 @@ Resources:
   BastionStopRule:
     Type: AWS::Events::Rule
     Properties:
-      Description: "Daily stop of bastion at 6 PM CT"
+      Description: "Daily stop of bastion at 6 PM CT"
       ScheduleExpression: cron(0 23 * * ? *)
       State: ENABLED
       Targets:

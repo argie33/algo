@@ -1,3 +1,4 @@
+# .github/workflows/deploy-core.yml
 name: Deploy core infrastructure
 
 on:
