@@ -1,9 +1,5 @@
-# template-app-ecs-tasks.yml  (full, working)
-
 AWSTemplateFormatVersion: '2010-09-09'
-Description: >
-  Fargate TaskDefinition and a daily EventBridge schedule to run
-  the stocks data-loader.
+Description: Fargate TaskDefinition + daily EventBridge schedule for stocks-data-loader
 
 Parameters:
   ImageTag:
@@ -12,7 +8,7 @@ Parameters:
 
 Resources:
 
-  ### IAM role for EventBridge → ECS RunTask ###
+  ### IAM role for EventBridge to invoke ECS RunTask ###
   DataLoaderEventsRole:
     Type: AWS::IAM::Role
     Properties:
@@ -32,13 +28,16 @@ Resources:
                 Resource: '*'
               - Effect: Allow
                 Action: iam:PassRole
-                Resource: !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
+                Resource:
+                  - !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
 
-  ### TaskDefinition ###
+  ### ECS TaskDefinition ###
   DataLoaderTaskDef:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      RequiresCompatibilities: [ FARGATE ]
+      Family: stocks-data-loader
+      RequiresCompatibilities:
+        - FARGATE
       Cpu:    '256'
       Memory: '512'
       NetworkMode: awsvpc
@@ -48,8 +47,8 @@ Resources:
         - Name: stocks-data-loader
           Image: !Join
             - ":"
-            - - !ImportValue StocksCore-ContainerRepositoryUri   # <-- repo URI export
-              - !Ref ImageTag                                   # <-- tag param
+            - - !ImportValue StocksCore-ContainerRepositoryUri
+              - !Ref ImageTag
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -57,8 +56,8 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group:        /ecs/stocks-data-loader
-              awslogs-region:       !Ref AWS::Region
+              awslogs-group:         /ecs/stocks-data-loader
+              awslogs-region:        !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
   ### EventBridge schedule: run daily at 12:00 UTC ###
@@ -69,11 +68,11 @@ Resources:
       State: ENABLED
       Targets:
         - Id: RunDataLoader
-          Arn: !ImportValue StocksDBLambdaStack-ClusterArn
+          Arn:     !ImportValue StocksDBLambdaStack-ClusterArn
           RoleArn: !GetAtt DataLoaderEventsRole.Arn
           EcsParameters:
             TaskDefinitionArn: !Ref DataLoaderTaskDef
-            LaunchType: FARGATE
+            LaunchType:        FARGATE
             NetworkConfiguration:
               AwsVpcConfiguration:
                 Subnets:
@@ -85,5 +84,5 @@ Resources:
 
 Outputs:
   TaskDefinitionArn:
-    Description: ARN of the created TaskDefinition
+    Description: ARN of the created ECS TaskDefinition
     Value: !Ref DataLoaderTaskDef
