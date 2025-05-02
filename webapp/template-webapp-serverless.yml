@@ -26,14 +26,14 @@ Conditions:
           - ''
 
 Resources:
-  # 1) Origin Access Identity
+  ## 1) Origin Access Identity
   OAI:
     Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
     Properties:
       CloudFrontOriginAccessIdentityConfig:
         Comment: Access SPA bucket
 
-  # 2) Bucket policy for SPA bucket
+  ## 2) Bucket policy for SPA bucket
   BucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -51,7 +51,7 @@ Resources:
                   - !ImportValue StocksCore-SiteCodeBucketName
                   - '/*'
 
-  # 3) CloudFront distribution
+  ## 3) CloudFront distribution
   SPACloudFront:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -70,7 +70,9 @@ Resources:
         DefaultCacheBehavior:
           TargetOriginId: SPA
           ViewerProtocolPolicy: redirect-to-https
-          AllowedMethods: [GET,HEAD]
+          AllowedMethods:
+            - GET
+            - HEAD
           CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
         ViewerCertificate:
           Fn::If:
@@ -79,7 +81,7 @@ Resources:
               SslSupportMethod: sni-only
             - CloudFrontDefaultCertificate: true
 
-  # 4) API Lambda backed by RDS (via Secret)
+  ## 4) API Lambda backed by RDS (via Secret)
   ApiLambda:
     Type: AWS::Lambda::Function
     Properties:
@@ -100,17 +102,21 @@ Resources:
       Environment:
         Variables:
           DB_SECRET_ARN:
-            Fn::ImportValue: !Sub "${DBStackName}-SecretArn"
+            Fn::ImportValue:
+              Fn::Sub: "${DBStackName}-SecretArn"
 
-  # 5) HTTP API (API Gateway v2)
+  ## 5) HTTP API (API Gateway v2)
   StocksApi:
     Type: AWS::ApiGatewayV2::Api
     Properties:
       Name: stocks-api
       ProtocolType: HTTP
       CorsConfiguration:
-        AllowOrigins: ['*']
-        AllowMethods: ['GET','OPTIONS']
+        AllowOrigins:
+          - '*'
+        AllowMethods:
+          - GET
+          - OPTIONS
 
   ApiIntegration:
     Type: AWS::ApiGatewayV2::Integration
