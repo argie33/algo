@@ -66,8 +66,8 @@ Resources:
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
-      ExecutionRoleArn: !ImportValue StocksCore-EcsTaskExecutionRoleArn
-      TaskRoleArn:      !ImportValue StocksCore-EcsTaskExecutionRoleArn
+      ExecutionRoleArn: !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
+      TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: load-financial-data
           Image: !Sub "${ContainerRepositoryUri}:${ImageTag}"

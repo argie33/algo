@@ -21,7 +21,6 @@ Parameters:
     Description: VPC CIDR for DB SG ingress
 
 Resources:
-
   ### RDS Subnet Group ###
   StocksDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
@@ -146,3 +145,9 @@ Outputs:
   ClusterArn:
     Description: ARN of the ECS cluster
     Value: !GetAtt StocksEcsCluster.Arn
+
+  EcsTaskExecutionRoleArn:
+    Description: ARN of the ECS Task Execution Role
+    Value: !GetAtt EcsTaskExecutionRole.Arn
+    Export:
+      Name: StocksDBLambdaStack-EcsTaskExecutionRoleArn
