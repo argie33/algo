@@ -1,167 +1,55 @@
-name: deploy-app-template
+name: Deploy Serverless Webapp
 
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
 
+env:
+  AWS_REGION: us-east-1
+  STACK_NAME: stocks-serverless-webapp
+  LAMBDA_CODE_KEY: api.zip
+  APP_BUCKET: stocks-algo-app-code
+  SITE_BUCKET: stocks-algo-site-code
+  DB_STACK_NAME: stocks-db-lambda-stack
+  CERT_ARN: ${{ secrets.CERT_ARN }}
+
 jobs:
-  # 1) Package & upload symbols-loader Lambda
-  build_and_upload_lambda:
+  deploy:
     runs-on: ubuntu-latest
-    outputs:
-      code_key: ${{ steps.upload.outputs.code_key }}
     steps:
-      - uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
-
-      - name: Install Lambda dependencies
-        run: |
-          rm -rf package && mkdir package
-          pip install --upgrade pip
-          if [ -f requirements-loadstocksymbols.txt ]; then
-            pip install -r requirements-loadstocksymbols.txt -t package
-          fi
-
-      - name: Package Lambda
-        run: |
-          cp loadstocksymbols.py package/index.py
-          cd package
-          zip -r "../loadstocksymbols-${{ github.sha }}.zip" .
-          cd ..
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            us-east-1
+          aws-region:            ${{ env.AWS_REGION }}
 
-      - name: Upload Lambda to S3
-        id: upload
+      - name: Package API Lambda
         run: |
-          aws s3 cp "loadstocksymbols-${{ github.sha }}.zip" \
-            s3://stocks-algo-app-code/loadstocksymbols-${{ github.sha }}.zip
-          echo "code_key=loadstocksymbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
+          cd webapp/api
+          zip -r ../../${{ env.LAMBDA_CODE_KEY }} .
 
-  # 2) Build & push the financial-data Docker image
-  build_and_push_fin_container:
-    needs: build_and_upload_lambda
-    runs-on: ubuntu-latest
-    outputs:
-      image_tag: ${{ steps.tag.outputs.IMAGE_TAG }}
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            us-east-1
-
-      - name: Get AWS Account ID
-        id: aws_account
+      - name: Upload Lambda code
         run: |
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          echo "ACCOUNT_ID=$ACCOUNT_ID" >> $GITHUB_OUTPUT
+          aws s3 cp \
+            ${{ env.LAMBDA_CODE_KEY }} \
+            s3://${{ env.APP_BUCKET }}/${{ env.LAMBDA_CODE_KEY }}
 
-      - name: Login to ECR
+      - name: Sync SPA to site bucket
         run: |
-          aws ecr get-login-password | docker login \
-            --username AWS \
-            --password-stdin "${{ steps.aws_account.outputs.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com"
+          aws s3 sync webapp/spa/ s3://${{ env.SITE_BUCKET }} --delete
 
-      - name: Ensure ECR repo exists
-        run: |
-          aws ecr describe-repositories --repository-names stocks-app-registry || \
-            aws ecr create-repository --repository-name stocks-app-registry
-
-      - name: Build & tag Docker image
-        id: tag
-        run: |
-          IMAGE_TAG="${{ github.sha }}"
-          docker build -t stocks-app-registry:${IMAGE_TAG} .
-          docker tag stocks-app-registry:${IMAGE_TAG} \
-            "${{ steps.aws_account.outputs.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/stocks-app-registry:${IMAGE_TAG}"
-          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
-
-      - name: Push to ECR
-        run: |
-          ACCOUNT_ID=${{ steps.aws_account.outputs.ACCOUNT_ID }}
-          IMAGE_TAG=${{ steps.tag.outputs.IMAGE_TAG }}
-          docker push "${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/stocks-app-registry:${IMAGE_TAG}"
-
-  # 3) Deploy core infra (RDS, Secret, Lambda, ECS Cluster)
-  deploy_infra:
-    needs: build_and_push_fin_container
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            us-east-1
-
-      - name: Cleanup failed infra stack if needed
-        run: |
-          STATUS=$(aws cloudformation describe-stacks \
-            --stack-name stocks-infra-stack \
-            --query "Stacks[0].StackStatus" \
-            --output text 2>/dev/null || echo "NOT_FOUND")
-          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            aws cloudformation delete-stack --stack-name stocks-infra-stack
-            aws cloudformation wait stack-delete-complete --stack-name stocks-infra-stack
-          fi
-
-      - name: Deploy infra stack
+      - name: Deploy CloudFormation stack
         run: |
           aws cloudformation deploy \
-            --stack-name stocks-infra-stack \
-            --template-file template-app-stocks-infra.yml \
+            --stack-name ${{ env.STACK_NAME }} \
+            --template-file webapp/template-webapp-serverless.yml \
             --parameter-overrides \
-              CodeKey=${{ needs.build_and_upload_lambda.outputs.code_key }} \
-              RDSUsername=${{ secrets.RDS_USERNAME }} \
-              RDSPassword=${{ secrets.RDS_PASSWORD }} \
-            --capabilities CAPABILITY_NAMED_IAM
-
-  # 4) Deploy tasks & schedules (TaskDefinitions, Service, EventBridge)
-  deploy_tasks:
-    needs: deploy_infra
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            us-east-1
-
-      - name: Cleanup failed tasks stack if needed
-        run: |
-          STATUS=$(aws cloudformation describe-stacks \
-            --stack-name stocks-tasks-stack \
-            --query "Stacks[0].StackStatus" \
-            --output text 2>/dev/null || echo "NOT_FOUND")
-          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            aws cloudformation delete-stack --stack-name stocks-tasks-stack
-            aws cloudformation wait stack-delete-complete --stack-name stocks-tasks-stack
-          fi
-
-      - name: Deploy tasks stack
-        run: |
-          aws cloudformation deploy \
-            --stack-name stocks-tasks-stack \
-            --template-file template-app-stocks-main.yml \
-            --parameter-overrides \
-              ImageTag=${{ needs.build_and_push_fin_container.outputs.image_tag }} \
+              LambdaCodeKey=${{ env.LAMBDA_CODE_KEY }} \
+              DBStackName=${{ env.DB_STACK_NAME }} \
+              CertificateArn=${{ env.CERT_ARN }} \
             --capabilities CAPABILITY_NAMED_IAM
