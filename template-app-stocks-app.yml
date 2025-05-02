@@ -1,21 +1,94 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  App stack – ECS Service for financial-data and scheduled RunTask rules.
+  Tasks & schedules – ECS TaskExecutionRole, TaskDefinitions, ECS Service
+  and EventBridge rules (financial-data & price-data-daily).
 
 Parameters:
   ImageTag:
     Type: String
-    Description: Tag of the financial-data Docker image in ECR
+    Description: Tag of your Docker image in ECR
 
 Resources:
+
+  ### ECS Task Execution Role ###
+  EcsTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ecs-task-execution-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  ### TaskDefinition: continuous financial-data ###
+  FinancialDataTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: financial-data-task
+      Cpu: '256'
+      Memory: '512'
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: financial-data
+          Image:
+            Fn::Join:
+              - ":"
+              - - !ImportValue StocksCore-ContainerRepositoryUri
+                - !Ref ImageTag
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksInfra-SecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/financial-data
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  ### TaskDefinition: price-data-daily ###
+  PriceDataTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: price-data-daily
+      Cpu: '256'
+      Memory: '512'
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: price-data-daily
+          Image:
+            Fn::Join:
+              - ":"
+              - - !ImportValue StocksCore-ContainerRepositoryUri
+                - !Ref ImageTag
+          Essential: true
+          Command: ["python","loadpricedaily.py"]
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksInfra-SecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/price-data-daily
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
 
   ### ECS Service: continuous financial-data ###
   FinancialDataService:
     Type: AWS::ECS::Service
     Properties:
       ServiceName: financial-data-service
-      Cluster: !ImportValue StocksCore-ClusterArn
-      TaskDefinition: !ImportValue StocksCore-FinancialDataTaskDefArn
+      Cluster: !ImportValue StocksInfra-ClusterArn
+      TaskDefinition: !Ref FinancialDataTaskDefinition
       DesiredCount: 1
       LaunchType: FARGATE
       NetworkConfiguration:
@@ -24,9 +97,9 @@ Resources:
             - !ImportValue StocksCore-PrivateSubnet1Id
             - !ImportValue StocksCore-PrivateSubnet2Id
           SecurityGroups:
-            - !ImportValue StocksCore-DBSecurityGroupId
+            - !ImportValue StocksInfra-DBSecurityGroupId
 
-  ### IAM Role for EventBridge to invoke ECS ###
+  ### IAM Role for EventBridge ###
   EventsInvokeRole:
     Type: AWS::IAM::Role
     Properties:
@@ -47,22 +120,22 @@ Resources:
                   - ecs:RunTask
                   - iam:PassRole
                 Resource:
-                  - !ImportValue StocksCore-FinancialDataTaskDefArn
-                  - !ImportValue StocksCore-PriceDataTaskDefArn
+                  - !Ref FinancialDataTaskDefinition
+                  - !Ref PriceDataTaskDefinition
 
-  ### Scheduled RunTask: continuous financial-data (hourly) ###
+  ### Scheduled RunTask: financial-data (hourly) ###
   FinancialDataScheduleRule:
     Type: AWS::Events::Rule
     Properties:
-      Description: "Run financial-data task every hour"
+      Description: "Run financial-data every hour"
       ScheduleExpression: "rate(1 hour)"
       State: "ENABLED"
       Targets:
         - Id: RunFinancialData
-          Arn: !ImportValue StocksCore-ClusterArn
+          Arn: !ImportValue StocksInfra-ClusterArn
           RoleArn: !GetAtt EventsInvokeRole.Arn
           EcsParameters:
-            TaskDefinitionArn: !ImportValue StocksCore-FinancialDataTaskDefArn
+            TaskDefinitionArn: !Ref FinancialDataTaskDefinition
             LaunchType: FARGATE
             NetworkConfiguration:
               AwsVpcConfiguration:
@@ -70,21 +143,21 @@ Resources:
                   - !ImportValue StocksCore-PrivateSubnet1Id
                   - !ImportValue StocksCore-PrivateSubnet2Id
                 SecurityGroups:
-                  - !ImportValue StocksCore-DBSecurityGroupId
+                  - !ImportValue StocksInfra-DBSecurityGroupId
 
-  ### Scheduled RunTask: price-data-daily (once per day) ###
+  ### Scheduled RunTask: price-data-daily (daily) ###
   PriceDataScheduleRule:
     Type: AWS::Events::Rule
     Properties:
-      Description: "Run price-data-daily task once a day"
+      Description: "Run price-data-daily once per day"
       ScheduleExpression: "rate(1 day)"
       State: "ENABLED"
       Targets:
         - Id: RunPriceDataDaily
-          Arn: !ImportValue StocksCore-ClusterArn
+          Arn: !ImportValue StocksInfra-ClusterArn
           RoleArn: !GetAtt EventsInvokeRole.Arn
           EcsParameters:
-            TaskDefinitionArn: !ImportValue StocksCore-PriceDataTaskDefArn
+            TaskDefinitionArn: !Ref PriceDataTaskDefinition
             LaunchType: FARGATE
             NetworkConfiguration:
               AwsVpcConfiguration:
@@ -92,4 +165,4 @@ Resources:
                   - !ImportValue StocksCore-PrivateSubnet1Id
                   - !ImportValue StocksCore-PrivateSubnet2Id
                 SecurityGroups:
-                  - !ImportValue StocksCore-DBSecurityGroupId
+                  - !ImportValue StocksInfra-DBSecurityGroupId

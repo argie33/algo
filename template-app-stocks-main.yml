@@ -1,15 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Core stack – RDS, Secrets, Lambda (symbols-loader), ECS Cluster,
-  TaskExecutionRole, and both TaskDefinitions for financial-data and price-data-daily.
+  Core infra – RDS, Secrets (full DB connection info), Lambda (symbols-loader)
+  and ECS Cluster.  No TaskDefinitions or Services yet.
 
 Parameters:
   CodeKey:
     Type: String
     Description: S3 key of the symbols-loader Lambda ZIP
-  ImageTag:
-    Type: String
-    Description: Tag of the financial-data Docker image in ECR
   RDSUsername:
     Type: String
     Description: RDS master username
@@ -20,7 +17,7 @@ Parameters:
   VpcCidr:
     Type: String
     Default: "10.0.0.0/16"
-    Description: VPC CIDR for DB SG ingress
+    Description: VPC CIDR for DB & ECS SG ingress
 
 Resources:
 
@@ -28,7 +25,7 @@ Resources:
   StocksDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
-      DBSubnetGroupDescription: Subnet group for RDS (private only)
+      DBSubnetGroupDescription: Private subnets for RDS
       SubnetIds:
         - !ImportValue StocksCore-PrivateSubnet1Id
         - !ImportValue StocksCore-PrivateSubnet2Id
@@ -37,7 +34,7 @@ Resources:
   StocksDBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow Postgres access within VPC
+      GroupDescription: Allow Postgres
       VpcId: !ImportValue StocksCore-VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -54,19 +51,18 @@ Resources:
     Properties:
       DBInstanceIdentifier: stocks
       DBName: stocks
-      AllocatedStorage: 20
-      DBInstanceClass: db.t3.micro
       Engine: postgres
       MasterUsername: !Ref RDSUsername
       MasterUserPassword: !Ref RDSPassword
+      DBInstanceClass: db.t3.micro
+      AllocatedStorage: 20
       VPCSecurityGroups:
         - !Ref StocksDBSecurityGroup
       DBSubnetGroupName: !Ref StocksDBSubnetGroup
       MultiAZ: false
       PubliclyAccessible: false
-      DeletionProtection: false
 
-  ### Secrets Manager: DB credentials ###
+  ### Secrets Manager ###
   DBCredentialsSecret:
     Type: AWS::SecretsManager::Secret
     DependsOn: StocksDBInstance
@@ -117,113 +113,33 @@ Resources:
     Properties:
       ClusterName: stocks-cluster
 
-  ### ECS Task Execution Role ###
-  EcsTaskExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: ecs-task-execution-role
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: ecs-tasks.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
-
-  ### TaskDefinition: continuous financial-data ###
-  FinancialDataTaskDefinition:
-    Type: AWS::ECS::TaskDefinition
-    Properties:
-      Family: financial-data-task
-      Cpu: '256'
-      Memory: '512'
-      NetworkMode: awsvpc
-      RequiresCompatibilities:
-        - FARGATE
-      ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
-      ContainerDefinitions:
-        - Name: financial-data
-          Image:
-            Fn::Join:
-              - ":"
-              - - !ImportValue StocksCore-ContainerRepositoryUri
-                - !Ref ImageTag
-          Essential: true
-          Environment:
-            - Name: DB_SECRET_ARN
-              Value: !Ref DBCredentialsSecret
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: /ecs/financial-data
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: ecs
-
-  ### TaskDefinition: price-data-daily ###
-  PriceDataTaskDefinition:
-    Type: AWS::ECS::TaskDefinition
-    Properties:
-      Family: price-data-daily
-      Cpu: '256'
-      Memory: '512'
-      NetworkMode: awsvpc
-      RequiresCompatibilities:
-        - FARGATE
-      ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
-      ContainerDefinitions:
-        - Name: price-data-daily
-          Image:
-            Fn::Join:
-              - ":"
-              - - !ImportValue StocksCore-ContainerRepositoryUri
-                - !Ref ImageTag
-          Essential: true
-          Command: ["python","loadpricedaily.py"]
-          Environment:
-            - Name: DB_SECRET_ARN
-              Value: !Ref DBCredentialsSecret
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: /ecs/price-data-daily
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: ecs
-
 Outputs:
   ClusterArn:
     Description: ARN of the ECS cluster
     Value: !GetAtt StocksEcsCluster.Arn
     Export:
-      Name: StocksCore-ClusterArn
-
-  ExecutionRoleArn:
-    Description: ECS TaskExecutionRole ARN
-    Value: !GetAtt EcsTaskExecutionRole.Arn
-    Export:
-      Name: StocksCore-ExecutionRoleArn
-
-  FinancialDataTaskDefArn:
-    Description: ARN of the financial-data TaskDefinition
-    Value: !Ref FinancialDataTaskDefinition
-    Export:
-      Name: StocksCore-FinancialDataTaskDefArn
-
-  PriceDataTaskDefArn:
-    Description: ARN of the price-data-daily TaskDefinition
-    Value: !Ref PriceDataTaskDefinition
-    Export:
-      Name: StocksCore-PriceDataTaskDefArn
+      Name: StocksInfra-ClusterArn
 
   SecretArn:
     Description: ARN of the DB credentials secret
     Value: !Ref DBCredentialsSecret
     Export:
-      Name: StocksCore-SecretArn
+      Name: StocksInfra-SecretArn
 
   DBSecurityGroupId:
-    Description: SecurityGroup for RDS and ECS Service
+    Description: SecurityGroup for RDS & ECS tasks
     Value: !Ref StocksDBSecurityGroup
     Export:
-      Name: StocksCore-DBSecurityGroupId
+      Name: StocksInfra-DBSecurityGroupId
+
+  DBEndpoint:
+    Description: RDS endpoint
+    Value: !GetAtt StocksDBInstance.Endpoint.Address
+    Export:
+      Name: StocksInfra-DBEndpoint
+
+  DBPort:
+    Description: RDS port
+    Value: !GetAtt StocksDBInstance.Endpoint.Port
+    Export:
+      Name: StocksInfra-DBPort

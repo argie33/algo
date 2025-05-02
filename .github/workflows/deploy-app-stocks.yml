@@ -14,12 +14,12 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      - name: Install Lambda deps
+      - name: Install Lambda dependencies
         run: |
           rm -rf package && mkdir package
           pip install --upgrade pip
@@ -34,7 +34,7 @@ jobs:
           zip -r "../loadstocksymbols-${{ github.sha }}.zip" .
           cd ..
 
-      - name: AWS creds
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -48,7 +48,7 @@ jobs:
             s3://stocks-algo-app-code/loadstocksymbols-${{ github.sha }}.zip
           echo "code_key=loadstocksymbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  # 2) Build & push Docker image
+  # 2) Build & push the financial-data Docker image
   build_and_push_fin_container:
     needs: build_and_upload_lambda
     runs-on: ubuntu-latest
@@ -57,14 +57,14 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: AWS creds
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Get AWS Account
+      - name: Get AWS Account ID
         id: aws_account
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -81,7 +81,7 @@ jobs:
           aws ecr describe-repositories --repository-names stocks-app-registry || \
             aws ecr create-repository --repository-name stocks-app-registry
 
-      - name: Build & tag image
+      - name: Build & tag Docker image
         id: tag
         run: |
           IMAGE_TAG="${{ github.sha }}"
@@ -94,51 +94,72 @@ jobs:
         run: |
           docker push "${{ steps.aws_account.outputs.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/stocks-app-registry:${{ needs.build_and_push_fin_container.outputs.image_tag }}"
 
-  # 3) Deploy core stack
-  deploy_core:
+  # 3) Deploy core infra (RDS, Secret, Lambda, ECS Cluster)
+  deploy_infra:
     needs: build_and_push_fin_container
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
 
-      - name: AWS creds
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Deploy core
+      - name: Cleanup failed infra stack if needed
+        run: |
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-infra-stack \
+            --query "Stacks[0].StackStatus" \
+            --output text 2>/dev/null || echo "NOT_FOUND")
+          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+            aws cloudformation delete-stack --stack-name stocks-infra-stack
+            aws cloudformation wait stack-delete-complete --stack-name stocks-infra-stack
+          fi
+
+      - name: Deploy infra stack
         run: |
           aws cloudformation deploy \
-            --stack-name stocks-core-stack \
-            --template-file template-app-stocks-core.yml \
+            --stack-name stocks-infra-stack \
+            --template-file template-app-stocks-infra.yml \
             --parameter-overrides \
               CodeKey=${{ needs.build_and_upload_lambda.outputs.code_key }} \
-              ImageTag=${{ needs.build_and_push_fin_container.outputs.image_tag }} \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
             --capabilities CAPABILITY_NAMED_IAM
 
-  # 4) Deploy app stack
-  deploy_app:
-    needs: deploy_core
+  # 4) Deploy tasks & schedules (TaskDefinitions, Service, EventBridge)
+  deploy_tasks:
+    needs: deploy_infra
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
 
-      - name: AWS creds
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Deploy app
+      - name: Cleanup failed tasks stack if needed
+        run: |
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-tasks-stack \
+            --query "Stacks[0].StackStatus" \
+            --output text 2>/dev/null || echo "NOT_FOUND")
+          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+            aws cloudformation delete-stack --stack-name stocks-tasks-stack
+            aws cloudformation wait stack-delete-complete --stack-name stocks-tasks-stack
+          fi
+
+      - name: Deploy tasks stack
         run: |
           aws cloudformation deploy \
-            --stack-name stocks-app-stack \
-            --template-file template-app-stocks-app.yml \
+            --stack-name stocks-tasks-stack \
+            --template-file template-app-stocks-main.yml \
             --parameter-overrides \
               ImageTag=${{ needs.build_and_push_fin_container.outputs.image_tag }} \
             --capabilities CAPABILITY_NAMED_IAM
