@@ -101,17 +101,17 @@ jobs:
       - name: Cleanup failed infra stack
         run: |
           STATUS=$(aws cloudformation describe-stacks \
-            --stack-name stocks-infra-stack \
+            --stack-name stocks-main-stack \
             --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo "NOT_FOUND")
           if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            aws cloudformation delete-stack --stack-name stocks-infra-stack
-            aws cloudformation wait stack-delete-complete --stack-name stocks-infra-stack
+            aws cloudformation delete-stack --stack-name stocks-main-stack
+            aws cloudformation wait stack-delete-complete --stack-name stocks-main-stack
           fi
 
       - name: Deploy infra stack
         run: |
           aws cloudformation deploy \
-            --stack-name stocks-infra-stack \
+            --stack-name stocks-main-stack \
             --template-file template-app-stocks-main.yml \
             --parameter-overrides \
               CodeKey=${{ needs.build_and_upload_lambda.outputs.code_key }} \
