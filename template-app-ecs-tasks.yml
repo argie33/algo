@@ -1,5 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Fargate TaskDefinition + daily EventBridge schedule for stocks-data-loader
+Description: >
+  Fargate TaskDefinition + daily EventBridge schedule for stocks-data-loader
 
 Parameters:
   ImageTag:
@@ -8,14 +9,14 @@ Parameters:
 
 Resources:
 
-  ### CloudWatch Logs Group for ECS logs ###
+  ### 1) CloudWatch Logs Group ###
   DataLoaderLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/stocks-data-loader
       RetentionInDays: 14
 
-  ### IAM role for EventBridge to invoke ECS RunTask ###
+  ### 2) IAM role for EventBridge → ECS RunTask ###
   DataLoaderEventsRole:
     Type: AWS::IAM::Role
     Properties:
@@ -32,19 +33,18 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: ecs:RunTask
-                Resource: '*'
+                Resource: "*"
               - Effect: Allow
                 Action: iam:PassRole
                 Resource:
                   - !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
 
-  ### ECS TaskDefinition ###
+  ### 3) ECS TaskDefinition ###
   DataLoaderTaskDef:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: stocks-data-loader
-      RequiresCompatibilities:
-        - FARGATE
+      RequiresCompatibilities: [ FARGATE ]
       Cpu:    '256'
       Memory: '512'
       NetworkMode: awsvpc
@@ -54,15 +54,12 @@ Resources:
         - Name: stocks-data-loader
           Image: !Join
             - ":"
-            - - !ImportValue StocksCore-ContainerRepositoryUri
-              - !Ref ImageTag
+            - - !ImportValue StocksCore-ContainerRepositoryUri   # from core stack
+              - !Ref ImageTag                                   # Git SHA
           Essential: true
-
-          # inject the secret ARN so the app can fetch host/port/db/user/pass
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksDBLambdaStack-SecretArn
-
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -70,7 +67,7 @@ Resources:
               awslogs-region:        !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
-  ### EventBridge schedule: run daily at 12:00 UTC ###
+  ### 4) EventBridge schedule: run daily at 12:00 UTC ###
   DataLoaderSchedule:
     Type: AWS::Events::Rule
     Properties:

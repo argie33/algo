@@ -1,4 +1,3 @@
-# template-app-stocks.yml
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Application stack – RDS, Secrets (full DB connection info), imported S3 bucket,
@@ -18,9 +17,10 @@ Parameters:
   VpcCidr:
     Type: String
     Default: "10.0.0.0/16"
-    Description: VPC CIDR for DB SG ingress
+    Description: VPC CIDR for RDS security group ingress
 
 Resources:
+
   ### RDS Subnet Group ###
   StocksDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
@@ -128,6 +128,15 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: AllowSecretsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref DBCredentialsSecret
 
 Outputs:
   DBEndpoint:
@@ -141,10 +150,14 @@ Outputs:
   SecretArn:
     Description: ARN of the DB credentials secret
     Value: !Ref DBCredentialsSecret
+    Export:
+      Name: StocksDBLambdaStack-SecretArn
 
   ClusterArn:
     Description: ARN of the ECS cluster
     Value: !GetAtt StocksEcsCluster.Arn
+    Export:
+      Name: StocksDBLambdaStack-ClusterArn
 
   EcsTaskExecutionRoleArn:
     Description: ARN of the ECS Task Execution Role
