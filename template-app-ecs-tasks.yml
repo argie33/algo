@@ -1,7 +1,9 @@
+# template-app-ecs-tasks.yml  (full, working)
+
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Defines the Fargate TaskDefinition and a scheduled EventBridge Rule
-  to run the data-loader daily.
+  Fargate TaskDefinition and a daily EventBridge schedule to run
+  the stocks data-loader.
 
 Parameters:
   ImageTag:
@@ -10,7 +12,7 @@ Parameters:
 
 Resources:
 
-  ### IAM role for EventBridge to invoke ECS RunTask ###
+  ### IAM role for EventBridge → ECS RunTask ###
   DataLoaderEventsRole:
     Type: AWS::IAM::Role
     Properties:
@@ -18,38 +20,36 @@ Resources:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal:
-              Service: events.amazonaws.com
+            Principal: { Service: events.amazonaws.com }
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: DataLoaderInvokePolicy
+        - PolicyName: InvokeRunTask
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action:
-                  - ecs:RunTask
+                Action: ecs:RunTask
                 Resource: '*'
               - Effect: Allow
-                Action:
-                  - iam:PassRole
-                Resource:
-                  - !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
+                Action: iam:PassRole
+                Resource: !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
 
-  ### ECS TaskDefinition for the data-loader ###
-  DataLoaderTaskDefinition:
+  ### TaskDefinition ###
+  DataLoaderTaskDef:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      ExecutionRoleArn: !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
-      TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
-      RequiresCompatibilities:
-        - FARGATE
+      RequiresCompatibilities: [ FARGATE ]
       Cpu:    '256'
       Memory: '512'
       NetworkMode: awsvpc
+      ExecutionRoleArn: !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
+      TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: stocks-data-loader
-          Image: !Sub "${ContainerRepositoryUri}:${ImageTag}"
+          Image: !Join
+            - ":"
+            - - !ImportValue StocksCore-ContainerRepositoryUri   # <-- repo URI export
+              - !Ref ImageTag                                   # <-- tag param
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -58,22 +58,21 @@ Resources:
             LogDriver: awslogs
             Options:
               awslogs-group:        /ecs/stocks-data-loader
-              awslogs-region:       !Ref "AWS::Region"
+              awslogs-region:       !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
-  ### Scheduled rule to run the task daily at noon UTC ###
+  ### EventBridge schedule: run daily at 12:00 UTC ###
   DataLoaderSchedule:
     Type: AWS::Events::Rule
     Properties:
-      Description: "Daily run of stocks-data-loader on Fargate"
-      ScheduleExpression: "cron(0 12 * * ? *)"
+      ScheduleExpression: cron(0 12 * * ? *)
       State: ENABLED
       Targets:
         - Id: RunDataLoader
           Arn: !ImportValue StocksDBLambdaStack-ClusterArn
           RoleArn: !GetAtt DataLoaderEventsRole.Arn
           EcsParameters:
-            TaskDefinitionArn: !Ref DataLoaderTaskDefinition
+            TaskDefinitionArn: !Ref DataLoaderTaskDef
             LaunchType: FARGATE
             NetworkConfiguration:
               AwsVpcConfiguration:
@@ -86,5 +85,5 @@ Resources:
 
 Outputs:
   TaskDefinitionArn:
-    Description: ARN of the registered ECS TaskDefinition
-    Value: !Ref DataLoaderTaskDefinition
+    Description: ARN of the created TaskDefinition
+    Value: !Ref DataLoaderTaskDef
