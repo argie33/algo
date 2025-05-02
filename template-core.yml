@@ -1,5 +1,6 @@
+# template-core.yml
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Core infrastructure stack – IAM, VPC, Subnets, Internet/NAT, Bastion host (with bootstrap for PostgreSQL access), auto-shutdown Lambda, ECR registry, and S3 code bucket
+Description: Core infrastructure stack – IAM, VPC, Subnets, Internet/NAT, Bastion host (bootstrap via S3 script), auto-shutdown Lambda, ECR registry, and S3 code bucket
 
 Parameters:
   VpcCidr:
@@ -21,7 +22,7 @@ Parameters:
   DBStackName:
     Type: String
     Default: "stocks-db-lambda-stack"
-    Description: Name of the CFN stack exporting DBEndpoint & DBPort
+    Description: Name of CFN stack exporting DBEndpoint & DBPort
   DBSecretName:
     Type: String
     Default: "stocks-db-credentials"
@@ -38,8 +39,7 @@ Resources:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal:
-              Service: [lambda.amazonaws.com]
+            Principal: { Service: [lambda.amazonaws.com] }
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
@@ -51,6 +51,9 @@ Resources:
       CidrBlock: !Ref VpcCidr
       EnableDnsSupport: true
       EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: stocks-vpc
 
   StocksIGW:
     Type: AWS::EC2::InternetGateway
@@ -84,6 +87,7 @@ Resources:
 
   PublicDefaultRoute:
     Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
     Properties:
       RouteTableId: !Ref PublicRouteTable
       DestinationCidrBlock: "0.0.0.0/0"
@@ -158,7 +162,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       VpcId: !Ref StocksVPC
-      GroupDescription: "Allow egress for Lambdas"
+      GroupDescription: Allow egress for Lambdas
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
@@ -185,7 +189,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       VpcId: !Ref StocksVPC
-      GroupDescription: "Bastion SG (SSM only)"
+      GroupDescription: Bastion SG (SSM)
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 443
@@ -199,7 +203,7 @@ Resources:
     Type: AWS::EC2::Instance
     Properties:
       InstanceType: t3.micro
-      ImageId: ami-0c94855ba95c71c99   # Amazon Linux 2
+      ImageId: ami-0c94855ba95c71c99    # Amazon Linux 2
       NetworkInterfaces:
         - AssociatePublicIpAddress: true
           DeviceIndex: 0
@@ -213,58 +217,15 @@ Resources:
         #!/bin/bash
         set -eux
 
-        # 1) System update
-        yum update -y
+        # pass parameters into env
+        export AWS_DEFAULT_REGION=${AWS::Region}
+        export DB_STACK_NAME='!Ref DBStackName'
+        export DB_SECRET_NAME='!Ref DBSecretName'
 
-        # 2) Install dependencies: curl, jq, AWS CLI (v1)
-        yum install -y curl jq aws-cli
-
-        # 3) Add PGDG repository for PostgreSQL 10+
-        curl -fsSL \
-          https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm \
-          -o /tmp/pgdg.rpm
-        rpm -Uvh /tmp/pgdg.rpm
-
-        # 4) Remove any distro psql, then install PGDG psql client
-        yum remove -y postgresql postgresql-libs
-        yum install -y postgresql10
-
-        # 5) Configure AWS CLI default region
-        aws configure set region ${AWS::Region}
-
-        # 6) Fetch DB creds from SecretsManager
-        CREDS=$(aws secretsmanager get-secret-value \
-          --secret-id "${DBSecretName}" \
-          --query SecretString --output text)
-        DB_USER=$(echo "$CREDS"    | jq -r .username)
-        DB_PASS=$(echo "$CREDS"    | jq -r .password)
-        DB_NAME=$(echo "$CREDS"    | jq -r .dbname)
-
-        # 7) Lookup RDS endpoint & port from CFN Outputs
-        DB_HOST=$(aws cloudformation describe-stacks \
-          --stack-name "${DBStackName}" \
-          --query "Stacks[0].Outputs[?OutputKey=='DBEndpoint'].OutputValue" \
-          --output text)
-        DB_PORT=$(aws cloudformation describe-stacks \
-          --stack-name "${DBStackName}" \
-          --query "Stacks[0].Outputs[?OutputKey=='DBPort'].OutputValue" \
-          --output text)
-
-        # 8) Create .pgpass for passwordless psql
-        echo "${DB_HOST}:${DB_PORT}:${DB_NAME}:${DB_USER}:${DB_PASS}" \
-          > /home/ec2-user/.pgpass
-        chmod 600 /home/ec2-user/.pgpass
-        chown ec2-user:ec2-user /home/ec2-user/.pgpass
-
-        # 9) Export env vars in ec2-user's shell
-        cat >> /home/ec2-user/.bash_profile <<'EOF'
-export PGHOST=${DB_HOST}
-export PGPORT=${DB_PORT}
-export PGUSER=${DB_USER}
-export PGPASSWORD=${DB_PASS}
-export PGDATABASE=${DB_NAME}
-EOF
-        chown ec2-user:ec2-user /home/ec2-user/.bash_profile
+        # download & run the bootstrap script from S3
+        aws s3 cp s3://stocks-algo-app-code/bastion/bootstrap.sh /tmp/bootstrap.sh
+        chmod +x /tmp/bootstrap.sh
+        /tmp/bootstrap.sh
 
   ### Auto-shutdown Lambda ###
   BastionStopRole:
@@ -291,9 +252,7 @@ EOF
       Runtime: python3.9
       Handler: index.handler
       Role: !GetAtt BastionStopRole.Arn
-      Environment:
-        Variables:
-          BASTION_ID: !Ref BastionHost
+      Environment: { Variables: { BASTION_ID: !Ref BastionHost } }
       Code:
         ZipFile: |
           import boto3, os
@@ -305,9 +264,7 @@ EOF
       Description: "Daily stop of bastion at 6 PM CT"
       ScheduleExpression: cron(0 23 * * ? *)
       State: ENABLED
-      Targets:
-        - Arn: !GetAtt BastionStopFunction.Arn
-          Id: StopBastion
+      Targets: [{ Arn: !GetAtt BastionStopFunction.Arn, Id: StopBastion }]
 
   LambdaInvokePermission:
     Type: AWS::Lambda::Permission
@@ -331,35 +288,18 @@ EOF
   CodeBucket:
     Type: AWS::S3::Bucket
     Properties:
+      BucketName: stocks-algo-app-code
       VersioningConfiguration: { Status: Enabled }
     DeletionPolicy: Delete
     UpdateReplacePolicy: Retain
 
 Outputs:
-  VpcId:
-    Value: !Ref StocksVPC
-    Export: { Name: StocksCore-VpcId }
-  PublicSubnet1Id:
-    Value: !Ref PublicSubnet1
-    Export: { Name: StocksCore-PublicSubnet1Id }
-  PublicSubnet2Id:
-    Value: !Ref PublicSubnet2
-    Export: { Name: StocksCore-PublicSubnet2Id }
-  PrivateSubnet1Id:
-    Value: !Ref PrivateSubnet1
-    Export: { Name: StocksCore-PrivateSubnet1Id }
-  PrivateSubnet2Id:
-    Value: !Ref PrivateSubnet2
-    Export: { Name: StocksCore-PrivateSubnet2Id }
-  LambdaSecurityGroupId:
-    Value: !Ref LambdaSecurityGroup
-    Export: { Name: StocksCore-LambdaSecurityGroupId }
-  LambdaExecutionRoleArn:
-    Value: !GetAtt LambdaExecutionRole.Arn
-    Export: { Name: StocksCore-LambdaExecutionRoleArn }
-  ContainerRepositoryUri:
-    Value: !GetAtt ContainerRepository.RepositoryUri
-    Export: { Name: StocksCore-ContainerRepositoryUri }
-  CodeBucketName:
-    Value: !Ref CodeBucket
-    Export: { Name: StocksCore-CodeBucketName }
+  VpcId:                  { Value: !Ref StocksVPC,                Export: { Name: StocksCore-VpcId } }
+  PublicSubnet1Id:        { Value: !Ref PublicSubnet1,             Export: { Name: StocksCore-PublicSubnet1Id } }
+  PublicSubnet2Id:        { Value: !Ref PublicSubnet2,             Export: { Name: StocksCore-PublicSubnet2Id } }
+  PrivateSubnet1Id:       { Value: !Ref PrivateSubnet1,            Export: { Name: StocksCore-PrivateSubnet1Id } }
+  PrivateSubnet2Id:       { Value: !Ref PrivateSubnet2,            Export: { Name: StocksCore-PrivateSubnet2Id } }
+  LambdaSecurityGroupId:  { Value: !Ref LambdaSecurityGroup,       Export: { Name: StocksCore-LambdaSecurityGroupId } }
+  LambdaExecutionRoleArn: { Value: !GetAtt LambdaExecutionRole.Arn, Export: { Name: StocksCore-LambdaExecutionRoleArn } }
+  ContainerRepositoryUri: { Value: !GetAtt ContainerRepository.RepositoryUri, Export: { Name: StocksCore-ContainerRepositoryUri } }
+  CodeBucketName:         { Value: !Ref CodeBucket,                Export: { Name: StocksCore-CodeBucketName } }
