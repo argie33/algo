@@ -92,22 +92,22 @@ jobs:
 
       - name: Push to ECR
         run: |
-          docker push "${{ steps.aws_account.outputs.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/stocks-app-registry:${{ needs.build_and_push_fin_container.outputs.image_tag }}"
+          ACCOUNT_ID=${{ steps.aws_account.outputs.ACCOUNT_ID }}
+          IMAGE_TAG=${{ steps.tag.outputs.IMAGE_TAG }}
+          docker push "${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/stocks-app-registry:${IMAGE_TAG}"
 
-  # 3) Deploy core infra (RDS, Secret, Lambda, ECS Cluster)
+  # 3) Deploy infra stack (RDS, Secret, Lambda, ECS Cluster)
   deploy_infra:
     needs: build_and_push_fin_container
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
-
       - name: Cleanup failed infra stack if needed
         run: |
           STATUS=$(aws cloudformation describe-stacks \
@@ -118,7 +118,6 @@ jobs:
             aws cloudformation delete-stack --stack-name stocks-infra-stack
             aws cloudformation wait stack-delete-complete --stack-name stocks-infra-stack
           fi
-
       - name: Deploy infra stack
         run: |
           aws cloudformation deploy \
@@ -130,20 +129,18 @@ jobs:
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
             --capabilities CAPABILITY_NAMED_IAM
 
-  # 4) Deploy tasks & schedules (TaskDefinitions, Service, EventBridge)
+  # 4) Deploy tasks stack (Tasks, Service, Schedules)
   deploy_tasks:
     needs: deploy_infra
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
-
       - name: Cleanup failed tasks stack if needed
         run: |
           STATUS=$(aws cloudformation describe-stacks \
@@ -154,12 +151,11 @@ jobs:
             aws cloudformation delete-stack --stack-name stocks-tasks-stack
             aws cloudformation wait stack-delete-complete --stack-name stocks-tasks-stack
           fi
-
       - name: Deploy tasks stack
         run: |
           aws cloudformation deploy \
             --stack-name stocks-tasks-stack \
-            --template-file template-app-stocks-main.yml \
+            --template-file template-app-stocks-tasks.yml \
             --parameter-overrides \
               ImageTag=${{ needs.build_and_push_fin_container.outputs.image_tag }} \
             --capabilities CAPABILITY_NAMED_IAM
