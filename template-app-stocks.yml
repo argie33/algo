@@ -1,7 +1,8 @@
+# template-app-stocks.yml
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Application stack – RDS, Secrets (full DB connection info), imported S3 bucket,
-  Lambda (symbols-loader), and ECS cluster.
+  Lambda (symbols‑loader), and ECS cluster.
 
 Parameters:
   CodeKey:
@@ -83,7 +84,7 @@ Resources:
             - !GetAtt StocksDBInstance.Endpoint.Port
             - '","dbname":"stocks"}'
 
-  ### Lambda: symbols-loader ###
+  ### Lambda: symbols‑loader ###
   LoadStockSymbolsFunction:
     Type: AWS::Lambda::Function
     DependsOn:

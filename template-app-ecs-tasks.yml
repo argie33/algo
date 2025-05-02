@@ -1,0 +1,107 @@
+# template-app-ecs-tasks.yml
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  ECS TaskDefinitions and scheduled rules to run
+  your data-processing scripts on Fargate.
+
+Parameters:
+  ClusterName:
+    Type: String
+    Description: ECS cluster name (e.g. stocks-cluster)
+  ContainerRepositoryUri:
+    Type: String
+    Description: URI of the ECR repo
+  DBSecretArn:
+    Type: String
+    Description: ARN of the SecretsManager secret with DB creds
+  Subnet1Id:
+    Type: AWS::EC2::Subnet::Id
+    Description: First private subnet ID
+  Subnet2Id:
+    Type: AWS::EC2::Subnet::Id
+    Description: Second private subnet ID
+  SecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Security Group for Fargate tasks
+  ImageTag:
+    Type: String
+    Default: latest
+    Description: Docker image tag to use
+
+Resources:
+
+  ### Role for EventBridge to invoke ECS RunTask ###
+  EcsEventsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ecs-events-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AllowRunTask
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:RunTask
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: "*"
+
+  ### Fargate TaskDefinition ###
+  DataLoaderTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: stocks-data-loader
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !ImportValue StocksCore-EcsTaskExecutionRoleArn
+      TaskRoleArn:      !ImportValue StocksCore-EcsTaskExecutionRoleArn
+      ContainerDefinitions:
+        - Name: load-financial-data
+          Image: !Sub "${ContainerRepositoryUri}:${ImageTag}"
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !Ref DBSecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:        /ecs/stocks-data-loader
+              awslogs-region:       !Ref "AWS::Region"
+              awslogs-stream-prefix: ecs
+
+  ### Scheduled Rule to run daily ###
+  DataLoaderSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: stocks-data-loader-schedule
+      Description: "Daily run of stocks data loader"
+      ScheduleExpression: rate(1 day)
+      State: ENABLED
+      Targets:
+        - Arn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ClusterName}"
+          Id: RunStocksDataLoader
+          RoleArn: !GetAtt EcsEventsRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref DataLoaderTaskDef
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !Ref Subnet1Id
+                  - !Ref Subnet2Id
+                SecurityGroups:
+                  - !Ref SecurityGroupId
+                AssignPublicIp: DISABLED
