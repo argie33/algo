@@ -201,3 +201,15 @@ Outputs:
     Value: !GetAtt EcsTaskExecutionRole.Arn
     Export:
       Name: StocksDBLambdaStack-EcsTaskExecutionRoleArn
+
+  DBName:
+    Description: The RDS database name
+    Value: !Ref StocksDBInstance.DBName             
+    Export:
+      Name: StocksApp-DBName
+
+  DBUsername:
+    Description: The RDS master username
+    Value: !Ref RDSUsername
+    Export:
+      Name: StocksApp-DBUsername

@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  ECS TaskDefinitions and CloudWatch LogGroups for findata,
-  pricedaily, priceweekly & pricemonthly—no schedules; tasks are executed manually
+  ECS TaskDefinitions and CloudWatch LogGroups for findata, pricedaily,
+  priceweekly & pricemonthly—no schedules; tasks are executed manually
   (e.g. via CI workflow).
 
 Parameters:
@@ -25,7 +25,7 @@ Parameters:
 Resources:
 
   ##################################
-  # 0) CloudWatch LogGroups
+  # 0) CloudWatch LogGroups       #
   ##################################
   FindataLogGroup:
     Type: AWS::Logs::LogGroup
@@ -52,7 +52,7 @@ Resources:
       RetentionInDays: 14
 
   ##################################
-  # 1) findata-loader TaskDefinition
+  # 1) findata-loader TaskDefinition #
   ##################################
   FindataTaskDef:
     Type: AWS::ECS::TaskDefinition
@@ -95,7 +95,7 @@ Resources:
               awslogs-stream-prefix: ecs
 
   ##################################
-  # 2) pricedaily-loader TaskDefinition
+  # 2) pricedaily-loader TaskDefinition #
   ##################################
   PriceTaskDef:
     Type: AWS::ECS::TaskDefinition
@@ -136,7 +136,7 @@ Resources:
               awslogs-stream-prefix: ecs
 
   ##################################
-  # 3) priceweekly-loader TaskDefinition
+  # 3) priceweekly-loader TaskDefinition #
   ##################################
   WeeklyTaskDef:
     Type: AWS::ECS::TaskDefinition
@@ -177,7 +177,7 @@ Resources:
               awslogs-stream-prefix: ecs
 
   ##################################
-  # 4) pricemonthly-loader TaskDefinition
+  # 4) pricemonthly-loader TaskDefinition #
   ##################################
   MonthlyTaskDef:
     Type: AWS::ECS::TaskDefinition
