@@ -1,4 +1,3 @@
-# .github/workflows/deploy-app-template.yml
 name: deploy-app-template
 
 on:
@@ -8,7 +7,7 @@ on:
 
 jobs:
 
-  # 1) Build & upload symbols‑loader Lambda
+  # 1) Build & upload symbols-loader Lambda
   build_and_upload_symbols:
     runs-on: ubuntu-latest
     outputs:
@@ -17,14 +16,13 @@ jobs:
       - uses: actions/checkout@v3
       - name: Set up Python
         uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
-      - name: Install symbols‑loader dependencies
+        with: { python-version: '3.9' }
+      - name: Install symbols-loader dependencies
         run: |
           rm -rf symbols_package && mkdir symbols_package
-          python -m pip install --upgrade pip
+          pip install --upgrade pip
           pip install -r requirements-loadstocksymbols.txt -t symbols_package
-      - name: Package symbols‑loader
+      - name: Package symbols-loader
         run: |
           cp loadstocksymbols.py symbols_package/index.py
           cd symbols_package && zip -r "../symbols-${{ github.sha }}.zip" . && cd ..
@@ -34,14 +32,14 @@ jobs:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
-      - name: Upload symbols‑loader to S3
+      - name: Upload symbols-loader to S3
         id: upload
         run: |
           aws s3 cp "symbols-${{ github.sha }}.zip" \
             s3://stocks-algo-app-code/symbols-${{ github.sha }}.zip
           echo "code_key=symbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  # 2) Build & upload economic‑data loader Lambda
+  # 2) Build & upload economic-data loader Lambda
   build_and_upload_econ:
     runs-on: ubuntu-latest
     outputs:
@@ -50,14 +48,13 @@ jobs:
       - uses: actions/checkout@v3
       - name: Set up Python
         uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
-      - name: Install econ‑data deps
+        with: { python-version: '3.9' }
+      - name: Install econ-data deps
         run: |
           rm -rf econ_package && mkdir econ_package
-          python -m pip install --upgrade pip
+          pip install --upgrade pip
           pip install -r requirements-loadecondata.txt -t econ_package
-      - name: Package econ‑data loader
+      - name: Package econ-data loader
         run: |
           cp loadecondata.py econ_package/index.py
           cd econ_package && zip -r "../econ-${{ github.sha }}.zip" . && cd ..
@@ -67,7 +64,7 @@ jobs:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
-      - name: Upload econ‑data loader to S3
+      - name: Upload econ-data loader to S3
         id: upload
         run: |
           aws s3 cp "econ-${{ github.sha }}.zip" \
@@ -88,7 +85,7 @@ jobs:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
-      - name: Wait for core infra to finish
+      - name: Wait for core infra
         run: aws cloudformation wait stack-create-complete --stack-name stocks-core-stack
       - name: Cleanup failed DB stack if needed
         run: |
@@ -100,7 +97,7 @@ jobs:
             aws cloudformation delete-stack --stack-name stocks-db-lambda-stack
             aws cloudformation wait stack-delete-complete --stack-name stocks-db-lambda-stack
           fi
-      - name: Deploy App CloudFormation stack
+      - name: Deploy App stack
         run: |
           aws cloudformation deploy \
             --stack-name stocks-db-lambda-stack \
@@ -112,14 +109,14 @@ jobs:
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM
-      - name: Invoke symbols‑loader once
+      - name: Invoke symbols-loader once
         run: |
           aws lambda invoke \
             --function-name loadstocksymbols \
             --payload '{}' \
             --cli-binary-format raw-in-base64-out \
             symbols_response.json || true
-      - name: Invoke econ‑data loader once
+      - name: Invoke econ-data loader once
         run: |
           aws lambda invoke \
             --function-name loadecondata \
@@ -132,9 +129,9 @@ jobs:
     needs: deploy_db_lambda
     runs-on: ubuntu-latest
     outputs:
-      findata_tag:      ${{ steps.build_findata.outputs.tag }}
-      pricedaily_tag:   ${{ steps.build_price.outputs.tag }}
-      priceweekly_tag:  ${{ steps.build_weekly.outputs.priceweekly_tag }}
+      findata_tag:     ${{ steps.build_findata.outputs.tag }}
+      pricedaily_tag:  ${{ steps.build_price.outputs.tag }}
+      priceweekly_tag: ${{ steps.build_weekly.outputs.priceweekly_tag }}
     steps:
       - uses: actions/checkout@v3
       - name: Configure AWS credentials
@@ -222,7 +219,7 @@ jobs:
           echo "FINDATA_ARN=$FINDATA_ARN" >> $GITHUB_ENV
           echo "PRICE_ARN=$PRICE_ARN" >> $GITHUB_ENV
           echo "WEEKLY_ARN=$WEEKLY_ARN" >> $GITHUB_ENV
-      - name: Run findata‑loader on Fargate
+      - name: Run findata-loader on Fargate
         run: |
           SUB1=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" --output text)
@@ -236,7 +233,7 @@ jobs:
             --task-definition "$FINDATA_ARN" \
             --network-configuration "awsvpcConfiguration={subnets=[$SUB1,$SUB2],securityGroups=[$SG],assignPublicIp=ENABLED}" \
             --count 1
-      - name: Run pricedaily‑loader on Fargate
+      - name: Run pricedaily-loader on Fargate
         run: |
           SUB1=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" --output text)
@@ -250,7 +247,7 @@ jobs:
             --task-definition "$PRICE_ARN" \
             --network-configuration "awsvpcConfiguration={subnets=[$SUB1,$SUB2],securityGroups=[$SG],assignPublicIp=ENABLED}" \
             --count 1
-      - name: Run priceweekly‑loader on Fargate
+      - name: Run priceweekly-loader on Fargate
         run: |
           SUB1=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" --output text)
