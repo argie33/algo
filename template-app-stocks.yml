@@ -1,15 +1,15 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Application stack – RDS, Secrets (DB creds), two Lambdas
-  (symbols-loader & economic-data loader), and ECS cluster.
+  (symbols‑loader & economic‑data loader), and ECS cluster.
 
 Parameters:
   CodeKey:
     Type: String
-    Description: S3 key of the symbols-loader Lambda ZIP
+    Description: S3 key of the symbols‑loader Lambda ZIP
   EconomicCodeKey:
     Type: String
-    Description: S3 key of the economic-data loader Lambda ZIP
+    Description: S3 key of the economic‑data loader Lambda ZIP
   RDSUsername:
     Type: String
     Description: RDS master username
@@ -20,7 +20,7 @@ Parameters:
   FREDApiKey:
     Type: String
     NoEcho: true
-    Description: FRED API key for economic-data loader
+    Description: FRED API key for economic‑data loader
   VpcCidr:
     Type: String
     Default: "10.0.0.0/16"
@@ -31,6 +31,7 @@ Resources:
   ### RDS Subnet Group ###
   StocksDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
+    DeletionPolicy: Retain
     Properties:
       DBSubnetGroupDescription: Subnet group for RDS (private only)
       SubnetIds:
@@ -52,6 +53,7 @@ Resources:
   ### RDS Instance ###
   StocksDBInstance:
     Type: AWS::RDS::DBInstance
+    DeletionPolicy: Retain
     DependsOn:
       - StocksDBSubnetGroup
       - StocksDBSecurityGroup
@@ -73,6 +75,7 @@ Resources:
   ### Secrets Manager: DB credentials ###
   DBCredentialsSecret:
     Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
     DependsOn: StocksDBInstance
     Properties:
       Name: stocks-db-credentials
@@ -90,7 +93,7 @@ Resources:
             - !GetAtt StocksDBInstance.Endpoint.Port
             - '","dbname":"stocks"}'
 
-  ### Lambda: symbols-loader ###
+  ### Lambda: symbols‑loader ###
   LoadStockSymbolsFunction:
     Type: AWS::Lambda::Function
     DependsOn:
@@ -115,7 +118,7 @@ Resources:
         Variables:
           DB_SECRET_ARN: !Ref DBCredentialsSecret
 
-  ### Lambda: economic-data loader ###
+  ### Lambda: economic‑data loader ###
   LoadEconomicDataFunction:
     Type: AWS::Lambda::Function
     DependsOn:
@@ -139,7 +142,7 @@ Resources:
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DBCredentialsSecret
-          FRED_API_KEY:  !Ref FREDApiKey
+          FRED_API_KEY: !Ref FREDApiKey
 
   ### ECS Cluster ###
   StocksEcsCluster:
