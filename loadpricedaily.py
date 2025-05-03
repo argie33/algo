@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import sys
 import time
 import logging
 from datetime import datetime
@@ -12,9 +13,16 @@ import pandas as pd
 import yfinance as yf
 
 # -------------------------------
-# Script metadata
+# Script metadata & logging setup
 # -------------------------------
 SCRIPT_NAME = "loadpricedaily.py"
+
+# — log everything ≥ INFO to stdout, including errors on stderr —
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    stream=sys.stdout
+)
 
 # -------------------------------
 # Environment-driven configuration
@@ -24,8 +32,7 @@ DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
 def get_db_config():
     """
     Fetch host, port, dbname, username & password from Secrets Manager.
-    SecretString must be a JSON with keys:
-      username, password, host, port, dbname
+    SecretString must be JSON with keys: username, password, host, port, dbname.
     """
     client = boto3.client("secretsmanager")
     resp = client.get_secret_value(SecretId=DB_SECRET_ARN)
@@ -38,31 +45,29 @@ def get_db_config():
         sec["dbname"]
     )
 
-# Retrieve all DB credentials
+# -------------------------------
+# Start up
+# -------------------------------
+logging.info(f"Starting {SCRIPT_NAME}")
 DB_USER, DB_PWD, DB_HOST, DB_PORT, DB_NAME = get_db_config()
 
 # -------------------------------
 # Connect to PostgreSQL
 # -------------------------------
-conn = psycopg2.connect(
-    host=DB_HOST,
-    port=DB_PORT,
-    user=DB_USER,
-    password=DB_PWD,
-    dbname=DB_NAME
-)
-conn.autocommit = True
-cursor = conn.cursor(cursor_factory=RealDictCursor)
-print("Connected to PostgreSQL database.")
-
-# -------------------------------
-# Setup Logging
-# -------------------------------
-logging.basicConfig(
-    filename="failed_fetch.log",
-    level=logging.ERROR,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
+try:
+    conn = psycopg2.connect(
+        host=DB_HOST,
+        port=DB_PORT,
+        user=DB_USER,
+        password=DB_PWD,
+        dbname=DB_NAME
+    )
+    conn.autocommit = True
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    logging.info("Connected to PostgreSQL database.")
+except Exception as e:
+    logging.error(f"Unable to connect to Postgres: {e}")
+    sys.exit(1)
 
 # -------------------------------
 # Ensure last_updated table exists
@@ -92,14 +97,14 @@ CREATE TABLE price_data_daily (
     PRIMARY KEY (symbol, date)
 );
 """)
-print("Table 'price_data_daily' created.")
+logging.info("Table 'price_data_daily' ready.")
 
 # -------------------------------
 # Load Symbols
 # -------------------------------
 cursor.execute("SELECT symbol FROM stock_symbols;")
 symbols = [row['symbol'] for row in cursor.fetchall()]
-print(f"Found {len(symbols)} symbols.")
+logging.info(f"Found {len(symbols)} symbols.")
 
 # -------------------------------
 # Fetch Function
@@ -142,10 +147,8 @@ def fetch_daily_data(symbol, start_date, end_date):
 
         except Exception as e:
             logging.error(f"Error fetching {symbol} (attempt {attempt}): {e}")
-            print(f"Error fetching {symbol} (attempt {attempt}), retrying in {RETRY_DELAY}s…")
             if attempt < MAX_RETRIES:
                 time.sleep(RETRY_DELAY)
-
     logging.error(f"Failed to fetch {symbol} after {MAX_RETRIES} attempts.")
     return None
 
@@ -156,7 +159,7 @@ start = "1800-01-01"
 end   = datetime.now().strftime("%Y-%m-%d")
 
 for idx, sym in enumerate(symbols, start=1):
-    print(f"[{idx}/{len(symbols)}] {sym}")
+    logging.info(f"[{idx}/{len(symbols)}] Fetching {sym}")
     data = fetch_daily_data(sym, start, end)
     if data is None:
         continue
@@ -174,15 +177,14 @@ for idx, sym in enumerate(symbols, start=1):
     """
     try:
         cursor.executemany(sql, rows)
-        print(f"  Inserted {len(rows)} rows for {sym}.")
+        logging.info(f"Inserted {len(rows)} rows for {sym}.")
     except Exception as e:
         logging.error(f"DB error for {sym}: {e}")
-        print(f"  Error inserting {sym} – see log.")
 
     time.sleep(RATE_LIMIT_DELAY)
 
 # -------------------------------
-# Record this run in last_updated
+# Record this run
 # -------------------------------
 now = datetime.now()
 cursor.execute("""
@@ -192,9 +194,6 @@ ON CONFLICT (script_name) DO UPDATE
   SET last_run = EXCLUDED.last_run;
 """, (SCRIPT_NAME, now))
 
-# -------------------------------
-# Clean up
-# -------------------------------
 cursor.close()
 conn.close()
-print("Done.")
+logging.info("Done.")
