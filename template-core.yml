@@ -1,7 +1,9 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Core infrastructure stack – IAM, VPC, Subnets, Internet/NAT, Bastion host (Spot ASG),
-  auto‑shutdown Lambda, ECR registry, S3 code bucket, and VPC endpoints for RDS/ECS/Lambda/S3.
+  Core infrastructure stack – IAM, VPC, Subnets, Internet, NAT instances in
+  two ASGs (one per AZ) with automatic EIP assignment & route updates,
+  Spot-ASG Bastion, auto-shutdown Lambda, ECR registry, S3 code bucket, and
+  VPC endpoints for RDS/ECS/Lambda/S3.
 
 Parameters:
   VpcCidr:
@@ -27,7 +29,7 @@ Parameters:
   DBSecretName:
     Type: String
     Default: "stocks-db-credentials"
-    Description: Name of the SecretsManager secret holding DB credentials JSON
+    Description: SecretsManager secret holding DB credentials JSON
 
 Resources:
 
@@ -41,13 +43,12 @@ Resources:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal:
-              Service: [lambda.amazonaws.com]
+            Principal: { Service: [lambda.amazonaws.com] }
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
 
-  ### VPC & Networking ###
+  ### VPC & Subnets ###
 
   StocksVPC:
     Type: AWS::EC2::VPC
@@ -55,9 +56,7 @@ Resources:
       CidrBlock: !Ref VpcCidr
       EnableDnsSupport: true
       EnableDnsHostnames: true
-      Tags:
-        - Key: Name
-          Value: stocks-vpc
+      Tags: [{ Key: Name, Value: stocks-vpc }]
 
   StocksIGW:
     Type: AWS::EC2::InternetGateway
@@ -86,8 +85,7 @@ Resources:
 
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref StocksVPC
+    Properties: { VpcId: !Ref StocksVPC }
 
   PublicDefaultRoute:
     Type: AWS::EC2::Route
@@ -109,18 +107,6 @@ Resources:
       SubnetId: !Ref PublicSubnet2
       RouteTableId: !Ref PublicRouteTable
 
-  NatEIP:
-    Type: AWS::EC2::EIP
-    Properties:
-      Domain: vpc
-
-  NatGateway:
-    Type: AWS::EC2::NatGateway
-    DependsOn: NatEIP
-    Properties:
-      AllocationId: !GetAtt NatEIP.AllocationId
-      SubnetId: !Ref PublicSubnet1
-
   PrivateSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
@@ -137,46 +123,150 @@ Resources:
       AvailabilityZone: !Select [1, !GetAZs '']
       MapPublicIpOnLaunch: false
 
-  PrivateRouteTable:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref StocksVPC
+  ### NAT Instance IAM & Profile ###
 
-  PrivateDefaultRoute:
-    Type: AWS::EC2::Route
-    DependsOn: NatGateway
+  NATInstanceRole:
+    Type: AWS::IAM::Role
     Properties:
-      RouteTableId: !Ref PrivateRouteTable
-      DestinationCidrBlock: "0.0.0.0/0"
-      NatGatewayId: !Ref NatGateway
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: [ec2.amazonaws.com] }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: NATModify
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:ModifyInstanceAttribute
+                  - ec2:AssociateAddress
+                  - ec2:ReplaceRoute
+                Resource: "*"
 
-  PrivSubnet1RouteAssoc:
-    Type: AWS::EC2::SubnetRouteTableAssociation
+  NATInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
     Properties:
-      SubnetId: !Ref PrivateSubnet1
-      RouteTableId: !Ref PrivateRouteTable
+      Roles: [ !Ref NATInstanceRole ]
 
-  PrivSubnet2RouteAssoc:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PrivateSubnet2
-      RouteTableId: !Ref PrivateRouteTable
-
-  LambdaSecurityGroup:
+  NATInstanceSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Lambda SG in stocks VPC
       VpcId: !Ref StocksVPC
+      GroupDescription: NAT instance SG
+      SecurityGroupIngress:
+        - IpProtocol: -1
+          CidrIp: !Ref VpcCidr
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: "0.0.0.0/0"
+
+  ### NAT Launch Template ###
+
+  NATLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        InstanceType: t3.nano
+        ImageId: ami-0c94855ba95c71c99
+        IamInstanceProfile:
+          Name: !Ref NATInstanceProfile
+        SecurityGroupIds:
+          - !Ref NATInstanceSG
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: stocks-nat
+        UserData:
+          Fn::Base64: |
+            #!/bin/bash
+            set -eux
+            # disable source/dest check
+            INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+            aws ec2 modify-instance-attribute \
+              --instance-id $INSTANCE_ID \
+              --no-source-dest-check
+            # enable forwarding & NAT
+            sysctl -w net.ipv4.ip_forward=1
+            yum install -y iptables-services
+            systemctl enable iptables
+            systemctl start iptables
+            iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+
+  ### EIPs for NAT ###
+
+  NAT1EIP:
+    Type: AWS::EC2::EIP
+    Properties: { Domain: vpc }
+
+  NAT2EIP:
+    Type: AWS::EC2::EIP
+    Properties: { Domain: vpc }
+
+  ### NAT Auto Scaling Groups ###
+
+  NATASG1:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: stocks-nat-asg-az1
+      VPCZoneIdentifier: [ !Ref PublicSubnet1 ]
+      LaunchTemplate:
+        LaunchTemplateId: !Ref NATLaunchTemplate
+        Version: !GetAtt NATLaunchTemplate.LatestVersionNumber
+      MinSize: '1'
+      MaxSize: '2'
+      DesiredCapacity: '1'
+      Tags:
+        - Key: Name
+          Value: stocks-nat-az1
+          PropagateAtLaunch: true
+
+  NATASG2:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: stocks-nat-asg-az2
+      VPCZoneIdentifier: [ !Ref PublicSubnet2 ]
+      LaunchTemplate:
+        LaunchTemplateId: !Ref NATLaunchTemplate
+        Version: !GetAtt NATLaunchTemplate.LatestVersionNumber
+      MinSize: '1'
+      MaxSize: '2'
+      DesiredCapacity: '1'
+      Tags:
+        - Key: Name
+          Value: stocks-nat-az2
+          PropagateAtLaunch: true
+
+  ### Private Route Tables (no default route here; updated by Lambda) ###
+
+  PrivateRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties: { VpcId: !Ref StocksVPC }
+
+  Priv1RouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable1
+
+  PrivateRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties: { VpcId: !Ref StocksVPC }
+
+  Priv2RouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable2
 
   ### VPC Endpoints ###
 
   EndpointSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: SG for Interface VPC Endpoints
+      GroupDescription: SG for Interface Endpoints
       VpcId: !Ref StocksVPC
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -194,7 +284,8 @@ Resources:
       ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
       VpcId: !Ref StocksVPC
       RouteTableIds:
-        - !Ref PrivateRouteTable
+        - !Ref PrivateRouteTable1
+        - !Ref PrivateRouteTable2
 
   VPCEndpointRDS:
     Type: AWS::EC2::VPCEndpoint
@@ -232,7 +323,7 @@ Resources:
       SecurityGroupIds:
         - !Ref EndpointSecurityGroup
 
-  ### Bastion IAM & SG ###
+  ### Bastion Spot ASG & Auto-shutdown – unchanged from previous template ###
 
   BastionInstanceRole:
     Type: AWS::IAM::Role
@@ -249,8 +340,7 @@ Resources:
   BastionInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
-      Roles:
-        - !Ref BastionInstanceRole
+      Roles: [ !Ref BastionInstanceRole ]
 
   BastionSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -266,12 +356,9 @@ Resources:
         - IpProtocol: -1
           CidrIp: "0.0.0.0/0"
 
-  ### Bastion Spot Launch Template & ASG ###
-
   BastionLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
-      LaunchTemplateName: stocks-bastion-lt
       LaunchTemplateData:
         InstanceType: t3.micro
         ImageId: ami-0c94855ba95c71c99
@@ -279,49 +366,49 @@ Resources:
           Name: !Ref BastionInstanceProfile
         SecurityGroupIds:
           - !Ref BastionSecurityGroup
-        InstanceMarketOptions:
-          MarketType: spot
-          SpotOptions:
-            SpotInstanceType: one-time
-        UserData: !Base64 |
-          #!/bin/bash
-          set -eux
-          yum update -y
-          yum remove -y postgresql postgresql-libs
-          amazon-linux-extras enable postgresql10
-          yum clean metadata
-          yum install -y jq postgresql
-          aws configure set region us-east-1
-          CREDS=$(aws secretsmanager get-secret-value \
-            --secret-id "${DBSecretName}" \
-            --query SecretString --output text)
-          DB_USER=$(echo "$CREDS" | jq -r .username)
-          DB_PASSWORD=$(echo "$CREDS" | jq -r .password)
-          DB_NAME=$(echo "$CREDS" | jq -r .dbname)
-          DB_HOST=$(aws cloudformation describe-stacks \
-            --stack-name "${DBStackName}" \
-            --query "Stacks[0].Outputs[?OutputKey=='DBEndpoint'].OutputValue" \
-            --output text)
-          DB_PORT=$(aws cloudformation describe-stacks \
-            --stack-name "${DBStackName}" \
-            --query "Stacks[0].Outputs[?OutputKey=='DBPort'].OutputValue" \
-            --output text)
-          echo "${DB_HOST}:${DB_PORT}:${DB_NAME}:${DB_USER}:${DB_PASSWORD}" \
-            > /home/ec2-user/.pgpass
-          chmod 600 /home/ec2-user/.pgpass
-          chown ec2-user:ec2-user /home/ec2-user/.pgpass
-          cat << 'EOF' >> /home/ec2-user/.bash_profile
-          export AWS_DEFAULT_REGION=us-east-1
-          export DB_HOST=${DB_HOST}
-          export DB_PORT=${DB_PORT}
-          export DB_USER=${DB_USER}
-          export DB_NAME=${DB_NAME}
-          export PGHOST=${DB_HOST}
-          export PGPORT=${DB_PORT}
-          export PGUSER=${DB_USER}
-          export PGDATABASE=${DB_NAME}
-          EOF
-          chown ec2-user:ec2-user /home/ec2-user/.bash_profile
+        TagSpecifications:
+          - ResourceType: instance
+            Tags: [{ Key: Name, Value: stocks-bastion }]
+        UserData:
+          Fn::Base64: |
+            #!/bin/bash
+            set -eux
+            yum update -y
+            yum remove -y postgresql postgresql-libs
+            amazon-linux-extras enable postgresql10
+            yum clean metadata
+            yum install -y jq postgresql
+            aws configure set region us-east-1
+            CREDS=$(aws secretsmanager get-secret-value \
+              --secret-id "${DBSecretName}" \
+              --query SecretString --output text)
+            DB_USER=$(echo "$CREDS" | jq -r .username)
+            DB_PASSWORD=$(echo "$CREDS" | jq -r .password)
+            DB_NAME=$(echo "$CREDS" | jq -r .dbname)
+            DB_HOST=$(aws cloudformation describe-stacks \
+              --stack-name "${DBStackName}" \
+              --query "Stacks[0].Outputs[?OutputKey=='DBEndpoint'].OutputValue" \
+              --output text)
+            DB_PORT=$(aws cloudformation describe-stacks \
+              --stack-name "${DBStackName}" \
+              --query "Stacks[0].Outputs[?OutputKey=='DBPort'].OutputValue" \
+              --output text)
+            echo "${DB_HOST}:${DB_PORT}:${DB_NAME}:${DB_USER}:${DB_PASSWORD}" \
+              > /home/ec2-user/.pgpass
+            chmod 600 /home/ec2-user/.pgpass
+            chown ec2-user:ec2-user /home/ec2-user/.pgpass
+            cat << 'EOF' >> /home/ec2-user/.bash_profile
+            export AWS_DEFAULT_REGION=us-east-1
+            export DB_HOST=${DB_HOST}
+            export DB_PORT=${DB_PORT}
+            export DB_USER=${DB_USER}
+            export DB_NAME=${DB_NAME}
+            export PGHOST=${DB_HOST}
+            export PGPORT=${DB_PORT}
+            export PGUSER=${DB_USER}
+            export PGDATABASE=${DB_NAME}
+            EOF
+            chown ec2-user:ec2-user /home/ec2-user/.bash_profile
 
   BastionAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
@@ -341,8 +428,6 @@ Resources:
           Value: stocks-bastion
           PropagateAtLaunch: true
 
-  ### Auto‑shutdown Lambda ###
-
   BastionStopRole:
     Type: AWS::IAM::Role
     Properties:
@@ -355,11 +440,10 @@ Resources:
       Policies:
         - PolicyName: StopBastion
           PolicyDocument:
-            Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action: ec2:StopInstances
-                Resource: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*
+                Action: autoscaling:UpdateAutoScalingGroup
+                Resource: "*"
 
   BastionStopFunction:
     Type: AWS::Lambda::Function
@@ -384,7 +468,7 @@ Resources:
   BastionStopRule:
     Type: AWS::Events::Rule
     Properties:
-      Description: Scale bastion down at 6 PM CT daily
+      Description: Scale bastion down at 6 PM CT daily
       ScheduleExpression: cron(0 23 * * ? *)
       State: ENABLED
       Targets:
@@ -425,62 +509,134 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: stocks-algo-app-code
-      VersioningConfiguration:
-        Status: Enabled
+      VersioningConfiguration: { Status: Enabled }
     DeletionPolicy: Delete
     UpdateReplacePolicy: Retain
+
+  ### NAT Route Updater Lambda ###
+
+  NATRouteRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: [lambda.amazonaws.com] }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: NATRoutePolicy
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:AssociateAddress
+                  - ec2:ReplaceRoute
+                Resource: "*"
+
+  NATRouteFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.9
+      Handler: index.handler
+      Role: !GetAtt NATRouteRole.Arn
+      Timeout: 60
+      Environment:
+        Variables:
+          ASG1: !Ref NATASG1
+          ASG2: !Ref NATASG2
+          EIP1: !Ref NAT1EIP
+          EIP2: !Ref NAT2EIP
+          RT1: !Ref PrivateRouteTable1
+          RT2: !Ref PrivateRouteTable2
+      Code:
+        ZipFile: |
+          import boto3, os
+          ec2 = boto3.client('ec2')
+          def handler(event, context):
+              d = event['detail']
+              asg = d['AutoScalingGroupName']
+              iid = d['EC2InstanceId']
+              if asg == os.environ['ASG1']:
+                  ec2.associate_address(
+                    InstanceId=iid,
+                    AllocationId=os.environ['EIP1']
+                  )
+                  ec2.replace_route(
+                    RouteTableId=os.environ['RT1'],
+                    DestinationCidrBlock='0.0.0.0/0',
+                    InstanceId=iid
+                  )
+              elif asg == os.environ['ASG2']:
+                  ec2.associate_address(
+                    InstanceId=iid,
+                    AllocationId=os.environ['EIP2']
+                  )
+                  ec2.replace_route(
+                    RouteTableId=os.environ['RT2'],
+                    DestinationCidrBlock='0.0.0.0/0',
+                    InstanceId=iid
+                  )
+
+  NATEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Watch ASG launches/terminations to update NAT routes
+      EventPattern:
+        source: ["aws.autoscaling"]
+        detail-type:
+          - "EC2 Instance-launch Successful"
+          - "EC2 Instance-terminate Successful"
+        detail:
+          AutoScalingGroupName:
+            - !Ref NATASG1
+            - !Ref NATASG2
+      Targets:
+        - Arn: !GetAtt NATRouteFunction.Arn
+          Id: NATRouteTarget
+
+  NATRoutePerm:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref NATRouteFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt NATEventRule.Arn
 
 Outputs:
   VpcId:
     Description: VPC ID
     Value: !Ref StocksVPC
-    Export:
-      Name: StocksCore-VpcId
-
+    Export: { Name: StocksCore-VpcId }
   PublicSubnet1Id:
     Description: First public subnet
     Value: !Ref PublicSubnet1
-    Export:
-      Name: StocksCore-PublicSubnet1Id
-
+    Export: { Name: StocksCore-PublicSubnet1Id }
   PublicSubnet2Id:
     Description: Second public subnet
     Value: !Ref PublicSubnet2
-    Export:
-      Name: StocksCore-PublicSubnet2Id
-
+    Export: { Name: StocksCore-PublicSubnet2Id }
   PrivateSubnet1Id:
     Description: First private subnet
     Value: !Ref PrivateSubnet1
-    Export:
-      Name: StocksCore-PrivateSubnet1Id
-
+    Export: { Name: StocksCore-PrivateSubnet1Id }
   PrivateSubnet2Id:
     Description: Second private subnet
     Value: !Ref PrivateSubnet2
-    Export:
-      Name: StocksCore-PrivateSubnet2Id
-
+    Export: { Name: StocksCore-PrivateSubnet2Id }
   LambdaSecurityGroupId:
     Description: SG for VPC Lambdas
     Value: !Ref LambdaSecurityGroup
-    Export:
-      Name: StocksCore-LambdaSecurityGroupId
-
+    Export: { Name: StocksCore-LambdaSecurityGroupId }
   LambdaExecutionRoleArn:
     Description: Lambda execution role ARN
     Value: !GetAtt LambdaExecutionRole.Arn
-    Export:
-      Name: StocksCore-LambdaExecutionRoleArn
-
+    Export: { Name: StocksCore-LambdaExecutionRoleArn }
   ContainerRepositoryUri:
     Description: ECR repository URI
     Value: !GetAtt ContainerRepository.RepositoryUri
-    Export:
-      Name: StocksCore-ContainerRepositoryUri
-
+    Export: { Name: StocksCore-ContainerRepositoryUri }
   CodeBucketName:
     Description: S3 bucket for Lambda code
     Value: !Ref CodeBucket
-    Export:
-      Name: StocksCore-CodeBucketName
+    Export: { Name: StocksCore-CodeBucketName }

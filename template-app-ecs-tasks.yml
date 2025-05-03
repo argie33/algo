@@ -10,6 +10,9 @@ Parameters:
   PriceImageTag:
     Type: String
     Description: Tag of the pricedaily image (e.g. pricedaily-<git-sha>)
+  PriceWeeklyImageTag:
+    Type: String
+    Description: Tag of the priceweekly image (e.g. priceweekly-<git-sha>)
   FREDApiKey:
     Type: String
     NoEcho: true
@@ -31,6 +34,12 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: '/ecs/pricedaily-loader'
+      RetentionInDays: 14
+
+  WeeklyLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: '/ecs/priceweekly-loader'
       RetentionInDays: 14
 
   ############################################
@@ -130,7 +139,41 @@ Resources:
               awslogs-stream-prefix: ecs
 
   ################################################
-  # 4) Scheduled Rule: findata daily
+  # 4) priceweekly‑loader TaskDefinition
+  ################################################
+
+  WeeklyTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: priceweekly-loader
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
+      TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
+      ContainerDefinitions:
+        - Name: priceweekly-loader
+          Image:
+            Fn::Join:
+              - ''
+              - - !ImportValue StocksCore-ContainerRepositoryUri
+                - ':'
+                - !Ref PriceWeeklyImageTag
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksDBLambdaStack-SecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:         /ecs/priceweekly-loader
+              awslogs-region:        !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  ################################################
+  # 5) Scheduled Rule: findata daily
   ################################################
 
   FindataSchedule:
@@ -157,7 +200,7 @@ Resources:
                 AssignPublicIp: DISABLED
 
   ################################################
-  # 5) Scheduled Rule: pricedaily daily
+  # 6) Scheduled Rule: pricedaily daily
   ################################################
 
   PriceSchedule:
@@ -183,6 +226,33 @@ Resources:
                   - !ImportValue StocksCore-LambdaSecurityGroupId
                 AssignPublicIp: DISABLED
 
+  ################################################
+  # 7) Scheduled Rule: priceweekly weekly
+  ################################################
+
+  WeeklySchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: priceweekly-loader-schedule
+      Description: "Weekly run of priceweekly‑loader"
+      ScheduleExpression: rate(7 days)
+      State: ENABLED
+      Targets:
+        - Arn: !ImportValue StocksDBLambdaStack-ClusterArn
+          Id: RunWeekly
+          RoleArn: !GetAtt EcsEventsRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref WeeklyTaskDef
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PrivateSubnet1Id
+                  - !ImportValue StocksCore-PrivateSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksCore-LambdaSecurityGroupId
+                AssignPublicIp: DISABLED
+
 Outputs:
   FindataTaskDefinitionArn:
     Description: ARN of the findata task definition
@@ -191,3 +261,7 @@ Outputs:
   PriceTaskDefinitionArn:
     Description: ARN of the pricedaily task definition
     Value: !Ref PriceTaskDef
+
+  PriceWeeklyTaskDefinitionArn:
+    Description: ARN of the priceweekly task definition
+    Value: !Ref WeeklyTaskDef

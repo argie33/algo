@@ -161,8 +161,9 @@ jobs:
     needs: deploy_db_lambda
     runs-on: ubuntu-latest
     outputs:
-      findata_tag:    ${{ steps.build_findata.outputs.tag }}
-      pricedaily_tag: ${{ steps.build_price.outputs.tag }}
+      findata_tag:      ${{ steps.build_findata.outputs.tag }}
+      pricedaily_tag:   ${{ steps.build_price.outputs.tag }}
+      priceweekly_tag:  ${{ steps.build_weekly.outputs.priceweekly_tag }}
     steps:
       - uses: actions/checkout@v3
 
@@ -206,6 +207,15 @@ jobs:
           docker push "$IMAGE"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
+      - name: Build & push weekly image
+        id: build_weekly
+        run: |
+          TAG=priceweekly-${{ github.sha }}
+          IMAGE="${{ steps.get_uri.outputs.repo_uri }}:$TAG"
+          docker build -f Dockerfile.priceweekly -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "priceweekly_tag=$TAG" >> $GITHUB_OUTPUT
+
   # ───────────────────────────────
   # 5) Deploy & run ECS Tasks
   # ───────────────────────────────
@@ -246,6 +256,7 @@ jobs:
             --parameter-overrides \
               FindataImageTag=${{ needs.build_and_push_container.outputs.findata_tag }} \
               PriceImageTag=${{ needs.build_and_push_container.outputs.pricedaily_tag }} \
+              PriceWeeklyImageTag=${{ needs.build_and_push_container.outputs.priceweekly_tag }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM
 
@@ -260,12 +271,16 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceTaskDefinitionArn'].OutputValue" \
             --output text)
+          WEEKLY_ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyTaskDefinitionArn'].OutputValue" \
+            --output text)
           echo "FINDATA_ARN=$FINDATA_ARN" >> $GITHUB_ENV
           echo "PRICE_ARN=$PRICE_ARN" >> $GITHUB_ENV
+          echo "WEEKLY_ARN=$WEEKLY_ARN" >> $GITHUB_ENV
 
       - name: Run findata‑loader on Fargate if not running
         run: |
-          # inline-fetch expo­rts and run-task in same shell
           SUBNET1=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PrivateSubnet1Id'].Value" \
             --output text)
@@ -275,14 +290,12 @@ jobs:
           SG=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-LambdaSecurityGroupId'].Value" \
             --output text)
-
           COUNT=$(aws ecs list-tasks \
             --cluster stocks-cluster \
             --family findata-loader \
             --desired-status RUNNING \
             --query 'length(taskArns)' \
             --output text)
-
           if [ "$COUNT" = "0" ]; then
             aws ecs run-task \
               --cluster stocks-cluster \
@@ -303,19 +316,43 @@ jobs:
           SG=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-LambdaSecurityGroupId'].Value" \
             --output text)
-
           COUNT=$(aws ecs list-tasks \
             --cluster stocks-cluster \
             --family pricedaily-loader \
             --desired-status RUNNING \
             --query 'length(taskArns)' \
             --output text)
-
           if [ "$COUNT" = "0" ]; then
             aws ecs run-task \
               --cluster stocks-cluster \
               --launch-type FARGATE \
               --task-definition "$PRICE_ARN" \
+              --network-configuration "awsvpcConfiguration={subnets=[$SUBNET1,$SUBNET2],securityGroups=[$SG],assignPublicIp=DISABLED}" \
+              --count 1
+          fi
+
+      - name: Run priceweekly‑loader on Fargate if not running
+        run: |
+          SUBNET1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PrivateSubnet1Id'].Value" \
+            --output text)
+          SUBNET2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PrivateSubnet2Id'].Value" \
+            --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-LambdaSecurityGroupId'].Value" \
+            --output text)
+          COUNT=$(aws ecs list-tasks \
+            --cluster stocks-cluster \
+            --family priceweekly-loader \
+            --desired-status RUNNING \
+            --query 'length(taskArns)' \
+            --output text)
+          if [ "$COUNT" = "0" ]; then
+            aws ecs run-task \
+              --cluster stocks-cluster \
+              --launch-type FARGATE \
+              --task-definition "$WEEKLY_ARN" \
               --network-configuration "awsvpcConfiguration={subnets=[$SUBNET1,$SUBNET2],securityGroups=[$SG],assignPublicIp=DISABLED}" \
               --count 1
           fi
