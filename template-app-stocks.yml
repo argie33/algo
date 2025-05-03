@@ -35,9 +35,12 @@ Resources:
   StocksDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
-      DBSubnetGroupDescription: Subnet group for RDS (private only)
+      DBSubnetGroupDescription: Subnet group for RDS (public & private)
       SubnetIds:
+        - !ImportValue StocksCore-PublicSubnet1Id
+        - !ImportValue StocksCore-PublicSubnet2Id
         - !ImportValue StocksCore-PrivateSubnet1Id
         - !ImportValue StocksCore-PrivateSubnet2Id
 
