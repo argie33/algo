@@ -247,18 +247,19 @@ jobs:
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
   #################################################
-  # 5) Deploy ECS TaskDefinitions                 #
+  # 5) Deploy ECS TaskDefinitions (with cleanup)  #
   #################################################
   deploy_ecs_tasks:
     needs: build_and_push_containers
     runs-on: ubuntu-latest
     outputs:
-      findata_arn: ${{ steps.deploy.outputs.findata_arn }}
-      price_arn:   ${{ steps.deploy.outputs.price_arn }}
-      weekly_arn:  ${{ steps.deploy.outputs.weekly_arn }}
-      monthly_arn: ${{ steps.deploy.outputs.monthly_arn }}
+      findata_arn: ${{ steps.fetch.outputs.findata_arn }}
+      price_arn:   ${{ steps.fetch.outputs.price_arn }}
+      weekly_arn:  ${{ steps.fetch.outputs.weekly_arn }}
+      monthly_arn: ${{ steps.fetch.outputs.monthly_arn }}
     steps:
       - uses: actions/checkout@v3
+
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -266,6 +267,18 @@ jobs:
           role-session-name: github-deploy
           aws-region: us-east-1
           audience: sts.amazonaws.com
+
+      - name: Cleanup failed ECS TaskDefinitions stack if needed
+        run: |
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].StackStatus" \
+            --output text 2>/dev/null || echo NOT_FOUND)
+          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+            echo "Deleting stale stocks-ecs-tasks-stack..."
+            aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
+            aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+          fi
 
       - name: Deploy ECS TaskDefinitions
         id: deploy
@@ -282,6 +295,7 @@ jobs:
             --capabilities CAPABILITY_NAMED_IAM
 
       - name: Fetch TaskDefinition ARNs
+        id: fetch
         run: |
           echo "findata_arn=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
