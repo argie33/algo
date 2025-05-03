@@ -129,7 +129,7 @@ Resources:
       Code:
         S3Bucket: !ImportValue StocksCore-CodeBucketName
         S3Key: !Ref EconomicCodeKey
-      Timeout: 300
+      Timeout: 900
       VpcConfig:
         SubnetIds:
           - !ImportValue StocksCore-PrivateSubnet1Id
