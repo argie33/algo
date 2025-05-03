@@ -1,183 +1,245 @@
-AWSTemplateFormatVersion: '2010-09-09'
-Description: >
-  ECS TaskDefinitions, CloudWatch LogGroups, and EventBridge rules
-  to run your data‑processing scripts on Fargate.
+name: deploy-app-template
 
-Parameters:
-  FindataImageTag:
-    Type: String
-    Description: Tag of the findata image (e.g. findata-<git-sha>)
-  PriceImageTag:
-    Type: String
-    Description: Tag of the pricedaily image (e.g. pricedaily-<git-sha>)
-  FREDApiKey:
-    Type: String
-    NoEcho: true
-    Description: FRED API key for the economic-data loader
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
 
-Resources:
+jobs:
 
-  ############################################
-  # 0) Pre-create the two CloudWatch log groups
-  ############################################
+  # ───────────────────────────────
+  # 1) Build & upload symbols‑loader Lambda
+  # ───────────────────────────────
+  build_and_upload_symbols:
+    runs-on: ubuntu-latest
+    outputs:
+      code_key: ${{ steps.upload.outputs.code_key }}
+    steps:
+      - uses: actions/checkout@v3
 
-  FindataLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /ecs/findata-loader
-      RetentionInDays: 14
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
 
-  PriceLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /ecs/pricedaily-loader
-      RetentionInDays: 14
+      - name: Install symbols‑loader dependencies
+        run: |
+          rm -rf symbols_package && mkdir symbols_package
+          python -m pip install --upgrade pip
+          pip install -r requirements-loadstocksymbols.txt -t symbols_package
 
-  ############################################
-  # 1) IAM Role for EventBridge → ECS RunTask
-  ############################################
+      - name: Package symbols‑loader
+        run: |
+          cp loadstocksymbols.py symbols_package/index.py
+          cd symbols_package
+          zip -r "../symbols-${{ github.sha }}.zip" .
+          cd ..
 
-  EcsEventsRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: ecs-events-role
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: events.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: AllowRunTask
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ecs:RunTask
-                  - iam:PassRole
-                Resource: "*"
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            us-east-1
 
-  ##########################################################
-  # 2) findata‑loader TaskDefinition (writes to /ecs/findata-loader)
-  ##########################################################
+      - name: Upload symbols‑loader to S3
+        id: upload
+        run: |
+          aws s3 cp "symbols-${{ github.sha }}.zip" \
+            s3://stocks-algo-app-code/symbols-${{ github.sha }}.zip
+          echo "code_key=symbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  FindataTaskDef:
-    Type: AWS::ECS::TaskDefinition
-    Properties:
-      Family: findata-loader
-      Cpu: "512"
-      Memory: "1024"
-      NetworkMode: awsvpc
-      RequiresCompatibilities:
-        - FARGATE
-      ExecutionRoleArn: !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
-      TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
-      ContainerDefinitions:
-        - Name: findata-loader
-          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${FindataImageTag}"
-          Essential: true
-          Environment:
-            - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksDBLambdaStack-SecretArn
-            - Name: FRED_API_KEY
-              Value: !Ref FREDApiKey
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group:         /ecs/findata-loader
-              awslogs-region:        !Ref "AWS::Region"
-              awslogs-stream-prefix: ecs
+  # ───────────────────────────────
+  # 2) Build & upload economic‑data loader Lambda
+  # ───────────────────────────────
+  build_and_upload_econ:
+    runs-on: ubuntu-latest
+    needs: build_and_upload_symbols
+    outputs:
+      econ_code_key: ${{ steps.upload.outputs.econ_code_key }}
+    steps:
+      - uses: actions/checkout@v3
 
-  ##########################################################
-  # 3) pricedaily‑loader TaskDefinition (writes to /ecs/pricedaily-loader)
-  ##########################################################
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
 
-  PriceTaskDef:
-    Type: AWS::ECS::TaskDefinition
-    Properties:
-      Family: pricedaily-loader
-      Cpu: "512"
-      Memory: "1024"
-      NetworkMode: awsvpc
-      RequiresCompatibilities:
-        - FARGATE
-      ExecutionRoleArn: !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
-      TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
-      ContainerDefinitions:
-        - Name: pricedaily-loader
-          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${PriceImageTag}"
-          Essential: true
-          Environment:
-            - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksDBLambdaStack-SecretArn
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group:         /ecs/pricedaily-loader
-              awslogs-region:        !Ref "AWS::Region"
-              awslogs-stream-prefix: ecs
+      - name: Install economic‑data dependencies
+        run: |
+          rm -rf econ_package && mkdir econ_package
+          python -m pip install --upgrade pip
+          pip install -r requirements-loadecondata.txt -t econ_package
 
-  ############################################################
-  # 4) Scheduled Rule: findata daily
-  ############################################################
+      - name: Package economic‑data loader
+        run: |
+          cp loadecondata.py econ_package/index.py
+          cd econ_package
+          zip -r "../econ-${{ github.sha }}.zip" .
+          cd ..
 
-  FindataSchedule:
-    Type: AWS::Events::Rule
-    Properties:
-      Name: findata-loader-schedule
-      Description: "Daily run of findata‑loader"
-      ScheduleExpression: rate(1 day)
-      State: ENABLED
-      Targets:
-        - Arn: !ImportValue StocksDBLambdaStack-ClusterArn
-          Id: RunFindata
-          RoleArn: !GetAtt EcsEventsRole.Arn
-          EcsParameters:
-            TaskDefinitionArn: !Ref FindataTaskDef
-            LaunchType: FARGATE
-            NetworkConfiguration:
-              AwsVpcConfiguration:
-                Subnets:
-                  - !ImportValue StocksCore-PrivateSubnet1Id
-                  - !ImportValue StocksCore-PrivateSubnet2Id
-                SecurityGroups:
-                  - !ImportValue StocksCore-LambdaSecurityGroupId
-                AssignPublicIp: DISABLED
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            us-east-1
 
-  ############################################################
-  # 5) Scheduled Rule: pricedaily daily
-  ############################################################
+      - name: Upload economic‑data loader to S3
+        id: upload
+        run: |
+          aws s3 cp "econ-${{ github.sha }}.zip" \
+            s3://stocks-algo-app-code/econ-${{ github.sha }}.zip
+          echo "econ_code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  PriceSchedule:
-    Type: AWS::Events::Rule
-    Properties:
-      Name: pricedaily-loader-schedule
-      Description: "Daily run of pricedaily‑loader"
-      ScheduleExpression: rate(1 day)
-      State: ENABLED
-      Targets:
-        - Arn: !ImportValue StocksDBLambdaStack-ClusterArn
-          Id: RunPrice
-          RoleArn: !GetAtt EcsEventsRole.Arn
-          EcsParameters:
-            TaskDefinitionArn: !Ref PriceTaskDef
-            LaunchType: FARGATE
-            NetworkConfiguration:
-              AwsVpcConfiguration:
-                Subnets:
-                  - !ImportValue StocksCore-PrivateSubnet1Id
-                  - !ImportValue StocksCore-PrivateSubnet2Id
-                SecurityGroups:
-                  - !ImportValue StocksCore-LambdaSecurityGroupId
-                AssignPublicIp: DISABLED
+  # ───────────────────────────────
+  # 3) Deploy application stack & invoke Lambdas once
+  # ───────────────────────────────
+  deploy_db_lambda:
+    needs:
+      - build_and_upload_symbols
+      - build_and_upload_econ
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
 
-Outputs:
-  FindataTaskDefinitionArn:
-    Description: ARN of the findata task definition
-    Value: !Ref FindataTaskDef
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            us-east-1
 
-  PriceTaskDefinitionArn:
-    Description: ARN of the pricedaily task definition
-    Value: !Ref PriceTaskDef
+      - name: Wait for core infra
+        run: aws cloudformation wait stack-create-complete --stack-name stocks-core-stack
+
+      - name: Delete failed DB stack if needed
+        run: |
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-db-lambda-stack \
+            --query "Stacks[0].StackStatus" \
+            --output text 2>/dev/null || echo NOT_FOUND)
+          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+            aws cloudformation delete-stack --stack-name stocks-db-lambda-stack
+            aws cloudformation wait stack-delete-complete --stack-name stocks-db-lambda-stack
+          fi
+
+      - name: Deploy App CloudFormation stack
+        run: |
+          aws cloudformation deploy \
+            --stack-name stocks-db-lambda-stack \
+            --template-file template-app-stocks.yml \
+            --parameter-overrides \
+              CodeKey=${{ needs.build_and_upload_symbols.outputs.code_key }} \
+              EconomicCodeKey=${{ needs.build_and_upload_econ.outputs.econ_code_key }} \
+              RDSUsername=${{ secrets.RDS_USERNAME }} \
+              RDSPassword=${{ secrets.RDS_PASSWORD }} \
+              FREDApiKey=${{ secrets.FRED_API_KEY }} \
+            --capabilities CAPABILITY_NAMED_IAM
+
+      - name: Invoke symbols‑loader once
+        run: |
+          aws lambda invoke \
+            --function-name loadstocksymbols \
+            --payload '{}' \
+            --cli-binary-format raw-in-base64-out \
+            symbols_response.json || true
+          # you can drop the `|| true` if you want the job to fail on Lambda errors.
+
+      - name: Invoke econ‑data loader once
+        run: |
+          aws lambda invoke \
+            --function-name loadecondata \
+            --payload '{}' \
+            --cli-binary-format raw-in-base64-out \
+            econ_response.json || true
+
+  # ───────────────────────────────
+  # 4) Build & push Docker images for ECS
+  # ───────────────────────────────
+  build_and_push_container:
+    needs: deploy_db_lambda
+    runs-on: ubuntu-latest
+    outputs:
+      findata_tag:    ${{ steps.build_findata.outputs.tag }}
+      pricedaily_tag: ${{ steps.build_price.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            us-east-1
+
+      - name: Ensure ECR repo & login
+        run: |
+          REPO=stocks-app-registry
+          aws ecr describe-repositories --repository-names $REPO >/dev/null 2>&1 || \
+            aws ecr create-repository --repository-name $REPO
+        id: get_uri
+
+      - name: Fetch ECR URI
+        run: echo "repo_uri=$(aws ecr describe-repositories \
+            --repository-names stocks-app-registry \
+            --query 'repositories[0].repositoryUri' --output text)" >> $GITHUB_OUTPUT
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build & push findata
+        id: build_findata
+        run: |
+          TAG=findata-${{ github.sha }}
+          IMAGE=${{ steps.get_uri.outputs.repo_uri }}:$TAG
+          docker build -f Dockerfile.findata -t $IMAGE .
+          docker push $IMAGE
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Build & push pricedaily
+        id: build_price
+        run: |
+          TAG=pricedaily-${{ github.sha }}
+          IMAGE=${{ steps.get_uri.outputs.repo_uri }}:$TAG
+          docker build -f Dockerfile.pricedaily -t $IMAGE .
+          docker push $IMAGE
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+  # ───────────────────────────────
+  # 5) Deploy ECS‑tasks stack & skip failures
+  # ───────────────────────────────
+  deploy_ecs_tasks:
+    needs: build_and_push_container
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            us-east-1
+
+      - name: Delete failed ECS‑tasks if needed
+        run: |
+          S=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].StackStatus" \
+            --output text 2>/dev/null || echo NOT_FOUND)
+          if [ "$S" = "ROLLBACK_COMPLETE" ]; then
+            aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
+            aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+          fi
+
+      - name: Deploy ECS‑tasks CloudFormation
+        run: |
+          aws cloudformation deploy \
+            --stack-name stocks-ecs-tasks-stack \
+            --template-file template-app-ecs-tasks.yml \
+            --parameter-overrides \
+              FindataImageTag=${{ needs.build_and_push_container.outputs.findata_tag }} \
+              PriceImageTag=${{ needs.build_and_push_container.outputs.pricedaily_tag }} \
+              FREDApiKey=${{ secrets.FRED_API_KEY }} \
+            --capabilities CAPABILITY_NAMED_IAM
