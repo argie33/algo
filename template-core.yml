@@ -32,7 +32,17 @@ Parameters:
 
 Resources:
 
-  ### IAM ###
+  ### IAM – OIDC provider for GitHub Actions ###
+  GitHubOidcProvider:
+    Type: AWS::IAM::OpenIDConnectProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+
+  ### IAM ###  
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -229,31 +239,7 @@ Resources:
           SpotOptions: { SpotInstanceType: one-time }
         UserData: !Base64 |
           #!/bin/bash
-          set -eux
-          yum update -y
-          amazon-linux-extras enable postgresql10
-          yum install -y jq postgresql
-          aws configure set region ${AWS::Region}
-          CREDS=$(aws secretsmanager get-secret-value \
-            --secret-id "${DBSecretName}" \
-            --query SecretString --output text)
-          DB_USER=$(echo "$CREDS" | jq -r .username)
-          DB_PASSWORD=$(echo "$CREDS" | jq -r .password)
-          DB_NAME=$(echo "$CREDS" | jq -r .dbname)
-          DB_HOST=$(aws cloudformation describe-stacks \
-            --stack-name "${DBStackName}" \
-            --query "Stacks[0].Outputs[?OutputKey=='DBEndpoint'].OutputValue" \
-            --output text)
-          DB_PORT=$(aws cloudformation describe-stacks \
-            --stack-name "${DBStackName}" \
-            --query "Stacks[0].Outputs[?OutputKey=='DBPort'].OutputValue" \
-            --output text)
-          cat <<EOF > /home/ec2-user/.pgpass
-          ${DB_HOST}:${DB_PORT}:${DB_NAME}:${DB_USER}:${DB_PASSWORD}
-          EOF
-          chmod 600 /home/ec2-user/.pgpass
-          chown ec2-user:ec2-user /home/ec2-user/.pgpass
-
+          …
   BastionAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
@@ -335,19 +321,9 @@ Resources:
       RepositoryName: stocks-app-registry
       LifecyclePolicy:
         LifecyclePolicyText: |
-          {
-            "rules": [ {
-              "rulePriority": 1,
-              "selection": {
-                "tagStatus": "any",
-                "countType": "sinceImagePushed",
-                "countUnit": "days",
-                "countNumber": 30
-              },
-              "action": { "type": "expire" }
-            } ]
-          }
-
+          { "rules":[{ "rulePriority":1, "selection":{ "tagStatus":"any",
+              "countType":"sinceImagePushed","countUnit":"days","countNumber":30 },
+            "action":{"type":"expire"} }]}
   ### S3 Code Bucket ###
   CodeBucket:
     Type: AWS::S3::Bucket
@@ -362,35 +338,48 @@ Outputs:
     Description: VPC ID
     Value: !Ref StocksVPC
     Export: { Name: StocksCore-VpcId }
+
   PublicSubnet1Id:
     Description: First public subnet
     Value: !Ref PublicSubnet1
     Export: { Name: StocksCore-PublicSubnet1Id }
+
   PublicSubnet2Id:
     Description: Second public subnet
     Value: !Ref PublicSubnet2
     Export: { Name: StocksCore-PublicSubnet2Id }
+
   PrivateSubnet1Id:
     Description: First private subnet
     Value: !Ref PrivateSubnet1
     Export: { Name: StocksCore-PrivateSubnet1Id }
+
   PrivateSubnet2Id:
     Description: Second private subnet
     Value: !Ref PrivateSubnet2
     Export: { Name: StocksCore-PrivateSubnet2Id }
+
   LambdaSecurityGroupId:
     Description: SG for VPC Lambdas
     Value: !Ref LambdaSecurityGroup
     Export: { Name: StocksCore-LambdaSecurityGroupId }
+
   LambdaExecutionRoleArn:
     Description: Lambda execution role ARN
     Value: !GetAtt LambdaExecutionRole.Arn
     Export: { Name: StocksCore-LambdaExecutionRoleArn }
+
   ContainerRepositoryUri:
     Description: ECR repository URI
     Value: !GetAtt ContainerRepository.RepositoryUri
     Export: { Name: StocksCore-ContainerRepositoryUri }
+
   CodeBucketName:
     Description: S3 bucket for Lambda code
     Value: !Ref CodeBucket
     Export: { Name: StocksCore-CodeBucketName }
+
+  WebIdentityProviderArn:
+    Description: ARN of the OIDC provider for GitHub Actions
+    Value: !Ref GitHubOidcProvider
+    Export: { Name: StocksCore-WebIdentityProviderArn }
