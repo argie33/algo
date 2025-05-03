@@ -1,4 +1,3 @@
-# .github/workflows/deploy-app-template.yml
 name: deploy-app-template
 
 on:
@@ -7,8 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-
-  # 1) Package & upload symbols‑loader Lambda
+  # 1) Build & upload symbols‑loader Lambda
   build_and_upload_symbols:
     name: Build & upload symbols‑loader Lambda
     runs-on: ubuntu-latest
@@ -54,7 +52,7 @@ jobs:
             s3://stocks-algo-app-code/symbols-${{ github.sha }}.zip
           echo "code_key=symbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  # 2) Package & upload economic‑data loader Lambda
+  # 2) Build & upload economic‑data loader Lambda
   build_and_upload_econ:
     name: Build & upload economic‑data Lambda
     runs-on: ubuntu-latest
@@ -100,7 +98,7 @@ jobs:
             s3://stocks-algo-app-code/econ-${{ github.sha }}.zip
           echo "econ_code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  # 3) Deploy CloudFormation stack (RDS + both Lambdas + ECS Cluster)
+  # 3) Deploy your application stack (RDS + both Lambdas + ECS Cluster)
   deploy_db_lambda:
     name: Deploy RDS, Lambdas & ECS Cluster
     needs:
@@ -220,7 +218,7 @@ jobs:
           docker push "$IMAGE"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-  # 5) Deploy ECS Tasks stack and conditionally run tasks
+  # 5) Deploy ECS Tasks stack and conditionally run
   deploy_ecs_tasks:
     name: Deploy & run ECS Tasks
     needs: build_and_push_container
@@ -235,6 +233,11 @@ jobs:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
+
+      - name: Wait for core infra to finish
+        run: |
+          echo "⏳ Waiting for stocks-core-stack to be ready…"
+          aws cloudformation wait stack-create-complete --stack-name stocks-core-stack
 
       - name: Cleanup failed ECS‑tasks stack if needed
         run: |
