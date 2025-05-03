@@ -1,15 +1,18 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Application stack – publicly-accessible RDS, Secrets (DB creds),
-  two Lambdas (symbols-loader & economic-data loader), and ECS cluster.
+  Application stack – RDS, Secrets (DB creds), three Lambdas
+  (symbols‑loader, economic‑data loader & monthly‑price loader), and ECS cluster.
 
 Parameters:
   CodeKey:
     Type: String
-    Description: S3 key of the symbols-loader Lambda ZIP
+    Description: S3 key of the symbols‑loader Lambda ZIP
   EconomicCodeKey:
     Type: String
-    Description: S3 key of the economic-data loader Lambda ZIP
+    Description: S3 key of the economic‑data loader Lambda ZIP
+  MonthlyCodeKey:
+    Type: String
+    Description: S3 key of the monthly‑price loader Lambda ZIP
   RDSUsername:
     Type: String
     Description: RDS master username
@@ -20,11 +23,11 @@ Parameters:
   FREDApiKey:
     Type: String
     NoEcho: true
-    Description: FRED API key for economic-data loader
+    Description: FRED API key for economic‑data loader
   VpcCidr:
     Type: String
-    Default: "0.0.0.0/0"
-    Description: CIDR to allow Postgres ingress (e.g. 0.0.0.0/0)
+    Default: "10.0.0.0/16"
+    Description: VPC CIDR for DB security group ingress
 
 Resources:
 
@@ -33,17 +36,16 @@ Resources:
     Type: AWS::RDS::DBSubnetGroup
     DeletionPolicy: Retain
     Properties:
-      # Fixed to plain ASCII text and wrapped in quotes
-      DBSubnetGroupDescription: "Subnet group for publicly-accessible RDS"
+      DBSubnetGroupDescription: Subnet group for RDS (private only)
       SubnetIds:
-        - !ImportValue StocksCore-PublicSubnet1Id
-        - !ImportValue StocksCore-PublicSubnet2Id
+        - !ImportValue StocksCore-PrivateSubnet1Id
+        - !ImportValue StocksCore-PrivateSubnet2Id
 
   ### RDS Security Group ###
   StocksDBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow Postgres access
+      GroupDescription: Allow Postgres access within VPC
       VpcId: !ImportValue StocksCore-VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -70,7 +72,7 @@ Resources:
         - !Ref StocksDBSecurityGroup
       DBSubnetGroupName: !Ref StocksDBSubnetGroup
       MultiAZ: false
-      PubliclyAccessible: true
+      PubliclyAccessible: false
       DeletionProtection: false
 
   ### Secrets Manager: DB credentials ###
@@ -94,7 +96,7 @@ Resources:
             - !GetAtt StocksDBInstance.Endpoint.Port
             - '","dbname":"stocks"}'
 
-  ### Lambda: symbols-loader ###
+  ### Lambda: symbols‑loader ###
   LoadStockSymbolsFunction:
     Type: AWS::Lambda::Function
     DependsOn:
@@ -111,15 +113,15 @@ Resources:
       Timeout: 300
       VpcConfig:
         SubnetIds:
-          - !ImportValue StocksCore-PublicSubnet1Id
-          - !ImportValue StocksCore-PublicSubnet2Id
+          - !ImportValue StocksCore-PrivateSubnet1Id
+          - !ImportValue StocksCore-PrivateSubnet2Id
         SecurityGroupIds:
-          - !Ref StocksDBSecurityGroup
+          - !ImportValue StocksCore-LambdaSecurityGroupId
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DBCredentialsSecret
 
-  ### Lambda: economic-data loader ###
+  ### Lambda: economic‑data loader ###
   LoadEconomicDataFunction:
     Type: AWS::Lambda::Function
     DependsOn:
@@ -136,14 +138,39 @@ Resources:
       Timeout: 900
       VpcConfig:
         SubnetIds:
-          - !ImportValue StocksCore-PublicSubnet1Id
-          - !ImportValue StocksCore-PublicSubnet2Id
+          - !ImportValue StocksCore-PrivateSubnet1Id
+          - !ImportValue StocksCore-PrivateSubnet2Id
         SecurityGroupIds:
-          - !Ref StocksDBSecurityGroup
+          - !ImportValue StocksCore-LambdaSecurityGroupId
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DBCredentialsSecret
           FRED_API_KEY: !Ref FREDApiKey
+
+  ### Lambda: monthly‑price loader ###
+  LoadMonthlyPriceFunction:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - StocksDBInstance
+      - DBCredentialsSecret
+    Properties:
+      FunctionName: loadpricemonthly
+      Runtime: python3.9
+      Handler: index.handler
+      Role: !ImportValue StocksCore-LambdaExecutionRoleArn
+      Code:
+        S3Bucket: !ImportValue StocksCore-CodeBucketName
+        S3Key: !Ref MonthlyCodeKey
+      Timeout: 900
+      VpcConfig:
+        SubnetIds:
+          - !ImportValue StocksCore-PrivateSubnet1Id
+          - !ImportValue StocksCore-PrivateSubnet2Id
+        SecurityGroupIds:
+          - !ImportValue StocksCore-LambdaSecurityGroupId
+      Environment:
+        Variables:
+          DB_SECRET_ARN: !Ref DBCredentialsSecret
 
   ### ECS Cluster ###
   StocksEcsCluster:
@@ -179,10 +206,26 @@ Outputs:
   DBEndpoint:
     Description: RDS endpoint address
     Value: !GetAtt StocksDBInstance.Endpoint.Address
+    Export:
+      Name: StocksApp-DBEndpoint
 
   DBPort:
     Description: RDS endpoint port
     Value: !GetAtt StocksDBInstance.Endpoint.Port
+    Export:
+      Name: StocksApp-DBPort
+
+  DBName:
+    Description: RDS database name
+    Value: stocks
+    Export:
+      Name: StocksApp-DBName
+
+  DBUsername:
+    Description: RDS master username
+    Value: !Ref RDSUsername
+    Export:
+      Name: StocksApp-DBUsername
 
   SecretArn:
     Description: ARN of the DB credentials secret
@@ -201,15 +244,3 @@ Outputs:
     Value: !GetAtt EcsTaskExecutionRole.Arn
     Export:
       Name: StocksDBLambdaStack-EcsTaskExecutionRoleArn
-
-  DBName:
-    Description: The RDS database name
-    Value: !Ref StocksDBInstance.DBName             
-    Export:
-      Name: StocksApp-DBName
-
-  DBUsername:
-    Description: The RDS master username
-    Value: !Ref RDSUsername
-    Export:
-      Name: StocksApp-DBUsername
