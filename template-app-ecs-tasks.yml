@@ -1,7 +1,8 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  ECS TaskDefinitions and CloudWatch LogGroups for findata, pricedaily & priceweekly—
-  no schedules; tasks are executed manually (e.g. via CI workflow).
+  ECS TaskDefinitions and CloudWatch LogGroups for findata,
+  pricedaily & priceweekly—no schedules; tasks are executed manually
+  (e.g. via CI workflow).
 
 Parameters:
   FindataImageTag:
@@ -16,7 +17,7 @@ Parameters:
   FREDApiKey:
     Type: String
     NoEcho: true
-    Description: FRED API key for econ-data loader
+    Description: FRED API key for econ‑data loader
 
 Resources:
 
@@ -42,7 +43,7 @@ Resources:
       RetentionInDays: 14
 
   ##################################
-  # 1) findata-loader TaskDefinition
+  # 1) findata‑loader TaskDefinition
   ##################################
   FindataTaskDef:
     Type: AWS::ECS::TaskDefinition
@@ -56,7 +57,12 @@ Resources:
       TaskRoleArn:      !ImportValue StocksApp-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: findata-loader
-          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${FindataImageTag}"
+          Image:
+            Fn::Join:
+              - ""
+              - - !ImportValue StocksCore-ContainerRepositoryUri
+                - ":"
+                - !Ref FindataImageTag
           Essential: true
           Environment:
             - Name: DB_HOST
@@ -77,7 +83,7 @@ Resources:
               awslogs-stream-prefix: ecs
 
   ##################################
-  # 2) pricedaily-loader TaskDefinition
+  # 2) pricedaily‑loader TaskDefinition
   ##################################
   PriceTaskDef:
     Type: AWS::ECS::TaskDefinition
@@ -91,7 +97,12 @@ Resources:
       TaskRoleArn:      !ImportValue StocksApp-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: pricedaily-loader
-          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${PriceImageTag}"
+          Image:
+            Fn::Join:
+              - ""
+              - - !ImportValue StocksCore-ContainerRepositoryUri
+                - ":"
+                - !Ref PriceImageTag
           Essential: true
           Environment:
             - Name: DB_HOST
@@ -110,7 +121,7 @@ Resources:
               awslogs-stream-prefix: ecs
 
   ##################################
-  # 3) priceweekly-loader TaskDefinition
+  # 3) priceweekly‑loader TaskDefinition
   ##################################
   WeeklyTaskDef:
     Type: AWS::ECS::TaskDefinition
@@ -124,7 +135,12 @@ Resources:
       TaskRoleArn:      !ImportValue StocksApp-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: priceweekly-loader
-          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${PriceWeeklyImageTag}"
+          Image:
+            Fn::Join:
+              - ""
+              - - !ImportValue StocksCore-ContainerRepositoryUri
+                - ":"
+                - !Ref PriceWeeklyImageTag
           Essential: true
           Environment:
             - Name: DB_HOST
@@ -146,9 +162,11 @@ Outputs:
   FindataTaskDefinitionArn:
     Description: ARN of the findata task definition
     Value: !Ref FindataTaskDef
+
   PriceTaskDefinitionArn:
     Description: ARN of the pricedaily task definition
     Value: !Ref PriceTaskDef
+
   PriceWeeklyTaskDefinitionArn:
     Description: ARN of the priceweekly task definition
     Value: !Ref WeeklyTaskDef
