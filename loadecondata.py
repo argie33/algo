@@ -56,7 +56,7 @@ series_ids = [
     "HOUST", "PERMIT", "CSUSHPISA", "RHORUSQ156N", "RRVRUSQ156N", "USHVAC",
 ]
 
-def lambda_handler(event, context):
+def run_loader():
     logger.info("Starting economic-data loader")
     conn = get_db_connection()
 
@@ -103,4 +103,12 @@ def lambda_handler(event, context):
 
     conn.close()
     logger.info("loadecondata complete.")
+
+# ─── Lambda entry‐point ────────────────────────────────────────────────────────
+def handler(event, context):
+    """
+    AWS Lambda handler.  Wraps run_loader() so that
+    CloudFormation’s `Handler: index.handler` is found.
+    """
+    run_loader()
     return {"status": "success"}
