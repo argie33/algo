@@ -1,3 +1,4 @@
+# .github/workflows/deploy-core.yml
 name: Deploy core infrastructure
 
 on:
@@ -67,7 +68,6 @@ jobs:
             --parameters commands=["psql --version"] \
             --query "Command.CommandId" --output text)
 
-          # give SSM a moment to execute
           sleep 15
 
           echo "Fetching output for command $COMMAND_ID..."
@@ -80,5 +80,4 @@ jobs:
           echo "$OUTPUT"
           echo "-------------------------------"
 
-          # fail the workflow if psql isn't installed
           echo "$OUTPUT" | grep -q "psql" || (echo "ERROR: psql client not installed" && exit 1)
