@@ -7,94 +7,113 @@ on:
 
 jobs:
 
-  # 1) Build & upload symbols-loader Lambda
+  # 1) Build & upload symbols‑loader Lambda
   build_and_upload_symbols:
+    name: Build & upload symbols‑loader Lambda
     runs-on: ubuntu-latest
     outputs:
       code_key: ${{ steps.upload.outputs.code_key }}
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - uses: actions/setup-python@v4
-        with: { python-version: '3.9' }
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
 
-      - name: Install symbols-loader deps
+      - name: Install symbols‑loader dependencies
         run: |
           rm -rf symbols_package && mkdir symbols_package
           python -m pip install --upgrade pip
           pip install -r requirements-loadstocksymbols.txt -t symbols_package
 
-      - name: Package symbols-loader
+      - name: Package symbols‑loader
         run: |
           cp loadstocksymbols.py symbols_package/index.py
           cd symbols_package
           zip -r "../symbols-${{ github.sha }}.zip" .
           cd ..
 
-      - uses: aws-actions/configure-aws-credentials@v2
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - id: upload
+      - name: Upload symbols‑loader to S3
+        id: upload
         run: |
           aws s3 cp "symbols-${{ github.sha }}.zip" \
             s3://stocks-algo-app-code/symbols-${{ github.sha }}.zip
           echo "code_key=symbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  # 2) Build & upload economic-data loader Lambda
+  # 2) Build & upload economic‑data loader Lambda
   build_and_upload_econ:
+    name: Build & upload economic‑data loader Lambda
     runs-on: ubuntu-latest
     outputs:
       econ_code_key: ${{ steps.upload.outputs.econ_code_key }}
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - uses: actions/setup-python@v4
-        with: { python-version: '3.9' }
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
 
-      - name: Install econ-data deps
+      - name: Install economic‑data dependencies
         run: |
           rm -rf econ_package && mkdir econ_package
           python -m pip install --upgrade pip
           pip install -r requirements-loadecondata.txt -t econ_package
 
-      - name: Package econ-data loader
+      - name: Package economic‑data loader
         run: |
           cp loadecondata.py econ_package/index.py
           cd econ_package
           zip -r "../econ-${{ github.sha }}.zip" .
           cd ..
 
-      - uses: aws-actions/configure-aws-credentials@v2
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - id: upload
+      - name: Upload economic‑data loader to S3
+        id: upload
         run: |
           aws s3 cp "econ-${{ github.sha }}.zip" \
             s3://stocks-algo-app-code/econ-${{ github.sha }}.zip
           echo "econ_code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  # 3) Deploy RDS + both Lambdas + ECS Cluster
+  # 3) Deploy RDS, both Lambdas & ECS Cluster
   deploy_db_lambda:
+    name: Deploy DB, Lambdas & ECS Cluster
     needs:
       - build_and_upload_symbols
       - build_and_upload_econ
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - uses: aws-actions/configure-aws-credentials@v2
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Cleanup old DB stack if ROLLBACK_COMPLETE
+      - name: Wait for core infra to finish
+        run: |
+          aws cloudformation wait stack-create-complete --stack-name stocks-core-stack
+
+      - name: Cleanup failed DB stack if needed
         run: |
           STATUS=$(aws cloudformation describe-stacks \
             --stack-name stocks-db-lambda-stack \
@@ -105,7 +124,7 @@ jobs:
             aws cloudformation wait stack-delete-complete --stack-name stocks-db-lambda-stack
           fi
 
-      - name: Deploy application stack
+      - name: Deploy App CloudFormation stack
         run: |
           aws cloudformation deploy \
             --stack-name stocks-db-lambda-stack \
@@ -118,54 +137,69 @@ jobs:
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM
 
-      - name: Invoke symbols-loader & fail on error
+      - name: Invoke symbols‑loader & fail on FunctionError
         run: |
           aws lambda invoke \
             --function-name loadstocksymbols \
             --payload '{}' \
             --cli-binary-format raw-in-base64-out \
             symbols_response.json
-          grep -q '"FunctionError"' symbols_response.json && exit 1
+          if grep -q '"FunctionError"' symbols_response.json; then
+            echo "✖ loadstocksymbols returned a FunctionError"
+            cat symbols_response.json
+            exit 1
+          fi
 
-      - name: Invoke economic-data loader & fail on error
+      - name: Invoke economic‑data loader & fail on FunctionError
         run: |
           aws lambda invoke \
             --function-name loadecondata \
             --payload '{}' \
             --cli-binary-format raw-in-base64-out \
             econ_response.json
-          grep -q '"FunctionError"' econ_response.json && exit 1
+          if grep -q '"FunctionError"' econ_response.json; then
+            echo "✖ loadecondata returned a FunctionError"
+            cat econ_response.json
+            exit 1
+          fi
 
   # 4) Build & push Docker images for ECS tasks
   build_and_push_container:
+    name: Build & push Docker images
     needs: deploy_db_lambda
     runs-on: ubuntu-latest
     outputs:
       findata_tag:    ${{ steps.build_findata.outputs.tag }}
       pricedaily_tag: ${{ steps.build_price.outputs.tag }}
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - uses: aws-actions/configure-aws-credentials@v2
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - id: get_uri
+      - name: Ensure ECR repo exists & get URI
+        id: get_uri
         run: |
           REPO_NAME=stocks-app-registry
-          aws ecr describe-repositories --repository-names "$REPO_NAME" \
-            >/dev/null 2>&1 || aws ecr create-repository --repository-name "$REPO_NAME"
+          if ! aws ecr describe-repositories --repository-names "$REPO_NAME" >/dev/null 2>&1; then
+            aws ecr create-repository --repository-name "$REPO_NAME"
+          fi
           REPO_URI=$(aws ecr describe-repositories \
             --repository-names "$REPO_NAME" \
             --query 'repositories[0].repositoryUri' \
             --output text)
           echo "repo_uri=$REPO_URI" >> $GITHUB_OUTPUT
 
-      - uses: aws-actions/amazon-ecr-login@v1
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
 
-      - id: build_findata
+      - name: Build & push findata image
+        id: build_findata
         run: |
           TAG=findata-${{ github.sha }}
           IMAGE="${{ steps.get_uri.outputs.repo_uri }}:$TAG"
@@ -173,7 +207,8 @@ jobs:
           docker push "$IMAGE"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - id: build_price
+      - name: Build & push pricedaily image
+        id: build_price
         run: |
           TAG=pricedaily-${{ github.sha }}
           IMAGE="${{ steps.get_uri.outputs.repo_uri }}:$TAG"
@@ -181,20 +216,27 @@ jobs:
           docker push "$IMAGE"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-  # 5) Deploy & clean up ECS Tasks stack
+  # 5) Deploy ECS Tasks stack & conditionally run
   deploy_ecs_tasks:
+    name: Deploy & run ECS Tasks
     needs: build_and_push_container
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - uses: aws-actions/configure-aws-credentials@v2
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Cleanup old ECS stack if ROLLBACK_COMPLETE
+      - name: Wait for core infra to finish
+        run: |
+          aws cloudformation wait stack-create-complete --stack-name stocks-core-stack
+
+      - name: Cleanup failed ECS‑tasks stack if needed
         run: |
           STATUS=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
@@ -205,16 +247,14 @@ jobs:
             aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
           fi
 
-      - id: exports
+      - name: Collect core & app exports
+        id: exports
         run: |
-          echo "ClusterArn=$(aws cloudformation list-exports \
-            --query \"Exports[?Name=='StocksDBLambdaStack-ClusterArn'].Value\" \
+          echo "DbSecretArn=$(aws cloudformation list-exports \
+            --query \"Exports[?Name=='StocksDBLambdaStack-SecretArn'].Value\" \
             --output text)" >> $GITHUB_ENV
           echo "ContainerRepositoryUri=$(aws cloudformation list-exports \
             --query \"Exports[?Name=='StocksCore-ContainerRepositoryUri'].Value\" \
-            --output text)" >> $GITHUB_ENV
-          echo "DbSecretArn=$(aws cloudformation list-exports \
-            --query \"Exports[?Name=='StocksDBLambdaStack-SecretArn'].Value\" \
             --output text)" >> $GITHUB_ENV
           echo "PrivateSubnet1Id=$(aws cloudformation list-exports \
             --query \"Exports[?Name=='StocksCore-PrivateSubnet1Id'].Value\" \
@@ -232,13 +272,47 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --template-file template-app-ecs-tasks.yml \
             --parameter-overrides \
-              ClusterArn=$ClusterArn \
+              ClusterName=stocks-cluster \
               ContainerRepositoryUri=$ContainerRepositoryUri \
-              DBSecretArn=$DbSecretArn \
-              PrivateSubnet1Id=$PrivateSubnet1Id \
-              PrivateSubnet2Id=$PrivateSubnet2Id \
+              DbSecretArn=$DbSecretArn \
+              Subnet1Id=$PrivateSubnet1Id \
+              Subnet2Id=$PrivateSubnet2Id \
               SecurityGroupId=$SecurityGroupId \
               FindataImageTag=${{ needs.build_and_push_container.outputs.findata_tag }} \
               PriceImageTag=${{ needs.build_and_push_container.outputs.pricedaily_tag }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM
+
+      - name: Run findata-loader if not already running
+        run: |
+          COUNT=$(aws ecs list-tasks \
+            --cluster stocks-cluster \
+            --family findata-loader \
+            --desired-status RUNNING \
+            --query 'length(taskArns)' \
+            --output text)
+          if [ "$COUNT" = "0" ]; then
+            aws ecs run-task \
+              --cluster stocks-cluster \
+              --launch-type FARGATE \
+              --task-definition FindataTaskDef \
+              --network-configuration "awsvpcConfiguration={subnets=[$PrivateSubnet1Id,$PrivateSubnet2Id],securityGroups=[$SecurityGroupId],assignPublicIp=DISABLED}" \
+              --count 1
+          fi
+
+      - name: Run pricedaily-loader if not already running
+        run: |
+          COUNT=$(aws ecs list-tasks \
+            --cluster stocks-cluster \
+            --family pricedaily-loader \
+            --desired-status RUNNING \
+            --query 'length(taskArns)' \
+            --output text)
+          if [ "$COUNT" = "0" ]; then
+            aws ecs run-task \
+              --cluster stocks-cluster \
+              --launch-type FARGATE \
+              --task-definition PriceTaskDef \
+              --network-configuration "awsvpcConfiguration={subnets=[$PrivateSubnet1Id,$PrivateSubnet2Id],securityGroups=[$SecurityGroupId],assignPublicIp=DISABLED}" \
+              --count 1
+          fi
