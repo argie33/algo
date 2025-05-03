@@ -1,20 +1,19 @@
 # template-app-ecs-tasks.yml
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  ECS TaskDefinitions, CloudWatch LogGroups, and EventBridge schedules
-  for findata, pricedaily & priceweekly—all in public subnets
-  with public IPs and IAM‑only auth to RDS (no static creds).
+  ECS TaskDefinitions and CloudWatch LogGroups for findata, pricedaily & priceweekly—
+  no schedules; tasks are executed manually (e.g. via CI workflow).
 
 Parameters:
   FindataImageTag:
     Type: String
-    Description: findata image tag (e.g. findata-<git-sha>)
+    Description: Tag of the findata image (e.g. findata-<git-sha>)
   PriceImageTag:
     Type: String
-    Description: pricedaily image tag (e.g. pricedaily-<git-sha>)
+    Description: Tag of the pricedaily image (e.g. pricedaily-<git-sha>)
   PriceWeeklyImageTag:
     Type: String
-    Description: priceweekly image tag (e.g. priceweekly-<git-sha>)
+    Description: Tag of the priceweekly image (e.g. priceweekly-<git-sha>)
   FREDApiKey:
     Type: String
     NoEcho: true
@@ -44,31 +43,7 @@ Resources:
       RetentionInDays: 14
 
   ##################################
-  # 1) EventBridge → ECS RunTask Role
-  ##################################
-  EcsEventsRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: ecs-events-role
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal: { Service: events.amazonaws.com }
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: AllowRunTask
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ecs:RunTask
-                  - iam:PassRole
-                Resource: "*"
-
-  ##################################
-  # 2) findata‑loader TaskDefinition
+  # 1) findata‑loader TaskDefinition
   ##################################
   FindataTaskDef:
     Type: AWS::ECS::TaskDefinition
@@ -103,7 +78,7 @@ Resources:
               awslogs-stream-prefix: ecs
 
   ##################################
-  # 3) pricedaily‑loader TaskDefinition
+  # 2) pricedaily‑loader TaskDefinition
   ##################################
   PriceTaskDef:
     Type: AWS::ECS::TaskDefinition
@@ -136,7 +111,7 @@ Resources:
               awslogs-stream-prefix: ecs
 
   ##################################
-  # 4) priceweekly‑loader TaskDefinition
+  # 3) priceweekly‑loader TaskDefinition
   ##################################
   WeeklyTaskDef:
     Type: AWS::ECS::TaskDefinition
@@ -168,85 +143,15 @@ Resources:
               awslogs-region:        !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
-  ##################################
-  # 5) Scheduled: findata daily
-  ##################################
-  FindataSchedule:
-    Type: AWS::Events::Rule
-    Properties:
-      Name: findata-loader-schedule
-      ScheduleExpression: rate(1 day)
-      State: ENABLED
-      Targets:
-        - Arn: !ImportValue StocksApp-ClusterArn
-          Id: RunFindata
-          RoleArn: !GetAtt EcsEventsRole.Arn
-          EcsParameters:
-            TaskDefinitionArn: !Ref FindataTaskDef
-            LaunchType: FARGATE
-            NetworkConfiguration:
-              AwsVpcConfiguration:
-                Subnets:
-                  - !ImportValue StocksCore-PublicSubnet1Id
-                  - !ImportValue StocksCore-PublicSubnet2Id
-                SecurityGroups:
-                  - !ImportValue StocksCore-LambdaSecurityGroupId
-                AssignPublicIp: ENABLED
-
-  ##################################
-  # 6) Scheduled: pricedaily daily
-  ##################################
-  PriceSchedule:
-    Type: AWS::Events::Rule
-    Properties:
-      Name: pricedaily-loader-schedule
-      ScheduleExpression: rate(1 day)
-      State: ENABLED
-      Targets:
-        - Arn: !ImportValue StocksApp-ClusterArn
-          Id: RunPrice
-          RoleArn: !GetAtt EcsEventsRole.Arn
-          EcsParameters:
-            TaskDefinitionArn: !Ref PriceTaskDef
-            LaunchType: FARGATE
-            NetworkConfiguration:
-              AwsVpcConfiguration:
-                Subnets:
-                  - !ImportValue StocksCore-PublicSubnet1Id
-                  - !ImportValue StocksCore-PublicSubnet2Id
-                SecurityGroups:
-                  - !ImportValue StocksCore-LambdaSecurityGroupId
-                AssignPublicIp: ENABLED
-
-  ##################################
-  # 7) Scheduled: priceweekly weekly
-  ##################################
-  WeeklySchedule:
-    Type: AWS::Events::Rule
-    Properties:
-      Name: priceweekly-loader-schedule
-      ScheduleExpression: rate(7 days)
-      State: ENABLED
-      Targets:
-        - Arn: !ImportValue StocksApp-ClusterArn
-          Id: RunWeekly
-          RoleArn: !GetAtt EcsEventsRole.Arn
-          EcsParameters:
-            TaskDefinitionArn: !Ref WeeklyTaskDef
-            LaunchType: FARGATE
-            NetworkConfiguration:
-              AwsVpcConfiguration:
-                Subnets:
-                  - !ImportValue StocksCore-PublicSubnet1Id
-                  - !ImportValue StocksCore-PublicSubnet2Id
-                SecurityGroups:
-                  - !ImportValue StocksCore-LambdaSecurityGroupId
-                AssignPublicIp: ENABLED
-
 Outputs:
   FindataTaskDefinitionArn:
+    Description: ARN of the findata task definition
     Value: !Ref FindataTaskDef
+
   PriceTaskDefinitionArn:
+    Description: ARN of the pricedaily task definition
     Value: !Ref PriceTaskDef
+
   PriceWeeklyTaskDefinitionArn:
+    Description: ARN of the priceweekly task definition
     Value: !Ref WeeklyTaskDef

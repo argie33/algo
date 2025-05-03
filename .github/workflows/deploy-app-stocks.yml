@@ -17,7 +17,8 @@ jobs:
       - uses: actions/checkout@v3
       - name: Set up Python
         uses: actions/setup-python@v4
-        with: { python-version: '3.9' }
+        with:
+          python-version: '3.9'
       - name: Install symbols‑loader dependencies
         run: |
           rm -rf symbols_package && mkdir symbols_package
@@ -36,7 +37,8 @@ jobs:
       - name: Upload symbols‑loader to S3
         id: upload
         run: |
-          aws s3 cp "symbols-${{ github.sha }}.zip" s3://stocks-algo-app-code/symbols-${{ github.sha }}.zip
+          aws s3 cp "symbols-${{ github.sha }}.zip" \
+            s3://stocks-algo-app-code/symbols-${{ github.sha }}.zip
           echo "code_key=symbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
   # 2) Build & upload economic‑data loader Lambda
@@ -48,7 +50,8 @@ jobs:
       - uses: actions/checkout@v3
       - name: Set up Python
         uses: actions/setup-python@v4
-        with: { python-version: '3.9' }
+        with:
+          python-version: '3.9'
       - name: Install econ‑data deps
         run: |
           rm -rf econ_package && mkdir econ_package
@@ -67,10 +70,11 @@ jobs:
       - name: Upload econ‑data loader to S3
         id: upload
         run: |
-          aws s3 cp "econ-${{ github.sha }}.zip" s3://stocks-algo-app-code/econ-${{ github.sha }}.zip
+          aws s3 cp "econ-${{ github.sha }}.zip" \
+            s3://stocks-algo-app-code/econ-${{ github.sha }}.zip
           echo "econ_code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  # 3) Deploy App stack + invoke Lambdas
+  # 3) Deploy App stack & invoke Lambdas once
   deploy_db_lambda:
     needs:
       - build_and_upload_symbols
@@ -84,17 +88,19 @@ jobs:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
-      - name: Wait for core infra
+      - name: Wait for core infra to finish
         run: aws cloudformation wait stack-create-complete --stack-name stocks-core-stack
       - name: Cleanup failed DB stack if needed
         run: |
-          STATUS=$(aws cloudformation describe-stacks --stack-name stocks-db-lambda-stack \
-            --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo NOT_FOUND)
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-db-lambda-stack \
+            --query "Stacks[0].StackStatus" \
+            --output text 2>/dev/null || echo NOT_FOUND)
           if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
             aws cloudformation delete-stack --stack-name stocks-db-lambda-stack
             aws cloudformation wait stack-delete-complete --stack-name stocks-db-lambda-stack
           fi
-      - name: Deploy App stack
+      - name: Deploy App CloudFormation stack
         run: |
           aws cloudformation deploy \
             --stack-name stocks-db-lambda-stack \
@@ -108,14 +114,20 @@ jobs:
             --capabilities CAPABILITY_NAMED_IAM
       - name: Invoke symbols‑loader once
         run: |
-          aws lambda invoke --function-name loadstocksymbols \
-            --payload '{}' --cli-binary-format raw-in-base64-out symbols_response.json || true
+          aws lambda invoke \
+            --function-name loadstocksymbols \
+            --payload '{}' \
+            --cli-binary-format raw-in-base64-out \
+            symbols_response.json || true
       - name: Invoke econ‑data loader once
         run: |
-          aws lambda invoke --function-name loadecondata \
-            --payload '{}' --cli-binary-format raw-in-base64-out econ_response.json || true
+          aws lambda invoke \
+            --function-name loadecondata \
+            --payload '{}' \
+            --cli-binary-format raw-in-base64-out \
+            econ_response.json || true
 
-  # 4) Build & push Docker images
+  # 4) Build & push Docker images for ECS tasks
   build_and_push_container:
     needs: deploy_db_lambda
     runs-on: ubuntu-latest
@@ -131,18 +143,20 @@ jobs:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
-      - name: Ensure ECR repo & get URI
+      - name: Ensure ECR repo exists & get URI
         id: get_uri
         run: |
           REPO=stocks-app-registry
           aws ecr describe-repositories --repository-names $REPO >/dev/null 2>&1 || \
             aws ecr create-repository --repository-name $REPO
-          URI=$(aws ecr describe-repositories --repository-names $REPO \
-            --query 'repositories[0].repositoryUri' --output text)
+          URI=$(aws ecr describe-repositories \
+            --repository-names $REPO \
+            --query 'repositories[0].repositoryUri' \
+            --output text)
           echo "repo_uri=$URI" >> $GITHUB_OUTPUT
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v1
-      - name: Build & push findata
+      - name: Build & push findata image
         id: build_findata
         run: |
           TAG=findata-${{ github.sha }}
@@ -150,7 +164,7 @@ jobs:
           docker build -f Dockerfile.findata -t $IMG .
           docker push $IMG
           echo "tag=$TAG" >> $GITHUB_OUTPUT
-      - name: Build & push pricedaily
+      - name: Build & push pricedaily image
         id: build_price
         run: |
           TAG=pricedaily-${{ github.sha }}
@@ -158,7 +172,7 @@ jobs:
           docker build -f Dockerfile.pricedaily -t $IMG .
           docker push $IMG
           echo "tag=$TAG" >> $GITHUB_OUTPUT
-      - name: Build & push priceweekly
+      - name: Build & push priceweekly image
         id: build_weekly
         run: |
           TAG=priceweekly-${{ github.sha }}
@@ -167,9 +181,8 @@ jobs:
           docker push $IMG
           echo "priceweekly_tag=$TAG" >> $GITHUB_OUTPUT
 
-  # 5) Deploy & run ECS Tasks
-  deploy_ecs_tasks:
-    name: Deploy & run ECS Tasks
+  # 5) Deploy TaskDefinitions and run each once
+  deploy_and_run_ecs_tasks:
     needs: build_and_push_container
     runs-on: ubuntu-latest
     steps:
@@ -180,17 +193,7 @@ jobs:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
-      - name: Wait for core infra
-        run: aws cloudformation wait stack-create-complete --stack-name stocks-core-stack
-      - name: Cleanup failed ECS stack if needed
-        run: |
-          STATUS=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo NOT_FOUND)
-          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
-            aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
-          fi
-      - name: Deploy ECS tasks stack
+      - name: Deploy ECS TaskDefinitions stack
         run: |
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
@@ -219,7 +222,7 @@ jobs:
           echo "FINDATA_ARN=$FINDATA_ARN" >> $GITHUB_ENV
           echo "PRICE_ARN=$PRICE_ARN" >> $GITHUB_ENV
           echo "WEEKLY_ARN=$WEEKLY_ARN" >> $GITHUB_ENV
-      - name: Run findata‑loader if not running
+      - name: Run findata‑loader on Fargate
         run: |
           SUB1=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" --output text)
@@ -227,17 +230,13 @@ jobs:
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" --output text)
           SG=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-LambdaSecurityGroupId'].Value" --output text)
-          COUNT=$(aws ecs list-tasks --cluster stocks-cluster --family findata-loader \
-            --desired-status RUNNING --query 'length(taskArns)' --output text)
-          if [ "$COUNT" = "0" ]; then
-            aws ecs run-task \
-              --cluster stocks-cluster \
-              --launch-type FARGATE \
-              --task-definition "$FINDATA_ARN" \
-              --network-configuration "awsvpcConfiguration={subnets=[$SUB1,$SUB2],securityGroups=[$SG],assignPublicIp=ENABLED}" \
-              --count 1
-          fi
-      - name: Run pricedaily‑loader if not running
+          aws ecs run-task \
+            --cluster stocks-cluster \
+            --launch-type FARGATE \
+            --task-definition "$FINDATA_ARN" \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUB1,$SUB2],securityGroups=[$SG],assignPublicIp=ENABLED}" \
+            --count 1
+      - name: Run pricedaily‑loader on Fargate
         run: |
           SUB1=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" --output text)
@@ -245,17 +244,13 @@ jobs:
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" --output text)
           SG=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-LambdaSecurityGroupId'].Value" --output text)
-          COUNT=$(aws ecs list-tasks --cluster stocks-cluster --family pricedaily-loader \
-            --desired-status RUNNING --query 'length(taskArns)' --output text)
-          if [ "$COUNT" = "0" ]; then
-            aws ecs run-task \
-              --cluster stocks-cluster \
-              --launch-type FARGATE \
-              --task-definition "$PRICE_ARN" \
-              --network-configuration "awsvpcConfiguration={subnets=[$SUB1,$SUB2],securityGroups=[$SG],assignPublicIp=ENABLED}" \
-              --count 1
-          fi
-      - name: Run priceweekly‑loader if not running
+          aws ecs run-task \
+            --cluster stocks-cluster \
+            --launch-type FARGATE \
+            --task-definition "$PRICE_ARN" \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUB1,$SUB2],securityGroups=[$SG],assignPublicIp=ENABLED}" \
+            --count 1
+      - name: Run priceweekly‑loader on Fargate
         run: |
           SUB1=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" --output text)
@@ -263,13 +258,9 @@ jobs:
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" --output text)
           SG=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-LambdaSecurityGroupId'].Value" --output text)
-          COUNT=$(aws ecs list-tasks --cluster stocks-cluster --family priceweekly-loader \
-            --desired-status RUNNING --query 'length(taskArns)' --output text)
-          if [ "$COUNT" = "0" ]; then
-            aws ecs run-task \
-              --cluster stocks-cluster \
-              --launch-type FARGATE \
-              --task-definition "$WEEKLY_ARN" \
-              --network-configuration "awsvpcConfiguration={subnets=[$SUB1,$SUB2],securityGroups=[$SG],assignPublicIp=ENABLED}" \
-              --count 1
-          fi
+          aws ecs run-task \
+            --cluster stocks-cluster \
+            --launch-type FARGATE \
+            --task-definition "$WEEKLY_ARN" \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUB1,$SUB2],securityGroups=[$SG],assignPublicIp=ENABLED}" \
+            --count 1
