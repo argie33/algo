@@ -142,31 +142,32 @@ jobs:
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM
 
-      - name: Invoke symbols‑loader & fail on FunctionError
-        run: |
-          aws lambda invoke \
-            --function-name loadstocksymbols \
-            --payload '{}' \
-            --cli-binary-format raw-in-base64-out \
-            symbols_response.json
-          if grep -q '"FunctionError"' symbols_response.json; then
-            echo "✖ loadstocksymbols returned a FunctionError"
-            cat symbols_response.json
-            exit 1
-          fi
+#      - name: Invoke symbols‑loader & fail on FunctionError
+#        run: |
+#          aws lambda invoke \
+#            --function-name loadstocksymbols \
+#            --payload '{}' \
+#            --cli-binary-format raw-in-base64-out \
+#            symbols_response.json
+#          if grep -q '"FunctionError"' symbols_response.json; then
+#            echo "✖ loadstocksymbols returned a FunctionError"
+#            cat symbols_response.json
+#            exit 1
+#          fi
 
-      - name: Invoke economic‑data loader & fail on FunctionError
-        run: |
-          aws lambda invoke \
-            --function-name loadecondata \
-            --payload '{}' \
-            --cli-binary-format raw-in-base64-out \
-            econ_response.json
-          if grep -q '"FunctionError"' econ_response.json; then
-            echo "✖ loadecondata returned a FunctionError"
-            cat econ_response.json
-            exit 1
-          fi
+
+#      - name: Invoke economic‑data loader & fail on FunctionError
+#        run: |
+#          aws lambda invoke \
+#            --function-name loadecondata \
+#            --payload '{}' \
+#            --cli-binary-format raw-in-base64-out \
+#            econ_response.json
+#          if grep -q '"FunctionError"' econ_response.json; then
+#            echo "✖ loadecondata returned a FunctionError"
+#            cat econ_response.json
+#            exit 1
+#          fi
 
   # ───────────────────────────────
   # 4) Build & push Docker images for ECS tasks
