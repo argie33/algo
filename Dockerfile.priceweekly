@@ -1,0 +1,12 @@
+# Dockerfile.priceweekly
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# install Python dependencies for loadpriceweekly.py
+COPY requirements-loadpriceweekly.txt .
+RUN pip install --no-cache-dir -r requirements-loadpriceweekly.txt
+
+# copy and run the price-weekly loader script
+COPY loadpriceweekly.py .
+ENTRYPOINT ["python", "loadpriceweekly.py"]
