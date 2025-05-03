@@ -1,68 +1,105 @@
+# template-app-stocks.yml
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Application stack – Public Postgres RDS (IAM‐auth only), two Lambdas
-  (symbols-loader & econ-data) running outside any VPC, and ECS cluster.
+  Application stack – RDS, Secrets (DB creds), two Lambdas
+  (symbols‑loader, economic‑data loader & monthly‑price loader), and ECS cluster.
 
 Parameters:
   CodeKey:
     Type: String
-    Description: S3 key of the symbols-loader Lambda ZIP
+    Description: S3 key of the symbols‑loader Lambda ZIP
   EconomicCodeKey:
     Type: String
-    Description: S3 key of the economic-data loader Lambda ZIP
-  FREDApiKey:
+    Description: S3 key of the economic‑data loader Lambda ZIP
+  MonthlyCodeKey:                                  # ← NEW
     Type: String
-    NoEcho: true
-    Description: FRED API key for economic-data loader
+    Description: S3 key of the monthly‑price loader Lambda ZIP
   RDSUsername:
     Type: String
-    Description: Master username for IAM DB Authentication
+    Description: RDS master username
   RDSPassword:
     Type: String
     NoEcho: true
-    Description: Initial DB password (only used at launch, then never again)
+    Description: RDS master password
+  FREDApiKey:
+    Type: String
+    NoEcho: true
+    Description: FRED API key for economic‑data loader
+  VpcCidr:
+    Type: String
+    Default: "10.0.0.0/16"
+    Description: VPC CIDR for DB security group ingress
 
 Resources:
 
-  ### 1) RDS in Public Subnets, IAM Auth Only ###
+  ### RDS Subnet Group ###
   StocksDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
-      DBSubnetGroupDescription: Public subnets for RDS
+      DBSubnetGroupDescription: Subnet group for RDS (private only)
       SubnetIds:
-        - !ImportValue StocksCore-PublicSubnet1Id
-        - !ImportValue StocksCore-PublicSubnet2Id
+        - !ImportValue StocksCore-PrivateSubnet1Id
+        - !ImportValue StocksCore-PrivateSubnet2Id
 
+  ### RDS Security Group ###
   StocksDBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow Postgres from internet
+      GroupDescription: Allow Postgres access within VPC
       VpcId: !ImportValue StocksCore-VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 5432
           ToPort: 5432
-          CidrIp: 0.0.0.0/0
+          CidrIp: !Ref VpcCidr
 
+  ### RDS Instance ###
   StocksDBInstance:
     Type: AWS::RDS::DBInstance
+    DependsOn:
+      - StocksDBSubnetGroup
+      - StocksDBSecurityGroup
     Properties:
       DBInstanceIdentifier: stocks
       DBName: stocks
+      AllocatedStorage: 20
+      DBInstanceClass: db.t3.micro
       Engine: postgres
       MasterUsername: !Ref RDSUsername
       MasterUserPassword: !Ref RDSPassword
-      DBInstanceClass: db.t3.micro
-      AllocatedStorage: 20
-      PubliclyAccessible: true
-      EnableIAMDatabaseAuthentication: true
-      VPCSecurityGroups: [!Ref StocksDBSecurityGroup]
+      VPCSecurityGroups:
+        - !Ref StocksDBSecurityGroup
       DBSubnetGroupName: !Ref StocksDBSubnetGroup
+      MultiAZ: false
+      PubliclyAccessible: false
       DeletionProtection: false
 
-  ### 2) symbols-loader Lambda (outside VPC) ###
+  ### Secrets Manager: DB credentials ###
+  DBCredentialsSecret:
+    Type: AWS::SecretsManager::Secret
+    DependsOn: StocksDBInstance
+    Properties:
+      Name: stocks-db-credentials
+      Description: JSON with username, password, host, port, dbname
+      SecretString:
+        Fn::Join:
+          - ""
+          - - '{"username":"'
+            - !Ref RDSUsername
+            - '","password":"'
+            - !Ref RDSPassword
+            - '","host":"'
+            - !GetAtt StocksDBInstance.Endpoint.Address
+            - '","port":"'
+            - !GetAtt StocksDBInstance.Endpoint.Port
+            - '","dbname":"stocks"}'
+
+  ### Lambda: symbols‑loader ###
   LoadStockSymbolsFunction:
     Type: AWS::Lambda::Function
+    DependsOn:
+      - StocksDBInstance
+      - DBCredentialsSecret
     Properties:
       FunctionName: loadstocksymbols
       Runtime: python3.9
@@ -72,17 +109,22 @@ Resources:
         S3Bucket: !ImportValue StocksCore-CodeBucketName
         S3Key: !Ref CodeKey
       Timeout: 300
+      VpcConfig:
+        SubnetIds:
+          - !ImportValue StocksCore-PrivateSubnet1Id
+          - !ImportValue StocksCore-PrivateSubnet2Id
+        SecurityGroupIds:
+          - !ImportValue StocksCore-LambdaSecurityGroupId
       Environment:
         Variables:
-          DB_HOST: !GetAtt StocksDBInstance.Endpoint.Address
-          DB_PORT: !GetAtt StocksDBInstance.Endpoint.Port
-          DB_NAME: stocks
-          DB_USER: !Ref RDSUsername
-          FRED_API_KEY: !Ref FREDApiKey
+          DB_SECRET_ARN: !Ref DBCredentialsSecret
 
-  ### 3) economic-data loader Lambda (outside VPC) ###
+  ### Lambda: economic‑data loader ###
   LoadEconomicDataFunction:
     Type: AWS::Lambda::Function
+    DependsOn:
+      - StocksDBInstance
+      - DBCredentialsSecret
     Properties:
       FunctionName: loadecondata
       Runtime: python3.9
@@ -92,21 +134,49 @@ Resources:
         S3Bucket: !ImportValue StocksCore-CodeBucketName
         S3Key: !Ref EconomicCodeKey
       Timeout: 900
+      VpcConfig:
+        SubnetIds:
+          - !ImportValue StocksCore-PrivateSubnet1Id
+          - !ImportValue StocksCore-PrivateSubnet2Id
+        SecurityGroupIds:
+          - !ImportValue StocksCore-LambdaSecurityGroupId
       Environment:
         Variables:
-          DB_HOST: !GetAtt StocksDBInstance.Endpoint.Address
-          DB_PORT: !GetAtt StocksDBInstance.Endpoint.Port
-          DB_NAME: stocks
-          DB_USER: !Ref RDSUsername
-          FRED_API_KEY: !Ref FREDApiKey
+          DB_SECRET_ARN: !Ref DBCredentialsSecret
+          FRED_API_KEY:  !Ref FREDApiKey
 
-  ### 4) ECS Cluster ###
+  ### Lambda: monthly‑price loader ###   # ← NEW
+  LoadMonthlyPriceFunction:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - StocksDBInstance
+      - DBCredentialsSecret
+    Properties:
+      FunctionName: loadpricemonthly
+      Runtime: python3.9
+      Handler: index.handler
+      Role: !ImportValue StocksCore-LambdaExecutionRoleArn
+      Code:
+        S3Bucket: !ImportValue StocksCore-CodeBucketName
+        S3Key: !Ref MonthlyCodeKey
+      Timeout: 900
+      VpcConfig:
+        SubnetIds:
+          - !ImportValue StocksCore-PrivateSubnet1Id
+          - !ImportValue StocksCore-PrivateSubnet2Id
+        SecurityGroupIds:
+          - !ImportValue StocksCore-LambdaSecurityGroupId
+      Environment:
+        Variables:
+          DB_SECRET_ARN: !Ref DBCredentialsSecret
+
+  ### ECS Cluster ###
   StocksEcsCluster:
     Type: AWS::ECS::Cluster
     Properties:
       ClusterName: stocks-cluster
 
-  ### 5) ECS Task Execution Role ###
+  ### ECS Task Execution Role ###
   EcsTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -115,41 +185,44 @@ Resources:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal: { Service: ecs-tasks.amazonaws.com }
+            Principal:
+              Service: ecs-tasks.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
       Policies:
-        - PolicyName: AllowRDSConnectViaIAM
+        - PolicyName: AllowGetSecretValue
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action: rds-db:connect
-                Resource: "*"
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref DBCredentialsSecret
 
 Outputs:
   DBEndpoint:
     Description: RDS endpoint address
     Value: !GetAtt StocksDBInstance.Endpoint.Address
-    Export: { Name: StocksApp-DBEndpoint }
+
   DBPort:
     Description: RDS endpoint port
     Value: !GetAtt StocksDBInstance.Endpoint.Port
-    Export: { Name: StocksApp-DBPort }
-  DBUsername:
-    Description: DB username (for IAM auth)
-    Value: !Ref RDSUsername
-    Export: { Name: StocksApp-DBUsername }
-  DBName:
-    Description: Database name
-    Value: stocks
-    Export: { Name: StocksApp-DBName }
+
+  SecretArn:
+    Description: ARN of the DB credentials secret
+    Value: !Ref DBCredentialsSecret
+    Export:
+      Name: StocksDBLambdaStack-SecretArn
+
   ClusterArn:
-    Description: ECS cluster ARN
+    Description: ARN of the ECS cluster
     Value: !GetAtt StocksEcsCluster.Arn
-    Export: { Name: StocksApp-ClusterArn }
+    Export:
+      Name: StocksDBLambdaStack-ClusterArn
+
   EcsTaskExecutionRoleArn:
-    Description: ECS Task Execution Role ARN
+    Description: ARN of the ECS Task Execution Role
     Value: !GetAtt EcsTaskExecutionRole.Arn
-    Export: { Name: StocksApp-EcsTaskExecutionRoleArn }
+    Export:
+      Name: StocksDBLambdaStack-EcsTaskExecutionRoleArn
