@@ -1,164 +1,201 @@
-# template-app-stocks.yml
+# template-app-ecs-tasks.yml
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Application stack – Public Postgres RDS (IAM‐auth only), two Lambdas
-  (symbols‑loader & econ‑data) running outside any VPC, and ECS cluster.
+  ECS TaskDefinitions, CloudWatch LogGroups, and EventBridge schedules
+  for findata, pricedaily & priceweekly – all running in your private subnets
+  (no public IP), IAM-only auth to RDS, and using VPC endpoints only.
 
 Parameters:
-  CodeKey:
-    Type: String
-    Description: S3 key of the symbols‐loader Lambda ZIP
-  EconomicCodeKey:
-    Type: String
-    Description: S3 key of the economic‐data loader Lambda ZIP
+  FindataImageTag:    { Type: String }
+  PriceImageTag:      { Type: String }
+  PriceWeeklyImageTag:{ Type: String }
   FREDApiKey:
     Type: String
     NoEcho: true
-    Description: FRED API key for economic‐data loader
-  RDSUsername:
-    Type: String
-    Description: Master username for IAM DB Authentication
-  RDSPassword:
-    Type: String
-    NoEcho: true
-    Description: Initial DB password (only used at launch, then never again)
 
 Resources:
 
-  ### 1) RDS in Public Subnets, IAM Auth Only ###
-  StocksDBSubnetGroup:
-    Type: AWS::RDS::DBSubnetGroup
-    Properties:
-      DBSubnetGroupDescription: Public subnets for RDS
-      SubnetIds:
-        - !ImportValue StocksCore-PublicSubnet1Id
-        - !ImportValue StocksCore-PublicSubnet2Id
+  # 0) Logs
+  FindataLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties: { LogGroupName: '/ecs/findata-loader', RetentionInDays: 14 }
+  PriceLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties: { LogGroupName: '/ecs/pricedaily-loader', RetentionInDays: 14 }
+  WeeklyLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties: { LogGroupName: '/ecs/priceweekly-loader', RetentionInDays: 14 }
 
-  StocksDBSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Allow Postgres from internet
-      VpcId: !ImportValue StocksCore-VpcId
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 5432
-          ToPort: 5432
-          CidrIp: 0.0.0.0/0
-
-  StocksDBInstance:
-    Type: AWS::RDS::DBInstance
-    Properties:
-      DBInstanceIdentifier: stocks
-      DBName: stocks
-      Engine: postgres
-      MasterUsername: !Ref RDSUsername
-      MasterUserPassword: !Ref RDSPassword
-      DBInstanceClass: db.t3.micro
-      AllocatedStorage: 20
-      PubliclyAccessible: true
-      EnableIAMDatabaseAuthentication: true
-      VPCSecurityGroups:
-        - !Ref StocksDBSecurityGroup
-      DBSubnetGroupName: !Ref StocksDBSubnetGroup
-      DeletionProtection: false
-
-  ### 2) symbols‑loader Lambda (outside VPC) ###
-  LoadStockSymbolsFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: loadstocksymbols
-      Runtime: python3.9
-      Handler: index.handler
-      Role: !ImportValue StocksCore-LambdaExecutionRoleArn
-      Code:
-        S3Bucket: !ImportValue StocksCore-CodeBucketName
-        S3Key: !Ref CodeKey
-      Timeout: 300
-      Environment:
-        Variables:
-          DB_HOST: !GetAtt StocksDBInstance.Endpoint.Address
-          DB_PORT: !GetAtt StocksDBInstance.Endpoint.Port
-          DB_NAME: stocks
-          DB_USER: !Ref RDSUsername
-          FRED_API_KEY: !Ref FREDApiKey
-
-  ### 3) economic‑data loader Lambda (outside VPC) ###
-  LoadEconomicDataFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: loadecondata
-      Runtime: python3.9
-      Handler: index.handler
-      Role: !ImportValue StocksCore-LambdaExecutionRoleArn
-      Code:
-        S3Bucket: !ImportValue StocksCore-CodeBucketName
-        S3Key: !Ref EconomicCodeKey
-      Timeout: 900
-      Environment:
-        Variables:
-          DB_HOST: !GetAtt StocksDBInstance.Endpoint.Address
-          DB_PORT: !GetAtt StocksDBInstance.Endpoint.Port
-          DB_NAME: stocks
-          DB_USER: !Ref RDSUsername
-          FRED_API_KEY: !Ref FREDApiKey
-
-  ### 4) ECS Cluster ###
-  StocksEcsCluster:
-    Type: AWS::ECS::Cluster
-    Properties:
-      ClusterName: stocks-cluster
-
-  ### 5) ECS Task Execution Role ###
-  EcsTaskExecutionRole:
+  # 1) EventBridge→ECS Role
+  EcsEventsRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: ecs-task-execution-role
+      RoleName: ecs-events-role
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal:
-              Service: ecs-tasks.amazonaws.com
+            Principal: { Service: events.amazonaws.com }
             Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
       Policies:
-        - PolicyName: AllowRDSConnectViaIAM
+        - PolicyName: AllowRunTask
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action: rds-db:connect
+                Action: [ ecs:RunTask, iam:PassRole ]
                 Resource: "*"
 
+  # 2) findata-loader
+  FindataTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: findata-loader
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [ FARGATE ]
+      ExecutionRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      TaskRoleArn:      !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      ContainerDefinitions:
+        - Name: findata-loader
+          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${FindataImageTag}"
+          Essential: true
+          Environment:
+            - { Name: DB_HOST,  Value: !ImportValue StocksApp-DBEndpoint }
+            - { Name: DB_PORT,  Value: !ImportValue StocksApp-DBPort     }
+            - { Name: DB_NAME,  Value: !ImportValue StocksApp-DBName     }
+            - { Name: DB_USER,  Value: !ImportValue StocksApp-DBUsername }
+            - { Name: FRED_API_KEY, Value: !Ref FREDApiKey              }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:         /ecs/findata-loader
+              awslogs-region:        !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  # 3) pricedaily-loader
+  PriceTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: pricedaily-loader
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [ FARGATE ]
+      ExecutionRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      TaskRoleArn:      !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      ContainerDefinitions:
+        - Name: pricedaily-loader
+          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${PriceImageTag}"
+          Essential: true
+          Environment:
+            - { Name: DB_HOST,  Value: !ImportValue StocksApp-DBEndpoint }
+            - { Name: DB_PORT,  Value: !ImportValue StocksApp-DBPort     }
+            - { Name: DB_NAME,  Value: !ImportValue StocksApp-DBName     }
+            - { Name: DB_USER,  Value: !ImportValue StocksApp-DBUsername }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:         /ecs/pricedaily-loader
+              awslogs-region:        !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  # 4) priceweekly-loader
+  WeeklyTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: priceweekly-loader
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [ FARGATE ]
+      ExecutionRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      TaskRoleArn:      !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      ContainerDefinitions:
+        - Name: priceweekly-loader
+          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${PriceWeeklyImageTag}"
+          Essential: true
+          Environment:
+            - { Name: DB_HOST,  Value: !ImportValue StocksApp-DBEndpoint }
+            - { Name: DB_PORT,  Value: !ImportValue StocksApp-DBPort     }
+            - { Name: DB_NAME,  Value: !ImportValue StocksApp-DBName     }
+            - { Name: DB_USER,  Value: !ImportValue StocksApp-DBUsername }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:         /ecs/priceweekly-loader
+              awslogs-region:        !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  # 5) Schedules – run in private subnets, no Public IP
+  FindataSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: findata-loader-schedule
+      ScheduleExpression: rate(1 day)
+      State: ENABLED
+      Targets:
+        - Arn: !ImportValue StocksApp-ClusterArn
+          Id: RunFindata
+          RoleArn: !GetAtt EcsEventsRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref FindataTaskDef
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PrivateSubnet1Id
+                  - !ImportValue StocksCore-PrivateSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksCore-LambdaSecurityGroupId
+                AssignPublicIp: DISABLED
+
+  PriceSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: pricedaily-loader-schedule
+      ScheduleExpression: rate(1 day)
+      State: ENABLED
+      Targets:
+        - Arn: !ImportValue StocksApp-ClusterArn
+          Id: RunPrice
+          RoleArn: !GetAtt EcsEventsRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref PriceTaskDef
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PrivateSubnet1Id
+                  - !ImportValue StocksCore-PrivateSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksCore-LambdaSecurityGroupId
+                AssignPublicIp: DISABLED
+
+  WeeklySchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: priceweekly-loader-schedule
+      ScheduleExpression: rate(7 days)
+      State: ENABLED
+      Targets:
+        - Arn: !ImportValue StocksApp-ClusterArn
+          Id: RunWeekly
+          RoleArn: !GetAtt EcsEventsRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref WeeklyTaskDef
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PrivateSubnet1Id
+                  - !ImportValue StocksCore-PrivateSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksCore-LambdaSecurityGroupId
+                AssignPublicIp: DISABLED
+
 Outputs:
-  DBEndpoint:
-    Description: RDS endpoint address
-    Value: !GetAtt StocksDBInstance.Endpoint.Address
-    Export:
-      Name: StocksApp-DBEndpoint
-  DBPort:
-    Description: RDS endpoint port
-    Value: !GetAtt StocksDBInstance.Endpoint.Port
-    Export:
-      Name: StocksApp-DBPort
-  DBUsername:
-    Description: DB username (for IAM auth)
-    Value: !Ref RDSUsername
-    Export:
-      Name: StocksApp-DBUsername
-  DBName:
-    Description: Database name
-    Value: stocks
-    Export:
-      Name: StocksApp-DBName
-  ClusterArn:
-    Description: ECS cluster ARN
-    Value: !GetAtt StocksEcsCluster.Arn
-    Export:
-      Name: StocksApp-ClusterArn
-  EcsTaskExecutionRoleArn:
-    Description: ECS Task Execution Role ARN
-    Value: !GetAtt EcsTaskExecutionRole.Arn
-    Export:
-      Name: StocksApp-EcsTaskExecutionRoleArn
+  FindataTaskDefinitionArn:  { Value: !Ref FindataTaskDef  }
+  PriceTaskDefinitionArn:   { Value: !Ref PriceTaskDef   }
+  PriceWeeklyTaskDefinitionArn: { Value: !Ref WeeklyTaskDef  }
