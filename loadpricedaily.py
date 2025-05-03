@@ -3,11 +3,12 @@ import time
 import logging
 from datetime import datetime
 import json
+import os
+
 import boto3
 import pymysql
 import pandas as pd
 import yfinance as yf
-from os import getenv
 
 # -------------------------------
 # Script metadata
@@ -17,20 +18,28 @@ SCRIPT_NAME = "loadpricedaily.py"
 # -------------------------------
 # Environment-driven configuration
 # -------------------------------
-DB_HOST       = getenv("DB_ENDPOINT")
-DB_PORT       = int(getenv("DB_PORT", "3306"))
-DB_NAME       = getenv("DB_NAME")
-DB_SECRET_ARN = getenv("DB_SECRET_ARN")
+# We now fetch *all* DB connection info from Secrets Manager
+DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
 
-def get_db_creds():
-    """Fetch username/password from AWS Secrets Manager."""
+def get_db_config():
+    """
+    Fetch host, port, dbname, username & password from Secrets Manager.
+    SecretString must be a JSON with keys:
+      username, password, host, port, dbname
+    """
     client = boto3.client("secretsmanager")
-    resp   = client.get_secret_value(SecretId=DB_SECRET_ARN)
-    sec    = json.loads(resp["SecretString"])
-    return sec["username"], sec["password"]
+    resp = client.get_secret_value(SecretId=DB_SECRET_ARN)
+    sec = json.loads(resp["SecretString"])
+    return (
+        sec["username"],
+        sec["password"],
+        sec["host"],
+        int(sec["port"]),
+        sec["dbname"]
+    )
 
-# Retrieve credentials
-DB_USER, DB_PWD = get_db_creds()
+# Retrieve all DB credentials
+DB_USER, DB_PWD, DB_HOST, DB_PORT, DB_NAME = get_db_config()
 
 # Build pymysql config
 db_config = {
@@ -41,7 +50,7 @@ db_config = {
     "database":     DB_NAME,
     "cursorclass":  pymysql.cursors.DictCursor,
     "autocommit":   True,
-    # If your RDS requires SSL, uncomment and adjust the path:
+    # If your RDS requires SSL, uncomment and adjust:
     # "ssl": {"ca": "/path/to/rds-combined-ca-bundle.pem"}
 }
 
@@ -146,7 +155,7 @@ def fetch_daily_data(symbol, start_date, end_date):
 # -------------------------------
 # Main Loop
 # -------------------------------
-start = datetime(1800,1,1).strftime("%Y-%m-%d")
+start = "1800-01-01"
 end   = datetime.now().strftime("%Y-%m-%d")
 
 for idx, sym in enumerate(symbols, start=1):
@@ -162,9 +171,9 @@ for idx, sym in enumerate(symbols, start=1):
 
     rows = list(df_to_insert.itertuples(index=False, name=None))
     sql  = """
-        INSERT INTO price_data_daily
-          (symbol, date, open, high, low, close, volume, dividends, stock_splits)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+    INSERT INTO price_data_daily
+      (symbol, date, open, high, low, close, volume, dividends, stock_splits)
+    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
     """
     try:
         cursor.executemany(sql, rows)

@@ -1,15 +1,14 @@
-# template-app-stocks.yml
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Application stack – RDS, Secrets (DB creds + FRED key), two Lambdas (symbols-loader & economic-data loader), and ECS cluster.
+  Application stack – RDS, Secrets (DB creds + FRED key), two Lambdas (symbols‑loader & economic-data loader), and ECS cluster.
 
 Parameters:
   CodeKey:
     Type: String
-    Description: S3 key of the symbols-loader Lambda ZIP
+    Description: S3 key of the symbols‑loader Lambda ZIP
   EconomicCodeKey:
     Type: String
-    Description: S3 key of the economic-data loader Lambda ZIP
+    Description: S3 key of the economic‑data loader Lambda ZIP
   RDSUsername:
     Type: String
     Description: RDS master username
@@ -20,7 +19,7 @@ Parameters:
   FREDApiKey:
     Type: String
     NoEcho: true
-    Description: FRED API key for economic-data loader
+    Description: FRED API key for economic‑data loader
   VpcCidr:
     Type: String
     Default: "10.0.0.0/16"
@@ -70,7 +69,7 @@ Resources:
       PubliclyAccessible: false
       DeletionProtection: false
 
-  ### Secrets Manager: DB credentials + FRED key ###
+  ### Secrets Manager: combined DB creds + FRED key ###
   AppSecrets:
     Type: AWS::SecretsManager::Secret
     DependsOn: StocksDBInstance
@@ -93,7 +92,7 @@ Resources:
             - !Ref FREDApiKey
             - '"}'
 
-  ### Lambda: symbols-loader ###
+  ### symbols‑loader Lambda ###
   LoadStockSymbolsFunction:
     Type: AWS::Lambda::Function
     DependsOn:
@@ -118,14 +117,14 @@ Resources:
         Variables:
           DB_SECRET_ARN: !Ref AppSecrets
 
-  ### Lambda: economic-data loader ###
+  ### economic‑data loader Lambda ###
   LoadEconomicDataFunction:
     Type: AWS::Lambda::Function
     DependsOn:
       - StocksDBInstance
       - AppSecrets
     Properties:
-      FunctionName: loadeconomicdata
+      FunctionName: loadecondata
       Runtime: python3.9
       Handler: index.handler
       Role: !ImportValue StocksCore-LambdaExecutionRoleArn
@@ -142,7 +141,7 @@ Resources:
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref AppSecrets
-          FRED_API_KEY:  !GetAtt AppSecrets.SecretString
+          FRED_API_KEY:  !Ref FREDApiKey
 
   ### ECS Cluster ###
   StocksEcsCluster:

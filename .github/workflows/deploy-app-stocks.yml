@@ -58,9 +58,9 @@ jobs:
             s3://stocks-algo-app-code/loadstocksymbols-${{ github.sha }}.zip
           echo "code_key=loadstocksymbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  # 2) Package & upload economic-data loader Lambda
+  # 2) Package & upload economic‑data loader Lambda
   build_and_upload_econ_lambda:
-    name: Build & upload economic-data loader Lambda
+    name: Build & upload economic‑data loader Lambda
     runs-on: ubuntu-latest
     outputs:
       econ_code_key: ${{ steps.upload_econ.outputs.econ_code_key }}
@@ -77,21 +77,22 @@ jobs:
         run: |
           rm -rf econ_package && mkdir econ_package
           python -m pip install --upgrade pip
-          if [ ! -f requirements-loadecondata.txt ]; then
-            echo "✖ requirements-loadecondata.txt not found!" >&2
+          if [ ! -f requirements-loadpricedaily.txt ]; then
+            echo "✖ requirements-loadpricedaily.txt not found!" >&2
             exit 1
           fi
-          pip install -r requirements-loadecondata.txt -t econ_package
+          pip install -r requirements-loadpricedaily.txt -t econ_package
 
-      - name: Copy function code & verify dependencies
+      - name: Copy price‑daily loader code & verify dependencies
         run: |
-          cp loadeconomicdata.py econ_package/index.py
+          # adjust to your actual repo layout:
+          cp deploy/algo/loadpricedaily.py econ_package/index.py
           ls -R econ_package
 
       - name: Zip Lambda bundle
         run: |
           cd econ_package
-          zip -r "../loadeconomicdata-${{ github.sha }}.zip" .
+          zip -r "../loadpricedaily-${{ github.sha }}.zip" .
           cd ..
 
       - name: Configure AWS credentials
@@ -101,14 +102,14 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Upload economic-data loader Lambda to S3
+      - name: Upload price‑daily loader Lambda to S3
         id: upload_econ
         run: |
-          aws s3 cp "loadeconomicdata-${{ github.sha }}.zip" \
-            s3://stocks-algo-app-code/loadeconomicdata-${{ github.sha }}.zip
-          echo "econ_code_key=loadeconomicdata-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
+          aws s3 cp "loadpricedaily-${{ github.sha }}.zip" \
+            s3://stocks-algo-app-code/loadpricedaily-${{ github.sha }}.zip
+          echo "econ_code_key=loadpricedaily-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  # 3) Deploy RDS, Lambdas & ECS Cluster
+  # 3) Deploy RDS, SecretsManager, Lambdas & ECS Cluster
   deploy_db_lambda:
     name: Deploy DB, Lambdas & ECS Cluster
     needs:
@@ -163,16 +164,16 @@ jobs:
             exit 1
           fi
 
-      - name: Invoke economic‑data loader Lambda and fail on error
+      - name: Invoke price‑daily loader Lambda and fail on error
         run: |
           aws lambda invoke \
-            --function-name loadeconomicdata \
+            --function-name loadpricedaily \
             --payload '{}' \
             --cli-binary-format raw-in-base64-out \
-            response_econ.json
-          cat response_econ.json
-          if grep -q '"FunctionError"' response_econ.json; then
-            echo "✖ economic‑data loader failed" >&2
+            response_daily.json
+          cat response_daily.json
+          if grep -q '"FunctionError"' response_daily.json; then
+            echo "✖ price‑daily loader failed" >&2
             exit 1
           fi
 
@@ -200,16 +201,13 @@ jobs:
         run: |
           set -e
           REPO_NAME=stocks-app-registry
-
           if ! aws ecr describe-repositories --repository-names "$REPO_NAME" >/dev/null 2>&1; then
             aws ecr create-repository --repository-name "$REPO_NAME" >/dev/null
           fi
-
           REPO_URI=$(aws ecr describe-repositories \
             --repository-names "$REPO_NAME" \
             --query 'repositories[0].repositoryUri' \
             --output text)
-
           echo "uri=$REPO_URI" >> $GITHUB_OUTPUT
 
       - name: Login to Amazon ECR
@@ -258,13 +256,13 @@ jobs:
             exit 1
           fi
 
-      - name: Deploy ECS tasks stack
+      - name: Deploy ECS tasks & schedule
         run: |
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
             --template-file template-app-ecs-tasks.yml \
             --parameter-overrides \
-              ImageTag=${GITHUB_SHA} \
+              ImageTag=${{ github.sha }} \
             --capabilities CAPABILITY_NAMED_IAM
 
       - name: Run ECS DataLoader task immediately
