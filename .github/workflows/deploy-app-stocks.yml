@@ -163,7 +163,7 @@ jobs:
           docker push "$IMAGE"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-  # 4) Deploy ECS Tasks stack with parameters and optionally run tasks
+  # 4) Deploy ECS Tasks stack with FRED key and run only if none already running
   deploy_ecs_tasks:
     name: Deploy & run ECS Tasks
     needs: build_and_push_container
@@ -208,8 +208,8 @@ jobs:
             --template-file template-app-ecs-tasks.yml \
             --parameter-overrides \
               DbSecretArn=$DbSecretArn \
-              ContainerRepositoryUri=$ContainerRepositoryUri \
               ClusterArn=$ClusterArn \
+              ContainerRepositoryUri=$ContainerRepositoryUri \
               PrivateSubnet1Id=$PrivateSubnet1Id \
               PrivateSubnet2Id=$PrivateSubnet2Id \
               SecurityGroupId=$SecurityGroupId \
