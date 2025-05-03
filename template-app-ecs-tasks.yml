@@ -17,7 +17,7 @@ Parameters:
   FREDApiKey:
     Type: String
     NoEcho: true
-    Description: FRED API key for econ‑data loader
+    Description: FRED API key for econ-data loader
 
 Resources:
 
@@ -43,7 +43,7 @@ Resources:
       RetentionInDays: 14
 
   ##################################
-  # 1) findata‑loader TaskDefinition
+  # 1) findata-loader TaskDefinition
   ##################################
   FindataTaskDef:
     Type: AWS::ECS::TaskDefinition
@@ -54,8 +54,8 @@ Resources:
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
-      ExecutionRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
-      TaskRoleArn:      !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      ExecutionRoleArn: !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
+      TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: findata-loader
           Image:
@@ -86,7 +86,7 @@ Resources:
               awslogs-stream-prefix: ecs
 
   ##################################
-  # 2) pricedaily‑loader TaskDefinition
+  # 2) pricedaily-loader TaskDefinition
   ##################################
   PriceTaskDef:
     Type: AWS::ECS::TaskDefinition
@@ -97,8 +97,8 @@ Resources:
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
-      ExecutionRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
-      TaskRoleArn:      !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      ExecutionRoleArn: !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
+      TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: pricedaily-loader
           Image:
@@ -127,7 +127,7 @@ Resources:
               awslogs-stream-prefix: ecs
 
   ##################################
-  # 3) priceweekly‑loader TaskDefinition
+  # 3) priceweekly-loader TaskDefinition
   ##################################
   WeeklyTaskDef:
     Type: AWS::ECS::TaskDefinition
@@ -138,8 +138,8 @@ Resources:
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
-      ExecutionRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
-      TaskRoleArn:      !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      ExecutionRoleArn: !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
+      TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: priceweekly-loader
           Image:
