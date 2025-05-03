@@ -7,6 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
+
   # ───────────────────────────────
   # 1) Build & upload symbols‑loader Lambda
   # ───────────────────────────────
@@ -236,6 +237,15 @@ jobs:
             aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
           fi
 
+      - name: Collect core exports
+        run: |
+          echo "SUBNET1=$(aws cloudformation list-exports \
+            --query \"Exports[?Name=='StocksCore-PrivateSubnet1Id'].Value\" --output text)" >> $GITHUB_ENV
+          echo "SUBNET2=$(aws cloudformation list-exports \
+            --query \"Exports[?Name=='StocksCore-PrivateSubnet2Id'].Value\" --output text)" >> $GITHUB_ENV
+          echo "SG=$(aws cloudformation list-exports \
+            --query \"Exports[?Name=='StocksCore-LambdaSecurityGroupId'].Value\" --output text)" >> $GITHUB_ENV
+
       - name: Deploy ECS tasks CloudFormation stack
         run: |
           aws cloudformation deploy \
@@ -261,23 +271,14 @@ jobs:
           echo "FINDATA_ARN=$FINDATA_ARN" >> $GITHUB_ENV
           echo "PRICE_ARN=$PRICE_ARN" >> $GITHUB_ENV
 
-      - name: Run findata-loader on Fargate if not already running
+      - name: Run findata-loader on Fargate (if not already running)
         run: |
-          # grab subnets & SG from your core exports
-          SUBNET1=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksCore-PrivateSubnet1Id'].Value" --output text)
-          SUBNET2=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksCore-PrivateSubnet2Id'].Value" --output text)
-          SG=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksCore-LambdaSecurityGroupId'].Value" --output text)
-
           COUNT=$(aws ecs list-tasks \
             --cluster stocks-cluster \
             --family findata-loader \
             --desired-status RUNNING \
             --query 'length(taskArns)' \
             --output text)
-
           if [ "$COUNT" = "0" ]; then
             aws ecs run-task \
               --cluster stocks-cluster \
@@ -287,16 +288,14 @@ jobs:
               --count 1
           fi
 
-      - name: Run pricedaily-loader on Fargate if not already running
+      - name: Run pricedaily-loader on Fargate (if not already running)
         run: |
-          # reuse same SUBNET1, SUBNET2, SG variables
           COUNT=$(aws ecs list-tasks \
             --cluster stocks-cluster \
             --family pricedaily-loader \
             --desired-status RUNNING \
             --query 'length(taskArns)' \
             --output text)
-
           if [ "$COUNT" = "0" ]; then
             aws ecs run-task \
               --cluster stocks-cluster \
