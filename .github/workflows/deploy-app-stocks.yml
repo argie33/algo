@@ -1,8 +1,16 @@
 name: deploy-app-template
 
+permissions:
+  id-token: write
+  contents: read
+
 on:
+  # Only trigger on changes under app/ or to this workflow file
   push:
     branches: [ main ]
+    paths:
+      - 'app/**'
+      - '.github/workflows/deploy-app-template.yml'
   workflow_dispatch:
 
 jobs:
@@ -29,9 +37,10 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            us-east-1
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-deploy
+          aws-region: us-east-1
+          audience: sts.amazonaws.com
       - name: Upload symbols-loader to S3
         id: upload
         run: |
@@ -62,9 +71,10 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            us-east-1
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-deploy
+          aws-region: us-east-1
+          audience: sts.amazonaws.com
       - name: Upload econ-data loader to S3
         id: upload
         run: |
@@ -73,7 +83,7 @@ jobs:
           echo "econ_code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
   # 3) Build & upload monthly-price loader Lambda
-  build_and_upload_price_data:
+  build_and_upload_monthly:
     runs-on: ubuntu-latest
     outputs:
       monthly_code_key: ${{ steps.upload.outputs.monthly_code_key }}
@@ -95,9 +105,10 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            us-east-1
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-deploy
+          aws-region: us-east-1
+          audience: sts.amazonaws.com
       - name: Upload monthly-price loader to S3
         id: upload
         run: |
@@ -110,16 +121,17 @@ jobs:
     needs:
       - build_and_upload_symbols
       - build_and_upload_econ
-      - build_and_upload_price_data
+      - build_and_upload_monthly
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            us-east-1
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-deploy
+          aws-region: us-east-1
+          audience: sts.amazonaws.com
       - name: Wait for core infra
         run: aws cloudformation wait stack-create-complete --stack-name stocks-core-stack
       - name: Cleanup failed DB stack if needed
@@ -140,7 +152,7 @@ jobs:
             --parameter-overrides \
               CodeKey=${{ needs.build_and_upload_symbols.outputs.code_key }} \
               EconomicCodeKey=${{ needs.build_and_upload_econ.outputs.econ_code_key }} \
-              MonthlyCodeKey=${{ needs.build_and_upload_price_data.outputs.monthly_code_key }} \
+              MonthlyCodeKey=${{ needs.build_and_upload_monthly.outputs.monthly_code_key }} \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
@@ -179,12 +191,13 @@ jobs:
       pricemonthly_tag:  ${{ steps.build_monthly.outputs.pricemonthly_tag }}
     steps:
       - uses: actions/checkout@v3
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            us-east-1
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-deploy
+          aws-region: us-east-1
+          audience: sts.amazonaws.com
       - name: Ensure ECR repo exists & get URI
         id: get_uri
         run: |
@@ -237,12 +250,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            us-east-1
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-deploy
+          aws-region: us-east-1
+          audience: sts.amazonaws.com
       - name: Deploy ECS TaskDefinitions stack
         run: |
           aws cloudformation deploy \
