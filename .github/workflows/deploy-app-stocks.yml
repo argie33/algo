@@ -81,9 +81,9 @@ jobs:
           aws s3 cp "econ-${{ github.sha }}.zip" s3://stocks-algo-app-code/
           echo "econ_code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  #################################################
-  # 3) Deploy App stack & invoke two Lambdas      #
-  #################################################
+  ########################################
+  # 3) Deploy App stack & invoke Lambdas#
+  ########################################
   deploy_and_run_lambdas:
     needs:
       - build_and_upload_symbols
@@ -102,7 +102,7 @@ jobs:
       - name: Wait for core infra
         run: aws cloudformation wait stack-create-complete --stack-name stocks-core-stack
 
-      - name: Cleanup old App stack if in ROLLBACK_COMPLETE
+      - name: Cleanup if previous App stack failed
         run: |
           STATUS=$(aws cloudformation describe-stacks \
             --stack-name stocks-db-lambda-stack \
@@ -126,7 +126,7 @@ jobs:
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM
 
-      - name: Invoke symbols-loader once
+      - name: Invoke symbols-loader
         run: |
           aws lambda invoke \
             --function-name loadstocksymbols \
@@ -134,7 +134,7 @@ jobs:
             --cli-binary-format raw-in-base64-out \
             symbols_response.json || true
 
-      - name: Invoke econ-data loader once
+      - name: Invoke econ-data loader
         run: |
           aws lambda invoke \
             --function-name loadecondata \
@@ -175,6 +175,9 @@ jobs:
             --query 'repositories[0].repositoryUri' \
             --output text)
           echo "repo_uri=$URI" >> $GITHUB_OUTPUT
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v1
 
       - name: Build & push findata
         id: findata
@@ -237,7 +240,7 @@ jobs:
             --cluster stocks-cluster \
             --launch-type FARGATE \
             --task-definition "$ARN" \
-            --network-configuration awsvpcConfiguration="{subnets=[${{ secrets.PRIVATE_SUBNET_IDS }}],assignPublicIp=ENABLED}" \
+            --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PRIVATE_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
             --count 1
 
   #################################################
@@ -265,7 +268,7 @@ jobs:
             --cluster stocks-cluster \
             --launch-type FARGATE \
             --task-definition "$ARN" \
-            --network-configuration awsvpcConfiguration="{subnets=[${{ secrets.PRIVATE_SUBNET_IDS }}],assignPublicIp=ENABLED}" \
+            --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PRIVATE_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
             --count 1
 
   #################################################
@@ -293,7 +296,7 @@ jobs:
             --cluster stocks-cluster \
             --launch-type FARGATE \
             --task-definition "$ARN" \
-            --network-configuration awsvpcConfiguration="{subnets=[${{ secrets.PRIVATE_SUBNET_IDS }}],assignPublicIp=ENABLED}" \
+            --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PRIVATE_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
             --count 1
 
   #################################################
@@ -321,5 +324,5 @@ jobs:
             --cluster stocks-cluster \
             --launch-type FARGATE \
             --task-definition "$ARN" \
-            --network-configuration awsvpcConfiguration="{subnets=[${{ secrets.PRIVATE_SUBNET_IDS }}],assignPublicIp=ENABLED}" \
+            --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PRIVATE_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
             --count 1
