@@ -1,35 +1,23 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Application stack – RDS, Secrets (DB creds), two Lambdas
-  (symbols‑loader & economic‑data loader), and ECS cluster.
+  Application stack – RDS, Secrets (full DB connection info), imported S3 bucket,
+  symbols‑loader Lambda, and ECS cluster + TaskExecutionRole.
 
 Parameters:
   CodeKey:
     Type: String
     Description: S3 key of the symbols‑loader Lambda ZIP
-
-  EconomicCodeKey:
-    Type: String
-    Description: S3 key of the economic‑data loader Lambda ZIP
-
   RDSUsername:
     Type: String
     Description: RDS master username
-
   RDSPassword:
     Type: String
     NoEcho: true
     Description: RDS master password
-
-  FREDApiKey:
-    Type: String
-    NoEcho: true
-    Description: FRED API key for economic‑data loader
-
   VpcCidr:
     Type: String
     Default: "10.0.0.0/16"
-    Description: VPC CIDR for DB security group ingress
+    Description: VPC CIDR for DB SG ingress
 
 Resources:
 
@@ -119,32 +107,6 @@ Resources:
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DBCredentialsSecret
-
-  ### Lambda: economic‑data loader ###
-  LoadEconomicDataFunction:
-    Type: AWS::Lambda::Function
-    DependsOn:
-      - StocksDBInstance
-      - DBCredentialsSecret
-    Properties:
-      FunctionName: loadecondata
-      Runtime: python3.9
-      Handler: index.handler
-      Role: !ImportValue StocksCore-LambdaExecutionRoleArn
-      Code:
-        S3Bucket: !ImportValue StocksCore-CodeBucketName
-        S3Key: !Ref EconomicCodeKey
-      Timeout: 300
-      VpcConfig:
-        SubnetIds:
-          - !ImportValue StocksCore-PrivateSubnet1Id
-          - !ImportValue StocksCore-PrivateSubnet2Id
-        SecurityGroupIds:
-          - !ImportValue StocksCore-LambdaSecurityGroupId
-      Environment:
-        Variables:
-          DB_SECRET_ARN: !Ref DBCredentialsSecret
-          FRED_API_KEY:  !Ref FREDApiKey
 
   ### ECS Cluster ###
   StocksEcsCluster:

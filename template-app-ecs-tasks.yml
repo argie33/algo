@@ -1,63 +1,23 @@
+# template-app-ecs-tasks.yml
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Fargate TaskDefinitions and daily EventBridge rules for
-  your financial‑data (findata) and price‑daily loaders.
+  Fargate TaskDefinition + daily EventBridge schedule for price_data_daily loader
 
 Parameters:
-  DbSecretArn:
+  ImageTag:
     Type: String
-    Description: ARN of the SecretsManager secret with DB creds
-
-  ContainerRepositoryUri:
-    Type: String
-    Description: ECR repository URI (without tag)
-
-  ClusterArn:
-    Type: String
-    Description: ECS cluster ARN
-
-  PrivateSubnet1Id:
-    Type: AWS::EC2::Subnet::Id
-    Description: Private subnet #1 for Fargate
-
-  PrivateSubnet2Id:
-    Type: AWS::EC2::Subnet::Id
-    Description: Private subnet #2 for Fargate
-
-  SecurityGroupId:
-    Type: AWS::EC2::SecurityGroup::Id
-    Description: Security Group for Fargate tasks
-
-  # Only key you actually need for findata
-  FREDApiKey:
-    Type: String
-    NoEcho: true
-    Description: FRED API key for economic‑data loader
-
-  FindataImageTag:
-    Type: String
-    Description: Docker image tag for the financial‑data loader
-
-  PriceImageTag:
-    Type: String
-    Description: Docker image tag for the price‑daily loader
+    Description: Docker image tag (Git SHA) to deploy
 
 Resources:
 
-  # CloudWatch log groups
-  FindataLogGroup:
+  ### 1) CloudWatch Logs Group ###
+  DataLoaderLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: /ecs/findata-loader
+      LogGroupName: /ecs/stocks-data-loader
       RetentionInDays: 14
 
-  PriceLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /ecs/pricedaily-loader
-      RetentionInDays: 14
-
-  # IAM role for EventBridge → ECS RunTask
+  ### 2) IAM role for EventBridge → ECS RunTask ###
   DataLoaderEventsRole:
     Type: AWS::IAM::Role
     Properties:
@@ -65,8 +25,7 @@ Resources:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal:
-              Service: events.amazonaws.com
+            Principal: { Service: events.amazonaws.com }
             Action: sts:AssumeRole
       Policies:
         - PolicyName: InvokeRunTask
@@ -83,11 +42,11 @@ Resources:
                 Resource:
                   - !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
 
-  # TaskDefinition: financial‑data loader
-  FindataTaskDef:
+  ### 3) ECS TaskDefinition ###
+  DataLoaderTaskDef:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: findata-loader
+      Family: stocks-data-loader
       RequiresCompatibilities: [ FARGATE ]
       Cpu:    '256'
       Memory: '512'
@@ -95,93 +54,48 @@ Resources:
       ExecutionRoleArn: !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
       TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
       ContainerDefinitions:
-        - Name: findata-loader
-          Image: !Join [ ":", [ !Ref ContainerRepositoryUri, !Ref FindataImageTag ] ]
+        - Name: stocks-data-loader
+          Image: !Join [ ":", [ !ImportValue StocksCore-ContainerRepositoryUri, !Ref ImageTag ] ]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
-              Value: !Ref DbSecretArn
-            - Name: FRED_API_KEY
-              Value: !Ref FREDApiKey
+              Value: !ImportValue StocksDBLambdaStack-SecretArn
+            - Name: DB_ENDPOINT
+              Value: !ImportValue StocksDBLambdaStack-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksDBLambdaStack-DBPort
+            - Name: DB_NAME
+              Value: stocks
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group:         /ecs/findata-loader
-              awslogs-region:        !Ref "AWS::Region"
+              awslogs-group:         /ecs/stocks-data-loader
+              awslogs-region:        !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
-  # TaskDefinition: price‑daily loader
-  PriceTaskDef:
-    Type: AWS::ECS::TaskDefinition
-    Properties:
-      Family: pricedaily-loader
-      RequiresCompatibilities: [ FARGATE ]
-      Cpu:    '256'
-      Memory: '512'
-      NetworkMode: awsvpc
-      ExecutionRoleArn: !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
-      TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
-      ContainerDefinitions:
-        - Name: pricedaily-loader
-          Image: !Join [ ":", [ !Ref ContainerRepositoryUri, !Ref PriceImageTag ] ]
-          Essential: true
-          Environment:
-            - Name: DB_SECRET_ARN
-              Value: !Ref DbSecretArn
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group:         /ecs/pricedaily-loader
-              awslogs-region:        !Ref "AWS::Region"
-              awslogs-stream-prefix: ecs
-
-  # EventBridge: daily at 12:00 UTC → findata
-  FindataSchedule:
+  ### 4) EventBridge schedule: run daily at 12:00 UTC ###
+  DataLoaderSchedule:
     Type: AWS::Events::Rule
     Properties:
       ScheduleExpression: cron(0 12 * * ? *)
       State: ENABLED
       Targets:
-        - Id: RunFindata
-          Arn:     !Ref ClusterArn
+        - Id: RunDataLoader
+          Arn:     !ImportValue StocksDBLambdaStack-ClusterArn
           RoleArn: !GetAtt DataLoaderEventsRole.Arn
           EcsParameters:
-            TaskDefinitionArn: !Ref FindataTaskDef
+            TaskDefinitionArn: !Ref DataLoaderTaskDef
             LaunchType:        FARGATE
             NetworkConfiguration:
               AwsVpcConfiguration:
                 Subnets:
-                  - !Ref PrivateSubnet1Id
-                  - !Ref PrivateSubnet2Id
+                  - !ImportValue StocksCore-PrivateSubnet1Id
+                  - !ImportValue StocksCore-PrivateSubnet2Id
                 SecurityGroups:
-                  - !Ref SecurityGroupId
-                AssignPublicIp: DISABLED
-
-  # EventBridge: daily at 18:00 UTC → pricedaily
-  PriceSchedule:
-    Type: AWS::Events::Rule
-    Properties:
-      ScheduleExpression: cron(0 18 * * ? *)
-      State: ENABLED
-      Targets:
-        - Id: RunPriceDaily
-          Arn:     !Ref ClusterArn
-          RoleArn: !GetAtt DataLoaderEventsRole.Arn
-          EcsParameters:
-            TaskDefinitionArn: !Ref PriceTaskDef
-            LaunchType:        FARGATE
-            NetworkConfiguration:
-              AwsVpcConfiguration:
-                Subnets:
-                  - !Ref PrivateSubnet1Id
-                  - !Ref PrivateSubnet2Id
-                SecurityGroups:
-                  - !Ref SecurityGroupId
+                  - !ImportValue StocksCore-LambdaSecurityGroupId
                 AssignPublicIp: DISABLED
 
 Outputs:
-  FindataTaskDefinitionArn:
-    Value: !Ref FindataTaskDef
-
-  PriceTaskDefinitionArn:
-    Value: !Ref PriceTaskDef
+  TaskDefinitionArn:
+    Description: ARN of the created TaskDefinition
+    Value: !Ref DataLoaderTaskDef
