@@ -1,4 +1,3 @@
-# .github/workflows/deploy-core.yml
 name: Deploy core infrastructure
 
 on:
@@ -49,6 +48,12 @@ jobs:
           echo "Found Bastion instance: $INSTANCE_ID"
           aws ec2 wait instance-running --instance-ids "$INSTANCE_ID"
           echo "id=$INSTANCE_ID" >> $GITHUB_OUTPUT
+
+      - name: Wait for Bastion to be fully initialized
+        run: |
+          INSTANCE_ID=${{ steps.wait_bastion.outputs.id }}
+          aws ec2 wait instance-status-ok --instance-ids "$INSTANCE_ID"
+          sleep 15
 
       - name: Verify Bastion setup via SSM
         id: verify_bastion
