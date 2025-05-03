@@ -10,7 +10,6 @@ on:
   workflow_dispatch:
 
 jobs:
-
   ###############################
   # 1) Build & upload symbols  #
   ###############################
@@ -100,7 +99,8 @@ jobs:
           audience: sts.amazonaws.com
 
       - name: Wait for core infra
-        run: aws cloudformation wait stack-create-complete --stack-name stocks-core-stack
+        run: |
+          aws cloudformation wait stack-create-complete --stack-name stocks-core-stack
 
       - name: Cleanup failed DB stack
         run: |
@@ -113,18 +113,49 @@ jobs:
             aws cloudformation wait stack-delete-complete --stack-name stocks-db-lambda-stack
           fi
 
+      - name: Wait for DB stack readiness
+        run: |
+          echo "Checking DB stack status..."
+          while STATUS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-db-lambda-stack \
+            --query "Stacks[0].StackStatus" \
+            --output text 2>/dev/null); \
+            [ "$STATUS" = "CREATE_IN_PROGRESS" ] || \
+            [ "$STATUS" = "ROLLBACK_IN_PROGRESS" ] || \
+            [ "$STATUS" = "UPDATE_IN_PROGRESS" ] || \
+            [ "$STATUS" = "UPDATE_ROLLBACK_IN_PROGRESS" ]; do
+            echo "DB stack is $STATUS, waiting 30s..."
+            sleep 30
+          done
+
       - name: Deploy App stack
         run: |
-          aws cloudformation deploy \
-            --stack-name stocks-db-lambda-stack \
-            --template-file template-app-stocks.yml \
-            --parameter-overrides \
-              CodeKey=${{ needs.build_and_upload_symbols.outputs.code_key }} \
-              EconomicCodeKey=${{ needs.build_and_upload_econ.outputs.econ_code_key }} \
-              RDSUsername=${{ secrets.RDS_USERNAME }} \
-              RDSPassword=${{ secrets.RDS_PASSWORD }} \
-              FREDApiKey=${{ secrets.FRED_API_KEY }} \
-            --capabilities CAPABILITY_NAMED_IAM
+          MAX_RETRIES=5
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "Deployment attempt $i/$MAX_RETRIES..."
+            if aws cloudformation deploy \
+              --stack-name stocks-db-lambda-stack \
+              --template-file template-app-stocks.yml \
+              --parameter-overrides \
+                CodeKey=${{ needs.build_and_upload_symbols.outputs.code_key }} \
+                EconomicCodeKey=${{ needs.build_and_upload_econ.outputs.econ_code_key }} \
+                RDSUsername=${{ secrets.RDS_USERNAME }} \
+                RDSPassword=${{ secrets.RDS_PASSWORD }} \
+                FREDApiKey=${{ secrets.FRED_API_KEY }} \
+              --capabilities CAPABILITY_NAMED_IAM; then
+              echo "CloudFormation deploy succeeded."
+              break
+            else
+              echo "Deploy failed on attempt $i."
+              if [ $i -lt $MAX_RETRIES ]; then
+                echo "Retrying in $((i * 15))s..."
+                sleep $((i * 15))
+              else
+                echo "Max retries reached. Exiting with failure."
+                exit 1
+              fi
+            fi
+          done
 
       - name: Invoke symbols‑loader
         run: |
