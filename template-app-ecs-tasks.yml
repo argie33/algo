@@ -1,16 +1,37 @@
-# template-app-ecs-tasks.yml
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Fargate TaskDefinitions and daily EventBridge rules for
-  both the financial‐data loader and the price‐daily loader.
+  both your financial‐data and price‐daily loaders.
 
 Parameters:
+  DbSecretArn:
+    Type: String
+    Description: ARN of the SecretsManager secret with DB creds
+  ContainerRepositoryUri:
+    Type: String
+    Description: ECR repository URI (without tag)
+  ClusterArn:
+    Type: String
+    Description: ECS cluster ARN
+  PrivateSubnet1Id:
+    Type: AWS::EC2::Subnet::Id
+  PrivateSubnet2Id:
+    Type: AWS::EC2::Subnet::Id
+  SecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+
+  # NEW: your FRED API key
+  FREDApiKey:
+    Type: String
+    NoEcho: true
+    Description: FRED API key for economic data
+
   FindataImageTag:
     Type: String
-    Description: Docker image tag for the financial‐data loader
+    Description: Docker image tag for financial‐data loader
   PriceImageTag:
     Type: String
-    Description: Docker image tag for the price‐daily loader
+    Description: Docker image tag for price‐daily loader
 
 Resources:
 
@@ -27,7 +48,7 @@ Resources:
       LogGroupName: /ecs/pricedaily-loader
       RetentionInDays: 14
 
-  ### IAM role for EventBridge to invoke ECS RunTask ###
+  ### IAM role for EventBridge → ECS RunTask ###
   DataLoaderEventsRole:
     Type: AWS::IAM::Role
     Properties:
@@ -44,10 +65,12 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action: ecs:RunTask
-                Resource: "*"
+                Action:
+                  - ecs:RunTask
+                Resource: '*'
               - Effect: Allow
-                Action: iam:PassRole
+                Action:
+                  - iam:PassRole
                 Resource:
                   - !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
 
@@ -64,16 +87,18 @@ Resources:
       TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: findata-loader
-          Image: !Join [ ":", [ !ImportValue StocksCore-ContainerRepositoryUri, !Ref FindataImageTag ] ]
+          Image: !Join [ ":", [ !Ref ContainerRepositoryUri, !Ref FindataImageTag ] ]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksDBLambdaStack-SecretArn
+              Value: !Ref DbSecretArn
+            - Name: FRED_API_KEY
+              Value: !Ref FREDApiKey
           LogConfiguration:
             LogDriver: awslogs
             Options:
               awslogs-group:         /ecs/findata-loader
-              awslogs-region:        !Ref AWS::Region
+              awslogs-region:        !Ref "AWS::Region"
               awslogs-stream-prefix: ecs
 
   ### ECS TaskDefinition: price‐daily loader ###
@@ -89,16 +114,16 @@ Resources:
       TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: pricedaily-loader
-          Image: !Join [ ":", [ !ImportValue StocksCore-ContainerRepositoryUri, !Ref PriceImageTag ] ]
+          Image: !Join [ ":", [ !Ref ContainerRepositoryUri, !Ref PriceImageTag ] ]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksDBLambdaStack-SecretArn
+              Value: !Ref DbSecretArn
           LogConfiguration:
             LogDriver: awslogs
             Options:
               awslogs-group:         /ecs/pricedaily-loader
-              awslogs-region:        !Ref AWS::Region
+              awslogs-region:        !Ref "AWS::Region"
               awslogs-stream-prefix: ecs
 
   ### EventBridge rule: run financial‐data loader daily at 12:00 UTC ###
@@ -109,7 +134,7 @@ Resources:
       State: ENABLED
       Targets:
         - Id: RunFindata
-          Arn:     !ImportValue StocksDBLambdaStack-ClusterArn
+          Arn:     !Ref ClusterArn
           RoleArn: !GetAtt DataLoaderEventsRole.Arn
           EcsParameters:
             TaskDefinitionArn: !Ref FindataTaskDef
@@ -117,10 +142,10 @@ Resources:
             NetworkConfiguration:
               AwsVpcConfiguration:
                 Subnets:
-                  - !ImportValue StocksCore-PrivateSubnet1Id
-                  - !ImportValue StocksCore-PrivateSubnet2Id
+                  - !Ref PrivateSubnet1Id
+                  - !Ref PrivateSubnet2Id
                 SecurityGroups:
-                  - !ImportValue StocksCore-LambdaSecurityGroupId
+                  - !Ref SecurityGroupId
                 AssignPublicIp: DISABLED
 
   ### EventBridge rule: run price‐daily loader daily at 18:00 UTC ###
@@ -131,7 +156,7 @@ Resources:
       State: ENABLED
       Targets:
         - Id: RunPriceDaily
-          Arn:     !ImportValue StocksDBLambdaStack-ClusterArn
+          Arn:     !Ref ClusterArn
           RoleArn: !GetAtt DataLoaderEventsRole.Arn
           EcsParameters:
             TaskDefinitionArn: !Ref PriceTaskDef
@@ -139,10 +164,10 @@ Resources:
             NetworkConfiguration:
               AwsVpcConfiguration:
                 Subnets:
-                  - !ImportValue StocksCore-PrivateSubnet1Id
-                  - !ImportValue StocksCore-PrivateSubnet2Id
+                  - !Ref PrivateSubnet1Id
+                  - !Ref PrivateSubnet2Id
                 SecurityGroups:
-                  - !ImportValue StocksCore-LambdaSecurityGroupId
+                  - !Ref SecurityGroupId
                 AssignPublicIp: DISABLED
 
 Outputs:

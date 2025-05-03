@@ -163,7 +163,7 @@ jobs:
           docker push "$IMAGE"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-  # 4) Deploy ECS Tasks stack with parameters and conditionally run tasks
+  # 4) Deploy ECS Tasks stack with parameters and optionally run tasks
   deploy_ecs_tasks:
     name: Deploy & run ECS Tasks
     needs: build_and_push_container
@@ -208,11 +208,12 @@ jobs:
             --template-file template-app-ecs-tasks.yml \
             --parameter-overrides \
               DbSecretArn=$DbSecretArn \
-              ClusterArn=$ClusterArn \
               ContainerRepositoryUri=$ContainerRepositoryUri \
+              ClusterArn=$ClusterArn \
               PrivateSubnet1Id=$PrivateSubnet1Id \
               PrivateSubnet2Id=$PrivateSubnet2Id \
               SecurityGroupId=$SecurityGroupId \
+              FREDApiKey=${{ secrets.FRED_API_KEY }} \
               FindataImageTag=${{ needs.build_and_push_container.outputs.findata_tag }} \
               PriceImageTag=${{ needs.build_and_push_container.outputs.pricedaily_tag }} \
             --capabilities CAPABILITY_NAMED_IAM
@@ -220,16 +221,14 @@ jobs:
       - name: Fetch TaskDefinition ARNs
         id: fetch_arns
         run: |
-          FINDATA_ARN=$(aws cloudformation describe-stacks \
+          echo "FINDATA_ARN=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='FindataTaskDefinitionArn'].OutputValue" \
-            --output text)
-          PRICE_ARN=$(aws cloudformation describe-stacks \
+            --query \"Stacks[0].Outputs[?OutputKey=='FindataTaskDefinitionArn'].OutputValue\" \
+            --output text)" >> $GITHUB_ENV
+          echo "PRICE_ARN=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='PriceTaskDefinitionArn'].OutputValue" \
-            --output text)
-          echo "FINDATA_ARN=$FINDATA_ARN" >> $GITHUB_ENV
-          echo "PRICE_ARN=$PRICE_ARN" >> $GITHUB_ENV
+            --query \"Stacks[0].Outputs[?OutputKey=='PriceTaskDefinitionArn'].OutputValue\" \
+            --output text)" >> $GITHUB_ENV
 
       - name: Run findata-loader on Fargate (if not already running)
         run: |
@@ -239,14 +238,12 @@ jobs:
             --query "Exports[?Name=='StocksCore-PrivateSubnet2Id'].Value" --output text)
           SG=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-LambdaSecurityGroupId'].Value" --output text)
-
           COUNT=$(aws ecs list-tasks \
             --cluster stocks-cluster \
             --family findata-loader \
             --desired-status RUNNING \
             --query 'length(taskArns)' \
             --output text)
-
           if [ "$COUNT" -gt 0 ]; then
             echo "→ findata-loader already running ($COUNT), skipping."
           else
@@ -267,14 +264,12 @@ jobs:
             --query "Exports[?Name=='StocksCore-PrivateSubnet2Id'].Value" --output text)
           SG=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-LambdaSecurityGroupId'].Value" --output text)
-
           COUNT=$(aws ecs list-tasks \
             --cluster stocks-cluster \
             --family pricedaily-loader \
             --desired-status RUNNING \
             --query 'length(taskArns)' \
             --output text)
-
           if [ "$COUNT" -gt 0 ]; then
             echo "→ pricedaily-loader already running ($COUNT), skipping."
           else
