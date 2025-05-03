@@ -52,7 +52,7 @@ jobs:
   build_and_upload_econ:
     runs-on: ubuntu-latest
     outputs:
-      code_key: ${{ steps.upload.outputs.code_key }}
+      econ_code_key: ${{ steps.upload.outputs.code_key }}
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python
@@ -81,13 +81,49 @@ jobs:
           aws s3 cp "econ-${{ github.sha }}.zip" s3://stocks-algo-app-code/
           echo "code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
+  ########################################
+  # 3) Build & upload monthly‑price     #
+  ########################################
+  build_and_upload_monthly:
+    runs-on: ubuntu-latest
+    outputs:
+      monthly_code_key: ${{ steps.upload.outputs.code_key }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install monthly‑price dependencies
+        run: |
+          rm -rf monthly_package && mkdir monthly_package
+          pip install --upgrade pip
+          pip install -r requirements-loadpricemonthly.txt -t monthly_package
+      - name: Package monthly‑price loader
+        run: |
+          cp loadpricemonthly.py monthly_package/index.py
+          cd monthly_package && zip -r "../monthly-${{ github.sha }}.zip" . && cd ..
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-deploy
+          aws-region: us-east-1
+          audience: sts.amazonaws.com
+      - name: Upload monthly‑price ZIP to S3
+        id: upload
+        run: |
+          aws s3 cp "monthly-${{ github.sha }}.zip" s3://stocks-algo-app-code/
+          echo "code_key=monthly-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
+
   #################################################
-  # 3) Deploy DB & invoke econ‑data loader once  #
+  # 4) Deploy App stack & invoke all three Lambdas#
   #################################################
-  deploy_and_run_econ:
+  deploy_and_run_lambdas:
     needs:
       - build_and_upload_symbols
       - build_and_upload_econ
+      - build_and_upload_monthly
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -109,7 +145,7 @@ jobs:
             --query "Stacks[0].StackStatus" \
             --output text 2>/dev/null || echo NOT_FOUND)
           if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            echo "Deleting old stocks-db-lambda-stack in ROLLBACK_COMPLETE…"
+            echo "Deleting old stocks-db-lambda-stack…"
             aws cloudformation delete-stack --stack-name stocks-db-lambda-stack
             aws cloudformation wait stack-delete-complete --stack-name stocks-db-lambda-stack
           fi
@@ -122,13 +158,21 @@ jobs:
             --parameter-overrides \
               CodeKey=${{ needs.build_and_upload_symbols.outputs.code_key }} \
               EconomicCodeKey=${{ needs.build_and_upload_econ.outputs.code_key }} \
-              MonthlyCodeKey=${{ needs.build_and_upload_econ.outputs.code_key }} \
+              MonthlyCodeKey=${{ needs.build_and_upload_monthly.outputs.code_key }} \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM
 
-      - name: Invoke econ‑data loader
+      - name: Invoke symbols‑loader once
+        run: |
+          aws lambda invoke \
+            --function-name loadstocksymbols \
+            --payload '{}' \
+            --cli-binary-format raw-in-base64-out \
+            symbols_response.json || true
+
+      - name: Invoke econ‑data loader once
         run: |
           aws lambda invoke \
             --function-name loadecondata \
@@ -136,18 +180,26 @@ jobs:
             --cli-binary-format raw-in-base64-out \
             econ_response.json || true
 
+      - name: Invoke monthly‑price loader once
+        run: |
+          aws lambda invoke \
+            --function-name loadpricemonthly \
+            --payload '{}' \
+            --cli-binary-format raw-in-base64-out \
+            monthly_response.json || true
+
   ########################################
-  # 4) Build & push all ECS containers #
+  # 5) Build & push Docker containers   #
   ########################################
   build_and_push_containers:
-    needs: deploy_and_run_econ
+    needs: deploy_and_run_lambdas
     runs-on: ubuntu-latest
     outputs:
-      repo_uri:        ${{ steps.get_uri.outputs.repo_uri }}
-      findata_tag:     ${{ steps.findata.outputs.tag }}
-      pricedaily_tag:  ${{ steps.pricedaily.outputs.tag }}
-      priceweekly_tag: ${{ steps.weekly.outputs.tag }}
-      pricemonthly_tag: ${{ steps.monthly.outputs.tag }}  # <-- fixed space after colon
+      repo_uri:         ${{ steps.get_uri.outputs.repo_uri }}
+      findata_tag:      ${{ steps.findata.outputs.tag }}
+      pricedaily_tag:   ${{ steps.pricedaily.outputs.tag }}
+      priceweekly_tag:  ${{ steps.weekly.outputs.tag }}
+      pricemonthly_tag: ${{ steps.monthly.outputs.tag }}
     steps:
       - uses: actions/checkout@v3
       - name: Configure AWS credentials via OIDC
@@ -207,7 +259,7 @@ jobs:
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
   #################################################
-  # 5a) Run fin‑data ECS task                     #
+  # 6a) Run findata ECS task                     #
   #################################################
   run_findata:
     needs: build_and_push_containers
@@ -235,7 +287,7 @@ jobs:
             --count 1
 
   #################################################
-  # 5b) Run pricedaily ECS task                  #
+  # 6b) Run pricedaily ECS task                  #
   #################################################
   run_pricedaily:
     needs: build_and_push_containers
@@ -263,7 +315,7 @@ jobs:
             --count 1
 
   #################################################
-  # 5c) Run priceweekly ECS task                 #
+  # 6c) Run priceweekly ECS task                 #
   #################################################
   run_priceweekly:
     needs: build_and_push_containers
@@ -291,7 +343,7 @@ jobs:
             --count 1
 
   #################################################
-  # 5d) Run pricemonthly ECS task                #
+  # 6d) Run pricemonthly ECS task                #
   #################################################
   run_pricemonthly:
     needs: build_and_push_containers
