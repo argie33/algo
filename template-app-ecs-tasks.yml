@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  ECS TaskDefinitions and EventBridge rules to run
-  your data-processing scripts on Fargate.
+  ECS TaskDefinitions, CloudWatch LogGroups, and EventBridge rules
+  to run your data‑processing scripts on Fargate.
 
 Parameters:
   FindataImageTag:
@@ -17,7 +17,26 @@ Parameters:
 
 Resources:
 
-  ### Role for EventBridge to invoke ECS RunTask ###
+  ############################################
+  # 0) Pre-create the two CloudWatch log groups
+  ############################################
+
+  FindataLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/findata-loader
+      RetentionInDays: 14
+
+  PriceLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/pricedaily-loader
+      RetentionInDays: 14
+
+  ############################################
+  # 1) IAM Role for EventBridge → ECS RunTask
+  ############################################
+
   EcsEventsRole:
     Type: AWS::IAM::Role
     Properties:
@@ -37,14 +56,13 @@ Resources:
               - Effect: Allow
                 Action:
                   - ecs:RunTask
-                Resource: "*"
-              - Effect: Allow
-                Action:
                   - iam:PassRole
-                Resource:
-                  - !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
+                Resource: "*"
 
-  ### findata-loader TaskDefinition ###
+  ##########################################################
+  # 2) findata‑loader TaskDefinition (writes to /ecs/findata-loader)
+  ##########################################################
+
   FindataTaskDef:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -58,11 +76,7 @@ Resources:
       TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: findata-loader
-          Image:
-            Fn::Sub:
-              - "${RepoUri}:${Tag}"
-              - RepoUri: !ImportValue StocksCore-ContainerRepositoryUri
-                Tag:    !Ref FindataImageTag
+          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${FindataImageTag}"
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -73,10 +87,13 @@ Resources:
             LogDriver: awslogs
             Options:
               awslogs-group:         /ecs/findata-loader
-              awslogs-region:        !Ref AWS::Region
+              awslogs-region:        !Ref "AWS::Region"
               awslogs-stream-prefix: ecs
 
-  ### pricedaily-loader TaskDefinition ###
+  ##########################################################
+  # 3) pricedaily‑loader TaskDefinition (writes to /ecs/pricedaily-loader)
+  ##########################################################
+
   PriceTaskDef:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -90,11 +107,7 @@ Resources:
       TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: pricedaily-loader
-          Image:
-            Fn::Sub:
-              - "${RepoUri}:${Tag}"
-              - RepoUri: !ImportValue StocksCore-ContainerRepositoryUri
-                Tag:    !Ref PriceImageTag
+          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${PriceImageTag}"
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -103,15 +116,18 @@ Resources:
             LogDriver: awslogs
             Options:
               awslogs-group:         /ecs/pricedaily-loader
-              awslogs-region:        !Ref AWS::Region
+              awslogs-region:        !Ref "AWS::Region"
               awslogs-stream-prefix: ecs
 
-  ### Scheduled Rule: findata daily ###
+  ############################################################
+  # 4) Scheduled Rule: findata daily
+  ############################################################
+
   FindataSchedule:
     Type: AWS::Events::Rule
     Properties:
       Name: findata-loader-schedule
-      Description: "Daily run of findata-loader"
+      Description: "Daily run of findata‑loader"
       ScheduleExpression: rate(1 day)
       State: ENABLED
       Targets:
@@ -130,12 +146,15 @@ Resources:
                   - !ImportValue StocksCore-LambdaSecurityGroupId
                 AssignPublicIp: DISABLED
 
-  ### Scheduled Rule: pricedaily daily ###
+  ############################################################
+  # 5) Scheduled Rule: pricedaily daily
+  ############################################################
+
   PriceSchedule:
     Type: AWS::Events::Rule
     Properties:
       Name: pricedaily-loader-schedule
-      Description: "Daily run of pricedaily-loader"
+      Description: "Daily run of pricedaily‑loader"
       ScheduleExpression: rate(1 day)
       State: ENABLED
       Targets:
