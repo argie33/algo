@@ -1,15 +1,16 @@
+# template-app-stocks.yml
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Application stack – RDS, Secrets (DB creds), two Lambdas
-  (symbols‑loader & economic‑data loader), and ECS cluster.
+  Application stack – publicly‐accessible RDS, Secrets (DB creds),
+  two Lambdas (symbols-loader & economic-data loader), and ECS cluster.
 
 Parameters:
   CodeKey:
     Type: String
-    Description: S3 key of the symbols‑loader Lambda ZIP
+    Description: S3 key of the symbols-loader Lambda ZIP
   EconomicCodeKey:
     Type: String
-    Description: S3 key of the economic‑data loader Lambda ZIP
+    Description: S3 key of the economic-data loader Lambda ZIP
   RDSUsername:
     Type: String
     Description: RDS master username
@@ -20,11 +21,11 @@ Parameters:
   FREDApiKey:
     Type: String
     NoEcho: true
-    Description: FRED API key for economic‑data loader
+    Description: FRED API key for economic-data loader
   VpcCidr:
     Type: String
-    Default: "10.0.0.0/16"
-    Description: VPC CIDR for DB security group ingress
+    Default: "0.0.0.0/0"
+    Description: CIDR to allow Postgres ingress (e.g. 0.0.0.0/0)
 
 Resources:
 
@@ -33,16 +34,16 @@ Resources:
     Type: AWS::RDS::DBSubnetGroup
     DeletionPolicy: Retain
     Properties:
-      DBSubnetGroupDescription: Subnet group for RDS (private only)
+      DBSubnetGroupDescription: Subnet group for publicly‐accessible RDS
       SubnetIds:
-        - !ImportValue StocksCore-PrivateSubnet1Id
-        - !ImportValue StocksCore-PrivateSubnet2Id
+        - !ImportValue StocksCore-PublicSubnet1Id
+        - !ImportValue StocksCore-PublicSubnet2Id
 
   ### RDS Security Group ###
   StocksDBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow Postgres access within VPC
+      GroupDescription: Allow Postgres access
       VpcId: !ImportValue StocksCore-VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -69,7 +70,7 @@ Resources:
         - !Ref StocksDBSecurityGroup
       DBSubnetGroupName: !Ref StocksDBSubnetGroup
       MultiAZ: false
-      PubliclyAccessible: false
+      PubliclyAccessible: true
       DeletionProtection: false
 
   ### Secrets Manager: DB credentials ###
@@ -93,7 +94,7 @@ Resources:
             - !GetAtt StocksDBInstance.Endpoint.Port
             - '","dbname":"stocks"}'
 
-  ### Lambda: symbols‑loader ###
+  ### Lambda: symbols-loader ###
   LoadStockSymbolsFunction:
     Type: AWS::Lambda::Function
     DependsOn:
@@ -110,15 +111,15 @@ Resources:
       Timeout: 300
       VpcConfig:
         SubnetIds:
-          - !ImportValue StocksCore-PrivateSubnet1Id
-          - !ImportValue StocksCore-PrivateSubnet2Id
+          - !ImportValue StocksCore-PublicSubnet1Id
+          - !ImportValue StocksCore-PublicSubnet2Id
         SecurityGroupIds:
-          - !ImportValue StocksCore-LambdaSecurityGroupId
+          - !Ref StocksDBSecurityGroup
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DBCredentialsSecret
 
-  ### Lambda: economic‑data loader ###
+  ### Lambda: economic-data loader ###
   LoadEconomicDataFunction:
     Type: AWS::Lambda::Function
     DependsOn:
@@ -135,10 +136,10 @@ Resources:
       Timeout: 900
       VpcConfig:
         SubnetIds:
-          - !ImportValue StocksCore-PrivateSubnet1Id
-          - !ImportValue StocksCore-PrivateSubnet2Id
+          - !ImportValue StocksCore-PublicSubnet1Id
+          - !ImportValue StocksCore-PublicSubnet2Id
         SecurityGroupIds:
-          - !ImportValue StocksCore-LambdaSecurityGroupId
+          - !Ref StocksDBSecurityGroup
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DBCredentialsSecret

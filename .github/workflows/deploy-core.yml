@@ -1,4 +1,9 @@
-name: Deploy core infrastructure
+# .github/workflows/deploy-app-template.yml
+name: deploy-app-template
+
+permissions:
+  id-token: write
+  contents: read
 
 on:
   push:
@@ -6,65 +11,255 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy_core:
+  # 1) Build & upload symbols-loader Lambda
+  build_and_upload_symbols:
     runs-on: ubuntu-latest
+    outputs:
+      code_key: ${{ steps.upload.outputs.code_key }}
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v3
-
-      - name: Configure AWS credentials
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install symbols-loader dependencies
+        run: |
+          rm -rf symbols_package && mkdir symbols_package
+          pip install --upgrade pip
+          pip install -r requirements-loadstocksymbols.txt -t symbols_package
+      - name: Package symbols-loader
+        run: |
+          cp loadstocksymbols.py symbols_package/index.py
+          cd symbols_package && zip -r "../symbols-${{ github.sha }}.zip" . && cd ..
+      - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            us-east-1
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-deploy
+          aws-region: us-east-1
+          audience: sts.amazonaws.com
+      - name: Upload symbols-loader to S3
+        id: upload
+        run: |
+          aws s3 cp "symbols-${{ github.sha }}.zip" \
+            s3://stocks-algo-app-code/symbols-${{ github.sha }}.zip
+          echo "code_key=symbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-      - name: Cleanup failed core stack if needed
+  # 2) Build & upload economic-data loader Lambda
+  build_and_upload_econ:
+    runs-on: ubuntu-latest
+    outputs:
+      econ_code_key: ${{ steps.upload.outputs.econ_code_key }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install economic-data deps
+        run: |
+          rm -rf econ_package && mkdir econ_package
+          pip install --upgrade pip
+          pip install -r requirements-loadecondata.txt -t econ_package
+      - name: Package econ-data loader
+        run: |
+          cp loadecondata.py econ_package/index.py
+          cd econ_package && zip -r "../econ-${{ github.sha }}.zip" . && cd ..
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-deploy
+          aws-region: us-east-1
+          audience: sts.amazonaws.com
+      - name: Upload econ-data loader to S3
+        id: upload
+        run: |
+          aws s3 cp "econ-${{ github.sha }}.zip" \
+            s3://stocks-algo-app-code/econ-${{ github.sha }}.zip
+          echo "econ_code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
+
+  # 3) Build & upload monthly-price loader Lambda
+  build_and_upload_monthly:
+    runs-on: ubuntu-latest
+    outputs:
+      monthly_code_key: ${{ steps.upload.outputs.monthly_code_key }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install monthly-price deps
+        run: |
+          rm -rf monthly_package && mkdir monthly_package
+          pip install --upgrade pip
+          pip install -r requirements-loadpricemonthly.txt -t monthly_package
+      - name: Package monthly-price loader
+        run: |
+          cp loadpricemonthly.py monthly_package/index.py
+          cd monthly_package && zip -r "../monthly-${{ github.sha }}.zip" . && cd ..
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-deploy
+          aws-region: us-east-1
+          audience: sts.amazonaws.com
+      - name: Upload monthly-price loader to S3
+        id: upload
+        run: |
+          aws s3 cp "monthly-${{ github.sha }}.zip" \
+            s3://stocks-algo-app-code/monthly-${{ github.sha }}.zip
+          echo "monthly_code_key=monthly-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
+
+  # 4) Deploy App stack & invoke Lambdas once
+  deploy_db_lambda:
+    needs:
+      - build_and_upload_symbols
+      - build_and_upload_econ
+      - build_and_upload_monthly
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-deploy
+          aws-region: us-east-1
+          audience: sts.amazonaws.com
+      - name: Wait for core infra
+        run: aws cloudformation wait stack-create-complete --stack-name stocks-core-stack
+      - name: Cleanup failed DB stack if needed
         run: |
           STATUS=$(aws cloudformation describe-stacks \
-            --stack-name stocks-core-stack \
+            --stack-name stocks-db-lambda-stack \
             --query "Stacks[0].StackStatus" \
             --output text 2>/dev/null || echo NOT_FOUND)
           if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            aws cloudformation delete-stack --stack-name stocks-core-stack
-            aws cloudformation wait stack-delete-complete --stack-name stocks-core-stack
+            aws cloudformation delete-stack --stack-name stocks-db-lambda-stack
+            aws cloudformation wait stack-delete-complete --stack-name stocks-db-lambda-stack
           fi
-
-      - name: Deploy core CloudFormation stack
+      - name: Deploy App stack
         run: |
           aws cloudformation deploy \
-            --stack-name stocks-core-stack \
-            --template-file template-core.yml \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --no-fail-on-empty-changeset
-
-      - name: Wait for Bastion to be running
-        id: wait_bastion
+            --stack-name stocks-db-lambda-stack \
+            --template-file template-app-stocks.yml \
+            --parameter-overrides \
+              CodeKey=${{ needs.build_and_upload_symbols.outputs.code_key }} \
+              EconomicCodeKey=${{ needs.build_and_upload_econ.outputs.econ_code_key }} \
+              MonthlyCodeKey=${{ needs.build_and_upload_monthly.outputs.monthly_code_key }} \
+              RDSUsername=${{ secrets.RDS_USERNAME }} \
+              RDSPassword=${{ secrets.RDS_PASSWORD }} \
+              FREDApiKey=${{ secrets.FRED_API_KEY }} \
+            --capabilities CAPABILITY_NAMED_IAM
+      - name: Invoke symbols-loader once
         run: |
-          INSTANCE_ID=$(aws ec2 describe-instances \
-            --filters "Name=tag:Name,Values=stocks-bastion" \
-                     "Name=instance-state-name,Values=pending,running" \
-            --query "Reservations[0].Instances[0].InstanceId" \
+          aws lambda invoke \
+            --function-name loadstocksymbols \
+            --payload '{}' \
+            --cli-binary-format raw-in-base64-out \
+            symbols_response.json || true
+      - name: Invoke econ-data loader once
+        run: |
+          aws lambda invoke \
+            --function-name loadecondata \
+            --payload '{}' \
+            --cli-binary-format raw-in-base64-out \
+            econ_response.json || true
+      - name: Invoke monthly-price loader once
+        run: |
+          aws lambda invoke \
+            --function-name loadpricemonthly \
+            --payload '{}' \
+            --cli-binary-format raw-in-base64-out \
+            monthly_response.json || true
+
+  # 5) Build & push Docker images for ECS tasks
+  build_and_push_container:
+    needs: deploy_db_lambda
+    runs-on: ubuntu-latest
+    outputs:
+      repo_uri:          ${{ steps.get_uri.outputs.repo_uri }}
+      findata_tag:       ${{ steps.build_findata.outputs.tag }}
+      pricedaily_tag:    ${{ steps.build_price.outputs.tag }}
+      priceweekly_tag:   ${{ steps.build_weekly.outputs.priceweekly_tag }}
+      pricemonthly_tag:  ${{ steps.build_monthly.outputs.pricemonthly_tag }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-deploy
+          aws-region: us-east-1
+          audience: sts.amazonaws.com
+      - name: Ensure ECR repo exists & get URI
+        id: get_uri
+        run: |
+          REPO=stocks-app-registry
+          aws ecr describe-repositories --repository-names $REPO >/dev/null 2>&1 || \
+            aws ecr create-repository --repository-name $REPO
+          URI=$(aws ecr describe-repositories \
+            --repository-names $REPO \
+            --query 'repositories[0].repositoryUri' \
             --output text)
-          aws ec2 wait instance-running --instance-ids "$INSTANCE_ID"
-          echo "id=$INSTANCE_ID" >> $GITHUB_OUTPUT
-
-      - name: Wait for Bastion to be fully initialized
+          echo "repo_uri=$URI" >> $GITHUB_OUTPUT
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v1
+      - name: Build & push all images
         run: |
-          aws ec2 wait instance-status-ok --instance-ids "${{ steps.wait_bastion.outputs.id }}"
-          sleep 15
+          for service in findata pricedaily priceweekly pricemonthly; do
+            TAG="${service}-${{ github.sha }}"
+            IMG="${{ steps.get_uri.outputs.repo_uri }}:$TAG"
+            docker build -f Dockerfile.${service} -t $IMG .
+            docker push $IMG
+            echo "${service}_tag=$TAG" >> $GITHUB_OUTPUT
+          done
 
-      - name: Verify Bastion setup via SSM
+  # 6) Deploy TaskDefinitions and run each once
+  deploy_and_run_ecs_tasks:
+    needs: build_and_push_container
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-deploy
+          aws-region: us-east-1
+          audience: sts.amazonaws.com
+      - name: Deploy ECS TaskDefinitions stack
         run: |
-          INSTANCE_ID=${{ steps.wait_bastion.outputs.id }}
-          COMMAND_ID=$(aws ssm send-command \
-            --instance-ids "$INSTANCE_ID" \
-            --document-name AWS-RunShellScript \
-            --parameters commands=["psql --version"] \
-            --query "Command.CommandId" --output text)
-          sleep 15
-          OUTPUT=$(aws ssm get-command-invocation \
-            --command-id "$COMMAND_ID" \
-            --instance-id "$INSTANCE_ID" \
-            --query "StandardOutputContent" --output text)
-          echo "$OUTPUT" | grep -q "psql" || (echo "ERROR: psql not installed" && exit 1)
+          aws cloudformation deploy \
+            --stack-name stocks-ecs-tasks-stack \
+            --template-file template-app-ecs-tasks.yml \
+            --parameter-overrides \
+              FindataImageTag=${{ needs.build_and_push_container.outputs.findata_tag }} \
+              PriceImageTag=${{ needs.build_and_push_container.outputs.pricedaily_tag }} \
+              PriceWeeklyImageTag=${{ needs.build_and_push_container.outputs.priceweekly_tag }} \
+              PriceMonthlyImageTag=${{ needs.build_and_push_container.outputs.pricemonthly_tag }} \
+              FREDApiKey=${{ secrets.FRED_API_KEY }} \
+            --capabilities CAPABILITY_NAMED_IAM
+      - name: Fetch TaskDefinition ARNs
+        id: fetch_arns
+        run: |
+          for key in Findata Price Weekly PriceMonthly; do
+            ARN=$(aws cloudformation describe-stacks \
+              --stack-name stocks-ecs-tasks-stack \
+              --query "Stacks[0].Outputs[?contains(OutputKey,\`${key}\`)].OutputValue" \
+              --output text)
+            echo "${key^^}_ARN=$ARN" >> $GITHUB_ENV
+          done
+      - name: Run all ECS tasks on Fargate
+        run: |
+          for arn in $FINDATA_ARN $PRICE_ARN $WEEKLY_ARN $PRICEMONTHLY_ARN; do
+            aws ecs run-task \
+              --cluster stocks-cluster \
+              --launch-type FARGATE \
+              --task-definition "$arn" \
+              --network-configuration "awsvpcConfiguration={subnets=[${{ steps.get_uri.outputs.repo_uri }}],assignPublicIp=ENABLED}" \
+              --count 1
+          done
