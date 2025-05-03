@@ -24,7 +24,8 @@ DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
 def get_db_config():
     """
     Fetch host, port, dbname, username & password from Secrets Manager.
-    SecretString must be JSON with keys: username, password, host, port, dbname.
+    SecretString must be a JSON with keys:
+      username, password, host, port, dbname
     """
     client = boto3.client("secretsmanager")
     resp = client.get_secret_value(SecretId=DB_SECRET_ARN)
@@ -55,36 +56,42 @@ cursor = conn.cursor(cursor_factory=RealDictCursor)
 print("Connected to PostgreSQL database.")
 
 # -------------------------------
+# Setup Logging
+# -------------------------------
+logging.basicConfig(
+    filename="failed_fetch.log",
+    level=logging.ERROR,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+# -------------------------------
 # Ensure last_updated table exists
 # -------------------------------
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS last_updated (
     script_name VARCHAR(255) PRIMARY KEY,
-    last_run   DATETIME
+    last_run   TIMESTAMP
 );
 """)
-conn.commit()
 
 # -------------------------------
 # Recreate price_data_daily Table
 # -------------------------------
 cursor.execute("DROP TABLE IF EXISTS price_data_daily;")
-conn.commit()
 cursor.execute("""
 CREATE TABLE price_data_daily (
     symbol       VARCHAR(20),
     date         DATE,
-    open         DECIMAL(20,4),
-    high         DECIMAL(20,4),
-    low          DECIMAL(20,4),
-    close        DECIMAL(20,4),
+    open         NUMERIC(20,4),
+    high         NUMERIC(20,4),
+    low          NUMERIC(20,4),
+    close        NUMERIC(20,4),
     volume       BIGINT,
-    dividends    DECIMAL(20,4),
-    stock_splits DECIMAL(20,4),
+    dividends    NUMERIC(20,4),
+    stock_splits NUMERIC(20,4),
     PRIMARY KEY (symbol, date)
 );
 """)
-conn.commit()
 print("Table 'price_data_daily' created.")
 
 # -------------------------------
@@ -114,6 +121,7 @@ def fetch_daily_data(symbol, start_date, end_date):
             )
             if df is None or df.empty:
                 raise ValueError("No data returned")
+
             df = df.reset_index().rename(columns={
                 'Date':         'date',
                 'Open':         'open',
@@ -124,15 +132,20 @@ def fetch_daily_data(symbol, start_date, end_date):
                 'Dividends':    'dividends',
                 'Stock Splits':'stock_splits'
             })
+
             # Guarantee those columns exist
-            df.setdefault('dividends',    0.0)
-            df.setdefault('stock_splits', 0.0)
+            for col in ('dividends', 'stock_splits'):
+                if col not in df.columns:
+                    df[col] = 0.0
+
             return df
+
         except Exception as e:
             logging.error(f"Error fetching {symbol} (attempt {attempt}): {e}")
             print(f"Error fetching {symbol} (attempt {attempt}), retrying in {RETRY_DELAY}s…")
             if attempt < MAX_RETRIES:
                 time.sleep(RETRY_DELAY)
+
     logging.error(f"Failed to fetch {symbol} after {MAX_RETRIES} attempts.")
     return None
 
@@ -161,7 +174,6 @@ for idx, sym in enumerate(symbols, start=1):
     """
     try:
         cursor.executemany(sql, rows)
-        conn.commit()
         print(f"  Inserted {len(rows)} rows for {sym}.")
     except Exception as e:
         logging.error(f"DB error for {sym}: {e}")
@@ -176,9 +188,9 @@ now = datetime.now()
 cursor.execute("""
 INSERT INTO last_updated (script_name, last_run)
 VALUES (%s, %s)
-ON DUPLICATE KEY UPDATE last_run = VALUES(last_run);
+ON CONFLICT (script_name) DO UPDATE
+  SET last_run = EXCLUDED.last_run;
 """, (SCRIPT_NAME, now))
-conn.commit()
 
 # -------------------------------
 # Clean up
