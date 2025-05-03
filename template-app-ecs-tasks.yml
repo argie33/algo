@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   ECS TaskDefinitions and CloudWatch LogGroups for findata,
-  pricedaily & priceweekly—no schedules; tasks are executed manually
+  pricedaily, priceweekly & pricemonthly—no schedules; tasks are executed manually
   (e.g. via CI workflow).
 
 Parameters:
@@ -14,6 +14,9 @@ Parameters:
   PriceWeeklyImageTag:
     Type: String
     Description: Tag of the priceweekly image (e.g. priceweekly-<git-sha>)
+  PriceMonthlyImageTag:
+    Type: String
+    Description: Tag of the pricemonthly image (e.g. pricemonthly-<git-sha>)
   FREDApiKey:
     Type: String
     NoEcho: true
@@ -40,6 +43,12 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: '/ecs/priceweekly-loader'
+      RetentionInDays: 14
+
+  MonthlyLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: '/ecs/pricemonthly-loader'
       RetentionInDays: 14
 
   ##################################
@@ -167,6 +176,47 @@ Resources:
               awslogs-region:        !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
+  ##################################
+  # 4) pricemonthly-loader TaskDefinition
+  ##################################
+  MonthlyTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: pricemonthly-loader
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
+      TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
+      ContainerDefinitions:
+        - Name: pricemonthly-loader
+          Image:
+            Fn::Join:
+              - ""
+              - - !ImportValue StocksCore-ContainerRepositoryUri
+                - ":"
+                - !Ref PriceMonthlyImageTag
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksDBLambdaStack-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:         /ecs/pricemonthly-loader
+              awslogs-region:        !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
 Outputs:
   FindataTaskDefinitionArn:
     Description: ARN of the findata task definition
@@ -179,3 +229,7 @@ Outputs:
   PriceWeeklyTaskDefinitionArn:
     Description: ARN of the priceweekly task definition
     Value: !Ref WeeklyTaskDef
+
+  PriceMonthlyTaskDefinitionArn:
+    Description: ARN of the pricemonthly task definition
+    Value: !Ref MonthlyTaskDef

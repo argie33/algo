@@ -6,7 +6,6 @@ on:
   workflow_dispatch:
 
 jobs:
-
   # 1) Build & upload symbols-loader Lambda
   build_and_upload_symbols:
     runs-on: ubuntu-latest
@@ -170,9 +169,10 @@ jobs:
     needs: deploy_db_lambda
     runs-on: ubuntu-latest
     outputs:
-      findata_tag:     ${{ steps.build_findata.outputs.tag }}
-      pricedaily_tag:  ${{ steps.build_price.outputs.tag }}
-      priceweekly_tag: ${{ steps.build_weekly.outputs.priceweekly_tag }}
+      findata_tag:       ${{ steps.build_findata.outputs.tag }}
+      pricedaily_tag:    ${{ steps.build_price.outputs.tag }}
+      priceweekly_tag:   ${{ steps.build_weekly.outputs.priceweekly_tag }}
+      pricemonthly_tag:  ${{ steps.build_monthly.outputs.pricemonthly_tag }}
     steps:
       - uses: actions/checkout@v3
       - name: Configure AWS credentials
@@ -218,6 +218,14 @@ jobs:
           docker build -f Dockerfile.priceweekly -t $IMG .
           docker push $IMG
           echo "priceweekly_tag=$TAG" >> $GITHUB_OUTPUT
+      - name: Build & push pricemonthly image
+        id: build_monthly
+        run: |
+          TAG=pricemonthly-${{ github.sha }}
+          IMG="${{ steps.get_uri.outputs.repo_uri }}:$TAG"
+          docker build -f Dockerfile.pricemonthly -t $IMG .
+          docker push $IMG
+          echo "pricemonthly_tag=$TAG" >> $GITHUB_OUTPUT
 
   # 6) Deploy TaskDefinitions and run each once
   deploy_and_run_ecs_tasks:
@@ -240,6 +248,7 @@ jobs:
               FindataImageTag=${{ needs.build_and_push_container.outputs.findata_tag }} \
               PriceImageTag=${{ needs.build_and_push_container.outputs.pricedaily_tag }} \
               PriceWeeklyImageTag=${{ needs.build_and_push_container.outputs.priceweekly_tag }} \
+              PriceMonthlyImageTag=${{ needs.build_and_push_container.outputs.pricemonthly_tag }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM
       - name: Fetch TaskDefinition ARNs
@@ -257,9 +266,14 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyTaskDefinitionArn'].OutputValue" \
             --output text)
+          MONTHLY_ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='PriceMonthlyTaskDefinitionArn'].OutputValue" \
+            --output text)
           echo "FINDATA_ARN=$FINDATA_ARN" >> $GITHUB_ENV
           echo "PRICE_ARN=$PRICE_ARN" >> $GITHUB_ENV
           echo "WEEKLY_ARN=$WEEKLY_ARN" >> $GITHUB_ENV
+          echo "MONTHLY_ARN=$MONTHLY_ARN" >> $GITHUB_ENV
       - name: Run findata-loader on Fargate
         run: |
           aws ecs run-task \
@@ -282,5 +296,13 @@ jobs:
             --cluster stocks-cluster \
             --launch-type FARGATE \
             --task-definition "$WEEKLY_ARN" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.get_uri.outputs.repo_uri }}],assignPublicIp=ENABLED}" \
+            --count 1
+      - name: Run pricemonthly-loader on Fargate
+        run: |
+          aws ecs run-task \
+            --cluster stocks-cluster \
+            --launch-type FARGATE \
+            --task-definition "$MONTHLY_ARN" \
             --network-configuration "awsvpcConfiguration={subnets=[${{ steps.get_uri.outputs.repo_uri }}],assignPublicIp=ENABLED}" \
             --count 1

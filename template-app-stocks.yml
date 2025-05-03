@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Application stack – RDS, Secrets (DB creds), three Lambdas
-  (symbols-loader, economic-data loader & monthly-price loader), and ECS cluster.
+  Application stack – RDS, Secrets (DB creds), two Lambdas
+  (symbols-loader & economic-data loader), and ECS cluster.
 
 Parameters:
   CodeKey:
@@ -10,9 +10,6 @@ Parameters:
   EconomicCodeKey:
     Type: String
     Description: S3 key of the economic-data loader Lambda ZIP
-  MonthlyCodeKey:
-    Type: String
-    Description: S3 key of the monthly-price loader Lambda ZIP
   RDSUsername:
     Type: String
     Description: RDS master username
@@ -143,31 +140,6 @@ Resources:
         Variables:
           DB_SECRET_ARN: !Ref DBCredentialsSecret
           FRED_API_KEY:  !Ref FREDApiKey
-
-  ### Lambda: monthly-price loader ###
-  LoadMonthlyPriceFunction:
-    Type: AWS::Lambda::Function
-    DependsOn:
-      - StocksDBInstance
-      - DBCredentialsSecret
-    Properties:
-      FunctionName: loadpricemonthly
-      Runtime: python3.9
-      Handler: index.handler
-      Role: !ImportValue StocksCore-LambdaExecutionRoleArn
-      Code:
-        S3Bucket: !ImportValue StocksCore-CodeBucketName
-        S3Key: !Ref MonthlyCodeKey
-      Timeout: 900
-      VpcConfig:
-        SubnetIds:
-          - !ImportValue StocksCore-PrivateSubnet1Id
-          - !ImportValue StocksCore-PrivateSubnet2Id
-        SecurityGroupIds:
-          - !ImportValue StocksCore-LambdaSecurityGroupId
-      Environment:
-        Variables:
-          DB_SECRET_ARN: !Ref DBCredentialsSecret
 
   ### ECS Cluster ###
   StocksEcsCluster:
