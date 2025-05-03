@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Application stack – RDS, Secrets (full DB connection info), S3 bucket,
-  symbols‑loader Lambda, and ECS cluster.
+  Application stack – RDS, Secrets (full DB connection info), imported S3 bucket,
+  symbols‑loader Lambda, and ECS cluster + TaskExecutionRole.
 
 Parameters:
   CodeKey:
@@ -145,7 +145,11 @@ Outputs:
   ClusterArn:
     Description: ARN of the ECS cluster
     Value: !GetAtt StocksEcsCluster.Arn
+    Export:
+      Name: StocksDBLambdaStack-ClusterArn
 
   EcsTaskExecutionRoleArn:
     Description: ARN of the ECS Task Execution Role
     Value: !GetAtt EcsTaskExecutionRole.Arn
+    Export:
+      Name: StocksDBLambdaStack-EcsTaskExecutionRoleArn
