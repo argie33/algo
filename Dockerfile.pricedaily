@@ -4,8 +4,8 @@ FROM python:3.9-slim
 WORKDIR /app
 
 # install Python dependencies for loadpricedaily.py
-COPY requirements-pricedaily.txt .
-RUN pip install --no-cache-dir -r requirements-pricedaily.txt
+COPY requirements-loadpricedaily.txt .
+RUN pip install --no-cache-dir -r requirements-loadpricedaily.txt
 
 # copy and run the price-daily loader script
 COPY loadpricedaily.py .
