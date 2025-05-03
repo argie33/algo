@@ -1,4 +1,6 @@
+# requirements-loadpricedaily.txt
+
+psycopg2-binary
 boto3
-PyMySQL
 pandas
 yfinance

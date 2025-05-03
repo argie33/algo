@@ -6,7 +6,8 @@ import json
 import os
 
 import boto3
-import pymysql
+import psycopg2
+from psycopg2.extras import RealDictCursor
 import pandas as pd
 import yfinance as yf
 
@@ -18,14 +19,12 @@ SCRIPT_NAME = "loadpricedaily.py"
 # -------------------------------
 # Environment-driven configuration
 # -------------------------------
-# We now fetch *all* DB connection info from Secrets Manager
 DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
 
 def get_db_config():
     """
     Fetch host, port, dbname, username & password from Secrets Manager.
-    SecretString must be a JSON with keys:
-      username, password, host, port, dbname
+    SecretString must be JSON with keys: username, password, host, port, dbname.
     """
     client = boto3.client("secretsmanager")
     resp = client.get_secret_value(SecretId=DB_SECRET_ARN)
@@ -41,34 +40,19 @@ def get_db_config():
 # Retrieve all DB credentials
 DB_USER, DB_PWD, DB_HOST, DB_PORT, DB_NAME = get_db_config()
 
-# Build pymysql config
-db_config = {
-    "host":         DB_HOST,
-    "port":         DB_PORT,
-    "user":         DB_USER,
-    "password":     DB_PWD,
-    "database":     DB_NAME,
-    "cursorclass":  pymysql.cursors.DictCursor,
-    "autocommit":   True,
-    # If your RDS requires SSL, uncomment and adjust:
-    # "ssl": {"ca": "/path/to/rds-combined-ca-bundle.pem"}
-}
-
 # -------------------------------
-# Setup Logging
+# Connect to PostgreSQL
 # -------------------------------
-logging.basicConfig(
-    filename="failed_fetch.log",
-    level=logging.ERROR,
-    format="%(asctime)s - %(levelname)s - %(message)s"
+conn = psycopg2.connect(
+    host=DB_HOST,
+    port=DB_PORT,
+    user=DB_USER,
+    password=DB_PWD,
+    dbname=DB_NAME
 )
-
-# -------------------------------
-# Connect to MySQL
-# -------------------------------
-conn   = pymysql.connect(**db_config)
-cursor = conn.cursor()
-print("Connected to the database.")
+conn.autocommit = True
+cursor = conn.cursor(cursor_factory=RealDictCursor)
+print("Connected to PostgreSQL database.")
 
 # -------------------------------
 # Ensure last_updated table exists
