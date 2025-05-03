@@ -1,7 +1,6 @@
-# template-app-stocks.yml
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Application stack – publicly‐accessible RDS, Secrets (DB creds),
+  Application stack – publicly-accessible RDS, Secrets (DB creds),
   two Lambdas (symbols-loader & economic-data loader), and ECS cluster.
 
 Parameters:
@@ -34,7 +33,8 @@ Resources:
     Type: AWS::RDS::DBSubnetGroup
     DeletionPolicy: Retain
     Properties:
-      DBSubnetGroupDescription: Subnet group for publicly‐accessible RDS
+      # Fixed to plain ASCII text and wrapped in quotes
+      DBSubnetGroupDescription: "Subnet group for publicly-accessible RDS"
       SubnetIds:
         - !ImportValue StocksCore-PublicSubnet1Id
         - !ImportValue StocksCore-PublicSubnet2Id
