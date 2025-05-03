@@ -1,4 +1,4 @@
 boto3
-pymysql
-pandas
+psycopg2-binary
 fredapi
+pandas
