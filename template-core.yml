@@ -32,9 +32,9 @@ Parameters:
 
 Resources:
 
-  ### IAM – OIDC provider for GitHub Actions ###
+  ### IAM – OIDC provider for GitHub Actions (fixed resource type) ###
   GitHubOidcProvider:
-    Type: AWS::IAM::OpenIDConnectProvider
+    Type: AWS::IAM::OIDCProvider
     Properties:
       Url: https://token.actions.githubusercontent.com
       ClientIdList:
@@ -408,59 +408,49 @@ Outputs:
   VpcId:
     Description: VPC ID
     Value: !Ref StocksVPC
-    Export:
-      Name: StocksCore-VpcId
+    Export: { Name: StocksCore-VpcId }
 
   PublicSubnet1Id:
     Description: First public subnet
     Value: !Ref PublicSubnet1
-    Export:
-      Name: StocksCore-PublicSubnet1Id
+    Export: { Name: StocksCore-PublicSubnet1Id }
 
   PublicSubnet2Id:
     Description: Second public subnet
     Value: !Ref PublicSubnet2
-    Export:
-      Name: StocksCore-PublicSubnet2Id
+    Export: { Name: StocksCore-PublicSubnet2Id }
 
   PrivateSubnet1Id:
     Description: First private subnet
     Value: !Ref PrivateSubnet1
-    Export:
-      Name: StocksCore-PrivateSubnet1Id
+    Export: { Name: StocksCore-PrivateSubnet1Id }
 
   PrivateSubnet2Id:
     Description: Second private subnet
     Value: !Ref PrivateSubnet2
-    Export:
-      Name: StocksCore-PrivateSubnet2Id
+    Export: { Name: StocksCore-PrivateSubnet2Id }
 
   LambdaSecurityGroupId:
     Description: SG for VPC Lambdas
     Value: !Ref LambdaSecurityGroup
-    Export:
-      Name: StocksCore-LambdaSecurityGroupId
+    Export: { Name: StocksCore-LambdaSecurityGroupId }
 
   LambdaExecutionRoleArn:
     Description: Lambda execution role ARN
     Value: !GetAtt LambdaExecutionRole.Arn
-    Export:
-      Name: StocksCore-LambdaExecutionRoleArn
+    Export: { Name: StocksCore-LambdaExecutionRoleArn }
 
   ContainerRepositoryUri:
     Description: ECR repository URI
     Value: !GetAtt ContainerRepository.RepositoryUri
-    Export:
-      Name: StocksCore-ContainerRepositoryUri
+    Export: { Name: StocksCore-ContainerRepositoryUri }
 
   CodeBucketName:
     Description: S3 bucket for Lambda code
     Value: !Ref CodeBucket
-    Export:
-      Name: StocksCore-CodeBucketName
+    Export: { Name: StocksCore-CodeBucketName }
 
   WebIdentityProviderArn:
     Description: ARN of the OIDC provider for GitHub Actions
     Value: !Ref GitHubOidcProvider
-    Export:
-      Name: StocksCore-WebIdentityProviderArn
+    Export: { Name: StocksCore-WebIdentityProviderArn }
