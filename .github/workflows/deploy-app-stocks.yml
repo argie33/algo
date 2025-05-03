@@ -206,7 +206,9 @@ jobs:
           docker push "$IMAGE"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
+  # ───────────────────────────────
   # 5) Deploy & run ECS Tasks
+  # ───────────────────────────────
   deploy_ecs_tasks:
     name: Deploy & run ECS Tasks
     needs: build_and_push_container
@@ -261,48 +263,59 @@ jobs:
           echo "FINDATA_ARN=$FINDATA_ARN" >> $GITHUB_ENV
           echo "PRICE_ARN=$PRICE_ARN" >> $GITHUB_ENV
 
-      - name: Collect subnet & SG IDs from core exports
-        run: |
-          echo "PrivateSubnet1Id=$(aws cloudformation list-exports \
-            --query \"Exports[?Name=='StocksCore-PrivateSubnet1Id'].Value\" \
-            --output text)" >> $GITHUB_ENV
-          echo "PrivateSubnet2Id=$(aws cloudformation list-exports \
-            --query \"Exports[?Name=='StocksCore-PrivateSubnet2Id'].Value\" \
-            --output text)" >> $GITHUB_ENV
-          echo "SecurityGroupId=$(aws cloudformation list-exports \
-            --query \"Exports[?Name=='StocksCore-LambdaSecurityGroupId'].Value\" \
-            --output text)" >> $GITHUB_ENV
-
       - name: Run findata‑loader on Fargate if not running
         run: |
+          # inline-fetch expo­rts and run-task in same shell
+          SUBNET1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PrivateSubnet1Id'].Value" \
+            --output text)
+          SUBNET2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PrivateSubnet2Id'].Value" \
+            --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-LambdaSecurityGroupId'].Value" \
+            --output text)
+
           COUNT=$(aws ecs list-tasks \
             --cluster stocks-cluster \
             --family findata-loader \
             --desired-status RUNNING \
             --query 'length(taskArns)' \
             --output text)
+
           if [ "$COUNT" = "0" ]; then
             aws ecs run-task \
               --cluster stocks-cluster \
               --launch-type FARGATE \
               --task-definition "$FINDATA_ARN" \
-              --network-configuration "awsvpcConfiguration={subnets=[$PrivateSubnet1Id,$PrivateSubnet2Id],securityGroups=[$SecurityGroupId],assignPublicIp=DISABLED}" \
+              --network-configuration "awsvpcConfiguration={subnets=[$SUBNET1,$SUBNET2],securityGroups=[$SG],assignPublicIp=DISABLED}" \
               --count 1
           fi
 
       - name: Run pricedaily‑loader on Fargate if not running
         run: |
+          SUBNET1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PrivateSubnet1Id'].Value" \
+            --output text)
+          SUBNET2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PrivateSubnet2Id'].Value" \
+            --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-LambdaSecurityGroupId'].Value" \
+            --output text)
+
           COUNT=$(aws ecs list-tasks \
             --cluster stocks-cluster \
             --family pricedaily-loader \
             --desired-status RUNNING \
             --query 'length(taskArns)' \
             --output text)
+
           if [ "$COUNT" = "0" ]; then
             aws ecs run-task \
               --cluster stocks-cluster \
               --launch-type FARGATE \
               --task-definition "$PRICE_ARN" \
-              --network-configuration "awsvpcConfiguration={subnets=[$PrivateSubnet1Id,$PrivateSubnet2Id],securityGroups=[$SecurityGroupId],assignPublicIp=DISABLED}" \
+              --network-configuration "awsvpcConfiguration={subnets=[$SUBNET1,$SUBNET2],securityGroups=[$SG],assignPublicIp=DISABLED}" \
               --count 1
           fi
