@@ -43,8 +43,7 @@ jobs:
       - name: Upload symbols‑loader ZIP to S3
         id: upload
         run: |
-          aws s3 cp "symbols-${{ github.sha }}.zip" \
-            s3://stocks-algo-app-code/
+          aws s3 cp "symbols-${{ github.sha }}.zip" s3://stocks-algo-app-code/
           echo "code_key=symbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
   ####################################
@@ -79,8 +78,7 @@ jobs:
       - name: Upload econ‑data ZIP to S3
         id: upload
         run: |
-          aws s3 cp "econ-${{ github.sha }}.zip" \
-            s3://stocks-algo-app-code/
+          aws s3 cp "econ-${{ github.sha }}.zip" s3://stocks-algo-app-code/
           echo "code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
   #################################################
@@ -102,8 +100,7 @@ jobs:
           audience: sts.amazonaws.com
 
       - name: Wait for core infra
-        run: |
-          aws cloudformation wait stack-create-complete --stack-name stocks-core-stack
+        run: aws cloudformation wait stack-create-complete --stack-name stocks-core-stack
 
       - name: Cleanup FAILED App stack if needed
         run: |
@@ -125,6 +122,7 @@ jobs:
             --parameter-overrides \
               CodeKey=${{ needs.build_and_upload_symbols.outputs.code_key }} \
               EconomicCodeKey=${{ needs.build_and_upload_econ.outputs.code_key }} \
+              MonthlyCodeKey=${{ needs.build_and_upload_econ.outputs.code_key }} \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
@@ -149,7 +147,7 @@ jobs:
       findata_tag:     ${{ steps.findata.outputs.tag }}
       pricedaily_tag:  ${{ steps.pricedaily.outputs.tag }}
       priceweekly_tag: ${{ steps.weekly.outputs.tag }}
-      pricemonthly_tag:${{ steps.monthly.outputs.tag }}
+      pricemonthly_tag: ${{ steps.monthly.outputs.tag }}  # <-- fixed space after colon
     steps:
       - uses: actions/checkout@v3
       - name: Configure AWS credentials via OIDC
@@ -160,7 +158,7 @@ jobs:
           aws-region: us-east-1
           audience: sts.amazonaws.com
 
-      - name: Ensure ECR repo exists & get URI
+      - name: Ensure ECR exists & get URI
         id: get_uri
         run: |
           REPO=stocks-app-registry
