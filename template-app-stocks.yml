@@ -1,14 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Application stack – RDS, Secrets (DB creds + FRED key), two Lambdas (symbols‑loader & economic-data loader), and ECS cluster.
+  Application stack – RDS, Secrets (full DB connection info), S3 bucket,
+  symbols‑loader Lambda, and ECS cluster.
 
 Parameters:
   CodeKey:
     Type: String
     Description: S3 key of the symbols‑loader Lambda ZIP
-  EconomicCodeKey:
-    Type: String
-    Description: S3 key of the economic‑data loader Lambda ZIP
   RDSUsername:
     Type: String
     Description: RDS master username
@@ -16,14 +14,10 @@ Parameters:
     Type: String
     NoEcho: true
     Description: RDS master password
-  FREDApiKey:
-    Type: String
-    NoEcho: true
-    Description: FRED API key for economic‑data loader
   VpcCidr:
     Type: String
     Default: "10.0.0.0/16"
-    Description: VPC CIDR for RDS security group ingress
+    Description: VPC CIDR for DB SG ingress
 
 Resources:
 
@@ -69,13 +63,13 @@ Resources:
       PubliclyAccessible: false
       DeletionProtection: false
 
-  ### Secrets Manager: combined DB creds + FRED key ###
-  AppSecrets:
+  ### Secrets Manager: DB credentials ###
+  DBCredentialsSecret:
     Type: AWS::SecretsManager::Secret
     DependsOn: StocksDBInstance
     Properties:
-      Name: stocks-app-secrets
-      Description: JSON with DB credentials and FRED API key
+      Name: stocks-db-credentials
+      Description: JSON with username, password, host, port, dbname
       SecretString:
         Fn::Join:
           - ""
@@ -87,17 +81,14 @@ Resources:
             - !GetAtt StocksDBInstance.Endpoint.Address
             - '","port":"'
             - !GetAtt StocksDBInstance.Endpoint.Port
-            - '","dbname":"stocks'
-            - '","fred_api_key":"'
-            - !Ref FREDApiKey
-            - '"}'
+            - '","dbname":"stocks"}'
 
-  ### symbols‑loader Lambda ###
+  ### Lambda: symbols‑loader ###
   LoadStockSymbolsFunction:
     Type: AWS::Lambda::Function
     DependsOn:
       - StocksDBInstance
-      - AppSecrets
+      - DBCredentialsSecret
     Properties:
       FunctionName: loadstocksymbols
       Runtime: python3.9
@@ -115,33 +106,7 @@ Resources:
           - !ImportValue StocksCore-LambdaSecurityGroupId
       Environment:
         Variables:
-          DB_SECRET_ARN: !Ref AppSecrets
-
-  ### economic‑data loader Lambda ###
-  LoadEconomicDataFunction:
-    Type: AWS::Lambda::Function
-    DependsOn:
-      - StocksDBInstance
-      - AppSecrets
-    Properties:
-      FunctionName: loadecondata
-      Runtime: python3.9
-      Handler: index.handler
-      Role: !ImportValue StocksCore-LambdaExecutionRoleArn
-      Code:
-        S3Bucket: !ImportValue StocksCore-CodeBucketName
-        S3Key: !Ref EconomicCodeKey
-      Timeout: 300
-      VpcConfig:
-        SubnetIds:
-          - !ImportValue StocksCore-PrivateSubnet1Id
-          - !ImportValue StocksCore-PrivateSubnet2Id
-        SecurityGroupIds:
-          - !ImportValue StocksCore-LambdaSecurityGroupId
-      Environment:
-        Variables:
-          DB_SECRET_ARN: !Ref AppSecrets
-          FRED_API_KEY:  !Ref FREDApiKey
+          DB_SECRET_ARN: !Ref DBCredentialsSecret
 
   ### ECS Cluster ###
   StocksEcsCluster:
@@ -163,15 +128,6 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
-      Policies:
-        - PolicyName: AllowSecretsAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                Resource: !Ref AppSecrets
 
 Outputs:
   DBEndpoint:
@@ -183,19 +139,13 @@ Outputs:
     Value: !GetAtt StocksDBInstance.Endpoint.Port
 
   SecretArn:
-    Description: ARN of the combined secrets
-    Value: !Ref AppSecrets
-    Export:
-      Name: StocksDBLambdaStack-SecretArn
+    Description: ARN of the DB credentials secret
+    Value: !Ref DBCredentialsSecret
 
   ClusterArn:
     Description: ARN of the ECS cluster
     Value: !GetAtt StocksEcsCluster.Arn
-    Export:
-      Name: StocksDBLambdaStack-ClusterArn
 
   EcsTaskExecutionRoleArn:
     Description: ARN of the ECS Task Execution Role
     Value: !GetAtt EcsTaskExecutionRole.Arn
-    Export:
-      Name: StocksDBLambdaStack-EcsTaskExecutionRoleArn
