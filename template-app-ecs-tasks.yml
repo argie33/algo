@@ -1,29 +1,30 @@
+# template-app-ecs-tasks.yml
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  ECS TaskDefinitions, CloudWatch LogGroups, and EventBridge rules
-  to run your data‑processing scripts on Fargate.
+  ECS TaskDefinitions, CloudWatch LogGroups, and EventBridge schedules
+  for findata, pricedaily & priceweekly—all in public subnets
+  with public IPs and IAM‑only auth to RDS (no static creds).
 
 Parameters:
   FindataImageTag:
     Type: String
-    Description: Tag of the findata image (e.g. findata-<git-sha>)
+    Description: findata image tag (e.g. findata-<git-sha>)
   PriceImageTag:
     Type: String
-    Description: Tag of the pricedaily image (e.g. pricedaily-<git-sha>)
+    Description: pricedaily image tag (e.g. pricedaily-<git-sha>)
   PriceWeeklyImageTag:
     Type: String
-    Description: Tag of the priceweekly image (e.g. priceweekly-<git-sha>)
+    Description: priceweekly image tag (e.g. priceweekly-<git-sha>)
   FREDApiKey:
     Type: String
     NoEcho: true
-    Description: FRED API key for the economic‑data loader
+    Description: FRED API key for econ‑data loader
 
 Resources:
 
-  ############################################
-  # 0) Pre‑create CloudWatch LogGroups
-  ############################################
-
+  ##################################
+  # 0) CloudWatch LogGroups
+  ##################################
   FindataLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -42,10 +43,9 @@ Resources:
       LogGroupName: '/ecs/priceweekly-loader'
       RetentionInDays: 14
 
-  ############################################
-  # 1) IAM Role for EventBridge → ECS RunTask
-  ############################################
-
+  ##################################
+  # 1) EventBridge → ECS RunTask Role
+  ##################################
   EcsEventsRole:
     Type: AWS::IAM::Role
     Properties:
@@ -68,10 +68,9 @@ Resources:
                   - iam:PassRole
                 Resource: "*"
 
-  ################################################
+  ##################################
   # 2) findata‑loader TaskDefinition
-  ################################################
-
+  ##################################
   FindataTaskDef:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -79,22 +78,22 @@ Resources:
       Cpu: "512"
       Memory: "1024"
       NetworkMode: awsvpc
-      RequiresCompatibilities:
-        - FARGATE
-      ExecutionRoleArn: !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
-      TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
+      RequiresCompatibilities: [ FARGATE ]
+      ExecutionRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      TaskRoleArn:      !ImportValue StocksApp-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: findata-loader
-          Image:
-            Fn::Join:
-              - ''
-              - - !ImportValue StocksCore-ContainerRepositoryUri
-                - ':'
-                - !Ref FindataImageTag
+          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${FindataImageTag}"
           Essential: true
           Environment:
-            - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksDBLambdaStack-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
             - Name: FRED_API_KEY
               Value: !Ref FREDApiKey
           LogConfiguration:
@@ -104,10 +103,9 @@ Resources:
               awslogs-region:        !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
-  ################################################
+  ##################################
   # 3) pricedaily‑loader TaskDefinition
-  ################################################
-
+  ##################################
   PriceTaskDef:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -115,22 +113,22 @@ Resources:
       Cpu: "512"
       Memory: "1024"
       NetworkMode: awsvpc
-      RequiresCompatibilities:
-        - FARGATE
-      ExecutionRoleArn: !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
-      TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
+      RequiresCompatibilities: [ FARGATE ]
+      ExecutionRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      TaskRoleArn:      !ImportValue StocksApp-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: pricedaily-loader
-          Image:
-            Fn::Join:
-              - ''
-              - - !ImportValue StocksCore-ContainerRepositoryUri
-                - ':'
-                - !Ref PriceImageTag
+          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${PriceImageTag}"
           Essential: true
           Environment:
-            - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksDBLambdaStack-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -138,10 +136,9 @@ Resources:
               awslogs-region:        !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
-  ################################################
+  ##################################
   # 4) priceweekly‑loader TaskDefinition
-  ################################################
-
+  ##################################
   WeeklyTaskDef:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -149,22 +146,22 @@ Resources:
       Cpu: "512"
       Memory: "1024"
       NetworkMode: awsvpc
-      RequiresCompatibilities:
-        - FARGATE
-      ExecutionRoleArn: !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
-      TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
+      RequiresCompatibilities: [ FARGATE ]
+      ExecutionRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      TaskRoleArn:      !ImportValue StocksApp-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: priceweekly-loader
-          Image:
-            Fn::Join:
-              - ''
-              - - !ImportValue StocksCore-ContainerRepositoryUri
-                - ':'
-                - !Ref PriceWeeklyImageTag
+          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${PriceWeeklyImageTag}"
           Essential: true
           Environment:
-            - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksDBLambdaStack-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -172,19 +169,17 @@ Resources:
               awslogs-region:        !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
-  ################################################
-  # 5) Scheduled Rule: findata daily
-  ################################################
-
+  ##################################
+  # 5) Scheduled: findata daily
+  ##################################
   FindataSchedule:
     Type: AWS::Events::Rule
     Properties:
       Name: findata-loader-schedule
-      Description: "Daily run of findata‑loader"
       ScheduleExpression: rate(1 day)
       State: ENABLED
       Targets:
-        - Arn: !ImportValue StocksDBLambdaStack-ClusterArn
+        - Arn: !ImportValue StocksApp-ClusterArn
           Id: RunFindata
           RoleArn: !GetAtt EcsEventsRole.Arn
           EcsParameters:
@@ -193,25 +188,23 @@ Resources:
             NetworkConfiguration:
               AwsVpcConfiguration:
                 Subnets:
-                  - !ImportValue StocksCore-PrivateSubnet1Id
-                  - !ImportValue StocksCore-PrivateSubnet2Id
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
                 SecurityGroups:
                   - !ImportValue StocksCore-LambdaSecurityGroupId
-                AssignPublicIp: DISABLED
+                AssignPublicIp: ENABLED
 
-  ################################################
-  # 6) Scheduled Rule: pricedaily daily
-  ################################################
-
+  ##################################
+  # 6) Scheduled: pricedaily daily
+  ##################################
   PriceSchedule:
     Type: AWS::Events::Rule
     Properties:
       Name: pricedaily-loader-schedule
-      Description: "Daily run of pricedaily‑loader"
       ScheduleExpression: rate(1 day)
       State: ENABLED
       Targets:
-        - Arn: !ImportValue StocksDBLambdaStack-ClusterArn
+        - Arn: !ImportValue StocksApp-ClusterArn
           Id: RunPrice
           RoleArn: !GetAtt EcsEventsRole.Arn
           EcsParameters:
@@ -220,25 +213,23 @@ Resources:
             NetworkConfiguration:
               AwsVpcConfiguration:
                 Subnets:
-                  - !ImportValue StocksCore-PrivateSubnet1Id
-                  - !ImportValue StocksCore-PrivateSubnet2Id
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
                 SecurityGroups:
                   - !ImportValue StocksCore-LambdaSecurityGroupId
-                AssignPublicIp: DISABLED
+                AssignPublicIp: ENABLED
 
-  ################################################
-  # 7) Scheduled Rule: priceweekly weekly
-  ################################################
-
+  ##################################
+  # 7) Scheduled: priceweekly weekly
+  ##################################
   WeeklySchedule:
     Type: AWS::Events::Rule
     Properties:
       Name: priceweekly-loader-schedule
-      Description: "Weekly run of priceweekly‑loader"
       ScheduleExpression: rate(7 days)
       State: ENABLED
       Targets:
-        - Arn: !ImportValue StocksDBLambdaStack-ClusterArn
+        - Arn: !ImportValue StocksApp-ClusterArn
           Id: RunWeekly
           RoleArn: !GetAtt EcsEventsRole.Arn
           EcsParameters:
@@ -247,21 +238,16 @@ Resources:
             NetworkConfiguration:
               AwsVpcConfiguration:
                 Subnets:
-                  - !ImportValue StocksCore-PrivateSubnet1Id
-                  - !ImportValue StocksCore-PrivateSubnet2Id
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
                 SecurityGroups:
                   - !ImportValue StocksCore-LambdaSecurityGroupId
-                AssignPublicIp: DISABLED
+                AssignPublicIp: ENABLED
 
 Outputs:
   FindataTaskDefinitionArn:
-    Description: ARN of the findata task definition
     Value: !Ref FindataTaskDef
-
   PriceTaskDefinitionArn:
-    Description: ARN of the pricedaily task definition
     Value: !Ref PriceTaskDef
-
   PriceWeeklyTaskDefinitionArn:
-    Description: ARN of the priceweekly task definition
     Value: !Ref WeeklyTaskDef
