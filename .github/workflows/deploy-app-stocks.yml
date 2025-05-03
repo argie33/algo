@@ -8,9 +8,9 @@ on:
 
 jobs:
 
-  # 1) Package & upload symbols-loader Lambda
+  # 1) Package & upload symbols‑loader Lambda
   build_and_upload_lambda:
-    name: Build & upload symbols-loader Lambda
+    name: Build & upload symbols‑loader Lambda
     runs-on: ubuntu-latest
     outputs:
       code_key: ${{ steps.upload.outputs.code_key }}
@@ -51,7 +51,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Upload symbols-loader Lambda to S3
+      - name: Upload symbols‑loader Lambda to S3
         id: upload
         run: |
           aws s3 cp "loadstocksymbols-${{ github.sha }}.zip" \
@@ -77,11 +77,11 @@ jobs:
         run: |
           rm -rf econ_package && mkdir econ_package
           python -m pip install --upgrade pip
-          if [ ! -f requirements-economic.txt ]; then
-            echo "✖ requirements-economic.txt not found!" >&2
+          if [ ! -f requirements-loadecondata.txt ]; then
+            echo "✖ requirements-loadecondata.txt not found!" >&2
             exit 1
           fi
-          pip install -r requirements-economic.txt -t econ_package
+          pip install -r requirements-loadecondata.txt -t econ_package
 
       - name: Copy function code & verify dependencies
         run: |
@@ -108,7 +108,7 @@ jobs:
             s3://stocks-algo-app-code/loadeconomicdata-${{ github.sha }}.zip
           echo "econ_code_key=loadeconomicdata-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  # 3) Deploy RDS, SecretsManager, Lambdas & ECS Cluster
+  # 3) Deploy RDS, Lambdas & ECS Cluster
   deploy_db_lambda:
     name: Deploy DB, Lambdas & ECS Cluster
     needs:
@@ -150,7 +150,7 @@ jobs:
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM
 
-      - name: Invoke symbols-loader Lambda and fail on error
+      - name: Invoke symbols‑loader Lambda and fail on error
         run: |
           aws lambda invoke \
             --function-name loadstocksymbols \
@@ -159,11 +159,11 @@ jobs:
             response.json
           cat response.json
           if grep -q '"FunctionError"' response.json; then
-            echo "✖ symbols-loader failed" >&2
+            echo "✖ symbols‑loader failed" >&2
             exit 1
           fi
 
-      - name: Invoke economic-data loader Lambda and fail on error
+      - name: Invoke economic‑data loader Lambda and fail on error
         run: |
           aws lambda invoke \
             --function-name loadeconomicdata \
@@ -172,7 +172,7 @@ jobs:
             response_econ.json
           cat response_econ.json
           if grep -q '"FunctionError"' response_econ.json; then
-            echo "✖ economic-data loader failed" >&2
+            echo "✖ economic‑data loader failed" >&2
             exit 1
           fi
 
@@ -200,13 +200,16 @@ jobs:
         run: |
           set -e
           REPO_NAME=stocks-app-registry
+
           if ! aws ecr describe-repositories --repository-names "$REPO_NAME" >/dev/null 2>&1; then
             aws ecr create-repository --repository-name "$REPO_NAME" >/dev/null
           fi
+
           REPO_URI=$(aws ecr describe-repositories \
             --repository-names "$REPO_NAME" \
             --query 'repositories[0].repositoryUri' \
             --output text)
+
           echo "uri=$REPO_URI" >> $GITHUB_OUTPUT
 
       - name: Login to Amazon ECR
