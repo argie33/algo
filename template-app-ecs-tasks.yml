@@ -4,40 +4,24 @@ Description: >
   your data-processing scripts on Fargate.
 
 Parameters:
-  ClusterArn:
-    Type: String
-    Description: ARN of the ECS cluster to run tasks in
-  ContainerRepositoryUri:
-    Type: String
-    Description: URI of the ECR repository
-  DBSecretArn:
-    Type: String
-    Description: ARN of the SecretsManager secret with DB creds
-  PrivateSubnet1Id:
-    Type: AWS::EC2::Subnet::Id
-    Description: First private subnet ID
-  PrivateSubnet2Id:
-    Type: AWS::EC2::Subnet::Id
-    Description: Second private subnet ID
-  SecurityGroupId:
-    Type: AWS::EC2::SecurityGroup::Id
-    Description: Security Group for Fargate tasks
   FindataImageTag:
     Type: String
-    Description: Tag of the findata image
+    Description: Tag of the findata image (e.g. findata-<git-sha>)
   PriceImageTag:
     Type: String
-    Description: Tag of the pricedaily image
+    Description: Tag of the pricedaily image (e.g. pricedaily-<git-sha>)
   FREDApiKey:
     Type: String
+    NoEcho: true
     Description: FRED API key for the economic-data loader
 
 Resources:
 
-  ## 1) Role for EventBridge to invoke ECS RunTask ##
+  ### Role for EventBridge to invoke ECS RunTask ###
   EcsEventsRole:
     Type: AWS::IAM::Role
     Properties:
+      RoleName: ecs-events-role
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -45,10 +29,22 @@ Resources:
             Principal:
               Service: events.amazonaws.com
             Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonECSEventsRolePolicy
+      Policies:
+        - PolicyName: AllowRunTask
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:RunTask
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource:
+                  - !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
 
-  ## 2) findata-loader TaskDefinition ##
+  ### findata-loader TaskDefinition ###
   FindataTaskDef:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -63,21 +59,24 @@ Resources:
       ContainerDefinitions:
         - Name: findata-loader
           Image:
-            Fn::Sub: "${ContainerRepositoryUri}:${FindataImageTag}"
+            Fn::Sub:
+              - "${RepoUri}:${Tag}"
+              - RepoUri: !ImportValue StocksCore-ContainerRepositoryUri
+                Tag:    !Ref FindataImageTag
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
-              Value: !Ref DBSecretArn
+              Value: !ImportValue StocksDBLambdaStack-SecretArn
             - Name: FRED_API_KEY
               Value: !Ref FREDApiKey
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group:        /ecs/findata-loader
-              awslogs-region:       !Ref AWS::Region
+              awslogs-group:         /ecs/findata-loader
+              awslogs-region:        !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
-  ## 3) pricedaily-loader TaskDefinition ##
+  ### pricedaily-loader TaskDefinition ###
   PriceTaskDef:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -92,19 +91,22 @@ Resources:
       ContainerDefinitions:
         - Name: pricedaily-loader
           Image:
-            Fn::Sub: "${ContainerRepositoryUri}:${PriceImageTag}"
+            Fn::Sub:
+              - "${RepoUri}:${Tag}"
+              - RepoUri: !ImportValue StocksCore-ContainerRepositoryUri
+                Tag:    !Ref PriceImageTag
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
-              Value: !Ref DBSecretArn
+              Value: !ImportValue StocksDBLambdaStack-SecretArn
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group:        /ecs/pricedaily-loader
-              awslogs-region:       !Ref AWS::Region
+              awslogs-group:         /ecs/pricedaily-loader
+              awslogs-region:        !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
-  ## 4) Scheduled rule: findata daily ##
+  ### Scheduled Rule: findata daily ###
   FindataSchedule:
     Type: AWS::Events::Rule
     Properties:
@@ -113,7 +115,7 @@ Resources:
       ScheduleExpression: rate(1 day)
       State: ENABLED
       Targets:
-        - Arn: !Ref ClusterArn
+        - Arn: !ImportValue StocksDBLambdaStack-ClusterArn
           Id: RunFindata
           RoleArn: !GetAtt EcsEventsRole.Arn
           EcsParameters:
@@ -122,13 +124,13 @@ Resources:
             NetworkConfiguration:
               AwsVpcConfiguration:
                 Subnets:
-                  - !Ref PrivateSubnet1Id
-                  - !Ref PrivateSubnet2Id
+                  - !ImportValue StocksCore-PrivateSubnet1Id
+                  - !ImportValue StocksCore-PrivateSubnet2Id
                 SecurityGroups:
-                  - !Ref SecurityGroupId
+                  - !ImportValue StocksCore-LambdaSecurityGroupId
                 AssignPublicIp: DISABLED
 
-  ## 5) Scheduled rule: pricedaily daily ##
+  ### Scheduled Rule: pricedaily daily ###
   PriceSchedule:
     Type: AWS::Events::Rule
     Properties:
@@ -137,7 +139,7 @@ Resources:
       ScheduleExpression: rate(1 day)
       State: ENABLED
       Targets:
-        - Arn: !Ref ClusterArn
+        - Arn: !ImportValue StocksDBLambdaStack-ClusterArn
           Id: RunPrice
           RoleArn: !GetAtt EcsEventsRole.Arn
           EcsParameters:
@@ -146,16 +148,17 @@ Resources:
             NetworkConfiguration:
               AwsVpcConfiguration:
                 Subnets:
-                  - !Ref PrivateSubnet1Id
-                  - !Ref PrivateSubnet2Id
+                  - !ImportValue StocksCore-PrivateSubnet1Id
+                  - !ImportValue StocksCore-PrivateSubnet2Id
                 SecurityGroups:
-                  - !Ref SecurityGroupId
+                  - !ImportValue StocksCore-LambdaSecurityGroupId
                 AssignPublicIp: DISABLED
 
 Outputs:
   FindataTaskDefinitionArn:
     Description: ARN of the findata task definition
     Value: !Ref FindataTaskDef
+
   PriceTaskDefinitionArn:
     Description: ARN of the pricedaily task definition
     Value: !Ref PriceTaskDef
