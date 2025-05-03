@@ -5,19 +5,13 @@ permissions:
   contents: read
 
 on:
-  # Only trigger on changes under infrastructure/ or to this workflow file
   push:
     branches: [ main ]
-    paths:
-      - 'infrastructure/**'
-      - '.github/workflows/deploy-core.yml'
   workflow_dispatch:
 
 jobs:
   deploy_core:
     runs-on: ubuntu-latest
-    env:
-      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
@@ -25,7 +19,7 @@ jobs:
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
           role-session-name: github-deploy
           aws-region: us-east-1
           audience: sts.amazonaws.com
