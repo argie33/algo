@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  # 1) Build & upload symbols‑loader Lambda
+  # 1) Build & upload symbols-loader Lambda
   build_and_upload_symbols:
-    name: Build & upload symbols‑loader Lambda
+    name: Build & upload symbols-loader Lambda
     runs-on: ubuntu-latest
     outputs:
       code_key: ${{ steps.upload.outputs.code_key }}
@@ -21,7 +21,7 @@ jobs:
         with:
           python-version: '3.9'
 
-      - name: Install symbols‑loader dependencies
+      - name: Install symbols-loader dependencies
         run: |
           rm -rf symbols_package && mkdir symbols_package
           python -m pip install --upgrade pip
@@ -31,7 +31,7 @@ jobs:
           fi
           pip install -r requirements-loadstocksymbols.txt -t symbols_package
 
-      - name: Package symbols‑loader
+      - name: Package symbols-loader
         run: |
           cp loadstocksymbols.py symbols_package/index.py
           cd symbols_package
@@ -45,16 +45,16 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Upload symbols‑loader to S3
+      - name: Upload symbols-loader to S3
         id: upload
         run: |
           aws s3 cp "symbols-${{ github.sha }}.zip" \
             s3://stocks-algo-app-code/symbols-${{ github.sha }}.zip
           echo "code_key=symbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  # 2) Build & upload economic‑data loader Lambda
+  # 2) Build & upload economic-data loader Lambda
   build_and_upload_econ:
-    name: Build & upload economic‑data loader Lambda
+    name: Build & upload economic-data loader Lambda
     runs-on: ubuntu-latest
     outputs:
       econ_code_key: ${{ steps.upload.outputs.econ_code_key }}
@@ -67,7 +67,7 @@ jobs:
         with:
           python-version: '3.9'
 
-      - name: Install economic‑data dependencies
+      - name: Install economic-data dependencies
         run: |
           rm -rf econ_package && mkdir econ_package
           python -m pip install --upgrade pip
@@ -77,7 +77,7 @@ jobs:
           fi
           pip install -r requirements-loadecondata.txt -t econ_package
 
-      - name: Package economic‑data loader
+      - name: Package economic-data loader
         run: |
           cp loadecondata.py econ_package/index.py
           cd econ_package
@@ -91,14 +91,14 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Upload economic‑data loader to S3
+      - name: Upload economic-data loader to S3
         id: upload
         run: |
           aws s3 cp "econ-${{ github.sha }}.zip" \
             s3://stocks-algo-app-code/econ-${{ github.sha }}.zip
           echo "econ_code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  # 3) Deploy your application stack (RDS + both Lambdas + ECS Cluster)
+  # 3) Deploy the application stack (RDS + both Lambdas + ECS Cluster)
   deploy_db_lambda:
     name: Deploy RDS, Lambdas & ECS Cluster
     needs:
@@ -140,7 +140,7 @@ jobs:
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM
 
-      - name: Invoke symbols‑loader Lambda and fail on error
+      - name: Invoke symbols-loader Lambda and fail on error
         run: |
           aws lambda invoke \
             --function-name loadstocksymbols \
@@ -148,11 +148,11 @@ jobs:
             --cli-binary-format raw-in-base64-out \
             symbols_response.json
           if grep -q '"FunctionError"' symbols_response.json; then
-            echo "✖ symbols‑loader failed" >&2
+            echo "✖ symbols-loader failed" >&2
             exit 1
           fi
 
-      - name: Invoke economic‑data loader Lambda and fail on error
+      - name: Invoke economic-data loader Lambda and fail on error
         run: |
           aws lambda invoke \
             --function-name loadecondata \
@@ -160,7 +160,7 @@ jobs:
             --cli-binary-format raw-in-base64-out \
             econ_response.json
           if grep -q '"FunctionError"' econ_response.json; then
-            echo "✖ economic‑data loader failed" >&2
+            echo "✖ economic-data loader failed" >&2
             exit 1
           fi
 
@@ -186,10 +186,9 @@ jobs:
       - name: Ensure ECR repo exists & get URI
         id: get_uri
         run: |
-          set -e
           REPO_NAME=stocks-app-registry
           if ! aws ecr describe-repositories --repository-names "$REPO_NAME" >/dev/null 2>&1; then
-            aws ecr create-repository --repository-name "$REPO_NAME" >/dev/null
+            aws ecr create-repository --repository-name "$REPO_NAME"
           fi
           REPO_URI=$(aws ecr describe-repositories \
             --repository-names "$REPO_NAME" \
@@ -239,7 +238,7 @@ jobs:
           echo "⏳ Waiting for stocks-core-stack to be ready…"
           aws cloudformation wait stack-create-complete --stack-name stocks-core-stack
 
-      - name: Cleanup failed ECS‑tasks stack if needed
+      - name: Cleanup failed ECS-tasks stack if needed
         run: |
           STATUS=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
@@ -255,7 +254,6 @@ jobs:
         id: exports
         run: |
           echo "DbSecretArn=$(aws cloudformation list-exports --query \"Exports[?Name=='StocksDBLambdaStack-SecretArn'].Value\" --output text)" >> $GITHUB_ENV
-          echo "ClusterArn=$(aws cloudformation list-exports --query \"Exports[?Name=='StocksDBLambdaStack-ClusterArn'].Value\" --output text)" >> $GITHUB_ENV
           echo "ContainerRepositoryUri=$(aws cloudformation list-exports --query \"Exports[?Name=='StocksCore-ContainerRepositoryUri'].Value\" --output text)" >> $GITHUB_ENV
           echo "PrivateSubnet1Id=$(aws cloudformation list-exports --query \"Exports[?Name=='StocksCore-PrivateSubnet1Id'].Value\" --output text)" >> $GITHUB_ENV
           echo "PrivateSubnet2Id=$(aws cloudformation list-exports --query \"Exports[?Name=='StocksCore-PrivateSubnet2Id'].Value\" --output text)" >> $GITHUB_ENV
@@ -264,11 +262,13 @@ jobs:
       - name: Debug collected exports
         run: |
           echo "→ DbSecretArn=$DbSecretArn"
-          echo "→ ClusterArn=$ClusterArn"
           echo "→ ContainerRepositoryUri=$ContainerRepositoryUri"
           echo "→ PrivateSubnet1Id=$PrivateSubnet1Id"
           echo "→ PrivateSubnet2Id=$PrivateSubnet2Id"
           echo "→ SecurityGroupId=$SecurityGroupId"
+          echo "→ FindataTag=${{ needs.build_and_push_container.outputs.findata_tag }}"
+          echo "→ PriceTag=${{ needs.build_and_push_container.outputs.pricedaily_tag }}"
+          echo "→ FREDApiKey=${{ secrets.FRED_API_KEY }}"
 
       - name: Deploy ECS tasks stack
         run: |
@@ -276,13 +276,15 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --template-file template-app-ecs-tasks.yml \
             --parameter-overrides \
-              DbSecretArn=$DbSecretArn \
-              ClusterArn=$ClusterArn \
+              ClusterName=stocks-cluster \
               ContainerRepositoryUri=$ContainerRepositoryUri \
+              DbSecretArn=$DbSecretArn \
               Subnet1Id=$PrivateSubnet1Id \
               Subnet2Id=$PrivateSubnet2Id \
               SecurityGroupId=$SecurityGroupId \
-              ImageTag=${{ needs.build_and_push_container.outputs.findata_tag }} \
+              FindataImageTag=${{ needs.build_and_push_container.outputs.findata_tag }} \
+              PriceImageTag=${{ needs.build_and_push_container.outputs.pricedaily_tag }} \
+              FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM
 
       - name: Fetch TaskDefinition ARN
@@ -290,7 +292,7 @@ jobs:
         run: |
           echo "TASK_DEF_ARN=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
-            --query \"Stacks[0].Outputs[?OutputKey=='DataLoaderTaskDefArn'].OutputValue\" \
+            --query \"Stacks[0].Outputs[?OutputKey=='FindataTaskDefinitionArn'].OutputValue\" \
             --output text)" >> $GITHUB_ENV
 
       - name: Run data-loader on Fargate if not already running
