@@ -82,12 +82,48 @@ jobs:
           echo "econ_code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
   ########################################
-  # 3) Deploy App stack & invoke Lambdas#
+  # 3) Build & upload monthly-price     #
   ########################################
+  build_and_upload_monthly:
+    runs-on: ubuntu-latest
+    outputs:
+      monthly_code_key: ${{ steps.upload.outputs.monthly_code_key }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install monthly-price dependencies
+        run: |
+          rm -rf monthly_package && mkdir monthly_package
+          pip install --upgrade pip
+          pip install -r requirements-loadpricemonthly.txt -t monthly_package
+      - name: Package monthly-price loader
+        run: |
+          cp loadpricemonthly.py monthly_package/index.py
+          cd monthly_package && zip -r "../monthly-${{ github.sha }}.zip" . && cd ..
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-deploy
+          aws-region: us-east-1
+          audience: sts.amazonaws.com
+      - name: Upload monthly-price ZIP to S3
+        id: upload
+        run: |
+          aws s3 cp "monthly-${{ github.sha }}.zip" s3://stocks-algo-app-code/
+          echo "monthly_code_key=monthly-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
+
+  #################################################
+  # 4) Deploy & run all three Lambdas             #
+  #################################################
   deploy_and_run_lambdas:
     needs:
       - build_and_upload_symbols
       - build_and_upload_econ
+      - build_and_upload_monthly
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -102,7 +138,7 @@ jobs:
       - name: Wait for core infra
         run: aws cloudformation wait stack-create-complete --stack-name stocks-core-stack
 
-      - name: Cleanup if previous App stack failed
+      - name: Cleanup if previous DB stack failed
         run: |
           STATUS=$(aws cloudformation describe-stacks \
             --stack-name stocks-db-lambda-stack \
@@ -121,6 +157,7 @@ jobs:
             --parameter-overrides \
               CodeKey=${{ needs.build_and_upload_symbols.outputs.code_key }} \
               EconomicCodeKey=${{ needs.build_and_upload_econ.outputs.econ_code_key }} \
+              MonthlyCodeKey=${{ needs.build_and_upload_monthly.outputs.monthly_code_key }} \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
@@ -142,8 +179,16 @@ jobs:
             --cli-binary-format raw-in-base64-out \
             econ_response.json || true
 
+      - name: Invoke monthly-price loader
+        run: |
+          aws lambda invoke \
+            --function-name loadpricemonthly \
+            --payload '{}' \
+            --cli-binary-format raw-in-base64-out \
+            monthly_response.json || true
+
   ########################################
-  # 4) Build & push ECS containers     #
+  # 5) Build & push ECS container images#
   ########################################
   build_and_push_containers:
     needs: deploy_and_run_lambdas
@@ -216,10 +261,65 @@ jobs:
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
   #################################################
-  # 5a) Run findata ECS task                     #
+  # 6) Deploy ECS TaskDefinitions (using         #
+  #    template-app-ecs-tasks.yml)                #
+  #################################################
+  deploy_ecs_tasks:
+    needs: build_and_push_containers
+    runs-on: ubuntu-latest
+    outputs:
+      findata_arn:    ${{ steps.deploy.outputs.findata_arn }}
+      price_arn:      ${{ steps.deploy.outputs.price_arn }}
+      weekly_arn:     ${{ steps.deploy.outputs.weekly_arn }}
+      monthly_arn:    ${{ steps.deploy.outputs.monthly_arn }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-deploy
+          aws-region: us-east-1
+          audience: sts.amazonaws.com
+
+      - name: Deploy ECS TaskDefinitions
+        id: deploy
+        run: |
+          aws cloudformation deploy \
+            --stack-name stocks-ecs-tasks-stack \
+            --template-file template-app-ecs-tasks.yml \
+            --parameter-overrides \
+              FindataImageTag=${{ needs.build_and_push_containers.outputs.findata_tag }} \
+              PriceImageTag=${{ needs.build_and_push_containers.outputs.pricedaily_tag }} \
+              PriceWeeklyImageTag=${{ needs.build_and_push_containers.outputs.priceweekly_tag }} \
+              PriceMonthlyImageTag=${{ needs.build_and_push_containers.outputs.pricemonthly_tag }} \
+              FREDApiKey=${{ secrets.FRED_API_KEY }} \
+            --capabilities CAPABILITY_NAMED_IAM
+
+      - name: Fetch TaskDefinition ARNs
+        run: |
+          echo "findata_arn=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query \"Stacks[0].Outputs[?OutputKey=='FindataTaskDefinitionArn'].OutputValue\" \
+            --output text)" >> $GITHUB_OUTPUT
+          echo "price_arn=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query \"Stacks[0].Outputs[?OutputKey=='PriceTaskDefinitionArn'].OutputValue\" \
+            --output text)" >> $GITHUB_OUTPUT
+          echo "weekly_arn=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query \"Stacks[0].Outputs[?OutputKey=='PriceWeeklyTaskDefinitionArn'].OutputValue\" \
+            --output text)" >> $GITHUB_OUTPUT
+          echo "monthly_arn=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query \"Stacks[0].Outputs[?OutputKey=='PriceMonthlyTaskDefinitionArn'].OutputValue\" \
+            --output text)" >> $GITHUB_OUTPUT
+
+  #################################################
+  # 7a) Run findata ECS task                     #
   #################################################
   run_findata:
-    needs: build_and_push_containers
+    needs: deploy_ecs_tasks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -230,24 +330,20 @@ jobs:
           role-session-name: github-deploy
           aws-region: us-east-1
           audience: sts.amazonaws.com
-      - name: Fetch TaskDefinition ARN & run findata
+      - name: Run findata-loader
         run: |
-          ARN=$(aws cloudformation describe-stacks \
-            --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='FindataTaskDefinitionArn'].OutputValue" \
-            --output text)
           aws ecs run-task \
             --cluster stocks-cluster \
             --launch-type FARGATE \
-            --task-definition "$ARN" \
+            --task-definition "${{ needs.deploy_ecs_tasks.outputs.findata_arn }}" \
             --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PRIVATE_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
             --count 1
 
   #################################################
-  # 5b) Run pricedaily ECS task                  #
+  # 7b) Run pricedaily ECS task                  #
   #################################################
   run_pricedaily:
-    needs: build_and_push_containers
+    needs: deploy_ecs_tasks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -258,24 +354,20 @@ jobs:
           role-session-name: github-deploy
           aws-region: us-east-1
           audience: sts.amazonaws.com
-      - name: Fetch ARN & run pricedaily
+      - name: Run pricedaily-loader
         run: |
-          ARN=$(aws cloudformation describe-stacks \
-            --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='PriceTaskDefinitionArn'].OutputValue" \
-            --output text)
           aws ecs run-task \
             --cluster stocks-cluster \
             --launch-type FARGATE \
-            --task-definition "$ARN" \
+            --task-definition "${{ needs.deploy_ecs_tasks.outputs.price_arn }}" \
             --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PRIVATE_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
             --count 1
 
   #################################################
-  # 5c) Run priceweekly ECS task                 #
+  # 7c) Run priceweekly ECS task                 #
   #################################################
   run_priceweekly:
-    needs: build_and_push_containers
+    needs: deploy_ecs_tasks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -286,24 +378,20 @@ jobs:
           role-session-name: github-deploy
           aws-region: us-east-1
           audience: sts.amazonaws.com
-      - name: Fetch ARN & run priceweekly
+      - name: Run priceweekly-loader
         run: |
-          ARN=$(aws cloudformation describe-stacks \
-            --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyTaskDefinitionArn'].OutputValue" \
-            --output text)
           aws ecs run-task \
             --cluster stocks-cluster \
             --launch-type FARGATE \
-            --task-definition "$ARN" \
+            --task-definition "${{ needs.deploy_ecs_tasks.outputs.weekly_arn }}" \
             --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PRIVATE_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
             --count 1
 
   #################################################
-  # 5d) Run pricemonthly ECS task                #
+  # 7d) Run pricemonthly ECS task                #
   #################################################
   run_pricemonthly:
-    needs: build_and_push_containers
+    needs: deploy_ecs_tasks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -314,15 +402,11 @@ jobs:
           role-session-name: github-deploy
           aws-region: us-east-1
           audience: sts.amazonaws.com
-      - name: Fetch ARN & run pricemonthly
+      - name: Run pricemonthly-loader
         run: |
-          ARN=$(aws cloudformation describe-stacks \
-            --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='PriceMonthlyTaskDefinitionArn'].OutputValue" \
-            --output text)
           aws ecs run-task \
             --cluster stocks-cluster \
             --launch-type FARGATE \
-            --task-definition "$ARN" \
+            --task-definition "${{ needs.deploy_ecs_tasks.outputs.monthly_arn }}" \
             --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PRIVATE_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
             --count 1
