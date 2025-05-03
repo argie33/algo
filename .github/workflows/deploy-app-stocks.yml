@@ -1,4 +1,3 @@
-# .github/workflows/deploy-app-template.yml
 name: deploy-app-template
 
 on:
@@ -85,8 +84,8 @@ jobs:
 
       - name: Copy price‑daily loader code & verify dependencies
         run: |
-          # adjust to your actual repo layout:
-          cp deploy/algo/loadpricedaily.py econ_package/index.py
+          # assumes loadpricedaily.py is at the repo root
+          cp loadpricedaily.py econ_package/index.py
           ls -R econ_package
 
       - name: Zip Lambda bundle
