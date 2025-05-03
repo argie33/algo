@@ -8,9 +8,9 @@ on:
 
 jobs:
 
-  # 1) Package & upload symbols‑loader Lambda
+  # 1) Package & upload symbols-loader Lambda
   build_and_upload_lambda:
-    name: Build & upload Lambda package
+    name: Build & upload symbols-loader Lambda
     runs-on: ubuntu-latest
     outputs:
       code_key: ${{ steps.upload.outputs.code_key }}
@@ -51,17 +51,69 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - name: Upload Lambda to S3
+      - name: Upload symbols-loader Lambda to S3
         id: upload
         run: |
           aws s3 cp "loadstocksymbols-${{ github.sha }}.zip" \
             s3://stocks-algo-app-code/loadstocksymbols-${{ github.sha }}.zip
           echo "code_key=loadstocksymbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  # 2) Deploy RDS, SecretsManager, Lambda & ECS Cluster
+  # 2) Package & upload economic-data loader Lambda
+  build_and_upload_econ_lambda:
+    name: Build & upload economic-data loader Lambda
+    runs-on: ubuntu-latest
+    outputs:
+      econ_code_key: ${{ steps.upload_econ.outputs.econ_code_key }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install Lambda dependencies
+        run: |
+          rm -rf econ_package && mkdir econ_package
+          python -m pip install --upgrade pip
+          if [ ! -f requirements-economic.txt ]; then
+            echo "✖ requirements-economic.txt not found!" >&2
+            exit 1
+          fi
+          pip install -r requirements-economic.txt -t econ_package
+
+      - name: Copy function code & verify dependencies
+        run: |
+          cp loadeconomicdata.py econ_package/index.py
+          ls -R econ_package
+
+      - name: Zip Lambda bundle
+        run: |
+          cd econ_package
+          zip -r "../loadeconomicdata-${{ github.sha }}.zip" .
+          cd ..
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            us-east-1
+
+      - name: Upload economic-data loader Lambda to S3
+        id: upload_econ
+        run: |
+          aws s3 cp "loadeconomicdata-${{ github.sha }}.zip" \
+            s3://stocks-algo-app-code/loadeconomicdata-${{ github.sha }}.zip
+          echo "econ_code_key=loadeconomicdata-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
+
+  # 3) Deploy RDS, SecretsManager, Lambdas & ECS Cluster
   deploy_db_lambda:
-    name: Deploy DB, Lambda & ECS Cluster
-    needs: build_and_upload_lambda
+    name: Deploy DB, Lambdas & ECS Cluster
+    needs:
+      - build_and_upload_lambda
+      - build_and_upload_econ_lambda
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -85,18 +137,20 @@ jobs:
             aws cloudformation wait stack-delete-complete --stack-name stocks-db-lambda-stack
           fi
 
-      - name: Deploy DB, Lambda & ECS Cluster
+      - name: Deploy DB, Lambdas & ECS Cluster
         run: |
           aws cloudformation deploy \
             --stack-name stocks-db-lambda-stack \
             --template-file template-app-stocks.yml \
             --parameter-overrides \
               CodeKey=${{ needs.build_and_upload_lambda.outputs.code_key }} \
+              EconomicCodeKey=${{ needs.build_and_upload_econ_lambda.outputs.econ_code_key }} \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
+              FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM
 
-      - name: Invoke loadstocksymbols Lambda and fail on error
+      - name: Invoke symbols-loader Lambda and fail on error
         run: |
           aws lambda invoke \
             --function-name loadstocksymbols \
@@ -105,11 +159,24 @@ jobs:
             response.json
           cat response.json
           if grep -q '"FunctionError"' response.json; then
-            echo "✖ Lambda execution failed" >&2
+            echo "✖ symbols-loader failed" >&2
             exit 1
           fi
 
-  # 3) Build & push Docker image for ECS tasks
+      - name: Invoke economic-data loader Lambda and fail on error
+        run: |
+          aws lambda invoke \
+            --function-name loadeconomicdata \
+            --payload '{}' \
+            --cli-binary-format raw-in-base64-out \
+            response_econ.json
+          cat response_econ.json
+          if grep -q '"FunctionError"' response_econ.json; then
+            echo "✖ economic-data loader failed" >&2
+            exit 1
+          fi
+
+  # 4) Build & push Docker image for ECS tasks
   build_and_push_container:
     name: Build & push Docker image
     needs: deploy_db_lambda
@@ -133,23 +200,13 @@ jobs:
         run: |
           set -e
           REPO_NAME=stocks-app-registry
-
-          # Create the repo if it doesn’t exist
           if ! aws ecr describe-repositories --repository-names "$REPO_NAME" >/dev/null 2>&1; then
             aws ecr create-repository --repository-name "$REPO_NAME" >/dev/null
           fi
-
-          # Fetch its full URI
           REPO_URI=$(aws ecr describe-repositories \
             --repository-names "$REPO_NAME" \
             --query 'repositories[0].repositoryUri' \
             --output text)
-
-          if [ -z "$REPO_URI" ]; then
-            echo "✖ ERROR: failed to fetch URI for ECR repo '$REPO_NAME'!" >&2
-            exit 1
-          fi
-
           echo "uri=$REPO_URI" >> $GITHUB_OUTPUT
 
       - name: Login to Amazon ECR
@@ -163,7 +220,7 @@ jobs:
           docker push "$IMAGE_URI"
           echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
 
-  # 4) Deploy ECS Tasks stack and run one immediately
+  # 5) Deploy ECS Tasks stack and run one immediately
   deploy_ecs_tasks:
     name: Deploy ECS Tasks
     needs:
