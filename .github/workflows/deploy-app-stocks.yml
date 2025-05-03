@@ -15,7 +15,8 @@ jobs:
       - uses: actions/checkout@v3
       - name: Set up Python
         uses: actions/setup-python@v4
-        with: { python-version: '3.9' }
+        with:
+          python-version: '3.9'
       - name: Install symbols-loader dependencies
         run: |
           rm -rf symbols_package && mkdir symbols_package
@@ -47,7 +48,8 @@ jobs:
       - uses: actions/checkout@v3
       - name: Set up Python
         uses: actions/setup-python@v4
-        with: { python-version: '3.9' }
+        with:
+          python-version: '3.9'
       - name: Install economic-data deps
         run: |
           rm -rf econ_package && mkdir econ_package
@@ -71,7 +73,7 @@ jobs:
           echo "econ_code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
   # 3) Build & upload monthly-price loader Lambda
-  build_and_upload_monthly:
+  build_and_upload_price_data:
     runs-on: ubuntu-latest
     outputs:
       monthly_code_key: ${{ steps.upload.outputs.monthly_code_key }}
@@ -79,7 +81,8 @@ jobs:
       - uses: actions/checkout@v3
       - name: Set up Python
         uses: actions/setup-python@v4
-        with: { python-version: '3.9' }
+        with:
+          python-version: '3.9'
       - name: Install monthly-price deps
         run: |
           rm -rf monthly_package && mkdir monthly_package
@@ -107,7 +110,7 @@ jobs:
     needs:
       - build_and_upload_symbols
       - build_and_upload_econ
-      - build_and_upload_monthly
+      - build_and_upload_price_data
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -137,7 +140,7 @@ jobs:
             --parameter-overrides \
               CodeKey=${{ needs.build_and_upload_symbols.outputs.code_key }} \
               EconomicCodeKey=${{ needs.build_and_upload_econ.outputs.econ_code_key }} \
-              MonthlyCodeKey=${{ needs.build_and_upload_monthly.outputs.monthly_code_key }} \
+              MonthlyCodeKey=${{ needs.build_and_upload_price_data.outputs.monthly_code_key }} \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
@@ -169,6 +172,7 @@ jobs:
     needs: deploy_db_lambda
     runs-on: ubuntu-latest
     outputs:
+      repo_uri:          ${{ steps.get_uri.outputs.repo_uri }}
       findata_tag:       ${{ steps.build_findata.outputs.tag }}
       pricedaily_tag:    ${{ steps.build_price.outputs.tag }}
       priceweekly_tag:   ${{ steps.build_weekly.outputs.priceweekly_tag }}
@@ -280,7 +284,7 @@ jobs:
             --cluster stocks-cluster \
             --launch-type FARGATE \
             --task-definition "$FINDATA_ARN" \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.get_uri.outputs.repo_uri }}],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ needs.build_and_push_container.outputs.repo_uri }}],assignPublicIp=ENABLED}" \
             --count 1
       - name: Run pricedaily-loader on Fargate
         run: |
@@ -288,7 +292,7 @@ jobs:
             --cluster stocks-cluster \
             --launch-type FARGATE \
             --task-definition "$PRICE_ARN" \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.get_uri.outputs.repo_uri }}],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ needs.build_and_push_container.outputs.repo_uri }}],assignPublicIp=ENABLED}" \
             --count 1
       - name: Run priceweekly-loader on Fargate
         run: |
@@ -296,7 +300,7 @@ jobs:
             --cluster stocks-cluster \
             --launch-type FARGATE \
             --task-definition "$WEEKLY_ARN" \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.get_uri.outputs.repo_uri }}],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ needs.build_and_push_container.outputs.repo_uri }}],assignPublicIp=ENABLED}" \
             --count 1
       - name: Run pricemonthly-loader on Fargate
         run: |
@@ -304,5 +308,5 @@ jobs:
             --cluster stocks-cluster \
             --launch-type FARGATE \
             --task-definition "$MONTHLY_ARN" \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.get_uri.outputs.repo_uri }}],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ needs.build_and_push_container.outputs.repo_uri }}],assignPublicIp=ENABLED}" \
             --count 1
