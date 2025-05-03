@@ -7,9 +7,7 @@ on:
 
 jobs:
 
-  # ───────────────────────────────
   # 1) Build & upload symbols-loader Lambda
-  # ───────────────────────────────
   build_and_upload_symbols:
     runs-on: ubuntu-latest
     outputs:
@@ -20,12 +18,14 @@ jobs:
       - uses: actions/setup-python@v4
         with: { python-version: '3.9' }
 
-      - run: |
+      - name: Install symbols-loader deps
+        run: |
           rm -rf symbols_package && mkdir symbols_package
           python -m pip install --upgrade pip
           pip install -r requirements-loadstocksymbols.txt -t symbols_package
 
-      - run: |
+      - name: Package symbols-loader
+        run: |
           cp loadstocksymbols.py symbols_package/index.py
           cd symbols_package
           zip -r "../symbols-${{ github.sha }}.zip" .
@@ -43,9 +43,7 @@ jobs:
             s3://stocks-algo-app-code/symbols-${{ github.sha }}.zip
           echo "code_key=symbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  # ───────────────────────────────
   # 2) Build & upload economic-data loader Lambda
-  # ───────────────────────────────
   build_and_upload_econ:
     runs-on: ubuntu-latest
     outputs:
@@ -56,12 +54,14 @@ jobs:
       - uses: actions/setup-python@v4
         with: { python-version: '3.9' }
 
-      - run: |
+      - name: Install econ-data deps
+        run: |
           rm -rf econ_package && mkdir econ_package
           python -m pip install --upgrade pip
           pip install -r requirements-loadecondata.txt -t econ_package
 
-      - run: |
+      - name: Package econ-data loader
+        run: |
           cp loadecondata.py econ_package/index.py
           cd econ_package
           zip -r "../econ-${{ github.sha }}.zip" .
@@ -79,9 +79,7 @@ jobs:
             s3://stocks-algo-app-code/econ-${{ github.sha }}.zip
           echo "econ_code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  # ───────────────────────────────
-  # 3) Deploy App stack (RDS + both Lambdas + ECS cluster)
-  # ───────────────────────────────
+  # 3) Deploy RDS + both Lambdas + ECS Cluster
   deploy_db_lambda:
     needs:
       - build_and_upload_symbols
@@ -96,10 +94,8 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - run: |
-          aws cloudformation wait stack-create-complete --stack-name stocks-core-stack
-
-      - run: |
+      - name: Cleanup old DB stack if ROLLBACK_COMPLETE
+        run: |
           STATUS=$(aws cloudformation describe-stacks \
             --stack-name stocks-db-lambda-stack \
             --query "Stacks[0].StackStatus" \
@@ -109,7 +105,8 @@ jobs:
             aws cloudformation wait stack-delete-complete --stack-name stocks-db-lambda-stack
           fi
 
-      - run: |
+      - name: Deploy application stack
+        run: |
           aws cloudformation deploy \
             --stack-name stocks-db-lambda-stack \
             --template-file template-app-stocks.yml \
@@ -121,7 +118,8 @@ jobs:
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM
 
-      - run: |
+      - name: Invoke symbols-loader & fail on error
+        run: |
           aws lambda invoke \
             --function-name loadstocksymbols \
             --payload '{}' \
@@ -129,7 +127,8 @@ jobs:
             symbols_response.json
           grep -q '"FunctionError"' symbols_response.json && exit 1
 
-      - run: |
+      - name: Invoke economic-data loader & fail on error
+        run: |
           aws lambda invoke \
             --function-name loadecondata \
             --payload '{}' \
@@ -137,9 +136,7 @@ jobs:
             econ_response.json
           grep -q '"FunctionError"' econ_response.json && exit 1
 
-  # ───────────────────────────────
   # 4) Build & push Docker images for ECS tasks
-  # ───────────────────────────────
   build_and_push_container:
     needs: deploy_db_lambda
     runs-on: ubuntu-latest
@@ -184,9 +181,7 @@ jobs:
           docker push "$IMAGE"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-  # ───────────────────────────────
-  # 5) Deploy & run ECS tasks stack
-  # ───────────────────────────────
+  # 5) Deploy & clean up ECS Tasks stack
   deploy_ecs_tasks:
     needs: build_and_push_container
     runs-on: ubuntu-latest
@@ -199,10 +194,8 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            us-east-1
 
-      - run: |
-          aws cloudformation wait stack-create-complete --stack-name stocks-core-stack
-
-      - run: |
+      - name: Cleanup old ECS stack if ROLLBACK_COMPLETE
+        run: |
           STATUS=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].StackStatus" \
@@ -214,14 +207,27 @@ jobs:
 
       - id: exports
         run: |
-          echo "ClusterArn=$(aws cloudformation list-exports --query \"Exports[?Name=='StocksDBLambdaStack-ClusterArn'].Value\" --output text)" >> $GITHUB_ENV
-          echo "ContainerRepositoryUri=$(aws cloudformation list-exports --query \"Exports[?Name=='StocksCore-ContainerRepositoryUri'].Value\" --output text)" >> $GITHUB_ENV
-          echo "DbSecretArn=$(aws cloudformation list-exports --query \"Exports[?Name=='StocksDBLambdaStack-SecretArn'].Value\" --output text)" >> $GITHUB_ENV
-          echo "PrivateSubnet1Id=$(aws cloudformation list-exports --query \"Exports[?Name=='StocksCore-PrivateSubnet1Id'].Value\" --output text)" >> $GITHUB_ENV
-          echo "PrivateSubnet2Id=$(aws cloudformation list-exports --query \"Exports[?Name=='StocksCore-PrivateSubnet2Id'].Value\" --output text)" >> $GITHUB_ENV
-          echo "SecurityGroupId=$(aws cloudformation list-exports --query \"Exports[?Name=='StocksCore-LambdaSecurityGroupId'].Value\" --output text)" >> $GITHUB_ENV
+          echo "ClusterArn=$(aws cloudformation list-exports \
+            --query \"Exports[?Name=='StocksDBLambdaStack-ClusterArn'].Value\" \
+            --output text)" >> $GITHUB_ENV
+          echo "ContainerRepositoryUri=$(aws cloudformation list-exports \
+            --query \"Exports[?Name=='StocksCore-ContainerRepositoryUri'].Value\" \
+            --output text)" >> $GITHUB_ENV
+          echo "DbSecretArn=$(aws cloudformation list-exports \
+            --query \"Exports[?Name=='StocksDBLambdaStack-SecretArn'].Value\" \
+            --output text)" >> $GITHUB_ENV
+          echo "PrivateSubnet1Id=$(aws cloudformation list-exports \
+            --query \"Exports[?Name=='StocksCore-PrivateSubnet1Id'].Value\" \
+            --output text)" >> $GITHUB_ENV
+          echo "PrivateSubnet2Id=$(aws cloudformation list-exports \
+            --query \"Exports[?Name=='StocksCore-PrivateSubnet2Id'].Value\" \
+            --output text)" >> $GITHUB_ENV
+          echo "SecurityGroupId=$(aws cloudformation list-exports \
+            --query \"Exports[?Name=='StocksCore-LambdaSecurityGroupId'].Value\" \
+            --output text)" >> $GITHUB_ENV
 
-      - run: |
+      - name: Deploy ECS tasks stack
+        run: |
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
             --template-file template-app-ecs-tasks.yml \

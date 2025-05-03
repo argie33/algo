@@ -1,16 +1,16 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Application stack – RDS, Secrets (DB creds), two Lambdas
-  (symbols‑loader & economic‑data loader), and ECS cluster.
+  (symbols-loader & economic-data loader), and ECS cluster.
 
 Parameters:
   CodeKey:
     Type: String
-    Description: S3 key of the symbols‑loader Lambda ZIP
+    Description: S3 key of the symbols-loader Lambda ZIP
 
   EconomicCodeKey:
     Type: String
-    Description: S3 key of the economic‑data loader Lambda ZIP
+    Description: S3 key of the economic-data loader Lambda ZIP
 
   RDSUsername:
     Type: String
@@ -24,7 +24,7 @@ Parameters:
   FREDApiKey:
     Type: String
     NoEcho: true
-    Description: FRED API key for economic‑data loader
+    Description: FRED API key for economic-data loader
 
   VpcCidr:
     Type: String
@@ -95,7 +95,7 @@ Resources:
             - !GetAtt StocksDBInstance.Endpoint.Port
             - '","dbname":"stocks"}'
 
-  ### Lambda: symbols‑loader ###
+  ### Lambda: symbols-loader ###
   LoadStockSymbolsFunction:
     Type: AWS::Lambda::Function
     DependsOn:
@@ -119,8 +119,11 @@ Resources:
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DBCredentialsSecret
+          DB_ENDPOINT:   !GetAtt StocksDBInstance.Endpoint.Address
+          DB_PORT:       !GetAtt StocksDBInstance.Endpoint.Port
+          DB_NAME:       stocks
 
-  ### Lambda: economic‑data loader ###
+  ### Lambda: economic-data loader ###
   LoadEconomicDataFunction:
     Type: AWS::Lambda::Function
     DependsOn:
@@ -145,6 +148,9 @@ Resources:
         Variables:
           DB_SECRET_ARN: !Ref DBCredentialsSecret
           FRED_API_KEY:  !Ref FREDApiKey
+          DB_ENDPOINT:   !GetAtt StocksDBInstance.Endpoint.Address
+          DB_PORT:       !GetAtt StocksDBInstance.Endpoint.Port
+          DB_NAME:       stocks
 
   ### ECS Cluster ###
   StocksEcsCluster:
@@ -179,6 +185,8 @@ Outputs:
   SecretArn:
     Description: ARN of the DB credentials secret
     Value: !Ref DBCredentialsSecret
+    Export:
+      Name: StocksDBLambdaStack-SecretArn
 
   ClusterArn:
     Description: ARN of the ECS cluster
