@@ -15,7 +15,6 @@ env:
   AWS_ROLE_SESSION:  github-deploy
 
 jobs:
-
   #################################################
   # 1) Package & upload symbols-loader Lambda     #
   #################################################
@@ -30,7 +29,6 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region:        ${{ env.AWS_REGION }}
-          audience:          sts.amazonaws.com
 
       - name: Get Lambda code bucket
         id: get_bucket
@@ -82,7 +80,6 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region:        ${{ env.AWS_REGION }}
-          audience:          sts.amazonaws.com
 
       - name: Get Lambda code bucket
         id: get_bucket_econ
@@ -136,7 +133,6 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region:        ${{ env.AWS_REGION }}
-          audience:          sts.amazonaws.com
 
       - name: Deploy App stack
         run: |
@@ -176,10 +172,10 @@ jobs:
     needs: deploy_and_run_lambdas
     runs-on: ubuntu-latest
     outputs:
-      findata_tag:      ${{ steps.findata.outputs.tag }}
-      pricedaily_tag:   ${{ steps.pricedaily.outputs.tag }}
-      priceweekly_tag:  ${{ steps.weekly.outputs.tag }}
-      pricemonthly_tag: ${{ steps.monthly.outputs.tag }}
+      findata_tag:       ${{ steps.findata.outputs.tag }}
+      pricedaily_tag:    ${{ steps.pricedaily.outputs.tag }}
+      priceweekly_tag:   ${{ steps.weekly.outputs.tag }}
+      pricemonthly_tag:  ${{ steps.monthly.outputs.tag }}
     steps:
       - uses: actions/checkout@v3
       - name: Configure AWS creds
@@ -188,9 +184,10 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region:        ${{ env.AWS_REGION }}
-          audience:          sts.amazonaws.com
-      - uses: aws-actions/amazon-ecr-login@v1
-        name: Login to ECR
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v1
+
       - name: Get (or create) ECR repo & URI
         id: get_uri
         run: |
@@ -202,6 +199,7 @@ jobs:
             --query 'repositories[0].repositoryUri' \
             --output text)
           echo "repo_uri=$URI" >> $GITHUB_OUTPUT
+
       - name: Build & push findata container
         id: findata
         run: |
@@ -210,6 +208,7 @@ jobs:
           docker build -f Dockerfile.findata -t $IMG .
           docker push $IMG
           echo "tag=$TAG" >> $GITHUB_OUTPUT
+
       - name: Build & push pricedaily container
         id: pricedaily
         run: |
@@ -218,6 +217,7 @@ jobs:
           docker build -f Dockerfile.pricedaily -t $IMG .
           docker push $IMG
           echo "tag=$TAG" >> $GITHUB_OUTPUT
+
       - name: Build & push priceweekly container
         id: weekly
         run: |
@@ -226,6 +226,7 @@ jobs:
           docker build -f Dockerfile.priceweekly -t $IMG .
           docker push $IMG
           echo "tag=$TAG" >> $GITHUB_OUTPUT
+
       - name: Build & push pricemonthly container
         id: monthly
         run: |
@@ -245,16 +246,17 @@ jobs:
       findata_taskdefinitionarn:     ${{ steps.fetch.outputs.findata_taskdefinitionarn }}
       price_taskdefinitionarn:       ${{ steps.fetch.outputs.price_taskdefinitionarn }}
       priceweekly_taskdefinitionarn: ${{ steps.fetch.outputs.priceweekly_taskdefinitionarn }}
-      pricemonthly_taskdefinitionarn:$>{{ steps.fetch.outputs.pricemonthly_taskdefinitionarn }}
+      pricemonthly_taskdefinitionarn:$ {{ steps.fetch.outputs.pricemonthly_taskdefinitionarn }}
     steps:
       - uses: actions/checkout@v3
+
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region:        ${{ env.AWS_REGION }}
-          audience:          sts.amazonaws.com
+
       - name: Deploy ECS CFN stack
         run: |
           aws cloudformation deploy \
@@ -268,6 +270,7 @@ jobs:
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
+
       - name: Fetch TaskDefinition ARNs
         id: fetch
         run: |
@@ -302,6 +305,7 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region:        ${{ env.AWS_REGION }}
+
       - name: Run findata-loader
         run: |
           aws ecs run-task \
@@ -322,6 +326,7 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region:        ${{ env.AWS_REGION }}
+
       - name: Run pricedaily-loader
         run: |
           aws ecs run-task \
@@ -342,6 +347,7 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region:        ${{ env.AWS_REGION }}
+
       - name: Run priceweekly-loader
         run: |
           aws ecs run-task \
@@ -362,6 +368,7 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region:        ${{ env.AWS_REGION }}
+
       - name: Run pricemonthly-loader
         run: |
           aws ecs run-task \
