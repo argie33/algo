@@ -20,7 +20,6 @@ Parameters:
   PrivateSubnetCidr2:
     Type: String
     Default: "10.0.102.0/24"
-
   DBStackName:
     Type: String
     Default: "stocks-db-lambda-stack"
@@ -73,6 +72,7 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
+
   ### VPC & Networking ###
   StocksVPC:
     Type: AWS::EC2::VPC
@@ -99,7 +99,7 @@ Resources:
       VpcId: !Ref StocksVPC
       CidrBlock: !Ref PublicSubnetCidr1
       AvailabilityZone: !Select [0, !GetAZs '']
-      MapPublicIpOnLaunch: true    # ← public
+      MapPublicIpOnLaunch: true
 
   PublicSubnet2:
     Type: AWS::EC2::Subnet
@@ -107,7 +107,7 @@ Resources:
       VpcId: !Ref StocksVPC
       CidrBlock: !Ref PublicSubnetCidr2
       AvailabilityZone: !Select [1, !GetAZs '']
-      MapPublicIpOnLaunch: true    # ← public
+      MapPublicIpOnLaunch: true
 
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
@@ -140,7 +140,7 @@ Resources:
       VpcId: !Ref StocksVPC
       CidrBlock: !Ref PrivateSubnetCidr1
       AvailabilityZone: !Select [0, !GetAZs '']
-      MapPublicIpOnLaunch: false   # ← private
+      MapPublicIpOnLaunch: false
 
   PrivateSubnet2:
     Type: AWS::EC2::Subnet
@@ -148,7 +148,7 @@ Resources:
       VpcId: !Ref StocksVPC
       CidrBlock: !Ref PrivateSubnetCidr2
       AvailabilityZone: !Select [1, !GetAZs '']
-      MapPublicIpOnLaunch: false   # ← private
+      MapPublicIpOnLaunch: false
 
   PrivateRouteTable:
     Type: AWS::EC2::RouteTable
@@ -225,6 +225,7 @@ Resources:
       VpcId: !Ref StocksVPC
       SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
       SecurityGroupIds: [!Ref EndpointSecurityGroup]
+
   ### Bastion host (Spot ASG) ###
   BastionInstanceRole:
     Type: AWS::IAM::Role
@@ -241,7 +242,7 @@ Resources:
   BastionInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
-      Roles: [ !Ref BastionInstanceRole ]
+      Roles: [!Ref BastionInstanceRole]
 
   BastionSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -249,13 +250,11 @@ Resources:
       VpcId: !Ref StocksVPC
       GroupDescription: Bastion host SG
       SecurityGroupIngress:
-        # SSH from anywhere
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
           CidrIp: "0.0.0.0/0"
       SecurityGroupEgress:
-        # Allow all outbound (incl. to RDS on 5432)
         - IpProtocol: -1
           CidrIp: "0.0.0.0/0"
 
@@ -266,9 +265,8 @@ Resources:
       LaunchTemplateData:
         InstanceType: t3.micro
         ImageId: ami-0c94855ba95c71c99
-        IamInstanceProfile:
-          Name: !Ref BastionInstanceProfile
-        SecurityGroupIds: [ !Ref BastionSecurityGroup ]
+        IamInstanceProfile: {Name: !Ref BastionInstanceProfile}
+        SecurityGroupIds: [!Ref BastionSecurityGroup]
         InstanceMarketOptions:
           MarketType: spot
           SpotOptions:
@@ -278,39 +276,19 @@ Resources:
           Fn::Base64: !Sub |
             #!/bin/bash
             set -eux
-
             yum update -y
             yum install -y jq curl
-
-            # Install PostgreSQL 10
-            curl -fsSL \
-              https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm \
-              -o /tmp/pgdg.rpm
+            curl -fsSL https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm -o /tmp/pgdg.rpm
             rpm -Uvh /tmp/pgdg.rpm
             yum remove -y postgresql postgresql-libs
             yum install -y postgresql10
-
             aws configure set region ${AWS::Region}
-
-            # Fetch DB creds
-            CREDS=$(aws secretsmanager get-secret-value \
-              --secret-id "${DBSecretName}" \
-              --query SecretString --output text)
+            CREDS=$(aws secretsmanager get-secret-value --secret-id "${DBSecretName}" --query SecretString --output text)
             DB_USER=$(echo "$CREDS" | jq -r .username)
             DB_PASSWORD=$(echo "$CREDS" | jq -r .password)
             DB_NAME=$(echo "$CREDS" | jq -r .dbname)
-
-            # Lookup RDS endpoint & port
-            DB_HOST=$(aws cloudformation describe-stacks \
-              --stack-name "${DBStackName}" \
-              --query "Stacks[0].Outputs[?OutputKey=='DBEndpoint'].OutputValue" \
-              --output text)
-            DB_PORT=$(aws cloudformation describe-stacks \
-              --stack-name "${DBStackName}" \
-              --query "Stacks[0].Outputs[?OutputKey=='DBPort'].OutputValue" \
-              --output text)
-
-            # Write .pgpass
+            DB_HOST=$(aws cloudformation describe-stacks --stack-name "${DBStackName}" --query "Stacks[0].Outputs[?OutputKey=='DBEndpoint'].OutputValue" --output text)
+            DB_PORT=$(aws cloudformation describe-stacks --stack-name "${DBStackName}" --query "Stacks[0].Outputs[?OutputKey=='DBPort'].OutputValue" --output text)
             cat <<EOF > /home/ec2-user/.pgpass
             $${DB_HOST}:$${DB_PORT}:$${DB_NAME}:$${DB_USER}:$${DB_PASSWORD}
             EOF
@@ -321,7 +299,6 @@ Resources:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
       AutoScalingGroupName: stocks-bastion-asg
-      # ← now explicitly in PUBLIC subnets
       VPCZoneIdentifier:
         - !Ref PublicSubnet1
         - !Ref PublicSubnet2
@@ -335,6 +312,7 @@ Resources:
         - Key: Name
           Value: stocks-bastion
           PropagateAtLaunch: true
+
   ### Auto-shutdown Lambda ###
   BastionStopRole:
     Type: AWS::IAM::Role
@@ -426,14 +404,47 @@ Resources:
     UpdateReplacePolicy: Retain
 
 Outputs:
-  VpcId: { Value: !Ref StocksVPC,             Export: { Name: StocksCore-VpcId            }}
-  PublicSubnet1Id: { Value: !Ref PublicSubnet1, Export: { Name: StocksCore-PublicSubnet1Id  }}
-  PublicSubnet2Id: { Value: !Ref PublicSubnet2, Export: { Name: StocksCore-PublicSubnet2Id  }}
-  PrivateSubnet1Id:{ Value: !Ref PrivateSubnet1,Export: { Name: StocksCore-PrivateSubnet1Id }}
-  PrivateSubnet2Id:{ Value: !Ref PrivateSubnet2,Export: { Name: StocksCore-PrivateSubnet2Id }}
-  LambdaSecurityGroupId:{Value: !Ref LambdaSecurityGroup,Export:{Name:StocksCore-LambdaSecurityGroupId}}
-  LambdaExecutionRoleArn: { Value: !GetAtt LambdaExecutionRole.Arn, Export:{Name:StocksCore-LambdaExecutionRoleArn}}
-  ContainerRepositoryUri: { Value: !GetAtt ContainerRepository.RepositoryUri,Export:{Name:StocksCore-ContainerRepositoryUri}}
-  CodeBucketName: { Value: !Ref CodeBucket,              Export:{Name:StocksCore-CodeBucketName}}
-  WebIdentityProviderArn: { Value: !Ref GitHubOidcProvider,Export:{Name:StocksCore-WebIdentityProviderArn}}
-  DeployRoleArn: { Value: !GetAtt GitHubActionsDeployRole.Arn,Export:{Name:StocksCore-GitHubActionsDeployRoleArn}}
+  VpcId:
+    Value: !Ref StocksVPC
+    Export:
+      Name: StocksCore-VpcId
+  PublicSubnet1Id:
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: StocksCore-PublicSubnet1Id
+  PublicSubnet2Id:
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: StocksCore-PublicSubnet2Id
+  PrivateSubnet1Id:
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: StocksCore-PrivateSubnet1Id
+  PrivateSubnet2Id:
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: StocksCore-PrivateSubnet2Id
+  LambdaSecurityGroupId:
+    Value: !Ref LambdaSecurityGroup
+    Export:
+      Name: StocksCore-LambdaSecurityGroupId
+  LambdaExecutionRoleArn:
+    Value: !GetAtt LambdaExecutionRole.Arn
+    Export:
+      Name: StocksCore-LambdaExecutionRoleArn
+  ContainerRepositoryUri:
+    Value: !GetAtt ContainerRepository.RepositoryUri
+    Export:
+      Name: StocksCore-ContainerRepositoryUri
+  CodeBucketName:
+    Value: !Ref CodeBucket
+    Export:
+      Name: StocksCore-CodeBucketName
+  WebIdentityProviderArn:
+    Value: !Ref GitHubOidcProvider
+    Export:
+      Name: StocksCore-WebIdentityProviderArn
+  DeployRoleArn:
+    Value: !GetAtt GitHubActionsDeployRole.Arn
+    Export:
+      Name: StocksCore-GitHubActionsDeployRoleArn
