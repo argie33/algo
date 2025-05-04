@@ -185,19 +185,18 @@ jobs:
             --region ${{ env.AWS_REGION }}
           echo "econ_code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  #####################################################################
-  # 3) Prepare Lambda package keys for deploy                        #
-  #####################################################################
-  prepare_lambda_keys:
+  ###################################################################
+  # 3) Deploy & invoke Lambdas (only where needed)                 #
+  ###################################################################
+  deploy_and_run_lambdas:
     needs:
       - filter
       - build_and_upload_symbols
       - build_and_upload_econ
     runs-on: ubuntu-latest
-    outputs:
-      symbols_key: ${{ steps.set-keys.outputs.symbols_key }}
-      econ_key:    ${{ steps.set-keys.outputs.econ_key }}
     steps:
+      - uses: actions/checkout@v3
+
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -205,7 +204,7 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Determine CodeKey & EconKey
+      - name: Determine Lambda package keys
         id: set-keys
         run: |
           if [ "${{ needs.filter.outputs.symbols }}" = "true" ]; then
@@ -217,7 +216,6 @@ jobs:
               --output text)
             echo "symbols_key=$EXISTING" >> $GITHUB_OUTPUT
           fi
-
           if [ "${{ needs.filter.outputs.econ }}" = "true" ]; then
             echo "econ_key=${{ needs.build_and_upload_econ.outputs.econ_code_key }}" >> $GITHUB_OUTPUT
           else
@@ -228,29 +226,14 @@ jobs:
             echo "econ_key=$EXISTING" >> $GITHUB_OUTPUT
           fi
 
-  ##########################################################
-  # 4) Deploy & invoke Lambdas (only where needed)        #
-  ##########################################################
-  deploy_and_run_lambdas:
-    needs: prepare_lambda_keys
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Configure AWS creds
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
       - name: Deploy Lambda stack
         run: |
           aws cloudformation deploy \
             --stack-name stocks-db-lambda-stack \
             --template-file template-app-stocks.yml \
             --parameter-overrides \
-              CodeKey=${{ needs.prepare_lambda_keys.outputs.symbols_key }} \
-              EconomicCodeKey=${{ needs.prepare_lambda_keys.outputs.econ_key }} \
+              CodeKey=${{ steps.set-keys.outputs.symbols_key }} \
+              EconomicCodeKey=${{ steps.set-keys.outputs.econ_key }} \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
@@ -260,7 +243,6 @@ jobs:
       - name: Invoke symbols‑loader
         if: needs.filter.outputs.symbols == 'true'
         run: |
-          echo "Running symbols‑loader..."
           aws lambda invoke \
             --function-name loadstocksymbols \
             --invocation-type Event \
@@ -271,7 +253,6 @@ jobs:
       - name: Invoke econ‑data loader
         if: needs.filter.outputs.econ == 'true'
         run: |
-          echo "Running econ‑data loader..."
           aws lambda invoke \
             --function-name loadecondata \
             --invocation-type Event \
@@ -280,7 +261,7 @@ jobs:
             /dev/null
 
   ###################################################
-  # 5) Build & push ECS containers if any changed  #
+  # 4) Build & push ECS containers if any changed  #
   ###################################################
   build_and_push_containers:
     needs: filter
@@ -350,7 +331,7 @@ jobs:
           echo "pricemonthly_tag=$TAG" >> $GITHUB_OUTPUT
 
   #############################################
-  # 6) Deploy ECS TaskDefinitions (if changed)#
+  # 5) Deploy ECS TaskDefinitions (if changed)#
   #############################################
   deploy_ecs_tasks:
     needs: build_and_push_containers
@@ -380,7 +361,7 @@ jobs:
             --no-fail-on-empty-changeset
 
   ##########################################################
-  # 7–10) Run each ECS task only if its container changed  #
+  # 6–9) Run each ECS task only if its container changed  #
   ##########################################################
   run_findata:
     needs: deploy_ecs_tasks
@@ -417,7 +398,7 @@ jobs:
         with:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+          roleSESSION: github-deploy
       - id: svc
         run: |
           svc=$(aws cloudformation describe-stacks \
@@ -439,8 +420,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+          roleSESSION: github-deploy
       - id: svc
         run: |
           svc=$(aws cloudformation describe-stacks \
@@ -462,8 +442,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+          roleSESSION: github-deploy
       - id: svc
         run: |
           svc=$(aws cloudformation describe-stacks \
