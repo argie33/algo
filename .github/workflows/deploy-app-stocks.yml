@@ -15,7 +15,7 @@ env:
   AWS_ROLE_SESSION:  github-deploy
 
   # toggles — set to 'false' to skip
-  RUN_SYMBOLS:       'false'
+  RUN_SYMBOLS:       'true'
   RUN_ECON:          'false'
   RUN_LAMBDAS:       'false'
   BUILD_CONTAINERS:  'true'
