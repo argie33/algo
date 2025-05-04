@@ -107,7 +107,6 @@ jobs:
         id: set-key
         run: |
           if [ "${{ needs.filter.outputs.symbols }}" = "true" ]; then
-            # build & upload new
             rm -rf symbols_package && mkdir symbols_package
             pip install --upgrade pip
             pip install -r requirements-loadstocksymbols.txt -t symbols_package
@@ -118,7 +117,6 @@ jobs:
               --region ${{ env.AWS_REGION }}
             echo "code_key=symbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
           else
-            # reuse existing
             EXISTING=$(aws cloudformation describe-stacks \
               --stack-name stocks-db-lambda-stack \
               --query "Stacks[0].Parameters[?ParameterKey=='CodeKey'].ParameterValue" \
@@ -248,6 +246,7 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - uses: aws-actions/amazon-ecr-login@v1
+
       - name: Get or create ECR repo
         id: get-uri
         run: |
@@ -311,6 +310,7 @@ jobs:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
       - name: Deploy ECS CFN stack
         run: |
           aws cloudformation deploy \
@@ -339,17 +339,51 @@ jobs:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-      - name: Run changed ECS tasks
+
+      - name: Run findata task
+        if: needs.filter.outputs.findata == 'true'
         run: |
-          for loader in findata pricedaily priceweekly pricemonthly; do
-            if [ "${{ needs.filter.outputs[$loader] }}" = "true" ]; then
-              service=$(aws cloudformation describe-stacks \
-                --stack-name stocks-ecs-tasks-stack \
-                --query "Stacks[0].Outputs[?OutputKey=='${loader^}LoaderServiceName'].OutputValue" \
-                --output text)
-              echo "Scaling $loader up/down"
-              aws ecs update-service --cluster stocks-cluster --service $service --desired-count 1
-              aws ecs wait services-stable --cluster stocks-cluster --services $service
-              aws ecs update-service --cluster stocks-cluster --service $service --desired-count 0
-            fi
-          done
+          SERVICE=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='FindataLoaderServiceName'].OutputValue" \
+            --output text)
+          echo "Scaling findata..."
+          aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 1
+          aws ecs wait services-stable --cluster stocks-cluster --services $SERVICE
+          aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 0
+
+      - name: Run pricedaily task
+        if: needs.filter.outputs.pricedaily == 'true'
+        run: |
+          SERVICE=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='PriceDailyLoaderServiceName'].OutputValue" \
+            --output text)
+          echo "Scaling pricedaily..."
+          aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 1
+          aws ecs wait services-stable --cluster stocks-cluster --services $SERVICE
+          aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 0
+
+      - name: Run priceweekly task
+        if: needs.filter.outputs.priceweekly == 'true'
+        run: |
+          SERVICE=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyLoaderServiceName'].OutputValue" \
+            --output text)
+          echo "Scaling priceweekly..."
+          aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 1
+          aws ecs wait services-stable --cluster stocks-cluster --services $SERVICE
+          aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 0
+
+      - name: Run pricemonthly task
+        if: needs.filter.outputs.pricemonthly == 'true'
+        run: |
+          SERVICE=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='PriceMonthlyLoaderServiceName'].OutputValue" \
+            --output text)
+          echo "Scaling pricemonthly..."
+          aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 1
+          aws ecs wait services-stable --cluster stocks-cluster --services $SERVICE
+          aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 0
