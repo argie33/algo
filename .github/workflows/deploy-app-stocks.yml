@@ -178,7 +178,7 @@ jobs:
 
       - uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Get or create ECR repo & URI
+      - name: Get (or create) ECR repo & URI
         id: get_uri
         run: |
           REPO=stocks-app-registry
@@ -255,7 +255,7 @@ jobs:
             --no-fail-on-empty-changeset
 
   #################################################
-  # 6) “Run” findata by scaling its Service up    #
+  # 6) Run findata by scaling its Service up/down#
   #################################################
   run_findata:
     needs: deploy_ecs_tasks
@@ -270,25 +270,26 @@ jobs:
       - name: Fetch findata service name
         id: svc
         run: |
-          echo "service=$(aws cloudformation describe-stacks \
+          svc=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
-            --query \"Stacks[0].Outputs[?OutputKey=='FindataLoaderServiceName'].OutputValue\" \
-            --output text)" >> $GITHUB_OUTPUT
+            --query "Stacks[0].Outputs[?OutputKey=='FindataLoaderServiceName'].OutputValue" \
+            --output text)
+          echo "service=$svc" >> $GITHUB_OUTPUT
 
-      - name: Scale findata-loader up
+      - name: Scale findata‑loader up
         run: |
           aws ecs update-service \
             --cluster stocks-cluster \
             --service ${{ steps.svc.outputs.service }} \
             --desired-count 1
 
-      - name: Wait for findata to finish
+      - name: Wait for stability
         run: |
           aws ecs wait services-stable \
             --cluster stocks-cluster \
             --services ${{ steps.svc.outputs.service }}
 
-      - name: Scale findata-loader down
+      - name: Scale findata‑loader down
         run: |
           aws ecs update-service \
             --cluster stocks-cluster \
@@ -296,7 +297,7 @@ jobs:
             --desired-count 0
 
   #################################################
-  # 7) “Run” pricedaily by scaling its Service up #
+  # 7) Run pricedaily by scaling its Service up/down #
   #################################################
   run_pricedaily:
     needs: run_findata
@@ -311,25 +312,26 @@ jobs:
       - name: Fetch pricedaily service name
         id: svc
         run: |
-          echo "service=$(aws cloudformation describe-stacks \
+          svc=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
-            --query \"Stacks[0].Outputs[?OutputKey=='PriceDailyLoaderServiceName'].OutputValue\" \
-            --output text)" >> $GITHUB_OUTPUT
+            --query "Stacks[0].Outputs[?OutputKey=='PriceDailyLoaderServiceName'].OutputValue" \
+            --output text)
+          echo "service=$svc" >> $GITHUB_OUTPUT
 
-      - name: Scale pricedaily-loader up
+      - name: Scale pricedaily‑loader up
         run: |
           aws ecs update-service \
             --cluster stocks-cluster \
             --service ${{ steps.svc.outputs.service }} \
             --desired-count 1
 
-      - name: Wait for pricedaily to finish
+      - name: Wait for stability
         run: |
           aws ecs wait services-stable \
             --cluster stocks-cluster \
             --services ${{ steps.svc.outputs.service }}
 
-      - name: Scale pricedaily-loader down
+      - name: Scale pricedaily‑loader down
         run: |
           aws ecs update-service \
             --cluster stocks-cluster \
@@ -337,7 +339,7 @@ jobs:
             --desired-count 0
 
   #################################################
-  # 8) “Run” weekly by scaling its Service up     #
+  # 8) Run priceweekly by scaling its Service up/down #
   #################################################
   run_priceweekly:
     needs: run_pricedaily
@@ -352,25 +354,26 @@ jobs:
       - name: Fetch priceweekly service name
         id: svc
         run: |
-          echo "service=$(aws cloudformation describe-stacks \
+          svc=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
-            --query \"Stacks[0].Outputs[?OutputKey=='PriceWeeklyLoaderServiceName'].OutputValue\" \
-            --output text)" >> $GITHUB_OUTPUT
+            --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyLoaderServiceName'].OutputValue" \
+            --output text)
+          echo "service=$svc" >> $GITHUB_OUTPUT
 
-      - name: Scale priceweekly-loader up
+      - name: Scale priceweekly‑loader up
         run: |
           aws ecs update-service \
             --cluster stocks-cluster \
             --service ${{ steps.svc.outputs.service }} \
             --desired-count 1
 
-      - name: Wait for weekly to finish
+      - name: Wait for stability
         run: |
           aws ecs wait services-stable \
             --cluster stocks-cluster \
             --services ${{ steps.svc.outputs.service }}
 
-      - name: Scale priceweekly-loader down
+      - name: Scale priceweekly‑loader down
         run: |
           aws ecs update-service \
             --cluster stocks-cluster \
@@ -378,7 +381,7 @@ jobs:
             --desired-count 0
 
   #################################################
-  # 9) “Run” monthly by scaling its Service up    #
+  # 9) Run pricemonthly by scaling its Service up/down #
   #################################################
   run_pricemonthly:
     needs: run_priceweekly
@@ -393,25 +396,26 @@ jobs:
       - name: Fetch pricemonthly service name
         id: svc
         run: |
-          echo "service=$(aws cloudformation describe-stacks \
+          svc=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
-            --query \"Stacks[0].Outputs[?OutputKey=='PriceMonthlyLoaderServiceName'].OutputValue\" \
-            --output text)" >> $GITHUB_OUTPUT
+            --query "Stacks[0].Outputs[?OutputKey=='PriceMonthlyLoaderServiceName'].OutputValue" \
+            --output text)
+          echo "service=$svc" >> $GITHUB_OUTPUT
 
-      - name: Scale pricemonthly-loader up
+      - name: Scale pricemonthly‑loader up
         run: |
           aws ecs update-service \
             --cluster stocks-cluster \
             --service ${{ steps.svc.outputs.service }} \
             --desired-count 1
 
-      - name: Wait for monthly to finish
+      - name: Wait for stability
         run: |
           aws ecs wait services-stable \
             --cluster stocks-cluster \
             --services ${{ steps.svc.outputs.service }}
 
-      - name: Scale pricemonthly-loader down
+      - name: Scale pricemonthly‑loader down
         run: |
           aws ecs update-service \
             --cluster stocks-cluster \
