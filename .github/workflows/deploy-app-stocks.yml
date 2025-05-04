@@ -21,12 +21,13 @@ jobs:
   filter:
     runs-on: ubuntu-latest
     outputs:
-      symbols:      ${{ steps.f.outputs.symbols }}
-      econ:         ${{ steps.f.outputs.econ }}
-      findata:      ${{ steps.f.outputs.findata }}
-      pricedaily:   ${{ steps.f.outputs.pricedaily }}
-      priceweekly:  ${{ steps.f.outputs.priceweekly }}
-      pricemonthly: ${{ steps.f.outputs.pricemonthly }}
+      symbols:        ${{ steps.f.outputs.symbols }}
+      econ:           ${{ steps.f.outputs.econ }}
+      findata:        ${{ steps.f.outputs.findata }}
+      pricedaily:     ${{ steps.f.outputs.pricedaily }}
+      priceweekly:    ${{ steps.f.outputs.priceweekly }}
+      pricemonthly:   ${{ steps.f.outputs.pricemonthly }}
+      technicaldaily: ${{ steps.f.outputs.technicaldaily }}
 
     steps:
       - uses: actions/checkout@v3
@@ -46,13 +47,25 @@ jobs:
               - 'loadecondata.py'
               - 'requirements-loadecondata.txt'
             findata:
-              - 'scripts/findata/**'
+              - 'loadfinancialdata.py'
+              - 'requirements-loadfinancialdata.txt'
+              - 'Dockerfile.findata'
             pricedaily:
-              - 'scripts/pricedaily/**'
+              - 'loadpricedaily.py'
+              - 'requirements-loadpricedaily.txt'
+              - 'Dockerfile.pricedaily'
             priceweekly:
-              - 'scripts/priceweekly/**'
+              - 'loadpriceweekly.py'
+              - 'requirements-loadpriceweekly.txt'
+              - 'Dockerfile.priceweekly'
             pricemonthly:
-              - 'scripts/pricemonthly/**'
+              - 'loadpricemonthly.py'
+              - 'requirements-loadpricemonthly.txt'
+              - 'Dockerfile.pricemonthly'
+            technicaldaily:
+              - 'loadtechnicalsdaily.py'
+              - 'requirements-loadtechnicalsdaily.txt'
+              - 'Dockerfile.technicalsdaily'
 
   ##############################################
   # 1a) symbols Lambda: package → update → run #
@@ -178,7 +191,7 @@ jobs:
           REPO=stocks-app-registry
           aws ecr describe-repositories --repository-names $REPO >/dev/null 2>&1 || \
             aws ecr create-repository --repository-name $REPO
-          URI=$(aws ecr describe-repositories \
+          URI=$(aws ecr.describe-repositories \
             --repository-names $REPO \
             --query 'repositories[0].repositoryUri' \
             --output text)
@@ -253,7 +266,7 @@ jobs:
           REPO=stocks-app-registry
           aws ecr describe-repositories --repository-names $REPO >/dev/null 2>&1 || \
             aws ecr create-repository --repository-name $REPO
-          URI=$(aws ecr describe-repositories \
+          URI=$(aws ecr.describe-repositories \
             --repository-names $REPO \
             --query 'repositories[0].repositoryUri' \
             --output text)
@@ -273,7 +286,7 @@ jobs:
         run: |
           read -r FINDATA_TAG <<< "$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Parameters[?ParameterKey=='FindataImageTag'].ParameterValue" --output text)"
-          read -r WEEKLY_TAG <<< "$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+          read -r WEEKLY_TAG <<< "$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Parameters[?ParameterKey=='PriceWeeklyImageTag'].ParameterValue" --output text)"
           read -r MONTHLY_TAG <<< "$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Parameters[?ParameterKey=='PriceMonthlyImageTag'].ParameterValue" --output text)"
@@ -297,7 +310,7 @@ jobs:
 
       - name: Run pricedaily loader
         run: |
-          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+          SVC=$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceDailyLoaderServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service $SVC --desired-count 1
@@ -328,7 +341,7 @@ jobs:
           REPO=stocks-app-registry
           aws ecr describe-repositories --repository-names $REPO >/dev/null 2>&1 || \
             aws ecr create-repository --repository-name $REPO
-          URI=$(aws ecr describe-repositories \
+          URI=$(aws ecr.describe-repositories \
             --repository-names $REPO \
             --query 'repositories[0].repositoryUri' \
             --output text)
@@ -340,17 +353,17 @@ jobs:
           TAG=priceweekly-${{ github.sha }}
           IMG="${{ steps.ecr.outputs.uri }}:$TAG"
           docker build -f Dockerfile.priceweekly -t $IMG .
-          docker.push $IMG
+          docker push $IMG
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Fetch existing ECS stack params
         id: params
         run: |
-          read -r FINDATA_TAG <<< "$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+          read -r FINDATA_TAG <<< "$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Parameters[?ParameterKey=='FindataImageTag'].ParameterValue" --output text)"
-          read -r PRICE_DAILY_TAG <<< "$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+          read -r PRICE_DAILY_TAG <<< "$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Parameters[?ParameterKey=='PriceImageTag'].ParameterValue" --output text)"
-          read -r MONTHLY_TAG <<< "$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+          read -r MONTHLY_TAG <<< "$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Parameters[?ParameterKey=='PriceMonthlyImageTag'].ParameterValue" --output text)"
           echo "findata=$FINDATA_TAG" >> $GITHUB_OUTPUT
           echo "pricedaily=$PRICE_DAILY_TAG" >> $GITHUB_OUTPUT
@@ -372,7 +385,7 @@ jobs:
 
       - name: Run priceweekly loader
         run: |
-          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+          SVC=$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyLoaderServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service $SVC --desired-count 1
@@ -401,9 +414,9 @@ jobs:
         id: ecr
         run: |
           REPO=stocks-app-registry
-          aws ecr describe-repositories --repository-names $REPO >/dev/null 2>&1 || \
-            aws ecr create-repository --repository-name $REPO
-          URI=$(aws ecr describe-repositories \
+          aws ecr.describe-repositories --repository-names $REPO >/dev/null 2>&1 || \
+            aws ecr.create-repository --repository-name $REPO
+          URI=$(aws ecr.describe-repositories \
             --repository-names $REPO \
             --query 'repositories[0].repositoryUri' \
             --output text)
@@ -415,13 +428,13 @@ jobs:
           TAG=pricemonthly-${{ github.sha }}
           IMG="${{ steps.ecr.outputs.uri }}:$TAG"
           docker build -f Dockerfile.pricemonthly -t $IMG .
-          docker.push $IMG
+          docker push $IMG
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Fetch existing ECS stack params
         id: params
         run: |
-          read -r FINDATA_TAG <<< "$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+          read -r FINDATA_TAG <<< "$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Parameters[?ParameterKey=='FindataImageTag'].ParameterValue" --output text)"
           read -r PRICE_DAILY_TAG <<< "$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Parameters[?ParameterKey=='PriceImageTag'].ParameterValue" --output text)"
@@ -438,7 +451,7 @@ jobs:
             --template-file template-app-ecs-tasks.yml \
             --parameter-overrides \
               FindataImageTag=${{ steps.params.outputs.findata }} \
-              PriceImageTag=${{ steps.params.outputs.pricedaily }} \
+              PriceImageTag=${{ steps.params.outputs.pricemonthly }} \
               PriceWeeklyImageTag=${{ steps.params.outputs.priceweekly }} \
               PriceMonthlyImageTag=${{ steps.image.outputs.tag }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
@@ -447,8 +460,87 @@ jobs:
 
       - name: Run pricemonthly loader
         run: |
-          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+          SVC=$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceMonthlyLoaderServiceName'].OutputValue" \
+            --output text)
+          aws ecs update-service --cluster stocks-cluster --service $SVC --desired-count 1
+          aws ecs wait services-stable --cluster stocks-cluster --services $SVC
+          aws ecs update-service --cluster stocks-cluster --service $SVC --desired-count 0
+
+  ##############################################################
+  # 2e) technicaldaily ECS: build → deploy CFN → run          #
+  ##############################################################
+  technicaldaily:
+    needs: filter
+    if: ${{ needs.filter.outputs.technicaldaily == 'true' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Configure AWS creds
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Get or create ECR repo
+        id: ecr
+        run: |
+          REPO=stocks-app-registry
+          aws ecr describe-repositories --repository-names $REPO >/dev/null 2>&1 || \
+            aws ecr create-repository --repository-name $REPO
+          URI=$(aws ecr.describe-repositories \
+            --repository-names $REPO \
+            --query 'repositories[0].repositoryUri' \
+            --output text)
+          echo "uri=$URI" >> $GITHUB_OUTPUT
+
+      - name: Build & push technicaldaily image
+        id: image
+        run: |
+          TAG=technicaldaily-${{ github.sha }}
+          IMG="${{ steps.ecr.outputs.uri }}:$TAG"
+          docker build -f Dockerfile.technicalsdaily -t $IMG .
+          docker push $IMG
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Fetch existing ECS stack params
+        id: params
+        run: |
+          read -r FINDATA_TAG <<< "$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Parameters[?ParameterKey=='FindataImageTag'].ParameterValue" --output text)"
+          read -r PRICE_TAG <<< "$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Parameters[?ParameterKey=='PriceImageTag'].ParameterValue" --output text)"
+          read -r WEEKLY_TAG <<< "$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Parameters[?ParameterKey=='PriceWeeklyImageTag'].ParameterValue" --output text)"
+          read -r MONTHLY_TAG <<< "$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Parameters[?ParameterKey=='PriceMonthlyImageTag'].ParameterValue" --output text)"
+          echo "findata=$FINDATA_TAG" >> $GITHUB_OUTPUT
+          echo "price=$PRICE_TAG" >> $GITHUB_OUTPUT
+          echo "weekly=$WEEKLY_TAG" >> $GITHUB_OUTPUT
+          echo "monthly=$MONTHLY_TAG" >> $GITHUB_OUTPUT
+
+      - name: Deploy ECS CFN (technicaldaily)
+        run: |
+          aws cloudformation deploy \
+            --stack-name stocks-ecs-tasks-stack \
+            --template-file template-app-ecs-tasks.yml \
+            --parameter-overrides \
+              FindataImageTag=${{ steps.params.outputs.findata }} \
+              PriceImageTag=${{ steps.params.outputs.price }} \
+              PriceWeeklyImageTag=${{ steps.params.outputs.weekly }} \
+              PriceMonthlyImageTag=${{ steps.params.outputs.monthly }} \
+              TechnicalDailyImageTag=${{ steps.image.outputs.tag }} \
+              FREDApiKey=${{ secrets.FRED_API_KEY }} \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset
+
+      - name: Run technicaldaily loader
+        run: |
+          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='TechnicalDailyLoaderServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service $SVC --desired-count 1
           aws ecs wait services-stable --cluster stocks-cluster --services $SVC

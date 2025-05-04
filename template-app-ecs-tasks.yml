@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  ECS TaskDefinitions, CloudWatch LogGroups, and zero‑scale Services
-  for findata, pricedaily, priceweekly & pricemonthly.
+  ECS TaskDefinitions, CloudWatch LogGroups, and zero-scale Services
+  for findata, pricedaily, priceweekly, pricemonthly & technicaldaily.
   Services start at DesiredCount=0 and are scaled on demand via CI.
 
 Parameters:
@@ -17,10 +17,13 @@ Parameters:
   PriceMonthlyImageTag:
     Type: String
     Description: Tag of the pricemonthly container image
+  TechnicalDailyImageTag:
+    Type: String
+    Description: Tag of the technicaldaily container image
   FREDApiKey:
     Type: String
     NoEcho: true
-    Description: FRED API key for econ‑data loader
+    Description: FRED API key for econ-data loader
 
 Resources:
 
@@ -49,6 +52,12 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: '/ecs/pricemonthly-loader'
+      RetentionInDays: 14
+
+  TechnicalDailyLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: '/ecs/technicaldaily-loader'
       RetentionInDays: 14
 
   ##############################################
@@ -213,8 +222,48 @@ Resources:
               awslogs-region:        !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
+  ##########################################################
+  # 5) technicaldaily-loader TaskDefinition               #
+  ##########################################################
+  TechnicalDailyTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: technicaldaily-loader
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [ FARGATE ]
+      ExecutionRoleArn: !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
+      TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
+      ContainerDefinitions:
+        - Name: technicaldaily-loader
+          Image:
+            Fn::Join:
+              - ""
+              - - !ImportValue StocksCore-ContainerRepositoryUri
+                - ":"
+                - !Ref TechnicalDailyImageTag
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksDBLambdaStack-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:         /ecs/technicaldaily-loader
+              awslogs-region:        !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
   ##############################################################
-  # 5) findata‑loader Service (DesiredCount=0)                 #
+  # 6) findata-loader Service (DesiredCount=0)                 #
   ##############################################################
   FindataLoaderService:
     Type: AWS::ECS::Service
@@ -226,7 +275,7 @@ Resources:
       TaskDefinition: !Ref FindataTaskDefinition
 
   ##############################################################
-  # 6) pricedaily‑loader Service (DesiredCount=0)              #
+  # 7) pricedaily-loader Service (DesiredCount=0)              #
   ##############################################################
   PriceDailyLoaderService:
     Type: AWS::ECS::Service
@@ -238,7 +287,7 @@ Resources:
       TaskDefinition: !Ref PriceTaskDefinition
 
   ##############################################################
-  # 7) priceweekly‑loader Service (DesiredCount=0)             #
+  # 8) priceweekly-loader Service (DesiredCount=0)             #
   ##############################################################
   PriceWeeklyLoaderService:
     Type: AWS::ECS::Service
@@ -250,7 +299,7 @@ Resources:
       TaskDefinition: !Ref PriceWeeklyTaskDefinition
 
   ##############################################################
-  # 8) pricemonthly‑loader Service (DesiredCount=0)            #
+  # 9) pricemonthly-loader Service (DesiredCount=0)            #
   ##############################################################
   PriceMonthlyLoaderService:
     Type: AWS::ECS::Service
@@ -260,6 +309,18 @@ Resources:
       DesiredCount: 0
       LaunchType: FARGATE
       TaskDefinition: !Ref PriceMonthlyTaskDefinition
+
+  ##############################################################
+  # 10) technicaldaily-loader Service (DesiredCount=0)         #
+  ##############################################################
+  TechnicalDailyLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: technicaldaily-loader-service
+      Cluster: !ImportValue StocksDBLambdaStack-ClusterArn
+      DesiredCount: 0
+      LaunchType: FARGATE
+      TaskDefinition: !Ref TechnicalDailyTaskDefinition
 
 Outputs:
 
@@ -281,3 +342,7 @@ Outputs:
   PriceMonthlyLoaderServiceName:
     Description: ECS Service name for pricemonthly-loader
     Value: !Ref PriceMonthlyLoaderService
+
+  TechnicalDailyLoaderServiceName:
+    Description: ECS Service name for technicaldaily-loader
+    Value: !Ref TechnicalDailyLoaderService
