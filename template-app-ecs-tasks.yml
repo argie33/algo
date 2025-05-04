@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  ECS TaskDefinitions, CloudWatch LogGroups, and zero-scale Services
+  ECS TaskDefinitions, CloudWatch LogGroups, and zero‑scale Services
   for findata, pricedaily, priceweekly, pricemonthly & technicaldaily.
   Services start at DesiredCount=0 and are scaled on demand via CI.
 
@@ -23,7 +23,15 @@ Parameters:
   FREDApiKey:
     Type: String
     NoEcho: true
-    Description: FRED API key for econ-data loader
+    Description: FRED API key for econ‑data loader
+
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Subnets for Fargate tasks (awsvpc mode)
+
+  SecurityGroupIds:
+    Type: List<AWS::EC2::SecurityGroup::Id>
+    Description: Security groups for Fargate tasks (awsvpc mode)
 
 Resources:
 
@@ -270,8 +278,13 @@ Resources:
     Properties:
       ServiceName: findata-loader-service
       Cluster: !ImportValue StocksDBLambdaStack-ClusterArn
-      DesiredCount: 0
       LaunchType: FARGATE
+      DesiredCount: 0
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets: !Ref SubnetIds
+          SecurityGroups: !Ref SecurityGroupIds
+          AssignPublicIp: ENABLED
       TaskDefinition: !Ref FindataTaskDefinition
 
   ##############################################################
@@ -282,8 +295,13 @@ Resources:
     Properties:
       ServiceName: pricedaily-loader-service
       Cluster: !ImportValue StocksDBLambdaStack-ClusterArn
-      DesiredCount: 0
       LaunchType: FARGATE
+      DesiredCount: 0
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets: !Ref SubnetIds
+          SecurityGroups: !Ref SecurityGroupIds
+          AssignPublicIp: ENABLED
       TaskDefinition: !Ref PriceTaskDefinition
 
   ##############################################################
@@ -294,8 +312,13 @@ Resources:
     Properties:
       ServiceName: priceweekly-loader-service
       Cluster: !ImportValue StocksDBLambdaStack-ClusterArn
-      DesiredCount: 0
       LaunchType: FARGATE
+      DesiredCount: 0
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets: !Ref SubnetIds
+          SecurityGroups: !Ref SecurityGroupIds
+          AssignPublicIp: ENABLED
       TaskDefinition: !Ref PriceWeeklyTaskDefinition
 
   ##############################################################
@@ -306,8 +329,13 @@ Resources:
     Properties:
       ServiceName: pricemonthly-loader-service
       Cluster: !ImportValue StocksDBLambdaStack-ClusterArn
-      DesiredCount: 0
       LaunchType: FARGATE
+      DesiredCount: 0
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets: !Ref SubnetIds
+          SecurityGroups: !Ref SecurityGroupIds
+          AssignPublicIp: ENABLED
       TaskDefinition: !Ref PriceMonthlyTaskDefinition
 
   ##############################################################
@@ -318,15 +346,16 @@ Resources:
     Properties:
       ServiceName: technicaldaily-loader-service
       Cluster: !ImportValue StocksDBLambdaStack-ClusterArn
-      DesiredCount: 0
       LaunchType: FARGATE
+      DesiredCount: 0
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets: !Ref SubnetIds
+          SecurityGroups: !Ref SecurityGroupIds
+          AssignPublicIp: ENABLED
       TaskDefinition: !Ref TechnicalDailyTaskDefinition
 
 Outputs:
-
-  ##################################
-  # Service names for CI scaling   #
-  ##################################
   FindataLoaderServiceName:
     Description: ECS Service name for findata-loader
     Value: !Ref FindataLoaderService
@@ -346,4 +375,3 @@ Outputs:
   TechnicalDailyLoaderServiceName:
     Description: ECS Service name for technicaldaily-loader
     Value: !Ref TechnicalDailyLoaderService
-
