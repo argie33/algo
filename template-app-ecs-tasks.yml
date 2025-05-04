@@ -25,14 +25,6 @@ Parameters:
     NoEcho: true
     Description: FRED API key for econ‑data loader
 
-  SubnetIds:
-    Type: List<AWS::EC2::Subnet::Id>
-    Description: Subnets for Fargate tasks (awsvpc mode)
-
-  SecurityGroupIds:
-    Type: List<AWS::EC2::SecurityGroup::Id>
-    Description: Security groups for Fargate tasks (awsvpc mode)
-
 Resources:
 
   ##################################
@@ -83,12 +75,7 @@ Resources:
       TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: findata-loader
-          Image:
-            Fn::Join:
-              - ""
-              - - !ImportValue StocksCore-ContainerRepositoryUri
-                - ":"
-                - !Ref FindataImageTag
+          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${FindataImageTag}"
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -125,12 +112,7 @@ Resources:
       TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: pricedaily-loader
-          Image:
-            Fn::Join:
-              - ""
-              - - !ImportValue StocksCore-ContainerRepositoryUri
-                - ":"
-                - !Ref PriceImageTag
+          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${PriceImageTag}"
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -165,12 +147,7 @@ Resources:
       TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: priceweekly-loader
-          Image:
-            Fn::Join:
-              - ""
-              - - !ImportValue StocksCore-ContainerRepositoryUri
-                - ":"
-                - !Ref PriceWeeklyImageTag
+          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${PriceWeeklyImageTag}"
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -205,12 +182,7 @@ Resources:
       TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: pricemonthly-loader
-          Image:
-            Fn::Join:
-              - ""
-              - - !ImportValue StocksCore-ContainerRepositoryUri
-                - ":"
-                - !Ref PriceMonthlyImageTag
+          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${PriceMonthlyImageTag}"
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -245,12 +217,7 @@ Resources:
       TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: technicaldaily-loader
-          Image:
-            Fn::Join:
-              - ""
-              - - !ImportValue StocksCore-ContainerRepositoryUri
-                - ":"
-                - !Ref TechnicalDailyImageTag
+          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${TechnicalDailyImageTag}"
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -271,7 +238,7 @@ Resources:
               awslogs-stream-prefix: ecs
 
   ##############################################################
-  # 6) findata-loader Service (DesiredCount=0)                 #
+  # 6) findata-loader Service (zero scale, inline subnets)     #
   ##############################################################
   FindataLoaderService:
     Type: AWS::ECS::Service
@@ -280,15 +247,16 @@ Resources:
       Cluster: !ImportValue StocksDBLambdaStack-ClusterArn
       LaunchType: FARGATE
       DesiredCount: 0
+      TaskDefinition: !Ref FindataTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
-          Subnets: !Ref SubnetIds
-          SecurityGroups: !Ref SecurityGroupIds
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
           AssignPublicIp: ENABLED
-      TaskDefinition: !Ref FindataTaskDefinition
 
   ##############################################################
-  # 7) pricedaily-loader Service (DesiredCount=0)              #
+  # 7) pricedaily-loader Service (zero scale, inline subnets)  #
   ##############################################################
   PriceDailyLoaderService:
     Type: AWS::ECS::Service
@@ -297,15 +265,16 @@ Resources:
       Cluster: !ImportValue StocksDBLambdaStack-ClusterArn
       LaunchType: FARGATE
       DesiredCount: 0
+      TaskDefinition: !Ref PriceTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
-          Subnets: !Ref SubnetIds
-          SecurityGroups: !Ref SecurityGroupIds
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
           AssignPublicIp: ENABLED
-      TaskDefinition: !Ref PriceTaskDefinition
 
   ##############################################################
-  # 8) priceweekly-loader Service (DesiredCount=0)             #
+  # 8) priceweekly-loader Service (zero scale, inline subnets) #
   ##############################################################
   PriceWeeklyLoaderService:
     Type: AWS::ECS::Service
@@ -314,15 +283,16 @@ Resources:
       Cluster: !ImportValue StocksDBLambdaStack-ClusterArn
       LaunchType: FARGATE
       DesiredCount: 0
+      TaskDefinition: !Ref PriceWeeklyTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
-          Subnets: !Ref SubnetIds
-          SecurityGroups: !Ref SecurityGroupIds
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
           AssignPublicIp: ENABLED
-      TaskDefinition: !Ref PriceWeeklyTaskDefinition
 
   ##############################################################
-  # 9) pricemonthly-loader Service (DesiredCount=0)            #
+  # 9) pricemonthly-loader Service (zero scale, inline subnets)#
   ##############################################################
   PriceMonthlyLoaderService:
     Type: AWS::ECS::Service
@@ -331,15 +301,16 @@ Resources:
       Cluster: !ImportValue StocksDBLambdaStack-ClusterArn
       LaunchType: FARGATE
       DesiredCount: 0
+      TaskDefinition: !Ref PriceMonthlyTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
-          Subnets: !Ref SubnetIds
-          SecurityGroups: !Ref SecurityGroupIds
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
           AssignPublicIp: ENABLED
-      TaskDefinition: !Ref PriceMonthlyTaskDefinition
 
   ##############################################################
-  # 10) technicaldaily-loader Service (DesiredCount=0)         #
+  # 10) technicaldaily-loader Service (inline subnets)         #
   ##############################################################
   TechnicalDailyLoaderService:
     Type: AWS::ECS::Service
@@ -348,12 +319,13 @@ Resources:
       Cluster: !ImportValue StocksDBLambdaStack-ClusterArn
       LaunchType: FARGATE
       DesiredCount: 0
+      TaskDefinition: !Ref TechnicalDailyTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
-          Subnets: !Ref SubnetIds
-          SecurityGroups: !Ref SecurityGroupIds
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
           AssignPublicIp: ENABLED
-      TaskDefinition: !Ref TechnicalDailyTaskDefinition
 
 Outputs:
   FindataLoaderServiceName:
