@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Core infrastructure stack – IAM, VPC, Subnets, Internet Gateway, Bastion host (Spot ASG),
-  auto‑shutdown Lambda, ECR registry, S3 code bucket, and VPC endpoints for RDS/ECS/Lambda/S3.
+  auto-shutdown Lambda, ECR registry, S3 code bucket, and VPC endpoints for RDS/ECS/Lambda/S3.
   **NAT Gateway removed to save cost** (private subnets rely on VPC endpoints).
 
 Parameters:
@@ -20,7 +20,6 @@ Parameters:
   PrivateSubnetCidr2:
     Type: String
     Default: "10.0.102.0/24"
-
   DBStackName:
     Type: String
     Default: "stocks-db-lambda-stack"
@@ -69,7 +68,8 @@ Resources:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal: { Service: [lambda.amazonaws.com] }
+            Principal:
+              Service: [lambda.amazonaws.com]
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
@@ -81,7 +81,9 @@ Resources:
       CidrBlock: !Ref VpcCidr
       EnableDnsSupport: true
       EnableDnsHostnames: true
-      Tags: [{ Key: Name, Value: stocks-vpc }]
+      Tags:
+        - Key: Name
+          Value: stocks-vpc
 
   StocksIGW:
     Type: AWS::EC2::InternetGateway
@@ -166,6 +168,7 @@ Resources:
       SubnetId: !Ref PrivateSubnet2
       RouteTableId: !Ref PrivateRouteTable
 
+  ### Lambda Security Group ###
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -235,7 +238,6 @@ Resources:
       SecurityGroupIds:
         - !Ref EndpointSecurityGroup
 
-  ### ← NEW: Secrets Manager VPC endpoint
   VPCEndpointSecretsManager:
     Type: AWS::EC2::VPCEndpoint
     Properties:
@@ -256,7 +258,8 @@ Resources:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal: { Service: ec2.amazonaws.com }
+            Principal:
+              Service: ec2.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
@@ -342,7 +345,7 @@ Resources:
           Value: stocks-bastion
           PropagateAtLaunch: true
 
-  ### Auto‑shutdown Lambda ###
+  ### Auto-shutdown Lambda ###
   BastionStopRole:
     Type: AWS::IAM::Role
     Properties:
@@ -350,7 +353,8 @@ Resources:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal: { Service: lambda.amazonaws.com }
+            Principal:
+              Service: lambda.amazonaws.com
             Action: sts:AssumeRole
       Policies:
         - PolicyName: StopBastion
@@ -384,7 +388,7 @@ Resources:
   BastionStopRule:
     Type: AWS::Events::Rule
     Properties:
-      Description: Scale bastion down at 6 PM CT daily
+      Description: Scale bastion down at 6 PM CT daily
       ScheduleExpression: cron(0 23 * * ? *)
       State: ENABLED
       Targets:
@@ -435,34 +439,45 @@ Resources:
 Outputs:
   VpcId:
     Value: !Ref StocksVPC
-    Export: { Name: StocksCore-VpcId }
+    Export:
+      Name: StocksCore-VpcId
   PublicSubnet1Id:
     Value: !Ref PublicSubnet1
-    Export: { Name: StocksCore-PublicSubnet1Id }
+    Export:
+      Name: StocksCore-PublicSubnet1Id
   PublicSubnet2Id:
     Value: !Ref PublicSubnet2
-    Export: { Name: StocksCore-PublicSubnet2Id }
+    Export:
+      Name: StocksCore-PublicSubnet2Id
   PrivateSubnet1Id:
     Value: !Ref PrivateSubnet1
-    Export: { Name: StocksCore-PrivateSubnet1Id }
+    Export:
+      Name: StocksCore-PrivateSubnet1Id
   PrivateSubnet2Id:
     Value: !Ref PrivateSubnet2
-    Export: { Name: StocksCore-PrivateSubnet2Id }
+    Export:
+      Name: StocksCore-PrivateSubnet2Id
   LambdaSecurityGroupId:
     Value: !Ref LambdaSecurityGroup
-    Export: { Name: StocksCore-LambdaSecurityGroupId }
+    Export:
+      Name: StocksCore-LambdaSecurityGroupId
   LambdaExecutionRoleArn:
     Value: !GetAtt LambdaExecutionRole.Arn
-    Export: { Name: StocksCore-LambdaExecutionRoleArn }
+    Export:
+      Name: StocksCore-LambdaExecutionRoleArn
   ContainerRepositoryUri:
     Value: !GetAtt ContainerRepository.RepositoryUri
-    Export: { Name: StocksCore-ContainerRepositoryUri }
+    Export:
+      Name: StocksCore-ContainerRepositoryUri
   CodeBucketName:
     Value: !Ref CodeBucket
-    Export: { Name: StocksCore-CodeBucketName }
+    Export:
+      Name: StocksCore-CodeBucketName
   WebIdentityProviderArn:
     Value: !Ref GitHubOidcProvider
-    Export: { Name: StocksCore-WebIdentityProviderArn }
+    Export:
+      Name: StocksCore-WebIdentityProviderArn
   DeployRoleArn:
     Value: !GetAtt GitHubActionsDeployRole.Arn
-    Export: { Name: StocksCore-GitHubActionsDeployRoleArn }
+    Export:
+      Name: StocksCore-GitHubActionsDeployRoleArn
