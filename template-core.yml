@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Core infrastructure stack – IAM, VPC, Subnets, Internet Gateway, Bastion host (Spot ASG),
-  auto‑shutdown Lambda, ECR registry, S3 code bucket, and VPC endpoints for RDS/ECS/Lambda/S3.
+  auto-shutdown Lambda, ECR registry, S3 code bucket, and VPC endpoints for RDS/ECS/Lambda/S3.
   **NAT Gateway removed to save cost** (private subnets rely on VPC endpoints).
 
 Parameters:
@@ -20,7 +20,6 @@ Parameters:
   PrivateSubnetCidr2:
     Type: String
     Default: "10.0.102.0/24"
-
   DBStackName:
     Type: String
     Default: "stocks-db-lambda-stack"
@@ -29,8 +28,6 @@ Parameters:
     Default: "stocks-db-credentials"
 
 Resources:
-
-  ### 1) OIDC provider for GitHub Actions ###
   GitHubOidcProvider:
     Type: AWS::IAM::OIDCProvider
     Properties:
@@ -40,7 +37,6 @@ Resources:
       ThumbprintList:
         - 6938fd4d98bab03faadb97b34396831e3780aea1
 
-  ### 2) Role that GitHub Actions will assume ###
   GitHubActionsDeployRole:
     Type: AWS::IAM::Role
     Properties:
@@ -51,7 +47,8 @@ Resources:
           - Effect: Allow
             Principal:
               Federated: !Ref GitHubOidcProvider
-            Action: sts:AssumeRoleWithWebIdentity
+            Action:
+              - sts:AssumeRoleWithWebIdentity
             Condition:
               StringEquals:
                 "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
@@ -60,7 +57,6 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
 
-  ### 3) Lambda execution role ###
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -69,19 +65,22 @@ Resources:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal: { Service: [lambda.amazonaws.com] }
+            Principal:
+              Service:
+                - lambda.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
 
-  ### VPC & Networking ###
   StocksVPC:
     Type: AWS::EC2::VPC
     Properties:
       CidrBlock: !Ref VpcCidr
       EnableDnsSupport: true
       EnableDnsHostnames: true
-      Tags: [{ Key: Name, Value: stocks-vpc }]
+      Tags:
+        - Key: Name
+          Value: stocks-vpc
 
   StocksIGW:
     Type: AWS::EC2::InternetGateway
@@ -169,18 +168,17 @@ Resources:
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Lambda SG in stocks VPC
       VpcId: !Ref StocksVPC
+      GroupDescription: Lambda SG in stocks VPC
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: "0.0.0.0/0"
 
-  ### VPC Endpoints ###
   EndpointSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: SG for Interface VPC Endpoints
       VpcId: !Ref StocksVPC
+      GroupDescription: SG for Interface VPC Endpoints
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 443
@@ -235,7 +233,6 @@ Resources:
       SecurityGroupIds:
         - !Ref EndpointSecurityGroup
 
-  ### ← NEW: Secrets Manager VPC endpoint
   VPCEndpointSecretsManager:
     Type: AWS::EC2::VPCEndpoint
     Properties:
@@ -248,7 +245,6 @@ Resources:
       SecurityGroupIds:
         - !Ref EndpointSecurityGroup
 
-  ### Bastion host (Spot ASG) ###
   BastionInstanceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -256,7 +252,8 @@ Resources:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal: { Service: ec2.amazonaws.com }
+            Principal:
+              Service: ec2.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
@@ -281,22 +278,6 @@ Resources:
         - IpProtocol: -1
           CidrIp: "0.0.0.0/0"
 
-  BastionLaunchTemplate:
-    Type: AWS::EC2::LaunchTemplate
-    Properties:
-      LaunchTemplateName: stocks-bastion-lt
-      LaunchTemplateData:
-        InstanceType: t3.micro
-        ImageId: ami-0c94855ba95c71c99
-        IamInstanceProfile:
-          Name: !Ref BastionInstanceProfile
-        SecurityGroupIds:
-          - !Ref BastionSecurityGroup
-        InstanceMarketOptions:
-          MarketType: spot
-          SpotOptions:
-            SpotInstanceType: one-time
-        
   BastionLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
@@ -352,7 +333,7 @@ Resources:
               chmod 600 /home/ec2-user/.pgpass
               chown ec2-user:ec2-user /home/ec2-user/.pgpass
 
-BastionAutoScalingGroup:
+  BastionAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
       AutoScalingGroupName: stocks-bastion-asg
@@ -370,7 +351,6 @@ BastionAutoScalingGroup:
           Value: stocks-bastion
           PropagateAtLaunch: true
 
-  ### Auto‑shutdown Lambda ###
   BastionStopRole:
     Type: AWS::IAM::Role
     Properties:
@@ -378,7 +358,8 @@ BastionAutoScalingGroup:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal: { Service: lambda.amazonaws.com }
+            Principal:
+              Service: lambda.amazonaws.com
             Action: sts:AssumeRole
       Policies:
         - PolicyName: StopBastion
@@ -412,7 +393,7 @@ BastionAutoScalingGroup:
   BastionStopRule:
     Type: AWS::Events::Rule
     Properties:
-      Description: Scale bastion down at 6 PM CT daily
+      Description: Scale bastion down at 6 PM CT daily
       ScheduleExpression: cron(0 23 * * ? *)
       State: ENABLED
       Targets:
@@ -427,7 +408,6 @@ BastionAutoScalingGroup:
       Principal: events.amazonaws.com
       SourceArn: !GetAtt BastionStopRule.Arn
 
-  ### ECR Registry ###
   ContainerRepository:
     Type: AWS::ECR::Repository
     DeletionPolicy: Delete
@@ -436,8 +416,7 @@ BastionAutoScalingGroup:
       LifecyclePolicy:
         LifecyclePolicyText: |
           {
-            "rules":[
-              {
+            "rules":[{
                 "rulePriority":1,
                 "selection":{
                   "tagStatus":"any",
@@ -446,11 +425,9 @@ BastionAutoScalingGroup:
                   "countNumber":30
                 },
                 "action":{"type":"expire"}
-              }
-            ]
+            }]
           }
 
-  ### S3 Code Bucket ###
   CodeBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -463,34 +440,45 @@ BastionAutoScalingGroup:
 Outputs:
   VpcId:
     Value: !Ref StocksVPC
-    Export: { Name: StocksCore-VpcId }
+    Export:
+      Name: StocksCore-VpcId
   PublicSubnet1Id:
     Value: !Ref PublicSubnet1
-    Export: { Name: StocksCore-PublicSubnet1Id }
+    Export:
+      Name: StocksCore-PublicSubnet1Id
   PublicSubnet2Id:
     Value: !Ref PublicSubnet2
-    Export: { Name: StocksCore-PublicSubnet2Id }
+    Export:
+      Name: StocksCore-PublicSubnet2Id
   PrivateSubnet1Id:
     Value: !Ref PrivateSubnet1
-    Export: { Name: StocksCore-PrivateSubnet1Id }
+    Export:
+      Name: StocksCore-PrivateSubnet1Id
   PrivateSubnet2Id:
     Value: !Ref PrivateSubnet2
-    Export: { Name: StocksCore-PrivateSubnet2Id }
+    Export:
+      Name: StocksCore-PrivateSubnet2Id
   LambdaSecurityGroupId:
     Value: !Ref LambdaSecurityGroup
-    Export: { Name: StocksCore-LambdaSecurityGroupId }
+    Export:
+      Name: StocksCore-LambdaSecurityGroupId
   LambdaExecutionRoleArn:
     Value: !GetAtt LambdaExecutionRole.Arn
-    Export: { Name: StocksCore-LambdaExecutionRoleArn }
+    Export:
+      Name: StocksCore-LambdaExecutionRoleArn
   ContainerRepositoryUri:
     Value: !GetAtt ContainerRepository.RepositoryUri
-    Export: { Name: StocksCore-ContainerRepositoryUri }
+    Export:
+      Name: StocksCore-ContainerRepositoryUri
   CodeBucketName:
     Value: !Ref CodeBucket
-    Export: { Name: StocksCore-CodeBucketName }
+    Export:
+      Name: StocksCore-CodeBucketName
   WebIdentityProviderArn:
     Value: !Ref GitHubOidcProvider
-    Export: { Name: StocksCore-WebIdentityProviderArn }
+    Export:
+      Name: StocksCore-WebIdentityProviderArn
   DeployRoleArn:
     Value: !GetAtt GitHubActionsDeployRole.Arn
-    Export: { Name: StocksCore-GitHubActionsDeployRoleArn }
+    Export:
+      Name: StocksCore-GitHubActionsDeployRoleArn
