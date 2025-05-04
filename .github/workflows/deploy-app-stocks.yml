@@ -247,11 +247,6 @@ jobs:
   deploy_ecs_tasks:
     needs: build_and_push_containers
     runs-on: ubuntu-latest
-    outputs:
-      findata_taskdefinitionarn:      ${{ steps.fetch.outputs.findata_taskdefinitionarn }}
-      price_taskdefinitionarn:        ${{ steps.fetch.outputs.price_taskdefinitionarn }}
-      priceweekly_taskdefinitionarn:  ${{ steps.fetch.outputs.priceweekly_taskdefinitionarn }}
-      pricemonthly_taskdefinitionarn: ${{ steps.fetch.outputs.pricemonthly_taskdefinitionarn }}
     steps:
       - uses: actions/checkout@v3
       - uses: aws-actions/configure-aws-credentials@v2
@@ -276,33 +271,6 @@ jobs:
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
 
-      - name: Fetch TaskDefinition ARNs
-        id: fetch
-        run: |
-          findataArn=$(aws cloudformation describe-stacks \
-            --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='FindataTaskDefinitionArn'].OutputValue" \
-            --output text)
-          echo "findata_taskdefinitionarn=$findataArn" >> $GITHUB_OUTPUT
-
-          priceArn=$(aws cloudformation describe-stacks \
-            --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='PriceTaskDefinitionArn'].OutputValue" \
-            --output text)
-          echo "price_taskdefinitionarn=$priceArn" >> $GITHUB_OUTPUT
-
-          weeklyArn=$(aws cloudformation describe-stacks \
-            --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyTaskDefinitionArn'].OutputValue" \
-            --output text)
-          echo "priceweekly_taskdefinitionarn=$weeklyArn" >> $GITHUB_OUTPUT
-
-          monthlyArn=$(aws cloudformation describe-stacks \
-            --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='PriceMonthlyTaskDefinitionArn'].OutputValue" \
-            --output text)
-          echo "pricemonthly_taskdefinitionarn=$monthlyArn" >> $GITHUB_OUTPUT
-
   #################################################
   # 6) Run ECS tasks in public subnets            #
   #################################################
@@ -310,24 +278,19 @@ jobs:
     needs: deploy_ecs_tasks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
       - uses: aws-actions/configure-aws-credentials@v2
-        name: Configure AWS creds
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region:        ${{ env.AWS_REGION }}
           audience:          sts.amazonaws.com
 
-      - name: Debug findata ARN
-        run: echo "→ findata ARN is '${{ needs.deploy_ecs_tasks.outputs.findata_taskdefinitionarn }}'"
-
-      - name: Run findata-loader
+      - name: Run findata‑loader
         run: |
           aws ecs run-task \
             --cluster stocks-cluster \
             --launch-type FARGATE \
-            --task-definition "${{ needs.deploy_ecs_tasks.outputs.findata_taskdefinitionarn }}" \
+            --task-definition findata-loader \
             --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PUBLIC_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
             --count 1
 
@@ -335,24 +298,19 @@ jobs:
     needs: run_findata
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
       - uses: aws-actions/configure-aws-credentials@v2
-        name: Configure AWS creds
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region:        ${{ env.AWS_REGION }}
           audience:          sts.amazonaws.com
 
-      - name: Debug price ARN
-        run: echo "→ price ARN is '${{ needs.deploy_ecs_tasks.outputs.price_taskdefinitionarn }}'"
-
-      - name: Run pricedaily-loader
+      - name: Run pricedaily‑loader
         run: |
           aws ecs run-task \
             --cluster stocks-cluster \
             --launch-type FARGATE \
-            --task-definition "${{ needs.deploy_ecs_tasks.outputs.price_taskdefinitionarn }}" \
+            --task-definition pricedaily-loader \
             --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PUBLIC_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
             --count 1
 
@@ -360,24 +318,19 @@ jobs:
     needs: run_pricedaily
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
       - uses: aws-actions/configure-aws-credentials@v2
-        name: Configure AWS creds
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region:        ${{ env.AWS_REGION }}
           audience:          sts.amazonaws.com
 
-      - name: Debug priceweekly ARN
-        run: echo "→ priceweekly ARN is '${{ needs.deploy_ecs_tasks.outputs.priceweekly_taskdefinitionarn }}'"
-
-      - name: Run priceweekly-loader
+      - name: Run priceweekly‑loader
         run: |
           aws ecs run-task \
             --cluster stocks-cluster \
             --launch-type FARGATE \
-            --task-definition "${{ needs.deploy_ecs_tasks.outputs.priceweekly_taskdefinitionarn }}" \
+            --task-definition priceweekly-loader \
             --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PUBLIC_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
             --count 1
 
@@ -385,23 +338,18 @@ jobs:
     needs: run_priceweekly
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
       - uses: aws-actions/configure-aws-credentials@v2
-        name: Configure AWS creds
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region:        ${{ env.AWS_REGION }}
           audience:          sts.amazonaws.com
 
-      - name: Debug pricemonthly ARN
-        run: echo "→ pricemonthly ARN is '${{ needs.deploy_ecs_tasks.outputs.pricemonthly_taskdefinitionarn }}'"
-
-      - name: Run pricemonthly-loader
+      - name: Run pricemonthly‑loader
         run: |
           aws ecs run-task \
             --cluster stocks-cluster \
             --launch-type FARGATE \
-            --task-definition "${{ needs.deploy_ecs_tasks.outputs.pricemonthly_taskdefinitionarn }}" \
+            --task-definition pricemonthly-loader \
             --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PUBLIC_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
             --count 1
