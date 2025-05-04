@@ -7,19 +7,19 @@ Description: >
 Parameters:
   FindataImageTag:
     Type: String
-    Description: Tag of the findata container image
+    Description: Tag of the findata container image (e.g. findata-<git-sha>)
   PriceImageTag:
     Type: String
-    Description: Tag of the pricedaily container image
+    Description: Tag of the pricedaily container image (e.g. pricedaily-<git-sha>)
   PriceWeeklyImageTag:
     Type: String
-    Description: Tag of the priceweekly container image
+    Description: Tag of the priceweekly container image (e.g. priceweekly-<git-sha>)
   PriceMonthlyImageTag:
     Type: String
-    Description: Tag of the pricemonthly container image
+    Description: Tag of the pricemonthly container image (e.g. pricemonthly-<git-sha>)
   TechnicalDailyImageTag:
     Type: String
-    Description: Tag of the technicaldaily container image
+    Description: Tag of the technicaldaily container image (e.g. technicaldaily-<git-sha>)
   FREDApiKey:
     Type: String
     NoEcho: true
@@ -292,7 +292,7 @@ Resources:
           AssignPublicIp: ENABLED
 
   ##############################################################
-  # 9) pricemonthly-loader Service (zero scale, inline subnets)#
+  # 9) pricemonthly-loader Service (inline subnets)           #
   ##############################################################
   PriceMonthlyLoaderService:
     Type: AWS::ECS::Service
@@ -328,6 +328,27 @@ Resources:
           AssignPublicIp: ENABLED
 
 Outputs:
+
+  FindataTaskDefinitionArn:
+    Description: ARN of the findata ECS TaskDefinition
+    Value: !Ref FindataTaskDefinition
+
+  PriceTaskDefinitionArn:
+    Description: ARN of the pricedaily ECS TaskDefinition
+    Value: !Ref PriceTaskDefinition
+
+  PriceWeeklyTaskDefinitionArn:
+    Description: ARN of the priceweekly ECS TaskDefinition
+    Value: !Ref PriceWeeklyTaskDefinition
+
+  PriceMonthlyTaskDefinitionArn:
+    Description: ARN of the pricemonthly ECS TaskDefinition
+    Value: !Ref PriceMonthlyTaskDefinition
+
+  TechnicalDailyTaskDefinitionArn:
+    Description: ARN of the technicaldaily ECS TaskDefinition
+    Value: !Ref TechnicalDailyTaskDefinition
+
   FindataLoaderServiceName:
     Description: ECS Service name for findata-loader
     Value: !Ref FindataLoaderService

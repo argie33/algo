@@ -22,7 +22,7 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
     stream=sys.stdout
 )
-
+ 
 # -------------------------------
 # Environment-driven configuration
 # -------------------------------
