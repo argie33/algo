@@ -338,7 +338,7 @@ Resources:
               --output text)
 
             cat <<EOF > /home/ec2-user/.pgpass
-            $${DB_HOST}:$${DB_PORT}:$${DB_NAME}:$${DB_USER}:$${DB_PASSWORD}
+            ${DB_HOST}:${DB_PORT}:${DB_NAME}:${DB_USER}:${DB_PASSWORD}
             EOF
             chmod 600 /home/ec2-user/.pgpass
             chown ec2-user:ec2-user /home/ec2-user/.pgpass
