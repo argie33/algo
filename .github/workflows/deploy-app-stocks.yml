@@ -7,44 +7,18 @@ permissions:
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:
-    inputs:
-      run_symbols:
-        description: 'Build & upload symbols‑loader Lambda'
-        required: false
-        default: 'true'
-      run_econ:
-        description: 'Build & upload economic‑data Lambda'
-        required: false
-        default: 'true'
-      run_lambdas:
-        description: 'Deploy & invoke the two Lambdas'
-        required: false
-        default: 'true'
-      build_containers:
-        description: 'Build & push all ECS container images'
-        required: false
-        default: 'true'
-      deploy_ecs:
-        description: 'Deploy ECS TaskDefinitions'
-        required: false
-        default: 'true'
-      run_findata:
-        description: 'Run findata‑loader on Fargate'
-        required: false
-        default: 'true'
-      run_pricedaily:
-        description: 'Run pricedaily‑loader on Fargate'
-        required: false
-        default: 'true'
-      run_priceweekly:
-        description: 'Run priceweekly‑loader on Fargate'
-        required: false
-        default: 'true'
-      run_pricemonthly:
-        description: 'Run pricemonthly‑loader on Fargate'
-        required: false
-        default: 'true'
+
+# Toggle these to 'true' or 'false' to enable/disable jobs on each run:
+env:
+  RUN_SYMBOLS:       'true'   # Build & upload symbols‑loader Lambda
+  RUN_ECON:          'true'   # Build & upload econ‑data loader Lambda
+  RUN_LAMBDAS:       'true'   # Deploy & invoke the two Lambdas
+  BUILD_CONTAINERS:  'true'   # Build & push all ECS container images
+  DEPLOY_ECS:        'true'   # Deploy ECS TaskDefinitions
+  RUN_FINDATA:       'true'   # Run findata‑loader on Fargate
+  RUN_PRICEDAILY:    'true'   # Run pricedaily‑loader on Fargate
+  RUN_PRICEWEEKLY:   'true'   # Run priceweekly‑loader on Fargate
+  RUN_PRICEMONTHLY:  'true'   # Run pricemonthly‑loader on Fargate
 
 jobs:
 
@@ -52,7 +26,7 @@ jobs:
   # 1) Build & upload symbols  #
   ###############################
   build_and_upload_symbols:
-    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_symbols == 'true') }}
+    if: ${{ env.RUN_SYMBOLS == 'true' }}
     runs-on: ubuntu-latest
     outputs:
       code_key: ${{ steps.upload.outputs.code_key }}
@@ -93,7 +67,7 @@ jobs:
   # 2) Build & upload econ‑data     #
   ####################################
   build_and_upload_econ:
-    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_econ == 'true') }}
+    if: ${{ env.RUN_ECON == 'true' }}
     runs-on: ubuntu-latest
     outputs:
       econ_code_key: ${{ steps.upload.outputs.econ_code_key }}
@@ -134,7 +108,7 @@ jobs:
   # 3) Deploy & run symbols‑loader & econ‑data   #
   #################################################
   deploy_and_run_lambdas:
-    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_lambdas == 'true') }}
+    if: ${{ env.RUN_LAMBDAS == 'true' }}
     needs:
       - build_and_upload_symbols
       - build_and_upload_econ
@@ -197,7 +171,7 @@ jobs:
   # 4) Build & push ECS container images#
   ########################################
   build_and_push_containers:
-    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.build_containers == 'true') }}
+    if: ${{ env.BUILD_CONTAINERS == 'true' }}
     needs: deploy_and_run_lambdas
     runs-on: ubuntu-latest
     outputs:
@@ -272,7 +246,7 @@ jobs:
   # 5) Deploy ECS TaskDefinitions (with cleanup)  #
   #################################################
   deploy_ecs_tasks:
-    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_ecs == 'true') }}
+    if: ${{ env.DEPLOY_ECS == 'true' }}
     needs: build_and_push_containers
     runs-on: ubuntu-latest
     outputs:
@@ -340,7 +314,7 @@ jobs:
   # 6a) Run findata ECS task                     #
   #################################################
   run_findata:
-    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_findata == 'true') }}
+    if: ${{ env.RUN_FINDATA == 'true' }}
     needs: deploy_ecs_tasks
     runs-on: ubuntu-latest
     steps:
@@ -367,7 +341,7 @@ jobs:
   # 6b) Run pricedaily ECS task                  #
   #################################################
   run_pricedaily:
-    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_pricedaily == 'true') }}
+    if: ${{ env.RUN_PRICEDAILY == 'true' }}
     needs: deploy_ecs_tasks
     runs-on: ubuntu-latest
     steps:
@@ -394,7 +368,7 @@ jobs:
   # 6c) Run priceweekly ECS task                 #
   #################################################
   run_priceweekly:
-    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_priceweekly == 'true') }}
+    if: ${{ env.RUN_PRICEWEEKLY == 'true' }}
     needs: deploy_ecs_tasks
     runs-on: ubuntu-latest
     steps:
@@ -421,7 +395,7 @@ jobs:
   # 6d) Run pricemonthly ECS task                #
   #################################################
   run_pricemonthly:
-    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_pricemonthly == 'true') }}
+    if: ${{ env.RUN_PRICEMONTHLY == 'true' }}
     needs: deploy_ecs_tasks
     runs-on: ubuntu-latest
     steps:
@@ -431,9 +405,9 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
-          role-session-name: github-deploy
-          aws-region: us-east-1
-          audience: sts.amazonaws.com
+            role-session-name: github-deploy
+            aws-region: us-east-1
+            audience: sts.amazonaws.com
 
       - name: Run pricemonthly‑loader
         run: |
