@@ -1,5 +1,9 @@
 name: deploy-app-template
 
+permissions:
+  id-token: write
+  contents: read
+
 on:
   push:
     branches:
@@ -13,7 +17,7 @@ env:
 jobs:
 
   ##########################################
-  # 0) Filter — what files actually changed #
+  # 0) Filter — detect exactly what changed #
   ##########################################
   filter:
     runs-on: ubuntu-latest
@@ -26,12 +30,16 @@ jobs:
       priceweekly:   ${{ steps.filter.outputs.priceweekly }}
       pricemonthly:  ${{ steps.filter.outputs.pricemonthly }}
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout full repo history
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Detect which parts changed
         id: filter
         uses: dorny/paths-filter@v2
         with:
+          base: ${{ github.event.before }}
           filters: |
             symbols:
               - 'loadstocksymbols.py'
@@ -62,20 +70,21 @@ jobs:
               - 'scripts/pricemonthly/**'
 
   ###################################################################
-  # 1) Build & upload symbols-loader Lambda (always, small / fast) #
+  # 1) Build & upload symbols‑loader Lambda (always, small / fast) #
   ###################################################################
   build_and_upload_symbols:
     needs: filter
     runs-on: ubuntu-latest
-    if: ${{ always() }}            # always build so CFN can update if needed
+    if: ${{ always() }}
     outputs:
       code_key: ${{ steps.upload.outputs.code_key }}
     steps:
-      - uses: aws-actions/configure-aws-credentials@v2
+      - name: Configure AWS creds
+        uses: aws-actions/configure-aws-credentials@v4
         with:
+          aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-          aws-region:        ${{ env.AWS_REGION }}
 
       - name: Get Lambda code bucket
         id: get_bucket
@@ -87,17 +96,18 @@ jobs:
           echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
 
       - uses: actions/checkout@v3
+
       - uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      - name: Install symbols-loader deps
+      - name: Install symbols‑loader deps
         run: |
           rm -rf symbols_package && mkdir symbols_package
           pip install --upgrade pip
           pip install -r requirements-loadstocksymbols.txt -t symbols_package
 
-      - name: Package symbols-loader
+      - name: Package symbols‑loader
         run: |
           cp loadstocksymbols.py symbols_package/index.py
           cd symbols_package && zip -r "../symbols-${{ github.sha }}.zip" . && cd ..
@@ -111,7 +121,7 @@ jobs:
           echo "code_key=symbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
   #####################################################################
-  # 2) Build & upload econ-data loader Lambda (always, small / fast) #
+  # 2) Build & upload econ‑data loader Lambda (always, small / fast) #
   #####################################################################
   build_and_upload_econ:
     needs: filter
@@ -120,11 +130,12 @@ jobs:
     outputs:
       econ_code_key: ${{ steps.upload_econ.outputs.code_key }}
     steps:
-      - uses: aws-actions/configure-aws-credentials@v2
+      - name: Configure AWS creds
+        uses: aws-actions/configure-aws-credentials@v4
         with:
+          aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-          aws-region:        ${{ env.AWS_REGION }}
 
       - name: Get Lambda code bucket
         id: get_bucket_econ
@@ -136,17 +147,18 @@ jobs:
           echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
 
       - uses: actions/checkout@v3
+
       - uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      - name: Install econ-data deps
+      - name: Install econ‑data deps
         run: |
           rm -rf econ_package && mkdir econ_package
           pip install --upgrade pip
           pip install -r requirements-loadecondata.txt -t econ_package
 
-      - name: Package econ-data loader
+      - name: Package econ‑data loader
         run: |
           cp loadecondata.py econ_package/index.py
           cd econ_package && zip -r "../econ-${{ github.sha }}.zip" . && cd ..
@@ -169,11 +181,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: aws-actions/configure-aws-credentials@v2
+
+      - name: Configure AWS creds
+        uses: aws-actions/configure-aws-credentials@v4
         with:
+          aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-          aws-region:        ${{ env.AWS_REGION }}
 
       - name: Deploy Lambda stack
         run: |
@@ -189,7 +203,7 @@ jobs:
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
 
-      - name: Invoke symbols-loader
+      - name: Invoke symbols‑loader
         if: needs.filter.outputs.symbols == 'true'
         run: |
           aws lambda invoke \
@@ -199,7 +213,7 @@ jobs:
             --cli-binary-format raw-in-base64-out \
             /dev/null || true
 
-      - name: Invoke econ-data loader
+      - name: Invoke econ‑data loader
         if: needs.filter.outputs.econ == 'true'
         run: |
           aws lambda invoke \
@@ -223,11 +237,14 @@ jobs:
       pricemonthly_tag: ${{ steps.monthly.outputs.tag }}
     steps:
       - uses: actions/checkout@v3
-      - uses: aws-actions/configure-aws-credentials@v2
+
+      - name: Configure AWS creds
+        uses: aws-actions/configure-aws-credentials@v4
         with:
+          aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-          aws-region:        ${{ env.AWS_REGION }}
+
       - uses: aws-actions/amazon-ecr-login@v1
 
       - name: Get or create ECR repo
@@ -287,11 +304,13 @@ jobs:
     if: needs.filter.outputs.containers == 'true'
     steps:
       - uses: actions/checkout@v3
-      - uses: aws-actions/configure-aws-credentials@v2
+
+      - name: Configure AWS creds
+        uses: aws-actions/configure-aws-credentials@v4
         with:
+          aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-          aws-region:        ${{ env.AWS_REGION }}
 
       - name: Deploy ECS CFN stack
         run: |
@@ -315,11 +334,12 @@ jobs:
     runs-on: ubuntu-latest
     if: needs.filter.outputs.findata == 'true'
     steps:
-      - uses: aws-actions/configure-aws-credentials@v2
+      - name: Configure AWS creds
+        uses: aws-actions/configure-aws-credentials@v4
         with:
+          aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-          aws-region:        ${{ env.AWS_REGION }}
 
       - name: Fetch findata service name
         id: svc
@@ -330,7 +350,7 @@ jobs:
             --output text)
           echo "service=$svc" >> $GITHUB_OUTPUT
 
-      - name: Scale findata-loader up
+      - name: Scale findata‑loader up
         run: |
           aws ecs update-service --cluster stocks-cluster --service ${{ steps.svc.outputs.service }} --desired-count 1
 
@@ -338,7 +358,7 @@ jobs:
         run: |
           aws ecs wait services-stable --cluster stocks-cluster --services ${{ steps.svc.outputs.service }}
 
-      - name: Scale findata-loader down
+      - name: Scale findata‑loader down
         run: |
           aws ecs update-service --cluster stocks-cluster --service ${{ steps.svc.outputs.service }} --desired-count 0
 
@@ -347,11 +367,12 @@ jobs:
     runs-on: ubuntu-latest
     if: needs.filter.outputs.pricedaily == 'true'
     steps:
-      - uses: aws-actions/configure-aws-credentials@v2
+      - name: Configure AWS creds
+        uses: aws-actions/configure-aws-credentials@v4
         with:
+          aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-          aws-region:        ${{ env.AWS_REGION }}
 
       - name: Fetch pricedaily service name
         id: svc
@@ -362,7 +383,7 @@ jobs:
             --output text)
           echo "service=$svc" >> $GITHUB_OUTPUT
 
-      - name: Scale pricedaily-loader up
+      - name: Scale pricedaily‑loader up
         run: |
           aws ecs update-service --cluster stocks-cluster --service ${{ steps.svc.outputs.service }} --desired-count 1
 
@@ -370,7 +391,7 @@ jobs:
         run: |
           aws ecs wait services-stable --cluster stocks-cluster --services ${{ steps.svc.outputs.service }}
 
-      - name: Scale pricedaily-loader down
+      - name: Scale pricedaily‑loader down
         run: |
           aws ecs update-service --cluster stocks-cluster --service ${{ steps.svc.outputs.service }} --desired-count 0
 
@@ -379,11 +400,12 @@ jobs:
     runs-on: ubuntu-latest
     if: needs.filter.outputs.priceweekly == 'true'
     steps:
-      - uses: aws-actions/configure-aws-credentials@v2
+      - name: Configure AWS creds
+        uses: aws-actions/configure-aws-credentials@v4
         with:
+          aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-          aws-region:        ${{ env.AWS_REGION }}
 
       - name: Fetch priceweekly service name
         id: svc
@@ -394,7 +416,7 @@ jobs:
             --output text)
           echo "service=$svc" >> $GITHUB_OUTPUT
 
-      - name: Scale priceweekly-loader up
+      - name: Scale priceweekly‑loader up
         run: |
           aws ecs update-service --cluster stocks-cluster --service ${{ steps.svc.outputs.service }} --desired-count 1
 
@@ -402,7 +424,7 @@ jobs:
         run: |
           aws ecs wait services-stable --cluster stocks-cluster --services ${{ steps.svc.outputs.service }}
 
-      - name: Scale priceweekly-loader down
+      - name: Scale priceweekly‑loader down
         run: |
           aws ecs update-service --cluster stocks-cluster --service ${{ steps.svc.outputs.service }} --desired-count 0
 
@@ -411,22 +433,23 @@ jobs:
     runs-on: ubuntu-latest
     if: needs.filter.outputs.pricemonthly == 'true'
     steps:
-      - uses: aws-actions/configure-aws-credentials@v2
+      - name: Configure AWS creds
+        uses: aws-actions/configure-aws-credentials@v4
         with:
+          aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-          aws-region:        ${{ env.AWS_REGION }}
 
       - name: Fetch pricemonthly service name
         id: svc
         run: |
-          svc=$(aws cloudformation.describe-stacks \
+          svc=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceMonthlyLoaderServiceName'].OutputValue" \
             --output text)
           echo "service=$svc" >> $GITHUB_OUTPUT
 
-      - name: Scale pricemonthly-loader up
+      - name: Scale pricemonthly‑loader up
         run: |
           aws ecs update-service --cluster stocks-cluster --service ${{ steps.svc.outputs.service }} --desired-count 1
 
@@ -434,6 +457,6 @@ jobs:
         run: |
           aws ecs wait services-stable --cluster stocks-cluster --services ${{ steps.svc.outputs.service }}
 
-      - name: Scale pricemonthly-loader down
+      - name: Scale pricemonthly‑loader down
         run: |
           aws ecs update-service --cluster stocks-cluster --service ${{ steps.svc.outputs.service }} --desired-count 0
