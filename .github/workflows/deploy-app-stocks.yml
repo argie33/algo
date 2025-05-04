@@ -16,8 +16,8 @@ env:
 
   # toggles — set to 'false' to skip
   RUN_SYMBOLS:       'true'
-  RUN_ECON:          'false'
-  RUN_LAMBDAS:       'false'
+  RUN_ECON:          'true'
+  RUN_LAMBDAS:       'true'
   BUILD_CONTAINERS:  'true'
   DEPLOY_ECS:        'true'
   RUN_FINDATA:       'true'
