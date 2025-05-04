@@ -20,6 +20,7 @@ Parameters:
   PrivateSubnetCidr2:
     Type: String
     Default: "10.0.102.0/24"
+
   DBStackName:
     Type: String
     Default: "stocks-db-lambda-stack"
@@ -263,6 +264,19 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: BastionSecretAndCFNAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: "*"        # allow fetching the DB secret
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                Resource: "*"        # allow looking up the DB endpoint
 
   BastionInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -307,12 +321,14 @@ Resources:
             amazon-linux-extras enable postgresql10
             yum install -y jq postgresql
             aws configure set region ${AWS::Region}
+
             CREDS=$(aws secretsmanager get-secret-value \
               --secret-id "${DBSecretName}" \
               --query SecretString --output text)
             DB_USER=$(echo "$CREDS" | jq -r .username)
             DB_PASSWORD=$(echo "$CREDS" | jq -r .password)
             DB_NAME=$(echo "$CREDS" | jq -r .dbname)
+
             DB_HOST=$(aws cloudformation describe-stacks \
               --stack-name "${DBStackName}" \
               --query "Stacks[0].Outputs[?OutputKey=='DBEndpoint'].OutputValue" \
@@ -321,8 +337,9 @@ Resources:
               --stack-name "${DBStackName}" \
               --query "Stacks[0].Outputs[?OutputKey=='DBPort'].OutputValue" \
               --output text)
+
             cat <<EOF > /home/ec2-user/.pgpass
-            ${DB_HOST}:${DB_PORT}:${DB_NAME}:${DB_USER}:${DB_PASSWORD}
+            $${DB_HOST}:$${DB_PORT}:$${DB_NAME}:$${DB_USER}:$${DB_PASSWORD}
             EOF
             chmod 600 /home/ec2-user/.pgpass
             chown ec2-user:ec2-user /home/ec2-user/.pgpass
