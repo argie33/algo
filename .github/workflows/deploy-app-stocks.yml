@@ -11,11 +11,11 @@ on:
       - main
 
 env:
-  AWS_REGION:        us-east-1
-  AWS_ROLE_ARN:      arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
-  AWS_ROLE_SESSION:  github-deploy
+  AWS_REGION:       us-east-1
+  AWS_ROLE_ARN:     arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+  AWS_ROLE_SESSION: github-deploy
 
-  # Stages toggles: set to 'false' to skip a stage
+  # toggles
   RUN_SYMBOLS:       'true'
   RUN_ECON:          'true'
   RUN_LAMBDAS:       'true'
@@ -28,9 +28,9 @@ env:
 
 jobs:
 
-  #################################################################
-  # 0) Read toggles                                               #
-  #################################################################
+  ######################################
+  # 0) Read toggles                    #
+  ######################################
   set_flags:
     runs-on: ubuntu-latest
     outputs:
@@ -51,9 +51,9 @@ jobs:
             echo "${v,,}=${!v}" >> $GITHUB_OUTPUT
           done
 
-  #################################################################
-  # 1) Package & upload symbols‑loader Lambda                     #
-  #################################################################
+  ######################################
+  # 1) Package & upload symbols-loader #
+  ######################################
   build_and_upload_symbols:
     needs: set_flags
     if: ${{ needs.set_flags.outputs.run_symbols == 'true' }}
@@ -61,7 +61,7 @@ jobs:
     outputs:
       code_key: ${{ steps.upload.outputs.code_key }}
     steps:
-      - name: Configure AWS credentials
+      - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
@@ -72,18 +72,18 @@ jobs:
       - name: Lookup code bucket
         id: bucket
         run: |
-          BUCKET=$(aws cloudformation describe-stacks \
+          B=$(aws cloudformation describe-stacks \
             --stack-name stocks-core-stack \
             --query "Stacks[0].Outputs[?OutputKey=='CodeBucketName'].OutputValue" \
             --output text)
-          echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
+          echo "bucket=$B" >> $GITHUB_OUTPUT
 
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      - name: Install symbols‑loader dependencies
+      - name: Install symbols‑loader deps
         run: |
           rm -rf symbols_package && mkdir symbols_package
           pip install --upgrade pip
@@ -92,14 +92,9 @@ jobs:
       - name: Package symbols‑loader
         run: |
           cp loadstocksymbols.py symbols_package/index.py
-          cd symbols_package
-          zip -r "../symbols-${{ github.sha }}.zip" .
-          cd ..
+          cd symbols_package && zip -r "../symbols-${{ github.sha }}.zip" . && cd ..
 
-      - name: Inspect ZIP contents
-        run: unzip -l symbols-${{ github.sha }}.zip | head -n 20
-
-      - name: Upload symbols package to S3
+      - name: Upload symbols package
         id: upload
         run: |
           aws s3 cp symbols-${{ github.sha }}.zip \
@@ -107,9 +102,9 @@ jobs:
             --region ${{ env.AWS_REGION }}
           echo "code_key=symbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  #################################################################
-  # 2) Package & upload econ‑data loader Lambda                  #
-  #################################################################
+  ######################################
+  # 2) Package & upload econ‑data      #
+  ######################################
   build_and_upload_econ:
     needs: set_flags
     if: ${{ needs.set_flags.outputs.run_econ == 'true' }}
@@ -117,7 +112,7 @@ jobs:
     outputs:
       econ_code_key: ${{ steps.upload_econ.outputs.code_key }}
     steps:
-      - name: Configure AWS credentials
+      - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
@@ -128,18 +123,18 @@ jobs:
       - name: Lookup code bucket
         id: bucket_econ
         run: |
-          BUCKET=$(aws cloudformation describe-stacks \
+          B=$(aws cloudformation describe-stacks \
             --stack-name stocks-core-stack \
             --query "Stacks[0].Outputs[?OutputKey=='CodeBucketName'].OutputValue" \
             --output text)
-          echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
+          echo "bucket=$B" >> $GITHUB_OUTPUT
 
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      - name: Install econ‑data loader dependencies
+      - name: Install econ‑data deps
         run: |
           rm -rf econ_package && mkdir econ_package
           pip install --upgrade pip
@@ -148,14 +143,9 @@ jobs:
       - name: Package econ‑data loader
         run: |
           cp loadfinancialdata.py econ_package/index.py
-          cd econ_package
-          zip -r "../econ-${{ github.sha }}.zip" .
-          cd ..
+          cd econ_package && zip -r "../econ-${{ github.sha }}.zip" . && cd ..
 
-      - name: Inspect ZIP contents
-        run: unzip -l econ-${{ github.sha }}.zip | head -n 20
-
-      - name: Upload econ-data package to S3
+      - name: Upload econ package
         id: upload_econ
         run: |
           aws s3 cp econ-${{ github.sha }}.zip \
@@ -163,9 +153,9 @@ jobs:
             --region ${{ env.AWS_REGION }}
           echo "code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
-  #################################################################
-  # 3) Deploy RDS + Lambdas + invoke them                        #
-  #################################################################
+  ######################################
+  # 3) Deploy RDS & Lambdas            #
+  ######################################
   deploy_and_run_lambdas:
     needs:
       - build_and_upload_symbols
@@ -175,7 +165,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Configure AWS credentials
+      - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
@@ -214,9 +204,9 @@ jobs:
             --cli-binary-format raw-in-base64-out \
             /dev/null || true
 
-  #################################################################
-  # 4) Build & push ECS container images                         #
-  #################################################################
+  ######################################
+  # 4) Build & push ECS containers     #
+  ######################################
   build_and_push_containers:
     needs: deploy_and_run_lambdas
     if: ${{ needs.set_flags.outputs.build_containers == 'true' }}
@@ -229,10 +219,10 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: List workspace files
+      - name: List files
         run: ls -R .
 
-      - name: Configure AWS credentials
+      - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
@@ -243,7 +233,7 @@ jobs:
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Create or get ECR repo and URI
+      - name: Get or create repo
         id: get_uri
         run: |
           REPO=stocks-app-registry
@@ -255,7 +245,7 @@ jobs:
             --output text)
           echo "repo_uri=$URI" >> $GITHUB_OUTPUT
 
-      - name: Build & push findata container
+      - name: Build & push findata
         id: findata
         run: |
           TAG=findata-${{ github.sha }}
@@ -264,7 +254,7 @@ jobs:
           docker push $IMG
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Build & push pricedaily container
+      - name: Build & push pricedaily
         id: pricedaily
         run: |
           TAG=pricedaily-${{ github.sha }}
@@ -273,7 +263,7 @@ jobs:
           docker push $IMG
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Build & push priceweekly container
+      - name: Build & push priceweekly
         id: weekly
         run: |
           TAG=priceweekly-${{ github.sha }}
@@ -282,7 +272,7 @@ jobs:
           docker push $IMG
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Build & push pricemonthly container
+      - name: Build & push pricemonthly
         id: monthly
         run: |
           TAG=pricemonthly-${{ github.sha }}
@@ -291,22 +281,22 @@ jobs:
           docker push $IMG
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-  #################################################################
-  # 5) Deploy ECS TaskDefinitions                                #
-  #################################################################
+  ######################################
+  # 5) Deploy ECS TaskDefinitions      #
+  ######################################
   deploy_ecs_tasks:
     needs: build_and_push_containers
     if: ${{ needs.set_flags.outputs.deploy_ecs == 'true' }}
     runs-on: ubuntu-latest
     outputs:
-      findata_taskdef:      ${{ steps.fetch.outputs.findata_taskdefinitionarn }}
-      price_taskdef:        ${{ steps.fetch.outputs.price_taskdefinitionarn }}
-      weekly_taskdef:       ${{ steps.fetch.outputs.priceweekly_taskdefinitionarn }}
-      monthly_taskdef:      ${{ steps.fetch.outputs.pricemonthly_taskdefinitionarn }}
+      findata_arn:  ${{ steps.fetch.outputs.findata_arn }}
+      price_arn:    ${{ steps.fetch.outputs.price_arn }}
+      weekly_arn:   ${{ steps.fetch.outputs.weekly_arn }}
+      monthly_arn:  ${{ steps.fetch.outputs.monthly_arn }}
     steps:
       - uses: actions/checkout@v3
 
-      - name: Configure AWS credentials
+      - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
@@ -331,33 +321,33 @@ jobs:
       - name: Fetch TaskDefinition ARNs
         id: fetch
         run: |
-          echo "findata_taskdefinitionarn=$(aws cloudformation describe-stacks \
+          echo "findata_arn=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query \"Stacks[0].Outputs[?OutputKey=='FindataTaskDefinitionArn'].OutputValue\" \
             --output text)" >> $GITHUB_OUTPUT
-          echo "price_taskdefinitionarn=$(aws cloudformation describe-stacks \
+          echo "price_arn=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query \"Stacks[0].Outputs[?OutputKey=='PriceTaskDefinitionArn'].OutputValue\" \
             --output text)" >> $GITHUB_OUTPUT
-          echo "priceweekly_taskdefinitionarn=$(aws cloudformation describe-stacks \
+          echo "weekly_arn=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query \"Stacks[0].Outputs[?OutputKey=='PriceWeeklyTaskDefinitionArn'].OutputValue\" \
             --output text)" >> $GITHUB_OUTPUT
-          echo "pricemonthly_taskdefinitionarn=$(aws cloudformation describe-stacks \
+          echo "monthly_arn=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query \"Stacks[0].Outputs[?OutputKey=='PriceMonthlyTaskDefinitionArn'].OutputValue\" \
             --output text)" >> $GITHUB_OUTPUT
 
-  #################################################################
-  # 6) Run findata → pricedaily → priceweekly → pricemonthly     #
-  #################################################################
+  ######################################
+  # 6a) Run findata ECS task           #
+  ######################################
   run_findata:
     needs: deploy_ecs_tasks
     if: ${{ needs.set_flags.outputs.run_findata == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Configure AWS credentials
+      - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
@@ -369,17 +359,20 @@ jobs:
           aws ecs run-task \
             --cluster stocks-cluster \
             --launch-type FARGATE \
-            --task-definition "${{ needs.deploy_ecs_tasks.outputs.findata_taskdefinitionarn }}" \
+            --task-definition "${{ needs.deploy_ecs_tasks.outputs.findata_arn }}" \
             --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PUBLIC_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
             --count 1
 
+  ######################################
+  # 6b) Run pricedaily ECS task        #
+  ######################################
   run_pricedaily:
     needs: run_findata
     if: ${{ needs.set_flags.outputs.run_pricedaily == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Configure AWS credentials
+      - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
@@ -391,17 +384,20 @@ jobs:
           aws ecs run-task \
             --cluster stocks-cluster \
             --launch-type FARGATE \
-            --task-definition "${{ needs.deploy_ecs_tasks.outputs.price_taskdefinitionarn }}" \
+            --task-definition "${{ needs.deploy_ecs_tasks.outputs.price_arn }}" \
             --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PUBLIC_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
             --count 1
 
+  ######################################
+  # 6c) Run priceweekly ECS task       #
+  ######################################
   run_priceweekly:
     needs: run_pricedaily
     if: ${{ needs.set_flags.outputs.run_priceweekly == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Configure AWS credentials
+      - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
@@ -413,17 +409,20 @@ jobs:
           aws ecs run-task \
             --cluster stocks-cluster \
             --launch-type FARGATE \
-            --task-definition "${{ needs.deploy_ecs_tasks.outputs.priceweekly_taskdefinitionarn }}" \
+            --task-definition "${{ needs.deploy_ecs_tasks.outputs.weekly_arn }}" \
             --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PUBLIC_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
             --count 1
 
+  ######################################
+  # 6d) Run pricemonthly ECS task      #
+  ######################################
   run_pricemonthly:
     needs: run_priceweekly
     if: ${{ needs.set_flags.outputs.run_pricemonthly == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Configure AWS credentials
+      - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
@@ -435,6 +434,6 @@ jobs:
           aws ecs run-task \
             --cluster stocks-cluster \
             --launch-type FARGATE \
-            --task-definition "${{ needs.deploy_ecs_tasks.outputs.pricemonthly_taskdefinitionarn }}" \
+            --task-definition "${{ needs.deploy_ecs_tasks.outputs.monthly_arn }}" \
             --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PUBLIC_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
             --count 1
