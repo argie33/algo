@@ -20,7 +20,6 @@ Parameters:
   PrivateSubnetCidr2:
     Type: String
     Default: "10.0.102.0/24"
-
   DBStackName:
     Type: String
     Default: "stocks-db-lambda-stack"
@@ -265,18 +264,18 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
       Policies:
-        - PolicyName: BastionSecretAndCFNAccess
+        - PolicyName: BastionCFNAndSecretAccess
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
                 Action:
-                  - secretsmanager:GetSecretValue
-                Resource: "*"        # allow fetching the DB secret
+                  - cloudformation:DescribeStacks
+                Resource: !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${DBStackName}/*
               - Effect: Allow
                 Action:
-                  - cloudformation:DescribeStacks
-                Resource: "*"        # allow looking up the DB endpoint
+                  - secretsmanager:GetSecretValue
+                Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${DBSecretName}*
 
   BastionInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -498,3 +497,7 @@ Outputs:
     Value: !GetAtt GitHubActionsDeployRole.Arn
     Export:
       Name: StocksCore-GitHubActionsDeployRoleArn
+  BastionSecurityGroupId:
+    Value: !Ref BastionSecurityGroup
+    Export:
+      Name: StocksCore-BastionSecurityGroupId
