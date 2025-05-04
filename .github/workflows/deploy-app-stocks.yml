@@ -7,7 +7,10 @@ permissions:
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+    paths:
+      - .github/workflows/deploy-app-template.yml
 
 env:
   RUN_SYMBOLS:       'true'
@@ -52,7 +55,7 @@ jobs:
           echo "run_pricemonthly=${RUN_PRICEMONTHLY}" >> $GITHUB_OUTPUT
 
   #################################################
-  # 1) Package & upload symbols-loader Lambda     #
+  # 1) Package & upload symbols‑loader Lambda     #
   #################################################
   build_and_upload_symbols:
     needs: set_flags
@@ -61,17 +64,25 @@ jobs:
     outputs:
       code_key: ${{ steps.upload.outputs.code_key }}
     steps:
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume:    arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-deploy
+          aws-region:        us-east-1
+          audience:          sts.amazonaws.com
+
       - uses: actions/checkout@v3
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-      - name: Install symbols-loader deps
+      - name: Install symbols‑loader deps
         run: |
           rm -rf symbols_package && mkdir symbols_package
           pip install --upgrade pip
           pip install -r requirements-loadstocksymbols.txt -t symbols_package
-      - name: Package symbols-loader
+      - name: Package symbols‑loader
         run: |
           cp loadstocksymbols.py symbols_package/index.py
           cd symbols_package && zip -r "../symbols-${{ github.sha }}.zip" . && cd ..
@@ -82,7 +93,7 @@ jobs:
             && echo "code_key=symbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
   #################################################
-  # 2) Package & upload econ-data loader Lambda   #
+  # 2) Package & upload econ‑data loader Lambda   #
   #################################################
   build_and_upload_econ:
     needs: set_flags
@@ -91,17 +102,25 @@ jobs:
     outputs:
       econ_code_key: ${{ steps.upload_econ.outputs.code_key }}
     steps:
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume:    arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-deploy
+          aws-region:        us-east-1
+          audience:          sts.amazonaws.com
+
       - uses: actions/checkout@v3
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-      - name: Install econ-data deps
+      - name: Install econ‑data deps
         run: |
           rm -rf econ_package && mkdir econ_package
           pip install --upgrade pip
           pip install -r requirements-loadecondata.txt -t econ_package
-      - name: Package econ-data loader
+      - name: Package econ‑data loader
         run: |
           cp loadecondata.py econ_package/index.py
           cd econ_package && zip -r "../econ-${{ github.sha }}.zip" . && cd ..
@@ -154,7 +173,7 @@ jobs:
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM
-      - name: Invoke symbols-loader (async)
+      - name: Invoke symbols‑loader (async)
         run: |
           aws lambda invoke \
             --function-name loadstocksymbols \
@@ -162,7 +181,7 @@ jobs:
             --payload '{}' \
             --cli-binary-format raw-in-base64-out \
             symbols_response.json || true
-      - name: Invoke econ-data loader (async)
+      - name: Invoke econ‑data loader (async)
         run: |
           aws lambda invoke \
             --function-name loadecondata \
@@ -259,11 +278,10 @@ jobs:
               FindataImageTag=${{ needs.build_and_push_containers.outputs.findata_tag }} \
               PriceImageTag=${{ needs.build_and_push_containers.outputs.pricedaily_tag }} \
               PriceWeeklyImageTag=${{ needs.build_and_push_containers.outputs.priceweekly_tag }} \
-              PriceMonthlyImageTag=${{ needs.build_and_push_containers.outputs.pricemonthly_tag }} \  
+              PriceMonthlyImageTag=${{ needs.build_and_push_containers.outputs.pricemonthly_tag }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
-
       - name: Fetch TaskDefinition ARNs
         id: fetch
         run: |
@@ -384,4 +402,4 @@ jobs:
             --launch-type FARGATE \
             --task-definition "${{ steps.fetch.outputs.monthly_arn }}" \
             --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PRIVATE_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
-            --count 1
+            --c
