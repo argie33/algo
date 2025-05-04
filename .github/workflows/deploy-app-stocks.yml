@@ -25,12 +25,10 @@ jobs:
       code_key: ${{ steps.upload.outputs.code_key }}
     steps:
       - uses: aws-actions/configure-aws-credentials@v2
-        name: Configure AWS creds
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region:        ${{ env.AWS_REGION }}
-          audience:          sts.amazonaws.com
 
       - name: Get Lambda code bucket
         id: get_bucket
@@ -57,9 +55,6 @@ jobs:
           cp loadstocksymbols.py symbols_package/index.py
           cd symbols_package && zip -r "../symbols-${{ github.sha }}.zip" . && cd ..
 
-      - name: Inspect ZIP contents
-        run: unzip -l symbols-${{ github.sha }}.zip | head -n 20
-
       - name: Upload symbols package
         id: upload
         run: |
@@ -77,12 +72,10 @@ jobs:
       econ_code_key: ${{ steps.upload_econ.outputs.code_key }}
     steps:
       - uses: aws-actions/configure-aws-credentials@v2
-        name: Configure AWS creds
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region:        ${{ env.AWS_REGION }}
-          audience:          sts.amazonaws.com
 
       - name: Get Lambda code bucket
         id: get_bucket_econ
@@ -109,9 +102,6 @@ jobs:
           cp loadecondata.py econ_package/index.py
           cd econ_package && zip -r "../econ-${{ github.sha }}.zip" . && cd ..
 
-      - name: Inspect ZIP contents
-        run: unzip -l econ-${{ github.sha }}.zip | head -n 20
-
       - name: Upload econ package
         id: upload_econ
         run: |
@@ -131,12 +121,10 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: aws-actions/configure-aws-credentials@v2
-        name: Configure AWS creds
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region:        ${{ env.AWS_REGION }}
-          audience:          sts.amazonaws.com
 
       - name: Deploy App stack
         run: |
@@ -183,17 +171,14 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: aws-actions/configure-aws-credentials@v2
-        name: Configure AWS creds
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region:        ${{ env.AWS_REGION }}
-          audience:          sts.amazonaws.com
 
       - uses: aws-actions/amazon-ecr-login@v1
-        name: Login to ECR
 
-      - name: Get (or create) ECR repo & URI
+      - name: Get or create ECR repo & URI
         id: get_uri
         run: |
           REPO=stocks-app-registry
@@ -242,7 +227,7 @@ jobs:
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
   #################################################
-  # 5) Deploy ECS TaskDefinitions                #
+  # 5) Deploy ECS TaskDefinitions & Services      #
   #################################################
   deploy_ecs_tasks:
     needs: build_and_push_containers
@@ -250,12 +235,10 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: aws-actions/configure-aws-credentials@v2
-        name: Configure AWS creds
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region:        ${{ env.AWS_REGION }}
-          audience:          sts.amazonaws.com
 
       - name: Deploy ECS CFN stack
         run: |
@@ -272,7 +255,7 @@ jobs:
             --no-fail-on-empty-changeset
 
   #################################################
-  # 6) Run ECS tasks in public subnets            #
+  # 6) “Run” findata by scaling its Service up    #
   #################################################
   run_findata:
     needs: deploy_ecs_tasks
@@ -283,17 +266,38 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region:        ${{ env.AWS_REGION }}
-          audience:          sts.amazonaws.com
 
-      - name: Run findata‑loader
+      - name: Fetch findata service name
+        id: svc
         run: |
-          aws ecs run-task \
-            --cluster stocks-cluster \
-            --launch-type FARGATE \
-            --task-definition findata-loader \
-            --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PUBLIC_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
-            --count 1
+          echo "service=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query \"Stacks[0].Outputs[?OutputKey=='FindataLoaderServiceName'].OutputValue\" \
+            --output text)" >> $GITHUB_OUTPUT
 
+      - name: Scale findata-loader up
+        run: |
+          aws ecs update-service \
+            --cluster stocks-cluster \
+            --service ${{ steps.svc.outputs.service }} \
+            --desired-count 1
+
+      - name: Wait for findata to finish
+        run: |
+          aws ecs wait services-stable \
+            --cluster stocks-cluster \
+            --services ${{ steps.svc.outputs.service }}
+
+      - name: Scale findata-loader down
+        run: |
+          aws ecs update-service \
+            --cluster stocks-cluster \
+            --service ${{ steps.svc.outputs.service }} \
+            --desired-count 0
+
+  #################################################
+  # 7) “Run” pricedaily by scaling its Service up #
+  #################################################
   run_pricedaily:
     needs: run_findata
     runs-on: ubuntu-latest
@@ -303,17 +307,38 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region:        ${{ env.AWS_REGION }}
-          audience:          sts.amazonaws.com
 
-      - name: Run pricedaily‑loader
+      - name: Fetch pricedaily service name
+        id: svc
         run: |
-          aws ecs run-task \
-            --cluster stocks-cluster \
-            --launch-type FARGATE \
-            --task-definition pricedaily-loader \
-            --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PUBLIC_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
-            --count 1
+          echo "service=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query \"Stacks[0].Outputs[?OutputKey=='PriceDailyLoaderServiceName'].OutputValue\" \
+            --output text)" >> $GITHUB_OUTPUT
 
+      - name: Scale pricedaily-loader up
+        run: |
+          aws ecs update-service \
+            --cluster stocks-cluster \
+            --service ${{ steps.svc.outputs.service }} \
+            --desired-count 1
+
+      - name: Wait for pricedaily to finish
+        run: |
+          aws ecs wait services-stable \
+            --cluster stocks-cluster \
+            --services ${{ steps.svc.outputs.service }}
+
+      - name: Scale pricedaily-loader down
+        run: |
+          aws ecs update-service \
+            --cluster stocks-cluster \
+            --service ${{ steps.svc.outputs.service }} \
+            --desired-count 0
+
+  #################################################
+  # 8) “Run” weekly by scaling its Service up     #
+  #################################################
   run_priceweekly:
     needs: run_pricedaily
     runs-on: ubuntu-latest
@@ -323,17 +348,38 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region:        ${{ env.AWS_REGION }}
-          audience:          sts.amazonaws.com
 
-      - name: Run priceweekly‑loader
+      - name: Fetch priceweekly service name
+        id: svc
         run: |
-          aws ecs run-task \
-            --cluster stocks-cluster \
-            --launch-type FARGATE \
-            --task-definition priceweekly-loader \
-            --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PUBLIC_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
-            --count 1
+          echo "service=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query \"Stacks[0].Outputs[?OutputKey=='PriceWeeklyLoaderServiceName'].OutputValue\" \
+            --output text)" >> $GITHUB_OUTPUT
 
+      - name: Scale priceweekly-loader up
+        run: |
+          aws ecs update-service \
+            --cluster stocks-cluster \
+            --service ${{ steps.svc.outputs.service }} \
+            --desired-count 1
+
+      - name: Wait for weekly to finish
+        run: |
+          aws ecs wait services-stable \
+            --cluster stocks-cluster \
+            --services ${{ steps.svc.outputs.service }}
+
+      - name: Scale priceweekly-loader down
+        run: |
+          aws ecs update-service \
+            --cluster stocks-cluster \
+            --service ${{ steps.svc.outputs.service }} \
+            --desired-count 0
+
+  #################################################
+  # 9) “Run” monthly by scaling its Service up    #
+  #################################################
   run_pricemonthly:
     needs: run_priceweekly
     runs-on: ubuntu-latest
@@ -343,13 +389,31 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region:        ${{ env.AWS_REGION }}
-          audience:          sts.amazonaws.com
 
-      - name: Run pricemonthly‑loader
+      - name: Fetch pricemonthly service name
+        id: svc
         run: |
-          aws ecs run-task \
+          echo "service=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query \"Stacks[0].Outputs[?OutputKey=='PriceMonthlyLoaderServiceName'].OutputValue\" \
+            --output text)" >> $GITHUB_OUTPUT
+
+      - name: Scale pricemonthly-loader up
+        run: |
+          aws ecs update-service \
             --cluster stocks-cluster \
-            --launch-type FARGATE \
-            --task-definition pricemonthly-loader \
-            --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PUBLIC_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
-            --count 1
+            --service ${{ steps.svc.outputs.service }} \
+            --desired-count 1
+
+      - name: Wait for monthly to finish
+        run: |
+          aws ecs wait services-stable \
+            --cluster stocks-cluster \
+            --services ${{ steps.svc.outputs.service }}
+
+      - name: Scale pricemonthly-loader down
+        run: |
+          aws ecs update-service \
+            --cluster stocks-cluster \
+            --service ${{ steps.svc.outputs.service }} \
+            --desired-count 0
