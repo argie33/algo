@@ -11,11 +11,11 @@ on:
       - main
 
 env:
-  AWS_REGION: us-east-1
-  AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
-  AWS_ROLE_SESSION: github-deploy
+  AWS_REGION:        us-east-1
+  AWS_ROLE_ARN:      arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+  AWS_ROLE_SESSION:  github-deploy
 
-  # Toggles — flip to 'false' to skip that stage
+  # toggles (flip to 'false' to skip a job)
   RUN_SYMBOLS:       'true'
   RUN_ECON:          'true'
   RUN_LAMBDAS:       'true'
@@ -58,7 +58,7 @@ jobs:
           echo "run_pricemonthly=${RUN_PRICEMONTHLY}" >> $GITHUB_OUTPUT
 
   #################################################
-  # 1) Package & upload symbols‑loader Lambda     #
+  # 1) Package & upload symbols-loader Lambda     #
   #################################################
   build_and_upload_symbols:
     needs: set_flags
@@ -67,7 +67,7 @@ jobs:
     outputs:
       code_key: ${{ steps.upload.outputs.code_key }}
     steps:
-      - name: Configure AWS creds via OIDC
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
@@ -75,7 +75,7 @@ jobs:
           aws-region:        ${{ env.AWS_REGION }}
           audience:          sts.amazonaws.com
 
-      - name: Lookup Lambda code bucket
+      - name: Get Lambda code bucket
         id: get_bucket
         run: |
           BUCKET=$(aws cloudformation describe-stacks \
@@ -87,13 +87,14 @@ jobs:
       - uses: actions/checkout@v3
       - name: Set up Python
         uses: actions/setup-python@v4
-        with: { python-version: '3.9' }
-      - name: Install symbols‑loader deps
+        with:
+          python-version: '3.9'
+      - name: Install symbols-loader deps
         run: |
           rm -rf symbols_package && mkdir symbols_package
           pip install --upgrade pip
           pip install -r requirements-loadstocksymbols.txt -t symbols_package
-      - name: Package symbols‑loader
+      - name: Package symbols-loader
         run: |
           cp loadstocksymbols.py symbols_package/index.py
           cd symbols_package && zip -r "../symbols-${{ github.sha }}.zip" . && cd ..
@@ -115,7 +116,7 @@ jobs:
     outputs:
       econ_code_key: ${{ steps.upload_econ.outputs.code_key }}
     steps:
-      - name: Configure AWS creds via OIDC
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
@@ -123,7 +124,7 @@ jobs:
           aws-region:        ${{ env.AWS_REGION }}
           audience:          sts.amazonaws.com
 
-      - name: Lookup Lambda code bucket
+      - name: Get Lambda code bucket
         id: get_bucket_econ
         run: |
           BUCKET=$(aws cloudformation describe-stacks \
@@ -135,13 +136,14 @@ jobs:
       - uses: actions/checkout@v3
       - name: Set up Python
         uses: actions/setup-python@v4
-        with: { python-version: '3.9' }
-      - name: Install econ‑data deps
+        with:
+          python-version: '3.9'
+      - name: Install econ-data deps
         run: |
           rm -rf econ_package && mkdir econ_package
           pip install --upgrade pip
           pip install -r requirements-loadecondata.txt -t econ_package
-      - name: Package econ‑data loader
+      - name: Package econ-data loader
         run: |
           cp loadfinancialdata.py econ_package/index.py
           cd econ_package && zip -r "../econ-${{ github.sha }}.zip" . && cd ..
@@ -165,7 +167,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Configure AWS creds via OIDC
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
@@ -200,7 +202,7 @@ jobs:
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM
 
-      - name: Invoke symbols‑loader (async)
+      - name: Invoke symbols-loader (async)
         run: |
           aws lambda invoke \
             --function-name loadstocksymbols \
@@ -209,7 +211,7 @@ jobs:
             --cli-binary-format raw-in-base64-out \
             symbols_response.json || true
 
-      - name: Invoke econ‑data loader (async)
+      - name: Invoke econ-data loader (async)
         run: |
           aws lambda invoke \
             --function-name loadecondata \
@@ -233,7 +235,7 @@ jobs:
       priceweekly_tag:  ${{ steps.weekly.outputs.tag }}
       pricemonthly_tag: ${{ steps.monthly.outputs.tag }}
     steps:
-      - name: Configure AWS creds via OIDC
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
@@ -244,7 +246,7 @@ jobs:
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Get (or create) ECR repo + URI
+      - name: Get (or create) ECR repo & URI
         id: get_uri
         run: |
           REPO=stocks-app-registry
@@ -303,7 +305,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Configure AWS creds via OIDC
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
@@ -311,7 +313,7 @@ jobs:
           aws-region:        ${{ env.AWS_REGION }}
           audience:          sts.amazonaws.com
 
-      - name: Deploy ECS TaskDefinitions
+      - name: Deploy ECS CFN stack
         run: |
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
@@ -353,7 +355,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Configure AWS creds via OIDC
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
@@ -366,7 +368,7 @@ jobs:
             --cluster stocks-cluster \
             --launch-type FARGATE \
             --task-definition "${{ steps.fetch.outputs.findata_arn }}" \
-            --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PRIVATE_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
+            --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PUBLIC_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
             --count 1
 
   run_pricedaily:
@@ -375,21 +377,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Configure AWS creds via OIDC
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region:        ${{ env.AWS_REGION }}
-          audience:          
-          sts.amazonaws.com
+          audience:          sts.amazonaws.com
       - name: Run pricedaily-loader
         run: |
           aws ecs run-task \
             --cluster stocks-cluster \
             --launch-type FARGATE \
             --task-definition "${{ steps.fetch.outputs.price_arn }}" \
-            --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PRIVATE_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
+            --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PUBLIC_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
             --count 1
 
   run_priceweekly:
@@ -398,7 +399,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Configure AWS creds via OIDC
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
@@ -411,7 +412,7 @@ jobs:
             --cluster stocks-cluster \
             --launch-type FARGATE \
             --task-definition "${{ steps.fetch.outputs.weekly_arn }}" \
-            --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PRIVATE_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
+            --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PUBLIC_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
             --count 1
 
   run_pricemonthly:
@@ -420,7 +421,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Configure AWS creds via OIDC
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
@@ -433,5 +434,5 @@ jobs:
             --cluster stocks-cluster \
             --launch-type FARGATE \
             --task-definition "${{ steps.fetch.outputs.monthly_arn }}" \
-            --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PRIVATE_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
+            --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PUBLIC_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
             --count 1
