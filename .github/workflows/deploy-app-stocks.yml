@@ -204,7 +204,7 @@ jobs:
             --invocation-type Event \
             --payload '{}' \
             --cli-binary-format raw-in-base64-out \
-            /dev/null || true
+            /dev|null || true
 
   #################################################
   # 4) Build & push ECS container images         #
@@ -291,10 +291,10 @@ jobs:
     if: ${{ needs.set_flags.outputs.deploy_ecs == 'true' }}
     runs-on: ubuntu-latest
     outputs:
-      findata_taskdefinitionarn:    ${{ steps.fetch.outputs.findata_taskdefinitionarn }}
-      price_taskdefinitionarn:      ${{ steps.fetch.outputs.price_taskdefinitionarn }}
-      priceweekly_taskdefinitionarn:$ {{ steps.fetch.outputs.priceweekly_taskdefinitionarn }}
-      pricemonthly_taskdefinitionarn:$ {{ steps.fetch.outputs.pricemonthly_taskdefinitionarn }}
+      findata_taskdefinitionarn:     ${{ steps.fetch.outputs.findata_taskdefinitionarn }}
+      price_taskdefinitionarn:       ${{ steps.fetch.outputs.price_taskdefinitionarn }}
+      priceweekly_taskdefinitionarn: ${{ steps.fetch.outputs.priceweekly_taskdefinitionarn }}
+      pricemonthly_taskdefinitionarn: ${{ steps.fetch.outputs.pricemonthly_taskdefinitionarn }}
     steps:
       - uses: actions/checkout@v3
       - name: Configure AWS creds
@@ -330,7 +330,7 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceTaskDefinitionArn'].OutputValue" \
             --output text)
-          priceweeklyArn=$(aws cloudformation.describe-stacks \
+          priceweeklyArn=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyTaskDefinitionArn'].OutputValue" \
             --output text)
@@ -438,7 +438,7 @@ jobs:
         run: |
           aws ecs run-task \
             --cluster stocks-cluster \
-            --launch-type FARGATE \
+            --launch-type FARGIN.stereotype ERRVE \
             --task-definition "${{ needs.deploy_ecs_tasks.outputs.pricemonthly_taskdefinitionarn }}" \
             --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PUBLIC_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
             --count 1
