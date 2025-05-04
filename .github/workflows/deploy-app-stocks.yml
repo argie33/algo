@@ -52,10 +52,10 @@ jobs:
       - name: Configure AWS creds via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
-          role-session-name: github-deploy
-          aws-region: us-east-1
-          audience: sts.amazonaws.com
+          role-to-assume:      arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name:   github-deploy
+          aws-region:          us-east-1
+          audience:            sts.amazonaws.com
 
       - name: Upload symbols‑loader ZIP
         id: upload
@@ -93,10 +93,10 @@ jobs:
       - name: Configure AWS creds via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
-          role-session-name: github-deploy
-          aws-region: us-east-1
-          audience: sts.amazonaws.com
+          role-to-assume:      arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name:   github-deploy
+          aws-region:          us-east-1
+          audience:            sts.amazonaws.com
 
       - name: Upload econ‑data ZIP
         id: upload
@@ -119,10 +119,10 @@ jobs:
       - name: Configure AWS creds via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
-          role-session-name: github-deploy
-          aws-region: us-east-1
-          audience: sts.amazonaws.com
+          role-to-assume:      arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name:   github-deploy
+          aws-region:          us-east-1
+          audience:            sts.amazonaws.com
 
       - name: Wait for core infra
         run: aws cloudformation wait stack-create-complete --stack-name stocks-core-stack
@@ -186,10 +186,10 @@ jobs:
       - name: Configure AWS creds via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
-          role-session-name: github-deploy
-          aws-region: us-east-1
-          audience: sts.amazonaws.com
+          role-to-assume:      arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name:   github-deploy
+          aws-region:          us-east-1
+          audience:            sts.amazonaws.com
 
       - name: Ensure ECR exists & get URI
         id: get_uri
@@ -260,10 +260,10 @@ jobs:
       - name: Configure AWS creds via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
-          role-session-name: github-deploy
-          aws-region: us-east-1
-          audience: sts.amazonaws.com
+          role-to-assume:      arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name:   github-deploy
+          aws-region:          us-east-1
+          audience:            sts.amazonaws.com
 
       - name: Cleanup failed ECS stack if in ROLLBACK_COMPLETE
         run: |
@@ -323,10 +323,10 @@ jobs:
       - name: Configure AWS creds via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
-          role-session-name: github-deploy
-          aws-region: us-east-1
-          audience: sts.amazonaws.com
+          role-to-assume:      arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name:   github-deploy
+          aws-region:          us-east-1
+          audience:            sts.amazonaws.com
 
       - name: Run findata‑loader
         run: |
@@ -350,10 +350,10 @@ jobs:
       - name: Configure AWS creds via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
-          role-session-name: github-deploy
-          aws-region: us-east-1
-          audience: sts.amazonaws.com
+          role-to-assume:      arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name:   github-deploy
+          aws-region:          us-east-1
+          audience:            sts.amazonaws.com
 
       - name: Run pricedaily‑loader
         run: |
@@ -377,10 +377,10 @@ jobs:
       - name: Configure AWS creds via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
-          role-session-name: github-deploy
-          aws-region: us-east-1
-          audience: sts.amazonaws.com
+          role-to-assume:      arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name:   github-deploy
+          aws-region:          us-east-1
+          audience:            sts.amazonaws.com
 
       - name: Run priceweekly‑loader
         run: |
@@ -404,10 +404,10 @@ jobs:
       - name: Configure AWS creds via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
-            role-session-name: github-deploy
-            aws-region: us-east-1
-            audience: sts.amazonaws.com
+          role-to-assume:      arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name:   github-deploy
+          aws-region:          us-east-1
+          audience:            sts.amazonaws.com
 
       - name: Run pricemonthly‑loader
         run: |
