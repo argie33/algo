@@ -15,9 +15,9 @@ env:
   AWS_ROLE_SESSION:  github-deploy
 
   # toggles — set to 'false' to skip
-  RUN_SYMBOLS:       'true'
-  RUN_ECON:          'true'
-  RUN_LAMBDAS:       'true'
+  RUN_SYMBOLS:       'false'
+  RUN_ECON:          'false'
+  RUN_LAMBDAS:       'false'
   BUILD_CONTAINERS:  'true'
   DEPLOY_ECS:        'true'
   RUN_FINDATA:       'true'
@@ -289,15 +289,19 @@ jobs:
     needs: build_and_push_containers
     if: ${{ needs.set_flags.outputs.deploy_ecs == 'true' }}
     runs-on: ubuntu-latest
+
+    # expose these four for the run_* jobs
     outputs:
       findata_taskdefinitionarn:     ${{ steps.fetch.outputs.findata_taskdefinitionarn }}
       price_taskdefinitionarn:       ${{ steps.fetch.outputs.price_taskdefinitionarn }}
       priceweekly_taskdefinitionarn: ${{ steps.fetch.outputs.priceweekly_taskdefinitionarn }}
       pricemonthly_taskdefinitionarn: ${{ steps.fetch.outputs.pricemonthly_taskdefinitionarn }}
+
     steps:
       - uses: actions/checkout@v3
-      - uses: aws-actions/configure-aws-credentials@v2
-        name: Configure AWS creds
+
+      - name: Configure AWS creds
+        uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
@@ -321,26 +325,25 @@ jobs:
       - name: Fetch TaskDefinition ARNs
         id: fetch
         run: |
-          findataArn=$(aws cloudformation describe-stacks \
+          echo "findata_taskdefinitionarn=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='FindataTaskDefinitionArn'].OutputValue" \
-            --output text)
-          priceArn=$(aws cloudformation describe-stacks \
+            --query 'Stacks[0].Outputs[?OutputKey==\`FindataTaskDefinitionArn\`].OutputValue' \
+            --output text)" >> $GITHUB_OUTPUT
+
+          echo "price_taskdefinitionarn=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='PriceTaskDefinitionArn'].OutputValue" \
-            --output text)
-          priceweeklyArn=$(aws cloudformation describe-stacks \
+            --query 'Stacks[0].Outputs[?OutputKey==\`PriceTaskDefinitionArn\`].OutputValue' \
+            --output text)" >> $GITHUB_OUTPUT
+
+          echo "priceweekly_taskdefinitionarn=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyTaskDefinitionArn'].OutputValue" \
-            --output text)
-          pricemonthlyArn=$(aws cloudformation describe-stacks \
+            --query 'Stacks[0].Outputs[?OutputKey==\`PriceWeeklyTaskDefinitionArn\`].OutputValue' \
+            --output text)" >> $GITHUB_OUTPUT
+
+          echo "pricemonthly_taskdefinitionarn=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='PriceMonthlyTaskDefinitionArn'].OutputValue" \
-            --output text)
-          echo "findata_taskdefinitionarn=$findataArn"       >> $GITHUB_OUTPUT
-          echo "price_taskdefinitionarn=$priceArn"           >> $GITHUB_OUTPUT
-          echo "priceweekly_taskdefinitionarn=$priceweeklyArn" >> $GITHUB_OUTPUT
-          echo "pricemonthly_taskdefinitionarn=$pricemonthlyArn" >> $GITHUB_OUTPUT
+            --query 'Stacks[0].Outputs[?OutputKey==\`PriceMonthlyTaskDefinitionArn\`].OutputValue' \
+            --output text)" >> $GITHUB_OUTPUT
 
   #################################################
   # 6) Run ECS tasks in public subnets            #
@@ -358,6 +361,9 @@ jobs:
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region:        ${{ env.AWS_REGION }}
           audience:          sts.amazonaws.com
+
+      - name: Debug findata ARN
+        run: echo "→ findata ARN is '${{ needs.deploy_ecs_tasks.outputs.findata_taskdefinitionarn }}'"
 
       - name: Run findata-loader
         run: |
@@ -382,6 +388,9 @@ jobs:
           aws-region:        ${{ env.AWS_REGION }}
           audience:          sts.amazonaws.com
 
+      - name: Debug price ARN
+        run: echo "→ price ARN is '${{ needs.deploy_ecs_tasks.outputs.price_taskdefinitionarn }}'"
+
       - name: Run pricedaily-loader
         run: |
           aws ecs run-task \
@@ -405,6 +414,9 @@ jobs:
           aws-region:        ${{ env.AWS_REGION }}
           audience:          sts.amazonaws.com
 
+      - name: Debug priceweekly ARN
+        run: echo "→ priceweekly ARN is '${{ needs.deploy_ecs_tasks.outputs.priceweekly_taskdefinitionarn }}'"
+
       - name: Run priceweekly-loader
         run: |
           aws ecs run-task \
@@ -427,6 +439,9 @@ jobs:
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region:        ${{ env.AWS_REGION }}
           audience:          sts.amazonaws.com
+
+      - name: Debug pricemonthly ARN
+        run: echo "→ pricemonthly ARN is '${{ needs.deploy_ecs_tasks.outputs.pricemonthly_taskdefinitionarn }}'"
 
       - name: Run pricemonthly-loader
         run: |
