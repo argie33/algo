@@ -30,7 +30,7 @@ jobs:
       priceweekly:   ${{ steps.filter.outputs.priceweekly }}
       pricemonthly:  ${{ steps.filter.outputs.pricemonthly }}
     steps:
-      - name: Checkout full repo history
+      - name: Checkout full repo
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
@@ -68,6 +68,16 @@ jobs:
             pricemonthly:
               - 'Dockerfile.pricemonthly'
               - 'scripts/pricemonthly/**'
+
+      - name: Debug filter outputs
+        run: |
+          echo "symbols      = ${{ steps.filter.outputs.symbols }}"
+          echo "econ         = ${{ steps.filter.outputs.econ }}"
+          echo "containers   = ${{ steps.filter.outputs.containers }}"
+          echo "findata      = ${{ steps.filter.outputs.findata }}"
+          echo "pricedaily   = ${{ steps.filter.outputs.pricedaily }}"
+          echo "priceweekly  = ${{ steps.filter.outputs.priceweekly }}"
+          echo "pricemonthly = ${{ steps.filter.outputs.pricemonthly }}"
 
   ###################################################################
   # 1) Build & upload symbols‑loader Lambda (always, small / fast) #
