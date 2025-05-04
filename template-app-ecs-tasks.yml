@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  ECS TaskDefinitions, CloudWatch LogGroups, and zero‑scale Services
+  ECS TaskDefinitions, CloudWatch LogGroups, and zero-scale Services
   for findata, pricedaily, priceweekly, pricemonthly & technicaldaily.
   Services start at DesiredCount=0 and are scaled on demand via CI.
 
@@ -23,7 +23,7 @@ Parameters:
   FREDApiKey:
     Type: String
     NoEcho: true
-    Description: FRED API key for econ‑data loader
+    Description: FRED API key for econ-data loader
 
 Resources:
 
@@ -75,7 +75,11 @@ Resources:
       TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: findata-loader
-          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${FindataImageTag}"
+          Image:
+            Fn::Join:
+              - ":"
+              - - !ImportValue StocksCore-ContainerRepositoryUri
+                - !Ref FindataImageTag
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -112,7 +116,11 @@ Resources:
       TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: pricedaily-loader
-          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${PriceImageTag}"
+          Image:
+            Fn::Join:
+              - ":"
+              - - !ImportValue StocksCore-ContainerRepositoryUri
+                - !Ref PriceImageTag
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -147,7 +155,11 @@ Resources:
       TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: priceweekly-loader
-          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${PriceWeeklyImageTag}"
+          Image:
+            Fn::Join:
+              - ":"
+              - - !ImportValue StocksCore-ContainerRepositoryUri
+                - !Ref PriceWeeklyImageTag
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -182,7 +194,11 @@ Resources:
       TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: pricemonthly-loader
-          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${PriceMonthlyImageTag}"
+          Image:
+            Fn::Join:
+              - ":"
+              - - !ImportValue StocksCore-ContainerRepositoryUri
+                - !Ref PriceMonthlyImageTag
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -217,7 +233,11 @@ Resources:
       TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: technicaldaily-loader
-          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${TechnicalDailyImageTag}"
+          Image:
+            Fn::Join:
+              - ":"
+              - - !ImportValue StocksCore-ContainerRepositoryUri
+                - !Ref TechnicalDailyImageTag
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
