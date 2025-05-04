@@ -285,6 +285,7 @@ jobs:
     needs: build_and_push_containers
     if: needs.filter.outputs.containers == 'true'
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v3
 
@@ -316,6 +317,7 @@ jobs:
     needs: deploy_ecs_tasks
     if: needs.filter.outputs.containers == 'true'
     runs-on: ubuntu-latest
+
     steps:
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
