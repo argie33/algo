@@ -10,7 +10,7 @@ on:
     branches:
       - main
     paths:
-      - .github/workflows/deploy-app-template.yml
+      - .github/workflows/
 
 env:
   RUN_SYMBOLS:       'true'
@@ -402,4 +402,4 @@ jobs:
             --launch-type FARGATE \
             --task-definition "${{ steps.fetch.outputs.monthly_arn }}" \
             --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PRIVATE_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
-            --c
+            --count 1
