@@ -58,18 +58,8 @@ jobs:
             pricemonthly:
               - 'scripts/pricemonthly/**'
 
-      - name: Debug filter outputs
-        run: |
-          echo "symbols      = ${{ steps.filter.outputs.symbols }}"
-          echo "econ         = ${{ steps.filter.outputs.econ }}"
-          echo "containers   = ${{ steps.filter.outputs.containers }}"
-          echo "findata      = ${{ steps.filter.outputs.findata }}"
-          echo "pricedaily   = ${{ steps.filter.outputs.pricedaily }}"
-          echo "priceweekly  = ${{ steps.filter.outputs.priceweekly }}"
-          echo "pricemonthly = ${{ steps.filter.outputs.pricemonthly }}"
-
   ###################################################################
-  # 1) Build & upload symbols‑loader Lambda (always runs, but only zip/upload if changed) #
+  # 1) Build & upload symbols-loader Lambda (always, but only zip/upload if changed) #
   ###################################################################
   build_and_upload_symbols:
     needs: filter
@@ -87,7 +77,7 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Fetch CodeBucketName
+      - name: Fetch S3 bucket name
         id: get-bucket
         run: |
           BUCKET=$(aws cloudformation describe-stacks \
@@ -119,7 +109,7 @@ jobs:
           echo "code_key=$KEY" >> $GITHUB_OUTPUT
 
   ###################################################################
-  # 2) Build & upload econ‑data loader Lambda (always runs, but only zip/upload if changed) #
+  # 2) Build & upload econ-data loader Lambda (always, but only zip/upload if changed) #
   ###################################################################
   build_and_upload_econ:
     needs: filter
@@ -137,7 +127,7 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Fetch CodeBucketName
+      - name: Fetch S3 bucket name
         id: get-bucket
         run: |
           BUCKET=$(aws cloudformation describe-stacks \
@@ -169,13 +159,12 @@ jobs:
           echo "econ_code_key=$KEY" >> $GITHUB_OUTPUT
 
   ###################################################################
-  # 3) Deploy & invoke Lambdas (only if at least one changed)      #
+  # 3) Deploy & invoke Lambdas (always run, but only invoke changed ones)  #
   ###################################################################
   deploy_and_run_lambdas:
     needs:
       - build_and_upload_symbols
       - build_and_upload_econ
-    if: ${{ needs.filter.outputs.symbols == 'true' || needs.filter.outputs.econ == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -202,7 +191,7 @@ jobs:
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
 
-      - name: Invoke symbols‑loader
+      - name: Invoke symbols-loader
         if: ${{ needs.filter.outputs.symbols == 'true' }}
         run: |
           aws lambda invoke \
@@ -212,7 +201,7 @@ jobs:
             --cli-binary-format raw-in-base64-out \
             /dev/null
 
-      - name: Invoke econ‑data loader
+      - name: Invoke econ-data loader
         if: ${{ needs.filter.outputs.econ == 'true' }}
         run: |
           aws lambda invoke \
@@ -252,7 +241,7 @@ jobs:
         run: |
           REPO=stocks-app-registry
           aws ecr describe-repositories --repository-names $REPO >/dev/null 2>&1 || \
-            aws ecr create-repository --repository-name $REPO
+            aws ecr.create-repository --repository-name $REPO
           URI=$(aws ecr describe-repositories \
             --repository-names $REPO \
             --query 'repositories[0].repositoryUri' --output text)
@@ -271,7 +260,7 @@ jobs:
         run: |
           TAG=pricedaily-${{ github.sha }}
           IMG="${{ steps.get-uri.outputs.repo_uri }}:$TAG"
-          docker build -f Dockerfile.pricedaily -t $IMG . && docker push $IMG
+          docker build -f Dockerfile.pricedaily -t $IMG . && docker.push $IMG
           echo "pricedaily_tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Build & push priceweekly
@@ -279,7 +268,7 @@ jobs:
         run: |
           TAG=priceweekly-${{ github.sha }}
           IMG="${{ steps.get-uri.outputs.repo_uri }}:$TAG"
-          docker build -f Dockerfile.priceweekly -t $IMG . && docker push $IMG
+          docker build -f Dockerfile.priceweekly -t $IMG . && docker.push $IMG
           echo "priceweekly_tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Build & push pricemonthly
@@ -287,7 +276,7 @@ jobs:
         run: |
           TAG=pricemonthly-${{ github.sha }}
           IMG="${{ steps.get-uri.outputs.repo_uri }}:$TAG"
-          docker build -f Dockerfile.pricemonthly -t $IMG . && docker push $IMG
+          docker build -f Dockerfile.pricemonthly -t $IMG . && docker.push $IMG
           echo "pricemonthly_tag=$TAG" >> $GITHUB_OUTPUT
 
   #################################################
@@ -353,23 +342,23 @@ jobs:
           SERVICE=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceDailyLoaderServiceName'].OutputValue" --output text)
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 1
-          aws ecs wait services-stable --cluster stocks-cluster --services $SERVICE
-          aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 0
+          aws ecs.wait services-stable --cluster stocks-cluster --services $SERVICE
+          aws ecs.update-service --cluster stocks-cluster --service $SERVICE --desired-count 0
 
       - name: Run priceweekly loader
         if: ${{ needs.filter.outputs.priceweekly == 'true' }}
         run: |
           SERVICE=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyLoaderServiceName'].OutputValue" --output text)
-          aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 1
-          aws ecs wait services-stable --cluster stocks-cluster --services $SERVICE
-          aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 0
+          aws ecs.update-service --cluster stocks-cluster --service $SERVICE --desired-count 1
+          aws ecs.wait services-stable --cluster stocks-cluster --services $SERVICE
+          aws ecs.update-service --cluster stocks-cluster --service $SERVICE --desired-count 0
 
       - name: Run pricemonthly loader
         if: ${{ needs.filter.outputs.pricemonthly == 'true' }}
         run: |
           SERVICE=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceMonthlyLoaderServiceName'].OutputValue" --output text)
-          aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 1
-          aws ecs wait services-stable --cluster stocks-cluster --services $SERVICE
-          aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 0
+          aws ecs.update-service --cluster stocks-cluster --service $SERVICE --desired-count 1
+          aws ecs.wait services-stable --cluster stocks-cluster --services $SERVICE
+          aws ecs.update-service --cluster stocks-cluster --service $SERVICE --desired-count 0
