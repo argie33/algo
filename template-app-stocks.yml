@@ -98,7 +98,7 @@ Resources:
             - !GetAtt StocksDBInstance.Endpoint.Port
             - '","dbname":"stocks"}'
 
-  ### Lambda: symbols‑loader (public subnets) ###
+  ### Lambda: symbols‑loader (public) ###
   LoadStockSymbolsFunction:
     Type: AWS::Lambda::Function
     DependsOn:
@@ -113,17 +113,11 @@ Resources:
         S3Bucket: !ImportValue StocksCore-CodeBucketName
         S3Key: !Ref CodeKey
       Timeout: 300
-      VpcConfig:
-        SubnetIds:
-          - !ImportValue StocksCore-PublicSubnet1Id
-          - !ImportValue StocksCore-PublicSubnet2Id
-        SecurityGroupIds:
-          - !ImportValue StocksCore-LambdaSecurityGroupId
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DBCredentialsSecret
 
-  ### Lambda: economic‑data loader (public subnets) ###
+  ### Lambda: economic‑data loader (public) ###
   LoadEconomicDataFunction:
     Type: AWS::Lambda::Function
     DependsOn:
@@ -138,18 +132,12 @@ Resources:
         S3Bucket: !ImportValue StocksCore-CodeBucketName
         S3Key: !Ref EconomicCodeKey
       Timeout: 900
-      VpcConfig:
-        SubnetIds:
-          - !ImportValue StocksCore-PublicSubnet1Id
-          - !ImportValue StocksCore-PublicSubnet2Id
-        SecurityGroupIds:
-          - !ImportValue StocksCore-LambdaSecurityGroupId
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DBCredentialsSecret
           FRED_API_KEY:   !Ref FREDApiKey
 
-  ### Lambda: monthly‑price loader (public subnets) ###
+  ### Lambda: monthly‑price loader (public) ###
   LoadMonthlyPriceFunction:
     Type: AWS::Lambda::Function
     DependsOn:
@@ -164,12 +152,6 @@ Resources:
         S3Bucket: !ImportValue StocksCore-CodeBucketName
         S3Key: !Ref MonthlyCodeKey
       Timeout: 900
-      VpcConfig:
-        SubnetIds:
-          - !ImportValue StocksCore-PublicSubnet1Id
-          - !ImportValue StocksCore-PublicSubnet2Id
-        SecurityGroupIds:
-          - !ImportValue StocksCore-LambdaSecurityGroupId
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DBCredentialsSecret
@@ -201,8 +183,7 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
+                Action: secretsmanager:GetSecretValue
                 Resource: !Ref DBCredentialsSecret
 
 Outputs:
