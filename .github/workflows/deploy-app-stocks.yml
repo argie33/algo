@@ -1,3 +1,4 @@
+# .github/workflows/deploy-app-template.yml
 name: deploy-app-template
 
 permissions:
@@ -10,15 +11,15 @@ on:
 
 env:
   # Toggle these to 'true' or 'false' to control which jobs run
-  RUN_SYMBOLS:       'true'   # Build & upload symbols‑loader Lambda
-  RUN_ECON:          'true'   # Build & upload econ‑data loader Lambda
+  RUN_SYMBOLS:       'true'   # Build & upload symbols-loader Lambda
+  RUN_ECON:          'true'   # Build & upload econ-data loader Lambda
   RUN_LAMBDAS:       'true'   # Deploy & invoke those Lambdas
   BUILD_CONTAINERS:  'true'   # Build & push all ECS container images
   DEPLOY_ECS:        'true'   # Deploy ECS TaskDefinitions
-  RUN_FINDATA:       'true'   # Run findata‑loader on Fargate
-  RUN_PRICEDAILY:    'true'   # Run pricedaily‑loader on Fargate
-  RUN_PRICEWEEKLY:   'true'   # Run priceweekly‑loader on Fargate
-  RUN_PRICEMONTHLY:  'true'   # Run pricemonthly‑loader on Fargate
+  RUN_FINDATA:       'true'   # Run findata-loader on Fargate
+  RUN_PRICEDAILY:    'true'   # Run pricedaily-loader on Fargate
+  RUN_PRICEWEEKLY:   'true'   # Run priceweekly-loader on Fargate
+  RUN_PRICEMONTHLY:  'true'   # Run pricemonthly-loader on Fargate
 
 jobs:
 
@@ -38,14 +39,14 @@ jobs:
     steps:
       - id: set
         run: |
-          echo "run_symbols=$RUN_SYMBOLS"       >> $GITHUB_OUTPUT
-          echo "run_econ=$RUN_ECON"             >> $GITHUB_OUTPUT
-          echo "run_lambdas=$RUN_LAMBDAS"       >> $GITHUB_OUTPUT
+          echo "run_symbols=$RUN_SYMBOLS"           >> $GITHUB_OUTPUT
+          echo "run_econ=$RUN_ECON"                 >> $GITHUB_OUTPUT
+          echo "run_lambdas=$RUN_LAMBDAS"           >> $GITHUB_OUTPUT
           echo "build_containers=$BUILD_CONTAINERS" >> $GITHUB_OUTPUT
-          echo "deploy_ecs=$DEPLOY_ECS"         >> $GITHUB_OUTPUT
-          echo "run_findata=$RUN_FINDATA"       >> $GITHUB_OUTPUT
-          echo "run_pricedaily=$RUN_PRICEDAILY" >> $GITHUB_OUTPUT
-          echo "run_priceweekly=$RUN_PRICEWEEKLY" >> $GITHUB_OUTPUT
+          echo "deploy_ecs=$DEPLOY_ECS"             >> $GITHUB_OUTPUT
+          echo "run_findata=$RUN_FINDATA"           >> $GITHUB_OUTPUT
+          echo "run_pricedaily=$RUN_PRICEDAILY"     >> $GITHUB_OUTPUT
+          echo "run_priceweekly=$RUN_PRICEWEEKLY"   >> $GITHUB_OUTPUT
           echo "run_pricemonthly=$RUN_PRICEMONTHLY" >> $GITHUB_OUTPUT
 
   ###############################
@@ -63,12 +64,12 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-      - name: Install symbols‑loader deps
+      - name: Install symbols-loader deps
         run: |
           rm -rf symbols_package && mkdir symbols_package
           pip install --upgrade pip
           pip install -r requirements-loadstocksymbols.txt -t symbols_package
-      - name: Package symbols‑loader
+      - name: Package symbols-loader
         run: |
           cp loadstocksymbols.py symbols_package/index.py
           cd symbols_package && zip -r "../symbols-${{ github.sha }}.zip" . && cd ..
@@ -79,14 +80,14 @@ jobs:
           role-session-name: github-deploy
           aws-region:        us-east-1
           audience:          sts.amazonaws.com
-      - name: Upload symbols‑loader ZIP
+      - name: Upload symbols-loader ZIP
         id: upload
         run: |
           aws s3 cp "symbols-${{ github.sha }}.zip" s3://stocks-algo-app-code/
           echo "code_key=symbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
   ####################################
-  # 2) Build & upload econ‑data     #
+  # 2) Build & upload econ-data     #
   ####################################
   build_and_upload_econ:
     needs: set_flags
@@ -100,12 +101,12 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-      - name: Install econ‑data deps
+      - name: Install econ-data deps
         run: |
           rm -rf econ_package && mkdir econ_package
           pip install --upgrade pip
           pip install -r requirements-loadecondata.txt -t econ_package
-      - name: Package econ‑data loader
+      - name: Package econ-data loader
         run: |
           cp loadecondata.py econ_package/index.py
           cd econ_package && zip -r "../econ-${{ github.sha }}.zip" . && cd ..
@@ -116,7 +117,7 @@ jobs:
           role-session-name: github-deploy
           aws-region:        us-east-1
           audience:          sts.amazonaws.com
-      - name: Upload econ‑data ZIP
+      - name: Upload econ-data ZIP
         id: upload
         run: |
           aws s3 cp "econ-${{ github.sha }}.zip" s3://stocks-algo-app-code/
@@ -165,14 +166,14 @@ jobs:
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM
-      - name: Invoke symbols‑loader
+      - name: Invoke symbols-loader
         run: |
           aws lambda invoke \
             --function-name loadstocksymbols \
             --payload '{}' \
             --cli-binary-format raw-in-base64-out \
             symbols_response.json || true
-      - name: Invoke econ‑data loader
+      - name: Invoke econ-data loader
         run: |
           aws lambda invoke \
             --function-name loadecondata \
@@ -215,8 +216,8 @@ jobs:
             --query 'repositories[0].repositoryUri' \
             --output text)
           echo "repo_uri=$URI" >> $GITHUB_OUTPUT
-      - name: Login to ECR
-        uses: aws-actions/amazon-ecr-login@v1
+      - uses: aws-actions/amazon-ecr-login@v1
+        name: Login to ECR
       - name: Build & push findata
         id: findata
         run: |
@@ -332,7 +333,7 @@ jobs:
           role-session-name: github-deploy
           aws-region:        us-east-1
           audience:          sts.amazonaws.com
-      - name: Run findata‑loader
+      - name: Run findata-loader
         run: |
           aws ecs run-task \
             --cluster stocks-cluster \
@@ -357,7 +358,7 @@ jobs:
           role-session-name: github-deploy
           aws-region:        us-east-1
           audience:          sts.amazonaws.com
-      - name: Run pricedaily‑loader
+      - name: Run pricedaily-loader
         run: |
           aws ecs run-task \
             --cluster stocks-cluster \
@@ -382,7 +383,7 @@ jobs:
           role-session-name: github-deploy
           aws-region:        us-east-1
           audience:          sts.amazonaws.com
-      - name: Run priceweekly‑loader
+      - name: Run priceweekly-loader
         run: |
           aws ecs run-task \
             --cluster stocks-cluster \
@@ -407,7 +408,7 @@ jobs:
           role-session-name: github-deploy
           aws-region:        us-east-1
           audience:          sts.amazonaws.com
-      - name: Run pricemonthly‑loader
+      - name: Run pricemonthly-loader
         run: |
           aws ecs run-task \
             --cluster stocks-cluster \
