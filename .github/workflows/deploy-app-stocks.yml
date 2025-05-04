@@ -260,22 +260,24 @@ jobs:
       - name: Invoke symbols‑loader
         if: needs.filter.outputs.symbols == 'true'
         run: |
+          echo "Running symbols‑loader..."
           aws lambda invoke \
             --function-name loadstocksymbols \
             --invocation-type Event \
             --payload '{}' \
             --cli-binary-format raw-in-base64-out \
-            /dev/null || true
+            /dev/null
 
       - name: Invoke econ‑data loader
         if: needs.filter.outputs.econ == 'true'
         run: |
+          echo "Running econ‑data loader..."
           aws lambda invoke \
             --function-name loadecondata \
             --invocation-type Event \
             --payload '{}' \
             --cli-binary-format raw-in-base64-out \
-            /dev/null || true
+            /dev/null
 
   ###################################################
   # 5) Build & push ECS containers if any changed  #
