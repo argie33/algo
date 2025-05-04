@@ -60,8 +60,8 @@ jobs:
     outputs:
       code_key: ${{ steps.upload.outputs.code_key }}
     steps:
-      - name: Configure AWS creds
-        uses: aws-actions/configure-aws-credentials@v2
+      - uses: aws-actions/configure-aws-credentials@v2
+        name: Configure AWS creds
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
@@ -101,8 +101,8 @@ jobs:
         run: |
           aws s3 cp symbols-${{ github.sha }}.zip \
             s3://${{ steps.get_bucket.outputs.bucket }}/ \
-            --region ${{ env.AWS_REGION }} \
-            && echo "code_key=symbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
+            --region ${{ env.AWS_REGION }}
+          echo "code_key=symbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
   #################################################
   # 2) Package & upload econ‑data loader Lambda   #
@@ -114,8 +114,8 @@ jobs:
     outputs:
       econ_code_key: ${{ steps.upload_econ.outputs.code_key }}
     steps:
-      - name: Configure AWS creds
-        uses: aws-actions/configure-aws-credentials@v2
+      - uses: aws-actions/configure-aws-credentials@v2
+        name: Configure AWS creds
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
@@ -155,8 +155,8 @@ jobs:
         run: |
           aws s3 cp econ-${{ github.sha }}.zip \
             s3://${{ steps.get_bucket_econ.outputs.bucket }}/ \
-            --region ${{ env.AWS_REGION }} \
-            && echo "code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
+            --region ${{ env.AWS_REGION }}
+          echo "code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
   #################################################
   # 3) Deploy & invoke Lambdas                   #
@@ -169,8 +169,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Configure AWS creds
-        uses: aws-actions/configure-aws-credentials@v2
+      - uses: aws-actions/configure-aws-credentials@v2
+        name: Configure AWS creds
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
@@ -223,19 +223,16 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: List workspace
-        run: ls -R .
-
-      - name: Configure AWS creds
-        uses: aws-actions/configure-aws-credentials@v2
+      - uses: aws-actions/configure-aws-credentials@v2
+        name: Configure AWS creds
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region:        ${{ env.AWS_REGION }}
           audience:          sts.amazonaws.com
 
-      - name: Login to ECR
-        uses: aws-actions/amazon-ecr-login@v1
+      - uses: aws-actions/amazon-ecr-login@v1
+        name: Login to ECR
 
       - name: Get (or create) ECR repo & URI
         id: get_uri
@@ -299,9 +296,8 @@ jobs:
       pricemonthly_taskdefinitionarn: ${{ steps.fetch.outputs.pricemonthly_taskdefinitionarn }}
     steps:
       - uses: actions/checkout@v3
-
-      - name: Configure AWS creds
-        uses: aws-actions/configure-aws-credentials@v2
+      - uses: aws-actions/configure-aws-credentials@v2
+        name: Configure AWS creds
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
@@ -337,7 +333,7 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyTaskDefinitionArn'].OutputValue" \
             --output text)
-          pricemonthlyArn=$(aws cloudformation.describe-stacks \
+          pricemonthlyArn=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceMonthlyTaskDefinitionArn'].OutputValue" \
             --output text)
@@ -355,9 +351,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
-      - name: Configure AWS creds
-        uses: aws-actions/configure-aws-credentials@v2
+      - uses: aws-actions/configure-aws-credentials@v2
+        name: Configure AWS creds
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
@@ -379,9 +374,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
-      - name: Configure AWS creds
-        uses: aws-actions/configure-aws-credentials@v2
+      - uses: aws-actions/configure-aws-credentials@v2
+        name: Configure AWS creds
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
@@ -403,9 +397,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
-      - name: Configure AWS creds
-        uses: aws-actions/configure-aws-credentials@v2
+      - uses: aws-actions/configure-aws-credentials@v2
+        name: Configure AWS creds
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
@@ -427,9 +420,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
-      - name: Configure AWS creds
-        uses: aws-actions/configure-aws-credentials@v2
+      - uses: aws-actions/configure-aws-credentials@v2
+        name: Configure AWS creds
         with:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
