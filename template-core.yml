@@ -34,10 +34,8 @@ Resources:
     Type: AWS::IAM::OIDCProvider
     Properties:
       Url: https://token.actions.githubusercontent.com
-      ClientIdList:
-        - sts.amazonaws.com
-      ThumbprintList:
-        - 6938fd4d98bab03faadb97b34396831e3780aea1
+      ClientIdList: [ sts.amazonaws.com ]
+      ThumbprintList: [ 6938fd4d98bab03faadb97b34396831e3780aea1 ]
 
   ### 2) Role that GitHub Actions will assume ###
   GitHubActionsDeployRole:
@@ -48,8 +46,7 @@ Resources:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal:
-              Federated: !Ref GitHubOidcProvider
+            Principal: { Federated: !Ref GitHubOidcProvider }
             Action: sts:AssumeRoleWithWebIdentity
             Condition:
               StringEquals:
@@ -68,8 +65,7 @@ Resources:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal:
-              Service: [lambda.amazonaws.com]
+            Principal: { Service: [lambda.amazonaws.com] }
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
@@ -81,9 +77,7 @@ Resources:
       CidrBlock: !Ref VpcCidr
       EnableDnsSupport: true
       EnableDnsHostnames: true
-      Tags:
-        - Key: Name
-          Value: stocks-vpc
+      Tags: [{ Key: Name, Value: stocks-vpc }]
 
   StocksIGW:
     Type: AWS::EC2::InternetGateway
@@ -258,8 +252,7 @@ Resources:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal:
-              Service: ec2.amazonaws.com
+            Principal: { Service: ec2.amazonaws.com }
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
@@ -269,19 +262,16 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action:
-                  - cloudformation:DescribeStacks
+                Action: [ cloudformation:DescribeStacks ]
                 Resource: !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${DBStackName}/*
               - Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
+                Action: [ secretsmanager:GetSecretValue ]
                 Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${DBSecretName}*
 
   BastionInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
-      Roles:
-        - !Ref BastionInstanceRole
+      Roles: [ !Ref BastionInstanceRole ]
 
   BastionSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -306,8 +296,7 @@ Resources:
         ImageId: ami-0c94855ba95c71c99
         IamInstanceProfile:
           Name: !Ref BastionInstanceProfile
-        SecurityGroupIds:
-          - !Ref BastionSecurityGroup
+        SecurityGroupIds: [ !Ref BastionSecurityGroup ]
         InstanceMarketOptions:
           MarketType: spot
           SpotOptions:
@@ -337,9 +326,10 @@ Resources:
               --query "Stacks[0].Outputs[?OutputKey=='DBPort'].OutputValue" \
               --output text)
 
+            # <- HERE: no indent before the entry
             cat <<EOF > /home/ec2-user/.pgpass
-            ${DB_HOST}:${DB_PORT}:${DB_NAME}:${DB_USER}:${DB_PASSWORD}
-            EOF
+${DB_HOST}:${DB_PORT}:${DB_NAME}:${DB_USER}:${DB_PASSWORD}
+EOF
             chmod 600 /home/ec2-user/.pgpass
             chown ec2-user:ec2-user /home/ec2-user/.pgpass
 
@@ -369,8 +359,7 @@ Resources:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
+            Principal: { Service: lambda.amazonaws.com }
             Action: sts:AssumeRole
       Policies:
         - PolicyName: StopBastion
@@ -431,12 +420,7 @@ Resources:
             "rules":[
               {
                 "rulePriority":1,
-                "selection":{
-                  "tagStatus":"any",
-                  "countType":"sinceImagePushed",
-                  "countUnit":"days",
-                  "countNumber":30
-                },
+                "selection":{ "tagStatus":"any","countType":"sinceImagePushed","countUnit":"days","countNumber":30 },
                 "action":{"type":"expire"}
               }
             ]
@@ -447,8 +431,7 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: stocks-algo-app-code
-      VersioningConfiguration:
-        Status: Enabled
+      VersioningConfiguration: { Status: Enabled }
     DeletionPolicy: Delete
     UpdateReplacePolicy: Retain
 
