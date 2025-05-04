@@ -346,3 +346,4 @@ Outputs:
   TechnicalDailyLoaderServiceName:
     Description: ECS Service name for technicaldaily-loader
     Value: !Ref TechnicalDailyLoaderService
+
