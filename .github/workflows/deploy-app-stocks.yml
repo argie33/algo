@@ -86,14 +86,13 @@ jobs:
           echo "pricemonthly = ${{ steps.filter.outputs.pricemonthly }}"
 
   ###################################################################
-  # 1) Build & upload symbols‑loader Lambda (only if changed)      #
+  # 1) Build & upload symbols‑loader Lambda (always)               #
   ###################################################################
   build_and_upload_symbols:
     needs: filter
-    if: needs.filter.outputs.symbols == 'true'
     runs-on: ubuntu-latest
     outputs:
-      code_key: ${{ steps.package.outputs.code_key }}
+      code_key: ${{ steps.set-key.outputs.code_key }}
 
     steps:
       - uses: actions/checkout@v3
@@ -114,28 +113,33 @@ jobs:
             --output text)
           echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
 
-      - name: Package & upload symbols‑loader
-        id: package
+      - name: Determine & publish symbols CodeKey
+        id: set-key
         run: |
-          rm -rf symbols_pkg && mkdir symbols_pkg
-          pip install --upgrade pip
-          pip install -r requirements-loadstocksymbols.txt -t symbols_pkg
-          cp loadstocksymbols.py symbols_pkg/index.py
-          cd symbols_pkg && zip -r ../symbols-${{ github.sha }}.zip . && cd ..
-          aws s3 cp symbols-${{ github.sha }}.zip \
-            s3://${{ steps.get-bucket.outputs.bucket }}/ \
-            --region ${{ env.AWS_REGION }}
-          echo "code_key=symbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
+          if [ "${{ needs.filter.outputs.symbols }}" = "true" ]; then
+            rm -rf pkg && mkdir pkg
+            pip install --upgrade pip
+            pip install -r requirements-loadstocksymbols.txt -t pkg
+            cp loadstocksymbols.py pkg/index.py
+            cd pkg && zip -r "../symbols-${{ github.sha }}.zip" . && cd ..
+            aws s3 cp "symbols-${{ github.sha }}.zip" s3://$BUCKET/ --region ${{ env.AWS_REGION }}
+            KEY="symbols-${{ github.sha }}.zip"
+          else
+            KEY=$(aws cloudformation describe-stacks \
+              --stack-name stocks-db-lambda-stack \
+              --query "Stacks[0].Parameters[?ParameterKey=='CodeKey'].ParameterValue" \
+              --output text)
+          fi
+          echo "code_key=$KEY" >> $GITHUB_OUTPUT
 
   ###################################################################
-  # 2) Build & upload econ‑data loader Lambda (only if changed)    #
+  # 2) Build & upload econ‑data loader Lambda (always)             #
   ###################################################################
   build_and_upload_econ:
     needs: filter
-    if: needs.filter.outputs.econ == 'true'
     runs-on: ubuntu-latest
     outputs:
-      econ_code_key: ${{ steps.package.outputs.econ_code_key }}
+      econ_code_key: ${{ steps.set-key.outputs.econ_code_key }}
 
     steps:
       - uses: actions/checkout@v3
@@ -156,18 +160,24 @@ jobs:
             --output text)
           echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
 
-      - name: Package & upload econ‑data loader
-        id: package
+      - name: Determine & publish econ CodeKey
+        id: set-key
         run: |
-          rm -rf econ_pkg && mkdir econ_pkg
-          pip install --upgrade pip
-          pip install -r requirements-loadecondata.txt -t econ_pkg
-          cp loadecondata.py econ_pkg/index.py
-          cd econ_pkg && zip -r ../econ-${{ github.sha }}.zip . && cd ..
-          aws s3 cp econ-${{ github.sha }}.zip \
-            s3://${{ steps.get-bucket.outputs.bucket }}/ \
-            --region ${{ env.AWS_REGION }}
-          echo "econ_code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
+          if [ "${{ needs.filter.outputs.econ }}" = "true" ]; then
+            rm -rf pkg && mkdir pkg
+            pip install --upgrade pip
+            pip install -r requirements-loadecondata.txt -t pkg
+            cp loadecondata.py pkg/index.py
+            cd pkg && zip -r "../econ-${{ github.sha }}.zip" . && cd ..
+            aws s3 cp "econ-${{ github.sha }}.zip" s3://$BUCKET/ --region ${{ env.AWS_REGION }}
+            KEY="econ-${{ github.sha }}.zip"
+          else
+            KEY=$(aws cloudformation describe-stacks \
+              --stack-name stocks-db-lambda-stack \
+              --query "Stacks[0].Parameters[?ParameterKey=='EconomicCodeKey'].ParameterValue" \
+              --output text)
+          fi
+          echo "econ_code_key=$KEY" >> $GITHUB_OUTPUT
 
   ###################################################################
   # 3) Deploy & invoke Lambdas (only if at least one changed)      #
@@ -234,9 +244,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       findata_tag:      ${{ steps.findata.outputs.tag }}
-      pricedaily_tag:   ${{ steps.pricedaily.outputs.tag }}
-      priceweekly_tag:  ${{ steps.weekly.outputs.tag }}
-      pricemonthly_tag: ${{ steps.monthly.outputs.tag }}
+      pricedaily_tag:   ${{ steps.pricedaily.outputs.pricedaily_tag }}
+      priceweekly_tag:  ${{ steps.weekly.outputs.priceweekly_tag }}
+      pricemonthly_tag: ${{ steps.monthly.outputs.pricemonthly_tag }}
 
     steps:
       - uses: actions/checkout@v3
@@ -256,7 +266,10 @@ jobs:
           REPO=stocks-app-registry
           aws ecr describe-repositories --repository-names $REPO >/dev/null 2>&1 || \
             aws ecr create-repository --repository-name $REPO
-          URI=$(aws ecr describe-repositories --repository-names $REPO --query 'repositories[0].repositoryUri' --output text)
+          URI=$(aws ecr describe-repositories \
+            --repository-names $REPO \
+            --query 'repositories[0].repositoryUri' \
+            --output text)
           echo "repo_uri=$URI" >> $GITHUB_OUTPUT
 
       - name: Build & push findata
