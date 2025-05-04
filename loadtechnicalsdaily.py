@@ -9,14 +9,21 @@ import os
 import boto3
 import psycopg2
 from psycopg2.extras import RealDictCursor
+
 import numpy as np
+# ────────────────────────────────────────────────────────────────
+# Patch for pandas_ta compatibility: ensure numpy exports NaN
+# so that "from numpy import NaN" inside pandas_ta works
+np.NaN = np.nan
+# ────────────────────────────────────────────────────────────────
+
 import pandas as pd
 import pandas_ta as ta
 
 # -------------------------------
 # Script metadata & logging setup
 # -------------------------------
-SCRIPT_NAME = "loadtechnicaldaily.py"
+SCRIPT_NAME = "loadtechnicalsdaily.py"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
