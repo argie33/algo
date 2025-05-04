@@ -1,26 +1,26 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  ECS TaskDefinitions and CloudWatch LogGroups for findata, pricedaily,
-  priceweekly & pricemonthly—no schedules; tasks are executed manually
-  (e.g. via CI workflow).
+  ECS TaskDefinitions, CloudWatch LogGroups, and zero‑scale Services
+  for findata, pricedaily, priceweekly & pricemonthly.  Services start
+  at DesiredCount=0 and are scaled on demand via CI.
 
 Parameters:
   FindataImageTag:
     Type: String
-    Description: Tag of the findata image (e.g. findata-<git-sha>)
+    Description: Tag of the findata container image (e.g. findata-<git-sha>)
   PriceImageTag:
     Type: String
-    Description: Tag of the pricedaily image (e.g. pricedaily-<git-sha>)
+    Description: Tag of the pricedaily container image (e.g. pricedaily-<git-sha>)
   PriceWeeklyImageTag:
     Type: String
-    Description: Tag of the priceweekly image (e.g. priceweekly-<git-sha>)
+    Description: Tag of the priceweekly container image (e.g. priceweekly-<git-sha>)
   PriceMonthlyImageTag:
     Type: String
-    Description: Tag of the pricemonthly image (e.g. pricemonthly-<git-sha>)
+    Description: Tag of the pricemonthly container image (e.g. pricemonthly-<git-sha>)
   FREDApiKey:
     Type: String
     NoEcho: true
-    Description: FRED API key for econ-data loader
+    Description: FRED API key for economic-data loader
 
 Resources:
 
@@ -136,7 +136,7 @@ Resources:
               awslogs-stream-prefix: ecs
 
   ##################################################
-  # 3) priceweekly-loader TaskDefinition          #
+  # 3) priceweekly-loader TaskDefinition           #
   ##################################################
   PriceWeeklyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -177,7 +177,7 @@ Resources:
               awslogs-stream-prefix: ecs
 
   ##################################################
-  # 4) pricemonthly-loader TaskDefinition         #
+  # 4) pricemonthly-loader TaskDefinition          #
   ##################################################
   PriceMonthlyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -217,7 +217,83 @@ Resources:
               awslogs-region:        !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
+  ###############################################################
+  # 5) findata‑loader Service (starts at zero, subnet config)  #
+  ###############################################################
+  FindataLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: findata-loader-service
+      Cluster: !ImportValue StocksDBLambdaStack-ClusterArn
+      DesiredCount: 0
+      LaunchType: FARGATE
+      TaskDefinition: !Ref FindataTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          AssignPublicIp: ENABLED
+
+  ###############################################################
+  # 6) pricedaily‑loader Service (starts at zero)              #
+  ###############################################################
+  PriceDailyLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: pricedaily-loader-service
+      Cluster: !ImportValue StocksDBLambdaStack-ClusterArn
+      DesiredCount: 0
+      LaunchType: FARGATE
+      TaskDefinition: !Ref PriceTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          AssignPublicIp: ENABLED
+
+  ###############################################################
+  # 7) priceweekly‑loader Service (starts at zero)             #
+  ###############################################################
+  PriceWeeklyLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: priceweekly-loader-service
+      Cluster: !ImportValue StocksDBLambdaStack-ClusterArn
+      DesiredCount: 0
+      LaunchType: FARGATE
+      TaskDefinition: !Ref PriceWeeklyTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          AssignPublicIp: ENABLED
+
+  ###############################################################
+  # 8) pricemonthly‑loader Service (starts at zero)            #
+  ###############################################################
+  PriceMonthlyLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: pricemonthly-loader-service
+      Cluster: !ImportValue StocksDBLambdaStack-ClusterArn
+      DesiredCount: 0
+      LaunchType: FARGATE
+      TaskDefinition: !Ref PriceMonthlyTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          AssignPublicIp: ENABLED
+
 Outputs:
+
+  ##################################
+  # TaskDefinition ARNs            #
+  ##################################
   FindataTaskDefinitionArn:
     Description: ARN of the findata ECS TaskDefinition
     Value: !Ref FindataTaskDefinition
@@ -233,3 +309,22 @@ Outputs:
   PriceMonthlyTaskDefinitionArn:
     Description: ARN of the pricemonthly ECS TaskDefinition
     Value: !Ref PriceMonthlyTaskDefinition
+
+  ##################################
+  # Service names for CI scaling   #
+  ##################################
+  FindataLoaderServiceName:
+    Description: ECS Service name for findata-loader
+    Value: !Ref FindataLoaderService
+
+  PriceDailyLoaderServiceName:
+    Description: ECS Service name for pricedaily-loader
+    Value: !Ref PriceDailyLoaderService
+
+  PriceWeeklyLoaderServiceName:
+    Description: ECS Service name for priceweekly-loader
+    Value: !Ref PriceWeeklyLoaderService
+
+  PriceMonthlyLoaderServiceName:
+    Description: ECS Service name for pricemonthly-loader
+    Value: !Ref PriceMonthlyLoaderService
