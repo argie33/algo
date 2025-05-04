@@ -9,16 +9,16 @@ on:
     branches: [ main ]
 
 # Toggle these to 'true' or 'false' to enable/disable jobs on each run:
-env:
-  RUN_SYMBOLS:       'true'   # Build & upload symbols‑loader Lambda
-  RUN_ECON:          'true'   # Build & upload econ‑data loader Lambda
+vars:
+  RUN_SYMBOLS:       'true'   # Build & upload symbols-loader Lambda
+  RUN_ECON:          'true'   # Build & upload econ-data loader Lambda
   RUN_LAMBDAS:       'true'   # Deploy & invoke the two Lambdas
   BUILD_CONTAINERS:  'true'   # Build & push all ECS container images
   DEPLOY_ECS:        'true'   # Deploy ECS TaskDefinitions
-  RUN_FINDATA:       'true'   # Run findata‑loader on Fargate
-  RUN_PRICEDAILY:    'true'   # Run pricedaily‑loader on Fargate
-  RUN_PRICEWEEKLY:   'true'   # Run priceweekly‑loader on Fargate
-  RUN_PRICEMONTHLY:  'true'   # Run pricemonthly‑loader on Fargate
+  RUN_FINDATA:       'true'   # Run findata-loader on Fargate
+  RUN_PRICEDAILY:    'true'   # Run pricedaily-loader on Fargate
+  RUN_PRICEWEEKLY:   'true'   # Run priceweekly-loader on Fargate
+  RUN_PRICEMONTHLY:  'true'   # Run pricemonthly-loader on Fargate
 
 jobs:
 
@@ -26,29 +26,25 @@ jobs:
   # 1) Build & upload symbols  #
   ###############################
   build_and_upload_symbols:
-    if: ${{ env.RUN_SYMBOLS == 'true' }}
+    if: ${{ vars.RUN_SYMBOLS == 'true' }}
     runs-on: ubuntu-latest
     outputs:
       code_key: ${{ steps.upload.outputs.code_key }}
     steps:
       - uses: actions/checkout@v3
-
       - name: Set up Python 3.9
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-
-      - name: Install symbols‑loader deps
+      - name: Install symbols-loader deps
         run: |
           rm -rf symbols_package && mkdir symbols_package
           pip install --upgrade pip
           pip install -r requirements-loadstocksymbols.txt -t symbols_package
-
-      - name: Package symbols‑loader
+      - name: Package symbols-loader
         run: |
           cp loadstocksymbols.py symbols_package/index.py
           cd symbols_package && zip -r "../symbols-${{ github.sha }}.zip" . && cd ..
-
       - name: Configure AWS creds via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -56,40 +52,35 @@ jobs:
           role-session-name:   github-deploy
           aws-region:          us-east-1
           audience:            sts.amazonaws.com
-
-      - name: Upload symbols‑loader ZIP
+      - name: Upload symbols-loader ZIP
         id: upload
         run: |
           aws s3 cp "symbols-${{ github.sha }}.zip" s3://stocks-algo-app-code/
           echo "code_key=symbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
   ####################################
-  # 2) Build & upload econ‑data     #
+  # 2) Build & upload econ-data     #
   ####################################
   build_and_upload_econ:
-    if: ${{ env.RUN_ECON == 'true' }}
+    if: ${{ vars.RUN_ECON == 'true' }}
     runs-on: ubuntu-latest
     outputs:
       econ_code_key: ${{ steps.upload.outputs.econ_code_key }}
     steps:
       - uses: actions/checkout@v3
-
       - name: Set up Python 3.9
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-
-      - name: Install econ‑data deps
+      - name: Install econ-data deps
         run: |
           rm -rf econ_package && mkdir econ_package
           pip install --upgrade pip
           pip install -r requirements-loadecondata.txt -t econ_package
-
-      - name: Package econ‑data loader
+      - name: Package econ-data loader
         run: |
           cp loadecondata.py econ_package/index.py
           cd econ_package && zip -r "../econ-${{ github.sha }}.zip" . && cd ..
-
       - name: Configure AWS creds via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -97,25 +88,23 @@ jobs:
           role-session-name:   github-deploy
           aws-region:          us-east-1
           audience:            sts.amazonaws.com
-
-      - name: Upload econ‑data ZIP
+      - name: Upload econ-data ZIP
         id: upload
         run: |
           aws s3 cp "econ-${{ github.sha }}.zip" s3://stocks-algo-app-code/
           echo "econ_code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
   #################################################
-  # 3) Deploy & run symbols‑loader & econ‑data   #
+  # 3) Deploy & run symbols-loader & econ-data   #
   #################################################
   deploy_and_run_lambdas:
-    if: ${{ env.RUN_LAMBDAS == 'true' }}
+    if: ${{ vars.RUN_LAMBDAS == 'true' }}
     needs:
       - build_and_upload_symbols
       - build_and_upload_econ
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
       - name: Configure AWS creds via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -123,10 +112,8 @@ jobs:
           role-session-name:   github-deploy
           aws-region:          us-east-1
           audience:            sts.amazonaws.com
-
       - name: Wait for core infra
         run: aws cloudformation wait stack-create-complete --stack-name stocks-core-stack
-
       - name: Cleanup failed DB stack
         run: |
           STATUS=$(aws cloudformation describe-stacks \
@@ -137,7 +124,6 @@ jobs:
             aws cloudformation delete-stack --stack-name stocks-db-lambda-stack
             aws cloudformation wait stack-delete-complete --stack-name stocks-db-lambda-stack
           fi
-
       - name: Deploy App stack
         run: |
           aws cloudformation deploy \
@@ -150,16 +136,14 @@ jobs:
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM
-
-      - name: Invoke symbols‑loader
+      - name: Invoke symbols-loader
         run: |
           aws lambda invoke \
             --function-name loadstocksymbols \
             --payload '{}' \
             --cli-binary-format raw-in-base64-out \
             symbols_response.json || true
-
-      - name: Invoke econ‑data loader
+      - name: Invoke econ-data loader
         run: |
           aws lambda invoke \
             --function-name loadecondata \
@@ -171,7 +155,7 @@ jobs:
   # 4) Build & push ECS container images#
   ########################################
   build_and_push_containers:
-    if: ${{ env.BUILD_CONTAINERS == 'true' }}
+    if: ${{ vars.BUILD_CONTAINERS == 'true' }}
     needs: deploy_and_run_lambdas
     runs-on: ubuntu-latest
     outputs:
@@ -182,7 +166,6 @@ jobs:
       pricemonthly_tag: ${{ steps.monthly.outputs.tag }}
     steps:
       - uses: actions/checkout@v3
-
       - name: Configure AWS creds via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -190,7 +173,6 @@ jobs:
           role-session-name:   github-deploy
           aws-region:          us-east-1
           audience:            sts.amazonaws.com
-
       - name: Ensure ECR exists & get URI
         id: get_uri
         run: |
@@ -202,10 +184,8 @@ jobs:
             --query 'repositories[0].repositoryUri' \
             --output text)
           echo "repo_uri=$URI" >> $GITHUB_OUTPUT
-
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v1
-
       - name: Build & push findata
         id: findata
         run: |
@@ -214,7 +194,6 @@ jobs:
           docker build -f Dockerfile.findata -t $IMG .
           docker push $IMG
           echo "tag=$TAG" >> $GITHUB_OUTPUT
-
       - name: Build & push pricedaily
         id: pricedaily
         run: |
@@ -223,7 +202,6 @@ jobs:
           docker build -f Dockerfile.pricedaily -t $IMG .
           docker push $IMG
           echo "tag=$TAG" >> $GITHUB_OUTPUT
-
       - name: Build & push priceweekly
         id: weekly
         run: |
@@ -232,7 +210,6 @@ jobs:
           docker build -f Dockerfile.priceweekly -t $IMG .
           docker push $IMG
           echo "tag=$TAG" >> $GITHUB_OUTPUT
-
       - name: Build & push pricemonthly
         id: monthly
         run: |
@@ -246,7 +223,7 @@ jobs:
   # 5) Deploy ECS TaskDefinitions (with cleanup)  #
   #################################################
   deploy_ecs_tasks:
-    if: ${{ env.DEPLOY_ECS == 'true' }}
+    if: ${{ vars.DEPLOY_ECS == 'true' }}
     needs: build_and_push_containers
     runs-on: ubuntu-latest
     outputs:
@@ -256,7 +233,6 @@ jobs:
       monthly_arn: ${{ steps.fetch.outputs.monthly_arn }}
     steps:
       - uses: actions/checkout@v3
-
       - name: Configure AWS creds via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -264,8 +240,7 @@ jobs:
           role-session-name:   github-deploy
           aws-region:          us-east-1
           audience:            sts.amazonaws.com
-
-      - name: Cleanup failed ECS stack if in ROLLBACK_COMPLETE
+      - name: Cleanup failed ECS stack if ROLLBACK_COMPLETE
         run: |
           STATUS=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
@@ -275,7 +250,6 @@ jobs:
             aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
             aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
           fi
-
       - name: Deploy ECS TaskDefinitions
         id: deploy
         run: |
@@ -289,7 +263,6 @@ jobs:
               PriceMonthlyImageTag=${{ needs.build_and_push_containers.outputs.pricemonthly_tag }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM
-
       - name: Fetch TaskDefinition ARNs
         id: fetch
         run: |
@@ -314,12 +287,11 @@ jobs:
   # 6a) Run findata ECS task                     #
   #################################################
   run_findata:
-    if: ${{ env.RUN_FINDATA == 'true' }}
+    if: ${{ vars.RUN_FINDATA == 'true' }}
     needs: deploy_ecs_tasks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
       - name: Configure AWS creds via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -327,8 +299,7 @@ jobs:
           role-session-name:   github-deploy
           aws-region:          us-east-1
           audience:            sts.amazonaws.com
-
-      - name: Run findata‑loader
+      - name: Run findata-loader
         run: |
           aws ecs run-task \
             --cluster stocks-cluster \
@@ -341,12 +312,11 @@ jobs:
   # 6b) Run pricedaily ECS task                  #
   #################################################
   run_pricedaily:
-    if: ${{ env.RUN_PRICEDAILY == 'true' }}
+    if: ${{ vars.RUN_PRICEDAILY == 'true' }}
     needs: deploy_ecs_tasks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
       - name: Configure AWS creds via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -354,8 +324,7 @@ jobs:
           role-session-name:   github-deploy
           aws-region:          us-east-1
           audience:            sts.amazonaws.com
-
-      - name: Run pricedaily‑loader
+      - name: Run pricedaily-loader
         run: |
           aws ecs run-task \
             --cluster stocks-cluster \
@@ -368,12 +337,11 @@ jobs:
   # 6c) Run priceweekly ECS task                 #
   #################################################
   run_priceweekly:
-    if: ${{ env.RUN_PRICEWEEKLY == 'true' }}
+    if: ${{ vars.RUN_PRICEWEEKLY == 'true' }}
     needs: deploy_ecs_tasks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
       - name: Configure AWS creds via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -381,8 +349,7 @@ jobs:
           role-session-name:   github-deploy
           aws-region:          us-east-1
           audience:            sts.amazonaws.com
-
-      - name: Run priceweekly‑loader
+      - name: Run priceweekly-loader
         run: |
           aws ecs run-task \
             --cluster stocks-cluster \
@@ -395,12 +362,11 @@ jobs:
   # 6d) Run pricemonthly ECS task                #
   #################################################
   run_pricemonthly:
-    if: ${{ env.RUN_PRICEMONTHLY == 'true' }}
+    if: ${{ vars.RUN_PRICEMONTHLY == 'true' }}
     needs: deploy_ecs_tasks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
       - name: Configure AWS creds via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -408,8 +374,7 @@ jobs:
           role-session-name:   github-deploy
           aws-region:          us-east-1
           audience:            sts.amazonaws.com
-
-      - name: Run pricemonthly‑loader
+      - name: Run pricemonthly-loader
         run: |
           aws ecs run-task \
             --cluster stocks-cluster \
