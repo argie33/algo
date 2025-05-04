@@ -282,6 +282,7 @@ Resources:
           CidrIp: "0.0.0.0/0"
 
   BastionLaunchTemplate:
+  BastionLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
       LaunchTemplateName: stocks-bastion-lt
@@ -295,21 +296,36 @@ Resources:
         InstanceMarketOptions:
           MarketType: spot
           SpotOptions:
-            SpotInstanceType: one-time
+            SpotInstanceType: persistent
+            InstanceInterruptionBehavior: stop
         UserData:
-          Fn::Base64: |
+          Fn::Base64: !Sub |
             #!/bin/bash
             set -eux
+            # 1) System update + tooling
             yum update -y
-            amazon-linux-extras enable postgresql10
-            yum install -y jq postgresql
+            yum install -y curl jq aws-cli
+
+            # 2) Add PGDG repo & install psql 10
+            curl -fsSL \
+              https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm \
+              -o /tmp/pgdg.rpm
+            rpm -Uvh /tmp/pgdg.rpm
+            yum remove -y postgresql postgresql-libs
+            yum install -y postgresql10
+
+            # 3) Set AWS CLI region
             aws configure set region ${AWS::Region}
+
+            # 4) Fetch DB credentials
             CREDS=$(aws secretsmanager get-secret-value \
               --secret-id "${DBSecretName}" \
               --query SecretString --output text)
             DB_USER=$(echo "$CREDS" | jq -r .username)
-            DB_PASSWORD=$(echo "$CREDS" | jq -r .password)
+            DB_PASS=$(echo "$CREDS" | jq -r .password)
             DB_NAME=$(echo "$CREDS" | jq -r .dbname)
+
+            # 5) Lookup RDS endpoint & port
             DB_HOST=$(aws cloudformation describe-stacks \
               --stack-name "${DBStackName}" \
               --query "Stacks[0].Outputs[?OutputKey=='DBEndpoint'].OutputValue" \
@@ -318,12 +334,22 @@ Resources:
               --stack-name "${DBStackName}" \
               --query "Stacks[0].Outputs[?OutputKey=='DBPort'].OutputValue" \
               --output text)
-            cat <<EOF > /home/ec2-user/.pgpass
-            ${DB_HOST}:${DB_PORT}:${DB_NAME}:${DB_USER}:${DB_PASSWORD}
-            EOF
+
+            # 6) Write .pgpass
+            echo "${DB_HOST}:${DB_PORT}:${DB_NAME}:${DB_USER}:${DB_PASS}" \
+              > /home/ec2-user/.pgpass
             chmod 600 /home/ec2-user/.pgpass
             chown ec2-user:ec2-user /home/ec2-user/.pgpass
 
+            # 7) Export env for interactive sessions
+            cat >> /home/ec2-user/.bash_profile <<'EOF'
+            export PGHOST=${DB_HOST}
+            export PGPORT=${DB_PORT}
+            export PGUSER=${DB_USER}
+            export PGPASSWORD=${DB_PASS}
+            export PGDATABASE=${DB_NAME}
+            EOF
+            chown ec2-user:ec2-user /home/ec2-user/.bash_profile
   BastionAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
