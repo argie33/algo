@@ -53,7 +53,7 @@ jobs:
           echo "run_pricemonthly=${RUN_PRICEMONTHLY}" >> $GITHUB_OUTPUT
 
   #################################################
-  # 1) Package & upload symbols‑loader Lambda     #
+  # 1) Package & upload symbols‐loader Lambda     #
   #################################################
   build_and_upload_symbols:
     needs: set_flags
@@ -140,15 +140,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Configure AWS creds via OIDC
+      - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume:    arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
           role-session-name: github-deploy
           aws-region:        us-east-1
           audience:          sts.amazonaws.com
+
       - name: Wait for core infra
         run: aws cloudformation wait stack-create-complete --stack-name stocks-core-stack
+
       - name: Cleanup failed DB stack
         run: |
           STATUS=$(aws cloudformation describe-stacks \
@@ -159,6 +161,7 @@ jobs:
             aws cloudformation delete-stack --stack-name stocks-db-lambda-stack
             aws cloudformation wait stack-delete-complete --stack-name stocks-db-lambda-stack
           fi
+
       - name: Deploy App stack
         run: |
           aws cloudformation deploy \
@@ -171,6 +174,7 @@ jobs:
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM
+
       - name: Invoke symbols‑loader (async)
         run: |
           aws lambda invoke \
@@ -179,6 +183,7 @@ jobs:
             --payload '{}' \
             --cli-binary-format raw-in-base64-out \
             symbols_response.json || true
+
       - name: Invoke econ‑data loader (async)
         run: |
           aws lambda invoke \
@@ -204,34 +209,51 @@ jobs:
       priceweekly_tag:  ${{ steps.weekly.outputs.tag }}
       pricemonthly_tag: ${{ steps.monthly.outputs.tag }}
     steps:
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume:    arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-deploy
+          aws-region:        us-east-1
+          audience:          sts.amazonaws.com
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v1
+
       - uses: actions/checkout@v3
+
       - name: Get ECR repo URI
         id: get_uri
         run: |
-          URI=$(aws ecr describe-repositories --repository-names my-app --query 'repositories[0].repositoryUri' --output text)
-          echo "repo_uri=$URI" >> $GITHUB_OUTPUT
-      - name: Build & push findata container
+          echo "repo_uri=$(aws ecr describe-repositories \
+            --repository-names my-app --query 'repositories[0].repositoryUri' \
+            --output text)" >> $GITHUB_OUTPUT
+
+      - name: Build & push findata
         id: findata
         run: |
           TAG=findata-${{ github.sha }}
           docker build -f Dockerfile.findata -t ${{ steps.get_uri.outputs.repo_uri }}:$TAG .
           docker push ${{ steps.get_uri.outputs.repo_uri }}:$TAG
           echo "tag=$TAG" >> $GITHUB_OUTPUT
-      - name: Build & push pricedaily container
+
+      - name: Build & push pricedaily
         id: pricedaily
         run: |
           TAG=pricedaily-${{ github.sha }}
           docker build -f Dockerfile.pricedaily -t ${{ steps.get_uri.outputs.repo_uri }}:$TAG .
           docker push ${{ steps.get_uri.outputs.repo_uri }}:$TAG
           echo "tag=$TAG" >> $GITHUB_OUTPUT
-      - name: Build & push priceweekly container
+
+      - name: Build & push priceweekly
         id: weekly
         run: |
           TAG=priceweekly-${{ github.sha }}
           docker build -f Dockerfile.priceweekly -t ${{ steps.get_uri.outputs.repo_uri }}:$TAG .
           docker push ${{ steps.get_uri.outputs.repo_uri }}:$TAG
           echo "tag=$TAG" >> $GITHUB_OUTPUT
-      - name: Build & push pricemonthly container
+
+      - name: Build & push pricemonthly
         id: monthly
         run: |
           TAG=pricemonthly-${{ github.sha }}
@@ -250,14 +272,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Configure AWS creds via OIDC
+      - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume:    arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
           role-session-name: github-deploy
           aws-region:        us-east-1
           audience:          sts.amazonaws.com
-      - name: Cleanup failed ECS stack if ROLLBACK_COMPLETE
+
+      - name: Cleanup failed ECS stack
         run: |
           STATUS=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
@@ -267,6 +290,7 @@ jobs:
             aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
             aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
           fi
+
       - name: Deploy ECS TaskDefinitions
         run: |
           aws cloudformation deploy \
@@ -280,6 +304,7 @@ jobs:
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
+
       - name: Fetch TaskDefinition ARNs
         id: fetch
         run: |
@@ -309,7 +334,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Configure AWS creds via OIDC
+      - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume:    arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
@@ -336,7 +361,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Configure AWS creds via OIDC
+      - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume:    arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
@@ -361,7 +386,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Configure AWS creds via OIDC
+      - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume:    arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
@@ -386,7 +411,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Configure AWS creds via OIDC
+      - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume:    arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
