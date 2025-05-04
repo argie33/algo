@@ -28,7 +28,6 @@ jobs:
       pricedaily:   ${{ steps.filter.outputs.pricedaily }}
       priceweekly:  ${{ steps.filter.outputs.priceweekly }}
       pricemonthly: ${{ steps.filter.outputs.pricemonthly }}
-      all_changes:  ${{ steps.filter.outputs.changes }}
 
     steps:
       - uses: actions/checkout@v3
@@ -71,12 +70,6 @@ jobs:
 
       - name: Debug filter outputs
         run: |
-          echo "=== changed files ==="
-          for f in ${{ steps.filter.outputs.changes }}; do
-            echo "  • $f"
-          done
-          echo
-          echo "=== filter flags ==="
           echo "symbols      = ${{ steps.filter.outputs.symbols }}"
           echo "econ         = ${{ steps.filter.outputs.econ }}"
           echo "containers   = ${{ steps.filter.outputs.containers }}"
@@ -86,13 +79,13 @@ jobs:
           echo "pricemonthly = ${{ steps.filter.outputs.pricemonthly }}"
 
   ###################################################################
-  # 1) Build & upload symbols‑loader Lambda (always)               #
+  # 1) Build & upload symbols‑loader Lambda (always, but only zip/upload if changed)     #
   ###################################################################
   build_and_upload_symbols:
     needs: filter
     runs-on: ubuntu-latest
     outputs:
-      code_key: ${{ steps.package.outputs.code_key }}
+      code_key: ${{ steps.set-key.outputs.code_key }}
 
     steps:
       - uses: actions/checkout@v3
@@ -104,7 +97,7 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Get Lambda code bucket
+      - name: Get S3 bucket name
         id: get-bucket
         run: |
           BUCKET=$(aws cloudformation describe-stacks \
@@ -112,32 +105,42 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='CodeBucketName'].OutputValue" \
             --output text)
           if [ -z "$BUCKET" ]; then
-            echo "::error::Could not fetch CodeBucketName from CloudFormation."
+            echo "::error::Could not fetch CodeBucketName"
             exit 1
           fi
           echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
 
-      - name: Package & upload symbols‑loader
-        id: package
+      - name: Determine & publish symbols CodeKey
+        id: set-key
         run: |
-          rm -rf symbols_pkg && mkdir symbols_pkg
-          pip install --upgrade pip
-          pip install -r requirements-loadstocksymbols.txt -t symbols_pkg
-          cp loadstocksymbols.py symbols_pkg/index.py
-          cd symbols_pkg && zip -r ../symbols-${{ github.sha }}.zip . && cd ..
-          aws s3 cp symbols-${{ github.sha }}.zip \
-            s3://${{ steps.get-bucket.outputs.bucket }}/ \
-            --region ${{ env.AWS_REGION }}
-          echo "code_key=symbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
+          if [ "${{ needs.filter.outputs.symbols }}" = "true" ]; then
+            # only package & upload if code changed
+            rm -rf pkg && mkdir pkg
+            pip install --upgrade pip
+            pip install -r requirements-loadstocksymbols.txt -t pkg
+            cp loadstocksymbols.py pkg/index.py
+            cd pkg && zip -r ../symbols-${{ github.sha }}.zip . && cd ..
+            aws s3 cp symbols-${{ github.sha }}.zip \
+              s3://${{ steps.get-bucket.outputs.bucket }}/ \
+              --region ${{ env.AWS_REGION }}
+            echo "code_key=symbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
+          else
+            # reuse existing key if no change
+            EXISTING=$(aws cloudformation describe-stacks \
+              --stack-name stocks-db-lambda-stack \
+              --query "Stacks[0].Parameters[?ParameterKey=='CodeKey'].ParameterValue" \
+              --output text)
+            echo "code_key=$EXISTING" >> $GITHUB_OUTPUT
+          fi
 
   ###################################################################
-  # 2) Build & upload econ‑data loader Lambda (always)             #
+  # 2) Build & upload econ‑data loader Lambda (always, but only zip/upload if changed)   #
   ###################################################################
   build_and_upload_econ:
     needs: filter
     runs-on: ubuntu-latest
     outputs:
-      econ_code_key: ${{ steps.package.outputs.econ_code_key }}
+      econ_code_key: ${{ steps.set-key.outputs.econ_code_key }}
 
     steps:
       - uses: actions/checkout@v3
@@ -149,7 +152,7 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Get Lambda code bucket
+      - name: Get S3 bucket name
         id: get-bucket
         run: |
           BUCKET=$(aws cloudformation describe-stacks \
@@ -157,23 +160,31 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='CodeBucketName'].OutputValue" \
             --output text)
           if [ -z "$BUCKET" ]; then
-            echo "::error::Could not fetch CodeBucketName from CloudFormation."
+            echo "::error::Could not fetch CodeBucketName"
             exit 1
           fi
           echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
 
-      - name: Package & upload econ‑data loader
-        id: package
+      - name: Determine & publish econ CodeKey
+        id: set-key
         run: |
-          rm -rf econ_pkg && mkdir econ_pkg
-          pip install --upgrade pip
-          pip install -r requirements-loadecondata.txt -t econ_pkg
-          cp loadecondata.py econ_pkg/index.py
-          cd econ_pkg && zip -r ../econ-${{ github.sha }}.zip . && cd ..
-          aws s3 cp econ-${{ github.sha }}.zip \
-            s3://${{ steps.get-bucket.outputs.bucket }}/ \
-            --region ${{ env.AWS_REGION }}
-          echo "econ_code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
+          if [ "${{ needs.filter.outputs.econ }}" = "true" ]; then
+            rm -rf pkg && mkdir pkg
+            pip install --upgrade pip
+            pip install -r requirements-loadecondata.txt -t pkg
+            cp loadecondata.py pkg/index.py
+            cd pkg && zip -r ../econ-${{ github.sha }}.zip . && cd ..
+            aws s3 cp econ-${{ github.sha }}.zip \
+              s3://${{ steps.get-bucket.outputs.bucket }}/ \
+              --region ${{ env.AWS_REGION }}
+            echo "econ_code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
+          else
+            EXISTING=$(aws cloudformation describe-stacks \
+              --stack-name stocks-db-lambda-stack \
+              --query "Stacks[0].Parameters[?ParameterKey=='EconomicCodeKey'].ParameterValue" \
+              --output text)
+            echo "econ_code_key=$EXISTING" >> $GITHUB_OUTPUT
+          fi
 
   ###################################################################
   # 3) Deploy & invoke Lambdas (only if at least one changed)      #
@@ -235,14 +246,14 @@ jobs:
   # 4) Build & push ECS containers if changed      #
   ###################################################
   build_and_push_containers:
-    needs: deploy_and_run_lambdas
+    needs: filter
     if: needs.filter.outputs.containers == 'true'
     runs-on: ubuntu-latest
     outputs:
       findata_tag:      ${{ steps.findata.outputs.tag }}
-      pricedaily_tag:   ${{ steps.pricedaily.outputs.pricedaily_tag }}
-      priceweekly_tag:  ${{ steps.weekly.outputs.priceweekly_tag }}
-      pricemonthly_tag: ${{ steps.monthly.outputs.pricemonthly_tag }}
+      pricedaily_tag:   ${{ steps.pricedaily.outputs.tag }}
+      priceweekly_tag:  ${{ steps.weekly.outputs.tag }}
+      pricemonthly_tag: ${{ steps.monthly.outputs.tag }}
 
     steps:
       - uses: actions/checkout@v3
