@@ -7,19 +7,22 @@ permissions:
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+    paths:
+      - .github/workflows/deploy-app-template.yml
 
 env:
   # Toggle these to 'true' or 'false' to control which jobs run
-  RUN_SYMBOLS:       'true'   # Build & upload symbols‑loader Lambda
-  RUN_ECON:          'true'   # Build & upload econ‑data loader Lambda
-  RUN_LAMBDAS:       'true'   # Deploy & invoke those Lambdas
-  BUILD_CONTAINERS:  'true'   # Build & push all ECS container images
-  DEPLOY_ECS:        'true'   # Deploy ECS TaskDefinitions
-  RUN_FINDATA:       'true'   # Run findata‑loader on Fargate
-  RUN_PRICEDAILY:    'true'   # Run pricedaily‑loader on Fargate
-  RUN_PRICEWEEKLY:   'true'   # Run priceweekly‑loader on Fargate
-  RUN_PRICEMONTHLY:  'true'   # Run pricemonthly‑loader on Fargate
+  RUN_SYMBOLS:       'true'
+  RUN_ECON:          'true'
+  RUN_LAMBDAS:       'true'
+  BUILD_CONTAINERS:  'true'
+  DEPLOY_ECS:        'true'
+  RUN_FINDATA:       'true'
+  RUN_PRICEDAILY:    'true'
+  RUN_PRICEWEEKLY:   'true'
+  RUN_PRICEMONTHLY:  'true'
 
 jobs:
 
@@ -39,28 +42,25 @@ jobs:
       run_priceweekly:  ${{ steps.set.outputs.run_priceweekly }}
       run_pricemonthly: ${{ steps.set.outputs.run_pricemonthly }}
     steps:
-      - id: set
-        uses: actions/github-script@v6
-        with:
-          script: |
-            return {
-              run_symbols:       '${{ env.RUN_SYMBOLS }}',
-              run_econ:          '${{ env.RUN_ECON }}',
-              run_lambdas:       '${{ env.RUN_LAMBDAS }}',
-              build_containers:  '${{ env.BUILD_CONTAINERS }}',
-              deploy_ecs:        '${{ env.DEPLOY_ECS }}',
-              run_findata:       '${{ env.RUN_FINDATA }}',
-              run_pricedaily:    '${{ env.RUN_PRICEDAILY }}',
-              run_priceweekly:   '${{ env.RUN_PRICEWEEKLY }}',
-              run_pricemonthly:  '${{ env.RUN_PRICEMONTHLY }}'
-            }
+      - name: Set flags
+        id: set
+        run: |
+          echo "run_symbols=${RUN_SYMBOLS}" >> $GITHUB_OUTPUT
+          echo "run_econ=${RUN_ECON}" >> $GITHUB_OUTPUT
+          echo "run_lambdas=${RUN_LAMBDAS}" >> $GITHUB_OUTPUT
+          echo "build_containers=${BUILD_CONTAINERS}" >> $GITHUB_OUTPUT
+          echo "deploy_ecs=${DEPLOY_ECS}" >> $GITHUB_OUTPUT
+          echo "run_findata=${RUN_FINDATA}" >> $GITHUB_OUTPUT
+          echo "run_pricedaily=${RUN_PRICEDAILY}" >> $GITHUB_OUTPUT
+          echo "run_priceweekly=${RUN_PRICEWEEKLY}" >> $GITHUB_OUTPUT
+          echo "run_pricemonthly=${RUN_PRICEMONTHLY}" >> $GITHUB_OUTPUT
 
   #################################################
   # 1) Package & upload symbols‑loader Lambda     #
   #################################################
   build_and_upload_symbols:
-    runs-on: ubuntu-latest
     if: ${{ needs.set_flags.outputs.run_symbols == 'true' }}
+    runs-on: ubuntu-latest
     outputs:
       code_key: ${{ steps.upload.outputs.code_key }}
     steps:
@@ -82,14 +82,14 @@ jobs:
         id: upload
         run: |
           aws s3 cp symbols-${{ github.sha }}.zip s3://my-bucket/ --region us-east-1 \
-            && echo "::set-output name=code_key::symbols-${{ github.sha }}.zip"
+            && echo "code_key=symbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
   #################################################
   # 2) Package & upload econ‑data loader Lambda   #
   #################################################
   build_and_upload_econ:
-    runs-on: ubuntu-latest
     if: ${{ needs.set_flags.outputs.run_econ == 'true' }}
+    runs-on: ubuntu-latest
     outputs:
       econ_code_key: ${{ steps.upload_econ.outputs.code_key }}
     steps:
@@ -111,7 +111,7 @@ jobs:
         id: upload_econ
         run: |
           aws s3 cp econ-${{ github.sha }}.zip s3://my-bucket/ --region us-east-1 \
-            && echo "::set-output name=code_key::econ-${{ github.sha }}.zip"
+            && echo "code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
   #################################################
   # 3) Deploy RDS + Lambdas + invoke them         #
@@ -194,35 +194,35 @@ jobs:
         id: get_uri
         run: |
           URI=$(aws ecr describe-repositories --repository-names my-app --query 'repositories[0].repositoryUri' --output text)
-          echo "::set-output name=repo_uri::$URI"
+          echo "repo_uri=$URI" >> $GITHUB_OUTPUT
       - name: Build & push findata container
         id: findata
         run: |
           TAG=findata-${{ github.sha }}
-          docker build -f Dockerfile.findata -t ${{ needs.build_and_push_containers.outputs.repo_uri }}:$TAG .
-          docker push ${{ needs.build_and_push_containers.outputs.repo_uri }}:$TAG
-          echo "::set-output name=tag::$TAG"
+          docker build -f Dockerfile.findata -t ${{ steps.get_uri.outputs.repo_uri }}:$TAG .
+          docker push ${{ steps.get_uri.outputs.repo_uri }}:$TAG
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
       - name: Build & push pricedaily container
         id: pricedaily
         run: |
           TAG=pricedaily-${{ github.sha }}
-          docker build -f Dockerfile.pricedaily -t ${{ needs.build_and_push_containers.outputs.repo_uri }}:$TAG .
-          docker push ${{ needs.build_and_push_containers.outputs.repo_uri }}:$TAG
-          echo "::set-output name=tag::$TAG"
+          docker build -f Dockerfile.pricedaily -t ${{ steps.get_uri.outputs.repo_uri }}:$TAG .
+          docker push ${{ steps.get_uri.outputs.repo_uri }}:$TAG
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
       - name: Build & push priceweekly container
         id: weekly
         run: |
           TAG=priceweekly-${{ github.sha }}
-          docker build -f Dockerfile.priceweekly -t ${{ needs.build_and_push_containers.outputs.repo_uri }}:$TAG .
-          docker push ${{ needs.build_and_push_containers.outputs.repo_uri }}:$TAG
-          echo "::set-output name=tag::$TAG"
+          docker build -f Dockerfile.priceweekly -t ${{ steps.get_uri.outputs.repo_uri }}:$TAG .
+          docker push ${{ steps.get_uri.outputs.repo_uri }}:$TAG
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
       - name: Build & push pricemonthly container
         id: monthly
         run: |
           TAG=pricemonthly-${{ github.sha }}
-          docker build -f Dockerfile.pricemonthly -t ${{ needs.build_and_push_containers.outputs.repo_uri }}:$TAG .
-          docker push ${{ needs.build_and_push_containers.outputs.repo_uri }}:$TAG
-          echo "::set-output name=tag::$TAG"
+          docker build -f Dockerfile.pricemonthly -t ${{ steps.get_uri.outputs.repo_uri }}:$TAG .
+          docker push ${{ steps.get_uri.outputs.repo_uri }}:$TAG
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
 
   #################################################
   # 5) Deploy ECS TaskDefinitions                #
@@ -253,7 +253,6 @@ jobs:
             aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
           fi
       - name: Deploy ECS TaskDefinitions
-        id: deploy
         run: |
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
@@ -266,6 +265,7 @@ jobs:
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
+
       - name: Fetch TaskDefinition ARNs
         id: fetch
         run: |
@@ -303,13 +303,13 @@ jobs:
           aws-region:        us-east-1
           audience:          sts.amazonaws.com
       - name: Debug findata ARN
-        run: echo "findata ARN = ${{ needs.deploy_ecs_tasks.outputs.findata_arn }}"
+        run: echo "findata ARN = ${{ steps.fetch.outputs.findata_arn }}"
       - name: Run findata-loader
         run: |
           aws ecs run-task \
             --cluster stocks-cluster \
             --launch-type FARGATE \
-            --task-definition "${{ needs.deploy_ecs_tasks.outputs.findata_arn }}" \
+            --task-definition "${{ steps.fetch.outputs.findata_arn }}" \
             --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PRIVATE_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
             --count 1
 
@@ -334,7 +334,7 @@ jobs:
           aws ecs run-task \
             --cluster stocks-cluster \
             --launch-type FARGATE \
-            --task-definition "${{ needs.deploy_ecs_tasks.outputs.price_arn }}" \
+            --task-definition "${{ steps.fetch.outputs.price_arn }}" \
             --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PRIVATE_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
             --count 1
 
@@ -359,7 +359,7 @@ jobs:
           aws ecs run-task \
             --cluster stocks-cluster \
             --launch-type FARGATE \
-            --task-definition "${{ needs.deploy_ecs_tasks.outputs.weekly_arn }}" \
+            --task-definition "${{ steps.fetch.outputs.weekly_arn }}" \
             --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PRIVATE_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
             --count 1
 
@@ -384,6 +384,6 @@ jobs:
           aws ecs run-task \
             --cluster stocks-cluster \
             --launch-type FARGATE \
-            --task-definition "${{ needs.deploy_ecs_tasks.outputs.monthly_arn }}" \
+            --task-definition "${{ steps.fetch.outputs.monthly_arn }}" \
             --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PRIVATE_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
             --count 1
