@@ -1,7 +1,8 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Application stack – RDS, Secrets (DB creds), three Lambdas
-  (symbols‑loader, economic‑data loader & monthly‑price loader), and ECS cluster.
+  Application stack – RDS (public), Secrets (DB creds),
+  three Lambdas (symbols‑loader, economic‑data loader & monthly‑price loader),
+  and ECS cluster, all in public subnets.
 
 Parameters:
   CodeKey:
@@ -26,29 +27,27 @@ Parameters:
     Description: FRED API key for economic‑data loader
   VpcCidr:
     Type: String
-    Default: "10.0.0.0/16"
-    Description: VPC CIDR for DB security group ingress
+    Default: "0.0.0.0/0"
+    Description: CIDR block allowed to connect to RDS (public access)
 
 Resources:
 
-  ### RDS Subnet Group ###
+  ### RDS Subnet Group (only public subnets) ###
   StocksDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      DBSubnetGroupDescription: Subnet group for RDS (public & private)
+      DBSubnetGroupDescription: Public subnet group for RDS
       SubnetIds:
         - !ImportValue StocksCore-PublicSubnet1Id
         - !ImportValue StocksCore-PublicSubnet2Id
-        - !ImportValue StocksCore-PrivateSubnet1Id
-        - !ImportValue StocksCore-PrivateSubnet2Id
 
   ### RDS Security Group ###
   StocksDBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow Postgres access within VPC
+      GroupDescription: Allow Postgres access from VpcCidr
       VpcId: !ImportValue StocksCore-VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -56,7 +55,7 @@ Resources:
           ToPort: 5432
           CidrIp: !Ref VpcCidr
 
-  ### RDS Instance ###
+  ### RDS Instance (publicly accessible) ###
   StocksDBInstance:
     Type: AWS::RDS::DBInstance
     DeletionPolicy: Retain
@@ -75,7 +74,7 @@ Resources:
         - !Ref StocksDBSecurityGroup
       DBSubnetGroupName: !Ref StocksDBSubnetGroup
       MultiAZ: false
-      PubliclyAccessible: false
+      PubliclyAccessible: true
       DeletionProtection: false
 
   ### Secrets Manager: DB credentials ###
@@ -99,7 +98,7 @@ Resources:
             - !GetAtt StocksDBInstance.Endpoint.Port
             - '","dbname":"stocks"}'
 
-  ### Lambda: symbols‑loader ###
+  ### Lambda: symbols‑loader (public subnets) ###
   LoadStockSymbolsFunction:
     Type: AWS::Lambda::Function
     DependsOn:
@@ -116,15 +115,15 @@ Resources:
       Timeout: 300
       VpcConfig:
         SubnetIds:
-          - !ImportValue StocksCore-PrivateSubnet1Id
-          - !ImportValue StocksCore-PrivateSubnet2Id
+          - !ImportValue StocksCore-PublicSubnet1Id
+          - !ImportValue StocksCore-PublicSubnet2Id
         SecurityGroupIds:
           - !ImportValue StocksCore-LambdaSecurityGroupId
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DBCredentialsSecret
 
-  ### Lambda: economic‑data loader ###
+  ### Lambda: economic‑data loader (public subnets) ###
   LoadEconomicDataFunction:
     Type: AWS::Lambda::Function
     DependsOn:
@@ -141,16 +140,16 @@ Resources:
       Timeout: 900
       VpcConfig:
         SubnetIds:
-          - !ImportValue StocksCore-PrivateSubnet1Id
-          - !ImportValue StocksCore-PrivateSubnet2Id
+          - !ImportValue StocksCore-PublicSubnet1Id
+          - !ImportValue StocksCore-PublicSubnet2Id
         SecurityGroupIds:
           - !ImportValue StocksCore-LambdaSecurityGroupId
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DBCredentialsSecret
-          FRED_API_KEY: !Ref FREDApiKey
+          FRED_API_KEY:   !Ref FREDApiKey
 
-  ### Lambda: monthly‑price loader ###
+  ### Lambda: monthly‑price loader (public subnets) ###
   LoadMonthlyPriceFunction:
     Type: AWS::Lambda::Function
     DependsOn:
@@ -167,13 +166,14 @@ Resources:
       Timeout: 900
       VpcConfig:
         SubnetIds:
-          - !ImportValue StocksCore-PrivateSubnet1Id
-          - !ImportValue StocksCore-PrivateSubnet2Id
+          - !ImportValue StocksCore-PublicSubnet1Id
+          - !ImportValue StocksCore-PublicSubnet2Id
         SecurityGroupIds:
           - !ImportValue StocksCore-LambdaSecurityGroupId
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DBCredentialsSecret
+          FRED_API_KEY:   !Ref FREDApiKey
 
   ### ECS Cluster ###
   StocksEcsCluster:
