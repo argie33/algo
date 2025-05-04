@@ -8,17 +8,16 @@ on:
   push:
     branches: [ main ]
 
-# Toggle these to 'true' or 'false' to enable/disable jobs on each run:
-vars:
-  RUN_SYMBOLS:       'true'   # Build & upload symbols-loader Lambda
-  RUN_ECON:          'true'   # Build & upload econ-data loader Lambda
+env:
+  RUN_SYMBOLS:       'true'   # Build & upload symbols‑loader Lambda
+  RUN_ECON:          'true'   # Build & upload econ‑data loader Lambda
   RUN_LAMBDAS:       'true'   # Deploy & invoke the two Lambdas
   BUILD_CONTAINERS:  'true'   # Build & push all ECS container images
   DEPLOY_ECS:        'true'   # Deploy ECS TaskDefinitions
-  RUN_FINDATA:       'true'   # Run findata-loader on Fargate
-  RUN_PRICEDAILY:    'true'   # Run pricedaily-loader on Fargate
-  RUN_PRICEWEEKLY:   'true'   # Run priceweekly-loader on Fargate
-  RUN_PRICEMONTHLY:  'true'   # Run pricemonthly-loader on Fargate
+  RUN_FINDATA:       'true'   # Run findata‑loader on Fargate
+  RUN_PRICEDAILY:    'true'   # Run pricedaily‑loader on Fargate
+  RUN_PRICEWEEKLY:   'true'   # Run priceweekly‑loader on Fargate
+  RUN_PRICEMONTHLY:  'true'   # Run pricemonthly‑loader on Fargate
 
 jobs:
 
@@ -26,7 +25,7 @@ jobs:
   # 1) Build & upload symbols  #
   ###############################
   build_and_upload_symbols:
-    if: ${{ vars.RUN_SYMBOLS == 'true' }}
+    if: ${{ env.RUN_SYMBOLS == 'true' }}
     runs-on: ubuntu-latest
     outputs:
       code_key: ${{ steps.upload.outputs.code_key }}
@@ -36,12 +35,12 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-      - name: Install symbols-loader deps
+      - name: Install symbols‑loader deps
         run: |
           rm -rf symbols_package && mkdir symbols_package
           pip install --upgrade pip
           pip install -r requirements-loadstocksymbols.txt -t symbols_package
-      - name: Package symbols-loader
+      - name: Package symbols‑loader
         run: |
           cp loadstocksymbols.py symbols_package/index.py
           cd symbols_package && zip -r "../symbols-${{ github.sha }}.zip" . && cd ..
@@ -52,17 +51,17 @@ jobs:
           role-session-name:   github-deploy
           aws-region:          us-east-1
           audience:            sts.amazonaws.com
-      - name: Upload symbols-loader ZIP
+      - name: Upload symbols‑loader ZIP
         id: upload
         run: |
           aws s3 cp "symbols-${{ github.sha }}.zip" s3://stocks-algo-app-code/
           echo "code_key=symbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
   ####################################
-  # 2) Build & upload econ-data     #
+  # 2) Build & upload econ‑data     #
   ####################################
   build_and_upload_econ:
-    if: ${{ vars.RUN_ECON == 'true' }}
+    if: ${{ env.RUN_ECON == 'true' }}
     runs-on: ubuntu-latest
     outputs:
       econ_code_key: ${{ steps.upload.outputs.econ_code_key }}
@@ -72,12 +71,12 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-      - name: Install econ-data deps
+      - name: Install econ‑data deps
         run: |
           rm -rf econ_package && mkdir econ_package
           pip install --upgrade pip
           pip install -r requirements-loadecondata.txt -t econ_package
-      - name: Package econ-data loader
+      - name: Package econ‑data loader
         run: |
           cp loadecondata.py econ_package/index.py
           cd econ_package && zip -r "../econ-${{ github.sha }}.zip" . && cd ..
@@ -88,17 +87,17 @@ jobs:
           role-session-name:   github-deploy
           aws-region:          us-east-1
           audience:            sts.amazonaws.com
-      - name: Upload econ-data ZIP
+      - name: Upload econ‑data ZIP
         id: upload
         run: |
           aws s3 cp "econ-${{ github.sha }}.zip" s3://stocks-algo-app-code/
           echo "econ_code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
   #################################################
-  # 3) Deploy & run symbols-loader & econ-data   #
+  # 3) Deploy & run symbols‑loader & econ‑data   #
   #################################################
   deploy_and_run_lambdas:
-    if: ${{ vars.RUN_LAMBDAS == 'true' }}
+    if: ${{ env.RUN_LAMBDAS == 'true' }}
     needs:
       - build_and_upload_symbols
       - build_and_upload_econ
@@ -136,14 +135,14 @@ jobs:
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM
-      - name: Invoke symbols-loader
+      - name: Invoke symbols‑loader
         run: |
           aws lambda invoke \
             --function-name loadstocksymbols \
             --payload '{}' \
             --cli-binary-format raw-in-base64-out \
             symbols_response.json || true
-      - name: Invoke econ-data loader
+      - name: Invoke econ‑data loader
         run: |
           aws lambda invoke \
             --function-name loadecondata \
@@ -155,7 +154,7 @@ jobs:
   # 4) Build & push ECS container images#
   ########################################
   build_and_push_containers:
-    if: ${{ vars.BUILD_CONTAINERS == 'true' }}
+    if: ${{ env.BUILD_CONTAINERS == 'true' }}
     needs: deploy_and_run_lambdas
     runs-on: ubuntu-latest
     outputs:
@@ -223,7 +222,7 @@ jobs:
   # 5) Deploy ECS TaskDefinitions (with cleanup)  #
   #################################################
   deploy_ecs_tasks:
-    if: ${{ vars.DEPLOY_ECS == 'true' }}
+    if: ${{ env.DEPLOY_ECS == 'true' }}
     needs: build_and_push_containers
     runs-on: ubuntu-latest
     outputs:
@@ -287,7 +286,7 @@ jobs:
   # 6a) Run findata ECS task                     #
   #################################################
   run_findata:
-    if: ${{ vars.RUN_FINDATA == 'true' }}
+    if: ${{ env.RUN_FINDATA == 'true' }}
     needs: deploy_ecs_tasks
     runs-on: ubuntu-latest
     steps:
@@ -299,7 +298,7 @@ jobs:
           role-session-name:   github-deploy
           aws-region:          us-east-1
           audience:            sts.amazonaws.com
-      - name: Run findata-loader
+      - name: Run findata‑loader
         run: |
           aws ecs run-task \
             --cluster stocks-cluster \
@@ -312,7 +311,7 @@ jobs:
   # 6b) Run pricedaily ECS task                  #
   #################################################
   run_pricedaily:
-    if: ${{ vars.RUN_PRICEDAILY == 'true' }}
+    if: ${{ env.RUN_PRICEDAILY == 'true' }}
     needs: deploy_ecs_tasks
     runs-on: ubuntu-latest
     steps:
@@ -324,7 +323,7 @@ jobs:
           role-session-name:   github-deploy
           aws-region:          us-east-1
           audience:            sts.amazonaws.com
-      - name: Run pricedaily-loader
+      - name: Run pricedaily‑loader
         run: |
           aws ecs run-task \
             --cluster stocks-cluster \
@@ -337,7 +336,7 @@ jobs:
   # 6c) Run priceweekly ECS task                 #
   #################################################
   run_priceweekly:
-    if: ${{ vars.RUN_PRICEWEEKLY == 'true' }}
+    if: ${{ env.RUN_PRICEWEEKLY == 'true' }}
     needs: deploy_ecs_tasks
     runs-on: ubuntu-latest
     steps:
@@ -349,7 +348,7 @@ jobs:
           role-session-name:   github-deploy
           aws-region:          us-east-1
           audience:            sts.amazonaws.com
-      - name: Run priceweekly-loader
+      - name: Run priceweekly‑loader
         run: |
           aws ecs run-task \
             --cluster stocks-cluster \
@@ -362,7 +361,7 @@ jobs:
   # 6d) Run pricemonthly ECS task                #
   #################################################
   run_pricemonthly:
-    if: ${{ vars.RUN_PRICEMONTHLY == 'true' }}
+    if: ${{ env.RUN_PRICEMONTHLY == 'true' }}
     needs: deploy_ecs_tasks
     runs-on: ubuntu-latest
     steps:
@@ -374,7 +373,7 @@ jobs:
           role-session-name:   github-deploy
           aws-region:          us-east-1
           audience:            sts.amazonaws.com
-      - name: Run pricemonthly-loader
+      - name: Run pricemonthly‑loader
         run: |
           aws ecs run-task \
             --cluster stocks-cluster \
