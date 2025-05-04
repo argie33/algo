@@ -291,9 +291,16 @@ jobs:
     needs: build_and_push_containers
     if: ${{ needs.set_flags.outputs.deploy_ecs == 'true' }}
     runs-on: ubuntu-latest
+
+    # 1) Expose these four as job outputs so downstream jobs can consume them
+    outputs:
+      findata_taskdefinitionarn:   ${{ steps.fetch.outputs.findata_taskdefinitionarn }}
+      price_taskdefinitionarn:     ${{ steps.fetch.outputs.price_taskdefinitionarn }}
+      priceweekly_taskdefinitionarn: ${{ steps.fetch.outputs.priceweekly_taskdefinitionarn }}
+      pricemonthly_taskdefinitionarn: ${{ steps.fetch.outputs.pricemonthly_taskdefinitionarn }}
+
     steps:
       - uses: actions/checkout@v3
-
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -319,13 +326,29 @@ jobs:
       - name: Fetch TaskDefinition ARNs
         id: fetch
         run: |
-          for key in FindataTaskDefinitionArn PriceTaskDefinitionArn PriceWeeklyTaskDefinitionArn PriceMonthlyTaskDefinitionArn; do
-            val=$(aws cloudformation describe-stacks \
-              --stack-name stocks-ecs-tasks-stack \
-              --query "Stacks[0].Outputs[?OutputKey=='${key}'].OutputValue" \
-              --output text)
-            echo "${key,,}=$val" >> $GITHUB_OUTPUT
-          done
+          # grab each ARN from the CFN stack outputs
+          findataArn=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='FindataTaskDefinitionArn'].OutputValue" \
+            --output text)
+          priceArn=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='PriceTaskDefinitionArn'].OutputValue" \
+            --output text)
+          priceweeklyArn=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyTaskDefinitionArn'].OutputValue" \
+            --output text)
+          pricemonthlyArn=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='PriceMonthlyTaskDefinitionArn'].OutputValue" \
+            --output text)
+
+          # these four must match the `outputs:` names above exactly
+          echo "findata_taskdefinitionarn=$findataArn"   >> $GITHUB_OUTPUT
+          echo "price_taskdefinitionarn=$priceArn"       >> $GITHUB_OUTPUT
+          echo "priceweekly_taskdefinitionarn=$priceweeklyArn" >> $GITHUB_OUTPUT
+          echo "pricemonthly_taskdefinitionarn=$pricemonthlyArn" >> $GITHUB_OUTPUT
 
   #################################################
   # 6) Run ECS tasks in public subnets            #
