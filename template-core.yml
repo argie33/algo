@@ -20,7 +20,6 @@ Parameters:
   PrivateSubnetCidr2:
     Type: String
     Default: "10.0.102.0/24"
-
   DBStackName:
     Type: String
     Default: "stocks-db-lambda-stack"
@@ -51,7 +50,8 @@ Resources:
           - Effect: Allow
             Principal:
               Federated: !Ref GitHubOidcProvider
-            Action: sts:AssumeRoleWithWebIdentity
+            Action:
+              - sts:AssumeRoleWithWebIdentity
             Condition:
               StringEquals:
                 "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
@@ -69,7 +69,9 @@ Resources:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal: { Service: [lambda.amazonaws.com] }
+            Principal:
+              Service:
+                - lambda.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
@@ -81,7 +83,9 @@ Resources:
       CidrBlock: !Ref VpcCidr
       EnableDnsSupport: true
       EnableDnsHostnames: true
-      Tags: [{ Key: Name, Value: stocks-vpc }]
+      Tags:
+        - Key: Name
+          Value: stocks-vpc
 
   StocksIGW:
     Type: AWS::EC2::InternetGateway
@@ -235,7 +239,6 @@ Resources:
       SecurityGroupIds:
         - !Ref EndpointSecurityGroup
 
-  ### ← NEW: Secrets Manager VPC endpoint
   VPCEndpointSecretsManager:
     Type: AWS::EC2::VPCEndpoint
     Properties:
@@ -256,7 +259,8 @@ Resources:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal: { Service: ec2.amazonaws.com }
+            Principal:
+              Service: ec2.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
@@ -282,7 +286,6 @@ Resources:
           CidrIp: "0.0.0.0/0"
 
   BastionLaunchTemplate:
-  BastionLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
       LaunchTemplateName: stocks-bastion-lt
@@ -299,57 +302,54 @@ Resources:
             SpotInstanceType: persistent
             InstanceInterruptionBehavior: stop
         UserData:
-          Fn::Base64: !Sub |
-            #!/bin/bash
-            set -eux
-            # 1) System update + tooling
-            yum update -y
-            yum install -y curl jq aws-cli
+          Fn::Base64:
+            Fn::Sub:
+              - |
+                #!/bin/bash
+                set -eux
 
-            # 2) Add PGDG repo & install psql 10
-            curl -fsSL \
-              https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm \
-              -o /tmp/pgdg.rpm
-            rpm -Uvh /tmp/pgdg.rpm
-            yum remove -y postgresql postgresql-libs
-            yum install -y postgresql10
+                # 1) System update + tooling
+                yum update -y
+                yum install -y jq
 
-            # 3) Set AWS CLI region
-            aws configure set region ${AWS::Region}
+                # 2) Install psql via PGDG
+                curl -fsSL \
+                  https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm \
+                  -o /tmp/pgdg.rpm
+                rpm -Uvh /tmp/pgdg.rpm
+                yum remove -y postgresql postgresql-libs
+                yum install -y postgresql10
 
-            # 4) Fetch DB credentials
-            CREDS=$(aws secretsmanager get-secret-value \
-              --secret-id "${DBSecretName}" \
-              --query SecretString --output text)
-            DB_USER=$(echo "$CREDS" | jq -r .username)
-            DB_PASS=$(echo "$CREDS" | jq -r .password)
-            DB_NAME=$(echo "$CREDS" | jq -r .dbname)
+                # 3) Configure AWS CLI
+                aws configure set region ${AWS::Region}
 
-            # 5) Lookup RDS endpoint & port
-            DB_HOST=$(aws cloudformation describe-stacks \
-              --stack-name "${DBStackName}" \
-              --query "Stacks[0].Outputs[?OutputKey=='DBEndpoint'].OutputValue" \
-              --output text)
-            DB_PORT=$(aws cloudformation describe-stacks \
-              --stack-name "${DBStackName}" \
-              --query "Stacks[0].Outputs[?OutputKey=='DBPort'].OutputValue" \
-              --output text)
+                # 4) Fetch secrets
+                CREDS=$(aws secretsmanager get-secret-value \
+                  --secret-id "${DBSecretName}" \
+                  --query SecretString --output text)
+                DB_USER=$(echo "$CREDS" | jq -r .username)
+                DB_PASSWORD=$(echo "$CREDS" | jq -r .password)
+                DB_NAME=$(echo "$CREDS" | jq -r .dbname)
 
-            # 6) Write .pgpass
-            echo "${DB_HOST}:${DB_PORT}:${DB_NAME}:${DB_USER}:${DB_PASS}" \
-              > /home/ec2-user/.pgpass
-            chmod 600 /home/ec2-user/.pgpass
-            chown ec2-user:ec2-user /home/ec2-user/.pgpass
+                # 5) Lookup RDS endpoint & port
+                DB_HOST=$(aws cloudformation describe-stacks \
+                  --stack-name "${DBStackName}" \
+                  --query "Stacks[0].Outputs[?OutputKey=='DBEndpoint'].OutputValue" \
+                  --output text)
+                DB_PORT=$(aws cloudformation describe-stacks \
+                  --stack-name "${DBStackName}" \
+                  --query "Stacks[0].Outputs[?OutputKey=='DBPort'].OutputValue" \
+                  --output text)
 
-            # 7) Export env for interactive sessions
-            cat >> /home/ec2-user/.bash_profile <<'EOF'
-            export PGHOST=${DB_HOST}
-            export PGPORT=${DB_PORT}
-            export PGUSER=${DB_USER}
-            export PGPASSWORD=${DB_PASS}
-            export PGDATABASE=${DB_NAME}
-            EOF
-            chown ec2-user:ec2-user /home/ec2-user/.bash_profile
+                # 6) Write .pgpass
+                cat <<EOF > /home/ec2-user/.pgpass
+                $${DB_HOST}:$${DB_PORT}:$${DB_NAME}:$${DB_USER}:$${DB_PASSWORD}
+                EOF
+                chmod 600 /home/ec2-user/.pgpass
+                chown ec2-user:ec2-user /home/ec2-user/.pgpass
+
+              - { DBSecretName: !Ref DBSecretName, DBStackName: !Ref DBStackName }
+
   BastionAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
@@ -376,7 +376,8 @@ Resources:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal: { Service: lambda.amazonaws.com }
+            Principal:
+              Service: lambda.amazonaws.com
             Action: sts:AssumeRole
       Policies:
         - PolicyName: StopBastion
@@ -410,7 +411,7 @@ Resources:
   BastionStopRule:
     Type: AWS::Events::Rule
     Properties:
-      Description: Scale bastion down at 6 PM CT daily
+      Description: Scale bastion down at 6 PM CT daily
       ScheduleExpression: cron(0 23 * * ? *)
       State: ENABLED
       Targets:
@@ -457,7 +458,7 @@ Resources:
         Status: Enabled
     DeletionPolicy: Delete
     UpdateReplacePolicy: Retain
- 
+
 Outputs:
   VpcId:
     Value: !Ref StocksVPC
