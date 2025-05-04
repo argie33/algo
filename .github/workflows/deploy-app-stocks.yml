@@ -28,6 +28,8 @@ jobs:
       pricedaily:   ${{ steps.filter.outputs.pricedaily }}
       priceweekly:  ${{ steps.filter.outputs.priceweekly }}
       pricemonthly: ${{ steps.filter.outputs.pricemonthly }}
+      all_changes:  ${{ steps.filter.outputs.changes }}
+
     steps:
       - uses: actions/checkout@v3
         with:
@@ -69,6 +71,13 @@ jobs:
 
       - name: Debug filter outputs
         run: |
+          echo "=== changed files ==="
+          echo "${{ steps.filter.outputs.changes }}"
+          for f in ${{ steps.filter.outputs.changes }}; do
+            echo "  • $f"
+          done
+          echo
+          echo "=== filter flags ==="
           echo "symbols      = ${{ steps.filter.outputs.symbols }}"
           echo "econ         = ${{ steps.filter.outputs.econ }}"
           echo "containers   = ${{ steps.filter.outputs.containers }}"
@@ -78,7 +87,7 @@ jobs:
           echo "pricemonthly = ${{ steps.filter.outputs.pricemonthly }}"
 
   ###################################################################
-  # 1) Build & upload symbols‑loader Lambda (only if it changed)   #
+  # 1) Build & upload symbols‑loader Lambda (only if changed)      #
   ###################################################################
   build_and_upload_symbols:
     needs: filter
@@ -86,6 +95,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       code_key: ${{ steps.set-key.outputs.code_key }}
+
     steps:
       - uses: actions/checkout@v3
 
@@ -125,6 +135,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       econ_code_key: ${{ steps.set-key.outputs.econ_code_key }}
+
     steps:
       - uses: actions/checkout@v3
 
@@ -166,6 +177,7 @@ jobs:
       needs.filter.outputs.symbols == 'true' ||
       needs.filter.outputs.econ   == 'true'
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v3
 
@@ -198,7 +210,7 @@ jobs:
       - name: Invoke econ‑data loader
         if: needs.filter.outputs.econ == 'true'
         run: |
-          aws lambda invoke --function-name loadecondata   --invocation-type Event --payload '{}' --cli-binary-format raw-in-base64-out /dev/null
+          aws lambda invoke --function-name loadecondata --invocation-type Event --payload '{}' --cli-binary-format raw-in-base64-out /dev/null
 
   ###################################################
   # 4) Build & push ECS containers if changed      #
@@ -212,14 +224,17 @@ jobs:
       pricedaily_tag:   ${{ steps.pricedaily.outputs.tag }}
       priceweekly_tag:  ${{ steps.weekly.outputs.tag }}
       pricemonthly_tag: ${{ steps.monthly.outputs.tag }}
+
     steps:
       - uses: actions/checkout@v3
+
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
       - uses: aws-actions/amazon-ecr-login@v1
 
       - name: Get or create ECR repo
@@ -272,6 +287,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -308,7 +324,7 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Run findata
+      - name: Run findata loader
         if: needs.filter.outputs.findata == 'true'
         run: |
           SERVICE=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
@@ -317,7 +333,7 @@ jobs:
           aws ecs wait services-stable --cluster stocks-cluster --services $SERVICE
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 0
 
-      - name: Run pricedaily
+      - name: Run pricedaily loader
         if: needs.filter.outputs.pricedaily == 'true'
         run: |
           SERVICE=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
@@ -326,7 +342,7 @@ jobs:
           aws ecs wait services-stable --cluster stocks-cluster --services $SERVICE
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 0
 
-      - name: Run priceweekly
+      - name: Run priceweekly loader
         if: needs.filter.outputs.priceweekly == 'true'
         run: |
           SERVICE=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
@@ -335,7 +351,7 @@ jobs:
           aws ecs wait services-stable --cluster stocks-cluster --services $SERVICE
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 0
 
-      - name: Run pricemonthly
+      - name: Run pricemonthly loader
         if: needs.filter.outputs.pricemonthly == 'true'
         run: |
           SERVICE=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
