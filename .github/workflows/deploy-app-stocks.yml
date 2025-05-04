@@ -72,7 +72,6 @@ jobs:
       - name: Debug filter outputs
         run: |
           echo "=== changed files ==="
-          echo "${{ steps.filter.outputs.changes }}"
           for f in ${{ steps.filter.outputs.changes }}; do
             echo "  • $f"
           done
@@ -94,7 +93,7 @@ jobs:
     if: needs.filter.outputs.symbols == 'true'
     runs-on: ubuntu-latest
     outputs:
-      code_key: ${{ steps.set-key.outputs.code_key }}
+      code_key: ${{ steps.package.outputs.code_key }}
 
     steps:
       - uses: actions/checkout@v3
@@ -116,14 +115,16 @@ jobs:
           echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
 
       - name: Package & upload symbols‑loader
-        id: set-key
+        id: package
         run: |
           rm -rf symbols_pkg && mkdir symbols_pkg
           pip install --upgrade pip
           pip install -r requirements-loadstocksymbols.txt -t symbols_pkg
           cp loadstocksymbols.py symbols_pkg/index.py
           cd symbols_pkg && zip -r ../symbols-${{ github.sha }}.zip . && cd ..
-          aws s3 cp symbols-${{ github.sha }}.zip s3://$BUCKET/ --region ${{ env.AWS_REGION }}
+          aws s3 cp symbols-${{ github.sha }}.zip \
+            s3://${{ steps.get-bucket.outputs.bucket }}/ \
+            --region ${{ env.AWS_REGION }}
           echo "code_key=symbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
   ###################################################################
@@ -134,7 +135,7 @@ jobs:
     if: needs.filter.outputs.econ == 'true'
     runs-on: ubuntu-latest
     outputs:
-      econ_code_key: ${{ steps.set-key.outputs.econ_code_key }}
+      econ_code_key: ${{ steps.package.outputs.econ_code_key }}
 
     steps:
       - uses: actions/checkout@v3
@@ -147,7 +148,7 @@ jobs:
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
       - name: Get Lambda code bucket
-        id: get-bucket-econ
+        id: get-bucket
         run: |
           BUCKET=$(aws cloudformation describe-stacks \
             --stack-name stocks-core-stack \
@@ -156,14 +157,16 @@ jobs:
           echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
 
       - name: Package & upload econ‑data loader
-        id: set-key
+        id: package
         run: |
           rm -rf econ_pkg && mkdir econ_pkg
           pip install --upgrade pip
           pip install -r requirements-loadecondata.txt -t econ_pkg
           cp loadecondata.py econ_pkg/index.py
           cd econ_pkg && zip -r ../econ-${{ github.sha }}.zip . && cd ..
-          aws s3 cp econ-${{ github.sha }}.zip s3://$BUCKET/ --region ${{ env.AWS_REGION }}
+          aws s3 cp econ-${{ github.sha }}.zip \
+            s3://${{ steps.get-bucket.outputs.bucket }}/ \
+            --region ${{ env.AWS_REGION }}
           echo "econ_code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
   ###################################################################
@@ -205,12 +208,22 @@ jobs:
       - name: Invoke symbols‑loader
         if: needs.filter.outputs.symbols == 'true'
         run: |
-          aws lambda invoke --function-name loadstocksymbols --invocation-type Event --payload '{}' --cli-binary-format raw-in-base64-out /dev/null
+          aws lambda invoke \
+            --function-name loadstocksymbols \
+            --invocation-type Event \
+            --payload '{}' \
+            --cli-binary-format raw-in-base64-out \
+            /dev/null
 
       - name: Invoke econ‑data loader
         if: needs.filter.outputs.econ == 'true'
         run: |
-          aws lambda invoke --function-name loadecondata --invocation-type Event --payload '{}' --cli-binary-format raw-in-base64-out /dev/null
+          aws lambda invoke \
+            --function-name loadecondata \
+            --invocation-type Event \
+            --payload '{}' \
+            --cli-binary-format raw-in-base64-out \
+            /dev/null
 
   ###################################################
   # 4) Build & push ECS containers if changed      #
