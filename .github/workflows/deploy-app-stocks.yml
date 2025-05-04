@@ -74,7 +74,6 @@ jobs:
     needs: filter
     if: ${{ needs.filter.outputs.symbols == 'true' }}
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v3
 
@@ -124,7 +123,6 @@ jobs:
     needs: filter
     if: ${{ needs.filter.outputs.econ == 'true' }}
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v3
 
@@ -174,7 +172,6 @@ jobs:
     needs: filter
     if: ${{ needs.filter.outputs.findata == 'true' }}
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v3
 
@@ -189,10 +186,10 @@ jobs:
         id: ecr
         run: |
           REPO=stocks-app-registry
-          aws ecr describe-repositories --repository-names $REPO >/dev/null 2>&1 || \
-            aws ecr create-repository --repository-name $REPO
-          URI=$(aws ecr.describe-repositories \
-            --repository-names $REPO \
+          aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 || \
+            aws ecr create-repository --repository-name "$REPO"
+          URI=$(aws ecr describe-repositories \
+            --repository-names "$REPO" \
             --query 'repositories[0].repositoryUri' \
             --output text)
           echo "uri=$URI" >> $GITHUB_OUTPUT
@@ -202,8 +199,8 @@ jobs:
         run: |
           TAG=findata-${{ github.sha }}
           IMG="${{ steps.ecr.outputs.uri }}:$TAG"
-          docker build -f Dockerfile.findata -t $IMG .
-          docker push $IMG
+          docker build -f Dockerfile.findata -t "$IMG" .
+          docker push "$IMG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Fetch existing ECS stack params
@@ -238,9 +235,9 @@ jobs:
           SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='FindataLoaderServiceName'].OutputValue" \
             --output text)
-          aws ecs update-service --cluster stocks-cluster --service $SVC --desired-count 1
-          aws ecs wait services-stable --cluster stocks-cluster --services $SVC
-          aws ecs update-service --cluster stocks-cluster --service $SVC --desired-count 0
+          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
+          aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
+          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
   ###################################################
   # 2b) pricedaily ECS: build → deploy CFN → run    #
@@ -249,7 +246,6 @@ jobs:
     needs: filter
     if: ${{ needs.filter.outputs.pricedaily == 'true' }}
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v3
 
@@ -264,10 +260,10 @@ jobs:
         id: ecr
         run: |
           REPO=stocks-app-registry
-          aws ecr describe-repositories --repository-names $REPO >/dev/null 2>&1 || \
-            aws ecr create-repository --repository-name $REPO
+          aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 || \
+            aws ecr create-repository --repository-name "$REPO"
           URI=$(aws ecr.describe-repositories \
-            --repository-names $REPO \
+            --repository-names "$REPO" \
             --query 'repositories[0].repositoryUri' \
             --output text)
           echo "uri=$URI" >> $GITHUB_OUTPUT
@@ -277,14 +273,14 @@ jobs:
         run: |
           TAG=pricedaily-${{ github.sha }}
           IMG="${{ steps.ecr.outputs.uri }}:$TAG"
-          docker build -f Dockerfile.pricedaily -t $IMG .
-          docker push $IMG
+          docker build -f Dockerfile.pricedaily -t "$IMG" .
+          docker push "$IMG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Fetch existing ECS stack params
         id: params
         run: |
-          read -r FINDATA_TAG <<< "$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+          read -r FINDATA_TAG <<< "$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Parameters[?ParameterKey=='FindataImageTag'].ParameterValue" --output text)"
           read -r WEEKLY_TAG <<< "$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Parameters[?ParameterKey=='PriceWeeklyImageTag'].ParameterValue" --output text)"
@@ -313,9 +309,9 @@ jobs:
           SVC=$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceDailyLoaderServiceName'].OutputValue" \
             --output text)
-          aws ecs update-service --cluster stocks-cluster --service $SVC --desired-count 1
-          aws ecs wait services-stable --cluster stocks-cluster --services $SVC
-          aws ecs update-service --cluster stocks-cluster --service $SVC --desired-count 0
+          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
+          aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
+          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
   ###################################################
   # 2c) priceweekly ECS: build → deploy CFN → run   #
@@ -324,7 +320,6 @@ jobs:
     needs: filter
     if: ${{ needs.filter.outputs.priceweekly == 'true' }}
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v3
 
@@ -339,10 +334,10 @@ jobs:
         id: ecr
         run: |
           REPO=stocks-app-registry
-          aws ecr describe-repositories --repository-names $REPO >/dev/null 2>&1 || \
-            aws ecr create-repository --repository-name $REPO
+          aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 || \
+            aws ecr create-repository --repository-name "$REPO"
           URI=$(aws ecr.describe-repositories \
-            --repository-names $REPO \
+            --repository-names "$REPO" \
             --query 'repositories[0].repositoryUri' \
             --output text)
           echo "uri=$URI" >> $GITHUB_OUTPUT
@@ -352,8 +347,8 @@ jobs:
         run: |
           TAG=priceweekly-${{ github.sha }}
           IMG="${{ steps.ecr.outputs.uri }}:$TAG"
-          docker build -f Dockerfile.priceweekly -t $IMG .
-          docker push $IMG
+          docker build -f Dockerfile.priceweekly -t "$IMG" .
+          docker push "$IMG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Fetch existing ECS stack params
@@ -361,22 +356,22 @@ jobs:
         run: |
           read -r FINDATA_TAG <<< "$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Parameters[?ParameterKey=='FindataImageTag'].ParameterValue" --output text)"
-          read -r PRICE_DAILY_TAG <<< "$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+          read -r PRICE_TAG <<< "$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Parameters[?ParameterKey=='PriceImageTag'].ParameterValue" --output text)"
           read -r MONTHLY_TAG <<< "$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Parameters[?ParameterKey=='PriceMonthlyImageTag'].ParameterValue" --output text)"
           echo "findata=$FINDATA_TAG" >> $GITHUB_OUTPUT
-          echo "pricedaily=$PRICE_DAILY_TAG" >> $GITHUB_OUTPUT
+          echo "pricedaily=$PRICE_TAG" >> $GITHUB_OUTPUT
           echo "monthly=$MONTHLY_TAG" >> $GITHUB_OUTPUT
 
       - name: Deploy ECS CFN (priceweekly)
         run: |
-          aws cloudformation deploy \
+          aws cloudformation.deploy \
             --stack-name stocks-ecs-tasks-stack \
             --template-file template-app-ecs-tasks.yml \
             --parameter-overrides \
               FindataImageTag=${{ steps.params.outputs.findata }} \
-              PriceImageTag=${{ steps.params.outputs.pricedaily }} \
+              PriceImageTag=${{ steps.params.outputs.pricedaily }} \```
               PriceWeeklyImageTag=${{ steps.image.outputs.tag }} \
               PriceMonthlyImageTag=${{ steps.params.outputs.monthly }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
@@ -385,7 +380,7 @@ jobs:
 
       - name: Run priceweekly loader
         run: |
-          SVC=$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyLoaderServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service $SVC --desired-count 1
@@ -414,10 +409,10 @@ jobs:
         id: ecr
         run: |
           REPO=stocks-app-registry
-          aws ecr.describe-repositories --repository-names $REPO >/dev/null 2>&1 || \
-            aws ecr.create-repository --repository-name $REPO
-          URI=$(aws ecr.describe-repositories \
-            --repository-names $REPO \
+          aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 || \
+            aws ecr create-repository --repository-name "$REPO"
+          URI=$(aws ecr describe-repositories \
+            --repository-names "$REPO" \
             --query 'repositories[0].repositoryUri' \
             --output text)
           echo "uri=$URI" >> $GITHUB_OUTPUT
@@ -427,18 +422,18 @@ jobs:
         run: |
           TAG=pricemonthly-${{ github.sha }}
           IMG="${{ steps.ecr.outputs.uri }}:$TAG"
-          docker build -f Dockerfile.pricemonthly -t $IMG .
-          docker push $IMG
+          docker build -f Dockerfile.pricemonthly -t "$IMG" .
+          docker push "$IMG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Fetch existing ECS stack params
         id: params
         run: |
-          read -r FINDATA_TAG <<< "$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+          read -r FINDATA_TAG <<< "$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Parameters[?ParameterKey=='FindataImageTag'].ParameterValue" --output text)"
-          read -r PRICE_DAILY_TAG <<< "$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+          read -r PRICE_DAILY_TAG <<< "$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Parameters[?ParameterKey=='PriceImageTag'].ParameterValue" --output text)"
-          read -r WEEKLY_TAG <<< "$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+          read -r WEEKLY_TAG <<< "$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Parameters[?ParameterKey=='PriceWeeklyImageTag'].ParameterValue" --output text)"
           echo "findata=$FINDATA_TAG" >> $GITHUB_OUTPUT
           echo "pricedaily=$PRICE_DAILY_TAG" >> $GITHUB_OUTPUT
@@ -460,7 +455,7 @@ jobs:
 
       - name: Run pricemonthly loader
         run: |
-          SVC=$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceMonthlyLoaderServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service $SVC --desired-count 1
@@ -489,10 +484,10 @@ jobs:
         id: ecr
         run: |
           REPO=stocks-app-registry
-          aws ecr describe-repositories --repository-names $REPO >/dev/null 2>&1 || \
-            aws ecr create-repository --repository-name $REPO
-          URI=$(aws ecr.describe-repositories \
-            --repository-names $REPO \
+          aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 || \
+            aws ecr create-repository --repository-name "$REPO"
+          URI=$(aws ecr describe-repositories \
+            --repository-names "$REPO" \
             --query 'repositories[0].repositoryUri' \
             --output text)
           echo "uri=$URI" >> $GITHUB_OUTPUT
@@ -502,8 +497,8 @@ jobs:
         run: |
           TAG=technicaldaily-${{ github.sha }}
           IMG="${{ steps.ecr.outputs.uri }}:$TAG"
-          docker build -f Dockerfile.technicalsdaily -t $IMG .
-          docker push $IMG
+          docker build -f Dockerfile.technicalsdaily -t "$IMG" .
+          docker push "$IMG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Fetch existing ECS stack params
@@ -511,11 +506,11 @@ jobs:
         run: |
           read -r FINDATA_TAG <<< "$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Parameters[?ParameterKey=='FindataImageTag'].ParameterValue" --output text)"
-          read -r PRICE_TAG <<< "$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+          read -r PRICE_TAG <<< "$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Parameters[?ParameterKey=='PriceImageTag'].ParameterValue" --output text)"
           read -r WEEKLY_TAG <<< "$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Parameters[?ParameterKey=='PriceWeeklyImageTag'].ParameterValue" --output text)"
-          read -r MONTHLY_TAG <<< "$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+          read -r MONTHLY_TAG <<< "$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Parameters[?ParameterKey=='PriceMonthlyImageTag'].ParameterValue" --output text)"
           echo "findata=$FINDATA_TAG" >> $GITHUB_OUTPUT
           echo "price=$PRICE_TAG" >> $GITHUB_OUTPUT
