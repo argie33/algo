@@ -1,0 +1,5 @@
+boto3
+pymysql
+pandas
+yahooquery
+requests
