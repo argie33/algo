@@ -46,11 +46,9 @@ jobs:
             econ:
               - 'loadecondata.py'
               - 'requirements-loadecondata.txt'
-            # ANY change under scripts/ or any Dockerfile triggers the ECS path:
             containers:
               - 'Dockerfile.*'
               - 'scripts/**'
-            # And we still separately track each ECS task’s scripts:
             findata:
               - 'scripts/findata/**'
             pricedaily:
@@ -71,7 +69,7 @@ jobs:
           echo "pricemonthly = ${{ steps.filter.outputs.pricemonthly }}"
 
   ###################################################################
-  # 1) Build & upload symbols‑loader Lambda (always, but only zip/upload if changed) #
+  # 1) Build & upload symbols‑loader Lambda (always runs, but only zip/upload if changed) #
   ###################################################################
   build_and_upload_symbols:
     needs: filter
@@ -121,7 +119,7 @@ jobs:
           echo "code_key=$KEY" >> $GITHUB_OUTPUT
 
   ###################################################################
-  # 2) Build & upload econ‑data loader Lambda (always, but only zip/upload if changed) #
+  # 2) Build & upload econ‑data loader Lambda (always runs, but only zip/upload if changed) #
   ###################################################################
   build_and_upload_econ:
     needs: filter
@@ -177,9 +175,7 @@ jobs:
     needs:
       - build_and_upload_symbols
       - build_and_upload_econ
-    if: >
-      needs.filter.outputs.symbols == 'true' ||
-      needs.filter.outputs.econ   == 'true'
+    if: ${{ needs.filter.outputs.symbols == 'true' || needs.filter.outputs.econ == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -207,29 +203,31 @@ jobs:
             --no-fail-on-empty-changeset
 
       - name: Invoke symbols‑loader
-        if: needs.filter.outputs.symbols == 'true'
+        if: ${{ needs.filter.outputs.symbols == 'true' }}
         run: |
           aws lambda invoke \
             --function-name loadstocksymbols \
             --invocation-type Event \
             --payload '{}' \
-            --cli-binary-format raw-in-base64-out /dev/null
+            --cli-binary-format raw-in-base64-out \
+            /dev/null
 
       - name: Invoke econ‑data loader
-        if: needs.filter.outputs.econ == 'true'
+        if: ${{ needs.filter.outputs.econ == 'true' }}
         run: |
           aws lambda invoke \
             --function-name loadecondata \
             --invocation-type Event \
             --payload '{}' \
-            --cli-binary-format raw-in-base64-out /dev/null
+            --cli-binary-format raw-in-base64-out \
+            /dev/null
 
   ###################################################
   # 4) Build & push ECS containers if changed      #
   ###################################################
   build_and_push_containers:
     needs: filter
-    if:   needs.filter.outputs.containers == 'true'
+    if: ${{ needs.filter.outputs.containers == 'true' }}
     runs-on: ubuntu-latest
     outputs:
       findata_tag:      ${{ steps.findata.outputs.tag }}
@@ -297,7 +295,7 @@ jobs:
   #################################################
   deploy_ecs_tasks:
     needs: build_and_push_containers
-    if:   needs.filter.outputs.containers == 'true'
+    if: ${{ needs.filter.outputs.containers == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -329,7 +327,7 @@ jobs:
   ##########################################################
   run_ecs_tasks:
     needs: deploy_ecs_tasks
-    if:   needs.filter.outputs.containers == 'true'
+    if: ${{ needs.filter.outputs.containers == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -341,41 +339,37 @@ jobs:
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
       - name: Run findata loader
-        if: needs.filter.outputs.findata == 'true'
+        if: ${{ needs.filter.outputs.findata == 'true' }}
         run: |
           SERVICE=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='FindataLoaderServiceName'].OutputValue" \
-            --output text)
+            --query "Stacks[0].Outputs[?OutputKey=='FindataLoaderServiceName'].OutputValue" --output text)
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 1
           aws ecs wait services-stable --cluster stocks-cluster --services $SERVICE
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 0
 
       - name: Run pricedaily loader
-        if: needs.filter.outputs.pricedaily == 'true'
+        if: ${{ needs.filter.outputs.pricedaily == 'true' }}
         run: |
           SERVICE=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='PriceDailyLoaderServiceName'].OutputValue" \
-            --output text)
+            --query "Stacks[0].Outputs[?OutputKey=='PriceDailyLoaderServiceName'].OutputValue" --output text)
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 1
           aws ecs wait services-stable --cluster stocks-cluster --services $SERVICE
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 0
 
       - name: Run priceweekly loader
-        if: needs.filter.outputs.priceweekly == 'true'
+        if: ${{ needs.filter.outputs.priceweekly == 'true' }}
         run: |
           SERVICE=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyLoaderServiceName'].OutputValue" \
-            --output text)
+            --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyLoaderServiceName'].OutputValue" --output text)
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 1
           aws ecs wait services-stable --cluster stocks-cluster --services $SERVICE
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 0
 
       - name: Run pricemonthly loader
-        if: needs.filter.outputs.pricemonthly == 'true'
+        if: ${{ needs.filter.outputs.pricemonthly == 'true' }}
         run: |
           SERVICE=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='PriceMonthlyLoaderServiceName'].OutputValue" \
-            --output text)
+            --query "Stacks[0].Outputs[?OutputKey=='PriceMonthlyLoaderServiceName'].OutputValue" --output text)
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 1
           aws ecs wait services-stable --cluster stocks-cluster --services $SERVICE
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 0
