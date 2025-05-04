@@ -79,7 +79,8 @@ jobs:
 
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
-        with: {python-version: '3.9'}
+        with:
+          python-version: '3.9'
 
       - name: Install symbols‑loader deps
         run: |
@@ -132,7 +133,8 @@ jobs:
 
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
-        with: {python-version: '3.9'}
+        with:
+          python-version: '3.9'
 
       - name: Install econ‑data deps
         run: |
@@ -204,7 +206,7 @@ jobs:
             --invocation-type Event \
             --payload '{}' \
             --cli-binary-format raw-in-base64-out \
-            /dev|null || true
+            /dev/null || true
 
   #################################################
   # 4) Build & push ECS container images         #
@@ -297,6 +299,7 @@ jobs:
       pricemonthly_taskdefinitionarn: ${{ steps.fetch.outputs.pricemonthly_taskdefinitionarn }}
     steps:
       - uses: actions/checkout@v3
+
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -334,11 +337,10 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyTaskDefinitionArn'].OutputValue" \
             --output text)
-          pricemonthlyArn=$(aws cloudformation describe-stacks \
+          pricemonthlyArn=$(aws cloudformation.describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceMonthlyTaskDefinitionArn'].OutputValue" \
             --output text)
-
           echo "findata_taskdefinitionarn=$findataArn"       >> $GITHUB_OUTPUT
           echo "price_taskdefinitionarn=$priceArn"           >> $GITHUB_OUTPUT
           echo "priceweekly_taskdefinitionarn=$priceweeklyArn" >> $GITHUB_OUTPUT
@@ -438,7 +440,7 @@ jobs:
         run: |
           aws ecs run-task \
             --cluster stocks-cluster \
-            --launch-type FARGIN.stereotype ERRVE \
+            --launch-type FARGATE \
             --task-definition "${{ needs.deploy_ecs_tasks.outputs.pricemonthly_taskdefinitionarn }}" \
             --network-configuration '{"awsvpcConfiguration":{"subnets":[${{ secrets.PUBLIC_SUBNET_IDS }}],"assignPublicIp":"ENABLED"}}' \
             --count 1
