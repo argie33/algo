@@ -1,4 +1,3 @@
-# template-app-ecs-tasks.yml
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   ECS TaskDefinitions, CloudWatch LogGroups, and zero‑scale Services
@@ -67,7 +66,12 @@ Resources:
       TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: findata-loader
-          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${FindataImageTag}"
+          Image:
+            Fn::Join:
+              - ""
+              - - !ImportValue StocksCore-ContainerRepositoryUri
+                - ":"
+                - !Ref FindataImageTag
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -104,7 +108,12 @@ Resources:
       TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: pricedaily-loader
-          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${PriceImageTag}"
+          Image:
+            Fn::Join:
+              - ""
+              - - !ImportValue StocksCore-ContainerRepositoryUri
+                - ":"
+                - !Ref PriceImageTag
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -139,7 +148,12 @@ Resources:
       TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: priceweekly-loader
-          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${PriceWeeklyImageTag}"
+          Image:
+            Fn::Join:
+              - ""
+              - - !ImportValue StocksCore-ContainerRepositoryUri
+                - ":"
+                - !Ref PriceWeeklyImageTag
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -174,7 +188,12 @@ Resources:
       TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: pricemonthly-loader
-          Image: !Sub "${StocksCore-ContainerRepositoryUri}:${PriceMonthlyImageTag}"
+          Image:
+            Fn::Join:
+              - ""
+              - - !ImportValue StocksCore-ContainerRepositoryUri
+                - ":"
+                - !Ref PriceMonthlyImageTag
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
