@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Core infrastructure stack – IAM, VPC, Subnets, Internet Gateway, Bastion host (Spot ASG),
-  auto-shutdown Lambda, ECR registry, S3 code bucket, and VPC endpoints for RDS/ECS/Lambda/S3.
+  auto‑shutdown Lambda, ECR registry, S3 code bucket, and VPC endpoints for RDS/ECS/Lambda/S3.
   **NAT Gateway removed to save cost** (private subnets rely on VPC endpoints).
 
 Parameters:
@@ -257,13 +257,11 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
-
   BastionInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Roles:
         - !Ref BastionInstanceRole
-
   BastionSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -277,7 +275,6 @@ Resources:
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: "0.0.0.0/0"
-
   BastionLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
@@ -295,44 +292,42 @@ Resources:
             SpotInstanceType: persistent
             InstanceInterruptionBehavior: stop
         UserData:
-          Fn::Base64:
-            Fn::Sub: |
-              #!/bin/bash
-              set -eux
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            set -eux
 
-              yum update -y
-              yum install -y jq
+            yum update -y
+            yum install -y jq
 
-              curl -fsSL https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm \
-                -o /tmp/pgdg.rpm
-              rpm -Uvh /tmp/pgdg.rpm
-              yum remove -y postgresql postgresql-libs
-              yum install -y postgresql10
+            curl -fsSL https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm \
+              -o /tmp/pgdg.rpm
+            rpm -Uvh /tmp/pgdg.rpm
+            yum remove -y postgresql postgresql-libs
+            yum install -y postgresql10
 
-              aws configure set region ${AWS::Region}
+            aws configure set region ${AWS::Region}
 
-              CREDS=$(aws secretsmanager get-secret-value \
-                --secret-id "${DBSecretName}" \
-                --query SecretString --output text)
-              DB_USER=$(echo "$CREDS" | jq -r .username)
-              DB_PASSWORD=$(echo "$CREDS" | jq -r .password)
-              DB_NAME=$(echo "$CREDS" | jq -r .dbname)
+            CREDS=$(aws secretsmanager get-secret-value \
+              --secret-id "${DBSecretName}" \
+              --query SecretString --output text)
+            DB_USER=$(echo "$CREDS" | jq -r .username)
+            DB_PASSWORD=$(echo "$CREDS" | jq -r .password)
+            DB_NAME=$(echo "$CREDS" | jq -r .dbname)
 
-              DB_HOST=$(aws cloudformation describe-stacks \
-                --stack-name "${DBStackName}" \
-                --query "Stacks[0].Outputs[?OutputKey=='DBEndpoint'].OutputValue" \
-                --output text)
-              DB_PORT=$(aws cloudformation describe-stacks \
-                --stack-name "${DBStackName}" \
-                --query "Stacks[0].Outputs[?OutputKey=='DBPort'].OutputValue" \
-                --output text)
+            DB_HOST=$(aws cloudformation describe-stacks \
+              --stack-name "${DBStackName}" \
+              --query "Stacks[0].Outputs[?OutputKey=='DBEndpoint'].OutputValue" \
+              --output text)
+            DB_PORT=$(aws cloudformation describe-stacks \
+              --stack-name "${DBStackName}" \
+              --query "Stacks[0].Outputs[?OutputKey=='DBPort'].OutputValue" \
+              --output text)
 
-              cat <<EOF > /home/ec2-user/.pgpass
-              $${DB_HOST}:$${DB_PORT}:$${DB_NAME}:$${DB_USER}:$${DB_PASSWORD}
-              EOF
-              chmod 600 /home/ec2-user/.pgpass
-              chown ec2-user:ec2-user /home/ec2-user/.pgpass
-
+            cat <<EOF > /home/ec2-user/.pgpass
+            $${DB_HOST}:$${DB_PORT}:$${DB_NAME}:$${DB_USER}:$${DB_PASSWORD}
+            EOF
+            chmod 600 /home/ec2-user/.pgpass
+            chown ec2-user:ec2-user /home/ec2-user/.pgpass
   BastionAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
@@ -350,7 +345,6 @@ Resources:
         - Key: Name
           Value: stocks-bastion
           PropagateAtLaunch: true
-
   BastionStopRole:
     Type: AWS::IAM::Role
     Properties:
@@ -369,7 +363,6 @@ Resources:
               - Effect: Allow
                 Action: ec2:StopInstances
                 Resource: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*
-
   BastionStopFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -389,7 +382,6 @@ Resources:
       Environment:
         Variables:
           ASG_NAME: stocks-bastion-asg
-
   BastionStopRule:
     Type: AWS::Events::Rule
     Properties:
@@ -399,7 +391,6 @@ Resources:
       Targets:
         - Arn: !GetAtt BastionStopFunction.Arn
           Id: StopBastionTarget
-
   LambdaInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -407,7 +398,6 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: events.amazonaws.com
       SourceArn: !GetAtt BastionStopRule.Arn
-
   ContainerRepository:
     Type: AWS::ECR::Repository
     DeletionPolicy: Delete
@@ -416,7 +406,8 @@ Resources:
       LifecyclePolicy:
         LifecyclePolicyText: |
           {
-            "rules":[{
+            "rules":[
+              {
                 "rulePriority":1,
                 "selection":{
                   "tagStatus":"any",
@@ -425,9 +416,9 @@ Resources:
                   "countNumber":30
                 },
                 "action":{"type":"expire"}
-            }]
+              }
+            ]
           }
-
   CodeBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -436,7 +427,6 @@ Resources:
         Status: Enabled
     DeletionPolicy: Delete
     UpdateReplacePolicy: Retain
-
 Outputs:
   VpcId:
     Value: !Ref StocksVPC
