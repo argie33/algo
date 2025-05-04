@@ -7,10 +7,7 @@ permissions:
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/deploy-app-template.yml
+    branches: [ main ]
 
 env:
   # Toggle these to 'true' or 'false' to control which jobs run
