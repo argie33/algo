@@ -74,17 +74,14 @@ jobs:
     needs: filter
     if: ${{ needs.filter.outputs.symbols == 'true' }}
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v3
-
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
       - name: Fetch code S3 bucket
         id: bucket
         run: |
@@ -94,16 +91,13 @@ jobs:
             --output text)
           test -n "$BUCKET" || (echo "::error::Empty bucket" && exit 1)
           echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
-
       - name: Package & upload symbols.zip
         run: |
           rm -rf pkg && mkdir pkg
           pip install -r requirements-loadstocksymbols.txt -t pkg
           cp loadstocksymbols.py pkg/index.py
           cd pkg && zip -r ../symbols-${{ github.sha }}.zip . && cd ..
-          aws s3 cp symbols-${{ github.sha }}.zip \
-            s3://${{ steps.bucket.outputs.bucket }}/
-
+          aws s3 cp symbols-${{ github.sha }}.zip s3://${{ steps.bucket.outputs.bucket }}/
       - name: Update & invoke symbols Lambda
         run: |
           aws lambda update-function-code \
@@ -114,8 +108,7 @@ jobs:
             --function-name loadstocksymbols \
             --invocation-type Event \
             --payload '{}' \
-            --cli-binary-format raw-in-base64-out \
-            /dev/null
+            --cli-binary-format raw-in-base64-out /dev/null
 
   ##############################################
   # 1b) econ Lambda: package → update → run   #
@@ -124,17 +117,14 @@ jobs:
     needs: filter
     if: ${{ needs.filter.outputs.econ == 'true' }}
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v3
-
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
       - name: Fetch code S3 bucket
         id: bucket
         run: |
@@ -144,16 +134,13 @@ jobs:
             --output text)
           test -n "$BUCKET" || (echo "::error::Empty bucket" && exit 1)
           echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
-
       - name: Package & upload econ.zip
         run: |
           rm -rf pkg && mkdir pkg
           pip install -r requirements-loadecondata.txt -t pkg
           cp loadecondata.py pkg/index.py
           cd pkg && zip -r ../econ-${{ github.sha }}.zip . && cd ..
-          aws s3 cp econ-${{ github.sha }}.zip \
-            s3://${{ steps.bucket.outputs.bucket }}/
-
+          aws s3 cp econ-${{ github.sha }}.zip s3://${{ steps.bucket.outputs.bucket }}/
       - name: Update & invoke econ Lambda
         run: |
           aws lambda update-function-code \
@@ -164,8 +151,7 @@ jobs:
             --function-name loadecondata \
             --invocation-type Event \
             --payload '{}' \
-            --cli-binary-format raw-in-base64-out \
-            /dev/null
+            --cli-binary-format raw-in-base64-out /dev/null
 
   ###################################################
   # 2a) findata ECS: build → deploy CFN → run      #
@@ -174,17 +160,14 @@ jobs:
     needs: filter
     if: ${{ needs.filter.outputs.findata == 'true' }}
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v3
-
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
       - name: Get or create ECR repo
         id: ecr
         run: |
@@ -196,12 +179,10 @@ jobs:
             --query 'repositories[0].repositoryUri' \
             --output text)
           echo "uri=$URI" >> $GITHUB_OUTPUT
-
       - name: Login to ECR
         run: |
           aws ecr get-login-password --region ${{ env.AWS_REGION }} \
             | docker login --username AWS --password-stdin ${{ steps.ecr.outputs.uri }}
-
       - name: Build & push findata image
         id: image
         run: |
@@ -210,20 +191,18 @@ jobs:
           docker build -f Dockerfile.findata -t "$IMG" .
           docker push "$IMG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
-
       - name: Fetch existing ECS stack params
         id: params
         run: |
           read -r PRICE_TAG <<< "$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Parameters[?ParameterKey=='PriceImageTag'].ParameterValue" --output text)"
-          read -r WEEKLY_TAG <<< "$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+          read -r WEEKLY_TAG <<< "$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Parameters[?ParameterKey=='PriceWeeklyImageTag'].ParameterValue" --output text)"
-          read -r MONTHLY_TAG <<< "$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+          read -r MONTHLY_TAG <<< "$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Parameters[?ParameterKey=='PriceMonthlyImageTag'].ParameterValue" --output text)"
           echo "price=$PRICE_TAG" >> $GITHUB_OUTPUT
           echo "weekly=$WEEKLY_TAG" >> $GITHUB_OUTPUT
           echo "monthly=$MONTHLY_TAG" >> $GITHUB_OUTPUT
-
       - name: Deploy ECS CFN (findata)
         run: |
           aws cloudformation deploy \
@@ -237,16 +216,84 @@ jobs:
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
-
       - name: Run findata loader
         run: |
           SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='FindataLoaderServiceName'].OutputValue" \
-            --output text)
+            --query "Stacks[0].Outputs[?OutputKey=='FindataLoaderServiceName'].OutputValue" --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
           aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
+  ###################################################
+  # 2b) pricedaily ECS: build → deploy CFN → run    #
+  ###################################################
+  pricedaily:
+    needs: filter
+    if: ${{ needs.filter.outputs.pricedaily == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Configure AWS creds
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+      - name: Get or create ECR repo
+        id: ecr
+        run: |
+          REPO=stocks-app-registry
+          aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 || \
+            aws ecr create-repository --repository-name "$REPO"
+          URI=$(aws ecr.describe-repositories \
+            --repository-names "$REPO" \
+            --query 'repositories[0].repositoryUri' \
+            --output text)
+          echo "uri=$URI" >> $GITHUB_OUTPUT
+      - name: Login to ECR
+        run: |
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} \
+            | docker login --username AWS --password-stdin ${{ steps.ecr.outputs.uri }}
+      - name: Build & push pricedaily image
+        id: image
+        run: |
+          TAG=pricedaily-${{ github.sha }}
+          IMG="${{ steps.ecr.outputs.uri }}:$TAG"
+          docker build -f Dockerfile.pricedaily -t "$IMG" .
+          docker push "$IMG"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+      - name: Fetch existing ECS stack params
+        id: params
+        run: |
+          read -r FINDATA_TAG <<< "$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Parameters[?ParameterKey=='FindataImageTag'].ParameterValue" --output text)"
+          read -r WEEKLY_TAG <<< "$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Parameters[?ParameterKey=='PriceWeeklyImageTag'].ParameterValue" --output text)"
+          read -r MONTHLY_TAG <<< "$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Parameters[?ParameterKey=='PriceMonthlyImageTag'].ParameterValue" --output text)"
+          echo "findata=$FINDATA_TAG" >> $GITHUB_OUTPUT
+          echo "weekly=$WEEKLY_TAG" >> $GITHUB_OUTPUT
+          echo "monthly=$MONTHLY_TAG" >> $GITHUB_OUTPUT
+      - name: Deploy ECS CFN (pricedaily)
+        run: |
+          aws cloudformation deploy \
+            --stack-name stocks-ecs-tasks-stack \
+            --template-file template-app-ecs-tasks.yml \
+            --parameter-overrides \
+              FindataImageTag=${{ steps.params.outputs.findata }} \
+              PriceImageTag=${{ steps.image.outputs.tag }} \
+              PriceWeeklyImageTag=${{ steps.params.outputs.weekly }} \
+              PriceMonthlyImageTag=${{ steps.params.outputs.monthly }} \
+              FREDApiKey=${{ secrets.FRED_API_KEY }} \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset
+      - name: Run pricedaily loader
+        run: |
+          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='PriceDailyLoaderServiceName'].OutputValue" --output text)
+          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
+          aws ecs.wait services-stable --cluster stocks-cluster --services "$SVC"
+          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
   ###################################################
   # 2c) priceweekly ECS: build → deploy CFN → run   #
   ###################################################
@@ -428,8 +475,8 @@ jobs:
         run: |
           REPO=stocks-app-registry
           aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 || \
-            aws ecr.create-repository --repository-name "$REPO"
-          URI=$(aws ecr.describe-repositories \
+            aws ecr create-repository --repository-name "$REPO"
+          URI=$(aws ecr describe-repositories \
             --repository-names "$REPO" \
             --query 'repositories[0].repositoryUri' \
             --output text)
