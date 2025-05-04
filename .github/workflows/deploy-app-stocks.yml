@@ -1,4 +1,3 @@
-# .github/workflows/deploy-app-template.yml
 name: deploy-app-template
 
 permissions:
@@ -143,7 +142,7 @@ jobs:
 
       - name: Package econ‑data loader
         run: |
-          cp loadfinancialdata.py econ_package/index.py
+          cp loadecondata.py econ_package/index.py
           cd econ_package && zip -r "../econ-${{ github.sha }}.zip" . && cd ..
 
       - name: Inspect ZIP contents
@@ -291,14 +290,11 @@ jobs:
     needs: build_and_push_containers
     if: ${{ needs.set_flags.outputs.deploy_ecs == 'true' }}
     runs-on: ubuntu-latest
-
-    # 1) Expose these four as job outputs so downstream jobs can consume them
     outputs:
-      findata_taskdefinitionarn:   ${{ steps.fetch.outputs.findata_taskdefinitionarn }}
-      price_taskdefinitionarn:     ${{ steps.fetch.outputs.price_taskdefinitionarn }}
-      priceweekly_taskdefinitionarn: ${{ steps.fetch.outputs.priceweekly_taskdefinitionarn }}
-      pricemonthly_taskdefinitionarn: ${{ steps.fetch.outputs.pricemonthly_taskdefinitionarn }}
-
+      findata_taskdefinitionarn:    ${{ steps.fetch.outputs.findata_taskdefinitionarn }}
+      price_taskdefinitionarn:      ${{ steps.fetch.outputs.price_taskdefinitionarn }}
+      priceweekly_taskdefinitionarn:$ {{ steps.fetch.outputs.priceweekly_taskdefinitionarn }}
+      pricemonthly_taskdefinitionarn:$ {{ steps.fetch.outputs.pricemonthly_taskdefinitionarn }}
     steps:
       - uses: actions/checkout@v3
       - name: Configure AWS creds
@@ -326,7 +322,6 @@ jobs:
       - name: Fetch TaskDefinition ARNs
         id: fetch
         run: |
-          # grab each ARN from the CFN stack outputs
           findataArn=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='FindataTaskDefinitionArn'].OutputValue" \
@@ -335,7 +330,7 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceTaskDefinitionArn'].OutputValue" \
             --output text)
-          priceweeklyArn=$(aws cloudformation describe-stacks \
+          priceweeklyArn=$(aws cloudformation.describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyTaskDefinitionArn'].OutputValue" \
             --output text)
@@ -344,9 +339,8 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='PriceMonthlyTaskDefinitionArn'].OutputValue" \
             --output text)
 
-          # these four must match the `outputs:` names above exactly
-          echo "findata_taskdefinitionarn=$findataArn"   >> $GITHUB_OUTPUT
-          echo "price_taskdefinitionarn=$priceArn"       >> $GITHUB_OUTPUT
+          echo "findata_taskdefinitionarn=$findataArn"       >> $GITHUB_OUTPUT
+          echo "price_taskdefinitionarn=$priceArn"           >> $GITHUB_OUTPUT
           echo "priceweekly_taskdefinitionarn=$priceweeklyArn" >> $GITHUB_OUTPUT
           echo "pricemonthly_taskdefinitionarn=$pricemonthlyArn" >> $GITHUB_OUTPUT
 
