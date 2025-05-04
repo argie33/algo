@@ -10,9 +10,9 @@ on:
       - main
 
 env:
-  AWS_REGION:        us-east-1
-  AWS_ROLE_ARN:      arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
-  AWS_ROLE_SESSION:  github-deploy
+  AWS_REGION:       us-east-1
+  AWS_ROLE_ARN:     arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+  AWS_ROLE_SESSION: github-deploy
 
 jobs:
   ##########################################
@@ -29,8 +29,7 @@ jobs:
       priceweekly:  ${{ steps.filter.outputs.priceweekly }}
       pricemonthly: ${{ steps.filter.outputs.pricemonthly }}
     steps:
-      - name: Checkout full history
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
@@ -79,10 +78,11 @@ jobs:
           echo "pricemonthly = ${{ steps.filter.outputs.pricemonthly }}"
 
   ###################################################################
-  # 1) Build & upload symbols-loader Lambda (conditionally package) #
+  # 1) Build & upload symbols‑loader Lambda (only if it changed)   #
   ###################################################################
   build_and_upload_symbols:
     needs: filter
+    if: needs.filter.outputs.symbols == 'true'
     runs-on: ubuntu-latest
     outputs:
       code_key: ${{ steps.set-key.outputs.code_key }}
@@ -105,32 +105,23 @@ jobs:
             --output text)
           echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
 
-      - name: Prepare symbols code
+      - name: Package & upload symbols‑loader
         id: set-key
         run: |
-          if [ "${{ needs.filter.outputs.symbols }}" = "true" ]; then
-            rm -rf symbols_package && mkdir symbols_package
-            pip install --upgrade pip
-            pip install -r requirements-loadstocksymbols.txt -t symbols_package
-            cp loadstocksymbols.py symbols_package/index.py
-            cd symbols_package && zip -r "../symbols-${{ github.sha }}.zip" . && cd ..
-            aws s3 cp symbols-${{ github.sha }}.zip \
-              s3://${{ steps.get-bucket.outputs.bucket }}/ \
-              --region ${{ env.AWS_REGION }}
-            KEY="symbols-${{ github.sha }}.zip"
-          else
-            KEY=$(aws cloudformation describe-stacks \
-              --stack-name stocks-db-lambda-stack \
-              --query "Stacks[0].Parameters[?ParameterKey=='CodeKey'].ParameterValue" \
-              --output text)
-          fi
-          echo "code_key=$KEY" >> $GITHUB_OUTPUT
+          rm -rf symbols_pkg && mkdir symbols_pkg
+          pip install --upgrade pip
+          pip install -r requirements-loadstocksymbols.txt -t symbols_pkg
+          cp loadstocksymbols.py symbols_pkg/index.py
+          cd symbols_pkg && zip -r ../symbols-${{ github.sha }}.zip . && cd ..
+          aws s3 cp symbols-${{ github.sha }}.zip s3://$BUCKET/ --region ${{ env.AWS_REGION }}
+          echo "code_key=symbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
   ###################################################################
-  # 2) Build & upload econ-data loader Lambda (conditionally)      #
+  # 2) Build & upload econ‑data loader Lambda (only if changed)    #
   ###################################################################
   build_and_upload_econ:
     needs: filter
+    if: needs.filter.outputs.econ == 'true'
     runs-on: ubuntu-latest
     outputs:
       econ_code_key: ${{ steps.set-key.outputs.econ_code_key }}
@@ -153,29 +144,19 @@ jobs:
             --output text)
           echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
 
-      - name: Prepare econ code
+      - name: Package & upload econ‑data loader
         id: set-key
         run: |
-          if [ "${{ needs.filter.outputs.econ }}" = "true" ]; then
-            rm -rf econ_package && mkdir econ_package
-            pip install --upgrade pip
-            pip install -r requirements-loadecondata.txt -t econ_package
-            cp loadecondata.py econ_package/index.py
-            cd econ_package && zip -r "../econ-${{ github.sha }}.zip" . && cd ..
-            aws s3 cp econ-${{ github.sha }}.zip \
-              s3://${{ steps.get-bucket-econ.outputs.bucket }}/ \
-              --region ${{ env.AWS_REGION }}
-            KEY="econ-${{ github.sha }}.zip"
-          else
-            KEY=$(aws cloudformation describe-stacks \
-              --stack-name stocks-db-lambda-stack \
-              --query "Stacks[0].Parameters[?ParameterKey=='EconomicCodeKey'].ParameterValue" \
-              --output text)
-          fi
-          echo "econ_code_key=$KEY" >> $GITHUB_OUTPUT
+          rm -rf econ_pkg && mkdir econ_pkg
+          pip install --upgrade pip
+          pip install -r requirements-loadecondata.txt -t econ_pkg
+          cp loadecondata.py econ_pkg/index.py
+          cd econ_pkg && zip -r ../econ-${{ github.sha }}.zip . && cd ..
+          aws s3 cp econ-${{ github.sha }}.zip s3://$BUCKET/ --region ${{ env.AWS_REGION }}
+          echo "econ_code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
 
   ###################################################################
-  # 3) Deploy & invoke Lambdas (only if either changed)            #
+  # 3) Deploy & invoke Lambdas (only if at least one changed)      #
   ###################################################################
   deploy_and_run_lambdas:
     needs:
@@ -209,35 +190,23 @@ jobs:
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
 
-      - name: Invoke symbols-loader
+      - name: Invoke symbols‑loader
         if: needs.filter.outputs.symbols == 'true'
         run: |
-          echo "Running symbols-loader..."
-          aws lambda invoke \
-            --function-name loadstocksymbols \
-            --invocation-type Event \
-            --payload '{}' \
-            --cli-binary-format raw-in-base64-out \
-            /dev/null
+          aws lambda invoke --function-name loadstocksymbols --invocation-type Event --payload '{}' --cli-binary-format raw-in-base64-out /dev/null
 
-      - name: Invoke econ-data loader
+      - name: Invoke econ‑data loader
         if: needs.filter.outputs.econ == 'true'
         run: |
-          echo "Running econ-data loader..."
-          aws lambda invoke \
-            --function-name loadecondata \
-            --invocation-type Event \
-            --payload '{}' \
-            --cli-binary-format raw-in-base64-out \
-            /dev/null
+          aws lambda invoke --function-name loadecondata   --invocation-type Event --payload '{}' --cli-binary-format raw-in-base64-out /dev/null
 
   ###################################################
   # 4) Build & push ECS containers if changed      #
   ###################################################
   build_and_push_containers:
     needs: deploy_and_run_lambdas
-    runs-on: ubuntu-latest
     if: needs.filter.outputs.containers == 'true'
+    runs-on: ubuntu-latest
     outputs:
       findata_tag:      ${{ steps.findata.outputs.tag }}
       pricedaily_tag:   ${{ steps.pricedaily.outputs.tag }}
@@ -245,14 +214,12 @@ jobs:
       pricemonthly_tag: ${{ steps.monthly.outputs.tag }}
     steps:
       - uses: actions/checkout@v3
-
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
       - uses: aws-actions/amazon-ecr-login@v1
 
       - name: Get or create ECR repo
@@ -261,10 +228,7 @@ jobs:
           REPO=stocks-app-registry
           aws ecr describe-repositories --repository-names $REPO >/dev/null 2>&1 || \
             aws ecr create-repository --repository-name $REPO
-          URI=$(aws ecr describe-repositories \
-            --repository-names $REPO \
-            --query 'repositories[0].repositoryUri' \
-            --output text)
+          URI=$(aws ecr describe-repositories --repository-names $REPO --query 'repositories[0].repositoryUri' --output text)
           echo "repo_uri=$URI" >> $GITHUB_OUTPUT
 
       - name: Build & push findata
@@ -272,8 +236,7 @@ jobs:
         run: |
           TAG=findata-${{ github.sha }}
           IMG="${{ steps.get-uri.outputs.repo_uri }}:$TAG"
-          docker build -f Dockerfile.findata -t $IMG .
-          docker push $IMG
+          docker build -f Dockerfile.findata -t $IMG . && docker push $IMG
           echo "findata_tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Build & push pricedaily
@@ -281,8 +244,7 @@ jobs:
         run: |
           TAG=pricedaily-${{ github.sha }}
           IMG="${{ steps.get-uri.outputs.repo_uri }}:$TAG"
-          docker build -f Dockerfile.pricedaily -t $IMG .
-          docker push $IMG
+          docker build -f Dockerfile.pricedaily -t $IMG . && docker push $IMG
           echo "pricedaily_tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Build & push priceweekly
@@ -290,8 +252,7 @@ jobs:
         run: |
           TAG=priceweekly-${{ github.sha }}
           IMG="${{ steps.get-uri.outputs.repo_uri }}:$TAG"
-          docker build -f Dockerfile.priceweekly -t $IMG .
-          docker push $IMG
+          docker build -f Dockerfile.priceweekly -t $IMG . && docker push $IMG
           echo "priceweekly_tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Build & push pricemonthly
@@ -299,8 +260,7 @@ jobs:
         run: |
           TAG=pricemonthly-${{ github.sha }}
           IMG="${{ steps.get-uri.outputs.repo_uri }}:$TAG"
-          docker build -f Dockerfile.pricemonthly -t $IMG .
-          docker push $IMG
+          docker build -f Dockerfile.pricemonthly -t $IMG . && docker push $IMG
           echo "pricemonthly_tag=$TAG" >> $GITHUB_OUTPUT
 
   #################################################
@@ -308,11 +268,10 @@ jobs:
   #################################################
   deploy_ecs_tasks:
     needs: build_and_push_containers
-    runs-on: ubuntu-latest
     if: needs.filter.outputs.containers == 'true'
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -339,8 +298,8 @@ jobs:
   ##########################################################
   run_ecs_tasks:
     needs: deploy_ecs_tasks
-    runs-on: ubuntu-latest
     if: needs.filter.outputs.containers == 'true'
+    runs-on: ubuntu-latest
     steps:
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
@@ -349,46 +308,38 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Run findata loader
+      - name: Run findata
         if: needs.filter.outputs.findata == 'true'
         run: |
-          SERVICE=$(aws cloudformation describe-stacks \
-            --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='FindataLoaderServiceName'].OutputValue" \
-            --output text)
+          SERVICE=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='FindataLoaderServiceName'].OutputValue" --output text)
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 1
           aws ecs wait services-stable --cluster stocks-cluster --services $SERVICE
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 0
 
-      - name: Run pricedaily loader
+      - name: Run pricedaily
         if: needs.filter.outputs.pricedaily == 'true'
         run: |
-          SERVICE=$(aws cloudformation describe-stacks \
-            --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='PriceDailyLoaderServiceName'].OutputValue" \
-            --output text)
+          SERVICE=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='PriceDailyLoaderServiceName'].OutputValue" --output text)
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 1
           aws ecs wait services-stable --cluster stocks-cluster --services $SERVICE
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 0
 
-      - name: Run priceweekly loader
+      - name: Run priceweekly
         if: needs.filter.outputs.priceweekly == 'true'
         run: |
-          SERVICE=$(aws cloudformation describe-stacks \
-            --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyLoaderServiceName'].OutputValue" \
-            --output text)
+          SERVICE=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyLoaderServiceName'].OutputValue" --output text)
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 1
           aws ecs wait services-stable --cluster stocks-cluster --services $SERVICE
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 0
 
-      - name: Run pricemonthly loader
+      - name: Run pricemonthly
         if: needs.filter.outputs.pricemonthly == 'true'
         run: |
-          SERVICE=$(aws cloudformation describe-stacks \
-            --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='PriceMonthlyLoaderServiceName'].OutputValue" \
-            --output text)
+          SERVICE=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='PriceMonthlyLoaderServiceName'].OutputValue" --output text)
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 1
           aws ecs wait services-stable --cluster stocks-cluster --services $SERVICE
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 0
