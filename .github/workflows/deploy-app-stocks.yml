@@ -46,26 +46,18 @@ jobs:
             econ:
               - 'loadecondata.py'
               - 'requirements-loadecondata.txt'
+            # ANY change under scripts/ or any Dockerfile triggers the ECS path:
             containers:
-              - 'Dockerfile.findata'
-              - 'scripts/findata/**'
-              - 'Dockerfile.pricedaily'
-              - 'scripts/pricedaily/**'
-              - 'Dockerfile.priceweekly'
-              - 'scripts/priceweekly/**'
-              - 'Dockerfile.pricemonthly'
-              - 'scripts/pricemonthly/**'
+              - 'Dockerfile.*'
+              - 'scripts/**'
+            # And we still separately track each ECS task’s scripts:
             findata:
-              - 'Dockerfile.findata'
               - 'scripts/findata/**'
             pricedaily:
-              - 'Dockerfile.pricedaily'
               - 'scripts/pricedaily/**'
             priceweekly:
-              - 'Dockerfile.priceweekly'
               - 'scripts/priceweekly/**'
             pricemonthly:
-              - 'Dockerfile.pricemonthly'
               - 'scripts/pricemonthly/**'
 
       - name: Debug filter outputs
@@ -79,7 +71,7 @@ jobs:
           echo "pricemonthly = ${{ steps.filter.outputs.pricemonthly }}"
 
   ###################################################################
-  # 1) Build & upload symbols‑loader Lambda (always, but only zip/upload if changed)     #
+  # 1) Build & upload symbols‑loader Lambda (always, but only zip/upload if changed) #
   ###################################################################
   build_and_upload_symbols:
     needs: filter
@@ -97,24 +89,20 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Get S3 bucket name
+      - name: Fetch CodeBucketName
         id: get-bucket
         run: |
           BUCKET=$(aws cloudformation describe-stacks \
             --stack-name stocks-core-stack \
             --query "Stacks[0].Outputs[?OutputKey=='CodeBucketName'].OutputValue" \
             --output text)
-          if [ -z "$BUCKET" ]; then
-            echo "::error::Could not fetch CodeBucketName"
-            exit 1
-          fi
+          test -n "$BUCKET" || (echo "::error::Empty bucket name" && exit 1)
           echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
 
       - name: Determine & publish symbols CodeKey
         id: set-key
         run: |
           if [ "${{ needs.filter.outputs.symbols }}" = "true" ]; then
-            # only package & upload if code changed
             rm -rf pkg && mkdir pkg
             pip install --upgrade pip
             pip install -r requirements-loadstocksymbols.txt -t pkg
@@ -123,18 +111,17 @@ jobs:
             aws s3 cp symbols-${{ github.sha }}.zip \
               s3://${{ steps.get-bucket.outputs.bucket }}/ \
               --region ${{ env.AWS_REGION }}
-            echo "code_key=symbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
+            KEY="symbols-${{ github.sha }}.zip"
           else
-            # reuse existing key if no change
-            EXISTING=$(aws cloudformation describe-stacks \
+            KEY=$(aws cloudformation describe-stacks \
               --stack-name stocks-db-lambda-stack \
               --query "Stacks[0].Parameters[?ParameterKey=='CodeKey'].ParameterValue" \
               --output text)
-            echo "code_key=$EXISTING" >> $GITHUB_OUTPUT
           fi
+          echo "code_key=$KEY" >> $GITHUB_OUTPUT
 
   ###################################################################
-  # 2) Build & upload econ‑data loader Lambda (always, but only zip/upload if changed)   #
+  # 2) Build & upload econ‑data loader Lambda (always, but only zip/upload if changed) #
   ###################################################################
   build_and_upload_econ:
     needs: filter
@@ -152,17 +139,14 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Get S3 bucket name
+      - name: Fetch CodeBucketName
         id: get-bucket
         run: |
           BUCKET=$(aws cloudformation describe-stacks \
             --stack-name stocks-core-stack \
             --query "Stacks[0].Outputs[?OutputKey=='CodeBucketName'].OutputValue" \
             --output text)
-          if [ -z "$BUCKET" ]; then
-            echo "::error::Could not fetch CodeBucketName"
-            exit 1
-          fi
+          test -n "$BUCKET" || (echo "::error::Empty bucket name" && exit 1)
           echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
 
       - name: Determine & publish econ CodeKey
@@ -177,14 +161,14 @@ jobs:
             aws s3 cp econ-${{ github.sha }}.zip \
               s3://${{ steps.get-bucket.outputs.bucket }}/ \
               --region ${{ env.AWS_REGION }}
-            echo "econ_code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
+            KEY="econ-${{ github.sha }}.zip"
           else
-            EXISTING=$(aws cloudformation describe-stacks \
+            KEY=$(aws cloudformation describe-stacks \
               --stack-name stocks-db-lambda-stack \
               --query "Stacks[0].Parameters[?ParameterKey=='EconomicCodeKey'].ParameterValue" \
               --output text)
-            echo "econ_code_key=$EXISTING" >> $GITHUB_OUTPUT
           fi
+          echo "econ_code_key=$KEY" >> $GITHUB_OUTPUT
 
   ###################################################################
   # 3) Deploy & invoke Lambdas (only if at least one changed)      #
@@ -229,8 +213,7 @@ jobs:
             --function-name loadstocksymbols \
             --invocation-type Event \
             --payload '{}' \
-            --cli-binary-format raw-in-base64-out \
-            /dev/null
+            --cli-binary-format raw-in-base64-out /dev/null
 
       - name: Invoke econ‑data loader
         if: needs.filter.outputs.econ == 'true'
@@ -239,15 +222,14 @@ jobs:
             --function-name loadecondata \
             --invocation-type Event \
             --payload '{}' \
-            --cli-binary-format raw-in-base64-out \
-            /dev/null
+            --cli-binary-format raw-in-base64-out /dev/null
 
   ###################################################
   # 4) Build & push ECS containers if changed      #
   ###################################################
   build_and_push_containers:
     needs: filter
-    if: needs.filter.outputs.containers == 'true'
+    if:   needs.filter.outputs.containers == 'true'
     runs-on: ubuntu-latest
     outputs:
       findata_tag:      ${{ steps.findata.outputs.tag }}
@@ -275,8 +257,7 @@ jobs:
             aws ecr create-repository --repository-name $REPO
           URI=$(aws ecr describe-repositories \
             --repository-names $REPO \
-            --query 'repositories[0].repositoryUri' \
-            --output text)
+            --query 'repositories[0].repositoryUri' --output text)
           echo "repo_uri=$URI" >> $GITHUB_OUTPUT
 
       - name: Build & push findata
@@ -316,7 +297,7 @@ jobs:
   #################################################
   deploy_ecs_tasks:
     needs: build_and_push_containers
-    if: needs.filter.outputs.containers == 'true'
+    if:   needs.filter.outputs.containers == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -348,7 +329,7 @@ jobs:
   ##########################################################
   run_ecs_tasks:
     needs: deploy_ecs_tasks
-    if: needs.filter.outputs.containers == 'true'
+    if:   needs.filter.outputs.containers == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -363,7 +344,8 @@ jobs:
         if: needs.filter.outputs.findata == 'true'
         run: |
           SERVICE=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='FindataLoaderServiceName'].OutputValue" --output text)
+            --query "Stacks[0].Outputs[?OutputKey=='FindataLoaderServiceName'].OutputValue" \
+            --output text)
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 1
           aws ecs wait services-stable --cluster stocks-cluster --services $SERVICE
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 0
@@ -372,7 +354,8 @@ jobs:
         if: needs.filter.outputs.pricedaily == 'true'
         run: |
           SERVICE=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='PriceDailyLoaderServiceName'].OutputValue" --output text)
+            --query "Stacks[0].Outputs[?OutputKey=='PriceDailyLoaderServiceName'].OutputValue" \
+            --output text)
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 1
           aws ecs wait services-stable --cluster stocks-cluster --services $SERVICE
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 0
@@ -381,7 +364,8 @@ jobs:
         if: needs.filter.outputs.priceweekly == 'true'
         run: |
           SERVICE=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyLoaderServiceName'].OutputValue" --output text)
+            --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyLoaderServiceName'].OutputValue" \
+            --output text)
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 1
           aws ecs wait services-stable --cluster stocks-cluster --services $SERVICE
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 0
@@ -390,7 +374,8 @@ jobs:
         if: needs.filter.outputs.pricemonthly == 'true'
         run: |
           SERVICE=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='PriceMonthlyLoaderServiceName'].OutputValue" --output text)
+            --query "Stacks[0].Outputs[?OutputKey=='PriceMonthlyLoaderServiceName'].OutputValue" \
+            --output text)
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 1
           aws ecs wait services-stable --cluster stocks-cluster --services $SERVICE
           aws ecs update-service --cluster stocks-cluster --service $SERVICE --desired-count 0
