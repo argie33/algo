@@ -9,23 +9,19 @@ import boto3
 import psycopg2
 from psycopg2.extras import DictCursor
 
-# -------------------------------
-# Script metadata
-# -------------------------------
+# ─── Logging setup ───────────────────────────────────────────────────────────────
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+# ─── Script metadata ─────────────────────────────────────────────────────────────
 SCRIPT_NAME = "loadstocksymbols.py"
 
-# -------------------------------
-# Runtime configuration
-# -------------------------------
-# We no longer rely on DB_ENDPOINT/DB_PORT/DB_NAME env-vars;
-# instead we pull host/port/dbname/user/password from SecretsManager.
+# ─── Runtime configuration ────────────────────────────────────────────────────────
 DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
 _secret_cache = None    # cache the secret JSON
 _conn_cache   = None    # cache the psycopg2 connection
 
-# -------------------------------
-# Data URLs & regex for classification
-# -------------------------------
+# ─── Data URLs & regex for classification ────────────────────────────────────────
 NASDAQ_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
 OTHER_URL  = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
 
@@ -67,76 +63,74 @@ patterns = [
     r"\bdep shs\b",
     r"\bopportunities trust\b",
     r"\bnyse tick pilot test\b",
-    r"\bpreference share\b",   
-    r"\bseries g\b",  
-    r"\bfutures etn\b",  
-    r"\btrust for\b",  
-    r"\btest stock\b",  
-    r"\bnastdaq symbology test\b",  
-    r"\biex test\b",  
-    r"\bnasdaq test\b",  
-    r"\bnyse arca test\b",  
-    r"\bpreference\b",  
-    r"\bredeemable\b",  
-    r"\bperpetual preference\b", 
-    r"\btax free income\b", 
-    r"\bstructured products\b", 
-    r"\bcorporate backed trust\b", 
-    r"\bfloating rate\b", 
-    r"\btrust securities\b", 
-    r"\bfixed-income\b", 
-    r"\bpfd ser\b", 
-    r"\bpfd\b", 
-    r"\bmortgage bonds\b", 
-    r"\bmortgage capital\b", 
-    r"\bseries due\b", 
-    r"\btarget term\b", 
-    r"\bterm trust\b", 
-    r"\bperpetual conv\b", 
-    r"\bmunicipal bond\b", 
-    r"\bdigitalbridge group\b", 
-    r"\bnyse test\b", 
-    r"\bctest\b", 
-    r"\btick pilot test\b", 
-    r"\bexchange test\b",     
-    r"\bbats bzx\b",    
-    r"\bdividend trust\b",  
-    r"\bbond trust\b",  
-    r"\bmunicipal trust\b",  
-    r"\bmortgage trust\b", 
-    r"\btrust etf\b",  
-    r"\bcapital trust\b",  
-    r"\bopportunity trust\b",  
-    r"\binvestors trust\b",  
-    r"\bincome securities trust\b",  
-    r"\bresources trust\b",  
-    r"\benergy trust\b",  
-    r"\bsciences trust\b",  
-    r"\bequity trust\b",  
-    r"\bmulti-media trust\b",  
+    r"\bpreference share\b",
+    r"\bseries g\b",
+    r"\bfutures etn\b",
+    r"\btrust for\b",
+    r"\btest stock\b",
+    r"\bnastdaq symbology test\b",
+    r"\biex test\b",
+    r"\bnasdaq test\b",
+    r"\bnyse arca test\b",
+    r"\bpreference\b",
+    r"\bredeemable\b",
+    r"\bperpetual preference\b",
+    r"\btax free income\b",
+    r"\bstructured products\b",
+    r"\bcorporate backed trust\b",
+    r"\bfloating rate\b",
+    r"\btrust securities\b",
+    r"\bfixed-income\b",
+    r"\bpfd ser\b",
+    r"\bpfd\b",
+    r"\bmortgage bonds\b",
+    r"\bmortgage capital\b",
+    r"\bseries due\b",
+    r"\btarget term\b",
+    r"\bterm trust\b",
+    r"\bperpetual conv\b",
+    r"\bmunicipal bond\b",
+    r"\bdigitalbridge group\b",
+    r"\bnyse test\b",
+    r"\bctest\b",
+    r"\btick pilot test\b",
+    r"\bexchange test\b",
+    r"\bbats bzx\b",
+    r"\bdividend trust\b",
+    r"\bbond trust\b",
+    r"\bmunicipal trust\b",
+    r"\bmortgage trust\b",
+    r"\btrust etf\b",
+    r"\bcapital trust\b",
+    r"\bopportunity trust\b",
+    r"\binvestors trust\b",
+    r"\bincome securities trust\b",
+    r"\bresources trust\b",
+    r"\benergy trust\b",
+    r"\bsciences trust\b",
+    r"\bequity trust\b",
+    r"\bmulti-media trust\b",
     r"\bmedia trust\b",
-    r"\bmicro-cap trust\b",          
-    r"\bmicro-cap\b",           
-    r"\bsmall-cap trust\b",             
-    r"\bglobal trust\b",     
-    r"\bsmall-cap\b",  
+    r"\bmicro-cap trust\b",
+    r"\bmicro-cap\b",
+    r"\bsmall-cap trust\b",
+    r"\bglobal trust\b",
+    r"\bsmall-cap\b",
     r"\bsce trust\b",
     r"\bacquisition\b",
     r"\bcontingent\b",
-    r"\bii inc\b",    
+    r"\bii inc\b",
     r"\bnasdaq symbology\b",
 ]
 
-# -------------------------------
-# Database helpers
-# -------------------------------
+# ─── Database helpers ────────────────────────────────────────────────────────────
 def _load_secret():
     """Fetch & cache DB creds JSON from SecretsManager."""
     global _secret_cache
     if _secret_cache is None:
         sm = boto3.client("secretsmanager")
-        j = sm.get_secret_value(SecretId=DB_SECRET_ARN)["SecretString"]
-        _secret_cache = json.loads(j)
+        resp = sm.get_secret_value(SecretId=DB_SECRET_ARN)
+        _secret_cache = json.loads(resp["SecretString"])
     return _secret_cache
 
 def _get_conn():
@@ -146,20 +140,18 @@ def _get_conn():
         return _conn_cache
     s = _load_secret()
     _conn_cache = psycopg2.connect(
-        host     = s["host"],
-        port     = s["port"],
-        dbname   = s["dbname"],
-        user     = s["username"],
-        password = s["password"],
-        sslmode  = "require",
-        cursor_factory = DictCursor,
+        host           = s["host"],
+        port           = s["port"],
+        dbname         = s["dbname"],
+        user           = s["username"],
+        password       = s["password"],
+        sslmode        = "require",
+        cursor_factory = DictCursor
     )
     _conn_cache.autocommit = True
     return _conn_cache
 
-# -------------------------------
-# CSV parsing logic (unchanged)
-# -------------------------------
+# ─── CSV parsing logic ───────────────────────────────────────────────────────────
 def download_text_file(url):
     r = requests.get(url, timeout=30)
     r.raise_for_status()
@@ -167,7 +159,7 @@ def download_text_file(url):
 
 def parse_listed(text, source):
     rows = []
-    key  = "Symbol" if source == "NASDAQ" else "ACT Symbol"
+    key = "Symbol" if source == "NASDAQ" else "ACT Symbol"
     reader = csv.DictReader(text.splitlines(), delimiter="|")
     for row in reader:
         if row[key].startswith("File Creation Time"):
@@ -185,10 +177,10 @@ def parse_listed(text, source):
             lot = None
 
         rows.append({
-            "symbol":         row[key].strip(),
-            "security_name":  name,
-            "exchange":       source,
-            "test_issue":     row.get("Test Issue","").strip(),
+            "symbol":        row[key].strip(),
+            "security_name": name,
+            "exchange":      source,
+            "test_issue":    row.get("Test Issue","").strip(),
             "round_lot_size": lot,
             "security_type":  "other security" if match else "standard"
         })
@@ -200,9 +192,7 @@ def dedupe(records):
         seen.setdefault(r["symbol"], r)
     return list(seen.values())
 
-# -------------------------------
-# Upsert + cleanup logic (unchanged)
-# -------------------------------
+# ─── Upsert + cleanup logic ──────────────────────────────────────────────────────
 def insert_into_postgres(records):
     conn = _get_conn()
     with conn.cursor() as cur:
@@ -226,7 +216,7 @@ def insert_into_postgres(records):
 
         # Determine deltas
         cur.execute("SELECT symbol FROM stock_symbols;")
-        existing = {r["symbol"] for r in cur.fetchall()}
+        existing = {r[0] for r in cur.fetchall()}
         incoming = {r["symbol"] for r in records}
 
         removed = existing - incoming
@@ -234,7 +224,7 @@ def insert_into_postgres(records):
         upsert_sql = """
             INSERT INTO stock_symbols
               (symbol,security_name,exchange,test_issue,round_lot_size,security_type)
-            VALUES (%s,%s,%s,%s,%s,%s)
+            VALUES %s
             ON CONFLICT(symbol) DO UPDATE SET
               security_name  = EXCLUDED.security_name,
               exchange       = EXCLUDED.exchange,
@@ -242,15 +232,11 @@ def insert_into_postgres(records):
               round_lot_size = EXCLUDED.round_lot_size,
               security_type  = EXCLUDED.security_type;
         """
-        for r in records:
-            cur.execute(upsert_sql, (
-                r["symbol"],
-                r["security_name"],
-                r["exchange"],
-                r["test_issue"],
-                r["round_lot_size"],
-                r["security_type"],
-            ))
+        psycopg2.extras.execute_values(cur, upsert_sql, [
+            (r["symbol"], r["security_name"], r["exchange"],
+             r["test_issue"], r["round_lot_size"], r["security_type"])
+            for r in records
+        ])
 
         if removed:
             cur.execute(
@@ -266,19 +252,27 @@ def insert_into_postgres(records):
               SET last_run = EXCLUDED.last_run;
         """, (SCRIPT_NAME,))
 
-# -------------------------------
-# Lambda handler
-# -------------------------------
+# ─── Lambda handler ─────────────────────────────────────────────────────────────
 def handler(event, context):
-    logging.info("Starting loadstocksymbols…")
-    nas   = parse_listed(download_text_file(NASDAQ_URL), "NASDAQ")
-    oth   = parse_listed(download_text_file(OTHER_URL),  "Other")
-    final = [r for r in dedupe(nas + oth) if "$" not in r["symbol"]]
+    try:
+        logger.info("Starting loadstocksymbols…")
+        nas = parse_listed(download_text_file(NASDAQ_URL), "NASDAQ")
+        oth = parse_listed(download_text_file(OTHER_URL),  "Other")
+        final = [r for r in dedupe(nas + oth) if "$" not in r["symbol"]]
 
-    logging.info("Upserting %d records into Postgres", len(final))
-    insert_into_postgres(final)
+        logger.info("Upserting %d records into Postgres", len(final))
+        insert_into_postgres(final)
 
-    return {
-        "statusCode": 200,
-        "body": f"Processed {len(final)} symbols; inventory is now up-to-date."
-    }
+        return {
+            "statusCode": 200,
+            "body": json.dumps({
+                "message": f"Processed {len(final)} symbols; inventory is now up-to-date."
+            })
+        }
+
+    except Exception as e:
+        logger.exception("loadstocksymbols failed")
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": str(e)})
+        }

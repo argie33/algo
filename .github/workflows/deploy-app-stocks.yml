@@ -11,19 +11,21 @@ on:
 
 env:
   # Toggle these to 'true' or 'false' to control which jobs run
-  RUN_SYMBOLS:       'true'   # Build & upload symbols-loader Lambda
-  RUN_ECON:          'true'   # Build & upload econ-data loader Lambda
+  RUN_SYMBOLS:       'true'   # Build & upload symbols‑loader Lambda
+  RUN_ECON:          'true'   # Build & upload econ‑data loader Lambda
   RUN_LAMBDAS:       'true'   # Deploy & invoke those Lambdas
   BUILD_CONTAINERS:  'true'   # Build & push all ECS container images
   DEPLOY_ECS:        'true'   # Deploy ECS TaskDefinitions
-  RUN_FINDATA:       'true'   # Run findata-loader on Fargate
-  RUN_PRICEDAILY:    'true'   # Run pricedaily-loader on Fargate
-  RUN_PRICEWEEKLY:   'true'   # Run priceweekly-loader on Fargate
-  RUN_PRICEMONTHLY:  'true'   # Run pricemonthly-loader on Fargate
+  RUN_FINDATA:       'true'   # Run findata‑loader on Fargate
+  RUN_PRICEDAILY:    'true'   # Run pricedaily‑loader on Fargate
+  RUN_PRICEWEEKLY:   'true'   # Run priceweekly‑loader on Fargate
+  RUN_PRICEMONTHLY:  'true'   # Run pricemonthly‑loader on Fargate
 
 jobs:
 
-  # 0) Read toggles
+  ######################################
+  # 0) Read toggles                    #
+  ######################################
   set_flags:
     runs-on: ubuntu-latest
     outputs:
@@ -38,93 +40,81 @@ jobs:
       run_pricemonthly: ${{ steps.set.outputs.run_pricemonthly }}
     steps:
       - id: set
-        run: |
-          echo "run_symbols=$RUN_SYMBOLS"           >> $GITHUB_OUTPUT
-          echo "run_econ=$RUN_ECON"                 >> $GITHUB_OUTPUT
-          echo "run_lambdas=$RUN_LAMBDAS"           >> $GITHUB_OUTPUT
-          echo "build_containers=$BUILD_CONTAINERS" >> $GITHUB_OUTPUT
-          echo "deploy_ecs=$DEPLOY_ECS"             >> $GITHUB_OUTPUT
-          echo "run_findata=$RUN_FINDATA"           >> $GITHUB_OUTPUT
-          echo "run_pricedaily=$RUN_PRICEDAILY"     >> $GITHUB_OUTPUT
-          echo "run_priceweekly=$RUN_PRICEWEEKLY"   >> $GITHUB_OUTPUT
-          echo "run_pricemonthly=$RUN_PRICEMONTHLY" >> $GITHUB_OUTPUT
+        uses: actions/github-script@v6
+        with:
+          script: |
+            return {
+              run_symbols:       '${{ env.RUN_SYMBOLS }}',
+              run_econ:          '${{ env.RUN_ECON }}',
+              run_lambdas:       '${{ env.RUN_LAMBDAS }}',
+              build_containers:  '${{ env.BUILD_CONTAINERS }}',
+              deploy_ecs:        '${{ env.DEPLOY_ECS }}',
+              run_findata:       '${{ env.RUN_FINDATA }}',
+              run_pricedaily:    '${{ env.RUN_PRICEDAILY }}',
+              run_priceweekly:   '${{ env.RUN_PRICEWEEKLY }}',
+              run_pricemonthly:  '${{ env.RUN_PRICEMONTHLY }}'
+            }
 
-  ###############################
-  # 1) Build & upload symbols  #
-  ###############################
+  #################################################
+  # 1) Package & upload symbols‑loader Lambda     #
+  #################################################
   build_and_upload_symbols:
-    needs: set_flags
-    if: ${{ needs.set_flags.outputs.run_symbols == 'true' }}
     runs-on: ubuntu-latest
+    if: ${{ needs.set_flags.outputs.run_symbols == 'true' }}
     outputs:
       code_key: ${{ steps.upload.outputs.code_key }}
     steps:
       - uses: actions/checkout@v3
-      - name: Set up Python 3.9
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-      - name: Install symbols-loader deps
+      - name: Install symbols‑loader deps
         run: |
           rm -rf symbols_package && mkdir symbols_package
           pip install --upgrade pip
           pip install -r requirements-loadstocksymbols.txt -t symbols_package
-      - name: Package symbols-loader
+      - name: Package symbols‑loader
         run: |
           cp loadstocksymbols.py symbols_package/index.py
           cd symbols_package && zip -r "../symbols-${{ github.sha }}.zip" . && cd ..
-      - name: Configure AWS creds via OIDC
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          role-to-assume:    arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
-          role-session-name: github-deploy
-          aws-region:        us-east-1
-          audience:          sts.amazonaws.com
-      - name: Upload symbols-loader ZIP
+      - name: Upload symbols package
         id: upload
         run: |
-          aws s3 cp "symbols-${{ github.sha }}.zip" s3://stocks-algo-app-code/
-          echo "code_key=symbols-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
+          aws s3 cp symbols-${{ github.sha }}.zip s3://my-bucket/ --region us-east-1 \
+            && echo "::set-output name=code_key::symbols-${{ github.sha }}.zip"
 
-  ####################################
-  # 2) Build & upload econ-data     #
-  ####################################
+  #################################################
+  # 2) Package & upload econ‑data loader Lambda   #
+  #################################################
   build_and_upload_econ:
-    needs: set_flags
-    if: ${{ needs.set_flags.outputs.run_econ == 'true' }}
     runs-on: ubuntu-latest
+    if: ${{ needs.set_flags.outputs.run_econ == 'true' }}
     outputs:
-      econ_code_key: ${{ steps.upload.outputs.econ_code_key }}
+      econ_code_key: ${{ steps.upload_econ.outputs.code_key }}
     steps:
       - uses: actions/checkout@v3
-      - name: Set up Python 3.9
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-      - name: Install econ-data deps
+      - name: Install econ‑data deps
         run: |
           rm -rf econ_package && mkdir econ_package
           pip install --upgrade pip
           pip install -r requirements-loadecondata.txt -t econ_package
-      - name: Package econ-data loader
+      - name: Package econ‑data loader
         run: |
           cp loadecondata.py econ_package/index.py
           cd econ_package && zip -r "../econ-${{ github.sha }}.zip" . && cd ..
-      - name: Configure AWS creds via OIDC
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          role-to-assume:    arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
-          role-session-name: github-deploy
-          aws-region:        us-east-1
-          audience:          sts.amazonaws.com
-      - name: Upload econ-data ZIP
-        id: upload
+      - name: Upload econ package
+        id: upload_econ
         run: |
-          aws s3 cp "econ-${{ github.sha }}.zip" s3://stocks-algo-app-code/
-          echo "econ_code_key=econ-${{ github.sha }}.zip" >> $GITHUB_OUTPUT
+          aws s3 cp econ-${{ github.sha }}.zip s3://my-bucket/ --region us-east-1 \
+            && echo "::set-output name=code_key::econ-${{ github.sha }}.zip"
 
   #################################################
-  # 3) Deploy & invoke both Lambdas              #
+  # 3) Deploy RDS + Lambdas + invoke them         #
   #################################################
   deploy_and_run_lambdas:
     needs:
@@ -166,24 +156,26 @@ jobs:
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM
-      - name: Invoke symbols-loader
+      - name: Invoke symbols‑loader (async)
         run: |
           aws lambda invoke \
             --function-name loadstocksymbols \
+            --invocation-type Event \
             --payload '{}' \
             --cli-binary-format raw-in-base64-out \
             symbols_response.json || true
-      - name: Invoke econ-data loader
+      - name: Invoke econ‑data loader (async)
         run: |
           aws lambda invoke \
             --function-name loadecondata \
+            --invocation-type Event \
             --payload '{}' \
             --cli-binary-format raw-in-base64-out \
             econ_response.json || true
 
-  ########################################
-  # 4) Build & push ECS container images#
-  ########################################
+  #################################################
+  # 4) Build & push ECS container images         #
+  #################################################
   build_and_push_containers:
     needs:
       - set_flags
@@ -198,61 +190,42 @@ jobs:
       pricemonthly_tag: ${{ steps.monthly.outputs.tag }}
     steps:
       - uses: actions/checkout@v3
-      - name: Configure AWS creds via OIDC
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          role-to-assume:    arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
-          role-session-name: github-deploy
-          aws-region:        us-east-1
-          audience:          sts.amazonaws.com
-      - name: Ensure ECR exists & get URI
+      - name: Get ECR repo URI
         id: get_uri
         run: |
-          REPO=stocks-app-registry
-          aws ecr describe-repositories --repository-names $REPO >/dev/null 2>&1 || \
-            aws ecr create-repository --repository-name $REPO
-          URI=$(aws ecr describe-repositories \
-            --repository-names $REPO \
-            --query 'repositories[0].repositoryUri' \
-            --output text)
-          echo "repo_uri=$URI" >> $GITHUB_OUTPUT
-      - uses: aws-actions/amazon-ecr-login@v1
-        name: Login to ECR
-      - name: Build & push findata
+          URI=$(aws ecr describe-repositories --repository-names my-app --query 'repositories[0].repositoryUri' --output text)
+          echo "::set-output name=repo_uri::$URI"
+      - name: Build & push findata container
         id: findata
         run: |
           TAG=findata-${{ github.sha }}
-          IMG="${{ steps.get_uri.outputs.repo_uri }}:$TAG"
-          docker build -f Dockerfile.findata -t $IMG .
-          docker push $IMG
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-      - name: Build & push pricedaily
+          docker build -f Dockerfile.findata -t ${{ needs.build_and_push_containers.outputs.repo_uri }}:$TAG .
+          docker push ${{ needs.build_and_push_containers.outputs.repo_uri }}:$TAG
+          echo "::set-output name=tag::$TAG"
+      - name: Build & push pricedaily container
         id: pricedaily
         run: |
           TAG=pricedaily-${{ github.sha }}
-          IMG="${{ steps.get_uri.outputs.repo_uri }}:$TAG"
-          docker build -f Dockerfile.pricedaily -t $IMG .
-          docker push $IMG
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-      - name: Build & push priceweekly
+          docker build -f Dockerfile.pricedaily -t ${{ needs.build_and_push_containers.outputs.repo_uri }}:$TAG .
+          docker push ${{ needs.build_and_push_containers.outputs.repo_uri }}:$TAG
+          echo "::set-output name=tag::$TAG"
+      - name: Build & push priceweekly container
         id: weekly
         run: |
           TAG=priceweekly-${{ github.sha }}
-          IMG="${{ steps.get_uri.outputs.repo_uri }}:$TAG"
-          docker build -f Dockerfile.priceweekly -t $IMG .
-          docker push $IMG
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-      - name: Build & push pricemonthly
+          docker build -f Dockerfile.priceweekly -t ${{ needs.build_and_push_containers.outputs.repo_uri }}:$TAG .
+          docker push ${{ needs.build_and_push_containers.outputs.repo_uri }}:$TAG
+          echo "::set-output name=tag::$TAG"
+      - name: Build & push pricemonthly container
         id: monthly
         run: |
           TAG=pricemonthly-${{ github.sha }}
-          IMG="${{ steps.get_uri.outputs.repo_uri }}:$TAG"
-          docker build -f Dockerfile.pricemonthly -t $IMG .
-          docker push $IMG
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          docker build -f Dockerfile.pricemonthly -t ${{ needs.build_and_push_containers.outputs.repo_uri }}:$TAG .
+          docker push ${{ needs.build_and_push_containers.outputs.repo_uri }}:$TAG
+          echo "::set-output name=tag::$TAG"
 
   #################################################
-  # 5) Deploy ECS TaskDefinitions (with cleanup)  #
+  # 5) Deploy ECS TaskDefinitions                #
   #################################################
   deploy_ecs_tasks:
     needs:
@@ -260,11 +233,6 @@ jobs:
       - build_and_push_containers
     if: ${{ needs.set_flags.outputs.deploy_ecs == 'true' }}
     runs-on: ubuntu-latest
-    outputs:
-      findata_arn:    ${{ steps.fetch.outputs.findata_arn }}
-      price_arn:      ${{ steps.fetch.outputs.price_arn }}
-      weekly_arn:     ${{ steps.fetch.outputs.weekly_arn }}
-      monthly_arn:    ${{ steps.fetch.outputs.monthly_arn }}
     steps:
       - uses: actions/checkout@v3
       - name: Configure AWS creds via OIDC
@@ -296,7 +264,8 @@ jobs:
               PriceWeeklyImageTag=${{ needs.build_and_push_containers.outputs.priceweekly_tag }} \
               PriceMonthlyImageTag=${{ needs.build_and_push_containers.outputs.pricemonthly_tag }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
-            --capabilities CAPABILITY_NAMED_IAM
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset
       - name: Fetch TaskDefinition ARNs
         id: fetch
         run: |
@@ -333,6 +302,8 @@ jobs:
           role-session-name: github-deploy
           aws-region:        us-east-1
           audience:          sts.amazonaws.com
+      - name: Debug findata ARN
+        run: echo "findata ARN = ${{ needs.deploy_ecs_tasks.outputs.findata_arn }}"
       - name: Run findata-loader
         run: |
           aws ecs run-task \

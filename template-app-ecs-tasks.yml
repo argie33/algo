@@ -25,7 +25,7 @@ Parameters:
 Resources:
 
   ##################################
-  # 0) CloudWatch LogGroups       #
+  # 0) CloudWatch LogGroups        #
   ##################################
   FindataLogGroup:
     Type: AWS::Logs::LogGroup
@@ -51,10 +51,10 @@ Resources:
       LogGroupName: '/ecs/pricemonthly-loader'
       RetentionInDays: 14
 
-  ##################################
-  # 1) findata-loader TaskDefinition #
-  ##################################
-  FindataTaskDef:
+  ##############################################
+  # 1) findata-loader TaskDefinition           #
+  ##############################################
+  FindataTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: findata-loader
@@ -94,10 +94,10 @@ Resources:
               awslogs-region:        !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
-  ##################################
-  # 2) pricedaily-loader TaskDefinition #
-  ##################################
-  PriceTaskDef:
+  ##################################################
+  # 2) pricedaily-loader TaskDefinition            #
+  ##################################################
+  PriceTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: pricedaily-loader
@@ -135,10 +135,10 @@ Resources:
               awslogs-region:        !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
-  ##################################
-  # 3) priceweekly-loader TaskDefinition #
-  ##################################
-  WeeklyTaskDef:
+  ##################################################
+  # 3) priceweekly-loader TaskDefinition          #
+  ##################################################
+  PriceWeeklyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: priceweekly-loader
@@ -176,10 +176,10 @@ Resources:
               awslogs-region:        !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
-  ##################################
-  # 4) pricemonthly-loader TaskDefinition #
-  ##################################
-  MonthlyTaskDef:
+  ##################################################
+  # 4) pricemonthly-loader TaskDefinition         #
+  ##################################################
+  PriceMonthlyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: pricemonthly-loader
@@ -219,17 +219,17 @@ Resources:
 
 Outputs:
   FindataTaskDefinitionArn:
-    Description: ARN of the findata task definition
-    Value: !Ref FindataTaskDef
+    Description: ARN of the findata ECS TaskDefinition
+    Value: !Ref FindataTaskDefinition
 
   PriceTaskDefinitionArn:
-    Description: ARN of the pricedaily task definition
-    Value: !Ref PriceTaskDef
+    Description: ARN of the pricedaily ECS TaskDefinition
+    Value: !Ref PriceTaskDefinition
 
   PriceWeeklyTaskDefinitionArn:
-    Description: ARN of the priceweekly task definition
-    Value: !Ref WeeklyTaskDef
+    Description: ARN of the priceweekly ECS TaskDefinition
+    Value: !Ref PriceWeeklyTaskDefinition
 
   PriceMonthlyTaskDefinitionArn:
-    Description: ARN of the pricemonthly task definition
-    Value: !Ref MonthlyTaskDef
+    Description: ARN of the pricemonthly ECS TaskDefinition
+    Value: !Ref PriceMonthlyTaskDefinition
