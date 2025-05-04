@@ -457,7 +457,7 @@ Resources:
         Status: Enabled
     DeletionPolicy: Delete
     UpdateReplacePolicy: Retain
-
+ 
 Outputs:
   VpcId:
     Value: !Ref StocksVPC
