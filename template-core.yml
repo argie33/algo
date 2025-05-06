@@ -55,7 +55,7 @@ Resources:
               StringEquals:
                 "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
               StringLike:
-                "token.actions.githubusercontent.com:sub": "repo:*/*:ref:refs/heads/main"
+                "token.actions.githubusercontent.com:sub": "repo:*/*:ref:refs/heads/*"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
 
