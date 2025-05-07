@@ -16,9 +16,9 @@ env:
   AWS_ROLE_SESSION: github-deploy
   FRED_API_KEY:     ${{ secrets.FRED_API_KEY }}
 
-################################################################################
-# 1) Detect which loader(s) changed                                           #
-################################################################################
+########################################################################
+# 1) Detect which parts changed                                       #
+########################################################################
 jobs:
   filter:
     name: Detect changed components
@@ -37,7 +37,7 @@ jobs:
           fetch-depth: 0
 
       - id: paths
-        name: Use dorny/paths-filter
+        name: Which files changed?
         uses: dorny/paths-filter@v2
         with:
           base: ${{ github.event.before }}
@@ -71,13 +71,12 @@ jobs:
               - 'requirements-loadtechnicalsdaily.txt'
               - 'Dockerfile.technicalsdaily'
 
-################################################################################
-# 2) Build & push images — one job per loader                                 #
-################################################################################
-# Each of these jobs runs *only* if that loader changed (based on filter).
-# Each job sets `outputs.tag` to the new image tag.
+########################################################################
+# 2) Build & push Docker images (one job per loader)                  #
+########################################################################
+# Each of the following jobs only runs if that loader changed.
+# Each job sets an output `tag` to the new image tag.
 
-# 2a) stock-symbols
   symbols_build:
     name: Build stock-symbols image
     needs: filter
@@ -99,22 +98,18 @@ jobs:
         name: Build & push Docker image
         run: |
           REPO=stocks-app-registry
-          # create repo if needed
           aws ecr describe-repositories --repository-names "$REPO" \
             >/dev/null 2>&1 || aws ecr create-repository --repository-name "$REPO"
           URI=$(aws ecr describe-repositories \
                   --repository-names "$REPO" \
                   --query 'repositories[0].repositoryUri' --output text)
-          # login & build
           aws ecr get-login-password --region $AWS_REGION \
             | docker login --username AWS --password-stdin "$URI"
           TAG=stocksymbols-${{ github.sha }}
           docker build -f Dockerfile.stocksymbols -t "$URI:$TAG" .
           docker push "$URI:$TAG"
-          # expose tag
           echo "::set-output name=tag::$TAG"
 
-# 2b) econ-data
   econ_build:
     name: Build econ-data image
     needs: filter
@@ -148,7 +143,6 @@ jobs:
           docker push "$URI:$TAG"
           echo "::set-output name=tag::$TAG"
 
-# 2c) findata
   findata_build:
     name: Build findata image
     needs: filter
@@ -182,7 +176,6 @@ jobs:
           docker push "$URI:$TAG"
           echo "::set-output name=tag::$TAG"
 
-# 2d) pricedaily
   pricedaily_build:
     name: Build pricedaily image
     needs: filter
@@ -216,7 +209,6 @@ jobs:
           docker push "$URI:$TAG"
           echo "::set-output name=tag::$TAG"
 
-# 2e) priceweekly
   priceweekly_build:
     name: Build priceweekly image
     needs: filter
@@ -250,7 +242,6 @@ jobs:
           docker push "$URI:$TAG"
           echo "::set-output name=tag::$TAG"
 
-# 2f) pricemonthly
   pricemonthly_build:
     name: Build pricemonthly image
     needs: filter
@@ -284,7 +275,6 @@ jobs:
           docker push "$URI:$TAG"
           echo "::set-output name=tag::$TAG"
 
-# 2g) technicaldaily
   technicaldaily_build:
     name: Build technicaldaily image
     needs: filter
@@ -318,19 +308,21 @@ jobs:
           docker push "$URI:$TAG"
           echo "::set-output name=tag::$TAG"
 
-################################################################################
-# 3) Deploy ECS CFN once (after ALL builds)                                  #
-################################################################################
+########################################################################
+# 3) Deploy ECS CloudFormation (runs once)                            #
+########################################################################
   deploy:
     name: Deploy ECS CloudFormation
-    needs:
-      - symbols_build
-      - econ_build
-      - findata_build
-      - pricedaily_build
-      - priceweekly_build
-      - pricemonthly_build
-      - technicaldaily_build
+    needs: filter
+    # only deploy if at least one loader changed
+    if: |
+      needs.filter.outputs.symbols == 'true' ||
+      needs.filter.outputs.econ == 'true'   ||
+      needs.filter.outputs.findata == 'true'||
+      needs.filter.outputs.pricedaily == 'true'  ||
+      needs.filter.outputs.priceweekly == 'true' ||
+      needs.filter.outputs.pricemonthly == 'true'||
+      needs.filter.outputs.technicaldaily == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -342,28 +334,106 @@ jobs:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
+      # 3a) Fetch existing parameter values for any image tags
+      - name: Fetch existing ECS stack params
+        id: params
+        run: |
+          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then
+            for key in FindataImageTag PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag StockSymbolsImageTag EconDataImageTag MonthlyPriceImageTag; do
+              echo "${key}=$(aws cloudformation describe-stacks \
+                --stack-name stocks-ecs-tasks-stack \
+                --query \"Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue\" \
+                --output text)" >> tags.env
+            done
+          fi
+          cat tags.env
+
+      # 3b) Decide final tag for each loader: new build → use that tag, or else fallback to existing
+      - name: Prepare final image tags
+        id: final
+        run: |
+          # shellcheck disable=SC1091
+          source tags.env || true
+
+          # stock-symbols
+          if [[ "${{ needs.symbols_build.result }}" == "success" ]]; then
+            STOCK_TAG=${{ needs.symbols_build.outputs.tag }}
+          else
+            STOCK_TAG=$StockSymbolsImageTag
+          fi
+
+          # econ-data
+          if [[ "${{ needs.econ_build.result }}" == "success" ]]; then
+            ECON_TAG=${{ needs.econ_build.outputs.tag }}
+          else
+            ECON_TAG=$EconDataImageTag
+          fi
+
+          # findata
+          if [[ "${{ needs.findata_build.result }}" == "success" ]]; then
+            FINDATA_TAG=${{ needs.findata_build.outputs.tag }}
+          else
+            FINDATA_TAG=$FindataImageTag
+          fi
+
+          # pricedaily
+          if [[ "${{ needs.pricedaily_build.result }}" == "success" ]]; then
+            PRICE_TAG=${{ needs.pricedaily_build.outputs.tag }}
+          else
+            PRICE_TAG=$PriceImageTag
+          fi
+
+          # priceweekly
+          if [[ "${{ needs.priceweekly_build.result }}" == "success" ]]; then
+            PRACT_Weekly_TAG=${{ needs.priceweekly_build.outputs.tag }}
+          else
+            PRACT_Weekly_TAG=$PriceWeeklyImageTag
+          fi
+
+          # pricemonthly
+          if [[ "${{ needs.pricemonthly_build.result }}" == "success" ]]; then
+            PRACT_Monthly_TAG=${{ needs.pricemonthly_build.outputs.tag }}
+          else
+            PRACT_Monthly_TAG=$PriceMonthlyImageTag
+          fi
+
+          # technicaldaily
+          if [[ "${{ needs.technicaldaily_build.result }}" == "success" ]]; then
+            TECH_TAG=${{ needs.technicaldaily_build.outputs.tag }}
+          else
+            TECH_TAG=$TechnicalDailyImageTag
+          fi
+
+          # expose them as outputs
+          echo "::set-output name=stocksymbols::$STOCK_TAG"
+          echo "::set-output name=econdata::$ECON_TAG"
+          echo "::set-output name=findata::$FINDATA_TAG"
+          echo "::set-output name=pricedaily::$PRICE_TAG"
+          echo "::set-output name=priceweekly::$PRACT_Weekly_TAG"
+          echo "::set-output name=pricemonthly::$PRACT_Monthly_TAG"
+          echo "::set-output name=technicaldaily::$TECH_TAG"
+
+      # 3c) Single, unified CFN deploy
       - name: Deploy ECS stack
         run: |
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
             --template-file template-app-ecs-tasks.yml \
             --parameter-overrides \
-              StockSymbolsImageTag=${{ needs.symbols_build.outputs.tag }} \
-              EconDataImageTag=${{ needs.econ_build.outputs.tag }} \
-              MonthlyPriceImageTag=${{ needs.pricemonthly_build.outputs.tag }} \
-              FindataImageTag=${{ needs.findata_build.outputs.tag }} \
-              PriceImageTag=${{ needs.pricedaily_build.outputs.tag }} \
-              PriceWeeklyImageTag=${{ needs.priceweekly_build.outputs.tag }} \
-              PriceMonthlyImageTag=${{ needs.pricemonthly_build.outputs.tag }} \
-              TechnicalDailyImageTag=${{ needs.technicaldaily_build.outputs.tag }} \
+              StockSymbolsImageTag=${{ steps.final.outputs.stocksymbols }} \
+              EconDataImageTag=${{ steps.final.outputs.econdata }} \
+              FindataImageTag=${{ steps.final.outputs.findata }} \
+              PriceImageTag=${{ steps.final.outputs.pricedaily }} \
+              PriceWeeklyImageTag=${{ steps.final.outputs.priceweekly }} \
+              PriceMonthlyImageTag=${{ steps.final.outputs.pricemonthly }} \
+              TechnicalDailyImageTag=${{ steps.final.outputs.technicaldaily }} \
               FREDApiKey=$FRED_API_KEY \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
 
-################################################################################
-# 4) Run each loader in turn (after deploy)                                   #
-################################################################################
-# 4a) stock-symbols
+########################################################################
+# 4) Run each changed loader                                          #
+########################################################################
   run_symbols:
     name: Run stock-symbols loader
     needs: deploy
@@ -386,7 +456,6 @@ jobs:
           aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
-# 4b) econ-data
   run_econ:
     name: Run econ-data loader
     needs: deploy
@@ -409,7 +478,6 @@ jobs:
           aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
-# 4c) findata
   run_findata:
     name: Run findata loader
     needs: deploy
@@ -432,7 +500,6 @@ jobs:
           aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
-# 4d) pricedaily
   run_pricedaily:
     name: Run pricedaily loader
     needs: deploy
@@ -455,7 +522,6 @@ jobs:
           aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
-# 4e) priceweekly
   run_priceweekly:
     name: Run priceweekly loader
     needs: deploy
@@ -478,7 +544,6 @@ jobs:
           aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
-# 4f) pricemonthly
   run_pricemonthly:
     name: Run pricemonthly loader
     needs: deploy
@@ -501,7 +566,6 @@ jobs:
           aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
-# 4g) technicaldaily
   run_technicaldaily:
     name: Run technicaldaily loader
     needs: deploy
