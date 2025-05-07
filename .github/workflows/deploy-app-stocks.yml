@@ -39,7 +39,7 @@ jobs:
         run: |
           aws cloudformation deploy \
             --stack-name stocks-app-stack \
-            --template-file template-app.yml \
+            --template-file template-app-stocks.yml \
             --capabilities CAPABILITY_NAMED_IAM \
             --parameter-overrides \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
