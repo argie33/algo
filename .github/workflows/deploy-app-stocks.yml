@@ -74,11 +74,6 @@ jobs:
 # 2) Build & push Docker images  (always-run but branch inside)              #
 ##############################################################################
 
-  # Each of these follows the same pattern:
-  # - looks at the filter output
-  # - if "true", builds & pushes a new image and outputs TAG=<new>
-  # - if "false", fetches the existing ParameterValue from CFN and outputs TAG=<old>
-
   symbols_build:
     name: Build stock-symbols image
     needs: filter
@@ -118,7 +113,7 @@ jobs:
             OLD=$(aws cloudformation describe-stacks \
                     --stack-name stocks-ecs-tasks-stack \
                     --query "Stacks[0].Parameters[?ParameterKey=='StockSymbolsImageTag'].ParameterValue" \
-                    --output text)
+                    --output text || echo "")
             echo "::set-output name=tag::$OLD"
           fi
 
@@ -143,7 +138,7 @@ jobs:
         run: |
           aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 \
             || aws ecr.create-repository --repository-name "$REPO"
-          URI=$(aws ecr describe-repositories \
+          URI=$(aws ecr.describe-repositories \
                   --repository-names "$REPO" \
                   --query 'repositories[0].repositoryUri' --output text)
           if [ "${{ needs.filter.outputs.econ }}" == "true" ]; then
@@ -157,7 +152,7 @@ jobs:
             OLD=$(aws cloudformation describe-stacks \
                     --stack-name stocks-ecs-tasks-stack \
                     --query "Stacks[0].Parameters[?ParameterKey=='EconDataImageTag'].ParameterValue" \
-                    --output text)
+                    --output text || echo "")
             echo "::set-output name=tag::$OLD"
           fi
 
@@ -181,8 +176,8 @@ jobs:
           REPO: stocks-app-registry
         run: |
           aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 \
-            || aws ecr create-repository --repository-name "$REPO"
-          URI=$(aws ecr describe-repositories \
+            || aws ecr.create-repository --repository-name "$REPO"
+          URI=$(aws ecr.describe-repositories \
                   --repository-names "$REPO" \
                   --query 'repositories[0].repositoryUri' --output text)
           if [ "${{ needs.filter.outputs.findata }}" == "true" ]; then
@@ -196,7 +191,7 @@ jobs:
             OLD=$(aws cloudformation describe-stacks \
                     --stack-name stocks-ecs-tasks-stack \
                     --query "Stacks[0].Parameters[?ParameterKey=='FindataImageTag'].ParameterValue" \
-                    --output text)
+                    --output text || echo "")
             echo "::set-output name=tag::$OLD"
           fi
 
@@ -221,7 +216,7 @@ jobs:
         run: |
           aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 \
             || aws ecr.create-repository --repository-name "$REPO"
-          URI=$(aws ecr describe-repositories \
+          URI=$(aws ecr.describe-repositories \
                   --repository-names "$REPO" \
                   --query 'repositories[0].repositoryUri' --output text)
           if [ "${{ needs.filter.outputs.pricedaily }}" == "true" ]; then
@@ -235,7 +230,7 @@ jobs:
             OLD=$(aws cloudformation describe-stacks \
                     --stack-name stocks-ecs-tasks-stack \
                     --query "Stacks[0].Parameters[?ParameterKey=='PriceImageTag'].ParameterValue" \
-                    --output text)
+                    --output text || echo "")
             echo "::set-output name=tag::$OLD"
           fi
 
@@ -274,7 +269,7 @@ jobs:
             OLD=$(aws cloudformation describe-stacks \
                     --stack-name stocks-ecs-tasks-stack \
                     --query "Stacks[0].Parameters[?ParameterKey=='PriceWeeklyImageTag'].ParameterValue" \
-                    --output text)
+                    --output text || echo "")
             echo "::set-output name=tag::$OLD"
           fi
 
@@ -313,7 +308,7 @@ jobs:
             OLD=$(aws cloudformation describe-stacks \
                     --stack-name stocks-ecs-tasks-stack \
                     --query "Stacks[0].Parameters[?ParameterKey=='PriceMonthlyImageTag'].ParameterValue" \
-                    --output text)
+                    --output text || echo "")
             echo "::set-output name=tag::$OLD"
           fi
 
@@ -352,7 +347,7 @@ jobs:
             OLD=$(aws cloudformation describe-stacks \
                     --stack-name stocks-ecs-tasks-stack \
                     --query "Stacks[0].Parameters[?ParameterKey=='TechnicalDailyImageTag'].ParameterValue" \
-                    --output text)
+                    --output text || echo "")
             echo "::set-output name=tag::$OLD"
           fi
 
@@ -517,7 +512,7 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - run: |
-          SVC=$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PricemonthlyServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
@@ -536,7 +531,7 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - run: |
-          SVC=$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='TechnicalDailyServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
