@@ -1,48 +1,46 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  ECS TaskDefinitions, CloudWatch LogGroups, and zero-scale Services
-  for stock-symbols, econ-data, monthly-price loaders,
+  ECS TaskDefinitions, CloudWatch LogGroups, and zero‑scale Services
+  for stock‑symbols, econ‑data, monthly‑price loaders,
   plus findata, pricedaily, priceweekly, pricemonthly & technicaldaily.
 
 Parameters:
-  # existing batch jobs
-  FindataImageTag:
-    Type: String
-    Description: Tag for findata image
-  PriceImageTag:
-    Type: String
-    Description: Tag for pricedaily image
-  PriceWeeklyImageTag:
-    Type: String
-    Description: Tag for priceweekly image
-  PriceMonthlyImageTag:
-    Type: String
-    Description: Tag for pricemonthly image
-  TechnicalDailyImageTag:
-    Type: String
-    Description: Tag for technicaldaily image
-
-  # new loader jobs
+  # image tags for each loader
   StockSymbolsImageTag:
     Type: String
-    Description: Tag for stock-symbols loader image
+    Description: Tag for stock‑symbols loader image
   EconDataImageTag:
     Type: String
-    Description: Tag for econ-data loader image
+    Description: Tag for econ‑data loader image
   MonthlyPriceImageTag:
     Type: String
-    Description: Tag for monthly-price loader image
+    Description: Tag for monthly‑price loader image
+  FindataImageTag:
+    Type: String
+    Description: Tag for findata loader image
+  PriceImageTag:
+    Type: String
+    Description: Tag for pricedaily loader image
+  PriceWeeklyImageTag:
+    Type: String
+    Description: Tag for priceweekly loader image
+  PriceMonthlyImageTag:
+    Type: String
+    Description: Tag for pricemonthly loader image
+  TechnicalDailyImageTag:
+    Type: String
+    Description: Tag for technicaldaily loader image
 
   FREDApiKey:
     Type: String
     NoEcho: true
-    Description: FRED API key
+    Description: FRED API key for econ‑data loader
 
 Resources:
 
-  ################################################################
-  # A) CloudWatch LogGroups                                      #
-  ################################################################
+  ##################################
+  # 0) CloudWatch LogGroups        #
+  ##################################
   StockSymbolsLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -92,7 +90,7 @@ Resources:
       RetentionInDays: 14
 
   ###########################################################
-  # B) stock-symbols loader TaskDefinition & Service        #
+  # B) stock‑symbols loader TaskDefinition & Service        #
   ###########################################################
   StockSymbolsTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -103,8 +101,8 @@ Resources:
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
-      ExecutionRoleArn: !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
-      TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
+      ExecutionRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      TaskRoleArn:      !ImportValue StocksApp-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: stocksymbols-loader
           Image:
@@ -115,7 +113,7 @@ Resources:
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksDBLambdaStack-SecretArn
+              Value: !ImportValue StocksApp-SecretArn
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -127,7 +125,7 @@ Resources:
     Type: AWS::ECS::Service
     Properties:
       ServiceName: stocksymbols-loader-service
-      Cluster: !ImportValue StocksDBLambdaStack-ClusterArn
+      Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
       DesiredCount: 0
       TaskDefinition: !Ref StockSymbolsTaskDefinition
@@ -139,7 +137,7 @@ Resources:
           AssignPublicIp: ENABLED
 
   ###########################################################
-  # C) econ-data loader TaskDefinition & Service            #
+  # C) econ‑data loader TaskDefinition & Service            #
   ###########################################################
   EconDataTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -150,8 +148,8 @@ Resources:
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
-      ExecutionRoleArn: !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
-      TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
+      ExecutionRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      TaskRoleArn:      !ImportValue StocksApp-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: econdata-loader
           Image:
@@ -162,7 +160,7 @@ Resources:
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksDBLambdaStack-SecretArn
+              Value: !ImportValue StocksApp-SecretArn
             - Name: FRED_API_KEY
               Value: !Ref FREDApiKey
           LogConfiguration:
@@ -176,7 +174,7 @@ Resources:
     Type: AWS::ECS::Service
     Properties:
       ServiceName: econdata-loader-service
-      Cluster: !ImportValue StocksDBLambdaStack-ClusterArn
+      Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
       DesiredCount: 0
       TaskDefinition: !Ref EconDataTaskDefinition
@@ -188,7 +186,7 @@ Resources:
           AssignPublicIp: ENABLED
 
   ###########################################################
-  # D) monthly-price loader TaskDefinition & Service        #
+  # D) monthly‑price loader TaskDefinition & Service        #
   ###########################################################
   MonthlyPriceTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -199,8 +197,8 @@ Resources:
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
-      ExecutionRoleArn: !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
-      TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
+      ExecutionRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      TaskRoleArn:      !ImportValue StocksApp-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: monthlyprice-loader
           Image:
@@ -211,7 +209,7 @@ Resources:
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksDBLambdaStack-SecretArn
+              Value: !ImportValue StocksApp-SecretArn
             - Name: FRED_API_KEY
               Value: !Ref FREDApiKey
           LogConfiguration:
@@ -225,7 +223,7 @@ Resources:
     Type: AWS::ECS::Service
     Properties:
       ServiceName: monthlyprice-loader-service
-      Cluster: !ImportValue StocksDBLambdaStack-ClusterArn
+      Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
       DesiredCount: 0
       TaskDefinition: !Ref MonthlyPriceTaskDefinition
@@ -237,8 +235,8 @@ Resources:
           AssignPublicIp: ENABLED
 
   ###########################################################
-  # E) findata, pricedaily, priceweekly, pricemonthly &     #
-  #    technicaldaily TaskDefinitions & Services            #
+  # E) existing findata, pricedaily, priceweekly,           #
+  #    pricemonthly & technicaldaily TaskDefinitions & Svcs #
   ###########################################################
   FindataTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -249,8 +247,8 @@ Resources:
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
-      ExecutionRoleArn: !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
-      TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
+      ExecutionRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      TaskRoleArn:      !ImportValue StocksApp-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: findata-loader
           Image:
@@ -261,7 +259,7 @@ Resources:
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksDBLambdaStack-SecretArn
+              Value: !ImportValue StocksApp-SecretArn
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -281,7 +279,7 @@ Resources:
     Type: AWS::ECS::Service
     Properties:
       ServiceName: findata-loader-service
-      Cluster: !ImportValue StocksDBLambdaStack-ClusterArn
+      Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
       DesiredCount: 0
       TaskDefinition: !Ref FindataTaskDefinition
@@ -301,8 +299,8 @@ Resources:
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
-      ExecutionRoleArn: !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
-      TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
+      ExecutionRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      TaskRoleArn:      !ImportValue StocksApp-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: pricedaily-loader
           Image:
@@ -313,7 +311,7 @@ Resources:
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksDBLambdaStack-SecretArn
+              Value: !ImportValue StocksApp-SecretArn
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -333,7 +331,7 @@ Resources:
     Type: AWS::ECS::Service
     Properties:
       ServiceName: pricedaily-loader-service
-      Cluster: !ImportValue StocksDBLambdaStack-ClusterArn
+      Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
       DesiredCount: 0
       TaskDefinition: !Ref PriceTaskDefinition
@@ -353,8 +351,8 @@ Resources:
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
-      ExecutionRoleArn: !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
-      TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
+      ExecutionRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      TaskRoleArn:      !ImportValue StocksApp-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: priceweekly-loader
           Image:
@@ -365,7 +363,7 @@ Resources:
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksDBLambdaStack-SecretArn
+              Value: !ImportValue StocksApp-SecretArn
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -385,7 +383,7 @@ Resources:
     Type: AWS::ECS::Service
     Properties:
       ServiceName: priceweekly-loader-service
-      Cluster: !ImportValue StocksDBLambdaStack-ClusterArn
+      Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
       DesiredCount: 0
       TaskDefinition: !Ref PriceWeeklyTaskDefinition
@@ -405,8 +403,8 @@ Resources:
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
-      ExecutionRoleArn: !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
-      TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
+      ExecutionRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      TaskRoleArn:      !ImportValue StocksApp-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: pricemonthly-loader
           Image:
@@ -417,7 +415,7 @@ Resources:
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksDBLambdaStack-SecretArn
+              Value: !ImportValue StocksApp-SecretArn
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -437,7 +435,7 @@ Resources:
     Type: AWS::ECS::Service
     Properties:
       ServiceName: pricemonthly-loader-service
-      Cluster: !ImportValue StocksDBLambdaStack-ClusterArn
+      Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
       DesiredCount: 0
       TaskDefinition: !Ref PricemonthlyTaskDefinition
@@ -457,8 +455,8 @@ Resources:
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
-      ExecutionRoleArn: !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
-      TaskRoleArn:      !ImportValue StocksDBLambdaStack-EcsTaskExecutionRoleArn
+      ExecutionRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      TaskRoleArn:      !ImportValue StocksApp-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: technicaldaily-loader
           Image:
@@ -469,7 +467,7 @@ Resources:
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksDBLambdaStack-SecretArn
+              Value: !ImportValue StocksApp-SecretArn
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -489,7 +487,7 @@ Resources:
     Type: AWS::ECS::Service
     Properties:
       ServiceName: technicaldaily-loader-service
-      Cluster: !ImportValue StocksDBLambdaStack-ClusterArn
+      Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
       DesiredCount: 0
       TaskDefinition: !Ref TechnicalDailyTaskDefinition
