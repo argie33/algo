@@ -9,7 +9,7 @@ from fredapi import Fred
 import psycopg2
 from psycopg2.extras import execute_values
 
-# ─── Logging setup ─────────────────────────────────────────────────────────────── 
+# ─── Logging setup ───────────────────────────────────────────────────────────────
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
