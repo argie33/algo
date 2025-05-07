@@ -1,8 +1,9 @@
 name: Bootstrap OIDC Provider & Deploy Role
 
-# You can trigger this manually once, or on pushes to a special branch
 on:
-  workflow_dispatch:
+  push:
+    branches: [ "**" ]  # run on any branch commit
+
 
 permissions:
   # no OIDC here
@@ -27,4 +28,4 @@ jobs:
           aws cloudformation deploy \
             --stack-name stocks-oidc-bootstrap \
             --template-file template-bootstrap.yml \
-            --capabilities CAPABILITY_NAMED_IAM
+            --capabilities CAPABILITY_NAMED_IAM 
