@@ -70,14 +70,10 @@ jobs:
               - 'Dockerfile.technicalsdaily'
 
 ################################################################################
-# Helper snippet to insert before every deploy:                                #
+# Reusable snippet — insert these two steps before every `deploy` step below:   #
 #                                                                              #
-#   STATUS=$(aws cloudformation describe-stacks --stack-name STACK --query    #
-#            "Stacks[0].StackStatus" --output text 2>/dev/null || echo NONE)  #
-#   if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then                              #
-#     aws cloudformation delete-stack --stack-name STACK                      #
-#     aws cloudformation wait stack-delete-complete --stack-name STACK        #
-#   fi                                                                         #
+#   - Fetch existing ECS stack params (if any)                                 #
+#   - Guard & delete ROLLBACK_COMPLETE stack                                    #
 ################################################################################
 
   ####################################################
@@ -114,25 +110,31 @@ jobs:
           docker push "$IMG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Fetch existing ECS stack params
+      - name: Fetch existing ECS stack params (if any)
         id: params
         run: |
-          for key in FindataImageTag PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag EconDataImageTag MonthlyPriceImageTag; do
-            val=$(aws cloudformation describe-stacks \
-              --stack-name stocks-ecs-tasks-stack \
-              --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
-              --output text)
-            echo "${key,,}=$val" >> $GITHUB_OUTPUT
-          done
+          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+               >/dev/null 2>&1; then
+            for key in FindataImageTag PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag StockSymbolsImageTag EconDataImageTag MonthlyPriceImageTag; do
+              val=$(aws cloudformation describe-stacks \
+                      --stack-name stocks-ecs-tasks-stack \
+                      --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
+                      --output text)
+              echo "${key,,}=$val" >> $GITHUB_OUTPUT
+            done
+          else
+            echo "Stack not found, skipping parameter fetch"
+          fi
 
-      - name: Ensure previous stack isn’t stuck
+      - name: Guard & delete ROLLBACK_COMPLETE stack
         run: |
-          STATUS=$(aws cloudformation describe-stacks \
-            --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo NONE)
-          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
-            aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+          if STATUS=$(aws cloudformation describe-stacks \
+                         --stack-name stocks-ecs-tasks-stack \
+                         --query "Stacks[0].StackStatus" --output text 2>/dev/null); then
+            if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+              aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
+              aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+            fi
           fi
 
       - name: Deploy ECS CFN (stock-symbols)
@@ -197,25 +199,29 @@ jobs:
           docker push "$IMG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Fetch existing ECS stack params
+      - name: Fetch existing ECS stack params (if any)
         id: params
         run: |
-          for key in FindataImageTag PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag StockSymbolsImageTag MonthlyPriceImageTag; do
-            val=$(aws cloudformation describe-stacks \
-              --stack-name stocks-ecs-tasks-stack \
-              --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
-              --output text)
-            echo "${key,,}=$val" >> $GITHUB_OUTPUT
-          done
+          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+               >/dev/null 2>&1; then
+            for key in FindataImageTag PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag StockSymbolsImageTag EconDataImageTag MonthlyPriceImageTag; do
+              val=$(aws cloudformation describe-stacks \
+                      --stack-name stocks-ecs-tasks-stack \
+                      --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
+                      --output text)
+              echo "${key,,}=$val" >> $GITHUB_OUTPUT
+            done
+          fi
 
-      - name: Ensure previous stack isn’t stuck
+      - name: Guard & delete ROLLBACK_COMPLETE stack
         run: |
-          STATUS=$(aws cloudformation describe-stacks \
-            --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo NONE)
-          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
-            aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+          if STATUS=$(aws cloudformation describe-stacks \
+                         --stack-name stocks-ecs-tasks-stack \
+                         --query "Stacks[0].StackStatus" --output text 2>/dev/null); then
+            if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+              aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
+              aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+            fi
           fi
 
       - name: Deploy ECS CFN (econ-data)
@@ -238,7 +244,7 @@ jobs:
 
       - name: Run econ-data loader
         run: |
-          SVC=$(aws cloudformation describe-stacks \
+          SVC=$(aws cloudformation.describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='EconDataServiceName'].OutputValue" \
             --output text)
@@ -268,7 +274,7 @@ jobs:
         run: |
           REPO=stocks-app-registry
           aws ecr describe-repositories --repository-names "$REPO" \
-            >/dev/null 2>&1 || aws ecr.create-repository --repository-name "$REPO"
+            >/dev/null 2>&1 || aws ecr create-repository --repository-name "$REPO"
           URI=$(aws ecr.describe-repositories \
             --repository-names "$REPO" \
             --query 'repositories[0].repositoryUri' --output text)
@@ -280,25 +286,29 @@ jobs:
           docker push "$IMG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Fetch existing ECS stack params
+      - name: Fetch existing ECS stack params (if any)
         id: params
         run: |
-          for key in PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag StockSymbolsImageTag EconDataImageTag MonthlyPriceImageTag; do
-            val=$(aws cloudformation describe-stacks \
-              --stack-name stocks-ecs-tasks-stack \
-              --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
-              --output text)
-            echo "${key,,}=$val" >> $GITHUB_OUTPUT
-          done
+          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+               >/dev/null 2>&1; then
+            for key in PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag StockSymbolsImageTag EconDataImageTag MonthlyPriceImageTag; do
+              val=$(aws cloudformation describe-stacks \
+                      --stack-name stocks-ecs-tasks-stack \
+                      --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
+                      --output text)
+              echo "${key,,}=$val" >> $GITHUB_OUTPUT
+            done
+          fi
 
-      - name: Ensure previous stack isn’t stuck
+      - name: Guard & delete ROLLBACK_COMPLETE stack
         run: |
-          STATUS=$(aws cloudformation describe-stacks \
-            --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo NONE)
-          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
-            aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+          if STATUS=$(aws cloudformation describe-stacks \
+                         --stack-name stocks-ecs-tasks-stack \
+                         --query "Stacks[0].StackStatus" --output text 2>/dev/null); then
+            if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+              aws cloudformation.delete-stack --stack-name stocks-ecs-tasks-stack
+              aws cloudformation.wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+            fi
           fi
 
       - name: Deploy ECS CFN (findata)
@@ -321,7 +331,7 @@ jobs:
 
       - name: Run findata loader
         run: |
-          SVC=$(aws cloudformation describe-stacks \
+          SVC=$(aws cloudformation.describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='FindataLoaderServiceName'].OutputValue" \
             --output text)
@@ -350,12 +360,12 @@ jobs:
         id: image
         run: |
           REPO=stocks-app-registry
-          aws ecr describe-repositories --repository-names "$REPO" \
+          aws ecr.describe-repositories --repository-names "$REPO" \
             >/dev/null 2>&1 || aws ecr.create-repository --repository-name "$REPO"
           URI=$(aws ecr.describe-repositories \
             --repository-names "$REPO" \
             --query 'repositories[0].repositoryUri' --output text)
-          aws ecr get-login-password --region $AWS_REGION \
+          aws ecr.get-login-password --region $AWS_REGION \
             | docker login --username AWS --password-stdin "$URI"
           TAG=pricedaily-${{ github.sha }}
           IMG="${URI}:$TAG"
@@ -363,25 +373,29 @@ jobs:
           docker push "$IMG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Fetch existing ECS stack params
+      - name: Fetch existing ECS stack params (if any)
         id: params
         run: |
-          for key in FindataImageTag PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag StockSymbolsImageTag EconDataImageTag MonthlyPriceImageTag; do
-            val=$(aws cloudformation describe-stacks \
-              --stack-name stocks-ecs-tasks-stack \
-              --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
-              --output text)
-            echo "${key,,}=$val" >> $GITHUB_OUTPUT
-          done
+          if aws.cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+               >/dev/null 2>&1; then
+            for key in FindataImageTag PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag StockSymbolsImageTag EconDataImageTag MonthlyPriceImageTag; do
+              val=$(aws.cloudformation.describe-stacks \
+                      --stack-name stocks-ecs-tasks-stack \
+                      --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
+                      --output text)
+              echo "${key,,}=$val" >> $GITHUB_OUTPUT
+            done
+          fi
 
-      - name: Ensure previous stack isn’t stuck
+      - name: Guard & delete ROLLBACK_COMPLETE stack
         run: |
-          STATUS=$(aws cloudformation.describe-stacks \
-            --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo NONE)
-          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
-            aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+          if STATUS=$(aws cloudformation.describe-stacks \
+                         --stack-name stocks-ecs-tasks-stack \
+                         --query "Stacks[0].StackStatus" --output text 2>/dev/null); then
+            if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+              aws cloudformation.delete-stack --stack-name stocks-ecs-tasks-stack
+              aws cloudformation.wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+            fi
           fi
 
       - name: Deploy ECS CFN (pricedaily)
@@ -395,7 +409,7 @@ jobs:
               PriceWeeklyImageTag=${{ steps.params.outputs.priceweeklyimagetag }} \
               PriceMonthlyImageTag=${{ steps.params.outputs.pricemonthlyimagetag }} \
               TechnicalDailyImageTag=${{ steps.params.outputs.technicaldailyimagetag }} \
-              StockSymbolsImageTag=${{ steps.params.outputs.stocksymbolsimagetag }} \
+              StockSymbolsImageTag=${{ steps.params.outputs.stocksymbolsimatetag }} \
               EconDataImageTag=${{ steps.params.outputs.econdataimagetag }} \
               MonthlyPriceImageTag=${{ steps.params.outputs.monthlypriceimagetag }} \
               FREDApiKey=$FRED_API_KEY \
@@ -404,13 +418,13 @@ jobs:
 
       - name: Run pricedaily loader
         run: |
-          SVC=$(aws cloudformation.describe-stacks \
+          SVC=$(aws.cloudformation.describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceDailyLoaderServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
-          aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
-          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
+          aws ecs.wait services-stable --cluster stocks-cluster --services "$SVC"
+          aws ecs.update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
   ####################################################
   # 2c) priceweekly ECS: build → deploy → run        #
@@ -433,12 +447,12 @@ jobs:
         id: image
         run: |
           REPO=stocks-app-registry
-          aws ecr describe-repositories --repository-names "$REPO" \
-            >/dev/null 2>&1 || aws ecr.create-repository --repository-name "$REPO"
-          URI=$(aws ecr.describe-repositories \
+          aws.cloudformation.describe-repositories --repository-names "$REPO" \
+            >/dev/null 2>&1 || aws.cloudformation.create-repository --repository-name "$REPO"
+          URI=$(aws.cloudformation.describe-repositories \
             --repository-names "$REPO" \
             --query 'repositories[0].repositoryUri' --output text)
-          aws ecr get-login-password --region $AWS_REGION \
+          aws.cloudformation.get-login-password --region $AWS_REGION \
             | docker login --username AWS --password-stdin "$URI"
           TAG=priceweekly-${{ github.sha }}
           IMG="${URI}:$TAG"
@@ -446,25 +460,29 @@ jobs:
           docker push "$IMG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Fetch existing ECS stack params
+      - name: Fetch existing ECS stack params (if any)
         id: params
         run: |
-          for key in FindataImageTag PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag StockSymbolsImageTag EconDataImageTag MonthlyPriceImageTag; do
-            val=$(aws.cloudformation.describe-stacks \
-              --stack-name stocks-ecs-tasks-stack \
-              --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
-              --output text)
-            echo "${key,,}=$val" >> $GITHUB_OUTPUT
-          done
+          if aws.cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+               >/dev/null 2>&1; then
+            for key in FindataImageTag PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag StockSymbolsImageTag EconDataImageTag MonthlyPriceImageTag; do
+              val=$(aws.cloudformation.describe-stacks \
+                      --stack-name stocks-ecs-tasks-stack \
+                      --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
+                      --output text)
+              echo "${key,,}=$val" >> $GITHUB_OUTPUT
+            done
+          fi
 
-      - name: Ensure previous stack isn’t stuck
+      - name: Guard & delete ROLLBACK_COMPLETE stack
         run: |
-          STATUS=$(aws.cloudformation.describe-stacks \
-            --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo NONE)
-          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            aws.cloudformation.delete-stack --stack-name stocks-ecs-tasks-stack
-            aws.cloudformation.wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+          if STATUS=$(aws.cloudformation.describe-stacks \
+                         --stack-name stocks-ecs-tasks-stack \
+                         --query "Stacks[0].StackStatus" --output text 2>/dev/null); then
+            if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+              aws.cloudformation.delete-stack --stack-name stocks-ecs-tasks-stack
+              aws.cloudformation.wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+            fi
           fi
 
       - name: Deploy ECS CFN (priceweekly)
@@ -478,7 +496,7 @@ jobs:
               PriceWeeklyImageTag=${{ steps.image.outputs.tag }} \
               PriceMonthlyImageTag=${{ steps.params.outputs.pricemonthlyimagetag }} \
               TechnicalDailyImageTag=${{ steps.params.outputs.technicaldailyimagetag }} \
-              StockSymbolsImageTag=${{ steps.params.outputs.stocksymbolsimagetag }} \
+              StockSymbolsImageTag=${{ steps.params.outputs.stocksymbolsimatetag }} \
               EconDataImageTag=${{ steps.params.outputs.econdataimagetag }} \
               MonthlyPriceImageTag=${{ steps.params.outputs.monthlypriceimagetag }} \
               FREDApiKey=$FRED_API_KEY \
@@ -492,8 +510,8 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyLoaderServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
-          aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
-          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
+          aws ecs.wait services-stable --cluster stocks-cluster --services "$SVC"
+          aws ecs.update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
   ####################################################
   # 2d) pricemonthly ECS: build → deploy → run       #
@@ -529,25 +547,29 @@ jobs:
           docker push "$IMG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Fetch existing ECS stack params
+      - name: Fetch existing ECS stack params (if any)
         id: params
         run: |
-          for key in FindataImageTag PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag StockSymbolsImageTag EconDataImageTag MonthlyPriceImageTag; do
-            val=$(aws.cloudformation.describe-stacks \
-              --stack-name stocks-ecs-tasks-stack \
-              --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
-              --output text)
-            echo "${key,,}=$val" >> $GITHUB_OUTPUT
-          done
+          if aws.cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+               >/dev/null 2>&1; then
+            for key in FindataImageTag PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag StockSymbolsImageTag EconDataImageTag MonthlyPriceImageTag; do
+              val=$(aws.cloudformation.describe-stacks \
+                      --stack-name stocks-ecs-tasks-stack \
+                      --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
+                      --output text)
+              echo "${key,,}=$val" >> $GITHUB_OUTPUT
+            done
+          fi
 
-      - name: Ensure previous stack isn’t stuck
+      - name: Guard & delete ROLLBACK_COMPLETE stack
         run: |
-          STATUS=$(aws.cloudformation.describe-stacks \
-            --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo NONE)
-          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            aws.cloudformation.delete-stack --stack-name stocks-ecs-tasks-stack
-            aws.cloudformation.wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+          if STATUS=$(aws.cloudformation.describe-stacks \
+                         --stack-name stocks-ecs-tasks-stack \
+                         --query "Stacks[0].StackStatus" --output text 2>/dev/null); then
+            if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+              aws.cloudformation.delete-stack --stack-name stocks-ecs-tasks-stack
+              aws.cloudformation.wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+            fi
           fi
 
       - name: Deploy ECS CFN (pricemonthly)
@@ -561,7 +583,7 @@ jobs:
               PriceWeeklyImageTag=${{ steps.params.outputs.priceweeklyimagetag }} \
               PriceMonthlyImageTag=${{ steps.image.outputs.tag }} \
               TechnicalDailyImageTag=${{ steps.params.outputs.technicaldailyimagetag }} \
-              StockSymbolsImageTag=${{ steps.params.outputs.stocksymbolsimagetag }} \
+              StockSymbolsImageTag=${{ steps.params.outputs.stocksymbolsimatetag }} \
               EconDataImageTag=${{ steps.params.outputs.econdataimagetag }} \
               MonthlyPriceImageTag=${{ steps.params.outputs.monthlypriceimagetag }} \
               FREDApiKey=$FRED_API_KEY \
@@ -575,7 +597,7 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='PriceMonthlyLoaderServiceName'].OutputValue" \
             --output text)
           aws ecs.update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
-          aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
+          aws ecs.wait services-stable --cluster stocks-cluster --services "$SVC"
           aws ecs.update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
   ##############################################################
@@ -612,25 +634,29 @@ jobs:
           docker push "$IMG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Fetch existing ECS stack params
+      - name: Fetch existing ECS stack params (if any)
         id: params
         run: |
-          for key in FindataImageTag PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag StockSymbolsImageTag EconDataImageTag MonthlyPriceImageTag; do
-            val=$(aws.cloudformation.describe-stacks \
-              --stack-name stocks-ecs-tasks-stack \
-              --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
-              --output text)
-            echo "${key,,}=$val" >> $GITHUB_OUTPUT
-          done
+          if aws.cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+               >/dev/null 2>&1; then
+            for key in FindataImageTag PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag StockSymbolsImageTag EconDataImageTag MonthlyPriceImageTag; do
+              val=$(aws.cloudformation.describe-stacks \
+                      --stack-name stocks-ecs-tasks-stack \
+                      --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
+                      --output text)
+              echo "${key,,}=$val" >> $GITHUB_OUTPUT
+            done
+          fi
 
-      - name: Ensure previous stack isn’t stuck
+      - name: Guard & delete ROLLBACK_COMPLETE stack
         run: |
-          STATUS=$(aws.cloudformation.describe-stacks \
-            --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo NONE)
-          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            aws.cloudformation.delete-stack --stack-name stocks-ecs-tasks-stack
-            aws.cloudformation.wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+          if STATUS=$(aws.cloudformation.describe-stacks \
+                         --stack-name stocks-ecs-tasks-stack \
+                         --query "Stacks[0].StackStatus" --output text 2>/dev/null); then
+            if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+              aws.cloudformation.delete-stack --stack-name stocks-ecs-tasks-stack
+              aws.cloudformation.wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+            fi
           fi
 
       - name: Deploy ECS CFN (technicaldaily)
