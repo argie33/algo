@@ -540,4 +540,4 @@ jobs:
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
           aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
-          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
+          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0 
