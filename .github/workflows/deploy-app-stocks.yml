@@ -16,9 +16,9 @@ env:
   AWS_ROLE_SESSION: github-deploy
   FRED_API_KEY:     ${{ secrets.FRED_API_KEY }}
 
-########################################################################
-# 1) Detect which parts changed                                       #
-########################################################################
+################################################################################
+# 1) Detect changed components                                                 #
+################################################################################
 jobs:
   filter:
     name: Detect changed components
@@ -71,11 +71,9 @@ jobs:
               - 'requirements-loadtechnicalsdaily.txt'
               - 'Dockerfile.technicalsdaily'
 
-########################################################################
-# 2) Build & push Docker images (one job per loader)                  #
-########################################################################
-# Each of the following jobs only runs if that loader changed.
-# Each job sets an output `tag` to the new image tag.
+################################################################################
+# 2) Build & push Docker images (one job per loader)                          #
+################################################################################
 
   symbols_build:
     name: Build stock-symbols image
@@ -297,8 +295,8 @@ jobs:
         run: |
           REPO=stocks-app-registry
           aws ecr describe-repositories --repository-names "$REPO" \
-            >/dev/null 2>&1 || aws ecr create-repository --repository-name "$REPO"
-          URI=$(aws ecr.describe-repositories \
+            >/dev/null 2>&1 || aws ecr.create-repository --repository-name "$REPO"
+          URI=$(aws.ecr.describe-repositories \
                   --repository-names "$REPO" \
                   --query 'repositories[0].repositoryUri' --output text)
           aws ecr get-login-password --region $AWS_REGION \
@@ -308,13 +306,21 @@ jobs:
           docker push "$URI:$TAG"
           echo "::set-output name=tag::$TAG"
 
-########################################################################
-# 3) Deploy ECS CloudFormation (runs once)                            #
-########################################################################
+################################################################################
+# 3) **Deploy** ECS CloudFormation (waits for all builds now!)                #
+################################################################################
   deploy:
     name: Deploy ECS CloudFormation
-    needs: filter
-    # only deploy if at least one loader changed
+    needs:
+      - filter
+      - symbols_build
+      - econ_build
+      - findata_build
+      - pricedaily_build
+      - priceweekly_build
+      - pricemonthly_build
+      - technicaldaily_build
+    # only deploy if anything changed
     if: |
       needs.filter.outputs.symbols == 'true' ||
       needs.filter.outputs.econ == 'true'   ||
@@ -334,7 +340,7 @@ jobs:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      # 3a) Fetch existing parameter values for any image tags
+      # fetch existing tags for unchanged images
       - name: Fetch existing ECS stack params
         id: params
         run: |
@@ -348,72 +354,29 @@ jobs:
           fi
           cat tags.env
 
-      # 3b) Decide final tag for each loader: new build → use that tag, or else fallback to existing
       - name: Prepare final image tags
         id: final
         run: |
-          # shellcheck disable=SC1091
           source tags.env || true
 
-          # stock-symbols
-          if [[ "${{ needs.symbols_build.result }}" == "success" ]]; then
-            STOCK_TAG=${{ needs.symbols_build.outputs.tag }}
-          else
-            STOCK_TAG=$StockSymbolsImageTag
-          fi
+          # helper: pick new tag if set, else fallback
+          pick() {
+            varname="$1"  ; newtag="$2" ; oldtag="$(eval echo \"\$$1\")"
+            if [[ -n "$newtag" ]]; then
+              echo "$newtag"
+            else
+              echo "$oldtag"
+            fi
+          }
 
-          # econ-data
-          if [[ "${{ needs.econ_build.result }}" == "success" ]]; then
-            ECON_TAG=${{ needs.econ_build.outputs.tag }}
-          else
-            ECON_TAG=$EconDataImageTag
-          fi
+          echo "::set-output name=stocksymbols::$(pick StockSymbolsImageTag ${{ needs.symbols_build.outputs.tag }})"
+          echo "::set-output name=econdata::$(pick EconDataImageTag ${{ needs.econ_build.outputs.tag }})"
+          echo "::set-output name=findata::$(pick FindataImageTag ${{ needs.findata_build.outputs.tag }})"
+          echo "::set-output name=pricedaily::$(pick PriceImageTag ${{ needs.pricedaily_build.outputs.tag }})"
+          echo "::set-output name=priceweekly::$(pick PriceWeeklyImageTag ${{ needs.priceweekly_build.outputs.tag }})"
+          echo "::set-output name=pricemonthly::$(pick PriceMonthlyImageTag ${{ needs.pricemonthly_build.outputs.tag }})"
+          echo "::set-output name=technicaldaily::$(pick TechnicalDailyImageTag ${{ needs.technicaldaily_build.outputs.tag }})"
 
-          # findata
-          if [[ "${{ needs.findata_build.result }}" == "success" ]]; then
-            FINDATA_TAG=${{ needs.findata_build.outputs.tag }}
-          else
-            FINDATA_TAG=$FindataImageTag
-          fi
-
-          # pricedaily
-          if [[ "${{ needs.pricedaily_build.result }}" == "success" ]]; then
-            PRICE_TAG=${{ needs.pricedaily_build.outputs.tag }}
-          else
-            PRICE_TAG=$PriceImageTag
-          fi
-
-          # priceweekly
-          if [[ "${{ needs.priceweekly_build.result }}" == "success" ]]; then
-            PRACT_Weekly_TAG=${{ needs.priceweekly_build.outputs.tag }}
-          else
-            PRACT_Weekly_TAG=$PriceWeeklyImageTag
-          fi
-
-          # pricemonthly
-          if [[ "${{ needs.pricemonthly_build.result }}" == "success" ]]; then
-            PRACT_Monthly_TAG=${{ needs.pricemonthly_build.outputs.tag }}
-          else
-            PRACT_Monthly_TAG=$PriceMonthlyImageTag
-          fi
-
-          # technicaldaily
-          if [[ "${{ needs.technicaldaily_build.result }}" == "success" ]]; then
-            TECH_TAG=${{ needs.technicaldaily_build.outputs.tag }}
-          else
-            TECH_TAG=$TechnicalDailyImageTag
-          fi
-
-          # expose them as outputs
-          echo "::set-output name=stocksymbols::$STOCK_TAG"
-          echo "::set-output name=econdata::$ECON_TAG"
-          echo "::set-output name=findata::$FINDATA_TAG"
-          echo "::set-output name=pricedaily::$PRICE_TAG"
-          echo "::set-output name=priceweekly::$PRACT_Weekly_TAG"
-          echo "::set-output name=pricemonthly::$PRACT_Monthly_TAG"
-          echo "::set-output name=technicaldaily::$TECH_TAG"
-
-      # 3c) Single, unified CFN deploy
       - name: Deploy ECS stack
         run: |
           aws cloudformation deploy \
@@ -431,24 +394,22 @@ jobs:
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
 
-########################################################################
-# 4) Run each changed loader                                          #
-########################################################################
+################################################################################
+# 4) Run each changed loader                                                  #
+################################################################################
+
   run_symbols:
     name: Run stock-symbols loader
     needs: deploy
     if: ${{ needs.filter.outputs.symbols == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Configure AWS creds
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - name: Invoke loader
-        run: |
+      - run: |
           SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='StockSymbolsServiceName'].OutputValue" \
             --output text)
@@ -462,15 +423,12 @@ jobs:
     if: ${{ needs.filter.outputs.econ == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Configure AWS creds
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - name: Invoke loader
-        run: |
+      - run: |
           SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='EconDataServiceName'].OutputValue" \
             --output text)
@@ -484,15 +442,12 @@ jobs:
     if: ${{ needs.filter.outputs.findata == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Configure AWS creds
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - name: Invoke loader
-        run: |
+      - run: |
           SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='FindataServiceName'].OutputValue" \
             --output text)
@@ -506,15 +461,12 @@ jobs:
     if: ${{ needs.filter.outputs.pricedaily == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Configure AWS creds
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - name: Invoke loader
-        run: |
+      - run: |
           SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceServiceName'].OutputValue" \
             --output text)
@@ -528,15 +480,12 @@ jobs:
     if: ${{ needs.filter.outputs.priceweekly == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Configure AWS creds
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - name: Invoke loader
-        run: |
+      - run: |
           SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyServiceName'].OutputValue" \
             --output text)
@@ -550,15 +499,12 @@ jobs:
     if: ${{ needs.filter.outputs.pricemonthly == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Configure AWS creds
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - name: Invoke loader
-        run: |
+      - run: |
           SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PricemonthlyServiceName'].OutputValue" \
             --output text)
@@ -572,16 +518,13 @@ jobs:
     if: ${{ needs.filter.outputs.technicaldaily == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Configure AWS creds
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - name: Invoke loader
-        run: |
-          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+      - run: |
+          SVC=$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='TechnicalDailyServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
