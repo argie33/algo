@@ -41,7 +41,7 @@ Parameters:
 Resources:
 
   ################################################################
-  # A) CloudWatch LogGroups                                       #
+  # A) CloudWatch LogGroups                                      #
   ################################################################
   StockSymbolsLogGroup:
     Type: AWS::Logs::LogGroup
@@ -237,8 +237,8 @@ Resources:
           AssignPublicIp: ENABLED
 
   ###########################################################
-  # E) existing findata, pricedaily, priceweekly,           #
-  #    pricemonthly & technicaldaily TaskDefinitions & Svcs #
+  # E) findata, pricedaily, priceweekly, pricemonthly &     #
+  #    technicaldaily TaskDefinitions & Services            #
   ###########################################################
   FindataTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -329,7 +329,7 @@ Resources:
               awslogs-region:        !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
-  PricemailerService:
+  PriceLoaderService:
     Type: AWS::ECS::Service
     Properties:
       ServiceName: pricedaily-loader-service
@@ -524,7 +524,7 @@ Outputs:
   PriceTaskDefArn:
     Value: !Ref PriceTaskDefinition
   PriceServiceName:
-    Value: !GetAtt PricemailerService.Name
+    Value: !GetAtt PriceLoaderService.Name
 
   PriceWeeklyTaskDefArn:
     Value: !Ref PriceWeeklyTaskDefinition
