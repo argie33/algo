@@ -154,4 +154,4 @@ Outputs:
     Description: ARN of ECS Task Execution Role
     Value: !GetAtt EcsTaskExecutionRole.Arn
     Export:
-      Name: StocksApp-EcsTaskExecutionRoleArn
+      Name: StocksApp-EcsTaskExecutionRoleArn 
