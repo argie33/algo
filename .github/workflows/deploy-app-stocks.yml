@@ -1,13 +1,14 @@
 name: deploy-app-stocks
 
-permissions:
-  id-token: write
-  contents: read
-
+# Trigger on any branch push
 on:
   push:
     branches:
-      - "**"
+      - '*'
+
+permissions:
+  id-token: write
+  contents: read
 
 env:
   AWS_REGION:       us-east-1
@@ -16,25 +17,57 @@ env:
   FRED_API_KEY:     ${{ secrets.FRED_API_KEY }}
 
 jobs:
-  ##########################################
-  # 0) Filter — detect exactly what changed #
-  ##########################################
+  ###################################################
+  # 1) Deploy the App stack (RDS + ECS cluster +    #
+  #    Task Execution Role) to create all exports  #
+  ###################################################
+  deploy_app:
+    name: Deploy Application Stack
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Deploy App CloudFormation stack
+        run: |
+          aws cloudformation deploy \
+            --stack-name stocks-app-stack \
+            --template-file template-app.yml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --parameter-overrides \
+              RDSUsername=${{ secrets.RDS_USERNAME }} \
+              RDSPassword=${{ secrets.RDS_PASSWORD }} \
+              FREDApiKey=${{ env.FRED_API_KEY }}
+
+  ###################################################
+  # 2) Filter — detect exactly what changed         #
+  #    (must wait for deploy_app to create exports)#
+  ###################################################
   filter:
+    name: Detect changed components
+    needs: deploy_app
     runs-on: ubuntu-latest
     outputs:
-      symbols:        ${{ steps.f.outputs.symbols }}
-      econ:           ${{ steps.f.outputs.econ }}
-      findata:        ${{ steps.f.outputs.findata }}
-      pricedaily:     ${{ steps.f.outputs.pricedaily }}
-      priceweekly:    ${{ steps.f.outputs.priceweekly }}
-      pricemonthly:   ${{ steps.f.outputs.pricemonthly }}
-      technicaldaily: ${{ steps.f.outputs.technicaldaily }}
+      symbols:        ${{ steps.filter.outputs.symbols }}
+      econ:           ${{ steps.filter.outputs.econ }}
+      findata:        ${{ steps.filter.outputs.findata }}
+      pricedaily:     ${{ steps.filter.outputs.pricedaily }}
+      priceweekly:    ${{ steps.filter.outputs.priceweekly }}
+      pricemonthly:   ${{ steps.filter.outputs.pricemonthly }}
+      technicaldaily: ${{ steps.filter.outputs.technicaldaily }}
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      - id: f
+      - id: filter
         name: Detect which parts changed
         uses: dorny/paths-filter@v2
         with:
@@ -62,7 +95,7 @@ jobs:
               - 'Dockerfile.priceweekly'
             pricemonthly:
               - 'loadpricemonthly.py'
-              - 'requirements-loadpricemonthly.txt'
+              - 'requirements-pricemonthly.txt'
               - 'Dockerfile.pricemonthly'
             technicaldaily:
               - 'loadtechnicalsdaily.py'
@@ -71,14 +104,13 @@ jobs:
 
 ################################################################################
 # Reusable snippet — insert these two steps before every `deploy` step below:   #
-#                                                                              #
 #   - Fetch existing ECS stack params (if any)                                 #
-#   - Guard & delete ROLLBACK_COMPLETE stack                                    #
+#   - Guard & delete ROLLBACK_COMPLETE state                                   #
 ################################################################################
 
-  ####################################################
-  # 1a) stock-symbols ECS: build → deploy → run      #
-  ####################################################
+  ###########################################################
+  # 3a) stock-symbols ECS: build → deploy → run            #
+  ###########################################################
   symbols:
     needs: filter
     if: ${{ needs.filter.outputs.symbols == 'true' }}
@@ -97,17 +129,16 @@ jobs:
         id: image
         run: |
           REPO=stocks-app-registry
-          aws ecr describe-repositories --repository-names "$REPO" \
-            >/dev/null 2>&1 || aws ecr create-repository --repository-name "$REPO"
+          aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 \
+            || aws ecr create-repository --repository-name "$REPO"
           URI=$(aws ecr describe-repositories \
-            --repository-names "$REPO" \
-            --query 'repositories[0].repositoryUri' --output text)
+                  --repository-names "$REPO" \
+                  --query 'repositories[0].repositoryUri' --output text)
           aws ecr get-login-password --region $AWS_REGION \
             | docker login --username AWS --password-stdin "$URI"
           TAG=stocksymbols-${{ github.sha }}
-          IMG="${URI}:$TAG"
-          docker build -f Dockerfile.stocksymbols -t "$IMG" .
-          docker push "$IMG"
+          docker build -f Dockerfile.stocksymbols -t "$URI:$TAG" .
+          docker push "$URI:$TAG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Fetch existing ECS stack params (if any)
@@ -122,8 +153,6 @@ jobs:
                       --output text)
               echo "${key,,}=$val" >> $GITHUB_OUTPUT
             done
-          else
-            echo "Stack not found, skipping parameter fetch"
           fi
 
       - name: Guard & delete ROLLBACK_COMPLETE stack
@@ -165,9 +194,9 @@ jobs:
           aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
-  ####################################################
-  # 1b) econ-data ECS: build → deploy → run          #
-  ####################################################
+  ###########################################################
+  # 3b) econ-data ECS: build → deploy → run                #
+  ###########################################################
   econ:
     needs: filter
     if: ${{ needs.filter.outputs.econ == 'true' }}
@@ -186,17 +215,16 @@ jobs:
         id: image
         run: |
           REPO=stocks-app-registry
-          aws ecr describe-repositories --repository-names "$REPO" \
-            >/dev/null 2>&1 || aws ecr create-repository --repository-name "$REPO"
+          aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 \
+            || aws ecr create-repository --repository-name "$REPO"
           URI=$(aws ecr describe-repositories \
-            --repository-names "$REPO" \
-            --query 'repositories[0].repositoryUri' --output text)
+                  --repository-names "$REPO" \
+                  --query 'repositories[0].repositoryUri' --output text)
           aws ecr get-login-password --region $AWS_REGION \
             | docker login --username AWS --password-stdin "$URI"
           TAG=econdata-${{ github.sha }}
-          IMG="${URI}:$TAG"
-          docker build -f Dockerfile.econdata -t "$IMG" .
-          docker push "$IMG"
+          docker build -f Dockerfile.econdata -t "$URI:$TAG" .
+          docker push "$URI:$TAG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Fetch existing ECS stack params (if any)
@@ -235,7 +263,7 @@ jobs:
               PriceWeeklyImageTag=${{ steps.params.outputs.priceweeklyimagetag }} \
               PriceMonthlyImageTag=${{ steps.params.outputs.pricemonthlyimagetag }} \
               TechnicalDailyImageTag=${{ steps.params.outputs.technicaldailyimagetag }} \
-              StockSymbolsImageTag=${{ steps.params.outputs.stocksymbolsimagetag }} \
+              StockSymbolsImageTag=${{ steps.params.outputs.stocksymbolsimatetag }} \
               EconDataImageTag=${{ steps.image.outputs.tag }} \
               MonthlyPriceImageTag=${{ steps.params.outputs.monthlypriceimagetag }} \
               FREDApiKey=$FRED_API_KEY \
@@ -244,7 +272,7 @@ jobs:
 
       - name: Run econ-data loader
         run: |
-          SVC=$(aws cloudformation.describe-stacks \
+          SVC=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='EconDataServiceName'].OutputValue" \
             --output text)
@@ -252,9 +280,9 @@ jobs:
           aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
-  ####################################################
-  # 2a) findata ECS: build → deploy → run           #
-  ####################################################
+  ###########################################################
+  # 3c) findata ECS: build → deploy → run                  #
+  ###########################################################
   findata:
     needs: filter
     if: ${{ needs.filter.outputs.findata == 'true' }}
@@ -273,17 +301,16 @@ jobs:
         id: image
         run: |
           REPO=stocks-app-registry
-          aws ecr describe-repositories --repository-names "$REPO" \
-            >/dev/null 2>&1 || aws ecr create-repository --repository-name "$REPO"
-          URI=$(aws ecr.describe-repositories \
-            --repository-names "$REPO" \
-            --query 'repositories[0].repositoryUri' --output text)
+          aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 \
+            || aws ecr create-repository --repository-name "$REPO"
+          URI=$(aws ecr describe-repositories \
+                  --repository-names "$REPO" \
+                  --query 'repositories[0].repositoryUri' --output text)
           aws ecr get-login-password --region $AWS_REGION \
             | docker login --username AWS --password-stdin "$URI"
           TAG=findata-${{ github.sha }}
-          IMG="${URI}:$TAG"
-          docker build -f Dockerfile.findata -t "$IMG" .
-          docker push "$IMG"
+          docker build -f Dockerfile.findata -t "$URI:$TAG" .
+          docker push "$URI:$TAG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Fetch existing ECS stack params (if any)
@@ -306,8 +333,8 @@ jobs:
                          --stack-name stocks-ecs-tasks-stack \
                          --query "Stacks[0].StackStatus" --output text 2>/dev/null); then
             if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-              aws cloudformation.delete-stack --stack-name stocks-ecs-tasks-stack
-              aws cloudformation.wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+              aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
+              aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
             fi
           fi
 
@@ -331,7 +358,7 @@ jobs:
 
       - name: Run findata loader
         run: |
-          SVC=$(aws cloudformation.describe-stacks \
+          SVC=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='FindataLoaderServiceName'].OutputValue" \
             --output text)
@@ -339,9 +366,9 @@ jobs:
           aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
-  ####################################################
-  # 2b) pricedaily ECS: build → deploy → run         #
-  ####################################################
+  ###########################################################
+  # 3d) pricedaily ECS: build → deploy → run                #
+  ###########################################################
   pricedaily:
     needs: filter
     if: ${{ needs.filter.outputs.pricedaily == 'true' }}
@@ -360,26 +387,25 @@ jobs:
         id: image
         run: |
           REPO=stocks-app-registry
-          aws ecr.describe-repositories --repository-names "$REPO" \
-            >/dev/null 2>&1 || aws ecr.create-repository --repository-name "$REPO"
-          URI=$(aws ecr.describe-repositories \
-            --repository-names "$REPO" \
-            --query 'repositories[0].repositoryUri' --output text)
-          aws ecr.get-login-password --region $AWS_REGION \
+          aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 \
+            || aws ecr create-repository --repository-name "$REPO"
+          URI=$(aws ecr describe-repositories \
+                  --repository-names "$REPO" \
+                  --query 'repositories[0].repositoryUri' --output text)
+          aws ecr get-login-password --region $AWS_REGION \
             | docker login --username AWS --password-stdin "$URI"
           TAG=pricedaily-${{ github.sha }}
-          IMG="${URI}:$TAG"
-          docker build -f Dockerfile.pricedaily -t "$IMG" .
-          docker push "$IMG"
+          docker build -f Dockerfile.pricedaily -t "$URI:$TAG" .
+          docker push "$URI:$TAG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Fetch existing ECS stack params (if any)
         id: params
         run: |
-          if aws.cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
                >/dev/null 2>&1; then
             for key in FindataImageTag PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag StockSymbolsImageTag EconDataImageTag MonthlyPriceImageTag; do
-              val=$(aws.cloudformation.describe-stacks \
+              val=$(aws cloudformation describe-stacks \
                       --stack-name stocks-ecs-tasks-stack \
                       --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
                       --output text)
@@ -389,12 +415,12 @@ jobs:
 
       - name: Guard & delete ROLLBACK_COMPLETE stack
         run: |
-          if STATUS=$(aws cloudformation.describe-stacks \
+          if STATUS=$(aws cloudformation describe-stacks \
                          --stack-name stocks-ecs-tasks-stack \
                          --query "Stacks[0].StackStatus" --output text 2>/dev/null); then
             if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-              aws cloudformation.delete-stack --stack-name stocks-ecs-tasks-stack
-              aws cloudformation.wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+              aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
+              aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
             fi
           fi
 
@@ -418,17 +444,17 @@ jobs:
 
       - name: Run pricedaily loader
         run: |
-          SVC=$(aws.cloudformation.describe-stacks \
+          SVC=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceDailyLoaderServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
-          aws ecs.wait services-stable --cluster stocks-cluster --services "$SVC"
-          aws ecs.update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
+          aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
+          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
-  ####################################################
-  # 2c) priceweekly ECS: build → deploy → run        #
-  ####################################################
+  ###########################################################
+  # 3e) priceweekly ECS: build → deploy → run               #
+  ###########################################################
   priceweekly:
     needs: filter
     if: ${{ needs.filter.outputs.priceweekly == 'true' }}
@@ -447,26 +473,25 @@ jobs:
         id: image
         run: |
           REPO=stocks-app-registry
-          aws.cloudformation.describe-repositories --repository-names "$REPO" \
-            >/dev/null 2>&1 || aws.cloudformation.create-repository --repository-name "$REPO"
-          URI=$(aws.cloudformation.describe-repositories \
-            --repository-names "$REPO" \
-            --query 'repositories[0].repositoryUri' --output text)
-          aws.cloudformation.get-login-password --region $AWS_REGION \
+          aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 \
+            || aws ecr create-repository --repository-name "$REPO"
+          URI=$(aws ecr describe-repositories \
+                  --repository-names "$REPO" \
+                  --query 'repositories[0].repositoryUri' --output text)
+          aws ecr get-login-password --region $AWS_REGION \
             | docker login --username AWS --password-stdin "$URI"
           TAG=priceweekly-${{ github.sha }}
-          IMG="${URI}:$TAG"
-          docker build -f Dockerfile.priceweekly -t "$IMG" .
-          docker push "$IMG"
+          docker build -f Dockerfile.priceweekly -t "$URI:$TAG" .
+          docker push "$URI:$TAG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Fetch existing ECS stack params (if any)
         id: params
         run: |
-          if aws.cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
                >/dev/null 2>&1; then
             for key in FindataImageTag PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag StockSymbolsImageTag EconDataImageTag MonthlyPriceImageTag; do
-              val=$(aws.cloudformation.describe-stacks \
+              val=$(aws cloudformation describe-stacks \
                       --stack-name stocks-ecs-tasks-stack \
                       --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
                       --output text)
@@ -476,18 +501,18 @@ jobs:
 
       - name: Guard & delete ROLLBACK_COMPLETE stack
         run: |
-          if STATUS=$(aws.cloudformation.describe-stacks \
+          if STATUS=$(aws cloudformation describe-stacks \
                          --stack-name stocks-ecs-tasks-stack \
                          --query "Stacks[0].StackStatus" --output text 2>/dev/null); then
             if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-              aws.cloudformation.delete-stack --stack-name stocks-ecs-tasks-stack
-              aws.cloudformation.wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+              aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
+              aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
             fi
           fi
 
       - name: Deploy ECS CFN (priceweekly)
         run: |
-          aws.cloudformation deploy \
+          aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
             --template-file template-app-ecs-tasks.yml \
             --parameter-overrides \
@@ -505,17 +530,17 @@ jobs:
 
       - name: Run priceweekly loader
         run: |
-          SVC=$(aws.cloudformation.describe-stacks \
+          SVC=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyLoaderServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
-          aws ecs.wait services-stable --cluster stocks-cluster --services "$SVC"
-          aws ecs.update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
+          aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
+          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
-  ####################################################
-  # 2d) pricemonthly ECS: build → deploy → run       #
-  ####################################################
+  ###########################################################
+  # 3f) pricemonthly ECS: build → deploy → run              #
+  ###########################################################
   pricemonthly:
     needs: filter
     if: ${{ needs.filter.outputs.pricemonthly == 'true' }}
@@ -534,26 +559,25 @@ jobs:
         id: image
         run: |
           REPO=stocks-app-registry
-          aws.cloudformation.describe-repositories --repository-names "$REPO" \
-            >/dev/null 2>&1 || aws.cloudformation.create-repository --repository-name "$REPO"
-          URI=$(aws.cloudformation.describe-repositories \
-            --repository-names "$REPO" \
-            --query 'repositories[0].repositoryUri' --output text)
-          aws.cloudformation.get-login-password --region $AWS_REGION \
+          aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 \
+            || aws ecr create-repository --repository-name "$REPO"
+          URI=$(aws ecr describe-repositories \
+                  --repository-names "$REPO" \
+                  --query 'repositories[0].repositoryUri' --output text)
+          aws ecr get-login-password --region $AWS_REGION \
             | docker login --username AWS --password-stdin "$URI"
           TAG=pricemonthly-${{ github.sha }}
-          IMG="${URI}:$TAG"
-          docker build -f Dockerfile.pricemonthly -t "$IMG" .
-          docker push "$IMG"
+          docker build -f Dockerfile.pricemonthly -t "$URI:$TAG" .
+          docker push "$URI:$TAG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Fetch existing ECS stack params (if any)
         id: params
         run: |
-          if aws.cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
                >/dev/null 2>&1; then
             for key in FindataImageTag PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag StockSymbolsImageTag EconDataImageTag MonthlyPriceImageTag; do
-              val=$(aws.cloudformation.describe-stacks \
+              val=$(aws cloudformation.describe-stacks \
                       --stack-name stocks-ecs-tasks-stack \
                       --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
                       --output text)
@@ -563,18 +587,18 @@ jobs:
 
       - name: Guard & delete ROLLBACK_COMPLETE stack
         run: |
-          if STATUS=$(aws.cloudformation.describe-stacks \
+          if STATUS=$(aws cloudformation describe-stacks \
                          --stack-name stocks-ecs-tasks-stack \
                          --query "Stacks[0].StackStatus" --output text 2>/dev/null); then
             if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-              aws.cloudformation.delete-stack --stack-name stocks-ecs-tasks-stack
-              aws.cloudformation.wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+              aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
+              aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
             fi
           fi
 
       - name: Deploy ECS CFN (pricemonthly)
         run: |
-          aws.cloudformation.deploy \
+          aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
             --template-file template-app-ecs-tasks.yml \
             --parameter-overrides \
@@ -592,17 +616,17 @@ jobs:
 
       - name: Run pricemonthly loader
         run: |
-          SVC=$(aws.cloudformation.describe-stacks \
+          SVC=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceMonthlyLoaderServiceName'].OutputValue" \
             --output text)
-          aws ecs.update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
-          aws ecs.wait services-stable --cluster stocks-cluster --services "$SVC"
-          aws ecs.update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
+          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
+          aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
+          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
-  ##############################################################
-  # 2e) technicaldaily ECS: build → deploy → run              #
-  ##############################################################
+  ###########################################################
+  # 3g) technicaldaily ECS: build → deploy → run            #
+  ###########################################################
   technicaldaily:
     needs: filter
     if: ${{ needs.filter.outputs.technicaldaily == 'true' }}
@@ -621,26 +645,25 @@ jobs:
         id: image
         run: |
           REPO=stocks-app-registry
-          aws.cloudformation.describe-repositories --repository-names "$REPO" \
-            >/dev/null 2>&1 || aws.cloudformation.create-repository --repository-name "$REPO"
-          URI=$(aws.cloudformation.describe-repositories \
-            --repository-names "$REPO" \
-            --query 'repositories[0].repositoryUri' --output text)
-          aws.cloudformation.get-login-password --region $AWS_REGION \
+          aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 \
+            || aws ecr create-repository --repository-name "$REPO"
+          URI=$(aws ecr describe-repositories \
+                  --repository-names "$REPO" \
+                  --query 'repositories[0].repositoryUri' --output text)
+          aws ecr get-login-password --region $AWS_REGION \
             | docker login --username AWS --password-stdin "$URI"
           TAG=technicaldaily-${{ github.sha }}
-          IMG="${URI}:$TAG"
-          docker build -f Dockerfile.technicalsdaily -t "$IMG" .
-          docker push "$IMG"
+          docker build -f Dockerfile.technicalsdaily -t "$URI:$TAG" .
+          docker push "$URI:$TAG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Fetch existing ECS stack params (if any)
         id: params
         run: |
-          if aws.cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
                >/dev/null 2>&1; then
             for key in FindataImageTag PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag StockSymbolsImageTag EconDataImageTag MonthlyPriceImageTag; do
-              val=$(aws.cloudformation.describe-stacks \
+              val=$(aws cloudformation describe-stacks \
                       --stack-name stocks-ecs-tasks-stack \
                       --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
                       --output text)
@@ -650,18 +673,18 @@ jobs:
 
       - name: Guard & delete ROLLBACK_COMPLETE stack
         run: |
-          if STATUS=$(aws.cloudformation.describe-stacks \
+          if STATUS=$(aws cloudformation describe-stacks \
                          --stack-name stocks-ecs-tasks-stack \
                          --query "Stacks[0].StackStatus" --output text 2>/dev/null); then
             if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-              aws.cloudformation.delete-stack --stack-name stocks-ecs-tasks-stack
-              aws.cloudformation.wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+              aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
+              aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
             fi
           fi
 
       - name: Deploy ECS CFN (technicaldaily)
         run: |
-          aws.cloudformation.deploy \
+          aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
             --template-file template-app-ecs-tasks.yml \
             --parameter-overrides \
@@ -679,10 +702,10 @@ jobs:
 
       - name: Run technicaldaily loader
         run: |
-          SVC=$(aws.cloudformation.describe-stacks \
+          SVC=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='TechnicalDailyLoaderServiceName'].OutputValue" \
             --output text)
-          aws ecs.update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
-          aws ecs.wait services-stable --cluster stocks-cluster --services "$SVC"
-          aws ecs.update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
+          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
+          aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
+          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
