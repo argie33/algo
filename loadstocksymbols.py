@@ -19,15 +19,11 @@ if not logger.handlers:
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
     logger.addHandler(handler)
 
-# ─── Script metadata ─────────────────────────────────────────────────────────────
-SCRIPT_NAME = "loadstocksymbols.py"
-
-# ─── Runtime configuration ────────────────────────────────────────────────────────
+# ─── Script metadata & configuration ─────────────────────────────────────────────
+SCRIPT_NAME   = os.path.basename(__file__)
 DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
-_secret_cache = None   # cache the secret JSON
-_conn_cache   = None   # cache the psycopg2 connection
 
-# ─── Data URLs & regex for classification ────────────────────────────────────────
+# ─── NASDAQ data URLs & exclusion patterns ────────────────────────────────────────
 NASDAQ_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
 OTHER_URL  = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
 
@@ -127,11 +123,10 @@ patterns = [
     r"\bcontingent\b",
     r"\bii inc\b",
     r"\bnasdaq symbology\b",
-    r"\bsymbology\b",    
+    r"\bsymbology rer\b",    
 ]
 
 def get_requests_session():
-    """Return a requests.Session with retries & backoff."""
     s = requests.Session()
     retries = Retry(
         total=3,
@@ -145,7 +140,6 @@ def get_requests_session():
     return s
 
 def download_text_file(url):
-    """Fetch a text file with connect/read timeouts and retries."""
     logger.info("Downloading %s", url)
     session = get_requests_session()
     resp = session.get(url, timeout=(5, 15))
@@ -154,7 +148,6 @@ def download_text_file(url):
     return resp.text
 
 def parse_listed(text, source):
-    """Parse a NASDAQ/Other list into record dicts."""
     rows = []
     key = "Symbol" if source == "NASDAQ" else "ACT Symbol"
     reader = csv.DictReader(text.splitlines(), delimiter="|")
@@ -164,18 +157,19 @@ def parse_listed(text, source):
         name = row["Security Name"].strip()
         if row.get("ETF","").upper() == "Y":
             continue
-        match = any(re.search(p, name, flags=re.IGNORECASE) for p in patterns)
+        is_other = any(re.search(p, name, flags=re.IGNORECASE) for p in patterns)
+        lot = None
         try:
             lot = int(row.get("Round Lot Size","0") or 0)
         except ValueError:
-            lot = None
+            pass
         rows.append({
             "symbol":         row[key].strip(),
             "security_name":  name,
             "exchange":       source,
             "test_issue":     row.get("Test Issue","").strip(),
             "round_lot_size": lot,
-            "security_type":  "other security" if match else "standard"
+            "security_type":  "other security" if is_other else "standard"
         })
     logger.info("Parsed %d rows from %s", len(rows), source)
     return rows
@@ -186,26 +180,39 @@ def dedupe(records):
         seen.setdefault(r["symbol"], r)
     return list(seen.values())
 
-def _load_secret():
+# ─── Database connection helpers ────────────────────────────────────────────────
+_secret_cache = None
+_conn_cache   = None
+
+def get_db_creds():
+    """Fetch DB credentials from Secrets Manager, just like econdata."""
     global _secret_cache
     if _secret_cache is None:
-        sm = boto3.client("secretsmanager")
+        sm   = boto3.client("secretsmanager")
         resp = sm.get_secret_value(SecretId=DB_SECRET_ARN)
         _secret_cache = json.loads(resp["SecretString"])
-    return _secret_cache
+    return (
+        _secret_cache["username"],
+        _secret_cache["password"],
+        _secret_cache["host"],
+        int(_secret_cache["port"]),
+        _secret_cache["dbname"]
+    )
 
 def _get_conn():
+    """Get or create a reusable psycopg2 connection with DictCursor."""
     global _conn_cache
     if _conn_cache and _conn_cache.closed == 0:
         return _conn_cache
-    s = _load_secret()
-    logger.info("Connecting to Postgres at %s:%s/%s", s["host"], s["port"], s["dbname"])
+
+    user, pwd, host, port, db = get_db_creds()
+    logger.info("Connecting to Postgres at %s:%s/%s", host, port, db)
     _conn_cache = psycopg2.connect(
-        host           = s["host"],
-        port           = s["port"],
-        dbname         = s["dbname"],
-        user           = s["username"],
-        password       = s["password"],
+        host           = host,
+        port           = port,
+        dbname         = db,
+        user           = user,
+        password       = pwd,
         sslmode        = "require",
         cursor_factory = DictCursor
     )
@@ -215,6 +222,7 @@ def _get_conn():
 def insert_into_postgres(records):
     conn = _get_conn()
     with conn.cursor() as cur:
+        # ensure tables exist
         cur.execute("""
             CREATE TABLE IF NOT EXISTS stock_symbols (
               symbol          VARCHAR(50) PRIMARY KEY,
@@ -231,6 +239,7 @@ def insert_into_postgres(records):
               last_run    TIMESTAMPTZ
             );
         """)
+        # bulk upsert
         rows = [
             (r["symbol"], r["security_name"], r["exchange"],
              r["test_issue"], r["round_lot_size"], r["security_type"])
@@ -247,6 +256,7 @@ def insert_into_postgres(records):
               round_lot_size = EXCLUDED.round_lot_size,
               security_type  = EXCLUDED.security_type;
         """, rows)
+        # record last run
         cur.execute("""
             INSERT INTO last_updated (script_name,last_run)
             VALUES (%s,NOW())
@@ -257,14 +267,20 @@ def insert_into_postgres(records):
 def handler(event, context):
     logger.info("🔄 loadstocksymbols invoked")
     try:
-        nas = parse_listed(download_text_file(NASDAQ_URL), "NASDAQ")
-        oth = parse_listed(download_text_file(OTHER_URL),  "Other")
+        nas      = parse_listed(download_text_file(NASDAQ_URL), "NASDAQ")
+        oth      = parse_listed(download_text_file(OTHER_URL),  "Other")
         combined = dedupe(nas + oth)
-        final = [r for r in combined if "$" not in r["symbol"]]
+        final    = [r for r in combined if "$" not in r["symbol"]]
         logger.info("Deduped %d → final %d", len(combined), len(final))
         insert_into_postgres(final)
         logger.info("✅ Upserted %d symbols", len(final))
         return {"statusCode": 200, "body": json.dumps({"processed": len(final)})}
+
     except Exception:
         logger.exception("❌ loadstocksymbols failed")
         return {"statusCode": 500, "body": json.dumps({"error": "see CloudWatch logs"})}
+
+# optional local runner
+if __name__ == "__main__":
+    import sys
+    handler({}, None)
