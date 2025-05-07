@@ -1,499 +1,230 @@
-    AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Core infrastructure stack – IAM, VPC, Subnets, Internet Gateway, Bastion host (Spot ASG),
-  auto-shutdown Lambda, ECR registry, S3 code bucket, and VPC endpoints for RDS/ECS/Lambda/S3.
-  **NAT Gateway removed to save cost** (private subnets rely on VPC endpoints).
+  Application stack – RDS (public), Secrets (DB creds),
+  three Lambdas (symbols‑loader, economic‑data loader & monthly‑price loader),
+  and ECS cluster, all in public subnets. 
 
 Parameters:
+  CodeKey:
+    Type: String
+    Description: S3 key of the symbols‑loader Lambda ZIP
+  EconomicCodeKey:
+    Type: String
+    Description: S3 key of the economic‑data loader Lambda ZIP
+  MonthlyCodeKey:
+    Type: String
+    Description: S3 key of the monthly‑price loader Lambda ZIP
+  RDSUsername:
+    Type: String
+    Description: RDS master username
+  RDSPassword:
+    Type: String
+    NoEcho: true
+    Description: RDS master password
+  FREDApiKey:
+    Type: String
+    NoEcho: true
+    Description: FRED API key for economic‑data loader
   VpcCidr:
     Type: String
-    Default: "10.0.0.0/16"
-  PublicSubnetCidr1:
-    Type: String
-    Default: "10.0.1.0/24"
-  PublicSubnetCidr2:
-    Type: String
-    Default: "10.0.2.0/24"
-  PrivateSubnetCidr1:
-    Type: String
-    Default: "10.0.101.0/24"
-  PrivateSubnetCidr2:
-    Type: String
-    Default: "10.0.102.0/24"
-  DBStackName:
-    Type: String
-    Default: "stocks-db-lambda-stack"
-  DBSecretName:
-    Type: String
-    Default: "stocks-db-credentials"
+    Default: "0.0.0.0/0"
+    Description: CIDR block allowed to connect to RDS (public access)
 
 Resources:
 
-  ### 1) OIDC provider for GitHub Actions ###
-  GitHubOidcProvider:
-    Type: AWS::IAM::OIDCProvider
+  ### RDS Subnet Group (only public subnets) ###
+  StocksDBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
-      Url: https://token.actions.githubusercontent.com
-      ClientIdList:
-        - sts.amazonaws.com
-      ThumbprintList:
-        - 6938fd4d98bab03faadb97b34396831e3780aea1
+      DBSubnetGroupDescription: Public subnet group for RDS
+      SubnetIds:
+        - !ImportValue StocksCore-PublicSubnet1Id
+        - !ImportValue StocksCore-PublicSubnet2Id
 
-  ### 2) Role that GitHub Actions will assume ###
-  GitHubActionsDeployRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: GitHubActionsDeployRole
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Federated: !Ref GitHubOidcProvider
-            Action: sts:AssumeRoleWithWebIdentity
-            Condition:
-              StringEquals:
-                "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
-              StringLike:
-                "token.actions.githubusercontent.com:sub": "repo:*/*:ref:refs/heads/*"
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AdministratorAccess
-
-  ### 3) Lambda execution role ###
-  LambdaExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: lambda-execution-admin-role
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AdministratorAccess
-
-  ### VPC & Networking ###
-  StocksVPC:
-    Type: AWS::EC2::VPC
-    Properties:
-      CidrBlock: !Ref VpcCidr
-      EnableDnsSupport: true
-      EnableDnsHostnames: true
-      Tags:
-        - Key: Name
-          Value: stocks-vpc
-
-  StocksIGW:
-    Type: AWS::EC2::InternetGateway
-
-  VPCGatewayAttachment:
-    Type: AWS::EC2::VPCGatewayAttachment
-    Properties:
-      VpcId: !Ref StocksVPC
-      InternetGatewayId: !Ref StocksIGW
-
-  PublicSubnet1:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref StocksVPC
-      CidrBlock: !Ref PublicSubnetCidr1
-      AvailabilityZone: !Select [0, !GetAZs '']
-      MapPublicIpOnLaunch: true
-
-  PublicSubnet2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref StocksVPC
-      CidrBlock: !Ref PublicSubnetCidr2
-      AvailabilityZone: !Select [1, !GetAZs '']
-      MapPublicIpOnLaunch: true
-
-  PublicRouteTable:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref StocksVPC
-
-  PublicDefaultRoute:
-    Type: AWS::EC2::Route
-    DependsOn: VPCGatewayAttachment
-    Properties:
-      RouteTableId: !Ref PublicRouteTable
-      DestinationCidrBlock: "0.0.0.0/0"
-      GatewayId: !Ref StocksIGW
-
-  PubSubnet1RouteAssoc:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PublicSubnet1
-      RouteTableId: !Ref PublicRouteTable
-
-  PubSubnet2RouteAssoc:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PublicSubnet2
-      RouteTableId: !Ref PublicRouteTable
-
-  PrivateSubnet1:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref StocksVPC
-      CidrBlock: !Ref PrivateSubnetCidr1
-      AvailabilityZone: !Select [0, !GetAZs '']
-      MapPublicIpOnLaunch: false
-
-  PrivateSubnet2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref StocksVPC
-      CidrBlock: !Ref PrivateSubnetCidr2
-      AvailabilityZone: !Select [1, !GetAZs '']
-      MapPublicIpOnLaunch: false
-
-  PrivateRouteTable:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref StocksVPC
-
-  PrivSubnet1RouteAssoc:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PrivateSubnet1
-      RouteTableId: !Ref PrivateRouteTable
-
-  PrivSubnet2RouteAssoc:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PrivateSubnet2
-      RouteTableId: !Ref PrivateRouteTable
-
-  ### Lambda Security Group ###
-  LambdaSecurityGroup:
+  ### RDS Security Group ###
+  StocksDBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Lambda SG in stocks VPC
-      VpcId: !Ref StocksVPC
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: "0.0.0.0/0"
-
-  ### VPC Endpoints ###
-  EndpointSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: SG for Interface VPC Endpoints
-      VpcId: !Ref StocksVPC
+      GroupDescription: Allow Postgres access from VpcCidr
+      VpcId: !ImportValue StocksCore-VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
+          FromPort: 5432
+          ToPort: 5432
           CidrIp: !Ref VpcCidr
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: "0.0.0.0/0"
 
-  VPCEndpointS3:
-    Type: AWS::EC2::VPCEndpoint
+  ### RDS Instance (publicly accessible) ###
+  StocksDBInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Retain
+    DependsOn:
+      - StocksDBSubnetGroup
+      - StocksDBSecurityGroup
     Properties:
-      VpcEndpointType: Gateway
-      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
-      VpcId: !Ref StocksVPC
-      RouteTableIds:
-        - !Ref PrivateRouteTable
+      DBInstanceIdentifier: stocks
+      DBName: stocks
+      AllocatedStorage: 20
+      DBInstanceClass: db.t3.micro
+      Engine: postgres
+      MasterUsername: !Ref RDSUsername
+      MasterUserPassword: !Ref RDSPassword
+      VPCSecurityGroups:
+        - !Ref StocksDBSecurityGroup
+      DBSubnetGroupName: !Ref StocksDBSubnetGroup
+      MultiAZ: false
+      PubliclyAccessible: true
+      DeletionProtection: false
 
-  VPCEndpointRDS:
-    Type: AWS::EC2::VPCEndpoint
+  ### Secrets Manager: DB credentials ###
+  DBCredentialsSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    DependsOn: StocksDBInstance
     Properties:
-      VpcEndpointType: Interface
-      ServiceName: !Sub com.amazonaws.${AWS::Region}.rds
-      VpcId: !Ref StocksVPC
-      SubnetIds:
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
-      SecurityGroupIds:
-        - !Ref EndpointSecurityGroup
+      Name: stocks-db-credentials
+      Description: JSON with username, password, host, port, dbname
+      SecretString:
+        Fn::Join:
+          - ""
+          - - '{"username":"'
+            - !Ref RDSUsername
+            - '","password":"'
+            - !Ref RDSPassword
+            - '","host":"'
+            - !GetAtt StocksDBInstance.Endpoint.Address
+            - '","port":"'
+            - !GetAtt StocksDBInstance.Endpoint.Port
+            - '","dbname":"stocks"}'
 
-  VPCEndpointECS:
-    Type: AWS::EC2::VPCEndpoint
-    Properties:
-      VpcEndpointType: Interface
-      ServiceName: !Sub com.amazonaws.${AWS::Region}.ecs
-      VpcId: !Ref StocksVPC
-      SubnetIds:
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
-      SecurityGroupIds:
-        - !Ref EndpointSecurityGroup
-
-  VPCEndpointLambda:
-    Type: AWS::EC2::VPCEndpoint
-    Properties:
-      VpcEndpointType: Interface
-      ServiceName: !Sub com.amazonaws.${AWS::Region}.lambda
-      VpcId: !Ref StocksVPC
-      SubnetIds:
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
-      SecurityGroupIds:
-        - !Ref EndpointSecurityGroup
-
-  VPCEndpointSecretsManager:
-    Type: AWS::EC2::VPCEndpoint
-    Properties:
-      VpcEndpointType: Interface
-      ServiceName: !Sub com.amazonaws.${AWS::Region}.secretsmanager
-      VpcId: !Ref StocksVPC
-      SubnetIds:
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
-      SecurityGroupIds:
-        - !Ref EndpointSecurityGroup
-
-  ### Bastion host (Spot ASG) ###
-  BastionInstanceRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: ec2.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
-      Policies:
-        - PolicyName: BastionCFNAndSecretAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - cloudformation:DescribeStacks
-                Resource: !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${DBStackName}/*
-              - Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${DBSecretName}*
-
-  BastionInstanceProfile:
-    Type: AWS::IAM::InstanceProfile
-    Properties:
-      Roles:
-        - !Ref BastionInstanceRole
-
-  BastionSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      VpcId: !Ref StocksVPC
-      GroupDescription: Bastion host SG
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 22
-          ToPort: 22
-          CidrIp: "0.0.0.0/0"
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: "0.0.0.0/0"
-
-  BastionLaunchTemplate:
-    Type: AWS::EC2::LaunchTemplate
-    Properties:
-      LaunchTemplateName: stocks-bastion-lt
-      LaunchTemplateData:
-        InstanceType: t3.micro
-        ImageId: ami-0c94855ba95c71c99
-        IamInstanceProfile:
-          Name: !Ref BastionInstanceProfile
-        SecurityGroupIds:
-          - !Ref BastionSecurityGroup
-        InstanceMarketOptions:
-          MarketType: spot
-          SpotOptions:
-            SpotInstanceType: one-time
-        UserData:
-          Fn::Base64: |
-            #!/bin/bash
-            set -eux
-            yum update -y
-            amazon-linux-extras enable postgresql10
-            yum install -y jq postgresql
-            aws configure set region ${AWS::Region}
-
-            CREDS=$(aws secretsmanager get-secret-value \
-              --secret-id "${DBSecretName}" \
-              --query SecretString --output text)
-            DB_USER=$(echo "$CREDS" | jq -r .username)
-            DB_PASSWORD=$(echo "$CREDS" | jq -r .password)
-            DB_NAME=$(echo "$CREDS" | jq -r .dbname)
-
-            DB_HOST=$(aws cloudformation describe-stacks \
-              --stack-name "${DBStackName}" \
-              --query "Stacks[0].Outputs[?OutputKey=='DBEndpoint'].OutputValue" \
-              --output text)
-            DB_PORT=$(aws cloudformation describe-stacks \
-              --stack-name "${DBStackName}" \
-              --query "Stacks[0].Outputs[?OutputKey=='DBPort'].OutputValue" \
-              --output text)
-
-            cat <<EOF > /home/ec2-user/.pgpass
-            ${DB_HOST}:${DB_PORT}:${DB_NAME}:${DB_USER}:${DB_PASSWORD}
-            EOF
-            chmod 600 /home/ec2-user/.pgpass
-            chown ec2-user:ec2-user /home/ec2-user/.pgpass
-
-  BastionAutoScalingGroup:
-    Type: AWS::AutoScaling::AutoScalingGroup
-    Properties:
-      AutoScalingGroupName: stocks-bastion-asg
-      VPCZoneIdentifier:
-        - !Ref PublicSubnet1
-        - !Ref PublicSubnet2
-      LaunchTemplate:
-        LaunchTemplateId: !Ref BastionLaunchTemplate
-        Version: !GetAtt BastionLaunchTemplate.LatestVersionNumber
-      MinSize: '1'
-      MaxSize: '1'
-      DesiredCapacity: '1'
-      Tags:
-        - Key: Name
-          Value: stocks-bastion
-          PropagateAtLaunch: true
-
-  ### Auto-shutdown Lambda ###
-  BastionStopRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: StopBastion
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action: ec2:StopInstances
-                Resource: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*
-
-  BastionStopFunction:
+  ### Lambda: symbols‑loader (public) ###
+  LoadStockSymbolsFunction:
     Type: AWS::Lambda::Function
+    DependsOn:
+      - StocksDBInstance
+      - DBCredentialsSecret
     Properties:
+      FunctionName: loadstocksymbols
       Runtime: python3.9
       Handler: index.handler
-      Role: !GetAtt BastionStopRole.Arn
+      Role: !ImportValue StocksCore-LambdaExecutionRoleArn
       Code:
-        ZipFile: |
-          import boto3, os
-          client = boto3.client('autoscaling')
-          def handler(event, context):
-              client.update_auto_scaling_group(
-                  AutoScalingGroupName=os.environ['ASG_NAME'],
-                  MinSize=0,
-                  DesiredCapacity=0
-              )
+        S3Bucket: !ImportValue StocksCore-CodeBucketName
+        S3Key: !Ref CodeKey
+      Timeout: 300
       Environment:
         Variables:
-          ASG_NAME: stocks-bastion-asg
+          DB_SECRET_ARN: !Ref DBCredentialsSecret
 
-  BastionStopRule:
-    Type: AWS::Events::Rule
+  ### Lambda: economic‑data loader (public) ###
+  LoadEconomicDataFunction:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - StocksDBInstance
+      - DBCredentialsSecret
     Properties:
-      Description: Scale bastion down at 6 PM CT daily
-      ScheduleExpression: cron(0 23 * * ? *)
-      State: ENABLED
-      Targets:
-        - Arn: !GetAtt BastionStopFunction.Arn
-          Id: StopBastionTarget
+      FunctionName: loadecondata
+      Runtime: python3.9
+      Handler: index.handler
+      Role: !ImportValue StocksCore-LambdaExecutionRoleArn
+      Code:
+        S3Bucket: !ImportValue StocksCore-CodeBucketName
+        S3Key: !Ref EconomicCodeKey
+      Timeout: 900
+      Environment:
+        Variables:
+          DB_SECRET_ARN: !Ref DBCredentialsSecret
+          FRED_API_KEY:   !Ref FREDApiKey
 
-  LambdaInvokePermission:
-    Type: AWS::Lambda::Permission
+  ### Lambda: monthly‑price loader (public) ###
+  LoadMonthlyPriceFunction:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - StocksDBInstance
+      - DBCredentialsSecret
     Properties:
-      FunctionName: !Ref BastionStopFunction
-      Action: lambda:InvokeFunction
-      Principal: events.amazonaws.com
-      SourceArn: !GetAtt BastionStopRule.Arn
+      FunctionName: loadpricemonthly
+      Runtime: python3.9
+      Handler: index.handler
+      Role: !ImportValue StocksCore-LambdaExecutionRoleArn
+      Code:
+        S3Bucket: !ImportValue StocksCore-CodeBucketName
+        S3Key: !Ref MonthlyCodeKey
+      Timeout: 900
+      Environment:
+        Variables:
+          DB_SECRET_ARN: !Ref DBCredentialsSecret
+          FRED_API_KEY:   !Ref FREDApiKey
 
-  ### ECR Registry ###
-  ContainerRepository:
-    Type: AWS::ECR::Repository
-    DeletionPolicy: Delete
+  ### ECS Cluster ###
+  StocksEcsCluster:
+    Type: AWS::ECS::Cluster
     Properties:
-      RepositoryName: stocks-app-registry
-      LifecyclePolicy:
-        LifecyclePolicyText: |
-          {
-            "rules":[
-              {
-                "rulePriority":1,
-                "selection":{ "tagStatus":"any","countType":"sinceImagePushed","countUnit":"days","countNumber":30 },
-                "action":{"type":"expire"}
-              }
-            ]
-          }
+      ClusterName: stocks-cluster
 
-  ### S3 Code Bucket ###
-  CodeBucket:
-    Type: AWS::S3::Bucket
+  ### ECS Task Execution Role ###
+  EcsTaskExecutionRole:
+    Type: AWS::IAM::Role
     Properties:
-      BucketName: stocks-algo-app-code
-      VersioningConfiguration:
-        Status: Enabled
-    DeletionPolicy: Delete
-    UpdateReplacePolicy: Retain
+      RoleName: ecs-task-execution-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: AllowGetSecretValue
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref DBCredentialsSecret
 
 Outputs:
-  VpcId:
-    Value: !Ref StocksVPC
+  DBEndpoint:
+    Description: RDS endpoint address
+    Value: !GetAtt StocksDBInstance.Endpoint.Address
     Export:
-      Name: StocksCore-VpcId
-  PublicSubnet1Id:
-    Value: !Ref PublicSubnet1
+      Name: StocksApp-DBEndpoint
+
+  DBPort:
+    Description: RDS endpoint port
+    Value: !GetAtt StocksDBInstance.Endpoint.Port
     Export:
-      Name: StocksCore-PublicSubnet1Id
-  PublicSubnet2Id:
-    Value: !Ref PublicSubnet2
+      Name: StocksApp-DBPort
+
+  DBName:
+    Description: RDS database name
+    Value: stocks
     Export:
-      Name: StocksCore-PublicSubnet2Id
-  PrivateSubnet1Id:
-    Value: !Ref PrivateSubnet1
+      Name: StocksApp-DBName
+
+  DBUsername:
+    Description: RDS master username
+    Value: !Ref RDSUsername
     Export:
-      Name: StocksCore-PrivateSubnet1Id
-  PrivateSubnet2Id:
-    Value: !Ref PrivateSubnet2
+      Name: StocksApp-DBUsername
+
+  SecretArn:
+    Description: ARN of the DB credentials secret
+    Value: !Ref DBCredentialsSecret
     Export:
-      Name: StocksCore-PrivateSubnet2Id
-  LambdaSecurityGroupId:
-    Value: !Ref LambdaSecurityGroup
+      Name: StocksDBLambdaStack-SecretArn
+
+  ClusterArn:
+    Description: ARN of the ECS cluster
+    Value: !GetAtt StocksEcsCluster.Arn
     Export:
-      Name: StocksCore-LambdaSecurityGroupId
-  LambdaExecutionRoleArn:
-    Value: !GetAtt LambdaExecutionRole.Arn
+      Name: StocksDBLambdaStack-ClusterArn
+
+  EcsTaskExecutionRoleArn:
+    Description: ARN of the ECS Task Execution Role
+    Value: !GetAtt EcsTaskExecutionRole.Arn
     Export:
-      Name: StocksCore-LambdaExecutionRoleArn
-  ContainerRepositoryUri:
-    Value: !GetAtt ContainerRepository.RepositoryUri
-    Export:
-      Name: StocksCore-ContainerRepositoryUri
-  CodeBucketName:
-    Value: !Ref CodeBucket
-    Export:
-      Name: StocksCore-CodeBucketName
-  WebIdentityProviderArn:
-    Value: !Ref GitHubOidcProvider
-    Export:
-      Name: StocksCore-WebIdentityProviderArn
-  DeployRoleArn:
-    Value: !GetAtt GitHubActionsDeployRole.Arn
-    Export:
-      Name: StocksCore-GitHubActionsDeployRoleArn
-  BastionSecurityGroupId:
-    Value: !Ref BastionSecurityGroup
-    Export:
-      Name: StocksCore-BastionSecurityGroupId
+      Name: StocksDBLambdaStack-EcsTaskExecutionRoleArn
