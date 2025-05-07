@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Core infrastructure stack – IAM, VPC, Subnets, Internet Gateway, Bastion host (Spot ASG),
-  auto-shutdown Lambda, ECR registry, and S3 code bucket.
+  auto-shutdown Lambda, ECR registry, and S3 code bucket. 
 
 Parameters:
   VpcCidr:
