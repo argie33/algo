@@ -1,19 +1,20 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  ECS TaskDefinitions, CloudWatch LogGroups, and zero‑scale Services
-  for stock‑symbols, econ‑data, monthly‑price loaders,
+  ECS TaskDefinitions, CloudWatch LogGroups, and zero-scale Services
+  for stock-symbols, econ-data, monthly-price loaders,
   plus findata, pricedaily, priceweekly, pricemonthly & technicaldaily.
 
 Parameters:
+  # Docker image tags
   StockSymbolsImageTag:
     Type: String
-    Description: Tag for stock‑symbols loader image
+    Description: Tag for stock-symbols loader image
   EconDataImageTag:
     Type: String
-    Description: Tag for econ‑data loader image
+    Description: Tag for econ-data loader image
   MonthlyPriceImageTag:
     Type: String
-    Description: Tag for monthly‑price loader image
+    Description: Tag for monthly-price loader image
   FindataImageTag:
     Type: String
     Description: Tag for findata loader image
@@ -33,7 +34,7 @@ Parameters:
   FREDApiKey:
     Type: String
     NoEcho: true
-    Description: FRED API key for econ‑data loader
+    Description: FRED API key for econ-data loader
 
 Resources:
 
@@ -89,7 +90,7 @@ Resources:
       RetentionInDays: 14
 
   ###########################################################
-  # B) stock‑symbols loader TaskDefinition & Service        #
+  # B) stock-symbols loader TaskDefinition & Service        #
   ###########################################################
   StockSymbolsTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -136,7 +137,7 @@ Resources:
           AssignPublicIp: ENABLED
 
   ###########################################################
-  # C) econ‑data loader TaskDefinition & Service            #
+  # C) econ-data loader TaskDefinition & Service            #
   ###########################################################
   EconDataTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -185,7 +186,7 @@ Resources:
           AssignPublicIp: ENABLED
 
   ###########################################################
-  # D) monthly‑price loader TaskDefinition & Service        #
+  # D) monthly-price loader TaskDefinition & Service        #
   ###########################################################
   MonthlyPriceTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -234,7 +235,7 @@ Resources:
           AssignPublicIp: ENABLED
 
   ###########################################################
-  # E) existing findata, pricedaily, priceweekly,           #
+  # E) findata, pricedaily, priceweekly,                   #
   #    pricemonthly & technicaldaily TaskDefinitions & Svcs #
   ###########################################################
   FindataTaskDefinition:
