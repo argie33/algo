@@ -1,5 +1,4 @@
 boto3
-psycopg2-binary
-fredapi
 pandas
-requests
+fredapi
+psycopg2-binary

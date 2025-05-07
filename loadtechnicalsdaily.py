@@ -20,7 +20,7 @@ import pandas as pd
 import pandas_ta as ta
 
 # -------------------------------
-# Script metadata & logging setup 
+# Script metadata & logging setup
 # -------------------------------
 SCRIPT_NAME = os.path.basename(__file__)
 logging.basicConfig(
