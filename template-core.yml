@@ -25,7 +25,7 @@ Parameters:
     Default: "stocks-db-lambda-stack"
   DBSecretName:
     Type: String
-    Default: "stocks-db-credentials"
+    Default: "stocks-db-secrets"
 
 Resources:
 

@@ -69,7 +69,7 @@ Resources:
     DeletionPolicy: Retain
     DependsOn: StocksDBInstance
     Properties:
-      Name: stocks-db-credentials
+      Name: stocks-db-secrets
       Description: JSON with username, password, host, port, dbname
       SecretString:
         Fn::Join:
