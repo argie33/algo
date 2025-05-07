@@ -1,11 +1,15 @@
+# Use a slim Python base
 FROM python:3.9-slim
 
-# install pg8000 & requests
-RUN pip install --no-cache-dir boto3 pg8000 requests
-
-# copy the loader script
-COPY loadstocksymbols.py /app/index.py
-
-# set working dir & entrypoint
+# Create app dir
 WORKDIR /app
-ENTRYPOINT ["python", "index.py"]
+
+# Copy and install requirements
+COPY requirements-loadstocksymbols.txt .
+RUN pip install --no-cache-dir -r requirements-loadstocksymbols.txt
+
+# Copy your code in and rename entrypoint to index.py
+COPY loadstocksymbols.py index.py
+
+# Default command: run your handler
+CMD ["python", "index.py"]
