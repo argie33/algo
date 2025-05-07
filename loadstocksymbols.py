@@ -15,18 +15,17 @@ from urllib3.util.retry import Retry
 logger = logging.getLogger("loadstocksymbols")
 logger.setLevel(logging.INFO)
 if not logger.handlers:
-    handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
-    logger.addHandler(handler)
+    h = logging.StreamHandler()
+    h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    logger.addHandler(h)
 
-# ─── Script metadata & configuration ─────────────────────────────────────────────
+# ─── Config ──────────────────────────────────────────────────────────────────────
 SCRIPT_NAME   = os.path.basename(__file__)
 DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
 
-# ─── NASDAQ data URLs & exclusion patterns ────────────────────────────────────────
+# ─── Data sources & exclusion patterns ────────────────────────────────────────────
 NASDAQ_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
 OTHER_URL  = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
-
 patterns = [
     r"\bpreferred\b",
     r"\bredeemable warrant(s)?\b",
@@ -128,41 +127,33 @@ patterns = [
 
 def get_requests_session():
     s = requests.Session()
-    retries = Retry(
-        total=3,
-        backoff_factor=1,
-        status_forcelist=[429, 500, 502, 503, 504],
-        allowed_methods=["GET"]
-    )
-    adapter = HTTPAdapter(max_retries=retries)
-    s.mount("http://", adapter)
-    s.mount("https://", adapter)
+    r = Retry(total=3, backoff_factor=1, status_forcelist=[429,500,502,503,504], allowed_methods=["GET"])
+    a = HTTPAdapter(max_retries=r)
+    s.mount("http://", a)
+    s.mount("https://", a)
     return s
 
 def download_text_file(url):
     logger.info("Downloading %s", url)
-    session = get_requests_session()
-    resp = session.get(url, timeout=(5, 15))
+    resp = get_requests_session().get(url, timeout=(5,15))
     resp.raise_for_status()
-    logger.info("Downloaded %d bytes from %s", len(resp.content), url)
     return resp.text
 
 def parse_listed(text, source):
     rows = []
-    key = "Symbol" if source == "NASDAQ" else "ACT Symbol"
+    key = "Symbol" if source=="NASDAQ" else "ACT Symbol"
     reader = csv.DictReader(text.splitlines(), delimiter="|")
     for row in reader:
         if row[key].startswith("File Creation Time"):
             continue
         name = row["Security Name"].strip()
-        if row.get("ETF","").upper() == "Y":
+        if row.get("ETF","").upper()=="Y":
             continue
         is_other = any(re.search(p, name, flags=re.IGNORECASE) for p in patterns)
-        lot = None
         try:
             lot = int(row.get("Round Lot Size","0") or 0)
         except ValueError:
-            pass
+            lot = None
         rows.append({
             "symbol":         row[key].strip(),
             "security_name":  name,
@@ -180,12 +171,11 @@ def dedupe(records):
         seen.setdefault(r["symbol"], r)
     return list(seen.values())
 
-# ─── Database connection helpers ────────────────────────────────────────────────
+# ─── Secrets & DB connection ────────────────────────────────────────────────────
 _secret_cache = None
 _conn_cache   = None
 
 def get_db_creds():
-    """Fetch DB credentials from Secrets Manager, just like econdata."""
     global _secret_cache
     if _secret_cache is None:
         sm   = boto3.client("secretsmanager")
@@ -196,15 +186,13 @@ def get_db_creds():
         _secret_cache["password"],
         _secret_cache["host"],
         int(_secret_cache["port"]),
-        _secret_cache["dbname"]
+        _secret_cache["dbname"],
     )
 
 def _get_conn():
-    """Get or create a reusable psycopg2 connection with DictCursor."""
     global _conn_cache
-    if _conn_cache and _conn_cache.closed == 0:
+    if _conn_cache and _conn_cache.closed==0:
         return _conn_cache
-
     user, pwd, host, port, db = get_db_creds()
     logger.info("Connecting to Postgres at %s:%s/%s", host, port, db)
     _conn_cache = psycopg2.connect(
@@ -222,46 +210,43 @@ def _get_conn():
 def insert_into_postgres(records):
     conn = _get_conn()
     with conn.cursor() as cur:
-        # ensure tables exist
         cur.execute("""
-            CREATE TABLE IF NOT EXISTS stock_symbols (
-              symbol          VARCHAR(50) PRIMARY KEY,
-              security_name   TEXT,
-              exchange        VARCHAR(20),
-              test_issue      CHAR(1),
-              round_lot_size  INT,
-              security_type   VARCHAR(20)
-            );
+        CREATE TABLE IF NOT EXISTS stock_symbols (
+          symbol          VARCHAR(50) PRIMARY KEY,
+          security_name   TEXT,
+          exchange        VARCHAR(20),
+          test_issue      CHAR(1),
+          round_lot_size  INT,
+          security_type   VARCHAR(20)
+        );
         """)
         cur.execute("""
-            CREATE TABLE IF NOT EXISTS last_updated (
-              script_name VARCHAR(255) PRIMARY KEY,
-              last_run    TIMESTAMPTZ
-            );
+        CREATE TABLE IF NOT EXISTS last_updated (
+          script_name VARCHAR(255) PRIMARY KEY,
+          last_run    TIMESTAMPTZ
+        );
         """)
-        # bulk upsert
         rows = [
             (r["symbol"], r["security_name"], r["exchange"],
              r["test_issue"], r["round_lot_size"], r["security_type"])
             for r in records
         ]
         execute_values(cur, """
-            INSERT INTO stock_symbols
-              (symbol,security_name,exchange,test_issue,round_lot_size,security_type)
-            VALUES %s
-            ON CONFLICT(symbol) DO UPDATE SET
-              security_name  = EXCLUDED.security_name,
-              exchange       = EXCLUDED.exchange,
-              test_issue     = EXCLUDED.test_issue,
-              round_lot_size = EXCLUDED.round_lot_size,
-              security_type  = EXCLUDED.security_type;
+        INSERT INTO stock_symbols
+          (symbol,security_name,exchange,test_issue,round_lot_size,security_type)
+        VALUES %s
+        ON CONFLICT(symbol) DO UPDATE SET
+          security_name  = EXCLUDED.security_name,
+          exchange       = EXCLUDED.exchange,
+          test_issue     = EXCLUDED.test_issue,
+          round_lot_size = EXCLUDED.round_lot_size,
+          security_type  = EXCLUDED.security_type;
         """, rows)
-        # record last run
         cur.execute("""
-            INSERT INTO last_updated (script_name,last_run)
-            VALUES (%s,NOW())
-            ON CONFLICT (script_name) DO UPDATE
-              SET last_run = EXCLUDED.last_run;
+        INSERT INTO last_updated (script_name,last_run)
+        VALUES (%s,NOW())
+        ON CONFLICT (script_name) DO UPDATE
+          SET last_run = EXCLUDED.last_run;
         """, (SCRIPT_NAME,))
 
 def handler(event, context):
@@ -274,13 +259,10 @@ def handler(event, context):
         logger.info("Deduped %d → final %d", len(combined), len(final))
         insert_into_postgres(final)
         logger.info("✅ Upserted %d symbols", len(final))
-        return {"statusCode": 200, "body": json.dumps({"processed": len(final)})}
-
+        return {"statusCode":200, "body":json.dumps({"processed":len(final)})}
     except Exception:
         logger.exception("❌ loadstocksymbols failed")
-        return {"statusCode": 500, "body": json.dumps({"error": "see CloudWatch logs"})}
+        return {"statusCode":500, "body":json.dumps({"error":"see CloudWatch logs"})}
 
-# optional local runner
-if __name__ == "__main__":
-    import sys
+if __name__=="__main__":
     handler({}, None)
