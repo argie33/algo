@@ -14,7 +14,7 @@ import yfinance as yf
 import requests
 
 # -------------------------------
-# Script metadata & logging setup 
+# Script metadata & logging setup
 # -------------------------------
 SCRIPT_NAME = "loadpriceweekly.py" 
 logging.basicConfig(
