@@ -1,6 +1,5 @@
 name: deploy-app-stocks
 
-# Trigger on any branch push
 on:
   push:
     branches:
@@ -16,9 +15,9 @@ env:
   AWS_ROLE_SESSION: github-deploy
   FRED_API_KEY:     ${{ secrets.FRED_API_KEY }}
 
-################################################################################
-# 1) Detect changed components                                                 #
-################################################################################
+##############################################################################
+# 1) Detect changed components                                               #
+##############################################################################
 jobs:
   filter:
     name: Detect changed components
@@ -43,37 +42,37 @@ jobs:
           base: ${{ github.event.before }}
           filters: |
             symbols:
-              - 'loadstocksymbols.py'
-              - 'requirements-loadstocksymbols.txt'
-              - 'Dockerfile.stocksymbols'
+              - loadstocksymbols.py
+              - requirements-loadstocksymbols.txt
+              - Dockerfile.stocksymbols
             econ:
-              - 'loadecondata.py'
-              - 'requirements-loadecondata.txt'
-              - 'Dockerfile.econdata'
+              - loadecondata.py
+              - requirements-loadecondata.txt
+              - Dockerfile.econdata
             findata:
-              - 'loadfinancialdata.py'
-              - 'requirements-loadfinancialdata.txt'
-              - 'Dockerfile.findata'
+              - loadfinancialdata.py
+              - requirements-loadfinancialdata.txt
+              - Dockerfile.findata
             pricedaily:
-              - 'loadpricedaily.py'
-              - 'requirements-loadpricedaily.txt'
-              - 'Dockerfile.pricedaily'
+              - loadpricedaily.py
+              - requirements-loadpricedaily.txt
+              - Dockerfile.pricedaily
             priceweekly:
-              - 'loadpriceweekly.py'
-              - 'requirements-loadpriceweekly.txt'
-              - 'Dockerfile.priceweekly'
+              - loadpriceweekly.py
+              - requirements-loadpriceweekly.txt
+              - Dockerfile.priceweekly
             pricemonthly:
-              - 'loadpricemonthly.py'
-              - 'requirements-pricemonthly.txt'
-              - 'Dockerfile.pricemonthly'
+              - loadpricemonthly.py
+              - requirements-pricemonthly.txt
+              - Dockerfile.pricemonthly
             technicaldaily:
-              - 'loadtechnicalsdaily.py'
-              - 'requirements-loadtechnicalsdaily.txt'
-              - 'Dockerfile.technicalsdaily'
+              - loadtechnicalsdaily.py
+              - requirements-loadtechnicalsdaily.txt
+              - Dockerfile.technicalsdaily
 
-################################################################################
-# 2) Build & push Docker images (one job per loader)                          #
-################################################################################
+##############################################################################
+# 2) Build & push Docker images      (only when their files changed)        #
+##############################################################################
 
   symbols_build:
     name: Build stock-symbols image
@@ -81,18 +80,18 @@ jobs:
     if: ${{ needs.filter.outputs.symbols == 'true' }}
     runs-on: ubuntu-latest
     outputs:
-      tag: ${{ steps.build.outputs.tag }}
+      tag: ${{ steps.set-tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v3
 
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - id: build
+      - id: set-tag
         name: Build & push Docker image
         run: |
           REPO=stocks-app-registry
@@ -114,18 +113,18 @@ jobs:
     if: ${{ needs.filter.outputs.econ == 'true' }}
     runs-on: ubuntu-latest
     outputs:
-      tag: ${{ steps.build.outputs.tag }}
+      tag: ${{ steps.set-tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v3
 
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - id: build
+      - id: set-tag
         name: Build & push Docker image
         run: |
           REPO=stocks-app-registry
@@ -147,18 +146,18 @@ jobs:
     if: ${{ needs.filter.outputs.findata == 'true' }}
     runs-on: ubuntu-latest
     outputs:
-      tag: ${{ steps.build.outputs.tag }}
+      tag: ${{ steps.set-tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v3
 
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - id: build
+      - id: set-tag
         name: Build & push Docker image
         run: |
           REPO=stocks-app-registry
@@ -180,18 +179,18 @@ jobs:
     if: ${{ needs.filter.outputs.pricedaily == 'true' }}
     runs-on: ubuntu-latest
     outputs:
-      tag: ${{ steps.build.outputs.tag }}
+      tag: ${{ steps.set-tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v3
 
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - id: build
+      - id: set-tag
         name: Build & push Docker image
         run: |
           REPO=stocks-app-registry
@@ -213,18 +212,18 @@ jobs:
     if: ${{ needs.filter.outputs.priceweekly == 'true' }}
     runs-on: ubuntu-latest
     outputs:
-      tag: ${{ steps.build.outputs.tag }}
+      tag: ${{ steps.set-tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v3
 
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - id: build
+      - id: set-tag
         name: Build & push Docker image
         run: |
           REPO=stocks-app-registry
@@ -246,24 +245,24 @@ jobs:
     if: ${{ needs.filter.outputs.pricemonthly == 'true' }}
     runs-on: ubuntu-latest
     outputs:
-      tag: ${{ steps.build.outputs.tag }}
+      tag: ${{ steps.set-tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v3
 
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - id: build
+      - id: set-tag
         name: Build & push Docker image
         run: |
           REPO=stocks-app-registry
           aws ecr describe-repositories --repository-names "$REPO" \
-            >/dev/null 2>&1 || aws ecr.create-repository --repository-name "$REPO"
-          URI=$(aws ecr describe-repositories \
+            >/dev/null 2>&1 || aws ecr create-repository --repository-name "$REPO"
+          URI=$(aws ecr.describe-repositories \
                   --repository-names "$REPO" \
                   --query 'repositories[0].repositoryUri' --output text)
           aws ecr get-login-password --region $AWS_REGION \
@@ -279,24 +278,24 @@ jobs:
     if: ${{ needs.filter.outputs.technicaldaily == 'true' }}
     runs-on: ubuntu-latest
     outputs:
-      tag: ${{ steps.build.outputs.tag }}
+      tag: ${{ steps.set-tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v3
 
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - id: build
+      - id: set-tag
         name: Build & push Docker image
         run: |
           REPO=stocks-app-registry
           aws ecr describe-repositories --repository-names "$REPO" \
             >/dev/null 2>&1 || aws ecr.create-repository --repository-name "$REPO"
-          URI=$(aws ecr describe-repositories \
+          URI=$(aws ecr.describe-repositories \
                   --repository-names "$REPO" \
                   --query 'repositories[0].repositoryUri' --output text)
           aws ecr get-login-password --region $AWS_REGION \
@@ -306,9 +305,9 @@ jobs:
           docker push "$URI:$TAG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-################################################################################
-# 3) Deploy ECS CloudFormation (runs after *all* build jobs complete)         #
-################################################################################
+##############################################################################
+# 3) Deploy ECS CloudFormation          (runs once any build above ran)     #
+##############################################################################
   deploy:
     name: Deploy ECS CloudFormation
     needs:
@@ -320,6 +319,14 @@ jobs:
       - priceweekly_build
       - pricemonthly_build
       - technicaldaily_build
+    if: |
+      needs.filter.outputs.symbols == 'true' ||
+      needs.filter.outputs.econ == 'true'    ||
+      needs.filter.outputs.findata == 'true' ||
+      needs.filter.outputs.pricedaily == 'true' ||
+      needs.filter.outputs.priceweekly == 'true' ||
+      needs.filter.outputs.pricemonthly == 'true'||
+      needs.filter.outputs.technicaldaily == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -327,8 +334,8 @@ jobs:
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
       - name: Fetch existing ECS stack params
@@ -349,8 +356,8 @@ jobs:
         run: |
           source tags.env || true
           pick() {
-            varname="$1" ; newtag="$2" ; oldtag="$(eval echo \"\$$1\")"
-            if [[ -n "$newtag" ]]; then echo "$newtag"; else echo "$oldtag"; fi
+            v="$1"; n="$2"; o="$(eval echo \$$1)"
+            if [[ -n "$n" ]]; then echo "$n"; else echo "$o"; fi
           }
           echo "::set-output name=stocksymbols::$(pick StockSymbolsImageTag ${{ needs.symbols_build.outputs.tag }})"
           echo "::set-output name=econdata::$(pick EconDataImageTag ${{ needs.econ_build.outputs.tag }})"
@@ -377,9 +384,9 @@ jobs:
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
 
-################################################################################
+##############################################################################
 # 4) Run each changed loader                                                  #
-################################################################################
+##############################################################################
 
   run_symbols:
     name: Run stock-symbols loader
@@ -389,8 +396,8 @@ jobs:
     steps:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - run: |
           SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
@@ -408,8 +415,8 @@ jobs:
     steps:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - run: |
           SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
@@ -427,8 +434,8 @@ jobs:
     steps:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - run: |
           SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
@@ -446,8 +453,8 @@ jobs:
     steps:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - run: |
           SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
@@ -465,11 +472,11 @@ jobs:
     steps:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - run: |
-          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+          SVC=$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
@@ -484,11 +491,11 @@ jobs:
     steps:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - run: |
-          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+          SVC=$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PricemonthlyServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
@@ -503,11 +510,11 @@ jobs:
     steps:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - run: |
-          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+          SVC=$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='TechnicalDailyServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
