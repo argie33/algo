@@ -5,7 +5,6 @@ Description: >
   plus findata, pricedaily, priceweekly, pricemonthly & technicaldaily.
 
 Parameters:
-  # image tags for each loader
   StockSymbolsImageTag:
     Type: String
     Description: Tag for stock‑symbols loader image
