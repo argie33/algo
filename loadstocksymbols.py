@@ -123,7 +123,7 @@ patterns = [
     r"\bcontingent\b",
     r"\bii inc\b",
     r"\bnasdaq symbology\b",
-    r"\bsymbology rer\b",    
+    r"\bsymbology test\b",    
 ]
 
 def get_requests_session():
