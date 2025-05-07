@@ -15,7 +15,7 @@ import pandas as pd
 import math
 
 # -------------------------------
-# Script metadata 
+# Script metadata
 # -------------------------------
 SCRIPT_NAME = "loadfinancialdata.py"
  
