@@ -1,4 +1,3 @@
-# .github/workflows/deploy-core.yml
 name: Deploy core infrastructure
 
 on:
@@ -24,9 +23,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
-          role-session-name: github-deploy
           aws-region: us-east-1
-          audience: sts.amazonaws.com
 
       - name: Cleanup failed core stack if needed
         run: |
@@ -45,6 +42,14 @@ jobs:
             --stack-name stocks-core-stack \
             --template-file template-core.yml \
             --capabilities CAPABILITY_NAMED_IAM \
+            --parameter-overrides \
+              VpcCidr=10.0.0.0/16 \
+              PublicSubnetCidr1=10.0.1.0/24 \
+              PublicSubnetCidr2=10.0.2.0/24 \
+              PrivateSubnetCidr1=10.0.101.0/24 \
+              PrivateSubnetCidr2=10.0.102.0/24 \
+              DBStackName=stocks-db-lambda-stack \
+              DBSecretName=stocks-db-credentials \
             --no-fail-on-empty-changeset
 
       - name: Wait for Bastion to be running
