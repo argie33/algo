@@ -15,10 +15,32 @@ permissions:
 jobs:
   deploy_core:
     runs-on: ubuntu-latest
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
 
+      # 1) Configure AWS via static credentials so we can delete any old OIDC provider
+      - name: Configure AWS via static creds
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Remove any preexisting GitHub OIDC provider
+        run: |
+          for arn in $(aws iam list-open-id-connect-providers \
+                        --query 'OpenIDConnectProviderList[].Arn' \
+                        --output text); do
+            if [[ "$arn" == *"token.actions.githubusercontent.com"* ]]; then
+              echo "Deleting OIDC provider $arn"
+              aws iam delete-open-id-connect-provider \
+                --open-id-connect-provider-arn "$arn"
+            fi
+          done
+
+      # 2) Now switch to OIDC-based creds for everything else
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
