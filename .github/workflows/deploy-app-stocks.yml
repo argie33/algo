@@ -88,8 +88,8 @@ jobs:
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
       - id: build
@@ -106,7 +106,7 @@ jobs:
           TAG=stocksymbols-${{ github.sha }}
           docker build -f Dockerfile.stocksymbols -t "$URI:$TAG" .
           docker push "$URI:$TAG"
-          echo "::set-output name=tag::$TAG"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
 
   econ_build:
     name: Build econ-data image
@@ -121,8 +121,8 @@ jobs:
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
       - id: build
@@ -139,7 +139,7 @@ jobs:
           TAG=econdata-${{ github.sha }}
           docker build -f Dockerfile.econdata -t "$URI:$TAG" .
           docker push "$URI:$TAG"
-          echo "::set-output name=tag::$TAG"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
 
   findata_build:
     name: Build findata image
@@ -154,8 +154,8 @@ jobs:
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
       - id: build
@@ -172,7 +172,7 @@ jobs:
           TAG=findata-${{ github.sha }}
           docker build -f Dockerfile.findata -t "$URI:$TAG" .
           docker push "$URI:$TAG"
-          echo "::set-output name=tag::$TAG"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
 
   pricedaily_build:
     name: Build pricedaily image
@@ -187,8 +187,8 @@ jobs:
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
       - id: build
@@ -205,7 +205,7 @@ jobs:
           TAG=pricedaily-${{ github.sha }}
           docker build -f Dockerfile.pricedaily -t "$URI:$TAG" .
           docker push "$URI:$TAG"
-          echo "::set-output name=tag::$TAG"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
 
   priceweekly_build:
     name: Build priceweekly image
@@ -220,8 +220,8 @@ jobs:
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
       - id: build
@@ -230,7 +230,7 @@ jobs:
           REPO=stocks-app-registry
           aws ecr describe-repositories --repository-names "$REPO" \
             >/dev/null 2>&1 || aws ecr create-repository --repository-name "$REPO"
-          URI=$(aws ecr describe-repositories \
+          URI=$(aws ecr.describe-repositories \
                   --repository-names "$REPO" \
                   --query 'repositories[0].repositoryUri' --output text)
           aws ecr get-login-password --region $AWS_REGION \
@@ -238,7 +238,7 @@ jobs:
           TAG=priceweekly-${{ github.sha }}
           docker build -f Dockerfile.priceweekly -t "$URI:$TAG" .
           docker push "$URI:$TAG"
-          echo "::set-output name=tag::$TAG"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
 
   pricemonthly_build:
     name: Build pricemonthly image
@@ -253,8 +253,8 @@ jobs:
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
       - id: build
@@ -262,8 +262,8 @@ jobs:
         run: |
           REPO=stocks-app-registry
           aws ecr describe-repositories --repository-names "$REPO" \
-            >/dev/null 2>&1 || aws ecr create-repository --repository-name "$REPO"
-          URI=$(aws ecr describe-repositories \
+            >/dev/null 2>&1 || aws ecr.create-repository --repository-name "$REPO"
+          URI=$(aws ecr.describe-repositories \
                   --repository-names "$REPO" \
                   --query 'repositories[0].repositoryUri' --output text)
           aws ecr get-login-password --region $AWS_REGION \
@@ -271,7 +271,7 @@ jobs:
           TAG=pricemonthly-${{ github.sha }}
           docker build -f Dockerfile.pricemonthly -t "$URI:$TAG" .
           docker push "$URI:$TAG"
-          echo "::set-output name=tag::$TAG"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
 
   technicaldaily_build:
     name: Build technicaldaily image
@@ -286,8 +286,8 @@ jobs:
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
       - id: build
@@ -295,8 +295,8 @@ jobs:
         run: |
           REPO=stocks-app-registry
           aws ecr describe-repositories --repository-names "$REPO" \
-            >/dev/null 2>&1 || aws ecr create-repository --repository-name "$REPO"
-          URI=$(aws ecr describe-repositories \
+            >/dev/null 2>&1 || aws ecr.create-repository --repository-name "$REPO"
+          URI=$(aws ecr.describe-repositories \
                   --repository-names "$REPO" \
                   --query 'repositories[0].repositoryUri' --output text)
           aws ecr get-login-password --region $AWS_REGION \
@@ -304,12 +304,11 @@ jobs:
           TAG=technicaldaily-${{ github.sha }}
           docker build -f Dockerfile.technicalsdaily -t "$URI:$TAG" .
           docker push "$URI:$TAG"
-          echo "::set-output name=tag::$TAG"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
 
 ################################################################################
 # 3) **Deploy** ECS CloudFormation (waits for all builds now!)                #
 ################################################################################
-
   deploy:
     name: Deploy ECS CloudFormation
     needs:
@@ -321,14 +320,6 @@ jobs:
       - priceweekly_build
       - pricemonthly_build
       - technicaldaily_build
-    if: |
-      needs.filter.outputs.symbols == 'true' ||
-      needs.filter.outputs.econ == 'true' ||
-      needs.filter.outputs.findata == 'true' ||
-      needs.filter.outputs.pricedaily == 'true' ||
-      needs.filter.outputs.priceweekly == 'true' ||
-      needs.filter.outputs.pricemonthly == 'true' ||
-      needs.filter.outputs.technicaldaily == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -336,10 +327,11 @@ jobs:
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
+      # fetch existing tags for unchanged images
       - name: Fetch existing ECS stack params
         id: params
         run: |
@@ -357,14 +349,20 @@ jobs:
         id: final
         run: |
           source tags.env || true
+
           pick() {
-            var="$1"; new="$2"; old="$(eval echo \"\$$1\")"
-            if [[ -n "$new" ]]; then echo "$new"; else echo "$old"; fi
+            varname="$1"  ; newtag="$2" ; oldtag="$(eval echo \"\$$1\")"
+            if [[ -n "$newtag" ]]; then
+              echo "$newtag"
+            else
+              echo "$oldtag"
+            fi
           }
+
           echo "::set-output name=stocksymbols::$(pick StockSymbolsImageTag ${{ needs.symbols_build.outputs.tag }})"
-          echo "::set-output name=econdata::$(pick EconDataImageTag    ${{ needs.econ_build.outputs.tag }})"
-          echo "::set-output name=findata::$(pick FindataImageTag      ${{ needs.findata_build.outputs.tag }})"
-          echo "::set-output name=pricedaily::$(pick PriceImageTag     ${{ needs.pricedaily_build.outputs.tag }})"
+          echo "::set-output name=econdata::$(pick EconDataImageTag ${{ needs.econ_build.outputs.tag }})"
+          echo "::set-output name=findata::$(pick FindataImageTag ${{ needs.findata_build.outputs.tag }})"
+          echo "::set-output name=pricedaily::$(pick PriceImageTag ${{ needs.pricedaily_build.outputs.tag }})"
           echo "::set-output name=priceweekly::$(pick PriceWeeklyImageTag ${{ needs.priceweekly_build.outputs.tag }})"
           echo "::set-output name=pricemonthly::$(pick PriceMonthlyImageTag ${{ needs.pricemonthly_build.outputs.tag }})"
           echo "::set-output name=technicaldaily::$(pick TechnicalDailyImageTag ${{ needs.technicaldaily_build.outputs.tag }})"
@@ -398,8 +396,8 @@ jobs:
     steps:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - run: |
           SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
@@ -417,8 +415,8 @@ jobs:
     steps:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - run: |
           SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
@@ -436,8 +434,8 @@ jobs:
     steps:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - run: |
           SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
@@ -455,8 +453,8 @@ jobs:
     steps:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - run: |
           SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
@@ -474,8 +472,8 @@ jobs:
     steps:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - run: |
           SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
@@ -493,11 +491,11 @@ jobs:
     steps:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - run: |
-          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+          SVC=$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PricemonthlyServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
@@ -512,11 +510,11 @@ jobs:
     steps:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - run: |
-          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+          SVC=$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='TechnicalDailyServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
