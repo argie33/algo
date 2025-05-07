@@ -6,7 +6,8 @@ import json
 import logging
 import requests
 import boto3
-import pg8000.native
+import psycopg2
+from psycopg2.extras import DictCursor, execute_values
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -126,9 +127,7 @@ patterns = [
 
 def get_requests_session():
     s = requests.Session()
-    r = Retry(total=3, backoff_factor=1,
-              status_forcelist=[429,500,502,503,504],
-              allowed_methods=["GET"])
+    r = Retry(total=3, backoff_factor=1, status_forcelist=[429,500,502,503,504], allowed_methods=["GET"])
     a = HTTPAdapter(max_retries=r)
     s.mount("http://", a)
     s.mount("https://", a)
@@ -173,79 +172,82 @@ def dedupe(records):
     return list(seen.values())
 
 # ─── Secrets & DB connection ────────────────────────────────────────────────────
-_secret = None
-_conn   = None
+_secret_cache = None
+_conn_cache   = None
 
 def get_db_creds():
-    global _secret
-    if _secret is None:
+    global _secret_cache
+    if _secret_cache is None:
         sm   = boto3.client("secretsmanager")
-        v    = sm.get_secret_value(SecretId=DB_SECRET_ARN)
-        _secret = json.loads(v["SecretString"])
-    return (_secret["username"],
-            _secret["password"],
-            _secret["host"],
-            int(_secret["port"]),
-            _secret["dbname"])
+        resp = sm.get_secret_value(SecretId=DB_SECRET_ARN)
+        _secret_cache = json.loads(resp["SecretString"])
+    return (
+        _secret_cache["username"],
+        _secret_cache["password"],
+        _secret_cache["host"],
+        int(_secret_cache["port"]),
+        _secret_cache["dbname"],
+    )
 
 def _get_conn():
-    global _conn
-    if _conn is None:
-        user, pwd, host, port, db = get_db_creds()
-        logger.info("Connecting to Postgres at %s:%s/%s", host, port, db)
-        _conn = pg8000.native.Connection(
-            user=user, host=host, port=port,
-            database=db, password=pwd, ssl=True
-        )
-    return _conn
+    global _conn_cache
+    if _conn_cache and _conn_cache.closed==0:
+        return _conn_cache
+    user, pwd, host, port, db = get_db_creds()
+    logger.info("Connecting to Postgres at %s:%s/%s", host, port, db)
+    _conn_cache = psycopg2.connect(
+        host           = host,
+        port           = port,
+        dbname         = db,
+        user           = user,
+        password       = pwd,
+        sslmode        = "require",
+        cursor_factory = DictCursor
+    )
+    _conn_cache.autocommit = True
+    return _conn_cache
 
 def insert_into_postgres(records):
     conn = _get_conn()
-    cur  = conn.cursor()
-    # ensure tables
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS stock_symbols (
-      symbol          VARCHAR(50) PRIMARY KEY,
-      security_name   TEXT,
-      exchange        VARCHAR(20),
-      test_issue      CHAR(1),
-      round_lot_size  INT,
-      security_type   VARCHAR(20)
-    );
-    """)
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS last_updated (
-      script_name VARCHAR(255) PRIMARY KEY,
-      last_run    TIMESTAMPTZ
-    );
-    """)
-    # upsert rows
-    upsert_sql = """
-    INSERT INTO stock_symbols
-      (symbol,security_name,exchange,test_issue,round_lot_size,security_type)
-    VALUES (%s,%s,%s,%s,%s,%s)
-    ON CONFLICT(symbol) DO UPDATE SET
-      security_name  = EXCLUDED.security_name,
-      exchange       = EXCLUDED.exchange,
-      test_issue     = EXCLUDED.test_issue,
-      round_lot_size = EXCLUDED.round_lot_size,
-      security_type  = EXCLUDED.security_type;
-    """
-    values = [
-        (r["symbol"], r["security_name"], r["exchange"],
-         r["test_issue"], r["round_lot_size"], r["security_type"])
-        for r in records
-    ]
-    cur.executemany(upsert_sql, values)
-    # last_updated
-    cur.execute("""
-    INSERT INTO last_updated (script_name,last_run)
-    VALUES (%s,NOW())
-    ON CONFLICT (script_name) DO UPDATE
-      SET last_run = EXCLUDED.last_run;
-    """, (SCRIPT_NAME,))
-    conn.commit()
-    cur.close()
+    with conn.cursor() as cur:
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS stock_symbols (
+          symbol          VARCHAR(50) PRIMARY KEY,
+          security_name   TEXT,
+          exchange        VARCHAR(20),
+          test_issue      CHAR(1),
+          round_lot_size  INT,
+          security_type   VARCHAR(20)
+        );
+        """)
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS last_updated (
+          script_name VARCHAR(255) PRIMARY KEY,
+          last_run    TIMESTAMPTZ
+        );
+        """)
+        rows = [
+            (r["symbol"], r["security_name"], r["exchange"],
+             r["test_issue"], r["round_lot_size"], r["security_type"])
+            for r in records
+        ]
+        execute_values(cur, """
+        INSERT INTO stock_symbols
+          (symbol,security_name,exchange,test_issue,round_lot_size,security_type)
+        VALUES %s
+        ON CONFLICT(symbol) DO UPDATE SET
+          security_name  = EXCLUDED.security_name,
+          exchange       = EXCLUDED.exchange,
+          test_issue     = EXCLUDED.test_issue,
+          round_lot_size = EXCLUDED.round_lot_size,
+          security_type  = EXCLUDED.security_type;
+        """, rows)
+        cur.execute("""
+        INSERT INTO last_updated (script_name,last_run)
+        VALUES (%s,NOW())
+        ON CONFLICT (script_name) DO UPDATE
+          SET last_run = EXCLUDED.last_run;
+        """, (SCRIPT_NAME,))
 
 def handler(event, context):
     logger.info("🔄 loadstocksymbols invoked")
@@ -260,7 +262,7 @@ def handler(event, context):
         return {"statusCode":200, "body":json.dumps({"processed":len(final)})}
     except Exception:
         logger.exception("❌ loadstocksymbols failed")
-        return {"statusCode":500,"body":json.dumps({"error":"see CloudWatch logs"})}
+        return {"statusCode":500, "body":json.dumps({"error":"see CloudWatch logs"})}
 
 if __name__=="__main__":
     handler({}, None)
