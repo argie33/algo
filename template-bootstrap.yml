@@ -1,10 +1,9 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Bootstrap template to create IAM OIDC provider for GitHub Actions
-  and the GitHubActionsDeployRole that can be assumed via web identity.
+  Bootstrap stack: create IAM OIDC provider for GitHub Actions
+  and the GitHubActionsDeployRole.
 
 Resources:
-
   GitHubOidcProvider:
     Type: AWS::IAM::OIDCProvider
     Properties:
@@ -34,11 +33,14 @@ Resources:
         - arn:aws:iam::aws:policy/AdministratorAccess
 
 Outputs:
-
   WebIdentityProviderArn:
-    Description: ARN of the OIDC provider created for GitHub Actions
+    Description: ARN of the OIDC provider
     Value: !Ref GitHubOidcProvider
+    Export:
+      Name: StocksOidc-WebIdentityProviderArn
 
   GitHubActionsDeployRoleArn:
-    Description: ARN of the IAM role GitHub Actions will assume
+    Description: ARN of the GitHub Actions deploy role
     Value: !GetAtt GitHubActionsDeployRole.Arn
+    Export:
+      Name: StocksOidc-GitHubActionsDeployRoleArn
