@@ -35,31 +35,11 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Locate CFN templates
-        id: locate
-        run: |
-          # Application stack template
-          if [ -f template-app-stocks.yml ]; then
-            echo "app_template=template-app-stocks.yml" >> $GITHUB_OUTPUT
-          elif [ -f refactor/template-app-stocks.yml ]; then
-            echo "app_template=refactor/template-app-stocks.yml" >> $GITHUB_OUTPUT
-          else
-            echo "::error::Cannot find template-app-stocks.yml"; exit 1
-          fi
-          # ECS tasks stack template
-          if [ -f template-app-ecs-tasks.yml ]; then
-            echo "ecs_template=template-app-ecs-tasks.yml" >> $GITHUB_OUTPUT
-          elif [ -f refactor/template-app-ecs-tasks.yml ]; then
-            echo "ecs_template=refactor/template-app-ecs-tasks.yml" >> $GITHUB_OUTPUT
-          else
-            echo "::error::Cannot find template-app-ecs-tasks.yml"; exit 1
-          fi
-
       - name: Deploy App CloudFormation stack
         run: |
           aws cloudformation deploy \
             --stack-name stocks-app-stack \
-            --template-file ${{ steps.locate.outputs.app_template }} \
+            --template-file template-app-stocks.yml \
             --capabilities CAPABILITY_NAMED_IAM \
             --parameter-overrides \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
@@ -68,7 +48,7 @@ jobs:
 
   ###################################################
   # 2) Filter — detect exactly what changed         #
-  #    (must wait for deploy_app to create exports)#
+  #    (must wait for deploy_app to create exports) #
   ###################################################
   filter:
     name: Detect changed components
@@ -82,6 +62,7 @@ jobs:
       priceweekly:    ${{ steps.filter.outputs.priceweekly }}
       pricemonthly:   ${{ steps.filter.outputs.pricemonthly }}
       technicaldaily: ${{ steps.filter.outputs.technicaldaily }}
+
     steps:
       - uses: actions/checkout@v3
         with:
@@ -124,17 +105,19 @@ jobs:
 
 ################################################################################
 # Reusable snippet — insert these two steps before every `deploy` step below:   #
-#   - Fetch existing ECS stack params (if any)                                 #
-#   - Guard & delete ROLLBACK_COMPLETE state                                   #
+#   1) Fetch existing ECS stack params (if any)                                 #
+#   2) Guard & delete ROLLBACK_COMPLETE state                                   #
 ################################################################################
 
   ###########################################################
   # 3a) stock-symbols ECS: build → deploy → run            #
   ###########################################################
   symbols:
+    name: Stock-symbols
     needs: filter
     if: ${{ needs.filter.outputs.symbols == 'true' }}
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v3
 
@@ -145,17 +128,6 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Locate CFN templates
-        id: locate
-        run: |
-          if [ -f template-app-ecs-tasks.yml ]; then
-            echo "ecs_template=template-app-ecs-tasks.yml" >> $GITHUB_OUTPUT
-          elif [ -f refactor/template-app-ecs-tasks.yml ]; then
-            echo "ecs_template=refactor/template-app-ecs-tasks.yml" >> $GITHUB_OUTPUT
-          else
-            echo "::error::Cannot find template-app-ecs-tasks.yml"; exit 1
-          fi
-
       - name: Build & push stock-symbols image
         id: image
         run: |
@@ -164,8 +136,8 @@ jobs:
             || aws ecr create-repository --repository-name "$REPO"
           URI=$(aws ecr describe-repositories \
                   --repository-names "$REPO" \
-                  --query "repositories[0].repositoryUri" --output text)
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} \
+                  --query 'repositories[0].repositoryUri' --output text)
+          aws ecr get-login-password --region $AWS_REGION \
             | docker login --username AWS --password-stdin "$URI"
           TAG=stocksymbols-${{ github.sha }}
           docker build -f Dockerfile.stocksymbols -t "$URI:$TAG" .
@@ -175,7 +147,8 @@ jobs:
       - name: Fetch existing ECS stack params (if any)
         id: params
         run: |
-          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then
+          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+               >/dev/null 2>&1; then
             for key in FindataImageTag PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag StockSymbolsImageTag EconDataImageTag MonthlyPriceImageTag; do
               val=$(aws cloudformation describe-stacks \
                       --stack-name stocks-ecs-tasks-stack \
@@ -187,19 +160,20 @@ jobs:
 
       - name: Guard & delete ROLLBACK_COMPLETE stack
         run: |
-          STATUS=$(aws cloudformation describe-stacks \
-                     --stack-name stocks-ecs-tasks-stack \
-                     --query "Stacks[0].StackStatus" --output text 2>/dev/null) || true
-          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
-            aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+          if STATUS=$(aws cloudformation describe-stacks \
+                         --stack-name stocks-ecs-tasks-stack \
+                         --query "Stacks[0].StackStatus" --output text 2>/dev/null); then
+            if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+              aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
+              aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+            fi
           fi
 
       - name: Deploy ECS CFN (stock-symbols)
         run: |
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
-            --template-file ${{ steps.locate.outputs.ecs_template }} \
+            --template-file template-app-ecs-tasks.yml \
             --parameter-overrides \
               FindataImageTag=${{ steps.params.outputs.findataimagetag }} \
               PriceImageTag=${{ steps.params.outputs.priceimagetag }} \
@@ -227,9 +201,11 @@ jobs:
   # 3b) econ-data ECS: build → deploy → run                #
   ###########################################################
   econ:
+    name: Econ-data
     needs: filter
     if: ${{ needs.filter.outputs.econ == 'true' }}
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v3
 
@@ -240,27 +216,16 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Locate CFN templates
-        id: locate
-        run: |
-          if [ -f template-app-ecs-tasks.yml ]; then
-            echo "ecs_template=template-app-ecs-tasks.yml" >> $GITHUB_OUTPUT
-          elif [ -f refactor/template-app-ecs-tasks.yml ]; then
-            echo "ecs_template=refactor/template-app-ecs-tasks.yml" >> $GITHUB_OUTPUT
-          else
-            echo "::error::Cannot find template-app-ecs-tasks.yml"; exit 1
-          fi
-
       - name: Build & push econ-data image
         id: image
         run: |
           REPO=stocks-app-registry
           aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 \
             || aws ecr create-repository --repository-name "$REPO"
-          URI=$(aws cloudformation describe-repositories \
+          URI=$(aws ecr describe-repositories \
                   --repository-names "$REPO" \
-                  --query "repositories[0].repositoryUri" --output text)
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} \
+                  --query 'repositories[0].repositoryUri' --output text)
+          aws ecr get-login-password --region $AWS_REGION \
             | docker login --username AWS --password-stdin "$URI"
           TAG=econdata-${{ github.sha }}
           docker build -f Dockerfile.econdata -t "$URI:$TAG" .
@@ -270,7 +235,8 @@ jobs:
       - name: Fetch existing ECS stack params (if any)
         id: params
         run: |
-          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then
+          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+               >/dev/null 2>&1; then
             for key in FindataImageTag PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag StockSymbolsImageTag EconDataImageTag MonthlyPriceImageTag; do
               val=$(aws cloudformation describe-stacks \
                       --stack-name stocks-ecs-tasks-stack \
@@ -282,26 +248,27 @@ jobs:
 
       - name: Guard & delete ROLLBACK_COMPLETE stack
         run: |
-          STATUS=$(aws cloudformation describe-stacks \
-                     --stack-name stocks-ecs-tasks-stack \
-                     --query "Stacks[0].StackStatus" --output text 2>/dev/null) || true
-          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
-            aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+          if STATUS=$(aws cloudformation describe-stacks \
+                         --stack-name stocks-ecs-tasks-stack \
+                         --query "Stacks[0].StackStatus" --output text 2>/dev/null); then
+            if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+              aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
+              aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+            fi
           fi
 
       - name: Deploy ECS CFN (econ-data)
         run: |
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
-            --template-file ${{ steps.locate.outputs.ecs_template }} \
+            --template-file template-app-ecs-tasks.yml \
             --parameter-overrides \
               FindataImageTag=${{ steps.params.outputs.findataimagetag }} \
               PriceImageTag=${{ steps.params.outputs.priceimagetag }} \
               PriceWeeklyImageTag=${{ steps.params.outputs.priceweeklyimagetag }} \
               PriceMonthlyImageTag=${{ steps.params.outputs.pricemonthlyimagetag }} \
               TechnicalDailyImageTag=${{ steps.params.outputs.technicaldailyimagetag }} \
-              StockSymbolsImageTag=${{ steps.params.outputs.stocksymbolsimatetag }} \
+              StockSymbolsImageTag=${{ steps.params.outputs.stocksymbolsimagetag }} \
               EconDataImageTag=${{ steps.image.outputs.tag }} \
               MonthlyPriceImageTag=${{ steps.params.outputs.monthlypriceimagetag }} \
               FREDApiKey=${{ env.FRED_API_KEY }} \
@@ -322,9 +289,11 @@ jobs:
   # 3c) findata ECS: build → deploy → run                  #
   ###########################################################
   findata:
+    name: Findata
     needs: filter
     if: ${{ needs.filter.outputs.findata == 'true' }}
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v3
 
@@ -335,27 +304,16 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Locate CFN templates
-        id: locate
-        run: |
-          if [ -f template-app-ecs-tasks.yml ]; then
-            echo "ecs_template=template-app-ecs-tasks.yml" >> $GITHUB_OUTPUT
-          elif [ -f refactor/template-app-ecs-tasks.yml ]; then
-            echo "ecs_template=refactor/template-app-ecs-tasks.yml" >> $GITHUB_OUTPUT
-          else
-            echo "::error::Cannot find template-app-ecs-tasks.yml"; exit 1
-          fi
-
       - name: Build & push findata image
         id: image
         run: |
           REPO=stocks-app-registry
           aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 \
             || aws ecr create-repository --repository-name "$REPO"
-          URI=$(aws cloudformation describe-repositories \
+          URI=$(aws ecr describe-repositories \
                   --repository-names "$REPO" \
-                  --query "repositories[0].repositoryUri" --output text)
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} \
+                  --query 'repositories[0].repositoryUri' --output text)
+          aws ecr get-login-password --region $AWS_REGION \
             | docker login --username AWS --password-stdin "$URI"
           TAG=findata-${{ github.sha }}
           docker build -f Dockerfile.findata -t "$URI:$TAG" .
@@ -365,7 +323,8 @@ jobs:
       - name: Fetch existing ECS stack params (if any)
         id: params
         run: |
-          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then
+          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+               >/dev/null 2>&1; then
             for key in PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag StockSymbolsImageTag EconDataImageTag MonthlyPriceImageTag; do
               val=$(aws cloudformation describe-stacks \
                       --stack-name stocks-ecs-tasks-stack \
@@ -377,19 +336,20 @@ jobs:
 
       - name: Guard & delete ROLLBACK_COMPLETE stack
         run: |
-          STATUS=$(aws cloudformation describe-stacks \
-                     --stack-name stocks-ecs-tasks-stack \
-                     --query "Stacks[0].StackStatus" --output text 2>/dev/null) || true
-          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
-            aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+          if STATUS=$(aws cloudformation describe-stacks \
+                         --stack-name stocks-ecs-tasks-stack \
+                         --query "Stacks[0].StackStatus" --output text 2>/dev/null); then
+            if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+              aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
+              aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+            fi
           fi
 
       - name: Deploy ECS CFN (findata)
         run: |
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
-            --template-file ${{ steps.locate.outputs.ecs_template }} \
+            --template-file template-app-ecs-tasks.yml \
             --parameter-overrides \
               FindataImageTag=${{ steps.image.outputs.tag }} \
               PriceImageTag=${{ steps.params.outputs.priceimagetag }} \
@@ -417,9 +377,11 @@ jobs:
   # 3d) pricedaily ECS: build → deploy → run                #
   ###########################################################
   pricedaily:
+    name: Price-daily
     needs: filter
     if: ${{ needs.filter.outputs.pricedaily == 'true' }}
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v3
 
@@ -430,27 +392,16 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Locate CFN templates
-        id: locate
-        run: |
-          if [ -f template-app-ecs-tasks.yml ]; then
-            echo "ecs_template=template-app-ecs-tasks.yml" >> $GITHUB_OUTPUT
-          elif [ -f refactor/template-app-ecs-tasks.yml ]; then
-            echo "ecs_template=refactor/template-app-ecs-tasks.yml" >> $GITHUB_OUTPUT
-          else
-            echo "::error::Cannot find template-app-ecs-tasks.yml"; exit 1
-          fi
-
       - name: Build & push pricedaily image
         id: image
         run: |
           REPO=stocks-app-registry
           aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 \
             || aws ecr create-repository --repository-name "$REPO"
-          URI=$(aws cloudformation.describe-repositories \
+          URI=$(aws ecr describe-repositories \
                   --repository-names "$REPO" \
-                  --query "repositories[0].repositoryUri" --output text)
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} \
+                  --query 'repositories[0].repositoryUri' --output text)
+          aws ecr get-login-password --region $AWS_REGION \
             | docker login --username AWS --password-stdin "$URI"
           TAG=pricedaily-${{ github.sha }}
           docker build -f Dockerfile.pricedaily -t "$URI:$TAG" .
@@ -460,9 +411,10 @@ jobs:
       - name: Fetch existing ECS stack params (if any)
         id: params
         run: |
-          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then
+          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+               >/dev/null 2>&1; then
             for key in FindataImageTag PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag StockSymbolsImageTag EconDataImageTag MonthlyPriceImageTag; do
-              val=$(aws cloudformation.describe-stacks \
+              val=$(aws cloudformation describe-stacks \
                       --stack-name stocks-ecs-tasks-stack \
                       --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
                       --output text)
@@ -472,19 +424,20 @@ jobs:
 
       - name: Guard & delete ROLLBACK_COMPLETE stack
         run: |
-          STATUS=$(aws cloudformation describe-stacks \
-                     --stack-name stocks-ecs-tasks-stack \
-                     --query "Stacks[0].StackStatus" --output text 2>/dev/null) || true
-          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
-            aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+          if STATUS=$(aws cloudformation describe-stacks \
+                         --stack-name stocks-ecs-tasks-stack \
+                         --query "Stacks[0].StackStatus" --output text 2>/dev/null); then
+            if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+              aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
+              aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+            fi
           fi
 
       - name: Deploy ECS CFN (pricedaily)
         run: |
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
-            --template-file ${{ steps.locate.outputs.ecs_template }} \
+            --template-file template-app-ecs-tasks.yml \
             --parameter-overrides \
               FindataImageTag=${{ steps.params.outputs.findataimagetag }} \
               PriceImageTag=${{ steps.image.outputs.tag }} \
@@ -500,7 +453,7 @@ jobs:
 
       - name: Run pricedaily loader
         run: |
-          SVC=$(aws cloudformation describe-stacks \
+          SVC=$(aws cloudformation.describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceDailyLoaderServiceName'].OutputValue" \
             --output text)
@@ -512,9 +465,11 @@ jobs:
   # 3e) priceweekly ECS: build → deploy → run               #
   ###########################################################
   priceweekly:
+    name: Price-weekly
     needs: filter
     if: ${{ needs.filter.outputs.priceweekly == 'true' }}
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v3
 
@@ -525,27 +480,16 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Locate CFN templates
-        id: locate
-        run: |
-          if [ -f template-app-ecs-tasks.yml ]; then
-            echo "ecs_template=template-app-ecs-tasks.yml" >> $GITHUB_OUTPUT
-          elif [ -f refactor/template-app-ecs-tasks.yml ]; then
-            echo "ecs_template=refactor/template-app-ecs-tasks.yml" >> $GITHUB_OUTPUT
-          else
-            echo "::error::Cannot find template-app-ecs-tasks.yml"; exit 1
-          fi
-
       - name: Build & push priceweekly image
         id: image
         run: |
           REPO=stocks-app-registry
           aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 \
             || aws ecr create-repository --repository-name "$REPO"
-          URI=$(aws cloudformation.describe-repositories \
+          URI=$(aws ecr describe-repositories \
                   --repository-names "$REPO" \
-                  --query "repositories[0].repositoryUri" --output text)
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} \
+                  --query 'repositories[0].repositoryUri' --output text)
+          aws ecr get-login-password --region $AWS_REGION \
             | docker login --username AWS --password-stdin "$URI"
           TAG=priceweekly-${{ github.sha }}
           docker build -f Dockerfile.priceweekly -t "$URI:$TAG" .
@@ -555,7 +499,8 @@ jobs:
       - name: Fetch existing ECS stack params (if any)
         id: params
         run: |
-          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then
+          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+               >/dev/null 2>&1; then
             for key in FindataImageTag PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag StockSymbolsImageTag EconDataImageTag MonthlyPriceImageTag; do
               val=$(aws cloudformation.describe-stacks \
                       --stack-name stocks-ecs-tasks-stack \
@@ -567,19 +512,20 @@ jobs:
 
       - name: Guard & delete ROLLBACK_COMPLETE stack
         run: |
-          STATUS=$(aws cloudformation describe-stacks \
-                     --stack-name stocks-ecs-tasks-stack \
-                     --query "Stacks[0].StackStatus" --output text 2>/dev/null) || true
-          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
-            aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+          if STATUS=$(aws cloudformation.describe-stacks \
+                         --stack-name stocks-ecs-tasks-stack \
+                         --query "Stacks[0].StackStatus" --output text 2>/dev/null); then
+            if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+              aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
+              aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+            fi
           fi
 
       - name: Deploy ECS CFN (priceweekly)
         run: |
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
-            --template-file ${{ steps.locate.outputs.ecs_template }} \
+            --template-file template-app-ecs-tasks.yml \
             --parameter-overrides \
               FindataImageTag=${{ steps.params.outputs.findataimagetag }} \
               PriceImageTag=${{ steps.params.outputs.priceimagetag }} \
@@ -595,7 +541,7 @@ jobs:
 
       - name: Run priceweekly loader
         run: |
-          SVC=$(aws cloudformation describe-stacks \
+          SVC=$(aws cloudformation.describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyLoaderServiceName'].OutputValue" \
             --output text)
@@ -607,9 +553,11 @@ jobs:
   # 3f) pricemonthly ECS: build → deploy → run              #
   ###########################################################
   pricemonthly:
+    name: Price-monthly
     needs: filter
     if: ${{ needs.filter.outputs.pricemonthly == 'true' }}
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v3
 
@@ -620,27 +568,16 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Locate CFN templates
-        id: locate
-        run: |
-          if [ -f template-app-ecs-tasks.yml ]; then
-            echo "ecs_template=template-app-ecs-tasks.yml" >> $GITHUB_OUTPUT
-          elif [ -f refactor/template-app-ecs-tasks.yml ]; then
-            echo "ecs_template=refactor/template-app-ecs-tasks.yml" >> $GITHUB_OUTPUT
-          else
-            echo "::error::Cannot find template-app-ecs-tasks.yml"; exit 1
-          fi
-
       - name: Build & push pricemonthly image
         id: image
         run: |
           REPO=stocks-app-registry
           aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 \
             || aws ecr create-repository --repository-name "$REPO"
-          URI=$(aws cloudformation.describe-repositories \
+          URI=$(aws ecr describe-repositories \
                   --repository-names "$REPO" \
-                  --query "repositories[0].repositoryUri" --output text)
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} \
+                  --query 'repositories[0].repositoryUri' --output text)
+          aws ecr get-login-password --region $AWS_REGION \
             | docker login --username AWS --password-stdin "$URI"
           TAG=pricemonthly-${{ github.sha }}
           docker build -f Dockerfile.pricemonthly -t "$URI:$TAG" .
@@ -650,7 +587,8 @@ jobs:
       - name: Fetch existing ECS stack params (if any)
         id: params
         run: |
-          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then
+          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+               >/dev/null 2>&1; then
             for key in FindataImageTag PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag StockSymbolsImageTag EconDataImageTag MonthlyPriceImageTag; do
               val=$(aws cloudformation describe-stacks \
                       --stack-name stocks-ecs-tasks-stack \
@@ -662,19 +600,20 @@ jobs:
 
       - name: Guard & delete ROLLBACK_COMPLETE stack
         run: |
-          STATUS=$(aws cloudformation.describe-stacks \
-                     --stack-name stocks-ecs-tasks-stack \
-                     --query "Stacks[0].StackStatus" --output text 2>/dev/null) || true
-          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
-            aws cloudformation.wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+          if STATUS=$(aws cloudformation.describe-stacks \
+                         --stack-name stocks-ecs-tasks-stack \
+                         --query "Stacks[0].StackStatus" --output text 2>/dev/null); then
+            if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+              aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
+              aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+            fi
           fi
 
       - name: Deploy ECS CFN (pricemonthly)
         run: |
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
-            --template-file ${{ steps.locate.outputs.ecs_template }} \
+            --template-file template-app-ecs-tasks.yml \
             --parameter-overrides \
               FindataImageTag=${{ steps.params.outputs.findataimagetag }} \
               PriceImageTag=${{ steps.params.outputs.priceimagetag }} \
@@ -690,7 +629,7 @@ jobs:
 
       - name: Run pricemonthly loader
         run: |
-          SVC=$(aws cloudformation describe-stacks \
+          SVC=$(aws cloudformation.describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceMonthlyLoaderServiceName'].OutputValue" \
             --output text)
@@ -702,9 +641,11 @@ jobs:
   # 3g) technicaldaily ECS: build → deploy → run            #
   ###########################################################
   technicaldaily:
+    name: Technical-daily
     needs: filter
     if: ${{ needs.filter.outputs.technicaldaily == 'true' }}
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v3
 
@@ -715,37 +656,27 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Locate CFN templates
-        id: locate
-        run: |
-          if [ -f template-app-ecs-tasks.yml ]; then
-            echo "ecs_template=template-app-ecs-tasks.yml" >> $GITHUB_OUTPUT
-          elif [ -f refactor/template-app-ecs-tasks.yml ]; then
-            echo "ecs_template=refactor/template-app-ecs-tasks.yml" >> $GITHUB_OUTPUT
-          else
-            echo "::error::Cannot find template-app-ecs-tasks.yml"; exit 1
-          fi
-
       - name: Build & push technicaldaily image
         id: image
         run: |
           REPO=stocks-app-registry
           aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 \
             || aws ecr create-repository --repository-name "$REPO"
-          URI=$(aws cloudformation.describe-repositories \
+          URI=$(aws ecr.describe-repositories \
                   --repository-names "$REPO" \
-                  --query "repositories[0].repositoryUri" --output text)
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} \
-            | docker login --username AWS --password-stdin "$URI"
+                  --query 'repositories[0].repositoryUri' --output text)
+          aws ecr get-login-password --region $AWS_REGION \
+            | docker.login --username AWS --password-stdin "$URI"
           TAG=technicaldaily-${{ github.sha }}
-          docker build -f Dockerfile.technicalsdaily -t "$URI:$TAG" .
-          docker push "$URI:$TAG"
+          docker.build -f Dockerfile.technicalsdaily -t "$URI:$TAG" .
+          docker.push "$URI:$TAG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Fetch existing ECS stack params (if any)
         id: params
         run: |
-          if aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then
+          if aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+               >/dev/null 2>&1; then
             for key in FindataImageTag PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag StockSymbolsImageTag EconDataImageTag MonthlyPriceImageTag; do
               val=$(aws cloudformation.describe-stacks \
                       --stack-name stocks-ecs-tasks-stack \
@@ -757,19 +688,20 @@ jobs:
 
       - name: Guard & delete ROLLBACK_COMPLETE stack
         run: |
-          STATUS=$(aws cloudformation.describe-stacks \
-                     --stack-name stocks-ecs-tasks-stack \
-                     --query "Stacks[0].StackStatus" --output text 2>/dev/null) || true
-          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
-            aws cloudformation.wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+          if STATUS=$(aws cloudformation.describe-stacks \
+                         --stack-name stocks-ecs-tasks-stack \
+                         --query "Stacks[0].StackStatus" --output text 2>/dev/null); then
+            if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+              aws cloudformation.delete-stack --stack-name stocks-ecs-tasks-stack
+              aws cloudformation.wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+            fi
           fi
 
       - name: Deploy ECS CFN (technicaldaily)
         run: |
-          aws cloudformation deploy \
+          aws cloudformation.deploy \
             --stack-name stocks-ecs-tasks-stack \
-            --template-file ${{ steps.locate.outputs.ecs_template }} \
+            --template-file template-app-ecs-tasks.yml \
             --parameter-overrides \
               FindataImageTag=${{ steps.params.outputs.findataimagetag }} \
               PriceImageTag=${{ steps.params.outputs.priceimagetag }} \
