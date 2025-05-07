@@ -3,7 +3,7 @@ name: Deploy core infrastructure
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "*" ]
     paths:
       - 'template-core.yml'
       - '.github/workflows/deploy-core.yml'
