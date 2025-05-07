@@ -15,7 +15,7 @@ import yfinance as yf
 # -------------------------------
 # Script metadata & logging setup 
 # -------------------------------
-SCRIPT_NAME = "loadpricedaily.py"
+SCRIPT_NAME = "loadpricedaily.py" 
 
 # — log everything ≥ INFO to stdout, including errors on stderr —
 logging.basicConfig(

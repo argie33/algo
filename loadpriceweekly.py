@@ -16,7 +16,7 @@ import requests
 # -------------------------------
 # Script metadata & logging setup 
 # -------------------------------
-SCRIPT_NAME = "loadpriceweekly.py"
+SCRIPT_NAME = "loadpriceweekly.py" 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
