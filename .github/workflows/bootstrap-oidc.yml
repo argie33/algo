@@ -1,0 +1,30 @@
+name: Bootstrap OIDC Provider & Deploy Role
+
+# You can trigger this manually once, or on pushes to a special branch
+on:
+  workflow_dispatch:
+
+permissions:
+  # no OIDC here
+  contents: read
+
+jobs:
+  create_oidc_and_role:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo (for the CFN template)
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials (static keys)
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Deploy bootstrap CloudFormation
+        run: |
+          aws cloudformation deploy \
+            --stack-name stocks-oidc-bootstrap \
+            --template-file template-bootstrap.yml \
+            --capabilities CAPABILITY_NAMED_IAM

@@ -1,8 +1,8 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Core infrastructure stack – IAM, VPC, Subnets, Internet Gateway, Bastion host (Spot ASG),
-  auto-shutdown Lambda, ECR registry, S3 code bucket.
-  **NAT Gateway removed to save cost** (private subnets will egress via IGW or NAT).
+  auto-shutdown Lambda, ECR registry, S3 code bucket, and VPC endpoints for RDS/ECS/Lambda/S3.
+  **NAT Gateway removed to save cost** (private subnets rely on VPC endpoints).
 
 Parameters:
   VpcCidr:
@@ -69,12 +69,13 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service: lambda.amazonaws.com
+              Service:
+                - lambda.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
 
-  ### 4) VPC & Networking ###
+  ### VPC & Networking ###
   StocksVPC:
     Type: AWS::EC2::VPC
     Properties:
@@ -87,12 +88,8 @@ Resources:
 
   StocksIGW:
     Type: AWS::EC2::InternetGateway
-    Properties:
-      Tags:
-        - Key: Name
-          Value: stocks-igw
 
-  AttachIGW:
+  VPCGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
       VpcId: !Ref StocksVPC
@@ -103,43 +100,37 @@ Resources:
     Properties:
       VpcId: !Ref StocksVPC
       CidrBlock: !Ref PublicSubnetCidr1
+      AvailabilityZone: !Select [0, !GetAZs '']
       MapPublicIpOnLaunch: true
-      Tags:
-        - Key: Name
-          Value: stocks-public-1
 
   PublicSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref StocksVPC
       CidrBlock: !Ref PublicSubnetCidr2
+      AvailabilityZone: !Select [1, !GetAZs '']
       MapPublicIpOnLaunch: true
-      Tags:
-        - Key: Name
-          Value: stocks-public-2
 
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref StocksVPC
-      Tags:
-        - Key: Name
-          Value: stocks-public-rt
 
   PublicDefaultRoute:
     Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
     Properties:
       RouteTableId: !Ref PublicRouteTable
       DestinationCidrBlock: "0.0.0.0/0"
       GatewayId: !Ref StocksIGW
 
-  PublicSubnetRouteAssoc1:
+  PubSubnet1RouteAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref PublicSubnet1
       RouteTableId: !Ref PublicRouteTable
 
-  PublicSubnetRouteAssoc2:
+  PubSubnet2RouteAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref PublicSubnet2
@@ -150,42 +141,35 @@ Resources:
     Properties:
       VpcId: !Ref StocksVPC
       CidrBlock: !Ref PrivateSubnetCidr1
+      AvailabilityZone: !Select [0, !GetAZs '']
       MapPublicIpOnLaunch: false
-      Tags:
-        - Key: Name
-          Value: stocks-private-1
 
   PrivateSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref StocksVPC
       CidrBlock: !Ref PrivateSubnetCidr2
+      AvailabilityZone: !Select [1, !GetAZs '']
       MapPublicIpOnLaunch: false
-      Tags:
-        - Key: Name
-          Value: stocks-private-2
 
   PrivateRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref StocksVPC
-      Tags:
-        - Key: Name
-          Value: stocks-private-rt
 
-  PrivateSubnetRouteAssoc1:
+  PrivSubnet1RouteAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref PrivateSubnet1
       RouteTableId: !Ref PrivateRouteTable
 
-  PrivateSubnetRouteAssoc2:
+  PrivSubnet2RouteAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref PrivateSubnet2
       RouteTableId: !Ref PrivateRouteTable
 
-  ### 5) Lambda Security Group ###
+  ### Lambda Security Group ###
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -195,7 +179,79 @@ Resources:
         - IpProtocol: -1
           CidrIp: "0.0.0.0/0"
 
-  ### 6) Bastion host (Spot ASG) ###
+  ### VPC Endpoints ###
+  EndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SG for Interface VPC Endpoints
+      VpcId: !Ref StocksVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !Ref VpcCidr
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: "0.0.0.0/0"
+
+  VPCEndpointS3:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Gateway
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcId: !Ref StocksVPC
+      RouteTableIds:
+        - !Ref PrivateRouteTable
+
+  VPCEndpointRDS:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Interface
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.rds
+      VpcId: !Ref StocksVPC
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroupIds:
+        - !Ref EndpointSecurityGroup
+
+  VPCEndpointECS:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Interface
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ecs
+      VpcId: !Ref StocksVPC
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroupIds:
+        - !Ref EndpointSecurityGroup
+
+  VPCEndpointLambda:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Interface
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.lambda
+      VpcId: !Ref StocksVPC
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroupIds:
+        - !Ref EndpointSecurityGroup
+
+  VPCEndpointSecretsManager:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Interface
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.secretsmanager
+      VpcId: !Ref StocksVPC
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroupIds:
+        - !Ref EndpointSecurityGroup
+
+  ### Bastion host (Spot ASG) ###
   BastionInstanceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -231,47 +287,83 @@ Resources:
   BastionSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Bastion host SG (SSH/HTTPS in, all out)
       VpcId: !Ref StocksVPC
+      GroupDescription: Bastion host SG
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
-          CidrIp: !Ref VpcCidr
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          CidrIp: !Ref VpcCidr
+          CidrIp: "0.0.0.0/0"
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: "0.0.0.0/0"
 
-  BastionLaunchConfig:
-    Type: AWS::AutoScaling::LaunchConfiguration
+  BastionLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
     Properties:
-      InstanceType: t3.micro
-      ImageId: ami-0abcdef1234567890   # Replace with your AMI
-      IamInstanceProfile: !Ref BastionInstanceProfile
-      SecurityGroups:
-        - !Ref BastionSecurityGroup
+      LaunchTemplateName: stocks-bastion-lt
+      LaunchTemplateData:
+        InstanceType: t3.micro
+        ImageId: ami-0c94855ba95c71c99
+        IamInstanceProfile:
+          Name: !Ref BastionInstanceProfile
+        SecurityGroupIds:
+          - !Ref BastionSecurityGroup
+        InstanceMarketOptions:
+          MarketType: spot
+          SpotOptions:
+            SpotInstanceType: one-time
+        UserData:
+          Fn::Base64: |
+            #!/bin/bash
+            set -eux
+            yum update -y
+            amazon-linux-extras enable postgresql10
+            yum install -y jq postgresql
+            aws configure set region ${AWS::Region}
+
+            CREDS=$(aws secretsmanager get-secret-value \
+              --secret-id "${DBSecretName}" \
+              --query SecretString --output text)
+            DB_USER=$(echo "$CREDS" | jq -r .username)
+            DB_PASSWORD=$(echo "$CREDS" | jq -r .password)
+            DB_NAME=$(echo "$CREDS" | jq -r .dbname)
+
+            DB_HOST=$(aws cloudformation describe-stacks \
+              --stack-name "${DBStackName}" \
+              --query "Stacks[0].Outputs[?OutputKey=='DBEndpoint'].OutputValue" \
+              --output text)
+            DB_PORT=$(aws cloudformation describe-stacks \
+              --stack-name "${DBStackName}" \
+              --query "Stacks[0].Outputs[?OutputKey=='DBPort'].OutputValue" \
+              --output text)
+
+            cat <<EOF > /home/ec2-user/.pgpass
+            ${DB_HOST}:${DB_PORT}:${DB_NAME}:${DB_USER}:${DB_PASSWORD}
+            EOF
+            chmod 600 /home/ec2-user/.pgpass
+            chown ec2-user:ec2-user /home/ec2-user/.pgpass
 
   BastionAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
+      AutoScalingGroupName: stocks-bastion-asg
       VPCZoneIdentifier:
         - !Ref PublicSubnet1
         - !Ref PublicSubnet2
-      LaunchConfigurationName: !Ref BastionLaunchConfig
-      MinSize: 1
-      MaxSize: 1
-      DesiredCapacity: 1
+      LaunchTemplate:
+        LaunchTemplateId: !Ref BastionLaunchTemplate
+        Version: !GetAtt BastionLaunchTemplate.LatestVersionNumber
+      MinSize: '1'
+      MaxSize: '1'
+      DesiredCapacity: '1'
       Tags:
         - Key: Name
           Value: stocks-bastion
           PropagateAtLaunch: true
 
-  ### 7) Auto-shutdown Lambda ###
-  ShutdownFunctionRole:
+  ### Auto-shutdown Lambda ###
+  BastionStopRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -281,54 +373,80 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-        - arn:aws:iam::aws:policy/AutoScalingReadOnlyAccess
+      Policies:
+        - PolicyName: StopBastion
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ec2:StopInstances
+                Resource: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*
 
-  AutoShutdownFunction:
+  BastionStopFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: shutdown-bastion
       Runtime: python3.9
       Handler: index.handler
-      Role: !GetAtt ShutdownFunctionRole.Arn
+      Role: !GetAtt BastionStopRole.Arn
       Code:
         ZipFile: |
-          import boto3
+          import boto3, os
+          client = boto3.client('autoscaling')
           def handler(event, context):
-              boto3.client('autoscaling').update_auto_scaling_group(
-                  AutoScalingGroupName='stocks-bastion-asg',
+              client.update_auto_scaling_group(
+                  AutoScalingGroupName=os.environ['ASG_NAME'],
                   MinSize=0,
                   DesiredCapacity=0
               )
+      Environment:
+        Variables:
+          ASG_NAME: stocks-bastion-asg
 
-  ShutdownEventRule:
+  BastionStopRule:
     Type: AWS::Events::Rule
     Properties:
-      ScheduleExpression: rate(1 day)
+      Description: Scale bastion down at 6 PM CT daily
+      ScheduleExpression: cron(0 23 * * ? *)
+      State: ENABLED
       Targets:
-        - Arn: !GetAtt AutoShutdownFunction.Arn
-          Id: StopBastion
+        - Arn: !GetAtt BastionStopFunction.Arn
+          Id: StopBastionTarget
 
   LambdaInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref AutoShutdownFunction
+      FunctionName: !Ref BastionStopFunction
       Action: lambda:InvokeFunction
       Principal: events.amazonaws.com
-      SourceArn: !GetAtt ShutdownEventRule.Arn
+      SourceArn: !GetAtt BastionStopRule.Arn
 
-  ### 8) ECR Registry ###
-  ECRRegistry:
+  ### ECR Registry ###
+  ContainerRepository:
     Type: AWS::ECR::Repository
+    DeletionPolicy: Delete
     Properties:
       RepositoryName: stocks-app-registry
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules":[
+              {
+                "rulePriority":1,
+                "selection":{ "tagStatus":"any","countType":"sinceImagePushed","countUnit":"days","countNumber":30 },
+                "action":{"type":"expire"}
+              }
+            ]
+          }
 
-  ### 9) S3 Code Bucket ###
+  ### S3 Code Bucket ###
   CodeBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "${AWS::StackName}-code"
+      BucketName: stocks-algo-app-code
+      VersioningConfiguration:
+        Status: Enabled
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
 
 Outputs:
   VpcId:
@@ -351,6 +469,22 @@ Outputs:
     Value: !Ref PrivateSubnet2
     Export:
       Name: StocksCore-PrivateSubnet2Id
+  LambdaSecurityGroupId:
+    Value: !Ref LambdaSecurityGroup
+    Export:
+      Name: StocksCore-LambdaSecurityGroupId
+  LambdaExecutionRoleArn:
+    Value: !GetAtt LambdaExecutionRole.Arn
+    Export:
+      Name: StocksCore-LambdaExecutionRoleArn
+  ContainerRepositoryUri:
+    Value: !GetAtt ContainerRepository.RepositoryUri
+    Export:
+      Name: StocksCore-ContainerRepositoryUri
+  CodeBucketName:
+    Value: !Ref CodeBucket
+    Export:
+      Name: StocksCore-CodeBucketName
   WebIdentityProviderArn:
     Value: !Ref GitHubOidcProvider
     Export:

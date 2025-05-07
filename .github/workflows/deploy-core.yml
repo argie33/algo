@@ -2,7 +2,7 @@ name: Deploy core infrastructure
 
 on:
   push:
-    branches: [ "*" ]
+    branches: [ "**" ]
     paths:
       - 'template-core.yml'
       - '.github/workflows/deploy-core.yml'
@@ -15,53 +15,36 @@ permissions:
 jobs:
   deploy_core:
     runs-on: ubuntu-latest
-
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
 
-      # 1) STATIC CREDS: delete any stale OIDC provider and deploy the core stack
-      - name: Configure AWS via static creds
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            us-east-1
-
-      - name: Delete existing GitHub OIDC provider (if any)
-        run: |
-          for arn in $(aws iam list-open-id-connect-providers \
-                        --query 'OpenIDConnectProviderList[].Arn' \
-                        --output text); do
-            if [[ "$arn" == *"token.actions.githubusercontent.com"* ]]; then
-              echo "Deleting existing OIDC provider $arn"
-              aws iam delete-open-id-connect-provider \
-                --open-id-connect-provider-arn "$arn"
-            fi
-          done
-
-      - name: Deploy core CloudFormation stack (creates new OIDC Provider)
-        run: |
-          aws cloudformation deploy \
-            --stack-name  stocks-core-stack \
-            --template-file template-core.yml \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --parameter-overrides \
-               VpcCidr=10.0.0.0/16 \
-               PublicSubnetCidr1=10.0.1.0/24 \
-               PublicSubnetCidr2=10.0.2.0/24 \
-               PrivateSubnetCidr1=10.0.101.0/24 \
-               PrivateSubnetCidr2=10.0.102.0/24 \
-               DBStackName=stocks-db-lambda-stack \
-               DBSecretName=stocks-db-credentials \
-            --no-fail-on-empty-changeset
-
-      # 2) OIDC CREDS: now that the provider exists, switch to OIDC for all remaining steps
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
-          aws-region:      us-east-1
+          role-session-name: github-deploy
+          aws-region: us-east-1
+          audience: sts.amazonaws.com
+
+      - name: Cleanup failed core stack if needed
+        run: |
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-core-stack \
+            --query "Stacks[0].StackStatus" \
+            --output text 2>/dev/null || echo NOT_FOUND)
+          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+            aws cloudformation delete-stack --stack-name stocks-core-stack
+            aws cloudformation wait stack-delete-complete --stack-name stocks-core-stack
+          fi
+
+      - name: Deploy core CloudFormation stack
+        run: |
+          aws cloudformation deploy \
+            --stack-name stocks-core-stack \
+            --template-file template-core.yml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset
 
       - name: Wait for Bastion to be running
         id: wait_bastion
