@@ -474,7 +474,7 @@ jobs:
       - update_ecs_stack
       - filter
     runs-on: ubuntu-latest
-    # Build a matrix of (loader name, did-it-change?, CFN output key)
+
     strategy:
       matrix:
         include:
@@ -499,16 +499,17 @@ jobs:
           - loader: technicaldaily
             changed: ${{ needs.filter.outputs.technicaldaily }}
             outputKey: TechnicalDailyServiceName
-    # Only spin up jobs for the ones that actually changed
-    if: ${{ matrix.changed == 'true' }}
+
     steps:
-      - uses: aws-actions/configure-aws-credentials@v4
+      - name: Configure AWS creds
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
       - name: Invoke ${{ matrix.loader }} loader
+        if: ${{ matrix.changed == 'true' }}
         run: |
           SVC=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
@@ -516,5 +517,5 @@ jobs:
             --output text)
 
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
-          aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
+          aws ecs wait services-stable   --cluster stocks-cluster --services "$SVC"
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
