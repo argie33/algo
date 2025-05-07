@@ -1,7 +1,8 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Core infrastructure stack – VPC, Subnets, IGW, Bastion (Spot ASG),
-  auto-shutdown Lambda, ECR registry, S3 code bucket.
+  Core infrastructure stack – VPC, Subnets, Internet Gateway, Bastion host (Spot ASG),
+  auto-shutdown Lambda, ECR registry, and S3 code bucket.
+  **NAT Gateway removed to save cost**.
 
 Parameters:
   VpcCidr:
@@ -360,11 +361,6 @@ Outputs:
     Export:
       Name: StocksCore-PrivateSubnet2Id
 
-  LambdaSecurityGroupId:
-    Value: !Ref LambdaSecurityGroup
-    Export:
-      Name: StocksCore-LambdaSecurityGroupId
-
   LambdaExecutionRoleArn:
     Value: !GetAtt LambdaExecutionRole.Arn
     Export:
@@ -379,3 +375,8 @@ Outputs:
     Value: !Ref CodeBucket
     Export:
       Name: StocksCore-CodeBucketName
+
+  BastionSecurityGroupId:
+    Value: !Ref BastionSecurityGroup
+    Export:
+      Name: StocksCore-BastionSecurityGroupId
