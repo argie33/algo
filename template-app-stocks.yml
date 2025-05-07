@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Application stack – RDS (public), Secrets (DB creds),
   three Lambdas (symbols‑loader, economic‑data loader & monthly‑price loader),
-  and ECS cluster, all in public subnets. 
+  and ECS cluster, all in public subnets.
 
 Parameters:
   CodeKey:
