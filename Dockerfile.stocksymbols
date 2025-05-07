@@ -1,0 +1,11 @@
+FROM python:3.9-slim
+
+# install pg8000 & requests
+RUN pip install --no-cache-dir boto3 pg8000 requests
+
+# copy the loader script
+COPY loadstocksymbols.py /app/index.py
+
+# set working dir & entrypoint
+WORKDIR /app
+ENTRYPOINT ["python", "index.py"]
