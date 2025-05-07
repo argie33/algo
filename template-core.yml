@@ -424,7 +424,7 @@ Outputs:
   DeployRoleArn:
     Value: !GetAtt GitHubActionsDeployRole.Arn
     Export:
-      Name: StocksCore-DeployRoleArn
+      Name: StocksCore-GitHubActionsDeployRoleArn
   BastionSecurityGroupId:
     Value: !Ref BastionSecurityGroup
     Export:
