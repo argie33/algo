@@ -1,5 +1,6 @@
 name: deploy-app-stocks
 
+# Trigger on any branch push
 on:
   push:
     branches:
@@ -306,7 +307,7 @@ jobs:
           echo "::set-output name=tag::$TAG"
 
 ################################################################################
-# 3) Deploy ECS CloudFormation (waits for all builds now!)                    #
+# 3) **Deploy** ECS CloudFormation (waits for all builds now!)                #
 ################################################################################
 
   deploy:
@@ -320,13 +321,13 @@ jobs:
       - priceweekly_build
       - pricemonthly_build
       - technicaldaily_build
-    if: >-
-      needs.filter.outputs.symbols == 'true'  ||
-      needs.filter.outputs.econ == 'true'     ||
-      needs.filter.outputs.findata == 'true'  ||
-      needs.filter.outputs.pricedaily == 'true'||
-      needs.filter.outputs.priceweekly == 'true'||
-      needs.filter.outputs.pricemonthly == 'true'||
+    if: |
+      needs.filter.outputs.symbols == 'true' ||
+      needs.filter.outputs.econ == 'true' ||
+      needs.filter.outputs.findata == 'true' ||
+      needs.filter.outputs.pricedaily == 'true' ||
+      needs.filter.outputs.priceweekly == 'true' ||
+      needs.filter.outputs.pricemonthly == 'true' ||
       needs.filter.outputs.technicaldaily == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -339,14 +340,14 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Fetch existing tags for unchanged images
+      - name: Fetch existing ECS stack params
         id: params
         run: |
           if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then
             for key in FindataImageTag PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag StockSymbolsImageTag EconDataImageTag MonthlyPriceImageTag; do
               echo "${key}=$(aws cloudformation describe-stacks \
                 --stack-name stocks-ecs-tasks-stack \
-                --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
+                --query \"Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue\" \
                 --output text)" >> tags.env
             done
           fi
@@ -356,11 +357,14 @@ jobs:
         id: final
         run: |
           source tags.env || true
-          pick(){ var="$1"; new="$2"; old="$(eval echo \$$1)"; echo "${new:-$old}"; }
+          pick() {
+            var="$1"; new="$2"; old="$(eval echo \"\$$1\")"
+            if [[ -n "$new" ]]; then echo "$new"; else echo "$old"; fi
+          }
           echo "::set-output name=stocksymbols::$(pick StockSymbolsImageTag ${{ needs.symbols_build.outputs.tag }})"
-          echo "::set-output name=econdata::$(pick EconDataImageTag     ${{ needs.econ_build.outputs.tag }})"
-          echo "::set-output name=findata::$(pick FindataImageTag       ${{ needs.findata_build.outputs.tag }})"
-          echo "::set-output name=pricedaily::$(pick PriceImageTag       ${{ needs.pricedaily_build.outputs.tag }})"
+          echo "::set-output name=econdata::$(pick EconDataImageTag    ${{ needs.econ_build.outputs.tag }})"
+          echo "::set-output name=findata::$(pick FindataImageTag      ${{ needs.findata_build.outputs.tag }})"
+          echo "::set-output name=pricedaily::$(pick PriceImageTag     ${{ needs.pricedaily_build.outputs.tag }})"
           echo "::set-output name=priceweekly::$(pick PriceWeeklyImageTag ${{ needs.priceweekly_build.outputs.tag }})"
           echo "::set-output name=pricemonthly::$(pick PriceMonthlyImageTag ${{ needs.pricemonthly_build.outputs.tag }})"
           echo "::set-output name=technicaldaily::$(pick TechnicalDailyImageTag ${{ needs.technicaldaily_build.outputs.tag }})"
@@ -402,7 +406,7 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='StockSymbolsServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
-          aws ecs wait services-stable   --cluster stocks-cluster --services "$SVC"
+          aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
   run_econ:
@@ -421,7 +425,7 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='EconDataServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
-          aws ecs wait services-stable   --cluster stocks-cluster --services "$SVC"
+          aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
   run_findata:
@@ -440,7 +444,7 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='FindataServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
-          aws ecs wait services-stable   --cluster stocks-cluster --services "$SVC"
+          aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
   run_pricedaily:
@@ -459,7 +463,7 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='PriceServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
-          aws ecs wait services-stable   --cluster stocks-cluster --services "$SVC"
+          aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
   run_priceweekly:
@@ -478,7 +482,7 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
-          aws ecs wait services-stable   --cluster stocks-cluster --services "$SVC"
+          aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
   run_pricemonthly:
@@ -497,7 +501,7 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='PricemonthlyServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
-          aws ecs wait services-stable   --cluster stocks-cluster --services "$SVC"
+          aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
   run_technicaldaily:
@@ -516,5 +520,5 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='TechnicalDailyServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
-          aws ecs wait services-stable   --cluster stocks-cluster --services "$SVC"
+          aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
