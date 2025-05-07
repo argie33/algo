@@ -474,10 +474,33 @@ jobs:
       - update_ecs_stack
       - filter
     runs-on: ubuntu-latest
+    # Build a matrix of (loader name, did-it-change?, CFN output key)
     strategy:
       matrix:
-        loader: [stocksymbols,econdata,findata,pricedaily,priceweekly,pricemonthly,technicaldaily]
-    if: ${{ needs.filter.outputs[matrix.loader] == 'true' }}
+        include:
+          - loader: stocksymbols
+            changed: ${{ needs.filter.outputs.symbols }}
+            outputKey: StockSymbolsServiceName
+          - loader: econdata
+            changed: ${{ needs.filter.outputs.econ }}
+            outputKey: EconDataServiceName
+          - loader: findata
+            changed: ${{ needs.filter.outputs.findata }}
+            outputKey: FindataServiceName
+          - loader: pricedaily
+            changed: ${{ needs.filter.outputs.pricedaily }}
+            outputKey: PriceServiceName
+          - loader: priceweekly
+            changed: ${{ needs.filter.outputs.priceweekly }}
+            outputKey: PriceWeeklyServiceName
+          - loader: pricemonthly
+            changed: ${{ needs.filter.outputs.pricemonthly }}
+            outputKey: PricemonthlyServiceName
+          - loader: technicaldaily
+            changed: ${{ needs.filter.outputs.technicaldaily }}
+            outputKey: TechnicalDailyServiceName
+    # Only spin up jobs for the ones that actually changed
+    if: ${{ matrix.changed == 'true' }}
     steps:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -485,21 +508,11 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Run ${{ matrix.loader }} loader
+      - name: Invoke ${{ matrix.loader }} loader
         run: |
-          case "${{ matrix.loader }}" in
-            stocksymbols)  OUT=StockSymbolsServiceName;;
-            econdata)      OUT=EconDataServiceName;;
-            findata)       OUT=FindataServiceName;;
-            pricedaily)    OUT=PriceServiceName;;
-            priceweekly)   OUT=PriceWeeklyServiceName;;
-            pricemonthly)  OUT=PricemonthlyServiceName;;
-            technicaldaily)OUT=TechnicalDailyServiceName;;
-          esac
-
           SVC=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='$OUT'].OutputValue" \
+            --query "Stacks[0].Outputs[?OutputKey=='${{ matrix.outputKey }}'].OutputValue" \
             --output text)
 
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
