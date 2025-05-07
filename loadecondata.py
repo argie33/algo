@@ -14,7 +14,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # ─── Environment variables ──────────────────────────────────────────────────────
-DB_SECRET_ARN = os.environ["DB_SECRET_ARN"] 
+DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
 FRED_API_KEY  = os.environ["FRED_API_KEY"]
 
 def get_db_creds():
