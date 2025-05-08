@@ -79,7 +79,7 @@ jobs:
         name: Any changes?
         run: |
           if [ "${{ steps.paths.outputs.symbols }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.econ }}" = "true" ]    || \
+             [ "${{ steps.paths.outputs.econ }}"    = "true" ] || \
              [ "${{ steps.paths.outputs.findata }}" = "true" ] || \
              [ "${{ steps.paths.outputs.pricedaily }}" = "true" ] || \
              [ "${{ steps.paths.outputs.priceweekly }}" = "true" ] || \
@@ -119,15 +119,15 @@ jobs:
           git diff --name-only ${{ github.event.before }} ${{ github.sha }}
           echo
           echo "paths-filter outputs:"
-          echo "  symbols = ${{ steps.paths.outputs.symbols }}"
-          echo "  econ    = ${{ steps.paths.outputs.econ }}"
-          echo "  findata = ${{ steps.paths.outputs.findata }}"
-          echo "  pricedaily = ${{ steps.paths.outputs.pricedaily }}"
-          echo "  priceweekly = ${{ steps.paths.outputs.priceweekly }}"
-          echo "  pricemonthly = ${{ steps.paths.outputs.pricemonthly }}"
+          echo "  symbols        = ${{ steps.paths.outputs.symbols }}"
+          echo "  econ           = ${{ steps.paths.outputs.econ }}"
+          echo "  findata        = ${{ steps.paths.outputs.findata }}"
+          echo "  pricedaily     = ${{ steps.paths.outputs.pricedaily }}"
+          echo "  priceweekly    = ${{ steps.paths.outputs.priceweekly }}"
+          echo "  pricemonthly   = ${{ steps.paths.outputs.pricemonthly }}"
           echo "  technicaldaily = ${{ steps.paths.outputs.technicaldaily }}"
           echo
-          echo "any = ${{ steps.any.outputs.any }}"
+          echo "any    = ${{ steps.any.outputs.any }}"
           echo "matrix = ${{ steps.matrix.outputs.matrix }}"
 
 ################################################################################
