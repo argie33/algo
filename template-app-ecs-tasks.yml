@@ -52,6 +52,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
       Policies:
+        # (1) Allow creating CloudWatch LogGroups if they don't exist
         - PolicyName: AllowCreateCWLogGroups
           PolicyDocument:
             Version: '2012-10-17'
@@ -60,6 +61,19 @@ Resources:
                 Action:
                   - logs:CreateLogGroup
                 Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/*"
+        # (2) Allow reading your DB secret and KMS decrypt
+        - PolicyName: AllowReadDBSecret
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !ImportValue StocksApp-SecretArn
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                Resource: '*'  # you can lock this down to your secret’s CMK ARN
 
   ######################################
   # B) CloudWatch Log Groups           #
