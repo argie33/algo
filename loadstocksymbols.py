@@ -6,7 +6,7 @@ import json
 import logging
 import requests
 import boto3
-import psycopg        # ← psycopg3, not psycopg2
+import psycopg2
 
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -192,9 +192,13 @@ def _get_conn():
     if _conn is None:
         user,pwd,host,port,db = get_db_creds()
         logger.info("Connecting to Postgres at %s:%s/%s", host, port, db)
-        _conn = psycopg.connect(
-            host=host, port=port, dbname=db,
-            user=user, password=pwd, sslmode="require"
+        _conn = psycopg2.connect(
+            host=host,
+            port=port,
+            dbname=db,
+            user=user,
+            password=pwd,
+            sslmode="require"
         )
     return _conn
 
@@ -247,8 +251,8 @@ def insert_into_postgres(records):
 def handler(event, context):
     logger.info("🔄 loadstocksymbols invoked")
     try:
-        nas   = parse_listed(download_text_file(NASDAQ_URL), "NASDAQ")
-        oth   = parse_listed(download_text_file(OTHER_URL),  "Other")
+        nas      = parse_listed(download_text_file(NASDAQ_URL), "NASDAQ")
+        oth      = parse_listed(download_text_file(OTHER_URL),  "Other")
         combined = dedupe(nas + oth)
         final    = [r for r in combined if "$" not in r["symbol"]]
         logger.info("Deduped %d → %d", len(combined), len(final))
