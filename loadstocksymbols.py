@@ -7,7 +7,7 @@ import logging
 import requests
 import boto3
 import psycopg2
-
+from psycopg2.extras import execute_batch
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -20,191 +20,272 @@ if not logger.handlers:
     logger.addHandler(h)
 
 # ─── Config ──────────────────────────────────────────────────────────────────────
-SCRIPT_NAME   = os.path.basename(__file__)
 DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
-
-# ─── Data sources & exclusion patterns ────────────────────────────────────────────
-NASDAQ_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
-OTHER_URL  = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
+NASDAQ_URL    = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
+OTHER_URL     = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
 patterns = [
-    # add any regex patterns for “other security” here
+   r"\bpreferred\b",
+    r"\bredeemable warrant(s)?\b",
+    r"\bwarrant(s)?\b",
+    r"\bunit(s)?\b",
+    r"\bsubordinated\b",
+    r"\bperpetual subordinated notes\b",
+    r"\bconvertible\b",
+    r"\bsenior note(s)?\b",
+    r"\bcapital investments\b",
+    r"\bnotes due\b",
+    r"\bincome trust\b",
+    r"\blimited partnership units\b",
+    r"\bsubordinate\b",
+    r"\s*-\s*(one\s+)?right(s)?\b",
+    r"\bclosed end fund\b",
+    r"\bpreferred securities\b",
+    r"\bnon-cumulative\b",
+    r"\bredeemable preferred\b",
+    r"\bpreferred class\b",
+    r"\bpreferred share(s)?\b",
+    r"\betns\b",
+    r"\bFixed-to-Floating Rate\b",
+    r"\bseries d\b",
+    r"\bseries b\b",
+    r"\bseries f\b",
+    r"\bseries h\b",
+    r"\bperpetual preferred\b",
+    r"\bincome fund\b",
+    r"\bfltg rate\b",
+    r"\bclass c-1\b",
+    r"\bbeneficial interest\b",
+    r"\bfund\b",
+    r"\bcapital obligation notes\b",
+    r"\bfixed rate\b",
+    r"\bdep shs\b",
+    r"\bopportunities trust\b",
+    r"\bnyse tick pilot test\b",
+    r"\bpreference share\b",
+    r"\bseries g\b",
+    r"\bfutures etn\b",
+    r"\btrust for\b",
+    r"\btest stock\b",
+    r"\bnastdaq symbology test\b",
+    r"\biex test\b",
+    r"\bnasdaq test\b",
+    r"\bnyse arca test\b",
+    r"\bpreference\b",
+    r"\bredeemable\b",
+    r"\bperpetual preference\b",
+    r"\btax free income\b",
+    r"\bstructured products\b",
+    r"\bcorporate backed trust\b",
+    r"\bfloating rate\b",
+    r"\btrust securities\b",
+    r"\bfixed-income\b",
+    r"\bpfd ser\b",
+    r"\bpfd\b",
+    r"\bmortgage bonds\b",
+    r"\bmortgage capital\b",
+    r"\bseries due\b",
+    r"\btarget term\b",
+    r"\bterm trust\b",
+    r"\bperpetual conv\b",
+    r"\bmunicipal bond\b",
+    r"\bdigitalbridge group\b",
+    r"\bnyse test\b",
+    r"\bctest\b",
+    r"\btick pilot test\b",
+    r"\bexchange test\b",
+    r"\bbats bzx\b",
+    r"\bdividend trust\b",
+    r"\bbond trust\b",
+    r"\bmunicipal trust\b",
+    r"\bmortgage trust\b",
+    r"\btrust etf\b",
+    r"\bcapital trust\b",
+    r"\bopportunity trust\b",
+    r"\binvestors trust\b",
+    r"\bincome securities trust\b",
+    r"\bresources trust\b",
+    r"\benergy trust\b",
+    r"\bsciences trust\b",
+    r"\bequity trust\b",
+    r"\bmulti-media trust\b",
+    r"\bmedia trust\b",
+    r"\bmicro-cap trust\b",
+    r"\bmicro-cap\b",
+    r"\bsmall-cap trust\b",
+    r"\bglobal trust\b",
+    r"\bsmall-cap\b",
+    r"\bsce trust\b",
+    r"\bacquisition\b",
+    r"\bcontingent\b",
+    r"\bii inc\b",
+    r"\bnasdaq symbology\b",
+    r"\bsymbology\b", 
 ]
 
 def get_requests_session():
     s = requests.Session()
-    r = Retry(total=3, backoff_factor=1,
-              status_forcelist=[429,500,502,503,504],
-              allowed_methods=["GET"])
-    a = HTTPAdapter(max_retries=r)
-    s.mount("http://", a)
-    s.mount("https://", a)
+    retries = Retry(
+        total=3,
+        backoff_factor=1,
+        status_forcelist=[429,500,502,503,504],
+        allowed_methods=["GET"]
+    )
+    adapter = HTTPAdapter(max_retries=retries)
+    s.mount("http://", adapter)
+    s.mount("https://", adapter)
     return s
 
-def download_text_file(url):
+def download_text_file(url: str) -> str:
     logger.info("Downloading %s", url)
     resp = get_requests_session().get(url, timeout=(5,15))
     resp.raise_for_status()
     return resp.text
 
-def parse_listed(text, source):
-    # 1) drop the metadata line
+def parse_listed(text: str, source: str) -> list[dict]:
     lines = [l for l in text.splitlines() if not l.startswith("File Creation Time")]
     reader = csv.DictReader(lines, delimiter="|")
-
     headers = reader.fieldnames or []
-    # 2) pick the correct symbol column
-    for cand in ("Symbol", "ACT Symbol", "NASDAQ Symbol"):
-        if cand in headers:
-            symbol_key = cand
+
+    for candidate in ("Symbol", "ACT Symbol", "NASDAQ Symbol"):
+        if candidate in headers:
+            sym_key = candidate
             break
     else:
-        raise RuntimeError(f"No symbol column in {source} file; headers={headers}")
+        raise RuntimeError(f"[{source}] No symbol column in headers {headers!r}")
 
-    rows = []
+    records = []
     for row in reader:
-        sym = row.get(symbol_key, "").strip()
-        # skip empty rows & header row itself
-        if not sym or sym == symbol_key:
+        sym = row.get(sym_key, "").strip()
+        if not sym or sym == sym_key:
+            logger.info("[%s] skipping header/empty row", source)
             continue
-        # skip ETFs
-        if row.get("ETF", "").upper() == "Y":
+        if row.get("ETF","").upper() == "Y":
+            logger.info("[%s] skipping ETF %s", source, sym)
             continue
 
-        name = row.get("Security Name", "").strip()
+        name = row.get("Security Name","").strip()
         is_other = any(re.search(p, name, flags=re.IGNORECASE) for p in patterns)
         try:
-            lot = int(row.get("Round Lot Size", "") or 0)
+            lot = int(row.get("Round Lot Size","") or 0)
         except ValueError:
             lot = None
 
-        rows.append({
-            "symbol":         sym,
-            "security_name":  name,
-            "exchange":       source,
-            "test_issue":     row.get("Test Issue", "").strip(),
+        rec = {
+            "symbol": sym,
+            "security_name": name,
+            "exchange": source,
+            "test_issue": row.get("Test Issue","").strip(),
             "round_lot_size": lot,
-            "security_type":  "other security" if is_other else "standard"
-        })
+            "security_type": "other security" if is_other else "standard"
+        }
+        logger.info("[%s] parsed %s → %r", source, sym, rec)
+        records.append(rec)
 
-    logger.info("Parsed %d rows from %s (using %r)", len(rows), source, symbol_key)
-    return rows
+    logger.info("Parsed %d rows from %s (using %r)", len(records), source, sym_key)
+    return records
 
-def dedupe(records):
-    seen = {}
+def dedupe(records: list[dict]) -> list[dict]:
+    seen = set()
+    out  = []
     for r in records:
-        seen.setdefault(r["symbol"], r)
-    return list(seen.values())
+        key = (r["symbol"], r["exchange"])
+        if key in seen:
+            logger.info("Skipping duplicate %s[%s]", r["symbol"], r["exchange"])
+        else:
+            logger.info("Keeping      %s[%s]", r["symbol"], r["exchange"])
+            seen.add(key)
+            out.append(r)
+    return out
 
-# ─── Secrets & DB connection ────────────────────────────────────────────────────
-_secret = None
-_conn   = None
+def get_db_connection():
+    sm = boto3.client("secretsmanager")
+    sec = sm.get_secret_value(SecretId=DB_SECRET_ARN)
+    creds = json.loads(sec["SecretString"])
+    return psycopg2.connect(
+        host=creds["host"],
+        port=int(creds["port"]),
+        dbname=creds["dbname"],
+        user=creds["username"],
+        password=creds["password"],
+        sslmode="require"
+    )
 
-def get_db_creds():
-    global _secret
-    if _secret is None:
-        sm = boto3.client("secretsmanager")
-        v  = sm.get_secret_value(SecretId=DB_SECRET_ARN)
-        _secret = json.loads(v["SecretString"])
-    return (_secret["username"], _secret["password"],
-            _secret["host"], int(_secret["port"]), _secret["dbname"])
+def upsert_symbols(records: list[dict]):
+    conn = get_db_connection()
+    with conn:
+        with conn.cursor() as cur:
+            # ─ Drop & recreate the main table ─────────────────────────
+            cur.execute("DROP TABLE IF EXISTS stock_symbols;")
+            cur.execute("""
+            CREATE TABLE stock_symbols (
+              symbol          VARCHAR(50) PRIMARY KEY,
+              security_name   TEXT,
+              exchange        VARCHAR(20),
+              test_issue      CHAR(1),
+              round_lot_size  INT,
+              security_type   VARCHAR(20),
+              core_security   CHAR(3)
+            );
+            """)
 
-def _get_conn():
-    global _conn
-    if _conn is None:
-        user,pwd,host,port,db = get_db_creds()
-        logger.info("Connecting to Postgres at %s:%s/%s", host, port, db)
-        _conn = psycopg2.connect(
-            host=host,
-            port=port,
-            dbname=db,
-            user=user,
-            password=pwd,
-            sslmode="require"
-        )
-    return _conn
+            # ─ Batch insert all rows ──────────────────────────────────
+            sql = """
+            INSERT INTO stock_symbols
+              (symbol, security_name, exchange, test_issue,
+               round_lot_size, security_type, core_security)
+            VALUES (%(symbol)s, %(security_name)s, %(exchange)s,
+                    %(test_issue)s, %(round_lot_size)s,
+                    %(security_type)s, %(core_security)s)
+            ON CONFLICT (symbol) DO UPDATE SET
+              security_name  = EXCLUDED.security_name,
+              exchange       = EXCLUDED.exchange,
+              test_issue     = EXCLUDED.test_issue,
+              round_lot_size = EXCLUDED.round_lot_size,
+              security_type  = EXCLUDED.security_type,
+              core_security  = EXCLUDED.core_security;
+            """
+            for rec in records:
+                logger.info("Upserting %s[%s] core_security=%s",
+                            rec["symbol"], rec["exchange"], rec["core_security"])
+            execute_batch(cur, sql, records, page_size=500)
 
-def insert_into_postgres(records):
-    conn = _get_conn()
-    cur  = conn.cursor()
-    # ensure table and new column exist
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS stock_symbols (
-      symbol          VARCHAR(50) PRIMARY KEY,
-      security_name   TEXT,
-      exchange        VARCHAR(20),
-      test_issue      CHAR(1),
-      round_lot_size  INT,
-      security_type   VARCHAR(20)
-    );
-    """)
-    cur.execute("""
-    ALTER TABLE stock_symbols
-      ADD COLUMN IF NOT EXISTS core_security VARCHAR(3);
-    """)
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS last_updated (
-      script_name VARCHAR(255) PRIMARY KEY,
-      last_run    TIMESTAMPTZ
-    );
-    """)
+            # ─ Ensure last_updated table exists & update it ─────────
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS last_updated (
+              script_name VARCHAR(255) PRIMARY KEY,
+              last_run    TIMESTAMPTZ
+            );
+            """)
+            cur.execute("""
+            INSERT INTO last_updated (script_name, last_run)
+            VALUES (%s, NOW())
+            ON CONFLICT (script_name) DO UPDATE
+              SET last_run = EXCLUDED.last_run;
+            """, (os.path.basename(__file__),))
+    conn.close()
 
-    # upsert including core_security
-    sql = """
-    INSERT INTO stock_symbols
-      (symbol, security_name, exchange, test_issue,
-       round_lot_size, security_type, core_security)
-    VALUES (%s,%s,%s,%s,%s,%s,%s)
-    ON CONFLICT(symbol) DO UPDATE SET
-      security_name   = EXCLUDED.security_name,
-      exchange        = EXCLUDED.exchange,
-      test_issue      = EXCLUDED.test_issue,
-      round_lot_size  = EXCLUDED.round_lot_size,
-      security_type   = EXCLUDED.security_type,
-      core_security   = EXCLUDED.core_security
-    ;
-    """
-    cur.executemany(sql, [
-        (
-            r["symbol"],
-            r["security_name"],
-            r["exchange"],
-            r["test_issue"],
-            r["round_lot_size"],
-            r["security_type"],
-            r["core_security"]
-        )
-        for r in records
-    ])
-    cur.execute("""
-    INSERT INTO last_updated (script_name,last_run)
-    VALUES (%s,NOW())
-    ON CONFLICT (script_name) DO UPDATE
-      SET last_run = EXCLUDED.last_run;
-    """, (SCRIPT_NAME,))
-    conn.commit()
-    cur.close()
-
-def handler(event, context):
+def handler(event=None, context=None):
     logger.info("🔄 loadstocksymbols invoked")
     try:
         nas = parse_listed(download_text_file(NASDAQ_URL), "NASDAQ")
         oth = parse_listed(download_text_file(OTHER_URL),  "Other")
-        logger.info("Parsed NASDAQ=%d, Other=%d", len(nas), len(oth))
 
-        combined = dedupe(nas + oth)
-        logger.info("Deduped to %d unique symbols", len(combined))
+        logger.info("raw counts → NASDAQ=%d, Other=%d", len(nas), len(oth))
 
-        # mark core_security: "yes" if retained (no "$"), else "no"
-        for r in combined:
-            r["core_security"] = "yes" if "$" not in r["symbol"] else "no"
+        combined = nas + oth
+        unique   = dedupe(combined)
+        logger.info("after dedupe → %d total records", len(unique))
 
-        insert_into_postgres(combined)
-        logger.info("✅ Upserted %d symbols", len(combined))
-        return {"statusCode":200, "body":json.dumps({"processed":len(combined)})}
+        for rec in unique:
+            rec["core_security"] = "yes" if "$" not in rec["symbol"] else "no"
+
+        upsert_symbols(unique)
+        logger.info("✅ Completed upsert of %d symbols", len(unique))
+        return {"statusCode":200, "body":json.dumps({"processed":len(unique)})}
 
     except Exception:
         logger.exception("❌ loadstocksymbols failed")
-        return {"statusCode":500,"body":json.dumps({"error":"see logs"})}
+        return {"statusCode":500, "body":json.dumps({"error":"see logs"})}
 
-if __name__=="__main__":
-    handler({}, None)
+if __name__ == "__main__":
+    handler()
