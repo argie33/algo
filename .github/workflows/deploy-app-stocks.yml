@@ -32,6 +32,7 @@ jobs:
       technicaldaily: ${{ steps.paths.outputs.technicaldaily }}
       any:            ${{ steps.any.outputs.any }}
       matrix:         ${{ steps.matrix.outputs.matrix }}
+
     steps:
       - uses: actions/checkout@v3
         with:
@@ -76,12 +77,12 @@ jobs:
         name: Any changes?
         run: |
           if [ "${{ steps.paths.outputs.symbols }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.econ }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.findata }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.pricedaily }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.priceweekly }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.pricemonthly }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.technicaldaily }}" = "true" ]; then
+             [ "${{ steps.paths.outputs.econ }}"   = "true" ] || \
+             [ "${{ steps.paths.outputs.findata }}"= "true" ] || \
+             [ "${{ steps.paths.outputs.pricedaily }}"= "true" ] || \
+             [ "${{ steps.paths.outputs.priceweekly }}"= "true" ] || \
+             [ "${{ steps.paths.outputs.pricemonthly }}"= "true" ] || \
+             [ "${{ steps.paths.outputs.technicaldaily }}"= "true" ]; then
             echo "any=true" >> $GITHUB_OUTPUT
           else
             echo "any=false" >> $GITHUB_OUTPUT
@@ -108,6 +109,15 @@ jobs:
           [ "$TECHNICALDAILY" = "true" ] && arr="$arr,\"technicaldaily\""
           matrix="[${arr#,}]"
           echo "matrix=$matrix" >> $GITHUB_OUTPUT
+
+      - id: debug
+        name: Debug Filter Outputs
+        run: |
+          echo "Changed files:"
+          git diff --name-only ${{ github.event.before }} ${{ github.sha }}
+          echo "paths-filter → symbols=${{ steps.paths.outputs.symbols }} econ=${{ steps.paths.outputs.econ }}"
+          echo "matrix → ${{ steps.matrix.outputs.matrix }}"
+          echo "any → ${{ steps.any.outputs.any }}"
 
 ################################################################################
 # 2) Build changed images                                                      #
