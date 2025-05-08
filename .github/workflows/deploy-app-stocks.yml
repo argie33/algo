@@ -1,6 +1,5 @@
 name: deploy-app-stocks
 
-# Trigger on any branch push
 on:
   push:
     branches:
@@ -100,13 +99,13 @@ jobs:
           TECHNICALDAILY: ${{ steps.paths.outputs.technicaldaily }}
         run: |
           arr=""
-          if [ "$SYMBOLS" = "true"      ]; then arr="$arr,'symbols'";        fi
-          if [ "$ECON" = "true"         ]; then arr="$arr,'econ'";           fi
-          if [ "$FINDATA" = "true"      ]; then arr="$arr,'findata'";        fi
-          if [ "$PRICEDAILY" = "true"   ]; then arr="$arr,'pricedaily'";     fi
-          if [ "$PRICEWEEKLY" = "true"  ]; then arr="$arr,'priceweekly'";    fi
-          if [ "$PRICEMONTHLY" = "true" ]; then arr="$arr,'pricemonthly'";   fi
-          if [ "$TECHNICALDAILY" = "true" ]; then arr="$arr,'technicaldaily'"; fi
+          [ "$SYMBOLS" = "true"      ] && arr="$arr,'symbols'"
+          [ "$ECON"    = "true"      ] && arr="$arr,'econ'"
+          [ "$FINDATA" = "true"      ] && arr="$arr,'findata'"
+          [ "$PRICEDAILY" = "true"   ] && arr="$arr,'pricedaily'"
+          [ "$PRICEWEEKLY" = "true"  ] && arr="$arr,'priceweekly'"
+          [ "$PRICEMONTHLY" = "true" ] && arr="$arr,'pricemonthly'"
+          [ "$TECHNICALDAILY" = "true" ] && arr="$arr,'technicaldaily'"
           matrix="[${arr#,}]"
           echo "matrix=$matrix" >> $GITHUB_OUTPUT
 
@@ -124,7 +123,6 @@ jobs:
         loader: ${{ fromJson(needs.filter.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v3
-
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -157,13 +155,14 @@ jobs:
           TAG=${{ matrix.loader }}-${{ github.sha }}
           docker build -f "$DOCKERFILE" -t "$URI:$TAG" .
           docker push "$URI:$TAG"
-          echo "${PARAM}=$TAG" > build_tag.txt
+
+          echo "${PARAM}=$TAG" > build_tag_${{ matrix.loader }}.txt
 
       - name: Upload tag artifact
         uses: actions/upload-artifact@v4
         with:
-          name: build-tags
-          path: build_tag.txt
+          name: build-tags-${{ matrix.loader }}
+          path: build_tag_${{ matrix.loader }}.txt
 
 ################################################################################
 # 3) Deploy ECS CloudFormation                                                #
@@ -177,7 +176,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -199,15 +197,14 @@ jobs:
           fi
           cat tags.env
 
-      - name: Download new-tags
+      - name: Download all new-tags
         uses: actions/download-artifact@v4
         with:
-          name: build-tags
           path: new-tags
 
       - name: Merge in new tags
         run: |
-          for f in new-tags/*; do
+          for f in new-tags/build_tag_*.txt; do
             kv=$(cat "$f")
             key=${kv%%=*}
             val=${kv#*=}
@@ -351,7 +348,7 @@ jobs:
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
           aws ecs.wait services-stable --cluster stocks-cluster --services "$SVC"
-          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
+          aws ecs.update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
   run_technicaldaily:
     name: Run technicaldaily loader
