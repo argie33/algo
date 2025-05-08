@@ -17,7 +17,7 @@ import math
 # -------------------------------
 # Script metadata
 # -------------------------------
-SCRIPT_NAME = "loadfinancialdata.py"
+SCRIPT_NAME = "loadfinancialdata.py" 
  
 # -------------------------------
 # Environment-driven configuration
