@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 import os
 import re
-import csv
 import json
 import logging
-from ftplib import FTP
+import urllib.request
+import requests
 import boto3
-import psycopg2
-from psycopg2.extras import execute_batch
+import pandas as pd
+
+from io import StringIO
+from sqlalchemy import create_engine, text
+from urllib3.util.retry import Retry
+from requests.adapters import HTTPAdapter
+from sqlalchemy.exc import SQLAlchemyError
 
 # ─── Logging setup ───────────────────────────────────────────────────────────────
 logger = logging.getLogger("loadstocksymbols")
@@ -19,129 +24,113 @@ if not logger.handlers:
 
 # ─── Configuration ───────────────────────────────────────────────────────────────
 DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
-NASDAQ_FTP    = "nasdaqlisted.txt"
-OTHER_FTP     = "otherlisted.txt"
-FTP_HOST      = "ftp.nasdaqtrader.com"
-patterns = [
-    # add any regex patterns for “other security” classification here
+NASDAQ_URL    = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
+OTHER_FTP_URL = "ftp://ftp.nasdaqtrader.com/symboldirectory/otherlisted.txt"
+PATTERNS      = [
+    # e.g. r"\bpreferred\b", r"\bredeem\b"
 ]
 
-def download_listed_ftp(filename: str) -> str:
+def fetch_http(url: str) -> str:
+    """Download a text file via HTTP with retries."""
+    session = requests.Session()
+    retries = Retry(total=3, backoff_factor=1,
+                    status_forcelist=[429,500,502,503,504],
+                    allowed_methods=["GET"])
+    session.mount("http://", HTTPAdapter(max_retries=retries))
+    session.mount("https://", HTTPAdapter(max_retries=retries))
+
+    logger.info("Downloading via HTTP: %s", url)
+    resp = session.get(url, timeout=(5,15))
+    resp.raise_for_status()
+    return resp.text
+
+def fetch_ftp(url: str) -> str:
+    """Download a text file via FTP using urllib."""
+    logger.info("Downloading via FTP: %s", url)
+    with urllib.request.urlopen(url, timeout=30) as resp:
+        return resp.read().decode("utf-8", errors="ignore")
+
+def parse_to_df(text: str, source: str) -> pd.DataFrame:
     """
-    Connects to the Nasdaq FTP site, retrieves the given filename,
-    and returns its contents as a UTF-8 string.
+    Parse a Nasdaq pipe-delimited listing into a DataFrame.
+    - Drops any line starting with 'File Creation Time'
+    - Dynamically determines the symbol column
+    - Filters out ETFs
+    - Classifies security_type
     """
-    ftp = FTP(FTP_HOST)
-    ftp.login()
-    # try both common directory names
-    for dir_name in ("SymDir","symboldirectory"):
-        try:
-            ftp.cwd(dir_name)
-            break
-        except Exception:
-            continue
-    else:
-        raise RuntimeError(f"Could not find SymDir on {FTP_HOST}")
+    # drop metadata lines
+    lines = [L for L in text.splitlines() if not L.startswith("File Creation Time")]
+    df = pd.read_csv(StringIO("\n".join(lines)), sep="|", dtype=str)
 
-    lines = []
-    ftp.retrlines(f"RETR {filename}", callback=lines.append)
-    ftp.quit()
-    return "\n".join(lines)
+    # find the symbol column
+    sym_col = next((c for c in df.columns if c in ("Symbol","ACT Symbol","NASDAQ Symbol")), None)
+    if not sym_col:
+        raise ValueError(f"[{source}] could not find symbol column; headers={df.columns.tolist()}")
 
-def parse_listed(text: str, source: str) -> list[dict]:
-    """
-    Parses a Nasdaq pipe‐delimited “listed” file into records.
-    Dynamically picks the symbol column, skips metadata/header,
-    filters out ETFs, and classifies security_type.
-    """
-    # drop any “File Creation Time” metadata lines
-    rows = [L for L in text.splitlines() if not L.startswith("File Creation Time")]
-    reader = csv.DictReader(rows, delimiter="|")
-    headers = reader.fieldnames or []
+    # drop the header-row reappearing in the body
+    df = df[df[sym_col] != sym_col]
 
-    # pick the symbol column
-    for cand in ("Symbol","ACT Symbol","NASDAQ Symbol"):
-        if cand in headers:
-            sym_key = cand
-            break
-    else:
-        raise RuntimeError(f"[{source}] no symbol column in headers {headers!r}")
+    # rename & select our fields
+    df = df.rename(columns={
+        sym_col:         "symbol",
+        "Security Name": "security_name",
+        "Test Issue":    "test_issue",
+        "Round Lot Size":"round_lot_size"
+    })[
+        ["symbol", "security_name", "Test Issue", "round_lot_size", "ETF"]
+    ]
 
-    out = []
-    for row in reader:
-        sym = row.get(sym_key, "").strip()
-        # skip blank rows & the header‐row itself
-        if not sym or sym == sym_key:
-            continue
-        # skip ETFs
-        if row.get("ETF","").upper() == "Y":
-            continue
+    # filter out ETFs
+    df = df[df["ETF"].str.upper() != "Y"]
 
-        name     = row.get("Security Name","").strip()
-        is_other = any(re.search(p, name, flags=re.IGNORECASE) for p in patterns)
-        try:
-            lot = int(row.get("Round Lot Size","") or 0)
-        except ValueError:
-            lot = None
+    # fill and cast
+    df["round_lot_size"] = pd.to_numeric(df["round_lot_size"], errors="coerce").fillna(0).astype(int)
+    df["exchange"]       = source
+    df["security_type"]  = df["security_name"].apply(
+        lambda n: "other security" if any(re.search(p, n, flags=re.IGNORECASE) for p in PATTERNS)
+                     else "standard"
+    )
+    df = df.drop(columns=["ETF"])
 
-        out.append({
-            "symbol":         sym,
-            "security_name":  name,
-            "exchange":       source,
-            "test_issue":     row.get("Test Issue","").strip(),
-            "round_lot_size": lot,
-            "security_type":  "other security" if is_other else "standard"
-        })
+    logger.info("[%s] parsed %d rows → columns=%s", source, len(df), df.columns.tolist())
+    return df
 
-    logger.info("Parsed %d rows from %s", len(out), source)
-    return out
-
-def get_db_connection():
+def get_db_engine():
+    """Retrieve DB creds from SecretsManager and build an SQLAlchemy engine."""
     sm   = boto3.client("secretsmanager")
     sec  = sm.get_secret_value(SecretId=DB_SECRET_ARN)
     conf = json.loads(sec["SecretString"])
-    return psycopg2.connect(
-        host     = conf["host"],
-        port     = int(conf["port"]),
-        dbname   = conf["dbname"],
-        user     = conf["username"],
-        password = conf["password"],
-        sslmode  = "require"
+    uri  = (
+        f"postgresql+psycopg2://{conf['username']}:{conf['password']}"
+        f"@{conf['host']}:{conf['port']}/{conf['dbname']}"
     )
+    return create_engine(uri, connect_args={"sslmode":"require"})
 
-def handler(event=None, context=None):
-    logger.info("🔄 loadstocksymbols invoked")
-    try:
-        # ── Download & parse both lists ───────────────────────────────────────
-        nas_text = download_listed_ftp(NASDAQ_FTP)
-        oth_text = download_listed_ftp(OTHER_FTP)
+def main():
+    # ── Fetch & parse both lists ────────────────────────────────────────────────
+    nas_text = fetch_http(NASDAQ_URL)
+    oth_text = fetch_ftp(OTHER_FTP_URL)
 
-        nas = parse_listed(nas_text, "NASDAQ")
-        oth = parse_listed(oth_text,  "Other")
-        logger.info("Counts → NASDAQ=%d, Other=%d", len(nas), len(oth))
+    df_nas = parse_to_df(nas_text, "NASDAQ")
+    df_oth = parse_to_df(oth_text,  "Other")
+    logger.info("Counts → NASDAQ=%d, Other=%d", len(df_nas), len(df_oth))
 
-        # ── Dedupe on (symbol,exchange) ─────────────────────────────────────
-        seen   = set()
-        unique = []
-        for rec in nas + oth:
-            key = (rec["symbol"], rec["exchange"])
-            if key not in seen:
-                seen.add(key)
-                unique.append(rec)
-        logger.info("After dedupe → %d unique rows", len(unique))
+    # ── Concat & dedupe on (symbol,exchange) ──────────────────────────────────
+    df = pd.concat([df_nas, df_oth], ignore_index=True)
+    before = len(df)
+    df = df.drop_duplicates(subset=["symbol","exchange"], keep="first")
+    logger.info("Deduped %d → %d rows", before, len(df))
 
-        # ── Flag core_security & attach source_file ──────────────────────────
-        for rec in unique:
-            rec["core_security"] = "yes" if "$" not in rec["symbol"] else "no"
-            rec["source_file"]   = rec["exchange"]  # or the FTP filename if you prefer
+    # ── Flag core_security & attach source_file ──────────────────────────────
+    df["core_security"] = df["symbol"].apply(lambda s: "yes" if "$" not in s else "no")
+    df["source_file"]   = df["exchange"]
 
-        # ── Write to PostgreSQL ──────────────────────────────────────────────
-        conn = get_db_connection()
-        with conn:
-            cur = conn.cursor()
-            # drop & recreate
-            cur.execute("DROP TABLE IF EXISTS stock_symbols;")
-            cur.execute("""
+    # ── Drop & recreate table, then bulk load ────────────────────────────────
+    engine = get_db_engine()
+    with engine.begin() as conn:
+        # drop + create
+        conn.execute(text("DROP TABLE IF EXISTS stock_symbols;"))
+        conn.execute(text("""
             CREATE TABLE stock_symbols (
               symbol          VARCHAR(50) PRIMARY KEY,
               security_name   TEXT,
@@ -152,48 +141,34 @@ def handler(event=None, context=None):
               core_security   CHAR(3),
               source_file     TEXT
             );
-            """)
-            # batch insert
-            sql = """
-            INSERT INTO stock_symbols
-              (symbol, security_name, exchange, test_issue,
-               round_lot_size, security_type, core_security, source_file)
-            VALUES (
-              %(symbol)s, %(security_name)s, %(exchange)s, %(test_issue)s,
-              %(round_lot_size)s, %(security_type)s, %(core_security)s, %(source_file)s
-            )
-            ON CONFLICT(symbol) DO UPDATE SET
-              security_name  = EXCLUDED.security_name,
-              exchange       = EXCLUDED.exchange,
-              test_issue     = EXCLUDED.test_issue,
-              round_lot_size = EXCLUDED.round_lot_size,
-              security_type  = EXCLUDED.security_type,
-              core_security  = EXCLUDED.core_security,
-              source_file    = EXCLUDED.source_file;
-            """
-            execute_batch(cur, sql, unique, page_size=500)
+        """))
 
-            # last_updated table
-            cur.execute("""
+        # bulk insert via pandas.to_sql (append into freshly created table)
+        df.to_sql(
+            "stock_symbols",
+            con=conn,
+            if_exists="append",
+            index=False
+        )
+
+        # update last_updated
+        conn.execute(text("""
             CREATE TABLE IF NOT EXISTS last_updated (
               script_name VARCHAR(255) PRIMARY KEY,
               last_run    TIMESTAMPTZ
             );
-            """)
-            cur.execute("""
-            INSERT INTO last_updated (script_name,last_run)
-            VALUES (%s,NOW())
-            ON CONFLICT (script_name) DO UPDATE
-              SET last_run = EXCLUDED.last_run;
-            """, (os.path.basename(__file__),))
-        conn.close()
+        """))
+        conn.execute(
+            text("INSERT INTO last_updated (script_name,last_run) VALUES (:n,NOW()) "
+                 "ON CONFLICT (script_name) DO UPDATE SET last_run=EXCLUDED.last_run"),
+            {"n": os.path.basename(__file__)}
+        )
 
-        logger.info("✅ Completed upsert of %d symbols", len(unique))
-        return {"statusCode":200, "body":json.dumps({"processed":len(unique)})}
-
-    except Exception:
-        logger.exception("❌ loadstocksymbols failed")
-        return {"statusCode":500,"body":json.dumps({"error":"see logs"})}
+    logger.info("✅ Wrote %d symbols to stock_symbols", len(df))
 
 if __name__ == "__main__":
-    handler()
+    try:
+        main()
+    except Exception:
+        logger.exception("❌ loadstocksymbols failed")
+        raise
