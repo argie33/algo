@@ -125,3 +125,12 @@ def handler(event, context):
             "statusCode": 500,
             "body": json.dumps({"error": str(e)})
         }
+
+
+if __name__ == "__main__":
+    # When run as a standalone script (e.g. via "python loadecondata.py"),
+    # invoke the handler so all your logging executes.
+    result = handler({}, None)
+    # Print the result so you can see success/failure in the logs.
+    print(json.dumps(result))
+    sys.stdout.flush()
