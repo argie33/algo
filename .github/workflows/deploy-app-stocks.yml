@@ -155,7 +155,6 @@ jobs:
           TAG=${{ matrix.loader }}-${{ github.sha }}
           docker build -f "$DOCKERFILE" -t "$URI:$TAG" .
           docker push "$URI:$TAG"
-
           echo "${PARAM}=$TAG" > build_tag_${{ matrix.loader }}.txt
 
       - name: Upload tag artifact
@@ -204,16 +203,17 @@ jobs:
 
       - name: Merge in new tags
         run: |
-          for f in new-tags/build_tag_*.txt; do
-            kv=$(cat "$f")
-            key=${kv%%=*}
-            val=${kv#*=}
-            if grep -q "^$key=" tags.env; then
-              sed -i "s|^$key=.*|$key=$val|" tags.env
-            else
-              echo "$key=$val" >> tags.env
-            fi
-          done
+          find new-tags -type f -name 'build_tag_*.txt' -print0 | \
+            while IFS= read -r -d '' f; do
+              kv=$(cat "$f")
+              key=${kv%%=*}
+              val=${kv#*=}
+              if grep -q "^$key=" tags.env; then
+                sed -i "s|^$key=.*|$key=$val|" tags.env
+              else
+                echo "$key=$val" >> tags.env
+              fi
+            done
           cat tags.env
 
       - name: Deploy ECS stack
@@ -328,8 +328,8 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
-          aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
-          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
+          aws ecs.wait services-stable --cluster stocks-cluster --services "$SVC"
+          aws ecs.update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
   run_pricemonthly:
     name: Run pricemonthly loader
