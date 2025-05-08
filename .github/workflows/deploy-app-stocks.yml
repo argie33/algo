@@ -10,16 +10,15 @@ permissions:
   contents: read
 
 env:
-  AWS_REGION:       us-east-1
-  AWS_ROLE_ARN:     arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+  AWS_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
   AWS_ROLE_SESSION: github-deploy
-  FRED_API_KEY:     ${{ secrets.FRED_API_KEY }}
+  FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
 
-################################################################################
-# 1) Detect changed components                                                 #
-################################################################################
 jobs:
-jobs:
+  ##########################################################################
+  # 1) Detect changed components                                           #
+  ##########################################################################
   filter:
     name: Detect changed components
     runs-on: ubuntu-latest
@@ -130,9 +129,9 @@ jobs:
           echo "any    = ${{ steps.any.outputs.any }}"
           echo "matrix = ${{ steps.matrix.outputs.matrix }}"
 
-################################################################################
-# 2) Build changed images                                                      #
-################################################################################
+  ##########################################################################
+  # 2) Build changed images                                                 #
+  ##########################################################################
   build:
     name: Build changed images
     needs: filter
@@ -185,9 +184,9 @@ jobs:
           name: build-tags-${{ matrix.loader }}
           path: build_tag_${{ matrix.loader }}.txt
 
-################################################################################
-# 3) Deploy ECS CloudFormation                                                #
-################################################################################
+  ##########################################################################
+  # 3) Deploy ECS CloudFormation                                           #
+  ##########################################################################
   deploy:
     name: Deploy ECS CloudFormation
     needs:
@@ -205,7 +204,7 @@ jobs:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Fetch existing ECS stack params
+      - name: Fetch existing tags
         run: |
           if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then
             for key in \
@@ -213,33 +212,31 @@ jobs:
               PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag; do
               echo "${key}=$(aws cloudformation describe-stacks \
                 --stack-name stocks-ecs-tasks-stack \
-                --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
+                --query \"Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue\" \
                 --output text)" >> tags.env
             done
           fi
           cat tags.env
 
-      - name: Download all new-tags
+      - name: Download new tags
         uses: actions/download-artifact@v4
         with:
           path: new-tags
 
-      - name: Merge in new tags
+      - name: Merge tags
         run: |
           find new-tags -type f -name 'build_tag_*.txt' -print0 | \
-            while IFS= read -r -d '' f; do
-              kv=$(cat "$f")
-              key=${kv%%=*}
-              val=${kv#*=}
-              if grep -q "^$key=" tags.env; then
-                sed -i "s|^$key=.*|$key=$val|" tags.env
-              else
-                echo "$key=$val" >> tags.env
-              fi
-            done
+          while IFS= read -r -d '' f; do
+            kv=$(<"$f"); key=${kv%%=*}; val=${kv#*=}
+            if grep -q "^$key=" tags.env; then
+              sed -i "s|^$key=.*|$key=$val|" tags.env
+            else
+              echo "$key=$val" >> tags.env
+            fi
+          done
           cat tags.env
 
-      - name: Deploy ECS stack
+      - name: Deploy stack
         run: |
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
@@ -248,17 +245,17 @@ jobs:
               StockSymbolsImageTag=$(grep '^StockSymbolsImageTag=' tags.env | cut -d= -f2-) \
               EconDataImageTag=$(grep '^EconDataImageTag=' tags.env | cut -d= -f2-) \
               FindataImageTag=$(grep '^FindataImageTag=' tags.env | cut -d= -f2-) \
-              PriceImageTag=$(grep '^PriceImageTag=' tags.env | cut -d= -f2-) \  
+              PriceImageTag=$(grep '^PriceImageTag=' tags.env | cut -d= -f2-) \
               PriceWeeklyImageTag=$(grep '^PriceWeeklyImageTag=' tags.env | cut -d= -f2-) \
-              PriceMonthlyImageTag=$(rep grep '^PriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
+              PriceMonthlyImageTag=$(grep '^PriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
               TechnicalDailyImageTag=$(grep '^TechnicalDailyImageTag=' tags.env | cut -d= -f2-) \
               FREDApiKey=$FRED_API_KEY \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
 
-################################################################################
-# 4) Run each changed loader                                                  #
-################################################################################
+  ##########################################################################
+  # 4) Run each changed loader                                             #
+  ##########################################################################
   run_symbols:
     name: Run stock-symbols loader
     needs: deploy
@@ -347,7 +344,7 @@ jobs:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - run: |
-          SVC=$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
