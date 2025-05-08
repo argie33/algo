@@ -170,5 +170,5 @@ if __name__ == "__main__":
     try:
         main()
     except Exception:
-        logger.exception("❌ loadstocksymbols failed")
+        logger.exception("❌ loadstocksymbols failed") 
         raise
