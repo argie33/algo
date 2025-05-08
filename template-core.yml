@@ -199,7 +199,7 @@ Resources:
         InstanceMarketOptions:
           MarketType: spot
           SpotOptions:
-            SpotInstanceType: one-time
+            SpotInstanceType: persistent
         UserData:
           Fn::Base64: |
             #!/bin/bash
@@ -266,8 +266,8 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action: ec2:StopInstances
-                Resource: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*
+                Action: autoscaling:UpdateAutoScalingGroup
+                Resource: '*'
 
   BastionStopFunction:
     Type: AWS::Lambda::Function
