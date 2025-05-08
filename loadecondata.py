@@ -11,7 +11,7 @@ import psycopg2
 from psycopg2.extras import execute_values
 
 # ─── Logging setup ───────────────────────────────────────────────────────────────
-# Send all INFO+ logs to stdout so awslogs picks them up 
+# Send all INFO+ logs to stdout so awslogs picks them up
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
                     format='[%(asctime)s] %(levelname)s %(name)s: %(message)s')
 logger = logging.getLogger()
