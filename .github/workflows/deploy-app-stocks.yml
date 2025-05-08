@@ -99,13 +99,13 @@ jobs:
           TECHNICALDAILY: ${{ steps.paths.outputs.technicaldaily }}
         run: |
           arr=""
-          [ "$SYMBOLS" = "true" ] && arr="$arr,'symbols'"
-          [ "$ECON"    = "true" ] && arr="$arr,'econ'"
-          [ "$FINDATA" = "true" ] && arr="$arr,'findata'"
-          [ "$PRICEDAILY" = "true" ] && arr="$arr,'pricedaily'"
-          [ "$PRICEWEEKLY" = "true" ] && arr="$arr,'priceweekly'"
-          [ "$PRICEMONTHLY" = "true" ] && arr="$arr,'pricemonthly'"
-          [ "$TECHNICALDAILY" = "true" ] && arr="$arr,'technicaldaily'"
+          [ "$SYMBOLS"        = "true" ] && arr="$arr,\"symbols\""
+          [ "$ECON"           = "true" ] && arr="$arr,\"econ\""
+          [ "$FINDATA"        = "true" ] && arr="$arr,\"findata\""
+          [ "$PRICEDAILY"     = "true" ] && arr="$arr,\"pricedaily\""
+          [ "$PRICEWEEKLY"    = "true" ] && arr="$arr,\"priceweekly\""
+          [ "$PRICEMONTHLY"   = "true" ] && arr="$arr,\"pricemonthly\""
+          [ "$TECHNICALDAILY" = "true" ] && arr="$arr,\"technicaldaily\""
           matrix="[${arr#,}]"
           echo "matrix=$matrix" >> $GITHUB_OUTPUT
 
@@ -145,12 +145,12 @@ jobs:
 
           case "${{ matrix.loader }}" in
             symbols)        DOCKERFILE=Dockerfile.stocksymbols;   PARAM=StockSymbolsImageTag;;
-            econ)           DOCKERFILE=Dockerfile.econdata;      PARAM=EconDataImageTag;;
-            findata)        DOCKERFILE=Dockerfile.findata;       PARAM=FindataImageTag;;
-            pricedaily)     DOCKERFILE=Dockerfile.pricedaily;    PARAM=PriceImageTag;;
-            priceweekly)    DOCKERFILE=Dockerfile.priceweekly;   PARAM=PriceWeeklyImageTag;;
-            pricemonthly)   DOCKERFILE=Dockerfile.pricemonthly;  PARAM=PriceMonthlyImageTag;;
-            technicaldaily) DOCKERFILE=Dockerfile.technicalsdaily;PARAM=TechnicalDailyImageTag;;
+            econ)           DOCKERFILE=Dockerfile.econdata;       PARAM=EconDataImageTag;;
+            findata)        DOCKERFILE=Dockerfile.findata;        PARAM=FindataImageTag;;
+            pricedaily)     DOCKERFILE=Dockerfile.pricedaily;     PARAM=PriceImageTag;;
+            priceweekly)    DOCKERFILE=Dockerfile.priceweekly;    PARAM=PriceWeeklyImageTag;;
+            pricemonthly)   DOCKERFILE=Dockerfile.pricemonthly;   PARAM=PriceMonthlyImageTag;;
+            technicaldaily) DOCKERFILE=Dockerfile.technicalsdaily; PARAM=TechnicalDailyImageTag;;
           esac
 
           TAG=${{ matrix.loader }}-${{ github.sha }}
@@ -227,9 +227,9 @@ jobs:
               StockSymbolsImageTag=$(grep '^StockSymbolsImageTag=' tags.env | cut -d= -f2-) \
               EconDataImageTag=$(grep '^EconDataImageTag=' tags.env | cut -d= -f2-) \
               FindataImageTag=$(grep '^FindataImageTag=' tags.env | cut -d= -f2-) \
-              PriceImageTag=$(grep '^PriceImageTag=' tags.env | cut -d= -f2-) \
+              PriceImageTag=$(grep '^PriceImageTag=' tags.env | cut -d= -f2-) \  
               PriceWeeklyImageTag=$(grep '^PriceWeeklyImageTag=' tags.env | cut -d= -f2-) \
-              PriceMonthlyImageTag=$(grep '^PriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
+              PriceMonthlyImageTag=$(rep grep '^PriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
               TechnicalDailyImageTag=$(grep '^TechnicalDailyImageTag=' tags.env | cut -d= -f2-) \
               FREDApiKey=$FRED_API_KEY \
             --capabilities CAPABILITY_NAMED_IAM \
@@ -326,7 +326,7 @@ jobs:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - run: |
-          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+          SVC=$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
