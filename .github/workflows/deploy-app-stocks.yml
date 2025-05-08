@@ -1,5 +1,6 @@
 name: deploy-app-stocks
 
+# Trigger on any branch push
 on:
   push:
     branches:
@@ -159,7 +160,7 @@ jobs:
           echo "${PARAM}=$TAG" > build_tag.txt
 
       - name: Upload tag artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: build-tags
           path: build_tag.txt
@@ -199,7 +200,7 @@ jobs:
           cat tags.env
 
       - name: Download new-tags
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: build-tags
           path: new-tags
@@ -349,7 +350,7 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='PricemonthlyServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
-          aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
+          aws ecs.wait services-stable --cluster stocks-cluster --services "$SVC"
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
   run_technicaldaily:
@@ -368,5 +369,5 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='TechnicalDailyServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
-          aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
-          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
+          aws ecs.wait services-stable --cluster stocks-cluster --services "$SVC"
+          aws ecs.update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
