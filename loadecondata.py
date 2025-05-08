@@ -1,115 +1,43 @@
 #!/usr/bin/env python3
+import sys
 import os
-import re
-import csv
 import json
 import logging
 
-import requests
 import boto3
-import psycopg  # ← psycopg3, not psycopg2
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+import pandas as pd
+from fredapi import Fred
+import psycopg2
+from psycopg2.extras import execute_values
 
 # ─── Logging setup ───────────────────────────────────────────────────────────────
-logger = logging.getLogger("loadstocksymbols")
-logger.setLevel(logging.INFO)
-if not logger.handlers:
-    h = logging.StreamHandler()
-    h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
-    logger.addHandler(h)
+# Send all INFO+ logs to stdout so awslogs picks them up 
+logging.basicConfig(stream=sys.stdout, level=logging.INFO,
+                    format='[%(asctime)s] %(levelname)s %(name)s: %(message)s')
+logger = logging.getLogger()
 
-# ─── Config ──────────────────────────────────────────────────────────────────────
-SCRIPT_NAME   = os.path.basename(__file__)
+# ─── Environment variables ──────────────────────────────────────────────────────
 DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
-
-# ─── Data sources & exclusion patterns ────────────────────────────────────────────
-NASDAQ_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
-OTHER_URL  = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
-patterns = [
-    # … all your regex patterns here …
-    r"\bpreferred\b",
-    r"\bredeemable warrant(s)?\b",
-    # (etc)
-]
-
-def get_requests_session():
-    s = requests.Session()
-    r = Retry(
-        total=3,
-        backoff_factor=1,
-        status_forcelist=[429,500,502,503,504],
-        allowed_methods=["GET"]
-    )
-    a = HTTPAdapter(max_retries=r)
-    s.mount("http://", a)
-    s.mount("https://", a)
-    return s
-
-def download_text_file(url):
-    logger.info("Downloading %s", url)
-    resp = get_requests_session().get(url, timeout=(5,15))
-    resp.raise_for_status()
-    return resp.text
-
-def parse_listed(text, source):
-    rows = []
-    key = "Symbol" if source == "NASDAQ" else "ACT Symbol"
-    reader = csv.DictReader(text.splitlines(), delimiter="|")
-    for row in reader:
-        # skip header/footer lines
-        if row[key].startswith("File Creation Time"):
-            continue
-        name = row["Security Name"].strip()
-        # skip ETFs
-        if row.get("ETF","").upper() == "Y":
-            continue
-        is_other = any(re.search(p, name, flags=re.IGNORECASE) for p in patterns)
-        try:
-            lot = int(row.get("Round Lot Size","0") or 0)
-        except ValueError:
-            lot = None
-        rows.append({
-            "symbol":         row[key].strip(),
-            "security_name":  name,
-            "exchange":       source,
-            "test_issue":     row.get("Test Issue","").strip(),
-            "round_lot_size": lot,
-            "security_type":  "other security" if is_other else "standard"
-        })
-    logger.info("Parsed %d rows from %s", len(rows), source)
-    return rows
-
-def dedupe(records):
-    seen = {}
-    for r in records:
-        seen.setdefault(r["symbol"], r)
-    return list(seen.values())
-
-# ─── Secrets & DB connection ────────────────────────────────────────────────────
-_secret = None
-_conn   = None
+FRED_API_KEY  = os.environ["FRED_API_KEY"]
 
 def get_db_creds():
-    global _secret
-    if _secret is None:
-        sm = boto3.client("secretsmanager")
-        v  = sm.get_secret_value(SecretId=DB_SECRET_ARN)
-        _secret = json.loads(v["SecretString"])
+    """Fetch DB creds (username, password, host, port, dbname) from Secrets Manager."""
+    sm = boto3.client("secretsmanager")
+    resp = sm.get_secret_value(SecretId=DB_SECRET_ARN)
+    sec = json.loads(resp["SecretString"])
     return (
-        _secret["username"],
-        _secret["password"],
-        _secret["host"],
-        int(_secret["port"]),
-        _secret["dbname"]
+        sec["username"],
+        sec["password"],
+        sec["host"],
+        int(sec["port"]),
+        sec["dbname"]
     )
 
-def _get_conn():
-    global _conn
-    if _conn is None:
+def handler(event, context):
+    try:
+        # 1) Connect
         user, pwd, host, port, db = get_db_creds()
-        logger.info("Connecting to Postgres at %s:%s/%s", host, port, db)
-        _conn = psycopg.connect(
+        conn = psycopg2.connect(
             host=host,
             port=port,
             dbname=db,
@@ -117,82 +45,83 @@ def _get_conn():
             password=pwd,
             sslmode="require"
         )
-    return _conn
+        cur = conn.cursor()
 
-def insert_into_postgres(records):
-    conn = _get_conn()
-    cur  = conn.cursor()
-    # create tables if missing
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS stock_symbols (
-      symbol          VARCHAR(50) PRIMARY KEY,
-      security_name   TEXT,
-      exchange        VARCHAR(20),
-      test_issue      CHAR(1),
-      round_lot_size  INT,
-      security_type   VARCHAR(20)
-    );
-    """)
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS last_updated (
-      script_name VARCHAR(255) PRIMARY KEY,
-      last_run    TIMESTAMPTZ
-    );
-    """)
-    # upsert into stock_symbols
-    sql = """
-    INSERT INTO stock_symbols
-      (symbol,security_name,exchange,test_issue,round_lot_size,security_type)
-    VALUES (%s,%s,%s,%s,%s,%s)
-    ON CONFLICT(symbol) DO UPDATE SET
-      security_name  = EXCLUDED.security_name,
-      exchange       = EXCLUDED.exchange,
-      test_issue     = EXCLUDED.test_issue,
-      round_lot_size = EXCLUDED.round_lot_size,
-      security_type  = EXCLUDED.security_type;
-    """
-    cur.executemany(sql, [
-        (
-          r["symbol"],
-          r["security_name"],
-          r["exchange"],
-          r["test_issue"],
-          r["round_lot_size"],
-          r["security_type"]
-        )
-        for r in records
-    ])
-    # upsert last_updated
-    cur.execute("""
-    INSERT INTO last_updated (script_name,last_run)
-    VALUES (%s,NOW())
-    ON CONFLICT (script_name) DO UPDATE
-      SET last_run = EXCLUDED.last_run;
-    """, (SCRIPT_NAME,))
-    conn.commit()
-    cur.close()
+        # 2) Ensure table exists
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS economic_data (
+                series_id TEXT NOT NULL,
+                date       DATE NOT NULL,
+                value      DOUBLE PRECISION,
+                PRIMARY KEY (series_id, date)
+            );
+        """)
+        conn.commit()
 
-def handler(event, context):
-    logger.info("🔄 loadstocksymbols invoked")
-    try:
-        nas    = parse_listed(download_text_file(NASDAQ_URL), "NASDAQ")
-        oth    = parse_listed(download_text_file(OTHER_URL),  "Other")
-        combined = nas + oth
-        deduped  = dedupe(combined)
-        final    = [r for r in deduped if "$" not in r["symbol"]]
-        logger.info("Deduped %d → %d", len(combined), len(final))
-        insert_into_postgres(final)
-        logger.info("✅ Upserted %d symbols", len(final))
+        # 3) Series list
+        series_ids = [
+            # — U.S. Output & Demand —
+            "GDPC1","PCECC96","GPDI","GCEC1","EXPGSC1","IMPGSC1",
+            # — U.S. Labor Market —
+            "UNRATE","PAYEMS","CIVPART","CES0500000003","AWHAE","JTSJOL","ICSA","OPHNFB","U6RATE",
+            # — U.S. Inflation & Prices —
+            "CPIAUCSL","CPILFESL","PCEPI","PCEPILFE","PPIACO","MICH","T5YIFR",
+            # — U.S. Financial & Monetary —
+            "FEDFUNDS","DGS2","DGS10","T10Y2Y","MORTGAGE30US","BAA","AAA","SP500","VIXCLS","M2SL","WALCL","IOER","IORB",
+            # — U.S. Housing & Construction —
+            "HOUST","PERMIT","CSUSHPISA","RHORUSQ156N","RRVRUSQ156N","USHVAC"
+        ]
+
+        fred = Fred(api_key=FRED_API_KEY)
+
+        # 4) Fetch & upsert each
+        for sid in series_ids:
+            logger.info(f"Fetching {sid} …")
+            try:
+                ts = fred.get_series(sid)
+            except Exception as e:
+                logger.error(f"Failed to fetch {sid}: {e}")
+                continue
+
+            if ts is None or ts.empty:
+                logger.warning(f"No data for {sid}")
+                continue
+
+            ts = ts.dropna()
+            rows = [(sid, pd.to_datetime(dt).date(), float(val)) for dt, val in ts.items()]
+
+            # bulk upsert
+            execute_values(
+                cur,
+                """
+                INSERT INTO economic_data (series_id, date, value)
+                VALUES %s
+                ON CONFLICT (series_id, date) DO UPDATE
+                  SET value = EXCLUDED.value;
+                """,
+                rows
+            )
+            conn.commit()
+            logger.info(f"✓ {len(rows)} rows upserted for {sid}")
+
+        # 5) Clean up
+        cur.close()
+        conn.close()
+
         return {
             "statusCode": 200,
-            "body": json.dumps({"processed": len(final)})
-        }
-    except Exception:
-        logger.exception("❌ loadstocksymbols failed")
-        return {
-            "statusCode": 500,
-            "body": json.dumps({"error": "see logs"})
+            "body": json.dumps({"status": "success"})
         }
 
-if __name__ == "__main__":
-    handler({}, None)
+    except Exception as e:
+        logger.exception("loadecondata failed")
+        # if conn was opened, attempt to close
+        try:
+            cur.close()
+            conn.close()
+        except:
+            pass
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": str(e)})
+        }
