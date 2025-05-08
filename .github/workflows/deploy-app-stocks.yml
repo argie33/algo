@@ -44,33 +44,33 @@ jobs:
           base: ${{ github.event.before }}
           filters: |
             symbols:
-              - 'loadstocksymbols.py'
-              - 'requirements-loadstocksymbols.txt'
-              - 'Dockerfile.stocksymbols'
+              - loadstocksymbols.py
+              - requirements-loadstocksymbols.txt
+              - Dockerfile.stocksymbols
             econ:
-              - 'loadecondata.py'
-              - 'requirements-loadecondata.txt'
-              - 'Dockerfile.econdata'
+              - loadecondata.py
+              - requirements-loadecondata.txt
+              - Dockerfile.econdata
             findata:
-              - 'loadfinancialdata.py'
-              - 'requirements-loadfinancialdata.txt'
-              - 'Dockerfile.findata'
+              - loadfinancialdata.py
+              - requirements-loadfinancialdata.txt
+              - Dockerfile.findata
             pricedaily:
-              - 'loadpricedaily.py'
-              - 'requirements-loadpricedaily.txt'
-              - 'Dockerfile.pricedaily'
+              - loadpricedaily.py
+              - requirements-loadpricedaily.txt
+              - Dockerfile.pricedaily
             priceweekly:
-              - 'loadpriceweekly.py'
-              - 'requirements-loadpriceweekly.txt'
-              - 'Dockerfile.priceweekly'
+              - loadpriceweekly.py
+              - requirements-loadpriceweekly.txt
+              - Dockerfile.priceweekly
             pricemonthly:
-              - 'loadpricemonthly.py'
-              - 'requirements-pricemonthly.txt'
-              - 'Dockerfile.pricemonthly'
+              - loadpricemonthly.py
+              - requirements-pricemonthly.txt
+              - Dockerfile.pricemonthly
             technicaldaily:
-              - 'loadtechnicalsdaily.py'
-              - 'requirements-loadtechnicalsdaily.txt'
-              - 'Dockerfile.technicalsdaily'
+              - loadtechnicalsdaily.py
+              - requirements-loadtechnicalsdaily.txt
+              - Dockerfile.technicalsdaily
 
       - id: any
         name: Any changes?
@@ -99,11 +99,11 @@ jobs:
           TECHNICALDAILY: ${{ steps.paths.outputs.technicaldaily }}
         run: |
           arr=""
-          [ "$SYMBOLS" = "true"      ] && arr="$arr,'symbols'"
-          [ "$ECON"    = "true"      ] && arr="$arr,'econ'"
-          [ "$FINDATA" = "true"      ] && arr="$arr,'findata'"
-          [ "$PRICEDAILY" = "true"   ] && arr="$arr,'pricedaily'"
-          [ "$PRICEWEEKLY" = "true"  ] && arr="$arr,'priceweekly'"
+          [ "$SYMBOLS" = "true" ] && arr="$arr,'symbols'"
+          [ "$ECON"    = "true" ] && arr="$arr,'econ'"
+          [ "$FINDATA" = "true" ] && arr="$arr,'findata'"
+          [ "$PRICEDAILY" = "true" ] && arr="$arr,'pricedaily'"
+          [ "$PRICEWEEKLY" = "true" ] && arr="$arr,'priceweekly'"
           [ "$PRICEMONTHLY" = "true" ] && arr="$arr,'pricemonthly'"
           [ "$TECHNICALDAILY" = "true" ] && arr="$arr,'technicaldaily'"
           matrix="[${arr#,}]"
@@ -192,7 +192,7 @@ jobs:
               PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag TechnicalDailyImageTag; do
               echo "${key}=$(aws cloudformation describe-stacks \
                 --stack-name stocks-ecs-tasks-stack \
-                --query \"Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue\" \
+                --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
                 --output text)" >> tags.env
             done
           fi
@@ -326,7 +326,7 @@ jobs:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - run: |
-          SVC=$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
@@ -345,7 +345,7 @@ jobs:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - run: |
-          SVC=$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PricemonthlyServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
