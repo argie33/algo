@@ -194,6 +194,8 @@ Resources:
                 - !Ref EconDataImageTag
           Essential: true
           Environment:
+            - Name: LOG_GROUP
+              Value: /ecs/econdata-loader
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
             - Name: FRED_API_KEY
