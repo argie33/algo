@@ -4,11 +4,9 @@ import re
 import csv
 import json
 import logging
-import requests
+from ftplib import FTP
 import boto3
 import psycopg2
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
 # ─── Logging setup ───────────────────────────────────────────────────────────────
 logger = logging.getLogger("loadstocksymbols")
@@ -20,44 +18,36 @@ if not logger.handlers:
 
 # ─── Configuration ───────────────────────────────────────────────────────────────
 DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
-OTHER_URL     = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
+FTP_HOST      = "ftp.nasdaqtrader.com"
+FTP_DIR       = "symboldirectory"
+FTP_FILE      = "otherlisted.txt"
 
 # any regexes for classifying “other security”:
 patterns = [
     # e.g. r"\bpreferred\b", r"\bredeem\b"
 ]
 
-def get_http_session():
-    """Return a requests.Session with retry logic."""
-    s = requests.Session()
-    retries = Retry(
-        total=3,
-        backoff_factor=1,
-        status_forcelist=[429, 500, 502, 503, 504],
-        allowed_methods=["GET"]
-    )
-    adapter = HTTPAdapter(max_retries=retries)
-    s.mount("http://", adapter)
-    s.mount("https://", adapter)
-    return s
-
-def fetch_text(url: str) -> str:
-    """Download a text file over HTTP and return its body."""
-    logger.info("Downloading %s", url)
-    resp = get_http_session().get(url, timeout=(5, 15))
-    resp.raise_for_status()
-    return resp.text
+def fetch_text_ftp() -> str:
+    """Download the otherlisted.txt file via FTP and return its body."""
+    logger.info("Connecting to FTP %s", FTP_HOST)
+    ftp = FTP(FTP_HOST)
+    ftp.login()
+    ftp.cwd(FTP_DIR)
+    lines = []
+    ftp.retrlines(f"RETR {FTP_FILE}", lines.append)
+    ftp.quit()
+    text = "\n".join(lines)
+    logger.info("Downloaded %s from FTP", FTP_FILE)
+    return text
 
 def parse_listed(text: str, source: str) -> list[dict]:
     """
-    Robustly parse a Nasdaq pipe-delimited listing from its raw text.
-    - Finds the real header row (which may be buried after metadata)
-    - Uses that header for csv.DictReader
-    - Dynamically picks Symbol/ACT Symbol/NASDAQ Symbol
-    - Returns a list of dicts with our desired fields
+    Parse a pipe‑delimited listing:
+    - Find the real header row (contains "Security Name" + pipe)
+    - Use that header for csv.DictReader
+    - Dynamically pick Symbol or NASDAQ Symbol (no ACT Symbol)
     """
     lines = text.splitlines()
-    # 1) locate the true header row (contains "Security Name" and at least one "Symbol")
     header_idx = None
     for i, line in enumerate(lines):
         if "Security Name" in line and "|" in line:
@@ -67,12 +57,11 @@ def parse_listed(text: str, source: str) -> list[dict]:
         logger.error("[%s] could not find header row", source)
         return []
 
-    data_lines = lines[header_idx:]
-    reader = csv.DictReader(data_lines, delimiter="|")
+    reader = csv.DictReader(lines[header_idx:], delimiter="|")
     headers = reader.fieldnames or []
 
-    # 2) pick the correct symbol column
-    for cand in ("Symbol", "ACT Symbol", "NASDAQ Symbol"):
+    # pick only "Symbol" or "NASDAQ Symbol"
+    for cand in ("Symbol", "NASDAQ Symbol"):
         if cand in headers:
             sym_key = cand
             break
@@ -83,7 +72,6 @@ def parse_listed(text: str, source: str) -> list[dict]:
     records = []
     for row in reader:
         sym = row.get(sym_key, "").strip()
-        # skip blank rows or the header row repeated
         if not sym or sym == sym_key:
             continue
 
@@ -124,11 +112,12 @@ def get_db_connection():
     )
 
 def main():
-    # ── Fetch & parse only the “otherlisted” list ────────────────────────────────
-    oth = parse_listed(fetch_text(OTHER_URL), "Other")
+    # ── Fetch & parse only the FTP‐sourced list ─────────────────────────────────
+    oth_text = fetch_text_ftp()
+    oth = parse_listed(oth_text, "Other")
     logger.info("Raw counts → Other=%d", len(oth))
 
-    # ── Combine & dedupe on (symbol,exchange) ─────────────────────────────────
+    # ── Dedupe on (symbol,exchange) ────────────────────────────────────────────
     seen   = set()
     unique = []
     for rec in oth:
@@ -138,7 +127,7 @@ def main():
             unique.append(rec)
     logger.info("After dedupe → %d unique records", len(unique))
 
-    # ── Flag core_security & attach to each record ───────────────────────────
+    # ── Flag core_security & attach to each record ────────────────────────────
     for rec in unique:
         rec["core_security"] = "yes" if "$" not in rec["symbol"] else "no"
 
@@ -162,8 +151,7 @@ def main():
         INSERT INTO stock_symbols
           (symbol, security_name, exchange, test_issue,
            round_lot_size, security_type, core_security)
-        VALUES (%s,%s,%s,%s,%s,%s,%s)
-        ;
+        VALUES (%s,%s,%s,%s,%s,%s,%s);
         """
         cur.executemany(insert_sql, [
             (
