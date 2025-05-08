@@ -19,6 +19,7 @@ env:
 # 1) Detect changed components                                                 #
 ################################################################################
 jobs:
+jobs:
   filter:
     name: Detect changed components
     runs-on: ubuntu-latest
@@ -34,7 +35,8 @@ jobs:
       matrix:         ${{ steps.matrix.outputs.matrix }}
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
@@ -77,12 +79,12 @@ jobs:
         name: Any changes?
         run: |
           if [ "${{ steps.paths.outputs.symbols }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.econ }}"   = "true" ] || \
-             [ "${{ steps.paths.outputs.findata }}"= "true" ] || \
-             [ "${{ steps.paths.outputs.pricedaily }}"= "true" ] || \
-             [ "${{ steps.paths.outputs.priceweekly }}"= "true" ] || \
-             [ "${{ steps.paths.outputs.pricemonthly }}"= "true" ] || \
-             [ "${{ steps.paths.outputs.technicaldaily }}"= "true" ]; then
+             [ "${{ steps.paths.outputs.econ }}" = "true" ]    || \
+             [ "${{ steps.paths.outputs.findata }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.pricedaily }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.priceweekly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.pricemonthly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.technicaldaily }}" = "true" ]; then
             echo "any=true" >> $GITHUB_OUTPUT
           else
             echo "any=false" >> $GITHUB_OUTPUT
@@ -115,9 +117,18 @@ jobs:
         run: |
           echo "Changed files:"
           git diff --name-only ${{ github.event.before }} ${{ github.sha }}
-          echo "paths-filter → symbols=${{ steps.paths.outputs.symbols }} econ=${{ steps.paths.outputs.econ }}"
-          echo "matrix → ${{ steps.matrix.outputs.matrix }}"
-          echo "any → ${{ steps.any.outputs.any }}"
+          echo
+          echo "paths-filter outputs:"
+          echo "  symbols = ${{ steps.paths.outputs.symbols }}"
+          echo "  econ    = ${{ steps.paths.outputs.econ }}"
+          echo "  findata = ${{ steps.paths.outputs.findata }}"
+          echo "  pricedaily = ${{ steps.paths.outputs.pricedaily }}"
+          echo "  priceweekly = ${{ steps.paths.outputs.priceweekly }}"
+          echo "  pricemonthly = ${{ steps.paths.outputs.pricemonthly }}"
+          echo "  technicaldaily = ${{ steps.paths.outputs.technicaldaily }}"
+          echo
+          echo "any = ${{ steps.any.outputs.any }}"
+          echo "matrix = ${{ steps.matrix.outputs.matrix }}"
 
 ################################################################################
 # 2) Build changed images                                                      #
