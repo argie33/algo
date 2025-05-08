@@ -7,6 +7,8 @@ import logging
 import requests
 import boto3
 import psycopg2
+import urllib.request
+
 from psycopg2.extras import execute_batch
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -19,10 +21,11 @@ if not logger.handlers:
     h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
     logger.addHandler(h)
 
-# ─── Config ──────────────────────────────────────────────────────────────────────
+# ─── Configuration ───────────────────────────────────────────────────────────────
 DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
 NASDAQ_URL    = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
-OTHER_URL     = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
+OTHER_FTP_URL = "ftp://ftp.nasdaqtrader.com/symboldirectory/otherlisted.txt"
+# any patterns that make a name “other security” rather than “standard”
 patterns = [
    r"\bpreferred\b",
     r"\bredeemable warrant(s)?\b",
@@ -135,86 +138,100 @@ def get_requests_session():
     s.mount("https://", adapter)
     return s
 
-def download_text_file(url: str) -> str:
-    logger.info("Downloading %s", url)
+def download_text_http(url: str) -> str:
+    logger.info("Downloading (HTTP) %s", url)
     resp = get_requests_session().get(url, timeout=(5,15))
     resp.raise_for_status()
     return resp.text
 
+def download_text_ftp(url: str) -> str:
+    logger.info("Downloading (FTP) %s", url)
+    with urllib.request.urlopen(url) as resp:
+        return resp.read().decode("utf-8", errors="ignore")
+
 def parse_listed(text: str, source: str) -> list[dict]:
-    lines = [l for l in text.splitlines() if not l.startswith("File Creation Time")]
+    # drop any “File Creation Time” lines
+    lines = [L for L in text.splitlines() if not L.startswith("File Creation Time")]
     reader = csv.DictReader(lines, delimiter="|")
     headers = reader.fieldnames or []
+    # pick whichever symbol-column they sent us
+    symbol_key = next((c for c in ("Symbol","ACT Symbol","NASDAQ Symbol") if c in headers), None)
+    if not symbol_key:
+        raise RuntimeError(f"[{source}] no symbol column in headers {headers!r}")
 
-    for candidate in ("Symbol", "ACT Symbol", "NASDAQ Symbol"):
-        if candidate in headers:
-            sym_key = candidate
-            break
-    else:
-        raise RuntimeError(f"[{source}] No symbol column in headers {headers!r}")
-
-    records = []
+    out = []
     for row in reader:
-        sym = row.get(sym_key, "").strip()
-        if not sym or sym == sym_key:
-            logger.info("[%s] skipping header/empty row", source)
+        sym = row.get(symbol_key,"").strip()
+        # skip blank rows & the header-row itself
+        if not sym or sym == symbol_key:
             continue
-        if row.get("ETF","").upper() == "Y":
-            logger.info("[%s] skipping ETF %s", source, sym)
+        # drop ETFs
+        if row.get("ETF","").upper()=="Y":
             continue
 
-        name = row.get("Security Name","").strip()
+        name     = row.get("Security Name","").strip()
         is_other = any(re.search(p, name, flags=re.IGNORECASE) for p in patterns)
         try:
             lot = int(row.get("Round Lot Size","") or 0)
         except ValueError:
             lot = None
 
-        rec = {
-            "symbol": sym,
-            "security_name": name,
-            "exchange": source,
-            "test_issue": row.get("Test Issue","").strip(),
+        out.append({
+            "symbol":         sym,
+            "security_name":  name,
+            "exchange":       source,
+            "test_issue":     row.get("Test Issue","").strip(),
             "round_lot_size": lot,
-            "security_type": "other security" if is_other else "standard"
-        }
-        logger.info("[%s] parsed %s → %r", source, sym, rec)
-        records.append(rec)
+            "security_type":  "other security" if is_other else "standard"
+        })
 
-    logger.info("Parsed %d rows from %s (using %r)", len(records), source, sym_key)
-    return records
-
-def dedupe(records: list[dict]) -> list[dict]:
-    seen = set()
-    out  = []
-    for r in records:
-        key = (r["symbol"], r["exchange"])
-        if key in seen:
-            logger.info("Skipping duplicate %s[%s]", r["symbol"], r["exchange"])
-        else:
-            logger.info("Keeping      %s[%s]", r["symbol"], r["exchange"])
-            seen.add(key)
-            out.append(r)
+    logger.info("Parsed %d rows from %s", len(out), source)
     return out
 
 def get_db_connection():
-    sm = boto3.client("secretsmanager")
-    sec = sm.get_secret_value(SecretId=DB_SECRET_ARN)
-    creds = json.loads(sec["SecretString"])
+    sm   = boto3.client("secretsmanager")
+    sec  = sm.get_secret_value(SecretId=DB_SECRET_ARN)
+    conf = json.loads(sec["SecretString"])
     return psycopg2.connect(
-        host=creds["host"],
-        port=int(creds["port"]),
-        dbname=creds["dbname"],
-        user=creds["username"],
-        password=creds["password"],
-        sslmode="require"
+        host     = conf["host"],
+        port     = int(conf["port"]),
+        dbname   = conf["dbname"],
+        user     = conf["username"],
+        password = conf["password"],
+        sslmode  = "require"
     )
 
-def upsert_symbols(records: list[dict]):
-    conn = get_db_connection()
-    with conn:
-        with conn.cursor() as cur:
-            # ─ Drop & recreate the main table ─────────────────────────
+def handler(event=None, context=None):
+    logger.info("🔄 loadstocksymbols invoked")
+    try:
+        # ── fetch & parse ─────────────────────────────────────────────
+        nas_text = download_text_http(NASDAQ_URL)
+        oth_text = download_text_ftp(OTHER_FTP_URL)
+
+        nas = parse_listed(nas_text, "NASDAQ")
+        oth = parse_listed(oth_text,  "Other")
+        logger.info("Counts → NASDAQ=%d, Other=%d", len(nas), len(oth))
+
+        # ── dedupe on (symbol,exchange) ───────────────────────────────
+        seen   = set()
+        unique = []
+        for rec in nas + oth:
+            key = (rec["symbol"], rec["exchange"])
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(rec)
+        logger.info("After dedupe → %d unique rows", len(unique))
+
+        # ── flag core_security ────────────────────────────────────────
+        for rec in unique:
+            rec["core_security"] = "yes" if "$" not in rec["symbol"] else "no"
+
+        # ── write to PostgreSQL ────────────────────────────────────────
+        conn = get_db_connection()
+        with conn:
+            cur = conn.cursor()
+            # drop & recreate
             cur.execute("DROP TABLE IF EXISTS stock_symbols;")
             cur.execute("""
             CREATE TABLE stock_symbols (
@@ -227,16 +244,16 @@ def upsert_symbols(records: list[dict]):
               core_security   CHAR(3)
             );
             """)
-
-            # ─ Batch insert all rows ──────────────────────────────────
+            # batch upsert (here effectively just inserts, since we just dropped)
             sql = """
             INSERT INTO stock_symbols
               (symbol, security_name, exchange, test_issue,
                round_lot_size, security_type, core_security)
-            VALUES (%(symbol)s, %(security_name)s, %(exchange)s,
-                    %(test_issue)s, %(round_lot_size)s,
-                    %(security_type)s, %(core_security)s)
-            ON CONFLICT (symbol) DO UPDATE SET
+            VALUES (
+              %(symbol)s, %(security_name)s, %(exchange)s, %(test_issue)s,
+              %(round_lot_size)s, %(security_type)s, %(core_security)s
+            )
+            ON CONFLICT(symbol) DO UPDATE SET
               security_name  = EXCLUDED.security_name,
               exchange       = EXCLUDED.exchange,
               test_issue     = EXCLUDED.test_issue,
@@ -244,12 +261,9 @@ def upsert_symbols(records: list[dict]):
               security_type  = EXCLUDED.security_type,
               core_security  = EXCLUDED.core_security;
             """
-            for rec in records:
-                logger.info("Upserting %s[%s] core_security=%s",
-                            rec["symbol"], rec["exchange"], rec["core_security"])
-            execute_batch(cur, sql, records, page_size=500)
+            execute_batch(cur, sql, unique, page_size=500)
 
-            # ─ Ensure last_updated table exists & update it ─────────
+            # update last_updated
             cur.execute("""
             CREATE TABLE IF NOT EXISTS last_updated (
               script_name VARCHAR(255) PRIMARY KEY,
@@ -262,24 +276,8 @@ def upsert_symbols(records: list[dict]):
             ON CONFLICT (script_name) DO UPDATE
               SET last_run = EXCLUDED.last_run;
             """, (os.path.basename(__file__),))
-    conn.close()
+        conn.close()
 
-def handler(event=None, context=None):
-    logger.info("🔄 loadstocksymbols invoked")
-    try:
-        nas = parse_listed(download_text_file(NASDAQ_URL), "NASDAQ")
-        oth = parse_listed(download_text_file(OTHER_URL),  "Other")
-
-        logger.info("raw counts → NASDAQ=%d, Other=%d", len(nas), len(oth))
-
-        combined = nas + oth
-        unique   = dedupe(combined)
-        logger.info("after dedupe → %d total records", len(unique))
-
-        for rec in unique:
-            rec["core_security"] = "yes" if "$" not in rec["symbol"] else "no"
-
-        upsert_symbols(unique)
         logger.info("✅ Completed upsert of %d symbols", len(unique))
         return {"statusCode":200, "body":json.dumps({"processed":len(unique)})}
 
