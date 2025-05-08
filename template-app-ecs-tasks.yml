@@ -206,6 +206,7 @@ Resources:
               awslogs-group:         /ecs/econdata-loader
               awslogs-region:        !Ref AWS::Region
               awslogs-stream-prefix: ecs
+              awslogs-create-group:  'true'
 
   EconDataLoaderService:
     Type: AWS::ECS::Service
