@@ -20,7 +20,6 @@ if not logger.handlers:
 
 # ─── Configuration ───────────────────────────────────────────────────────────────
 DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
-NASDAQ_URL    = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
 OTHER_URL     = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
 
 # any regexes for classifying “other security”:
@@ -34,7 +33,7 @@ def get_http_session():
     retries = Retry(
         total=3,
         backoff_factor=1,
-        status_forcelist=[429,500,502,503,504],
+        status_forcelist=[429, 500, 502, 503, 504],
         allowed_methods=["GET"]
     )
     adapter = HTTPAdapter(max_retries=retries)
@@ -45,7 +44,7 @@ def get_http_session():
 def fetch_text(url: str) -> str:
     """Download a text file over HTTP and return its body."""
     logger.info("Downloading %s", url)
-    resp = get_http_session().get(url, timeout=(5,15))
+    resp = get_http_session().get(url, timeout=(5, 15))
     resp.raise_for_status()
     return resp.text
 
@@ -125,16 +124,14 @@ def get_db_connection():
     )
 
 def main():
-    # ── Fetch & parse both lists ───────────────────────────────────────────────
-    nas = parse_listed(fetch_text(NASDAQ_URL), "NASDAQ")
-    oth = parse_listed(fetch_text(OTHER_URL),  "Other")
-
-    logger.info("Raw counts → NASDAQ=%d, Other=%d", len(nas), len(oth))
+    # ── Fetch & parse only the “otherlisted” list ────────────────────────────────
+    oth = parse_listed(fetch_text(OTHER_URL), "Other")
+    logger.info("Raw counts → Other=%d", len(oth))
 
     # ── Combine & dedupe on (symbol,exchange) ─────────────────────────────────
     seen   = set()
     unique = []
-    for rec in nas + oth:
+    for rec in oth:
         key = (rec["symbol"], rec["exchange"])
         if key not in seen:
             seen.add(key)

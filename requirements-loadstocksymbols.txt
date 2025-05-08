@@ -1,4 +1,4 @@
-psycopg2-binary
-requests
-urllib3
 boto3
+requests
+psycopg2-binary
+urllib3
