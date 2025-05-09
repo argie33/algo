@@ -26,7 +26,7 @@ FTP_FILES     = {
 }
 
 # any regexes for classifying “other security”:
-patterns = [
+patterns = patterns = [
     r"\bpreferred\b",
     r"\bredeemable warrant(s)?\b",
     r"\bwarrant(s)?\b",
@@ -124,6 +124,7 @@ patterns = [
     r"\bnasdaq symbology\b",  
     ]
 
+
 def fetch_text_ftp(filename: str) -> str:
     """Download the given file via FTP and return its full text."""
     logger.info("Connecting to FTP %s", FTP_HOST)
@@ -131,7 +132,7 @@ def fetch_text_ftp(filename: str) -> str:
     ftp.login()
     ftp.cwd(FTP_DIR)
 
-    lines: list[str] = []
+    lines = []
     ftp.retrlines(f"RETR {filename}", lines.append)
     ftp.quit()
 
@@ -166,7 +167,7 @@ def parse_listed(text: str, source: str) -> list[dict]:
         logger.error("[%s] no Symbol column in headers %s", source, headers)
         return []
 
-    records: list[dict] = []
+    records = []
     for row in reader:
         sym = (row.get(sym_key) or "").strip()
         if not sym:
@@ -203,8 +204,8 @@ def parse_listed(text: str, source: str) -> list[dict]:
 
 def get_db_connection():
     """Retrieve DB credentials from Secrets Manager and return a psycopg2 connection."""
-    sec = boto3.client("secretsmanager").get_secret_value(SecretId=DB_SECRET_ARN)
-    conf = json.loads(sec["SecretString"])
+    resp = boto3.client("secretsmanager").get_secret_value(SecretId=DB_SECRET_ARN)
+    conf = json.loads(resp["SecretString"])
     return psycopg2.connect(
         host     = conf["host"],
         port     = int(conf["port"]),
@@ -215,13 +216,19 @@ def get_db_connection():
     )
 
 def main():
-    # ── Fetch & parse both FTP files ────────────────────────────────────────────
-    all_records = []
-    for source, fname in FTP_FILES.items():
-        raw = fetch_text_ftp(fname)
-        parsed = parse_listed(raw, source)
-        all_records.extend(parsed)
-    logger.info("Raw total rows → %d", len(all_records))
+    # ── Fetch & parse NASDAQ list ──────────────────────────────────────────────
+    nas_raw = fetch_text_ftp(FTP_FILES["NASDAQ"])
+    nas = parse_listed(nas_raw, "NASDAQ")
+    logger.info("NASDAQ count → %d", len(nas))
+
+    # ── Fetch & parse Other list ───────────────────────────────────────────────
+    oth_raw = fetch_text_ftp(FTP_FILES["Other"])
+    oth = parse_listed(oth_raw, "Other")
+    logger.info("Other count   → %d", len(oth))
+
+    # ── Combine them ───────────────────────────────────────────────────────────
+    all_records = nas + oth
+    logger.info("Combined raw → %d rows", len(all_records))
 
     # ── Dedupe on (symbol,exchange) ────────────────────────────────────────────
     seen, unique = set(), []
