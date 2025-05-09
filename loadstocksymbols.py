@@ -1,41 +1,40 @@
 #!/usr/bin/env python3
-"""
-loadstocksymbols.py
-
-Job 0) init: Drop & recreate the target table.
-Job 1) Other:   Fetch/parse otherlisted.txt → insert.
-Job 2) NASDAQ: Fetch/parse nasdaqlisted.txt → insert.
-"""
-
 import os
+import sys
 import re
 import csv
-import json
 import logging
 from ftplib import FTP
-
-import boto3
 import psycopg2
+from psycopg2.extras import execute_values
 
 # ─── Logging setup ───────────────────────────────────────────────────────────────
+logging.basicConfig(
+    stream=sys.stdout,
+    level=logging.INFO,
+    format='[%(asctime)s] %(levelname)s %(name)s: %(message)s'
+)
 logger = logging.getLogger("loadstocksymbols")
-logger.setLevel(logging.INFO)
-if not logger.handlers:
-    h = logging.StreamHandler()
-    h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
-    logger.addHandler(h)
 
-# ─── Configuration ───────────────────────────────────────────────────────────────
-DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
-FTP_HOST      = "ftp.nasdaqtrader.com"
-FTP_DIR       = "symboldirectory"
-FTP_FILES     = {
-    "Other":  "otherlisted.txt",
-    "NASDAQ": "nasdaqlisted.txt"
+# ─── Environment for PostgreSQL RDS ─────────────────────────────────────────────
+POSTGRES_HOST     = os.environ.get("POSTGRES_HOST", "localhost")
+POSTGRES_PORT     = os.environ.get("POSTGRES_PORT", "5432")
+POSTGRES_DB       = os.environ.get("POSTGRES_DB", "stocks")
+POSTGRES_USER     = os.environ.get("POSTGRES_USER", "stocks")
+POSTGRES_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "bed0elAn")
+
+SCRIPT_NAME = os.path.basename(__file__)
+
+# ─── FTP configuration ──────────────────────────────────────────────────────────
+FTP_HOST = "ftp.nasdaqtrader.com"
+FTP_DIR  = "symboldirectory"
+FTP_FILES = {
+    "NASDAQ": "nasdaqlisted.txt",
+    "OTHER":  "otherlisted.txt"
 }
 
-# regexes for classifying “other security”
-OTHER_PATTERNS = [
+# ─── Regex Patterns for Filtering Out Unwanted Securities ───────────────────────
+patterns = [
     r"\bpreferred\b",
     r"\bredeemable warrant(s)?\b",
     r"\bwarrant(s)?\b",
@@ -133,153 +132,239 @@ OTHER_PATTERNS = [
     r"\bnasdaq symbology\b",  
     ]
 
-def get_db_connection():
-    """Job helper: open a new Postgres connection."""
-    sec = boto3.client("secretsmanager").get_secret_value(SecretId=DB_SECRET_ARN)
-    cfg = json.loads(sec["SecretString"])
-    return psycopg2.connect(
-        host     = cfg["host"],
-        port     = int(cfg["port"]),
-        dbname   = cfg["dbname"],
-        user     = cfg["username"],
-        password = cfg["password"],
-        sslmode  = "require"
-    )
+def should_filter(name, patterns):
+    for pat in patterns:
+        if re.search(pat, name, flags=re.IGNORECASE):
+            return True
+    return False
 
-def fetch_text_ftp(filename: str) -> str:
-    """Job helper: fetch a file from the FTP server."""
-    logger.info("Fetching %s", filename)
-    ftp = FTP(FTP_HOST)
-    ftp.login()
+excluded_records = []
+
+def download_ftp_file(filename):
+    logger.info(f"Connecting to FTP {FTP_HOST}")
+    ftp = FTP(FTP_HOST, timeout=30)
+    ftp.login()  # anonymous
     ftp.cwd(FTP_DIR)
+    logger.info(f"Retrieving {filename}")
     lines = []
-    ftp.retrlines(f"RETR {filename}", lines.append)
+    ftp.retrlines(f"RETR {filename}", callback=lines.append)
     ftp.quit()
     return "\n".join(lines)
 
-def parse_listed(text: str, source: str) -> list[dict]:
-    """Job helper: parse the pipe-delimited listing into records."""
-    lines = text.splitlines()
-    idx = next((i for i, L in enumerate(lines) if "Security Name" in L and "|" in L), None)
-    if idx is None:
-        logger.error("[%s] no header", source)
-        return []
-
-    reader = csv.DictReader(lines[idx:], delimiter="|")
-    headers = reader.fieldnames or []
-    # pick symbol column
-    for cand in ("Symbol", "NASDAQ Symbol"):
-        if cand in headers:
-            sym_key = cand
-            break
-    else:
-        logger.error("[%s] no Symbol column", source)
-        return []
-
-    out = []
+def parse_nasdaq_listed(text):
+    logger.info("Parsing NASDAQ-listed records")
+    recs = []
+    reader = csv.DictReader(text.splitlines(), delimiter="|")
     for row in reader:
-        sym = (row.get(sym_key) or "").strip()
-        if not sym:
+        if row["Symbol"].startswith("File Creation Time"):
             continue
-
-        name = (row.get("Security Name") or "").strip()
+        name = row["Security Name"].strip()
+        if row["ETF"].upper()=="Y" or should_filter(name, patterns):
+            excluded_records.append({
+                "source":"NASDAQ",
+                "symbol": row["Symbol"].strip(),
+                "security_name": name
+            })
+            continue
         try:
-            lot = int((row.get("Round Lot Size") or "").strip() or 0)
-        except ValueError:
+            lot = int(row["Round Lot Size"])
+        except:
             lot = None
-
-        is_etf   = (row.get("ETF") or "").strip().upper() == "Y"
-        is_other = any(re.search(p, name, flags=re.IGNORECASE) for p in OTHER_PATTERNS)
-
-        if is_etf:
-            sec_type = "etf"
-        elif is_other:
-            sec_type = "other security"
-        else:
-            sec_type = "standard"
-
-        out.append({
-            "symbol":         sym,
-            "exchange":       source,
-            "security_name":  name,
-            "test_issue":     (row.get("Test Issue") or "").strip(),
+        recs.append({
+            "symbol": row["Symbol"].strip(),
+            "security_name": name,
+            "exchange": "NASDAQ",
+            "cqs_symbol": None,
+            "market_category": row["Market Category"].strip(),
+            "test_issue": row["Test Issue"].strip(),
+            "financial_status": row["Financial Status"].strip(),
             "round_lot_size": lot,
-            "security_type":  sec_type
+            "etf": row["ETF"].strip(),
+            "secondary_symbol": row["NextShares"].strip()
         })
-    logger.info("[%s] parsed %d", source, len(out))
-    return out
+    return recs
 
-def job_init():
-    """Job 0: Drop & recreate the target table."""
-    logger.info("Job 0: init – recreate table")
-    conn = get_db_connection()
-    with conn:
-        cur = conn.cursor()
-        cur.execute("DROP TABLE IF EXISTS stock_symbols;")
-        cur.execute("""
-            CREATE TABLE stock_symbols (
-              symbol          VARCHAR(50),
-              exchange        VARCHAR(20),
-              security_name   TEXT,
-              test_issue      CHAR(1),
-              round_lot_size  INT,
-              security_type   VARCHAR(20),
-              core_security   CHAR(3),
-              PRIMARY KEY (symbol, exchange)
-            );
-        """)
-        conn.commit()
-    conn.close()
+def parse_other_listed(text):
+    logger.info("Parsing Other-listed records")
+    recs = []
+    reader = csv.DictReader(text.splitlines(), delimiter="|")
+    exch_map = {"A":"American Stock Exchange","N":"New York Stock Exchange",
+                "P":"NYSE Arca","Z":"BATS Global Markets"}
+    for row in reader:
+        if row["ACT Symbol"].startswith("File Creation Time"):
+            continue
+        name = row["Security Name"].strip()
+        if row["ETF"].upper()=="Y" or should_filter(name, patterns):
+            excluded_records.append({
+                "source":"Other",
+                "symbol": row["ACT Symbol"].strip(),
+                "security_name": name
+            })
+            continue
+        try:
+            lot = int(row["Round Lot Size"])
+        except:
+            lot = None
+        exch = exch_map.get(row["Exchange"].strip(), row["Exchange"].strip())
+        recs.append({
+            "symbol": row["ACT Symbol"].strip(),
+            "security_name": name,
+            "exchange": exch,
+            "cqs_symbol": row["CQS Symbol"].strip(),
+            "market_category": None,
+            "test_issue": row["Test Issue"].strip(),
+            "financial_status": None,
+            "round_lot_size": lot,
+            "etf": row["ETF"].strip(),
+            "secondary_symbol": row["NASDAQ Symbol"].strip()
+        })
+    return recs
 
-def job_insert(source: str, filename: str):
-    """
-    Job 1 & 2: fetch → parse → insert for one source.
-    Runs in its own DB connection.
-    """
-    logger.info("Job insert: %s", source)
-    text    = fetch_text_ftp(filename)
-    records = parse_listed(text, source)
-    if not records:
-        logger.warning("No records for %s, skipping insert", source)
-        return
-
-    # flag core_security
+def deduplicate_records(records):
+    logger.info("Deduplicating records")
+    unique = {}
     for r in records:
-        r["core_security"] = "yes" if "$" not in r["symbol"] else "no"
+        if r["symbol"] not in unique:
+            unique[r["symbol"]] = r
+    return list(unique.values())
 
-    conn = get_db_connection()
-    with conn:
-        cur = conn.cursor()
-        cur.executemany("""
-            INSERT INTO stock_symbols
-              (symbol, exchange, security_name, test_issue, round_lot_size, security_type, core_security)
-            VALUES (%s,%s,%s,%s,%s,%s,%s)
-            ON CONFLICT (symbol, exchange) DO NOTHING;
-        """, [
-            (
-                r["symbol"],
-                r["exchange"],
-                r["security_name"],
-                r["test_issue"],
-                r["round_lot_size"],
-                r["security_type"],
-                r["core_security"]
-            ) for r in records
-        ])
-        conn.commit()
-    conn.close()
-    logger.info("Inserted %d rows for %s", len(records), source)
+def insert_into_postgres(records):
+    logger.info("Connecting to PostgreSQL")
+    conn = psycopg2.connect(
+        host=POSTGRES_HOST, port=POSTGRES_PORT,
+        dbname=POSTGRES_DB, user=POSTGRES_USER,
+        password=POSTGRES_PASSWORD
+    )
+    create_sql = """
+    CREATE TABLE IF NOT EXISTS stock_symbols (
+      symbol TEXT PRIMARY KEY,
+      security_name TEXT,
+      exchange TEXT,
+      cqs_symbol TEXT,
+      market_category TEXT,
+      test_issue CHAR(1),
+      financial_status TEXT,
+      round_lot_size INT,
+      etf CHAR(1),
+      secondary_symbol TEXT
+    );
+    """
+    insert_sql = """
+    INSERT INTO stock_symbols (
+      symbol, security_name, exchange, cqs_symbol,
+      market_category, test_issue, financial_status,
+      round_lot_size, etf, secondary_symbol
+    ) VALUES %s
+    ON CONFLICT (symbol) DO UPDATE SET
+      security_name = EXCLUDED.security_name,
+      exchange = EXCLUDED.exchange,
+      cqs_symbol = EXCLUDED.cqs_symbol,
+      market_category = EXCLUDED.market_category,
+      test_issue = EXCLUDED.test_issue,
+      financial_status = EXCLUDED.financial_status,
+      round_lot_size = EXCLUDED.round_lot_size,
+      etf = EXCLUDED.etf,
+      secondary_symbol = EXCLUDED.secondary_symbol;
+    """
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(create_sql)
+                vals = [
+                    (
+                      r["symbol"], r["security_name"], r["exchange"],
+                      r["cqs_symbol"], r["market_category"], r["test_issue"],
+                      r["financial_status"], r["round_lot_size"],
+                      r["etf"], r["secondary_symbol"]
+                    )
+                    for r in records
+                ]
+                logger.info(f"Inserting {len(vals)} records")
+                execute_values(cur, insert_sql, vals, page_size=500)
+    except Exception:
+        logger.exception("Failed to insert into PostgreSQL")
+        raise
+    finally:
+        conn.close()
+
+def update_last_updated():
+    logger.info("Updating last_updated table")
+    conn = psycopg2.connect(
+        host=POSTGRES_HOST, port=POSTGRES_PORT,
+        dbname=POSTGRES_DB, user=POSTGRES_USER,
+        password=POSTGRES_PASSWORD
+    )
+    sql = """
+    CREATE TABLE IF NOT EXISTS last_updated (
+      script_name TEXT PRIMARY KEY,
+      last_updated TIMESTAMPTZ
+    );
+    INSERT INTO last_updated (script_name, last_updated)
+    VALUES (%s, NOW())
+    ON CONFLICT (script_name) DO UPDATE
+      SET last_updated = EXCLUDED.last_updated;
+    """
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, (SCRIPT_NAME,))
+    except Exception:
+        logger.exception("Failed to update last_updated")
+    finally:
+        conn.close()
+
+def write_excluded_csv(fn="excluded_records.csv"):
+    if not excluded_records:
+        logger.info("No excluded records")
+        return
+    with open(fn, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=["source","symbol","security_name"])
+        writer.writeheader()
+        writer.writerows(excluded_records)
+    logger.info(f"Wrote {fn}")
+
+def write_included_csv(records, fn="included_records.csv"):
+    if not records:
+        logger.info("No included records")
+        return
+    with open(fn, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=list(records[0].keys()))
+        writer.writeheader()
+        writer.writerows(records)
+    logger.info(f"Wrote {fn}")
 
 def main():
-    try:
-        job_init()
-        # run Job 1 then Job 2, serially
-        job_insert("Other",  FTP_FILES["Other"])
-        job_insert("NASDAQ", FTP_FILES["NASDAQ"])
-        logger.info("✅ All jobs complete")
-    except Exception:
-        logger.exception("❌ loadstocksymbols failed")
-        raise
+    texts = {}
+    for source, fname in FTP_FILES.items():
+        texts[source] = download_ftp_file(fname)
+
+    nasdaq_recs = parse_nasdaq_listed(texts["NASDAQ"])
+    other_recs  = parse_other_listed(texts["OTHER"])
+
+    all_recs = nasdaq_recs + other_recs
+    logger.info(f"Before dedupe: {len(all_recs)}")
+    unique_recs = deduplicate_records(all_recs)
+    logger.info(f"After dedupe: {len(unique_recs)}")
+
+    filtered = []
+    for r in unique_recs:
+        if "$" in r["symbol"]:
+            excluded_records.append({"source":"DollarFilter",
+                                     "symbol":r["symbol"],
+                                     "security_name":r["security_name"]})
+        else:
+            filtered.append(r)
+    logger.info(f"After $-filter: {len(filtered)}")
+
+    insert_into_postgres(filtered)
+    write_excluded_csv()
+    write_included_csv(filtered)
+    update_last_updated()
+    logger.info("Complete")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        logger.exception("Unhandled exception")
+        sys.exit(1)

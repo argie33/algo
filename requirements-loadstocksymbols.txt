@@ -1,4 +1,4 @@
-boto3
-requests
-psycopg2-binary
-urllib3
+# requirements.txt
+requests>=2.28.1
+psycopg2-binary>=2.9.6
+
