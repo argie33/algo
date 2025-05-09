@@ -71,13 +71,17 @@ def parse_listed(text: str, source: str) -> list[dict]:
 
     records = []
     for row in reader:
-        sym = row.get(sym_key, "").strip()
-        if not sym or sym == sym_key:
+        # guard against None from row.get(...)
+        raw_sym = row.get(sym_key) or ""
+        sym = raw_sym.strip()
+        if not sym:
+            # skip blank or malformed rows
             continue
 
-        name = row.get("Security Name", "").strip()
+        raw_name = row.get("Security Name") or ""
+        name = raw_name.strip()
         try:
-            lot = int(row.get("Round Lot Size", "") or 0)
+            lot = int((row.get("Round Lot Size") or "").strip() or 0)
         except ValueError:
             lot = None
 
@@ -89,7 +93,7 @@ def parse_listed(text: str, source: str) -> list[dict]:
             "symbol":         sym,
             "security_name":  name,
             "exchange":       source,
-            "test_issue":     row.get("Test Issue", "").strip(),
+            "test_issue":     (row.get("Test Issue") or "").strip(),
             "round_lot_size": lot,
             "security_type":  "other security" if is_other else "standard"
         })
