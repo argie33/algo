@@ -1,15 +1,8 @@
-# Use a slim Python base
 FROM python:3.10-slim
 
-# Create app dir
 WORKDIR /app
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy and install requirements
-COPY requirements-loadstocksymbols.txt .
-RUN pip install --no-cache-dir -r requirements-loadstocksymbols.txt
-
-# Copy your code in and rename entrypoint to index.py
-COPY loadstocksymbols.py index.py
-
-# Default command: run your handler
-CMD ["python", "index.py"]
+COPY loadstocksymbols.py ./
+CMD ["python", "loadstocksymbols.py"]

@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-import os
 import sys
-import re
+import os
+import io
+import json
 import logging
-from ftplib import FTP
-
+import re
+import requests
+import boto3
 import pandas as pd
 import psycopg2
 from psycopg2.extras import execute_values
 
-# ─── Logging ────────────────────────────────────────────────────────────────────
+# ─── Logging setup ───────────────────────────────────────────────────────────────
 logging.basicConfig(
     stream=sys.stdout,
     level=logging.INFO,
@@ -17,208 +19,226 @@ logging.basicConfig(
 )
 logger = logging.getLogger("loadstocksymbols")
 
-# ─── Postgres RDS config ────────────────────────────────────────────────────────
-POSTGRES_HOST     = os.environ["POSTGRES_HOST"]
-POSTGRES_PORT     = os.environ.get("POSTGRES_PORT", "5432")
-POSTGRES_DB       = os.environ["POSTGRES_DB"]
-POSTGRES_USER     = os.environ["POSTGRES_USER"]
-POSTGRES_PASSWORD = os.environ["POSTGRES_PASSWORD"]
+# ─── Environment & filter patterns ───────────────────────────────────────────────
+DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
 
-# ─── FTP config ────────────────────────────────────────────────────────────────
-FTP_HOST    = "ftp.nasdaqtrader.com"
-FTP_DIR     = "symboldirectory"
-NASDAQ_FILE = "nasdaqlisted.txt"
-OTHER_FILE  = "otherlisted.txt"
-
-# ─── Filter patterns ───────────────────────────────────────────────────────────
 patterns = [
     r"\bpreferred\b",
     r"\bredeemable warrant(s)?\b",
-    # … (all your other patterns here) …
+    r"\bwarrant(s)?\b",
+    r"\bunit(s)?\b",
+    r"\bsubordinated\b",
+    r"\bperpetual subordinated notes\b",
+    r"\bconvertible\b",
+    r"\bsenior note(s)?\b",
+    r"\bcapital investments\b",
+    r"\bnotes due\b",
+    r"\bincome trust\b",
+    r"\blimited partnership units\b",
+    r"\bsubordinate\b",
+    r"\s*-\s*(one\s+)?right(s)?\b",
+    r"\bclosed end fund\b",
+    r"\bpreferred securities\b",
+    r"\bnon-cumulative\b",
+    r"\bredeemable preferred\b",
+    r"\bpreferred class\b",
+    r"\bpreferred share(s)?\b",
+    r"\betns\b",
+    r"\bFixed-to-Floating Rate\b",
+    r"\bseries d\b",
+    r"\bseries b\b",
+    r"\bseries f\b",
+    r"\bseries h\b",
+    r"\bperpetual preferred\b",
+    r"\bincome fund\b",
+    r"\bfltg rate\b",
+    r"\bclass c-1\b",
+    r"\bbeneficial interest\b",
+    r"\bfund\b",
+    r"\bcapital obligation notes\b",
+    r"\bfixed rate\b",
+    r"\bdep shs\b",
+    r"\bopportunities trust\b",
+    r"\bnyse tick pilot test\b",
+    r"\bpreference share\b",
+    r"\bseries g\b",
+    r"\bfutures etn\b",
+    r"\btrust for\b",
+    r"\btest stock\b",
+    r"\bnastdaq symbology test\b",
+    r"\biex test\b",
+    r"\bnasdaq test\b",
+    r"\bnyse arca test\b",
+    r"\bpreference\b",
+    r"\bredeemable\b",
+    r"\bperpetual preference\b",
+    r"\btax free income\b",
+    r"\bstructured products\b",
+    r"\bcorporate backed trust\b",
+    r"\bfloating rate\b",
+    r"\btrust securities\b",
+    r"\bfixed-income\b",
+    r"\bpfd ser\b",
+    r"\bpfd\b",
+    r"\bmortgage bonds\b",
+    r"\bmortgage capital\b",
+    r"\bseries due\b",
+    r"\btarget term\b",
+    r"\bterm trust\b",
+    r"\bperpetual conv\b",
+    r"\bmunicipal bond\b",
+    r"\bdigitalbridge group\b",
+    r"\bnyse test\b",
+    r"\bctest\b",
+    r"\btick pilot test\b",
+    r"\bexchange test\b",
+    r"\bbats bzx\b",
+    r"\bdividend trust\b",
+    r"\bbond trust\b",
+    r"\bmunicipal trust\b",
+    r"\bmortgage trust\b",
+    r"\btrust etf\b",
+    r"\bcapital trust\b",
+    r"\bopportunity trust\b",
+    r"\binvestors trust\b",
+    r"\bincome securities trust\b",
+    r"\bresources trust\b",
+    r"\benergy trust\b",
+    r"\bsciences trust\b",
+    r"\bequity trust\b",
+    r"\bmulti-media trust\b",
+    r"\bmedia trust\b",
+    r"\bmicro-cap trust\b",
+    r"\bmicro-cap\b",
+    r"\bsmall-cap trust\b",
+    r"\bglobal trust\b",
+    r"\bsmall-cap\b",
+    r"\bsce trust\b",
+    r"\bacquisition\b",
+    r"\bcontingent\b",
+    r"\bii inc\b",
     r"\bnasdaq symbology\b",
 ]
+filter_re = re.compile("|".join(patterns), flags=re.IGNORECASE)
 
-def should_filter(name: str) -> bool:
-    for pat in patterns:
-        if re.search(pat, name, flags=re.IGNORECASE):
-            return True
-    return False
-
-def download_ftp_file(fname: str) -> str:
-    logger.info(f"FTP → downloading {fname}")
-    ftp = FTP(FTP_HOST, timeout=30)
-    ftp.login()
-    ftp.cwd(FTP_DIR)
-    lines = []
-    ftp.retrlines(f"RETR {fname}", callback=lines.append)
-    ftp.quit()
-    return "\n".join(lines)
-
-def parse_nasdaq_listed(text: str) -> pd.DataFrame:
-    logger.info("Parsing NASDAQ-listed")
-    df = pd.read_csv(pd.io.common.StringIO(text), sep="|", dtype=str)
-    recs = []
-    for _, r in df.iterrows():
-        if r["Symbol"].startswith("File Creation Time"):
-            continue
-        name = r["Security Name"].strip()
-        is_other = (r["ETF"].upper()=="Y") or should_filter(name)
-        recs.append({
-            "symbol": r["Symbol"].strip(),
-            "security_name": name,
-            "exchange": "NASDAQ",
-            "cqs_symbol": None,
-            "market_category": r["Market Category"].strip(),
-            "test_issue": r["Test Issue"].strip(),
-            "financial_status": r["Financial Status"].strip(),
-            "round_lot_size": pd.to_numeric(r["Round Lot Size"], errors="coerce"),
-            "etf": r["ETF"].strip(),
-            "secondary_symbol": r["NextShares"].strip(),
-            "symbol_type": "other" if is_other else "primary"
-        })
-    return pd.DataFrame(recs)
-
-def parse_other_listed(text: str) -> pd.DataFrame:
-    logger.info("Parsing Other-listed")
-    exch_map = {
-        "A":"American Stock Exchange",
-        "N":"New York Stock Exchange",
-        "P":"NYSE Arca",
-        "Z":"BATS Global Markets"
-    }
-    df = pd.read_csv(pd.io.common.StringIO(text), sep="|", dtype=str)
-    recs = []
-    for _, r in df.iterrows():
-        if r["ACT Symbol"].startswith("File Creation Time"):
-            continue
-        name = r["Security Name"].strip()
-        is_other = (r["ETF"].upper()=="Y") or should_filter(name)
-        recs.append({
-            "symbol": r["ACT Symbol"].strip(),
-            "security_name": name,
-            "exchange": exch_map.get(r["Exchange"].strip(), r["Exchange"].strip()),
-            "cqs_symbol": r["CQS Symbol"].strip(),
-            "market_category": None,
-            "test_issue": r["Test Issue"].strip(),
-            "financial_status": None,
-            "round_lot_size": pd.to_numeric(r["Round Lot Size"], errors="coerce"),
-            "etf": r["ETF"].strip(),
-            "secondary_symbol": r["NASDAQ Symbol"].strip(),
-            "symbol_type": "other" if is_other else "primary"
-        })
-    return pd.DataFrame(recs)
-
-def drop_and_create_table():
-    logger.info("Rebuilding stock_symbols table")
-    ddl = """
-    DROP TABLE IF EXISTS stock_symbols;
-    CREATE TABLE stock_symbols (
-      symbol TEXT PRIMARY KEY,
-      security_name TEXT,
-      exchange TEXT,
-      cqs_symbol TEXT,
-      market_category TEXT,
-      test_issue CHAR(1),
-      financial_status TEXT,
-      round_lot_size INT,
-      etf CHAR(1),
-      secondary_symbol TEXT,
-      symbol_type TEXT
-    );
-    """
-    conn = psycopg2.connect(
-        host=POSTGRES_HOST, port=POSTGRES_PORT,
-        dbname=POSTGRES_DB, user=POSTGRES_USER,
-        password=POSTGRES_PASSWORD
+def get_db_creds():
+    sm = boto3.client("secretsmanager")
+    resp = sm.get_secret_value(SecretId=DB_SECRET_ARN)
+    sec = json.loads(resp["SecretString"])
+    return (
+        sec["username"],
+        sec["password"],
+        sec["host"],
+        int(sec["port"]),
+        sec["dbname"]
     )
-    with conn:
-        with conn.cursor() as cur:
-            cur.execute(ddl)
-    conn.close()
 
-def insert_records(df: pd.DataFrame):
-    cols = [
-        "symbol","security_name","exchange","cqs_symbol",
-        "market_category","test_issue","financial_status",
-        "round_lot_size","etf","secondary_symbol","symbol_type"
-    ]
-    vals = [tuple(x) for x in df[cols].itertuples(index=False, name=None)]
-    sql = f"""
-      INSERT INTO stock_symbols {tuple(cols)} VALUES %s
-      ON CONFLICT (symbol) DO UPDATE SET
-        security_name = EXCLUDED.security_name,
-        exchange = EXCLUDED.exchange,
-        cqs_symbol = EXCLUDED.cqs_symbol,
-        market_category = EXCLUDED.market_category,
-        test_issue = EXCLUDED.test_issue,
-        financial_status = EXCLUDED.financial_status,
-        round_lot_size = EXCLUDED.round_lot_size,
-        etf = EXCLUDED.etf,
-        secondary_symbol = EXCLUDED.secondary_symbol,
-        symbol_type = EXCLUDED.symbol_type;
-    """
-    conn = psycopg2.connect(
-        host=POSTGRES_HOST, port=POSTGRES_PORT,
-        dbname=POSTGRES_DB, user=POSTGRES_USER,
-        password=POSTGRES_PASSWORD
-    )
-    with conn:
-        with conn.cursor() as cur:
-            logger.info(f"Upserting {len(vals)} rows")
-            execute_values(cur, sql, vals, page_size=500)
-    conn.close()
+def handler(event, context):
+    try:
+        # 1) Connect
+        user, pwd, host, port, db = get_db_creds()
+        conn = psycopg2.connect(
+            host=host, port=port, dbname=db,
+            user=user, password=pwd, sslmode="require"
+        )
+        cur = conn.cursor()
 
-def update_last_updated():
-    logger.info("Stamping last_updated")
-    sql = """
-    CREATE TABLE IF NOT EXISTS last_updated (
-      script_name TEXT PRIMARY KEY,
-      last_updated TIMESTAMPTZ
-    );
-    INSERT INTO last_updated (script_name,last_updated)
-      VALUES (%s,NOW())
-      ON CONFLICT (script_name) DO UPDATE
-        SET last_updated=EXCLUDED.last_updated;
-    """
-    conn = psycopg2.connect(
-        host=POSTGRES_HOST, port=POSTGRES_PORT,
-        dbname=POSTGRES_DB, user=POSTGRES_USER,
-        password=POSTGRES_PASSWORD
-    )
-    with conn:
-        with conn.cursor() as cur:
-            cur.execute(sql, (os.path.basename(__file__),))
-    conn.close()
+        # 2) Ensure table exists
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS stock_symbols (
+                symbol           TEXT PRIMARY KEY,
+                security_name    TEXT,
+                market_category  TEXT,
+                test_issue       TEXT,
+                financial_status TEXT,
+                round_lot_size   TEXT,
+                etf              TEXT,
+                next_shares      TEXT
+            );
+        """)
+        conn.commit()
 
-def job_nasdaq():
-    txt = download_ftp_file(NASDAQ_FILE)
-    df = parse_nasdaq_listed(txt)
-    insert_records(df)
+        # 3) Download & parse both files
+        urls = [
+            "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt",
+            "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
+        ]
+        dfs = []
+        for url in urls:
+            logger.info(f"Downloading {url}")
+            resp = requests.get(url)
+            resp.raise_for_status()
+            txt = resp.text
 
-def job_other():
-    txt = download_ftp_file(OTHER_FILE)
-    df = parse_other_listed(txt)
-    insert_records(df)
+            df = pd.read_csv(io.StringIO(txt), sep='|', dtype=str)
+            df = df[~df.iloc[:, 0].str.contains("File Creation Time", na=False)]
+            if "ACT Symbol" in df.columns:
+                df = df.rename(columns={"ACT Symbol": "Symbol"})
+            dfs.append(df)
 
-def main():
-    # 1) Rebuild table once
-    drop_and_create_table()
+        full_df = pd.concat(dfs, ignore_index=True, sort=False)
 
-    # 2) Run NASDAQ job
-    logger.info("=== JOB: NASDAQ ===")
-    job_nasdaq()
+        # 4) Filter out any rows whose Security Name matches one of the patterns
+        full_df = full_df[~full_df["Security Name"].str.contains(filter_re, na=False)]
+        logger.info(f"After filtering, {len(full_df)} symbols remain")
 
-    # 3) Run OTHER job
-    logger.info("=== JOB: OTHER ===")
-    job_other()
+        # 5) Prepare upsert
+        records = [
+            (
+                row.get("Symbol"),
+                row.get("Security Name"),
+                row.get("Market Category"),
+                row.get("Test Issue"),
+                row.get("Financial Status"),
+                row.get("Round Lot Size"),
+                row.get("ETF"),
+                row.get("NextShares")
+            )
+            for _, row in full_df.iterrows()
+        ]
 
-    # 4) Stamp
-    update_last_updated()
-    logger.info("All done.")
+        execute_values(
+            cur,
+            """
+            INSERT INTO stock_symbols (
+              symbol, security_name, market_category, test_issue,
+              financial_status, round_lot_size, etf, next_shares
+            ) VALUES %s
+            ON CONFLICT (symbol) DO UPDATE
+              SET security_name    = EXCLUDED.security_name,
+                  market_category  = EXCLUDED.market_category,
+                  test_issue       = EXCLUDED.test_issue,
+                  financial_status = EXCLUDED.financial_status,
+                  round_lot_size   = EXCLUDED.round_lot_size,
+                  etf              = EXCLUDED.etf,
+                  next_shares      = EXCLUDED.next_shares;
+            """,
+            records
+        )
+        conn.commit()
+        logger.info(f"✓ Inserted/updated {len(records)} symbols")
+
+        cur.close()
+        conn.close()
+
+        return {
+            "statusCode": 200,
+            "body": json.dumps({"status": "success", "count": len(records)})
+        }
+
+    except Exception as e:
+        logger.exception("loadstocksymbols failed")
+        try:
+            cur.close()
+            conn.close()
+        except:
+            pass
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": str(e)})
+        }
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception:
-        logger.exception("Fatal error")
-        sys.exit(1)
+    result = handler({}, None)
+    print(json.dumps(result))
+    sys.stdout.flush()
