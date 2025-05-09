@@ -4,7 +4,6 @@ import os
 import io
 import json
 import logging
-import re
 import requests
 import boto3
 import pandas as pd
@@ -19,107 +18,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("loadstocksymbols")
 
-# ─── Environment & filter patterns ───────────────────────────────────────────────
+# ─── Environment variables ──────────────────────────────────────────────────────
 DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
-
-patterns = [
-    r"\bpreferred\b",
-    r"\bredeemable warrant(s)?\b",
-    r"\bwarrant(s)?\b",
-    r"\bunit(s)?\b",
-    r"\bsubordinated\b",
-    r"\bperpetual subordinated notes\b",
-    r"\bconvertible\b",
-    r"\bsenior note(s)?\b",
-    r"\bcapital investments\b",
-    r"\bnotes due\b",
-    r"\bincome trust\b",
-    r"\blimited partnership units\b",
-    r"\bsubordinate\b",
-    r"\s*-\s*(one\s+)?right(s)?\b",
-    r"\bclosed end fund\b",
-    r"\bpreferred securities\b",
-    r"\bnon-cumulative\b",
-    r"\bredeemable preferred\b",
-    r"\bpreferred class\b",
-    r"\bpreferred share(s)?\b",
-    r"\betns\b",
-    r"\bFixed-to-Floating Rate\b",
-    r"\bseries d\b",
-    r"\bseries b\b",
-    r"\bseries f\b",
-    r"\bseries h\b",
-    r"\bperpetual preferred\b",
-    r"\bincome fund\b",
-    r"\bfltg rate\b",
-    r"\bclass c-1\b",
-    r"\bbeneficial interest\b",
-    r"\bfund\b",
-    r"\bcapital obligation notes\b",
-    r"\bfixed rate\b",
-    r"\bdep shs\b",
-    r"\bopportunities trust\b",
-    r"\bnyse tick pilot test\b",
-    r"\bpreference share\b",
-    r"\bseries g\b",
-    r"\bfutures etn\b",
-    r"\btrust for\b",
-    r"\btest stock\b",
-    r"\bnastdaq symbology test\b",
-    r"\biex test\b",
-    r"\bnasdaq test\b",
-    r"\bnyse arca test\b",
-    r"\bpreference\b",
-    r"\bredeemable\b",
-    r"\bperpetual preference\b",
-    r"\btax free income\b",
-    r"\bstructured products\b",
-    r"\bcorporate backed trust\b",
-    r"\bfloating rate\b",
-    r"\btrust securities\b",
-    r"\bfixed-income\b",
-    r"\bpfd ser\b",
-    r"\bpfd\b",
-    r"\bmortgage bonds\b",
-    r"\bmortgage capital\b",
-    r"\bseries due\b",
-    r"\btarget term\b",
-    r"\bterm trust\b",
-    r"\bperpetual conv\b",
-    r"\bmunicipal bond\b",
-    r"\bdigitalbridge group\b",
-    r"\bnyse test\b",
-    r"\bctest\b",
-    r"\btick pilot test\b",
-    r"\bexchange test\b",
-    r"\bbats bzx\b",
-    r"\bdividend trust\b",
-    r"\bbond trust\b",
-    r"\bmunicipal trust\b",
-    r"\bmortgage trust\b",
-    r"\btrust etf\b",
-    r"\bcapital trust\b",
-    r"\bopportunity trust\b",
-    r"\binvestors trust\b",
-    r"\bincome securities trust\b",
-    r"\bresources trust\b",
-    r"\benergy trust\b",
-    r"\bsciences trust\b",
-    r"\bequity trust\b",
-    r"\bmulti-media trust\b",
-    r"\bmedia trust\b",
-    r"\bmicro-cap trust\b",
-    r"\bmicro-cap\b",
-    r"\bsmall-cap trust\b",
-    r"\bglobal trust\b",
-    r"\bsmall-cap\b",
-    r"\bsce trust\b",
-    r"\bacquisition\b",
-    r"\bcontingent\b",
-    r"\bii inc\b",
-    r"\bnasdaq symbology\b",
-]
-filter_re = re.compile("|".join(patterns), flags=re.IGNORECASE)
 
 def get_db_creds():
     """Fetch DB creds (username, password, host, port, dbname) from Secrets Manager."""
@@ -139,23 +39,26 @@ def handler(event, context):
         # 1) Connect
         user, pwd, host, port, db = get_db_creds()
         conn = psycopg2.connect(
-            host=host, port=port, dbname=db,
-            user=user, password=pwd, sslmode="require"
+            host=host,
+            port=port,
+            dbname=db,
+            user=user,
+            password=pwd,
+            sslmode="require"
         )
         cur = conn.cursor()
 
-        # 2) Drop + recreate table
-        cur.execute("DROP TABLE IF EXISTS stock_symbols;")
+        # 2) Ensure table exists
         cur.execute("""
-            CREATE TABLE stock_symbols (
-                symbol           TEXT PRIMARY KEY,
-                security_name    TEXT,
-                market_category  TEXT,
-                test_issue       TEXT,
-                financial_status TEXT,
-                round_lot_size   TEXT,
-                etf              TEXT,
-                next_shares      TEXT
+            CREATE TABLE IF NOT EXISTS stock_symbols (
+                symbol             TEXT PRIMARY KEY,
+                security_name      TEXT,
+                market_category    TEXT,
+                test_issue         TEXT,
+                financial_status   TEXT,
+                round_lot_size     TEXT,
+                etf                TEXT,
+                next_shares        TEXT
             );
         """)
         conn.commit()
@@ -172,19 +75,21 @@ def handler(event, context):
             resp.raise_for_status()
             txt = resp.text
 
+            # Load into DataFrame
             df = pd.read_csv(io.StringIO(txt), sep='|', dtype=str)
+
+            # Drop footer row that starts with "File Creation Time"
             df = df[~df.iloc[:, 0].str.contains("File Creation Time", na=False)]
+
+            # Normalize header difference
             if "ACT Symbol" in df.columns:
                 df = df.rename(columns={"ACT Symbol": "Symbol"})
+
             dfs.append(df)
 
         full_df = pd.concat(dfs, ignore_index=True, sort=False)
 
-        # 4) Filter out unwanted names
-        full_df = full_df[~full_df["Security Name"].str.contains(filter_re, na=False)]
-        logger.info(f"After filtering, {len(full_df)} symbols remain")
-
-        # 5) Upsert into stock_symbols
+        # 4) Prepare upsert
         records = [
             (
                 row.get("Symbol"),
@@ -220,6 +125,7 @@ def handler(event, context):
         conn.commit()
         logger.info(f"✓ Inserted/updated {len(records)} symbols")
 
+        # 5) Clean up
         cur.close()
         conn.close()
 
