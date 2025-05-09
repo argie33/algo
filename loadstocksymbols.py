@@ -1,10 +1,19 @@
 #!/usr/bin/env python3
+"""
+loadstocksymbols.py
+
+Fetch NASDAQ’s listed and other-listed symbol directories via FTP,
+parse & classify each row, and write **all** records into Postgres
+in a table keyed by (symbol, exchange).
+"""
+
 import os
 import re
 import csv
 import json
 import logging
 from ftplib import FTP
+
 import boto3
 import psycopg2
 
@@ -25,8 +34,8 @@ FTP_FILES     = {
     "Other":  "otherlisted.txt"
 }
 
-# any regexes for classifying “other security”:
-patterns = patterns = [
+# regexes for classifying “other security”
+OTHER_PATTERNS = patterns = [
     r"\bpreferred\b",
     r"\bredeemable warrant(s)?\b",
     r"\bwarrant(s)?\b",
@@ -124,176 +133,147 @@ patterns = patterns = [
     r"\bnasdaq symbology\b",  
     ]
 
-
 def fetch_text_ftp(filename: str) -> str:
-    """Download the given file via FTP and return its full text."""
-    logger.info("Connecting to FTP %s", FTP_HOST)
+    """Download a file via FTP and return its contents."""
+    logger.info("Connecting to FTP %s to fetch %s", FTP_HOST, filename)
     ftp = FTP(FTP_HOST)
     ftp.login()
     ftp.cwd(FTP_DIR)
-
-    lines = []
+    lines: list[str] = []
     ftp.retrlines(f"RETR {filename}", lines.append)
     ftp.quit()
-
-    text = "\n".join(lines)
-    logger.info("Downloaded %s from FTP", filename)
-    return text
+    return "\n".join(lines)
 
 def parse_listed(text: str, source: str) -> list[dict]:
     """
-    Parse a pipe‑delimited listing:
-    - Find the real header row (contains "Security Name" + pipe)
-    - Use that for csv.DictReader
-    - Dynamically pick only Symbol or NASDAQ Symbol (no ACT Symbol)
-    - Classify each row as 'etf', 'other security', or 'standard'
+    Parse a pipe-delimited listing:
+      - Find the header row (contains "Security Name"|...)
+      - Use csv.DictReader on the remainder
+      - Pick "Symbol" or "NASDAQ Symbol"
+      - Classify as 'etf', 'other security', or 'standard'
     """
     lines = text.splitlines()
     header_idx = next((i for i, L in enumerate(lines)
                        if "Security Name" in L and "|" in L), None)
     if header_idx is None:
-        logger.error("[%s] could not find header row", source)
+        logger.error("[%s] header row not found", source)
         return []
 
     reader = csv.DictReader(lines[header_idx:], delimiter="|")
     headers = reader.fieldnames or []
 
-    # only consider "Symbol" or "NASDAQ Symbol"
+    # choose symbol column
     for cand in ("Symbol", "NASDAQ Symbol"):
         if cand in headers:
             sym_key = cand
             break
     else:
-        logger.error("[%s] no Symbol column in headers %s", source, headers)
+        logger.error("[%s] no Symbol column", source)
         return []
 
-    records = []
+    out: list[dict] = []
     for row in reader:
         sym = (row.get(sym_key) or "").strip()
         if not sym:
-            continue  # skip blanks
+            continue
 
         name = (row.get("Security Name") or "").strip()
+        # round lot
         try:
             lot = int((row.get("Round Lot Size") or "").strip() or 0)
         except ValueError:
             lot = None
 
-        # ETF flag in source file ('Y' or 'N')
+        # ETF flag (Y/N)
         is_etf = (row.get("ETF") or "").strip().upper() == "Y"
-        # other‐security regex match
+        # other‑security via regex
         is_other = any(re.search(p, name, flags=re.IGNORECASE)
-                       for p in patterns)
+                       for p in OTHER_PATTERNS)
 
         if is_etf:
             sec_type = "etf"
+        elif is_other:
+            sec_type = "other security"
         else:
-            sec_type = "other security" if is_other else "standard"
+            sec_type = "standard"
 
-        records.append({
+        out.append({
             "symbol":         sym,
-            "security_name":  name,
             "exchange":       source,
+            "security_name":  name,
             "test_issue":     (row.get("Test Issue") or "").strip(),
             "round_lot_size": lot,
             "security_type":  sec_type
         })
 
-    logger.info("[%s] Parsed %d rows", source, len(records))
-    return records
+    logger.info("[%s] parsed %d rows", source, len(out))
+    return out
 
 def get_db_connection():
-    """Retrieve DB credentials from Secrets Manager and return a psycopg2 connection."""
-    resp = boto3.client("secretsmanager").get_secret_value(SecretId=DB_SECRET_ARN)
-    conf = json.loads(resp["SecretString"])
+    """Fetch DB creds from Secrets Manager and return a psycopg2 connection."""
+    sec = boto3.client("secretsmanager").get_secret_value(SecretId=DB_SECRET_ARN)
+    cfg = json.loads(sec["SecretString"])
     return psycopg2.connect(
-        host     = conf["host"],
-        port     = int(conf["port"]),
-        dbname   = conf["dbname"],
-        user     = conf["username"],
-        password = conf["password"],
+        host     = cfg["host"],
+        port     = int(cfg["port"]),
+        dbname   = cfg["dbname"],
+        user     = cfg["username"],
+        password = cfg["password"],
         sslmode  = "require"
     )
 
 def main():
-    # ── Fetch & parse NASDAQ list ──────────────────────────────────────────────
-    nas_raw = fetch_text_ftp(FTP_FILES["NASDAQ"])
-    nas = parse_listed(nas_raw, "NASDAQ")
-    logger.info("NASDAQ count → %d", len(nas))
+    # 1) fetch & parse every source
+    all_records: list[dict] = []
+    for src, fname in FTP_FILES.items():
+        text = fetch_text_ftp(fname)
+        rows = parse_listed(text, src)
+        all_records.extend(rows)
 
-    # ── Fetch & parse Other list ───────────────────────────────────────────────
-    oth_raw = fetch_text_ftp(FTP_FILES["Other"])
-    oth = parse_listed(oth_raw, "Other")
-    logger.info("Other count   → %d", len(oth))
+    # 2) flag core_security
+    for r in all_records:
+        r["core_security"] = "yes" if "$" not in r["symbol"] else "no"
 
-    # ── Combine them ───────────────────────────────────────────────────────────
-    all_records = nas + oth
-    logger.info("Combined raw → %d rows", len(all_records))
-
-    # ── Dedupe on (symbol,exchange) ────────────────────────────────────────────
-    seen, unique = set(), []
-    for rec in all_records:
-        key = (rec["symbol"], rec["exchange"])
-        if key not in seen:
-            seen.add(key)
-            unique.append(rec)
-    logger.info("After dedupe → %d unique records", len(unique))
-
-    # ── Flag core_security & attach to each record ────────────────────────────
-    for rec in unique:
-        rec["core_security"] = "yes" if "$" not in rec["symbol"] else "no"
-
-    # ── Drop & recreate table, then bulk insert ────────────────────────────────
+    # 3) write to DB
     conn = get_db_connection()
-    with conn:
-        cur = conn.cursor()
-        cur.execute("DROP TABLE IF EXISTS stock_symbols;")
-        cur.execute("""
-          CREATE TABLE stock_symbols (
-            symbol          VARCHAR(50) PRIMARY KEY,
-            security_name   TEXT,
-            exchange        VARCHAR(20),
-            test_issue      CHAR(1),
-            round_lot_size  INT,
-            security_type   VARCHAR(20),
-            core_security   CHAR(3)
-          );
-        """)
-        insert_sql = """
-          INSERT INTO stock_symbols
-            (symbol, security_name, exchange, test_issue,
-             round_lot_size, security_type, core_security)
-          VALUES (%s,%s,%s,%s,%s,%s,%s);
-        """
-        cur.executemany(insert_sql, [
-            (
-                r["symbol"],
-                r["security_name"],
-                r["exchange"],
-                r["test_issue"],
-                r["round_lot_size"],
-                r["security_type"],
-                r["core_security"]
-            ) for r in unique
-        ])
+    cur = conn.cursor()
 
-        # update last_updated
-        cur.execute("""
-          CREATE TABLE IF NOT EXISTS last_updated (
-            script_name VARCHAR(255) PRIMARY KEY,
-            last_run    TIMESTAMPTZ
-          );
-        """)
-        cur.execute("""
-          INSERT INTO last_updated (script_name, last_run)
-          VALUES (%s, NOW())
-          ON CONFLICT (script_name) DO UPDATE
-            SET last_run = EXCLUDED.last_run;
-        """, (os.path.basename(__file__),))
+    # drop & recreate with composite primary key
+    cur.execute("DROP TABLE IF EXISTS stock_symbols;")
+    cur.execute("""
+    CREATE TABLE stock_symbols (
+      symbol          VARCHAR(50),
+      exchange        VARCHAR(20),
+      security_name   TEXT,
+      test_issue      CHAR(1),
+      round_lot_size  INT,
+      security_type   VARCHAR(20),
+      core_security   CHAR(3),
+      PRIMARY KEY (symbol, exchange)
+    );
+    """)
+
+    insert_sql = """
+    INSERT INTO stock_symbols
+      (symbol, exchange, security_name, test_issue, round_lot_size, security_type, core_security)
+    VALUES (%s,%s,%s,%s,%s,%s,%s)
+    ;
+    """
+    cur.executemany(insert_sql, [
+        (
+            r["symbol"],
+            r["exchange"],
+            r["security_name"],
+            r["test_issue"],
+            r["round_lot_size"],
+            r["security_type"],
+            r["core_security"]
+        ) for r in all_records
+    ])
+    conn.commit()
     conn.close()
 
-    logger.info("✅ Successfully wrote %d symbols", len(unique))
-
+    logger.info("✅ Wrote %d rows to stock_symbols", len(all_records))
 
 if __name__ == "__main__":
     try:
