@@ -34,7 +34,7 @@ FTP_FILES = {
 }
 
 # ─── Regex Patterns for Filtering Out Unwanted Securities ───────────────────────
-patterns = patterns = [
+patterns = [
     r"\bpreferred\b",
     r"\bredeemable warrant(s)?\b",
     r"\bwarrant(s)?\b",
@@ -138,10 +138,12 @@ def should_filter(name, patterns):
             return True
     return False
 
+excluded_records = []
+
 def download_ftp_file(filename):
     logger.info(f"Connecting to FTP {FTP_HOST}")
     ftp = FTP(FTP_HOST, timeout=30)
-    ftp.login()                # anonymous
+    ftp.login()  # anonymous
     ftp.cwd(FTP_DIR)
     logger.info(f"Retrieving {filename}")
     lines = []
@@ -157,7 +159,13 @@ def parse_nasdaq_listed(text):
         if row["Symbol"].startswith("File Creation Time"):
             continue
         name = row["Security Name"].strip()
-        is_other = row["ETF"].upper()=="Y" or should_filter(name, patterns)
+        if row["ETF"].upper()=="Y" or should_filter(name, patterns):
+            excluded_records.append({
+                "source":"NASDAQ",
+                "symbol": row["Symbol"].strip(),
+                "security_name": name
+            })
+            continue
         try:
             lot = int(row["Round Lot Size"])
         except:
@@ -172,8 +180,7 @@ def parse_nasdaq_listed(text):
             "financial_status": row["Financial Status"].strip(),
             "round_lot_size": lot,
             "etf": row["ETF"].strip(),
-            "secondary_symbol": row["NextShares"].strip(),
-            "symbol_type": "other" if is_other else "primary"
+            "secondary_symbol": row["NextShares"].strip()
         })
     return recs
 
@@ -181,17 +188,19 @@ def parse_other_listed(text):
     logger.info("Parsing Other-listed records")
     recs = []
     reader = csv.DictReader(text.splitlines(), delimiter="|")
-    exch_map = {
-        "A":"American Stock Exchange",
-        "N":"New York Stock Exchange",
-        "P":"NYSE Arca",
-        "Z":"BATS Global Markets"
-    }
+    exch_map = {"A":"American Stock Exchange","N":"New York Stock Exchange",
+                "P":"NYSE Arca","Z":"BATS Global Markets"}
     for row in reader:
         if row["ACT Symbol"].startswith("File Creation Time"):
             continue
         name = row["Security Name"].strip()
-        is_other = row["ETF"].upper()=="Y" or should_filter(name, patterns)
+        if row["ETF"].upper()=="Y" or should_filter(name, patterns):
+            excluded_records.append({
+                "source":"Other",
+                "symbol": row["ACT Symbol"].strip(),
+                "security_name": name
+            })
+            continue
         try:
             lot = int(row["Round Lot Size"])
         except:
@@ -207,8 +216,7 @@ def parse_other_listed(text):
             "financial_status": None,
             "round_lot_size": lot,
             "etf": row["ETF"].strip(),
-            "secondary_symbol": row["NASDAQ Symbol"].strip(),
-            "symbol_type": "other" if is_other else "primary"
+            "secondary_symbol": row["NASDAQ Symbol"].strip()
         })
     return recs
 
@@ -238,15 +246,14 @@ def insert_into_postgres(records):
       financial_status TEXT,
       round_lot_size INT,
       etf CHAR(1),
-      secondary_symbol TEXT,
-      symbol_type TEXT
+      secondary_symbol TEXT
     );
     """
     insert_sql = """
     INSERT INTO stock_symbols (
       symbol, security_name, exchange, cqs_symbol,
       market_category, test_issue, financial_status,
-      round_lot_size, etf, secondary_symbol, symbol_type
+      round_lot_size, etf, secondary_symbol
     ) VALUES %s
     ON CONFLICT (symbol) DO UPDATE SET
       security_name = EXCLUDED.security_name,
@@ -257,8 +264,7 @@ def insert_into_postgres(records):
       financial_status = EXCLUDED.financial_status,
       round_lot_size = EXCLUDED.round_lot_size,
       etf = EXCLUDED.etf,
-      secondary_symbol = EXCLUDED.secondary_symbol,
-      symbol_type = EXCLUDED.symbol_type;
+      secondary_symbol = EXCLUDED.secondary_symbol;
     """
     try:
         with conn:
@@ -267,10 +273,9 @@ def insert_into_postgres(records):
                 vals = [
                     (
                       r["symbol"], r["security_name"], r["exchange"],
-                      r["cqs_symbol"], r["market_category"],
-                      r["test_issue"], r["financial_status"],
-                      r["round_lot_size"], r["etf"],
-                      r["secondary_symbol"], r["symbol_type"]
+                      r["cqs_symbol"], r["market_category"], r["test_issue"],
+                      r["financial_status"], r["round_lot_size"],
+                      r["etf"], r["secondary_symbol"]
                     )
                     for r in records
                 ]
@@ -308,49 +313,54 @@ def update_last_updated():
     finally:
         conn.close()
 
-def write_csv(records, filename):
-    if not records:
-        logger.info(f"No records to write to {filename}")
+def write_excluded_csv(fn="excluded_records.csv"):
+    if not excluded_records:
+        logger.info("No excluded records")
         return
-    with open(filename, "w", newline="", encoding="utf-8") as f:
+    with open(fn, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=["source","symbol","security_name"])
+        writer.writeheader()
+        writer.writerows(excluded_records)
+    logger.info(f"Wrote {fn}")
+
+def write_included_csv(records, fn="included_records.csv"):
+    if not records:
+        logger.info("No included records")
+        return
+    with open(fn, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=list(records[0].keys()))
         writer.writeheader()
         writer.writerows(records)
-    logger.info(f"Wrote {filename}")
+    logger.info(f"Wrote {fn}")
 
 def main():
-    # 1) Download both files via FTP
-    texts = {
-        src: download_ftp_file(fname)
-        for src, fname in FTP_FILES.items()
-    }
+    texts = {}
+    for source, fname in FTP_FILES.items():
+        texts[source] = download_ftp_file(fname)
 
-    # 2) Parse
     nasdaq_recs = parse_nasdaq_listed(texts["NASDAQ"])
     other_recs  = parse_other_listed(texts["OTHER"])
 
-    # 3) Combine & dedupe
     all_recs = nasdaq_recs + other_recs
-    logger.info(f"Total before dedupe: {len(all_recs)}")
+    logger.info(f"Before dedupe: {len(all_recs)}")
     unique_recs = deduplicate_records(all_recs)
-    logger.info(f"Total after dedupe: {len(unique_recs)}")
+    logger.info(f"After dedupe: {len(unique_recs)}")
 
-    # 4) Split out for CSV inspection
-    primaries = [r for r in unique_recs if r["symbol_type"]=="primary"]
-    others    = [r for r in unique_recs if r["symbol_type"]=="other"]
-    logger.info(f"{len(primaries)} primary symbols, {len(others)} other symbols")
+    filtered = []
+    for r in unique_recs:
+        if "$" in r["symbol"]:
+            excluded_records.append({"source":"DollarFilter",
+                                     "symbol":r["symbol"],
+                                     "security_name":r["security_name"]})
+        else:
+            filtered.append(r)
+    logger.info(f"After $-filter: {len(filtered)}")
 
-    # 5) Insert **all** into PostgreSQL
-    insert_into_postgres(unique_recs)
-
-    # 6) Optional CSV dumps
-    write_csv(primaries, "primary_symbols.csv")
-    write_csv(others,    "other_symbols.csv")
-
-    # 7) Stamp last_updated
+    insert_into_postgres(filtered)
+    write_excluded_csv()
+    write_included_csv(filtered)
     update_last_updated()
-
-    logger.info("Done.")
+    logger.info("Complete")
 
 if __name__ == "__main__":
     try:
