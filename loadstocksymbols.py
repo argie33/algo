@@ -30,7 +30,8 @@ DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
 FTP_HOST      = "ftp.nasdaqtrader.com"
 FTP_DIR       = "symboldirectory"
 FTP_FILES     = {
-    "Other":  "otherlisted.txt"
+    "Other":  "otherlisted.txt",
+    "NASDAQ": "nasdaqlisted.txt"  
 }
 
 # regexes for classifying “other security”
