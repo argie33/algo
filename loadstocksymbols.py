@@ -145,6 +145,7 @@ def parse_listed(text: str, source: str) -> list[dict]:
     - Find the real header row (contains "Security Name" + pipe)
     - Use that for csv.DictReader
     - Dynamically pick only Symbol or NASDAQ Symbol (no ACT Symbol)
+    - Classify each row as 'etf', 'other security', or 'standard'
     """
     lines = text.splitlines()
     header_idx = next((i for i, L in enumerate(lines)
@@ -177,8 +178,16 @@ def parse_listed(text: str, source: str) -> list[dict]:
         except ValueError:
             lot = None
 
+        # ETF flag in source file ('Y' or 'N')
+        is_etf = (row.get("ETF") or "").strip().upper() == "Y"
+        # other‐security regex match
         is_other = any(re.search(p, name, flags=re.IGNORECASE)
                        for p in patterns)
+
+        if is_etf:
+            sec_type = "etf"
+        else:
+            sec_type = "other security" if is_other else "standard"
 
         records.append({
             "symbol":         sym,
@@ -186,7 +195,7 @@ def parse_listed(text: str, source: str) -> list[dict]:
             "exchange":       source,
             "test_issue":     (row.get("Test Issue") or "").strip(),
             "round_lot_size": lot,
-            "security_type":  "other security" if is_other else "standard"
+            "security_type":  sec_type
         })
 
     logger.info("[%s] Parsed %d rows", source, len(records))
