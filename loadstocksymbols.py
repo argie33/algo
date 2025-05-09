@@ -122,6 +122,7 @@ patterns = [
 filter_re = re.compile("|".join(patterns), flags=re.IGNORECASE)
 
 def get_db_creds():
+    """Fetch DB creds (username, password, host, port, dbname) from Secrets Manager."""
     sm = boto3.client("secretsmanager")
     resp = sm.get_secret_value(SecretId=DB_SECRET_ARN)
     sec = json.loads(resp["SecretString"])
@@ -143,9 +144,10 @@ def handler(event, context):
         )
         cur = conn.cursor()
 
-        # 2) Ensure table exists
+        # 2) Drop + recreate table
+        cur.execute("DROP TABLE IF EXISTS stock_symbols;")
         cur.execute("""
-            CREATE TABLE IF NOT EXISTS stock_symbols (
+            CREATE TABLE stock_symbols (
                 symbol           TEXT PRIMARY KEY,
                 security_name    TEXT,
                 market_category  TEXT,
@@ -178,11 +180,11 @@ def handler(event, context):
 
         full_df = pd.concat(dfs, ignore_index=True, sort=False)
 
-        # 4) Filter out any rows whose Security Name matches one of the patterns
+        # 4) Filter out unwanted names
         full_df = full_df[~full_df["Security Name"].str.contains(filter_re, na=False)]
         logger.info(f"After filtering, {len(full_df)} symbols remain")
 
-        # 5) Prepare upsert
+        # 5) Upsert into stock_symbols
         records = [
             (
                 row.get("Symbol"),
