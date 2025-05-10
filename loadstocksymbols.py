@@ -18,7 +18,7 @@ PG_DB       = os.environ["PG_DB"]
 # -------------------------------
 # Data Source URLs
 # -------------------------------
-NASDAQ_LISTED_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
+NASDAQ_LISTED_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
 OTHER_LISTED_URL  = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
 
 # -------------------------------
