@@ -2,23 +2,37 @@
 import os
 import re
 import csv
+import json
 import requests
+import boto3
 import psycopg2
 from psycopg2.extras import execute_values
 
 # -------------------------------
-# Postgres Connection Configuration (via ECS Env Vars) 
+# Postgres Connection Configuration
+#   now via Secrets Manager
 # -------------------------------
-PG_HOST     = os.environ["PG_HOST"]
-PG_PORT     = os.environ.get("PG_PORT", "5432")
-PG_USER     = os.environ["PG_USER"]
-PG_PASSWORD = os.environ["PG_PASSWORD"]
-PG_DB       = os.environ["PG_DB"]
+DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
+
+def get_db_config():
+    """Fetch host, port, user, password, dbname from Secrets Manager."""
+    client = boto3.client("secretsmanager")
+    resp = client.get_secret_value(SecretId=DB_SECRET_ARN)
+    secret = json.loads(resp["SecretString"])
+    return (
+        secret["host"],
+        secret.get("port", "5432"),
+        secret["username"],
+        secret["password"],
+        secret["dbname"]
+    )
+
+PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DB = get_db_config()
 
 # -------------------------------
 # Data Source URLs
 # -------------------------------
-NASDAQ_LISTED_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
+NASDAQ_LISTED_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
 OTHER_LISTED_URL  = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
 
 # -------------------------------
