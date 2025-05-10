@@ -7,7 +7,7 @@ import psycopg2
 from psycopg2.extras import execute_values
 
 # -------------------------------
-# Postgres Connection Configuration (via ECS Env Vars)
+# Postgres Connection Configuration (via ECS Env Vars) 
 # -------------------------------
 PG_HOST     = os.environ["PG_HOST"]
 PG_PORT     = os.environ.get("PG_PORT", "5432")
