@@ -32,7 +32,7 @@ PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DB = get_db_config()
 # -------------------------------
 # Data Source URLs
 # -------------------------------
-NASDAQ_LISTED_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
+NASDAQ_LISTED_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
 OTHER_LISTED_URL  = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
 
 # -------------------------------
