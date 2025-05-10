@@ -9,13 +9,11 @@ import psycopg2
 from psycopg2.extras import execute_values
 
 # -------------------------------
-# Postgres Connection Configuration
-#   now via Secrets Manager
+# Postgres via Secrets Manager
 # -------------------------------
 DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
 
 def get_db_config():
-    """Fetch host, port, user, password, dbname from Secrets Manager."""
     client = boto3.client("secretsmanager")
     resp = client.get_secret_value(SecretId=DB_SECRET_ARN)
     secret = json.loads(resp["SecretString"])
@@ -32,13 +30,13 @@ PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DB = get_db_config()
 # -------------------------------
 # Data Source URLs
 # -------------------------------
-NASDAQ_LISTED_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
+NASDAQ_LISTED_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
 OTHER_LISTED_URL  = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
 
 # -------------------------------
-# Regex Patterns for Filtering Out Unwanted Securities
+# Filtering Patterns
 # -------------------------------
-patterns = [
+patterns = patterns = [
     r"\bpreferred\b",
     r"\bredeemable warrant(s)?\b",
     r"\bwarrant(s)?\b",
@@ -136,113 +134,81 @@ patterns = [
     r"\bnasdaq symbology\b",
 ]
 
-def should_filter(security_name):
-    """Return True if the security name matches any unwanted pattern."""
-    for pattern in patterns:
-        if re.search(pattern, security_name, flags=re.IGNORECASE):
+
+def should_filter(name: str) -> bool:
+    for p in patterns:
+        if re.search(p, name, flags=re.IGNORECASE):
             return True
     return False
 
-# Collect filtered-out records if you ever need them
-excluded_records = []
-
-def download_text_file(url):
-    """Download and return the text contents of a file from a URL."""
-    resp = requests.get(url)
-    resp.raise_for_status()
-    return resp.text
-
-def parse_nasdaq_listed(text):
-    """Parse NASDAQ-listed file into unified record dicts."""
-    records = []
+# -------------------------------
+# Parsers
+# -------------------------------
+def parse_nasdaq_listed(text: str):
+    recs = []
     reader = csv.DictReader(text.splitlines(), delimiter="|")
     for row in reader:
-        if row["Symbol"].strip().startswith("File Creation Time"):
+        if row.get("Symbol","").startswith("File Creation Time"):
             continue
-
-        name = row["Security Name"].strip()
-        if row["ETF"].strip().upper() == "Y" or should_filter(name):
-            excluded_records.append({
-                "source": "NASDAQ",
-                "symbol": row["Symbol"].strip(),
-                "security_name": name
-            })
+        name = row.get("Security Name","").strip()
+        if row.get("ETF","").upper()=="Y" or should_filter(name):
             continue
-
-        try:
-            lot = int(row["Round Lot Size"].strip())
-        except:
-            lot = None
-
-        records.append({
-            "symbol": row["Symbol"].strip(),
-            "security_name": name,
-            "exchange": "NASDAQ",
-            "cqs_symbol": None,
-            "market_category": row["Market Category"].strip(),
-            "test_issue": row["Test Issue"].strip(),
-            "financial_status": row["Financial Status"].strip(),
-            "round_lot_size": lot,
-            "etf": row["ETF"].strip(),
-            "secondary_symbol": row["NextShares"].strip()
+        try: lot = int(row.get("Round Lot Size","") or 0)
+        except: lot = None
+        recs.append({
+            "symbol":            row["Symbol"].strip(),
+            "security_name":     name,
+            "exchange":          "NASDAQ",
+            "cqs_symbol":        None,
+            "market_category":   row.get("Market Category","").strip(),
+            "test_issue":        row.get("Test Issue","").strip(),
+            "financial_status":  row.get("Financial Status","").strip(),
+            "round_lot_size":    lot,
+            "etf":               row.get("ETF","").strip(),
+            "secondary_symbol":  row.get("NextShares","").strip(),
         })
-    return records
+    return recs
 
-def parse_other_listed(text):
-    """Parse Other-listed file into unified record dicts."""
-    exchange_mapping = {
-        "A": "American Stock Exchange",
-        "N": "New York Stock Exchange",
-        "P": "NYSE Arca",
-        "Z": "BATS Global Markets"
-    }
-    records = []
+def parse_other_listed(text: str):
+    recs = []
+    exch_map = {"A":"American Stock Exchange","N":"New York Stock Exchange",
+                "P":"NYSE Arca","Z":"BATS Global Markets"}
     reader = csv.DictReader(text.splitlines(), delimiter="|")
     for row in reader:
-        if row["ACT Symbol"].strip().startswith("File Creation Time"):
+        if row.get("ACT Symbol","").startswith("File Creation Time"):
             continue
-
-        name = row["Security Name"].strip()
-        if row["ETF"].strip().upper() == "Y" or should_filter(name):
-            excluded_records.append({
-                "source": "Other",
-                "symbol": row["ACT Symbol"].strip(),
-                "security_name": name
-            })
+        name = row.get("Security Name","").strip()
+        if row.get("ETF","").upper()=="Y" or should_filter(name):
             continue
-
-        try:
-            lot = int(row["Round Lot Size"].strip())
-        except:
-            lot = None
-
-        code = row["Exchange"].strip()
-        full_exch = exchange_mapping.get(code, code)
-
-        records.append({
-            "symbol": row["ACT Symbol"].strip(),
-            "security_name": name,
-            "exchange": full_exch,
-            "cqs_symbol": row["CQS Symbol"].strip(),
-            "market_category": None,
-            "test_issue": row["Test Issue"].strip(),
-            "financial_status": None,
-            "round_lot_size": lot,
-            "etf": row["ETF"].strip(),
-            "secondary_symbol": row["NASDAQ Symbol"].strip()
+        try: lot = int(row.get("Round Lot Size","") or 0)
+        except: lot = None
+        full_exch = exch_map.get(row.get("Exchange",""), row.get("Exchange",""))
+        recs.append({
+            "symbol":            row["ACT Symbol"].strip(),
+            "security_name":     name,
+            "exchange":          full_exch,
+            "cqs_symbol":        row.get("CQS Symbol","").strip(),
+            "market_category":   None,
+            "test_issue":        row.get("Test Issue","").strip(),
+            "financial_status":  None,
+            "round_lot_size":    lot,
+            "etf":               row.get("ETF","").strip(),
+            "secondary_symbol":  row.get("NASDAQ Symbol","").strip(),
         })
-    return records
+    return recs
 
-def deduplicate_records(records):
-    """Deduplicate by 'symbol', keeping the first occurrence."""
-    unique = {}
-    for r in records:
-        if r["symbol"] not in unique:
-            unique[r["symbol"]] = r
-    return list(unique.values())
+def choose_parser(text: str):
+    headers = csv.DictReader(text.splitlines(), delimiter="|").fieldnames or []
+    if "Symbol" in headers:
+        return parse_nasdaq_listed
+    if "ACT Symbol" in headers:
+        return parse_other_listed
+    raise RuntimeError(f"Unknown format, headers: {headers}")
 
+# -------------------------------
+# DB Utilities
+# -------------------------------
 def init_db_schema(conn):
-    """Drop & recreate the stock_symbols table exactly once."""
     with conn.cursor() as cur:
         cur.execute("DROP TABLE IF EXISTS stock_symbols;")
         cur.execute("""
@@ -262,82 +228,77 @@ def init_db_schema(conn):
     conn.commit()
 
 def insert_records(conn, records):
-    """Bulk insert all records in one shot, with upsert on symbol."""
     sql = """
-    INSERT INTO stock_symbols (
+      INSERT INTO stock_symbols (
         symbol, security_name, exchange, cqs_symbol,
         market_category, test_issue, financial_status,
         round_lot_size, etf, secondary_symbol
-    ) VALUES %s
-    ON CONFLICT (symbol) DO UPDATE SET
-        security_name     = EXCLUDED.security_name,
-        exchange          = EXCLUDED.exchange,
-        cqs_symbol        = EXCLUDED.cqs_symbol,
-        market_category   = EXCLUDED.market_category,
-        test_issue        = EXCLUDED.test_issue,
-        financial_status  = EXCLUDED.financial_status,
-        round_lot_size    = EXCLUDED.round_lot_size,
-        etf               = EXCLUDED.etf,
-        secondary_symbol  = EXCLUDED.secondary_symbol;
+      ) VALUES %s
+      ON CONFLICT (symbol) DO UPDATE SET
+        security_name    = EXCLUDED.security_name,
+        exchange         = EXCLUDED.exchange,
+        cqs_symbol       = EXCLUDED.cqs_symbol,
+        market_category  = EXCLUDED.market_category,
+        test_issue       = EXCLUDED.test_issue,
+        financial_status = EXCLUDED.financial_status,
+        round_lot_size   = EXCLUDED.round_lot_size,
+        etf              = EXCLUDED.etf,
+        secondary_symbol = EXCLUDED.secondary_symbol;
     """
-    values = [
-        (
-            r["symbol"], r["security_name"], r["exchange"], r["cqs_symbol"],
-            r["market_category"], r["test_issue"], r["financial_status"],
-            r["round_lot_size"], r["etf"], r["secondary_symbol"]
-        ) for r in records
-    ]
+    vals = [(
+      r["symbol"], r["security_name"], r["exchange"], r["cqs_symbol"],
+      r["market_category"], r["test_issue"], r["financial_status"],
+      r["round_lot_size"], r["etf"], r["secondary_symbol"]
+    ) for r in records]
     with conn.cursor() as cur:
-        execute_values(cur, sql, values)
+        execute_values(cur, sql, vals)
     conn.commit()
 
 def update_last_updated(conn):
-    """Record this script’s last run timestamp."""
     with conn.cursor() as cur:
         cur.execute("""
-            INSERT INTO last_updated (script_name, last_updated)
-            VALUES (%s, NOW())
-            ON CONFLICT (script_name) DO UPDATE
-              SET last_updated = EXCLUDED.last_updated;
+          INSERT INTO last_updated (script_name, last_updated)
+          VALUES (%s, NOW())
+          ON CONFLICT (script_name) DO UPDATE
+            SET last_updated = EXCLUDED.last_updated;
         """, ('loadstocksymbols.py',))
     conn.commit()
 
+# -------------------------------
+# Main
+# -------------------------------
 def main():
-    # 1) Download both files
-    nas_text = download_text_file(NASDAQ_LISTED_URL)
-    oth_text = download_text_file(OTHER_LISTED_URL)
+    # download
+    nas_text = requests.get(NASDAQ_LISTED_URL).text
+    oth_text = requests.get(OTHER_LISTED_URL).text
 
-    # 2) Parse each into record lists
-    nas = parse_nasdaq_listed(nas_text)
-    oth = parse_other_listed(oth_text)
+    # dynamic parsing
+    nas = choose_parser(nas_text)(nas_text)
+    oth = choose_parser(oth_text)(oth_text)
 
-    # 3) Combine and dedupe
-    all_records = deduplicate_records(nas + oth)
+    # combine, dedupe
+    all_recs = nas + oth
+    seen = {}
+    for r in all_recs:
+        seen.setdefault(r["symbol"], r)
+    unique = list(seen.values())
 
-    # 4) Filter out "$" symbols
-    filtered = []
-    for r in all_records:
-        if "$" in r["symbol"]:
-            excluded_records.append({
-                "source": "DollarFilter",
-                "symbol": r["symbol"],
-                "security_name": r["security_name"]
-            })
-        else:
-            filtered.append(r)
+    # filter "$"
+    final = [r for r in unique if "$" not in r["symbol"]]
 
-    # 5) Connect, init schema once, bulk insert, update timestamp
+    # write to Postgres
     conn = psycopg2.connect(
-        host=PG_HOST, port=PG_PORT,
-        user=PG_USER, password=PG_PASSWORD,
-        dbname=PG_DB
+      host=PG_HOST, port=PG_PORT,
+      user=PG_USER, password=PG_PASSWORD,
+      dbname=PG_DB
     )
     try:
         init_db_schema(conn)
-        insert_records(conn, filtered)
+        insert_records(conn, final)
         update_last_updated(conn)
     finally:
         conn.close()
 
 if __name__ == "__main__":
     main()
+
