@@ -9,7 +9,7 @@ import psycopg2
 from psycopg2.extras import execute_values
 
 # -------------------------------
-# Postgres via Secrets Manager
+# Postgres via Secrets Manager 
 # -------------------------------
 DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
 
