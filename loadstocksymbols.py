@@ -36,7 +36,7 @@ OTHER_LISTED_URL  = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt
 # -------------------------------
 # Filtering Patterns
 # -------------------------------
-patterns = patterns = [
+patterns = [
     r"\bpreferred\b",
     r"\bredeemable warrant(s)?\b",
     r"\bwarrant(s)?\b",
@@ -134,7 +134,6 @@ patterns = patterns = [
     r"\bnasdaq symbology\b",
 ]
 
-
 def should_filter(name: str) -> bool:
     for p in patterns:
         if re.search(p, name, flags=re.IGNORECASE):
@@ -148,52 +147,60 @@ def parse_nasdaq_listed(text: str):
     recs = []
     reader = csv.DictReader(text.splitlines(), delimiter="|")
     for row in reader:
-        if row.get("Symbol","").startswith("File Creation Time"):
+        if row.get("Symbol", "").startswith("File Creation Time"):
             continue
-        name = row.get("Security Name","").strip()
-        if row.get("ETF","").upper()=="Y" or should_filter(name):
+        name = row.get("Security Name", "").strip()
+        if row.get("ETF", "").upper() == "Y" or should_filter(name):
             continue
-        try: lot = int(row.get("Round Lot Size","") or 0)
-        except: lot = None
+        try:
+            lot = int(row.get("Round Lot Size", "") or 0)
+        except:
+            lot = None
         recs.append({
             "symbol":            row["Symbol"].strip(),
             "security_name":     name,
             "exchange":          "NASDAQ",
             "cqs_symbol":        None,
-            "market_category":   row.get("Market Category","").strip(),
-            "test_issue":        row.get("Test Issue","").strip(),
-            "financial_status":  row.get("Financial Status","").strip(),
+            "market_category":   row.get("Market Category", "").strip(),
+            "test_issue":        row.get("Test Issue", "").strip(),
+            "financial_status":  row.get("Financial Status", "").strip(),
             "round_lot_size":    lot,
-            "etf":               row.get("ETF","").strip(),
-            "secondary_symbol":  row.get("NextShares","").strip(),
+            "etf":               row.get("ETF", "").strip(),
+            "secondary_symbol":  row.get("NextShares", "").strip(),
         })
     return recs
 
 def parse_other_listed(text: str):
     recs = []
-    exch_map = {"A":"American Stock Exchange","N":"New York Stock Exchange",
-                "P":"NYSE Arca","Z":"BATS Global Markets"}
+    exch_map = {
+        "A": "American Stock Exchange",
+        "N": "New York Stock Exchange",
+        "P": "NYSE Arca",
+        "Z": "BATS Global Markets"
+    }
     reader = csv.DictReader(text.splitlines(), delimiter="|")
     for row in reader:
-        if row.get("ACT Symbol","").startswith("File Creation Time"):
+        if row.get("ACT Symbol", "").startswith("File Creation Time"):
             continue
-        name = row.get("Security Name","").strip()
-        if row.get("ETF","").upper()=="Y" or should_filter(name):
+        name = row.get("Security Name", "").strip()
+        if row.get("ETF", "").upper() == "Y" or should_filter(name):
             continue
-        try: lot = int(row.get("Round Lot Size","") or 0)
-        except: lot = None
-        full_exch = exch_map.get(row.get("Exchange",""), row.get("Exchange",""))
+        try:
+            lot = int(row.get("Round Lot Size", "") or 0)
+        except:
+            lot = None
+        full_exch = exch_map.get(row.get("Exchange", ""), row.get("Exchange", ""))
         recs.append({
             "symbol":            row["ACT Symbol"].strip(),
             "security_name":     name,
             "exchange":          full_exch,
-            "cqs_symbol":        row.get("CQS Symbol","").strip(),
+            "cqs_symbol":        row.get("CQS Symbol", "").strip(),
             "market_category":   None,
-            "test_issue":        row.get("Test Issue","").strip(),
+            "test_issue":        row.get("Test Issue", "").strip(),
             "financial_status":  None,
             "round_lot_size":    lot,
-            "etf":               row.get("ETF","").strip(),
-            "secondary_symbol":  row.get("NASDAQ Symbol","").strip(),
+            "etf":               row.get("ETF", "").strip(),
+            "secondary_symbol":  row.get("NASDAQ Symbol", "").strip(),
         })
     return recs
 
@@ -210,6 +217,7 @@ def choose_parser(text: str):
 # -------------------------------
 def init_db_schema(conn):
     with conn.cursor() as cur:
+        # stock_symbols table
         cur.execute("DROP TABLE IF EXISTS stock_symbols;")
         cur.execute("""
             CREATE TABLE stock_symbols (
@@ -223,6 +231,13 @@ def init_db_schema(conn):
                 round_lot_size    INT,
                 etf               CHAR(1),
                 secondary_symbol  VARCHAR(50)
+            );
+        """)
+        # last_updated table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS last_updated (
+                script_name   VARCHAR(255) NOT NULL PRIMARY KEY,
+                last_updated  TIMESTAMP     NULL    DEFAULT NULL
             );
         """)
     conn.commit()
@@ -246,9 +261,9 @@ def insert_records(conn, records):
         secondary_symbol = EXCLUDED.secondary_symbol;
     """
     vals = [(
-      r["symbol"], r["security_name"], r["exchange"], r["cqs_symbol"],
-      r["market_category"], r["test_issue"], r["financial_status"],
-      r["round_lot_size"], r["etf"], r["secondary_symbol"]
+        r["symbol"], r["security_name"], r["exchange"], r["cqs_symbol"],
+        r["market_category"], r["test_issue"], r["financial_status"],
+        r["round_lot_size"], r["etf"], r["secondary_symbol"]
     ) for r in records]
     with conn.cursor() as cur:
         execute_values(cur, sql, vals)
@@ -301,4 +316,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
