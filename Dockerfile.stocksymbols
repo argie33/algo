@@ -6,4 +6,5 @@ COPY requirements-loadstocksymbols.txt ./
 RUN pip install --no-cache-dir -r requirements-loadstocksymbols.txt
 
 COPY loadstocksymbols.py ./
-CMD ["python", "loadstocksymbols.py"]
+
+CMD ["python", "-u", "loadstocksymbols.py"]
