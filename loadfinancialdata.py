@@ -63,26 +63,25 @@ def retry(max_attempts=3, initial_delay=2, backoff=2):
                 try:
                     return f(symbol, *args, **kwargs)
                 except requests.exceptions.RequestException as e:
-                    # catch any network/timeout errors from yahooquery
                     attempts += 1
                     logging.error(f"{f.__name__} network error for {symbol} (attempt {attempts}): {e}", exc_info=True)
                 except Exception as e:
-                    # other errors (JSON, value errors, DB errors)
                     attempts += 1
                     logging.error(f"{f.__name__} failed for {symbol} (attempt {attempts}): {e}", exc_info=True)
-                
                 time.sleep(delay)
                 delay *= backoff
-
             raise RuntimeError(f"All {max_attempts} attempts failed for {f.__name__} with symbol {symbol}")
         return wrapper
     return decorator
 
 def ensure_tables(conn):
-    """Create tables if they don't exist, with upsert support on symbol."""
+    """Drop and recreate the financial_data table, plus ensure last_updated exists."""
     with conn.cursor() as cur:
+        # drop the data table if it exists
+        cur.execute("DROP TABLE IF EXISTS financial_data;")
+        # now create fresh financial_data
         cur.execute("""
-            CREATE TABLE IF NOT EXISTS financial_data (
+            CREATE TABLE financial_data (
               symbol               VARCHAR(20) PRIMARY KEY,
               maxage               INT,
               currentprice         DOUBLE PRECISION,
@@ -117,6 +116,7 @@ def ensure_tables(conn):
               fetched_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
         """)
+        # last_updated we keep around, so only create if missing
         cur.execute("""
             CREATE TABLE IF NOT EXISTS last_updated (
               script_name   VARCHAR(255) PRIMARY KEY,
@@ -139,15 +139,12 @@ def clean_row(row):
 
 @retry(max_attempts=3)
 def process_symbol(symbol, conn):
-    """Fetch from yahooquery & upsert into PostgreSQL, only if data changed."""
+    """Fetch from yahooquery & upsert into PostgreSQL, skipping symbols with no data."""
     yq_symbol = symbol.upper().replace(".", "-")
-
-    # --- construct ticker in synchronous mode ---
     ticker = Ticker(yq_symbol, asynchronous=False)
 
-    # --- mount a TimeoutHTTPAdapter with retries + explicit timeout ---
+    # mount adapter with explicit timeout
     adapter = TimeoutHTTPAdapter(
-        # give urllib3 a small retry policy
         max_retries=Retry(total=2, backoff_factor=1),
         timeout=10.0
     )
@@ -155,6 +152,10 @@ def process_symbol(symbol, conn):
     ticker.session.mount("http://", adapter)
 
     raw = ticker.financial_data.get(yq_symbol)
+    if raw is None:
+        logging.warning(f"No financial_data for {symbol}; skipping")
+        return
+
     if not isinstance(raw, dict):
         raise ValueError(f"Bad payload for {symbol}: {raw!r}")
 
@@ -174,7 +175,6 @@ def process_symbol(symbol, conn):
     placeholders = ", ".join(["%s"] * len(cols))
     updates = ", ".join([f"{c}=EXCLUDED.{c}" for c in cols[1:]])
 
-    # only update if any value actually differs
     diff_conds = " OR ".join(
         f"financial_data.{c} IS DISTINCT FROM EXCLUDED.{c}" for c in cols[1:]
     )
