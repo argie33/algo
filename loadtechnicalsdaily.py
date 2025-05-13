@@ -12,7 +12,7 @@ from psycopg2.extras import RealDictCursor
 
 import numpy as np
 # ───────────────────────────────────────────────────────────────────
-# Patch for pandas_ta compatibility: ensure numpy exports NaN
+# Patch for pandas_ta compatibility: ensure numpy exports NaN 
 np.NaN = np.nan
 # ───────────────────────────────────────────────────────────────────
 
