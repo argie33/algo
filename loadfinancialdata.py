@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
 import json
 import time
 import logging
@@ -10,15 +10,21 @@ import boto3
 import psycopg2
 from psycopg2.extras import DictCursor
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util import Timeout
+from urllib3.util.retry import Retry
+
 from yahooquery import Ticker
+from yahooquery.utils import TimeoutHTTPAdapter
+
 import pandas as pd
 import math
 
 # -------------------------------
 # Script metadata 
 # -------------------------------
-SCRIPT_NAME = "loadfinancialdata.py" 
- 
+SCRIPT_NAME = "loadfinancialdata.py"
+
 # -------------------------------
 # Environment-driven configuration
 # -------------------------------
@@ -56,11 +62,18 @@ def retry(max_attempts=3, initial_delay=2, backoff=2):
             while attempts < max_attempts:
                 try:
                     return f(symbol, *args, **kwargs)
+                except requests.exceptions.RequestException as e:
+                    # catch any network/timeout errors from yahooquery
+                    attempts += 1
+                    logging.error(f"{f.__name__} network error for {symbol} (attempt {attempts}): {e}", exc_info=True)
                 except Exception as e:
+                    # other errors (JSON, value errors, DB errors)
                     attempts += 1
                     logging.error(f"{f.__name__} failed for {symbol} (attempt {attempts}): {e}", exc_info=True)
-                    time.sleep(delay)
-                    delay *= backoff
+                
+                time.sleep(delay)
+                delay *= backoff
+
             raise RuntimeError(f"All {max_attempts} attempts failed for {f.__name__} with symbol {symbol}")
         return wrapper
     return decorator
@@ -128,7 +141,19 @@ def clean_row(row):
 def process_symbol(symbol, conn):
     """Fetch from yahooquery & upsert into PostgreSQL, only if data changed."""
     yq_symbol = symbol.upper().replace(".", "-")
-    ticker = Ticker(yq_symbol)
+
+    # --- construct ticker in synchronous mode ---
+    ticker = Ticker(yq_symbol, asynchronous=False)
+
+    # --- mount a TimeoutHTTPAdapter with retries + explicit timeout ---
+    adapter = TimeoutHTTPAdapter(
+        # give urllib3 a small retry policy
+        max_retries=Retry(total=2, backoff_factor=1),
+        timeout=10.0
+    )
+    ticker.session.mount("https://", adapter)
+    ticker.session.mount("http://", adapter)
+
     raw = ticker.financial_data.get(yq_symbol)
     if not isinstance(raw, dict):
         raise ValueError(f"Bad payload for {symbol}: {raw!r}")
