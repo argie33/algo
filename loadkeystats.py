@@ -16,7 +16,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 
 # -------------------------------
-# Script metadata & logging setup 
+# Script metadata & logging setup
 # -------------------------------
 SCRIPT_NAME = "loadkeystats.py"
 logging.basicConfig(
