@@ -3,17 +3,30 @@ import os
 import re
 import csv
 import json
+import sys
+import logging
 import requests
 import boto3
 import psycopg2
 from psycopg2.extras import execute_values
 
-# -------------------------------
-# Postgres via Secrets Manager
-# -------------------------------
-DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
+# ─── Logging setup ─────────────────────────────────────────────────────────────
+# Attach a StreamHandler to root so all logger.info/debug/warning go to stdout.
+logging.basicConfig(
+    level=logging.INFO,
+    stream=sys.stdout,
+    format='[%(asctime)s] %(levelname)s %(name)s: %(message)s'
+)
+logger = logging.getLogger("loadstocksymbols")
+
+# ─── Postgres via Secrets Manager ─────────────────────────────────────────────
+DB_SECRET_ARN = os.environ.get("DB_SECRET_ARN")
+if not DB_SECRET_ARN:
+    logger.error("Environment variable DB_SECRET_ARN is not set")
+    sys.exit(1)
 
 def get_db_config():
+    logger.info("Fetching DB credentials from Secrets Manager")
     client = boto3.client("secretsmanager")
     resp = client.get_secret_value(SecretId=DB_SECRET_ARN)
     secret = json.loads(resp["SecretString"])
@@ -27,15 +40,11 @@ def get_db_config():
 
 PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DB = get_db_config()
 
-# -------------------------------
-# Data Source URLs
-# -------------------------------
+# ─── Data Source URLs ────────────────────────────────────────────────────────
 NASDAQ_LISTED_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
 OTHER_LISTED_URL  = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
 
-# -------------------------------
-# Filtering Patterns
-# -------------------------------
+# ─── Filtering Patterns ───────────────────────────────────────────────────────
 patterns = [
     r"\bpreferred\b",
     r"\bredeemable warrant(s)?\b",
@@ -74,65 +83,65 @@ patterns = [
     r"\bdep shs\b",
     r"\bopportunities trust\b",
     r"\bnyse tick pilot test\b",
-    r"\bpreference share\b",
-    r"\bseries g\b",
-    r"\bfutures etn\b",
-    r"\btrust for\b",
-    r"\btest stock\b",
-    r"\bnastdaq symbology test\b",
-    r"\biex test\b",
-    r"\bnasdaq test\b",
-    r"\bnyse arca test\b",
-    r"\bpreference\b",
-    r"\bredeemable\b",
-    r"\bperpetual preference\b",
-    r"\btax free income\b",
-    r"\bstructured products\b",
-    r"\bcorporate backed trust\b",
-    r"\bfloating rate\b",
-    r"\btrust securities\b",
-    r"\bfixed-income\b",
-    r"\bpfd ser\b",
-    r"\bpfd\b",
-    r"\bmortgage bonds\b",
-    r"\bmortgage capital\b",
-    r"\bseries due\b",
-    r"\btarget term\b",
-    r"\bterm trust\b",
-    r"\bperpetual conv\b",
-    r"\bmunicipal bond\b",
-    r"\bdigitalbridge group\b",
-    r"\bnyse test\b",
-    r"\bctest\b",
-    r"\btick pilot test\b",
-    r"\bexchange test\b",
-    r"\bbats bzx\b",
-    r"\bdividend trust\b",
-    r"\bbond trust\b",
-    r"\bmunicipal trust\b",
-    r"\bmortgage trust\b",
-    r"\btrust etf\b",
-    r"\bcapital trust\b",
-    r"\bopportunity trust\b",
-    r"\binvestors trust\b",
-    r"\bincome securities trust\b",
-    r"\bresources trust\b",
-    r"\benergy trust\b",
-    r"\bsciences trust\b",
-    r"\bequity trust\b",
-    r"\bmulti-media trust\b",
+    r"\bpreference share\b",   
+    r"\bseries g\b",  
+    r"\bfutures etn\b",  
+    r"\btrust for\b",  
+    r"\btest stock\b",  
+    r"\bnastdaq symbology test\b",  
+    r"\biex test\b",  
+    r"\bnasdaq test\b",  
+    r"\bnyse arca test\b",  
+    r"\bpreference\b",  
+    r"\bredeemable\b",  
+    r"\bperpetual preference\b", 
+    r"\btax free income\b", 
+    r"\bstructured products\b", 
+    r"\bcorporate backed trust\b", 
+    r"\bfloating rate\b", 
+    r"\btrust securities\b", 
+    r"\bfixed-income\b", 
+    r"\bpfd ser\b", 
+    r"\bpfd\b", 
+    r"\bmortgage bonds\b", 
+    r"\bmortgage capital\b", 
+    r"\bseries due\b", 
+    r"\btarget term\b", 
+    r"\bterm trust\b", 
+    r"\bperpetual conv\b", 
+    r"\bmunicipal bond\b", 
+    r"\bdigitalbridge group\b", 
+    r"\bnyse test\b", 
+    r"\bctest\b", 
+    r"\btick pilot test\b", 
+    r"\bexchange test\b",     
+    r"\bbats bzx\b",    
+    r"\bdividend trust\b",  
+    r"\bbond trust\b",  
+    r"\bmunicipal trust\b",  
+    r"\bmortgage trust\b", 
+    r"\btrust etf\b",  
+    r"\bcapital trust\b",  
+    r"\bopportunity trust\b",  
+    r"\binvestors trust\b",  
+    r"\bincome securities trust\b",  
+    r"\bresources trust\b",  
+    r"\benergy trust\b",  
+    r"\bsciences trust\b",  
+    r"\bequity trust\b",  
+    r"\bmulti-media trust\b",  
     r"\bmedia trust\b",
-    r"\bmicro-cap trust\b",
-    r"\bmicro-cap\b",
-    r"\bsmall-cap trust\b",
-    r"\bglobal trust\b",
-    r"\bsmall-cap\b",
+    r"\bmicro-cap trust\b",          
+    r"\bmicro-cap\b",           
+    r"\bsmall-cap trust\b",             
+    r"\bglobal trust\b",     
+    r"\bsmall-cap\b",  
     r"\bsce trust\b",
     r"\bacquisition\b",
     r"\bcontingent\b",
-    r"\bii inc\b",
-    r"\bnasdaq symbology\b",
-]
+    r"\bii inc\b",    
+    r"\bnasdaq symbology\b",  
+    ]
 
 def should_filter(name: str) -> bool:
     for p in patterns:
@@ -140,67 +149,62 @@ def should_filter(name: str) -> bool:
             return True
     return False
 
-# -------------------------------
-# Parsers
-# -------------------------------
+# ─── Parsers ─────────────────────────────────────────────────────────────────
 def parse_nasdaq_listed(text: str):
     recs = []
     reader = csv.DictReader(text.splitlines(), delimiter="|")
     for row in reader:
-        if row.get("Symbol", "").startswith("File Creation Time"):
+        if not row.get("Symbol") or row["Symbol"].startswith("File Creation Time"):
             continue
         name = row.get("Security Name", "").strip()
         if row.get("ETF", "").upper() == "Y" or should_filter(name):
             continue
         try:
-            lot = int(row.get("Round Lot Size", "") or 0)
-        except:
+            lot = int(row.get("Round Lot Size") or 0)
+        except ValueError:
             lot = None
         recs.append({
-            "symbol":            row["Symbol"].strip(),
-            "security_name":     name,
-            "exchange":          "NASDAQ",
-            "cqs_symbol":        None,
-            "market_category":   row.get("Market Category", "").strip(),
-            "test_issue":        row.get("Test Issue", "").strip(),
-            "financial_status":  row.get("Financial Status", "").strip(),
-            "round_lot_size":    lot,
-            "etf":               row.get("ETF", "").strip(),
-            "secondary_symbol":  row.get("NextShares", "").strip(),
+            "symbol":           row["Symbol"].strip(),
+            "security_name":    name,
+            "exchange":         "NASDAQ",
+            "cqs_symbol":       None,
+            "market_category":  row.get("Market Category", "").strip(),
+            "test_issue":       row.get("Test Issue", "").strip(),
+            "financial_status": row.get("Financial Status", "").strip(),
+            "round_lot_size":   lot,
+            "etf":              row.get("ETF", "").strip(),
+            "secondary_symbol": row.get("NextShares", "").strip(),
         })
     return recs
 
 def parse_other_listed(text: str):
     recs = []
-    exch_map = {
-        "A": "American Stock Exchange",
-        "N": "New York Stock Exchange",
-        "P": "NYSE Arca",
-        "Z": "BATS Global Markets"
-    }
+    exch_map = {"A": "American Stock Exchange",
+                "N": "New York Stock Exchange",
+                "P": "NYSE Arca",
+                "Z": "BATS Global Markets"}
     reader = csv.DictReader(text.splitlines(), delimiter="|")
     for row in reader:
-        if row.get("ACT Symbol", "").startswith("File Creation Time"):
+        if not row.get("ACT Symbol") or row["ACT Symbol"].startswith("File Creation Time"):
             continue
         name = row.get("Security Name", "").strip()
         if row.get("ETF", "").upper() == "Y" or should_filter(name):
             continue
         try:
-            lot = int(row.get("Round Lot Size", "") or 0)
-        except:
+            lot = int(row.get("Round Lot Size") or 0)
+        except ValueError:
             lot = None
-        full_exch = exch_map.get(row.get("Exchange", ""), row.get("Exchange", ""))
         recs.append({
-            "symbol":            row["ACT Symbol"].strip(),
-            "security_name":     name,
-            "exchange":          full_exch,
-            "cqs_symbol":        row.get("CQS Symbol", "").strip(),
-            "market_category":   None,
-            "test_issue":        row.get("Test Issue", "").strip(),
-            "financial_status":  None,
-            "round_lot_size":    lot,
-            "etf":               row.get("ETF", "").strip(),
-            "secondary_symbol":  row.get("NASDAQ Symbol", "").strip(),
+            "symbol":           row["ACT Symbol"].strip(),
+            "security_name":    name,
+            "exchange":         exch_map.get(row.get("Exchange"), row.get("Exchange","")),
+            "cqs_symbol":       row.get("CQS Symbol","").strip(),
+            "market_category":  None,
+            "test_issue":       row.get("Test Issue","").strip(),
+            "financial_status": None,
+            "round_lot_size":   lot,
+            "etf":              row.get("ETF","").strip(),
+            "secondary_symbol": row.get("NASDAQ Symbol","").strip(),
         })
     return recs
 
@@ -212,12 +216,10 @@ def choose_parser(text: str):
         return parse_other_listed
     raise RuntimeError(f"Unknown format, headers: {headers}")
 
-# -------------------------------
-# DB Utilities
-# -------------------------------
+# ─── DB Utilities ────────────────────────────────────────────────────────────
 def init_db_schema(conn):
+    logger.info("Initializing DB schema")
     with conn.cursor() as cur:
-        # stock_symbols table
         cur.execute("DROP TABLE IF EXISTS stock_symbols;")
         cur.execute("""
             CREATE TABLE stock_symbols (
@@ -233,18 +235,17 @@ def init_db_schema(conn):
                 secondary_symbol  VARCHAR(50)
             );
         """)
-
-        # last_updated table with column last_run
         cur.execute("DROP TABLE IF EXISTS last_updated;")
         cur.execute("""
             CREATE TABLE last_updated (
-                script_name   VARCHAR(255) NOT NULL PRIMARY KEY,
-                last_run      TIMESTAMP WITH TIME ZONE     NULL    DEFAULT NULL
+                script_name   VARCHAR(255) PRIMARY KEY,
+                last_run      TIMESTAMP WITH TIME ZONE
             );
         """)
     conn.commit()
 
 def insert_records(conn, records):
+    logger.info("Inserting/updating %d records", len(records))
     sql = """
       INSERT INTO stock_symbols (
         symbol, security_name, exchange, cqs_symbol,
@@ -272,6 +273,7 @@ def insert_records(conn, records):
     conn.commit()
 
 def update_last_updated(conn):
+    logger.info("Updating last_updated timestamp")
     with conn.cursor() as cur:
         cur.execute("""
           INSERT INTO last_updated (script_name, last_run)
@@ -281,40 +283,43 @@ def update_last_updated(conn):
         """, ('loadstocksymbols.py',))
     conn.commit()
 
-# -------------------------------
-# Main
-# -------------------------------
+# ─── Main ────────────────────────────────────────────────────────────────────
 def main():
-    # download
+    logger.info("Starting download of symbol lists")
     nas_text = requests.get(NASDAQ_LISTED_URL).text
     oth_text = requests.get(OTHER_LISTED_URL).text
+    logger.info("Downloaded NASDAQ (%d bytes), Other (%d bytes)",
+                len(nas_text), len(oth_text))
 
-    # dynamic parsing
+    # parse
     nas = choose_parser(nas_text)(nas_text)
     oth = choose_parser(oth_text)(oth_text)
+    logger.info("Parsed %d NASDAQ, %d Other", len(nas), len(oth))
 
-    # combine, dedupe
-    all_recs = nas + oth
-    seen = {}
-    for r in all_recs:
-        seen.setdefault(r["symbol"], r)
-    unique = list(seen.values())
-
-    # filter "$"
-    final = [r for r in unique if "$" not in r["symbol"]]
+    # dedupe & filter
+    combined = nas + oth
+    deduped = {r["symbol"]: r for r in combined}.values()
+    final = [r for r in deduped if "$" not in r["symbol"]]
+    logger.info("%d unique, %d filtered by '$'",
+                len(final), len(deduped) - len(final))
 
     # write to Postgres
     conn = psycopg2.connect(
-      host=PG_HOST, port=PG_PORT,
-      user=PG_USER, password=PG_PASSWORD,
-      dbname=PG_DB
+        host=PG_HOST, port=PG_PORT,
+        user=PG_USER, password=PG_PASSWORD,
+        dbname=PG_DB
     )
     try:
         init_db_schema(conn)
         insert_records(conn, final)
         update_last_updated(conn)
+        logger.info("Done: %d symbols loaded", len(final))
     finally:
         conn.close()
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        logger.exception("Fatal error in loadstocksymbols")
+        sys.exit(1)
