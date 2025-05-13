@@ -1,19 +1,19 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  ECS TaskDefinitions, CloudWatch LogGroups, and zero‑scale Services
-  for stock‑symbols, econ‑data, monthly‑price loaders,
-  plus findata, pricedaily, priceweekly, pricemonthly & technicaldaily.
+  ECS TaskDefinitions, CloudWatch LogGroups, and zero-scale Services
+  for stock-symbols, econ-data, monthly-price loaders,
+  findata, pricedaily, priceweekly, pricemonthly, technicaldaily & loadkeystats.
 
 Parameters:
   StockSymbolsImageTag:
     Type: String
-    Description: Tag for stock‑symbols loader image
+    Description: Tag for stock-symbols loader image
   EconDataImageTag:
     Type: String
-    Description: Tag for econ‑data loader image
+    Description: Tag for econ-data loader image
   MonthlyPriceImageTag:
     Type: String
-    Description: Tag for monthly‑price loader image
+    Description: Tag for monthly-price loader image
   FindataImageTag:
     Type: String
     Description: Tag for findata loader image
@@ -29,10 +29,13 @@ Parameters:
   TechnicalDailyImageTag:
     Type: String
     Description: Tag for technicaldaily loader image
+  LoadKeyStatsImageTag:
+    Type: String
+    Description: Tag for loadkeystats loader image
   FREDApiKey:
     Type: String
     NoEcho: true
-    Description: FRED API key for econ‑data loader
+    Description: FRED API key for econ-data loader
 
 Resources:
 
@@ -73,7 +76,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - kms:Decrypt
-                Resource: '*'  # you can lock this down to your secret’s CMK ARN
+                Resource: '*'
 
   ######################################
   # B) CloudWatch Log Groups           #
@@ -126,8 +129,14 @@ Resources:
       LogGroupName: /ecs/technicaldaily-loader
       RetentionInDays: 14
 
+  LoadKeyStatsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/loadkeystats-loader
+      RetentionInDays: 14
+
   ###########################################################
-  # C) stock‑symbols loader TaskDefinition & Service        #
+  # C) stock-symbols loader TaskDefinition & Service        #
   ###########################################################
   StockSymbolsTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -173,7 +182,7 @@ Resources:
           AssignPublicIp: ENABLED
 
   ###########################################################
-  # D) econ‑data loader TaskDefinition & Service            #
+  # D) econ-data loader TaskDefinition & Service            #
   ###########################################################
   EconDataTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -224,7 +233,7 @@ Resources:
           AssignPublicIp: ENABLED
 
   ###########################################################
-  # E) monthly‑price loader TaskDefinition & Service        #
+  # E) monthly-price loader TaskDefinition & Service        #
   ###########################################################
   MonthlyPriceTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -530,6 +539,52 @@ Resources:
             - !ImportValue StocksCore-PublicSubnet2Id
           AssignPublicIp: ENABLED
 
+  ###########################################################
+  # G) loadkeystats loader TaskDefinition & Service         #
+  ###########################################################
+  LoadKeyStatsTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: loadkeystats-loader
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [ FARGATE ]
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: loadkeystats-loader
+          Image:
+            Fn::Join:
+              - ":"
+              - - !ImportValue StocksCore-ContainerRepositoryUri
+                - !Ref LoadKeyStatsImageTag
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:         /ecs/loadkeystats-loader
+              awslogs-region:        !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  LoadKeyStatsLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: loadkeystats-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref LoadKeyStatsTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          AssignPublicIp: ENABLED
+
 Outputs:
   StockSymbolsTaskDefArn:
     Value: !Ref StockSymbolsTaskDefinition
@@ -570,3 +625,8 @@ Outputs:
     Value: !Ref TechnicalDailyTaskDefinition
   TechnicalDailyServiceName:
     Value: !GetAtt TechnicalDailyLoaderService.Name
+
+  LoadKeyStatsTaskDefArn:
+    Value: !Ref LoadKeyStatsTaskDefinition
+  LoadKeyStatsServiceName:
+    Value: !GetAtt LoadKeyStatsLoaderService.Name
