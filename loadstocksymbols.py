@@ -233,11 +233,13 @@ def init_db_schema(conn):
                 secondary_symbol  VARCHAR(50)
             );
         """)
-        # last_updated table
+
+        # last_updated table with column last_run
+        cur.execute("DROP TABLE IF EXISTS last_updated;")
         cur.execute("""
-            CREATE TABLE IF NOT EXISTS last_updated (
+            CREATE TABLE last_updated (
                 script_name   VARCHAR(255) NOT NULL PRIMARY KEY,
-                last_updated  TIMESTAMP     NULL    DEFAULT NULL
+                last_run      TIMESTAMP WITH TIME ZONE     NULL    DEFAULT NULL
             );
         """)
     conn.commit()
@@ -272,10 +274,10 @@ def insert_records(conn, records):
 def update_last_updated(conn):
     with conn.cursor() as cur:
         cur.execute("""
-          INSERT INTO last_updated (script_name, last_updated)
+          INSERT INTO last_updated (script_name, last_run)
           VALUES (%s, NOW())
           ON CONFLICT (script_name) DO UPDATE
-            SET last_updated = EXCLUDED.last_updated;
+            SET last_run = EXCLUDED.last_run;
         """, ('loadstocksymbols.py',))
     conn.commit()
 
