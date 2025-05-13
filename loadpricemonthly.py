@@ -8,10 +8,9 @@ import os
 
 import boto3
 import psycopg2
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import RealDictCursor, execute_values
 import pandas as pd
 import yfinance as yf
-import requests
 
 # -------------------------------
 # Script metadata & logging setup 
@@ -64,15 +63,13 @@ except Exception as e:
     logging.error(f"Unable to connect to Postgres: {e}")
     sys.exit(1)
 
-# --- ensure tables exist ---
+# --- ensure tables exist / fresh monthly table ---
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS last_updated (
     script_name VARCHAR(255) PRIMARY KEY,
     last_run   TIMESTAMP
 );
 """)
-
-# Recreate the monthly price table
 cursor.execute("DROP TABLE IF EXISTS price_data_monthly;")
 cursor.execute("""
 CREATE TABLE price_data_monthly (
@@ -90,42 +87,45 @@ CREATE TABLE price_data_monthly (
 """)
 logging.info("Table 'price_data_monthly' is ready.")
 
-# --- get symbols ---
+# --- load the list of symbols ---
 cursor.execute("SELECT symbol FROM stock_symbols;")
 symbols = [r['symbol'] for r in cursor.fetchall()]
 logging.info(f"Found {len(symbols)} symbols.")
 
-# --- fetch monthly data fn ---
-session = requests.Session()
-session.headers.update({
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
-})
-
-MAX_RETRIES      = 3
-RETRY_DELAY      = 5
-RATE_LIMIT_DELAY = 1
+# --- parameters for fetch retries ---
+MAX_RETRIES      = 3        # number of attempts per symbol
+RETRY_DELAY      = 5        # seconds between retries
+RATE_LIMIT_DELAY = 1        # seconds between symbols
 
 def fetch_monthly_data(symbol):
+    """
+    Uses yfinance.download to grab the full monthly history.
+    """
     yf_sym = symbol.replace('.', '-')
-    for attempt in range(1, MAX_RETRIES+1):
+    for attempt in range(1, MAX_RETRIES + 1):
         try:
-            ticker = yf.Ticker(yf_sym, session=session)
-            # <-- changed interval to 1mo for monthly bars -->
-            df = ticker.history(period="max", interval="1mo")
+            df = yf.download(
+                yf_sym,
+                period="max",
+                interval="1mo",
+                actions=True,
+                progress=False
+            )
             if df is None or df.empty:
                 raise ValueError("No data returned")
+            # normalize & rename
             df = df.reset_index().rename(columns={
-                'Date':         'date',
-                'Open':         'open',
-                'High':         'high',
-                'Low':          'low',
-                'Close':        'close',
-                'Volume':       'volume',
-                'Dividends':    'dividends',
-                'Stock Splits':'stock_splits'
+                'Date':          'date',
+                'Open':          'open',
+                'High':          'high',
+                'Low':           'low',
+                'Close':         'close',
+                'Volume':        'volume',
+                'Dividends':     'dividends',
+                'Stock Splits':  'stock_splits'
             })
-            # guarantee cols
-            for col in ('dividends','stock_splits'):
+            # ensure both columns exist
+            for col in ('dividends', 'stock_splits'):
                 if col not in df.columns:
                     df[col] = 0.0
             df['symbol'] = symbol
@@ -137,26 +137,26 @@ def fetch_monthly_data(symbol):
     logging.error(f"Failed to fetch {symbol} after {MAX_RETRIES} attempts")
     return None
 
-# --- main loop ---
+# --- main loop: fetch & bulk insert ---
 for idx, sym in enumerate(symbols, start=1):
-    logging.info(f"[{idx}/{len(symbols)}] Fetching monthly for {sym}")
+    logging.info(f"[{idx}/{len(symbols)}] Fetching monthly data for {sym}")
     df = fetch_monthly_data(sym)
     if df is None:
         continue
 
-    to_ins = df[
-        ['symbol','date','open','high','low','close','volume','dividends','stock_splits']
-    ].where(pd.notnull(df), None)
+    # prepare rows for bulk insert
+    to_ins = df[['symbol','date','open','high','low','close','volume','dividends','stock_splits']]\
+               .where(pd.notnull(df), None)
     rows = list(to_ins.itertuples(index=False, name=None))
 
-    sql = """
-      INSERT INTO price_data_monthly
-        (symbol, date, open, high, low, close, volume, dividends, stock_splits)
-      VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
-      ON CONFLICT (symbol,date) DO NOTHING
+    insert_sql = """
+    INSERT INTO price_data_monthly
+      (symbol, date, open, high, low, close, volume, dividends, stock_splits)
+    VALUES %s
+    ON CONFLICT (symbol, date) DO NOTHING
     """
     try:
-        cursor.executemany(sql, rows)
+        execute_values(cursor, insert_sql, rows, page_size=500)
         logging.info(f"Inserted {len(rows)} rows for {sym}")
     except Exception as e:
         logging.error(f"DB error for {sym}: {e}")
@@ -169,7 +169,7 @@ cursor.execute("""
 INSERT INTO last_updated (script_name, last_run)
 VALUES (%s, %s)
 ON CONFLICT (script_name) DO UPDATE
-  SET last_run = EXCLUDED.last_run;
+  SET last_run = EXCLUDED.last_run
 """, (SCRIPT_NAME, now))
 logging.info("Updated last_updated timestamp.")
 
