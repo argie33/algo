@@ -223,9 +223,9 @@ Resources:
             yum update -y
             amazon-linux-extras enable postgresql10
 
-            # Install psq𝚕 client, jq & AWS CLI
+            # Install the correct psql client, plus jq & AWS CLI
             yum clean metadata
-            yum install -y postgresql10 jq awscli
+            yum install -y postgresql jq awscli
 
             # Configure AWS region
             aws configure set region ${AWS::Region}
