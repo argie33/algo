@@ -26,6 +26,10 @@ Parameters:
   DBSecretName:
     Type: String
     Default: "stocks-db-secrets"
+  BastionAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-ebs
+    Description: SSM parameter for the latest Amazon Linux 2 AMI
 
 Resources:
 
@@ -191,10 +195,10 @@ Resources:
       LaunchTemplateName: !Sub "${AWS::StackName}-bastion-lt"
       LaunchTemplateData:
         InstanceType: t3.small
-        ImageId: ami-0abcdef1234567890  # replace with your AMI
-        KeyName: my-key-pair            # replace as needed
+        ImageId: !Ref BastionAmiId
+        KeyName: my-key-pair
         SecurityGroupIds:
-          - sg-0123456789abcdef0        # replace with your SG
+          - !Ref BastionSecurityGroup
         UserData:
           Fn::Base64:
             Fn::Sub:
@@ -206,16 +210,11 @@ Resources:
                 exec > /var/log/user-data.log 2>&1
                 echo "=== user-data started at $(date) ==="
 
-                #–– List & enable extras channel
-                amazon-linux-extras list | tee /var/log/extras-list.log
+                #–– Enable Postgres 10 on Amazon Linux extras
                 amazon-linux-extras enable postgresql10
 
-                #–– Refresh repos and inspect package
-                yum clean all
-                yum repolist all | tee /var/log/yum-repolist.log
-                yum info postgresql10 | tee /var/log/pg10-info.log
-
                 #–– Install dependencies
+                yum clean all
                 yum install -y postgresql jq awscli
 
                 #–– Fetch DB credentials from Secrets Manager
