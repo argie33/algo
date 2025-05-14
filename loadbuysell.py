@@ -1,20 +1,30 @@
 #!/usr/bin/env python3
 import os
 import sys
+import json
 import requests
 import pandas as pd
 import numpy as np
 import mysql.connector
+import boto3
 from datetime import datetime
 
 ###############################################################################
-# ─── Environment variables ─────────────────────────────────────────────────── 
+# ─── Environment & Secrets ───────────────────────────────────────────────────
 ###############################################################################
-DB_USER      = os.environ["DB_USER"]
-DB_PASSWORD  = os.environ["DB_PASSWORD"]
-DB_HOST      = os.environ["DB_HOST"]
-DB_NAME      = os.environ["DB_NAME"]
-FRED_API_KEY = os.environ["FRED_API_KEY"]
+# FRED API key remains an env-var
+FRED_API_KEY   = os.environ["FRED_API_KEY"]
+
+# Pull all DB creds from one Secret ARN
+SECRET_ARN     = os.environ["DB_SECRET_ARN"]
+sm_client      = boto3.client("secretsmanager")
+secret_resp    = sm_client.get_secret_value(SecretId=SECRET_ARN)
+creds          = json.loads(secret_resp["SecretString"])
+
+DB_USER        = creds["username"]
+DB_PASSWORD    = creds["password"]
+DB_HOST        = creds["host"]
+DB_NAME        = creds["dbname"]
 
 DB_CONFIG = {
     'user':     DB_USER,
@@ -101,10 +111,6 @@ def get_risk_free_rate_fred(api_key):
 # 3) FETCH FROM DB (prices + technicals)
 ###############################################################################
 def fetch_symbol_from_db(symbol, timeframe):
-    """
-    Joins price_data_<tf> and technical_data_<tf> for the given timeframe.
-    timeframe must be one of "Daily","Weekly","Monthly".
-    """
     tf = timeframe.lower()
     price_table = f"price_data_{tf}"
     tech_table  = f"technical_data_{tf}"
@@ -201,7 +207,8 @@ def backtest_fixed_capital(df):
         elif sig=='Sell' and pos_open:
             pos_open=False; trades.append({'date':d,'action':'Sell','price':o})
     if pos_open:
-        last=df2.iloc[-1]; trades.append({'date':last['date'],'action':'Sell','price':last['close']})
+        last = df2.iloc[-1]
+        trades.append({'date':last['date'],'action':'Sell','price':last['close']})
     rets, durs, i = [], [], 0
     while i < len(trades)-1:
         if trades[i]['action']=='Buy' and trades[i+1]['action']=='Sell':
@@ -247,15 +254,12 @@ def analyze_trade_returns_fixed_capital(rets, durs, tag, annual_rfr=0.0):
     )
 
 ###############################################################################
-# 6) PROCESS FUNCTIONS
+# 6) PROCESS & MAIN
 ###############################################################################
 def process_symbol(symbol, timeframe):
     df = fetch_symbol_from_db(symbol, timeframe)
     return generate_signals(df) if not df.empty else df
 
-###############################################################################
-# 7) MAIN
-###############################################################################
 def main():
     try:
         annual_rfr = get_risk_free_rate_fred(FRED_API_KEY)
@@ -265,18 +269,17 @@ def main():
 
     symbols = get_symbols_from_db()
     if not symbols:
-        print("No symbols in DB."); return
+        print("No symbols in DB.")
+        return
 
     conn = get_db_connection()
     cur  = conn.cursor()
     create_buy_sell_table(cur)
     conn.commit()
 
-    results = {
-        'Daily':   {'rets':[], 'durs':[]},
-        'Weekly':  {'rets':[], 'durs':[]},
-        'Monthly': {'rets':[], 'durs':[]},
-    }
+    results = {'Daily':{'rets':[],'durs':[]},
+               'Weekly':{'rets':[],'durs':[]},
+               'Monthly':{'rets':[],'durs':[]}}
 
     for sym in symbols:
         print(f"\n=== {sym} ===")
@@ -294,7 +297,6 @@ def main():
                 rets, durs, f"[{tf}] {sym}", annual_rfr
             )
 
-    # FINAL AGGREGATED SUMMARIES
     print("\n=========================")
     print(" AGGREGATED PERFORMANCE (FIXED $10k PER TRADE) ")
     print("=========================")
@@ -305,8 +307,8 @@ def main():
         )
 
     print("\n=== Global (All Timeframes) ===")
-    all_rets = sum((results[tf]['rets'] for tf in results), [])
-    all_durs = sum((results[tf]['durs'] for tf in results), [])
+    all_rets = [r for tf in results for r in results[tf]['rets']]
+    all_durs = [d for tf in results for d in results[tf]['durs']]
     analyze_trade_returns_fixed_capital(all_rets, all_durs, "[Global (All TFs)]", annual_rfr)
 
     print("Processing complete.")
