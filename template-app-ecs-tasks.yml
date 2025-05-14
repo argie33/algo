@@ -46,6 +46,9 @@ Parameters:
     Type: String
     NoEcho: true
     Description: FRED API key for econ-data loader
+  BuySellImageTag:
+    Type: String
+    Description: Tag for buysell loader image
 
 Resources:
 
@@ -156,6 +159,12 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/technicalsmonthly-loader
+      RetentionInDays: 14
+
+  BuySellLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/buysell-loader
       RetentionInDays: 14
 
   ########################################
@@ -709,6 +718,61 @@ Resources:
             - !ImportValue StocksCore-PublicSubnet2Id
           AssignPublicIp: ENABLED
 
+  ########################################
+  # N) buysell loader          #
+  ########################################
+
+  BuySellTaskDefinition:
+      Type: AWS::ECS::TaskDefinition
+      Properties:
+        Family: buysell-loader
+        Cpu: "512"
+        Memory: "1024"
+        NetworkMode: awsvpc
+        RequiresCompatibilities: [FARGATE]
+        ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+        TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+        ContainerDefinitions:
+          - Name: buysell-loader
+            Image: !Join [":", [ !ImportValue StocksCore-ContainerRepositoryUri, !Ref BuySellImageTag ]]
+            Essential: true
+            Environment:
+              - Name: DB_SECRET_ARN
+                Value: !ImportValue StocksApp-SecretArn
+              - Name: DB_HOST
+                Value: !ImportValue StocksApp-DBEndpoint
+              - Name: DB_PORT
+                Value: !ImportValue StocksApp-DBPort
+              - Name: DB_NAME
+                Value: !ImportValue StocksApp-DBName
+              - Name: DB_USER
+                Value: !ImportValue StocksApp-DBUsername
+              - Name: FRED_API_KEY
+                Value: !Ref FREDApiKey
+            LogConfiguration:
+              LogDriver: awslogs
+              Options:
+                awslogs-group: /ecs/buysell-loader
+                awslogs-region: !Ref AWS::Region
+                awslogs-stream-prefix: ecs
+
+  BuySellLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: buysell-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref BuySellTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          AssignPublicIp: ENABLED
+
+  ########################################
+
 Outputs:
   StockSymbolsTaskDefArn:
     Value: !Ref StockSymbolsTaskDefinition
@@ -758,3 +822,7 @@ Outputs:
     Value: !Ref TechnicalsMonthlyTaskDefinition
   TechnicalsMonthlyServiceName:
     Value: !GetAtt TechnicalsMonthlyLoaderService.Name
+  BuySellTaskDefArn:
+    Value: !Ref BuySellTaskDefinition
+  BuySellServiceName:
+    Value: !GetAtt BuySellLoaderService.Name
