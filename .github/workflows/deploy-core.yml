@@ -47,6 +47,34 @@ jobs:
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
 
+      - name: Start Bastion ASG instance refresh
+        run: |
+          aws autoscaling start-instance-refresh \
+            --auto-scaling-group-name stocks-bastion-asg \
+            --preferences '{"MinHealthyPercentage":100,"InstanceWarmup":300}'
+
+      - name: Wait for instance refresh to complete
+        run: |
+          echo "Polling instance-refresh status..."
+          until [ "$(aws autoscaling describe-instance-refreshes \
+            --auto-scaling-group-name stocks-bastion-asg \
+            --max-items 1 \
+            --query "InstanceRefreshes[0].Status" \
+            --output text)" == "Successful" ]; do
+            CURRENT=$(aws autoscaling describe-instance-refreshes \
+              --auto-scaling-group-name stocks-bastion-asg \
+              --max-items 1 \
+              --query "InstanceRefreshes[0].Status" \
+              --output text)
+            echo "  status: $CURRENT – retrying in 30s..."
+            if [[ "$CURRENT" == "Failed" || "$CURRENT" == "Cancelled" ]]; then
+              echo "Instance refresh ended with status: $CURRENT"
+              exit 1
+            fi
+            sleep 30
+          done
+          echo "Instance refresh completed successfully."
+
       - name: Wait for Bastion to be running
         id: wait_bastion
         run: |
