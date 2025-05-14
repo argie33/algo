@@ -218,19 +218,30 @@ def main():
 
         # indicators...
         df['rsi'] = ta.rsi(df['close'], length=14)
+
         ema_fast = df['close'].ewm(span=12, adjust=False).mean()
         ema_slow = df['close'].ewm(span=26, adjust=False).mean()
         df['macd']        = ema_fast - ema_slow
         df['macd_signal'] = df['macd'].ewm(span=9, adjust=False).mean()
         df['macd_hist']   = df['macd'] - df['macd_signal']
+
         df['mom']         = ta.mom(df['close'], length=10)
         df['roc']         = ta.roc(df['close'], length=10)
+
         adx_df            = ta.adx(df['high'], df['low'], df['close'], length=14)
         df['adx']         = adx_df['ADX_14'] if adx_df is not None else np.nan
+
         df['atr']         = ta.atr(df['high'], df['low'], df['close'], length=14)
         df['ad']          = ta.ad(df['high'], df['low'], df['close'], df['volume'])
         df['cmf']         = ta.cmf(df['high'], df['low'], df['close'], df['volume'], length=20)
-        df['mfi']         = np.array(ta.mfi(df['high'], df['low'], df['close'], df['volume'], length=14), dtype=float)
+
+        # ---- FIXED MFI ASSIGNMENT ----
+        mfi_vals = ta.mfi(df['high'], df['low'], df['close'], df['volume'], length=14)
+        if 'mfi' in df.columns:
+            df.drop(columns=['mfi'], inplace=True)
+        df.loc[:, 'mfi'] = pd.Series(mfi_vals, index=df.index, dtype='float64')
+        # ------------------------------
+
         df['td_sequential'] = td_sequential(df['close'], lookback=4)
         df['td_combo']      = td_combo(df['close'], lookback=2)
         df['marketwatch']   = marketwatch_indicator(df['close'], df['open'])
