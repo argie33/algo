@@ -32,7 +32,8 @@ Parameters:
     Description: SSM parameter for the latest Amazon Linux 2 AMI
   KeyName:
     Type: AWS::EC2::KeyPair::KeyName
-    Description: Name of an existing EC2 KeyPair to enable SSH access to bastion
+    Description: Name of an existing EC2 KeyPair to enable SSH on the bastion
+    Default: "my-key-pair"   # ← replace this default with your actual key name!
 
 Resources:
 
@@ -260,7 +261,7 @@ Resources:
         LaunchTemplateId: !Ref BastionLaunchTemplate
         Version: !GetAtt BastionLaunchTemplate.LatestVersionNumber
       MinSize: '1'
-      MaxSize: '1'
+      MaxSize: '1
       DesiredCapacity: '1'
       Tags:
         - Key: Name
