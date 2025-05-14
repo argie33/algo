@@ -30,6 +30,9 @@ Parameters:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-ebs
     Description: SSM parameter for the latest Amazon Linux 2 AMI
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of an existing EC2 KeyPair to enable SSH access to bastion
 
 Resources:
 
@@ -196,7 +199,7 @@ Resources:
       LaunchTemplateData:
         InstanceType: t3.small
         ImageId: !Ref BastionAmiId
-        KeyName: my-key-pair
+        KeyName: !Ref KeyName
         SecurityGroupIds:
           - !Ref BastionSecurityGroup
         UserData:
