@@ -8,7 +8,7 @@ import mysql.connector
 from datetime import datetime
 
 ###############################################################################
-# ─── Environment variables ─────────────────────────────────────────────────────
+# ─── Environment variables ───────────────────────────────────────────────────
 ###############################################################################
 DB_USER      = os.environ["DB_USER"]
 DB_PASSWORD  = os.environ["DB_PASSWORD"]
