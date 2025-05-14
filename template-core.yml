@@ -40,9 +40,6 @@ Parameters:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-ebs
     Description: SSM Parameter path for the latest Amazon Linux 2 AMI
-  KeyName:
-    Type: AWS::EC2::KeyPair::KeyName
-    Description: Name of an existing EC2 KeyPair to enable SSH on the bastion
 
 Resources:
 
@@ -205,13 +202,12 @@ Resources:
   BastionLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
-      LaunchTemplateName: !Sub "${AWS::StackName}-bastion-lt"
+      LaunchTemplateName: stocks-bastion-lt
       LaunchTemplateData:
         InstanceType: !Ref BastionInstanceType
         ImageId: !Ref BastionAmiId
         IamInstanceProfile:
           Name: !Ref BastionInstanceProfile
-        KeyName: !Ref KeyName
         SecurityGroupIds:
           - !Ref BastionSecurityGroup
         InstanceMarketOptions:
@@ -219,51 +215,45 @@ Resources:
           SpotOptions:
             SpotInstanceType: one-time
         UserData:
-          Fn::Base64:
-            Fn::Sub:
-              - |
-                #!/bin/bash
-                set -euxo pipefail
+          Fn::Base64: |
+            #!/bin/bash
+            set -eux
 
-                #–– Capture all output
-                exec > /var/log/user-data.log 2>&1
-                echo "=== user-data started at $(date) ==="
+            # Update and enable Postgres 10
+            yum update -y
+            amazon-linux-extras enable postgresql10
 
-                #–– Enable Postgres 10 on Amazon Linux extras
-                amazon-linux-extras enable postgresql10
-                yum clean metadata
+            # Install psq𝚕 client, jq & AWS CLI
+            yum clean metadata
+            yum install -y postgresql10 jq awscli
 
-                #–– Install the psql client (and jq, awscli)
-                yum install -y postgresql jq awscli
+            # Configure AWS region
+            aws configure set region ${AWS::Region}
 
-                #–– Fetch DB credentials from Secrets Manager
-                CREDS=$(aws secretsmanager get-secret-value \
-                  --secret-id "${DBSecretName}" \
-                  --query SecretString --output text)
-                DB_USER=$(echo "$CREDS" | jq -r .username)
-                DB_PASSWORD=$(echo "$CREDS" | jq -r .password)
-                DB_NAME=$(echo "$CREDS" | jq -r .dbname)
+            # Fetch DB credentials
+            CREDS=$(aws secretsmanager get-secret-value \
+              --secret-id "${DBSecretName}" \
+              --query SecretString --output text)
+            DB_USER=$(echo "$CREDS" | jq -r .username)
+            DB_PASSWORD=$(echo "$CREDS" | jq -r .password)
+            DB_NAME=$(echo "$CREDS" | jq -r .dbname)
 
-                #–– Fetch DB endpoint & port from the DB stack outputs
-                DB_HOST=$(aws cloudformation describe-stacks \
-                  --stack-name "${DBStackName}" \
-                  --query "Stacks[0].Outputs[?OutputKey=='DBEndpoint'].OutputValue" \
-                  --output text)
-                DB_PORT=$(aws cloudformation describe-stacks \
-                  --stack-name "${DBStackName}" \
-                  --query "Stacks[0].Outputs[?OutputKey=='DBPort'].OutputValue" \
-                  --output text)
+            # Fetch DB endpoint & port
+            DB_HOST=$(aws cloudformation describe-stacks \
+              --stack-name "${DBStackName}" \
+              --query "Stacks[0].Outputs[?OutputKey=='DBEndpoint'].OutputValue" \
+              --output text)
+            DB_PORT=$(aws cloudformation describe-stacks \
+              --stack-name "${DBStackName}" \
+              --query "Stacks[0].Outputs[?OutputKey=='DBPort'].OutputValue" \
+              --output text)
 
-                #–– Write .pgpass using the shell variables
-                cat <<EOF > /home/ec2-user/.pgpass
-                $DB_HOST:$DB_PORT:$DB_NAME:$DB_USER:$DB_PASSWORD
-                EOF
-                chmod 600 /home/ec2-user/.pgpass
-                chown ec2-user:ec2-user /home/ec2-user/.pgpass
-
-                echo "=== user-data completed at $(date) ==="
-              - DBStackName: !Ref DBStackName
-                DBSecretName: !Ref DBSecretName
+            # Write .pgpass for psql access
+            cat <<EOF > /home/ec2-user/.pgpass
+            $DB_HOST:$DB_PORT:$DB_NAME:$DB_USER:$DB_PASSWORD
+            EOF
+            chmod 600 /home/ec2-user/.pgpass
+            chown ec2-user:ec2-user /home/ec2-user/.pgpass
 
   BastionAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
