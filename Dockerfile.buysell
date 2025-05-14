@@ -1,13 +1,14 @@
-# Use a small Python base image
+# Dockerfile.buysell
 FROM python:3.10-slim
 
-# Set our working directory
 WORKDIR /app
 
-# Copy and install Python dependencies
+# 1) Install your buysell requirements
 COPY requirements-loadbuysell.txt .
 RUN pip install --no-cache-dir -r requirements-loadbuysell.txt
 
+# 2) Copy your loader script
+COPY loadbuysell.py .
 
-# Default command
-CMD ["python", "-u", "loadbuysell.py"]
+# 3) Default command: run the loader
+CMD ["python", "loadbuysell.py"]
