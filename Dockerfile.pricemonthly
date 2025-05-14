@@ -4,9 +4,9 @@ FROM python:3.10-slim
 WORKDIR /app
 
 # install Python dependencies for loadpriceweekly.py
-COPY requirements-loadpriceweekly.txt .
-RUN pip install --no-cache-dir -r requirements-loadpriceweekly.txt
+COPY requirements-loadpricemonthly.txt .
+RUN pip install --no-cache-dir -r requirements-loadpricemonthly.txt
 
 # copy and run the price-weekly loader script
-COPY loadpriceweekly.py .
-ENTRYPOINT ["python", "loadpriceweekly.py"]
+COPY loadpricemonthly.py .
+ENTRYPOINT ["python", "loadpricemonthly.py"]
