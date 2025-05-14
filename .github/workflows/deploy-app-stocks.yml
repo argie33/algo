@@ -33,7 +33,7 @@ jobs:
       loadkeystats:     ${{ steps.paths.outputs.loadkeystats }}
       earnings:         ${{ steps.paths.outputs.earnings }}
       technicalsweekly: ${{ steps.paths.outputs.technicalsweekly }}
-      technicalsmonthly: ${{ steps.paths.outputs.technicalsmonthly }}
+      technicalsmonthly:$ {{ steps.paths.outputs.technicalsmonthly }}
       any:              ${{ steps.any.outputs.any }}
       matrix:           ${{ steps.matrix.outputs.matrix }}
 
@@ -98,7 +98,7 @@ jobs:
         name: Any changes?
         run: |
           if [ "${{ steps.paths.outputs.symbols }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.econ }}"    = "true" ] || \
+             [ "${{ steps.paths.outputs.econ }}" = "true" ] || \
              [ "${{ steps.paths.outputs.findata }}" = "true" ] || \
              [ "${{ steps.paths.outputs.pricedaily }}" = "true" ] || \
              [ "${{ steps.paths.outputs.priceweekly }}" = "true" ] || \
@@ -126,7 +126,7 @@ jobs:
           LOADKEYSTATS:     ${{ steps.paths.outputs.loadkeystats }}
           EARNINGS:         ${{ steps.paths.outputs.earnings }}
           TECHNICALSWEEKLY: ${{ steps.paths.outputs.technicalsweekly }}
-          TECHNICALSMONTHLY:${{ steps.paths.outputs.technicalsmonthly }}
+          TECHNICALSMONTHLY:$ {{ steps.paths.outputs.technicalsmonthly }}
         run: |
           arr=""
           [ "$SYMBOLS" = "true" ] && arr="$arr,\"symbols\""
@@ -175,8 +175,8 @@ jobs:
           URI=$(aws ecr describe-repositories \
                   --repository-names "$REPO" \
                   --query 'repositories[0].repositoryUri' --output text)
-          aws ecr get-login-password --region $AWS_REGION \
-            | docker login --username AWS --password-stdin "$URI"
+          aws ecr get-login-password --region $AWS_REGION | \
+            docker login --username AWS --password-stdin "$URI"
 
           case "${{ matrix.loader }}" in
             symbols)          DOCKERFILE=Dockerfile.stocksymbols;   PARAM=StockSymbolsImageTag;;
@@ -361,22 +361,21 @@ jobs:
   run_priceweekly:
     name: Run priceweekly loader
     needs: deploy
-    if: ${{ needs.filter.outputs.priceweekly == 'true' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}
-      - run: |
-          SVC=$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyServiceName'].OutputValue" \
-            --output text)
-          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
-          aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
-          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
-
+    if: ${{ needs.filter.outputs.priceweekly == 'true' }}   
+    runs-on: ubuntu-latest   
+    steps:   
+      - uses: aws-actions/configure-aws-credentials@v4   
+        with:   
+          aws-region: ${{ env.AWS_REGION }}   
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}   
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}   
+      - run: |   
+          SVC=$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \   
+            --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyServiceName'].OutputValue" \   
+            --output text)   
+          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1   
+          aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"   
+          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0   
   run_pricemonthly:
     name: Run pricemonthly loader
     needs: deploy
@@ -389,7 +388,7 @@ jobs:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - run: |
-          SVC=$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PricemonthlyServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
@@ -408,7 +407,7 @@ jobs:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - run: |
-          SVC=$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='TechnicalDailyServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
@@ -427,7 +426,7 @@ jobs:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - run: |
-          SVC=$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='LoadKeyStatsServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
@@ -446,7 +445,7 @@ jobs:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - run: |
-          SVC=$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='EarningsServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
@@ -465,7 +464,7 @@ jobs:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - run: |
-          SVC=$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='TechnicalsWeeklyServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
@@ -484,7 +483,7 @@ jobs:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
       - run: |
-          SVC=$(aws cloudformation.describe-stacks --stack-name stocks-ecs-tasks-stack \
+          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='TechnicalsMonthlyServiceName'].OutputValue" \
             --output text)
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
