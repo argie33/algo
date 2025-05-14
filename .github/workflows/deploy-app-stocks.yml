@@ -122,18 +122,18 @@ jobs:
       - id: matrix
         name: Build matrix
         env:
-          SYMBOLS:          ${{ steps.paths.outputs.symbols }}
-          ECON:             ${{ steps.paths.outputs.econ }}
-          FINDATA:          ${{ steps.paths.outputs.findata }}
-          PRICEDAILY:       ${{ steps.paths.outputs.pricedaily }}
-          PRICEWEEKLY:      ${{ steps.paths.outputs.priceweekly }}
-          PRICEMONTHLY:     ${{ steps.paths.outputs.pricemonthly }}
-          TECHNICALDAILY:   ${{ steps.paths.outputs.technicaldaily }}
-          LOADKEYSTATS:     ${{ steps.paths.outputs.loadkeystats }}
-          EARNINGS:         ${{ steps.paths.outputs.earnings }}
-          TECHNICALSWEEKLY: ${{ steps.paths.outputs.technicalsweekly }}
-          TECHNICALSMONTHLY:${{ steps.paths.outputs.technicalsmonthly }}
-          BUYSELL:          ${{ steps.paths.outputs.buysell }}
+          SYMBOLS:            ${{ steps.paths.outputs.symbols }}
+          ECON:               ${{ steps.paths.outputs.econ }}
+          FINDATA:            ${{ steps.paths.outputs.findata }}
+          PRICEDAILY:         ${{ steps.paths.outputs.pricedaily }}
+          PRICEWEEKLY:        ${{ steps.paths.outputs.priceweekly }}
+          PRICEMONTHLY:       ${{ steps.paths.outputs.pricemonthly }}
+          TECHNICALDAILY:     ${{ steps.paths.outputs.technicaldaily }}
+          LOADKEYSTATS:       ${{ steps.paths.outputs.loadkeystats }}
+          EARNINGS:           ${{ steps.paths.outputs.earnings }}
+          TECHNICALSWEEKLY:   ${{ steps.paths.outputs.technicalsweekly }}
+          TECHNICALSMONTHLY:  ${{ steps.paths.outputs.technicalsmonthly }}
+          BUYSELL:            ${{ steps.paths.outputs.buysell }}
         run: |
           arr=""
           [ "$SYMBOLS" = "true" ]        && arr="$arr,\"symbols\""
