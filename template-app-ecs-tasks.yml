@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   ECS TaskDefinitions, CloudWatch LogGroups, and zero-scale Services
   for stock-symbols, econ-data, monthly-price loaders,
-  findata, pricedaily, priceweekly, pricemonthly, technicaldaily & loadkeystats.
+  findata, pricedaily, priceweekly, pricemonthly, technicaldaily, loadkeystats & earnings.
 
 Parameters:
   StockSymbolsImageTag:
@@ -32,6 +32,9 @@ Parameters:
   LoadKeyStatsImageTag:
     Type: String
     Description: Tag for loadkeystats loader image
+  EarningsImageTag:
+    Type: String
+    Description: Tag for earnings loader image
   FREDApiKey:
     Type: String
     NoEcho: true
@@ -55,7 +58,6 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
       Policies:
-        # (1) Allow creating CloudWatch LogGroups if they don't exist
         - PolicyName: AllowCreateCWLogGroups
           PolicyDocument:
             Version: '2012-10-17'
@@ -64,7 +66,6 @@ Resources:
                 Action:
                   - logs:CreateLogGroup
                 Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/*"
-        # (2) Allow reading your DB secret and KMS decrypt
         - PolicyName: AllowReadDBSecret
           PolicyDocument:
             Version: '2012-10-17'
@@ -133,6 +134,12 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/loadkeystats-loader
+      RetentionInDays: 14
+
+  EarningsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/earnings-loader
       RetentionInDays: 14
 
   ###########################################################
@@ -585,6 +592,52 @@ Resources:
             - !ImportValue StocksCore-PublicSubnet2Id
           AssignPublicIp: ENABLED
 
+  ###########################################################
+  # H) earnings loader TaskDefinition & Service             #
+  ###########################################################
+  EarningsTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: earnings-loader
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [ FARGATE ]
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: earnings-loader
+          Image:
+            Fn::Join:
+              - ":"
+              - - !ImportValue StocksCore-ContainerRepositoryUri
+                - !Ref EarningsImageTag
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:         /ecs/earnings-loader
+              awslogs-region:        !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  EarningsLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: earnings-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref EarningsTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          AssignPublicIp: ENABLED
+
 Outputs:
   StockSymbolsTaskDefArn:
     Value: !Ref StockSymbolsTaskDefinition
@@ -630,3 +683,8 @@ Outputs:
     Value: !Ref LoadKeyStatsTaskDefinition
   LoadKeyStatsServiceName:
     Value: !GetAtt LoadKeyStatsLoaderService.Name
+
+  EarningsTaskDefArn:
+    Value: !Ref EarningsTaskDefinition
+  EarningsServiceName:
+    Value: !GetAtt EarningsLoaderService.Name
