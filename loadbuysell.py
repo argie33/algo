@@ -10,21 +10,20 @@ import boto3
 from datetime import datetime
 
 ###############################################################################
-# ─── Environment & Secrets ─────────────────────────────────────────────────── 
+# ─── Environment & Secrets ───────────────────────────────────────────────────
 ###############################################################################
-# FRED API key remains an env-var
-FRED_API_KEY   = os.environ["FRED_API_KEY"]
+FRED_API_KEY = os.environ["FRED_API_KEY"]
 
 # Pull all DB creds from one Secret ARN
-SECRET_ARN     = os.environ["DB_SECRET_ARN"]
-sm_client      = boto3.client("secretsmanager")
-secret_resp    = sm_client.get_secret_value(SecretId=SECRET_ARN)
-creds          = json.loads(secret_resp["SecretString"])
+SECRET_ARN  = os.environ["DB_SECRET_ARN"]
+sm_client   = boto3.client("secretsmanager")
+secret_resp = sm_client.get_secret_value(SecretId=SECRET_ARN)
+creds       = json.loads(secret_resp["SecretString"])
 
-DB_USER        = creds["username"]
-DB_PASSWORD    = creds["password"]
-DB_HOST        = creds["host"]
-DB_NAME        = creds["dbname"]
+DB_USER     = creds["username"]
+DB_PASSWORD = creds["password"]
+DB_HOST     = creds["host"]
+DB_NAME     = creds["dbname"]
 
 DB_CONFIG = {
     'user':     DB_USER,
@@ -62,19 +61,14 @@ def create_buy_sell_table(cursor):
     cursor.execute("DROP TABLE IF EXISTS buy_sell;")
     cursor.execute("""
       CREATE TABLE buy_sell (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        symbol      VARCHAR(20),
-        timeframe   VARCHAR(10),
-        date        DATE,
-        open        FLOAT,
-        high        FLOAT,
-        low         FLOAT,
-        close       FLOAT,
-        volume      BIGINT,
-        `signal`    VARCHAR(10),
-        buyLevel    FLOAT,
-        stopLevel   FLOAT,
-        inPosition  BOOLEAN,
+        id           INT AUTO_INCREMENT PRIMARY KEY,
+        symbol       VARCHAR(20),
+        timeframe    VARCHAR(10),
+        date         DATE,
+        `signal`     VARCHAR(10),
+        buyLevel     FLOAT,
+        stopLevel    FLOAT,
+        inPosition   BOOLEAN,
         UNIQUE KEY unique_buy_sell (symbol, timeframe, date)
       );
     """)
@@ -83,15 +77,18 @@ def insert_symbol_results(cursor, symbol, timeframe, df):
     insert_q = """
       INSERT IGNORE INTO buy_sell (
         symbol, timeframe, date,
-        open, high, low, close, volume,
         `signal`, buyLevel, stopLevel, inPosition
-      ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s);
+      ) VALUES (%s,%s,%s,%s,%s,%s,%s);
     """
     for _, row in df.iterrows():
         cursor.execute(insert_q, (
-            symbol, timeframe, row['date'].strftime('%Y-%m-%d'),
-            row['open'], row['high'], row['low'], row['close'], row['volume'],
-            row['Signal'], row['buyLevel'], row['stopLevel'], row['inPosition']
+            symbol,
+            timeframe,
+            row['date'].strftime('%Y-%m-%d'),
+            row['Signal'],
+            row['buyLevel'],
+            row['stopLevel'],
+            row['inPosition'],
         ))
 
 ###############################################################################
@@ -148,23 +145,20 @@ def fetch_symbol_from_db(symbol, timeframe):
 ###############################################################################
 def generate_signals(df, atrMult=1.0, useADX=True,
                      adxS=30, adxW=20):
-    # Trend filter
-    df['TrendOK']    = df['close'] > df['TrendMA']
-    # RSI cross
-    df['RSI_prev']   = df['rsi'].shift(1)
-    df['rsiBuy']     = (df['rsi']>50)&(df['RSI_prev']<=50)
-    df['rsiSell']    = (df['rsi']<50)&(df['RSI_prev']>=50)
-    # Pivot breakout
-    df['PivotHighC'] = df['PivotHighRaw'].shift(1)
-    df['PivotLowC']  = df['PivotLowRaw'].shift(1)
-    df['LastPH']     = df['PivotHighC'].ffill()
-    df['LastPL']     = df['PivotLowC'].ffill()
-    df['stopBuffer'] = df['atr'] * atrMult
-    df['stopLevel']  = df['LastPL'] - df['stopBuffer']
-    df['buyLevel']   = df['LastPH']
-    df['breakoutBuy']= df['high'] > df['buyLevel']
-    df['breakoutSell']=df['low']  < df['stopLevel']
-    # ADX/DMI filter
+    df['TrendOK']     = df['close'] > df['TrendMA']
+    df['RSI_prev']    = df['rsi'].shift(1)
+    df['rsiBuy']      = (df['rsi']>50)&(df['RSI_prev']<=50)
+    df['rsiSell']     = (df['rsi']<50)&(df['RSI_prev']>=50)
+    df['PivotHighC']  = df['PivotHighRaw'].shift(1)
+    df['PivotLowC']   = df['PivotLowRaw'].shift(1)
+    df['LastPH']      = df['PivotHighC'].ffill()
+    df['LastPL']      = df['PivotLowC'].ffill()
+    df['stopBuffer']  = df['atr'] * atrMult
+    df['stopLevel']   = df['LastPL'] - df['stopBuffer']
+    df['buyLevel']    = df['LastPH']
+    df['breakoutBuy'] = df['high'] > df['buyLevel']
+    df['breakoutSell']= df['low']  < df['stopLevel']
+
     if useADX:
         flt    = ((df['adx']>adxS)|
                   ((df['adx']>adxW)&(df['adx']>df['adx'].shift(1))))
@@ -176,28 +170,30 @@ def generate_signals(df, atrMult=1.0, useADX=True,
     else:
         df['finalBuy']  = ((df['rsiBuy'] & df['TrendOK']) | df['breakoutBuy'])
         df['finalSell'] = (df['rsiSell'] | df['breakoutSell'])
-    df['buySignal']  = df['finalBuy']
-    df['sellSignal'] = df['finalSell']
+
     in_pos, sigs, pos = False, [], []
     for i in range(len(df)):
-        if in_pos and df.loc[i,'sellSignal']:
+        if in_pos and df.loc[i,'finalSell']:
             sigs.append('Sell'); in_pos=False
-        elif not in_pos and df.loc[i,'buySignal']:
+        elif not in_pos and df.loc[i,'finalBuy']:
             sigs.append('Buy');  in_pos=True
         else:
             sigs.append('None')
         pos.append(in_pos)
-    df['Signal']     = sigs
-    df['inPosition'] = pos
+
+    df['Signal']    = sigs
+    df['inPosition']= pos
     return df
 
 ###############################################################################
 # 5) BACKTEST & METRICS
 ###############################################################################
 def backtest_fixed_capital(df):
-    trades = []; buys=df.index[df['Signal']=='Buy'].tolist()
+    trades = []
+    buys   = df.index[df['Signal']=='Buy'].tolist()
     if not buys:
         return trades,[],[],None,None
+
     df2 = df.iloc[buys[0]:].reset_index(drop=True)
     pos_open = False
     for i in range(len(df2)-1):
@@ -206,9 +202,11 @@ def backtest_fixed_capital(df):
             pos_open=True; trades.append({'date':d,'action':'Buy','price':o})
         elif sig=='Sell' and pos_open:
             pos_open=False; trades.append({'date':d,'action':'Sell','price':o})
+
     if pos_open:
         last = df2.iloc[-1]
         trades.append({'date':last['date'],'action':'Sell','price':last['close']})
+
     rets, durs, i = [], [], 0
     while i < len(trades)-1:
         if trades[i]['action']=='Buy' and trades[i+1]['action']=='Sell':
@@ -219,19 +217,20 @@ def backtest_fixed_capital(df):
             i += 2
         else:
             i += 1
+
     return trades, rets, durs, df['date'].iloc[0], df['date'].iloc[-1]
 
 def compute_metrics_fixed_capital(rets, durs, annual_rfr=0.0):
     n = len(rets)
     if n == 0:
         return {}
-    wins   = [r for r in rets if r>0]
-    losses = [r for r in rets if r<0]
-    win_rate = len(wins)/n
-    avg_ret   = np.mean(rets)
-    pf        = sum(wins)/abs(sum(losses)) if abs(sum(losses))>1e-12 else np.inf
-    std       = np.std(rets, ddof=1) if n>1 else 0.0
-    sharpe    = ((avg_ret-annual_rfr)/std*np.sqrt(n)) if std>1e-12 and n>1 else 0.0
+    wins    = [r for r in rets if r>0]
+    losses  = [r for r in rets if r<0]
+    win_rate= len(wins)/n
+    avg_ret = np.mean(rets)
+    pf      = sum(wins)/abs(sum(losses)) if abs(sum(losses))>1e-12 else np.inf
+    std     = np.std(rets, ddof=1) if n>1 else 0.0
+    sharpe  = ((avg_ret-annual_rfr)/std*np.sqrt(n)) if std>1e-12 and n>1 else 0.0
     return {
       'num_trades': n,
       'win_rate':   win_rate,
@@ -269,8 +268,7 @@ def main():
 
     symbols = get_symbols_from_db()
     if not symbols:
-        print("No symbols in DB.")
-        return
+        print("No symbols in DB."); return
 
     conn = get_db_connection()
     cur  = conn.cursor()
