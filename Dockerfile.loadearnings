@@ -10,4 +10,4 @@ RUN pip install --no-cache-dir -r requirements-loadearnings.txt
 
 
 # Default command
-CMD ["python", "loadearnings.py"]
+CMD ["python", "-u", "loadearnings.py"]
