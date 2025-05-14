@@ -1,0 +1,20 @@
+# Use a slim Python base
+FROM python:3.9-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install dependencies
+COPY requirements-swingtrader.txt .
+RUN pip install --no-cache-dir -r requirements-swingtrader.txt
+
+# Copy the connectivity test script
+COPY swingtrader.py .
+
+# Default env vars; override at runtime if needed
+ENV IBKR_HOST=host.docker.internal
+ENV IBKR_PORT=7497
+ENV IBKR_CLIENT_ID=1
+
+# Run the test
+CMD ["python", "swingtrader.py"]
