@@ -20,19 +20,22 @@ import math
 # Script metadata & logging setup
 # -------------------------------
 SCRIPT_NAME = "loadearnings.py"
+
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s %(levelname)s:%(message)s",
-    handlers=[
-        logging.FileHandler("loadearnings.log"),
-        logging.StreamHandler(sys.stdout),
-    ]
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+    force=True
 )
+logger = logging.getLogger(__name__)
 
 # -------------------------------
 # Environment-driven configuration
 # -------------------------------
 DB_SECRET_ARN = os.getenv("DB_SECRET_ARN")
+if not DB_SECRET_ARN:
+    logger.error("DB_SECRET_ARN environment variable is not set")
+    sys.exit(1)
 
 def get_db_config():
     """
@@ -61,10 +64,16 @@ def retry(max_attempts=3, initial_delay=2, backoff=2):
                     return f(symbol, conn, *args, **kwargs)
                 except Exception as e:
                     attempts += 1
-                    logging.error(f"{f.__name__} failed for {symbol} (attempt {attempts}): {e}", exc_info=True)
+                    logger.error(
+                        f"{f.__name__} failed for {symbol} "
+                        f"(attempt {attempts}/{max_attempts}): {e}",
+                        exc_info=True
+                    )
                     time.sleep(delay)
                     delay *= backoff
-            raise RuntimeError(f"All {max_attempts} attempts failed for {f.__name__} with symbol {symbol}")
+            raise RuntimeError(
+                f"All {max_attempts} attempts failed for {f.__name__} with symbol {symbol}"
+            )
         return wrapper
     return decorator
 
@@ -88,8 +97,7 @@ def ensure_tables(conn):
                 period      VARCHAR(20) NOT NULL,
                 actual      DOUBLE PRECISION,
                 estimate    DOUBLE PRECISION,
-                fetched_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                INDEX(symbol)
+                fetched_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
         """)
         # earnings financial annual
@@ -101,8 +109,7 @@ def ensure_tables(conn):
                 period      VARCHAR(20) NOT NULL,
                 revenue     BIGINT,
                 earnings    BIGINT,
-                fetched_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                INDEX(symbol)
+                fetched_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
         """)
         # earnings financial quarterly
@@ -114,8 +121,7 @@ def ensure_tables(conn):
                 period      VARCHAR(20) NOT NULL,
                 revenue     BIGINT,
                 earnings    BIGINT,
-                fetched_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                INDEX(symbol)
+                fetched_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
         """)
         # last_updated
@@ -131,7 +137,6 @@ def ensure_tables(conn):
 def process_symbol(symbol, conn):
     """Fetch earnings via yahooquery and insert into PostgreSQL."""
     yq_symbol = symbol.upper().replace(".", "-")
-    # setup ticker with timeout/retries
     ticker = Ticker(yq_symbol, asynchronous=False)
     adapter = TimeoutHTTPAdapter(
         max_retries=Retry(total=2, backoff_factor=1),
@@ -145,45 +150,49 @@ def process_symbol(symbol, conn):
     if not earnings_data or not isinstance(earnings_data, dict):
         raise ValueError(f"No valid earnings data for {symbol}: {earnings_data!r}")
 
-    # --- insert EPS ---
-    ec = earnings_data.get("earningsChart", {})
-    for record in ec.get("quarterly", []):
-        period   = record.get("date")
-        actual   = clean_value(record.get("actual"))
-        estimate = clean_value(record.get("estimate"))
+    # Insert EPS
+    for record in earnings_data.get("earningsChart", {}).get("quarterly", []):
         with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO earnings_eps (symbol, period, actual, estimate)
-                VALUES (%s, %s, %s, %s)
-            """, (symbol, period, actual, estimate))
+            cur.execute(
+                "INSERT INTO earnings_eps (symbol, period, actual, estimate) VALUES (%s, %s, %s, %s)",
+                (
+                    symbol,
+                    record.get("date"),
+                    clean_value(record.get("actual")),
+                    clean_value(record.get("estimate"))
+                )
+            )
     conn.commit()
 
-    # --- insert financial annual ---
-    fc = earnings_data.get("financialsChart", {})
-    for record in fc.get("yearly", []):
-        period   = str(record.get("date"))
-        revenue  = clean_value(record.get("revenue"))
-        earnings = clean_value(record.get("earnings"))
+    # Insert financial annual
+    for record in earnings_data.get("financialsChart", {}).get("yearly", []):
         with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO earnings_financial_annual (symbol, period, revenue, earnings)
-                VALUES (%s, %s, %s, %s)
-            """, (symbol, period, revenue, earnings))
+            cur.execute(
+                "INSERT INTO earnings_financial_annual (symbol, period, revenue, earnings) VALUES (%s, %s, %s, %s)",
+                (
+                    symbol,
+                    str(record.get("date")),
+                    clean_value(record.get("revenue")),
+                    clean_value(record.get("earnings"))
+                )
+            )
     conn.commit()
 
-    # --- insert financial quarterly ---
-    for record in fc.get("quarterly", []):
-        period   = record.get("date")
-        revenue  = clean_value(record.get("revenue"))
-        earnings = clean_value(record.get("earnings"))
+    # Insert financial quarterly
+    for record in earnings_data.get("financialsChart", {}).get("quarterly", []):
         with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO earnings_financial_quarterly (symbol, period, revenue, earnings)
-                VALUES (%s, %s, %s, %s)
-            """, (symbol, period, revenue, earnings))
+            cur.execute(
+                "INSERT INTO earnings_financial_quarterly (symbol, period, revenue, earnings) VALUES (%s, %s, %s, %s)",
+                (
+                    symbol,
+                    record.get("date"),
+                    clean_value(record.get("revenue")),
+                    clean_value(record.get("earnings"))
+                )
+            )
     conn.commit()
 
-    logging.info(f"Successfully processed earnings for {symbol}")
+    logger.info(f"Successfully processed earnings for {symbol}")
 
 def update_last_run(conn):
     """Stamp the last run time in last_updated."""
@@ -197,7 +206,6 @@ def update_last_run(conn):
     conn.commit()
 
 def main():
-    # get DB connection
     user, pwd, host, port, dbname = get_db_config()
     conn = psycopg2.connect(
         host=host,
@@ -209,26 +217,22 @@ def main():
         cursor_factory=DictCursor
     )
 
-    # prepare tables
     ensure_tables(conn)
 
-    # fetch symbols
     with conn.cursor() as cur:
         cur.execute("SELECT DISTINCT symbol FROM stock_symbols;")
         symbols = [r["symbol"] for r in cur.fetchall()]
 
-    # process each
     for sym in symbols:
         try:
             process_symbol(sym, conn)
         except Exception:
-            logging.exception(f"Failed to process {sym}")
+            logger.exception(f"Failed to process {sym}")
         time.sleep(0.2)
 
-    # update last_updated
     update_last_run(conn)
     conn.close()
-    logging.info("loadearnings complete.")
+    logger.info("loadearnings complete.")
 
 if __name__ == "__main__":
     main()
