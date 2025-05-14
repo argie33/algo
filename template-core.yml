@@ -204,9 +204,12 @@ Resources:
           Fn::Base64: |
             #!/bin/bash
             set -eux
+
             yum update -y
             amazon-linux-extras enable postgresql10
-            yum install -y jq postgresql
+            yum clean metadata
+            yum install -y jq postgresql10
+
             aws configure set region ${AWS::Region}
 
             CREDS=$(aws secretsmanager get-secret-value \
