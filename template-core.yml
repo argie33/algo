@@ -201,24 +201,41 @@ Resources:
           SpotOptions:
             SpotInstanceType: one-time
         UserData:
-          Fn::Base64: |
+          Fn::Base64: !Sub |
             #!/bin/bash
-            set -eux
+            set -euxo pipefail
 
-            yum update -y
+            # log everything
+            exec > /var/log/user-data.log 2>&1
+            echo "=== user-data started at $(date) ==="
+
+            # list and enable extras
+            amazon-linux-extras list | tee /var/log/extras-list.log
             amazon-linux-extras enable postgresql10
-            yum clean metadata
+
+            # refresh repos and info
+            yum clean all
+            yum repolist all | tee /var/log/yum-repolist.log
+            yum info postgresql10 | tee /var/log/pg10-info.log
+
+            # install psql client
             yum install -y jq postgresql10
 
-            aws configure set region ${AWS::Region}
+            # verify installation
+            if command -v psql >/dev/null; then
+              echo "✅ psql is installed: $(psql --version)"
+            else
+              echo "❌ psql installation FAILED"
+            fi
 
+            # continue with .pgpass setup
+            aws configure set region ${AWS::Region}
             CREDS=$(aws secretsmanager get-secret-value \
               --secret-id "${DBSecretName}" \
               --query SecretString --output text)
             DB_USER=$(echo "$CREDS" | jq -r .username)
             DB_PASSWORD=$(echo "$CREDS" | jq -r .password)
             DB_NAME=$(echo "$CREDS" | jq -r .dbname)
-
             DB_HOST=$(aws cloudformation describe-stacks \
               --stack-name "${DBStackName}" \
               --query "Stacks[0].Outputs[?OutputKey=='DBEndpoint'].OutputValue" \
@@ -233,6 +250,8 @@ Resources:
             EOF
             chmod 600 /home/ec2-user/.pgpass
             chown ec2-user:ec2-user /home/ec2-user/.pgpass
+
+            echo "=== user-data completed at $(date) ==="
 
   BastionAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
