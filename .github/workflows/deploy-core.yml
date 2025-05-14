@@ -47,11 +47,18 @@ jobs:
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
 
-      - name: Start Bastion ASG instance refresh
+      - name: Start Bastion ASG instance refresh (if none in progress)
         run: |
-          aws autoscaling start-instance-refresh \
+          CURRENT=$(aws autoscaling describe-instance-refreshes \
             --auto-scaling-group-name stocks-bastion-asg \
-            --preferences '{"MinHealthyPercentage":100,"InstanceWarmup":300}'
+            --query "InstanceRefreshes[0].Status" --output text)
+          if [ "$CURRENT" = "InProgress" ]; then
+            echo "Instance refresh already in progress (status=$CURRENT), skipping start"
+          else
+            aws autoscaling start-instance-refresh \
+              --auto-scaling-group-name stocks-bastion-asg \
+              --preferences '{"MinHealthyPercentage":100,"InstanceWarmup":300}'
+          fi
 
       - name: Wait for instance refresh to complete
         run: |
