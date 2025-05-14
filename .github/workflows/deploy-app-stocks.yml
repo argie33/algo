@@ -95,8 +95,8 @@ jobs:
               - requirements-loadtechnicalsmonthly.txt
               - Dockerfile.technicalsmonthly
             buysell:
-              - buy_sell.py
-              - requirements-buysell.txt
+              - loadbuysell.py
+              - requirements-loadbuysell.txt
               - Dockerfile.buysell
 
       - id: any
