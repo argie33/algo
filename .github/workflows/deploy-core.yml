@@ -56,24 +56,21 @@ jobs:
       - name: Wait for instance refresh to complete
         run: |
           echo "Polling instance-refresh status..."
-          until [ "$(aws autoscaling describe-instance-refreshes \
-            --auto-scaling-group-name stocks-bastion-asg \
-            --max-items 1 \
-            --query "InstanceRefreshes[0].Status" \
-            --output text)" == "Successful" ]; do
-            CURRENT=$(aws autoscaling describe-instance-refreshes \
+          while true; do
+            STATUS=$(aws autoscaling describe-instance-refreshes \
               --auto-scaling-group-name stocks-bastion-asg \
-              --max-items 1 \
               --query "InstanceRefreshes[0].Status" \
               --output text)
-            echo "  status: $CURRENT – retrying in 30s..."
-            if [[ "$CURRENT" == "Failed" || "$CURRENT" == "Cancelled" ]]; then
-              echo "Instance refresh ended with status: $CURRENT"
+            echo "  status: $STATUS – retrying in 30s..."
+            if [ "$STATUS" = "Successful" ]; then
+              echo "Instance refresh completed successfully."
+              break
+            elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
+              echo "Instance refresh ended with status: $STATUS"
               exit 1
             fi
             sleep 30
           done
-          echo "Instance refresh completed successfully."
 
       - name: Wait for Bastion to be running
         id: wait_bastion
