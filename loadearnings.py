@@ -17,7 +17,7 @@ import pandas as pd
 import math
 
 # -------------------------------
-# Script metadata & logging setup 
+# Script metadata & logging setup
 # -------------------------------
 SCRIPT_NAME = "loadearnings.py"
 
