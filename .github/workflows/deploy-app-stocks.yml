@@ -23,20 +23,20 @@ jobs:
     name: Detect changed components
     runs-on: ubuntu-latest
     outputs:
-      symbols:          ${{ steps.paths.outputs.symbols }}
-      econ:             ${{ steps.paths.outputs.econ }}
-      findata:          ${{ steps.paths.outputs.findata }}
-      pricedaily:       ${{ steps.paths.outputs.pricedaily }}
-      priceweekly:      ${{ steps.paths.outputs.priceweekly }}
-      pricemonthly:     ${{ steps.paths.outputs.pricemonthly }}
-      technicaldaily:   ${{ steps.paths.outputs.technicaldaily }}
-      loadkeystats:     ${{ steps.paths.outputs.loadkeystats }}
-      earnings:         ${{ steps.paths.outputs.earnings }}
-      technicalsweekly: ${{ steps.paths.outputs.technicalsweekly }}
-      technicalsmonthly:${{ steps.paths.outputs.technicalsmonthly }}
-      buysell:          ${{ steps.paths.outputs.buysell }}
-      any:              ${{ steps.any.outputs.any }}
-      matrix:           ${{ steps.matrix.outputs.matrix }}
+      symbols:           ${{ steps.paths.outputs.symbols }}
+      econ:              ${{ steps.paths.outputs.econ }}
+      findata:           ${{ steps.paths.outputs.findata }}
+      pricedaily:        ${{ steps.paths.outputs.pricedaily }}
+      priceweekly:       ${{ steps.paths.outputs.priceweekly }}
+      pricemonthly:      ${{ steps.paths.outputs.pricemonthly }}
+      technicaldaily:    ${{ steps.paths.outputs.technicaldaily }}
+      loadkeystats:      ${{ steps.paths.outputs.loadkeystats }}
+      earnings:          ${{ steps.paths.outputs.earnings }}
+      technicalsweekly:  ${{ steps.paths.outputs.technicalsweekly }}
+      technicalsmonthly: ${{ steps.paths.outputs.technicalsmonthly }}
+      buysell:           ${{ steps.paths.outputs.buysell }}
+      any:               ${{ steps.any.outputs.any }}
+      matrix:            ${{ steps.matrix.outputs.matrix }}
 
     steps:
       - name: Checkout code
@@ -122,32 +122,32 @@ jobs:
       - id: matrix
         name: Build matrix
         env:
-          SYMBOLS:            ${{ steps.paths.outputs.symbols }}
-          ECON:               ${{ steps.paths.outputs.econ }}
-          FINDATA:            ${{ steps.paths.outputs.findata }}
-          PRICEDAILY:         ${{ steps.paths.outputs.pricedaily }}
-          PRICEWEEKLY:        ${{ steps.paths.outputs.priceweekly }}
-          PRICEMONTHLY:       ${{ steps.paths.outputs.pricemonthly }}
-          TECHNICALDAILY:     ${{ steps.paths.outputs.technicaldaily }}
-          LOADKEYSTATS:       ${{ steps.paths.outputs.loadkeystats }}
-          EARNINGS:           ${{ steps.paths.outputs.earnings }}
-          TECHNICALSWEEKLY:   ${{ steps.paths.outputs.technicalsweekly }}
-          TECHNICALSMONTHLY:  ${{ steps.paths.outputs.technicalsmonthly }}
-          BUYSELL:            ${{ steps.paths.outputs.buysell }}
+          SYMBOLS:           ${{ steps.paths.outputs.symbols }}
+          ECON:              ${{ steps.paths.outputs.econ }}
+          FINDATA:           ${{ steps.paths.outputs.findata }}
+          PRICEDAILY:        ${{ steps.paths.outputs.pricedaily }}
+          PRICEWEEKLY:       ${{ steps.paths.outputs.priceweekly }}
+          PRICEMONTHLY:      ${{ steps.paths.outputs.pricemonthly }}
+          TECHNICALDAILY:    ${{ steps.paths.outputs.technicaldaily }}
+          LOADKEYSTATS:      ${{ steps.paths.outputs.loadkeystats }}
+          EARNINGS:          ${{ steps.paths.outputs.earnings }}
+          TECHNICALSWEEKLY:  ${{ steps.paths.outputs.technicalsweekly }}
+          TECHNICALSMONTHLY: ${{ steps.paths.outputs.technicalsmonthly }}
+          BUYSELL:           ${{ steps.paths.outputs.buysell }}
         run: |
           arr=""
-          [ "$SYMBOLS" = "true" ]        && arr="$arr,\"symbols\""
-          [ "$ECON" = "true" ]           && arr="$arr,\"econ\""
-          [ "$FINDATA" = "true" ]        && arr="$arr,\"findata\""
-          [ "$PRICEDAILY" = "true" ]     && arr="$arr,\"pricedaily\""
-          [ "$PRICEWEEKLY" = "true" ]    && arr="$arr,\"priceweekly\""
-          [ "$PRICEMONTHLY" = "true" ]   && arr="$arr,\"pricemonthly\""
-          [ "$TECHNICALDAILY" = "true" ] && arr="$arr,\"technicaldaily\""
-          [ "$LOADKEYSTATS" = "true" ]   && arr="$arr,\"loadkeystats\""
-          [ "$EARNINGS" = "true" ]       && arr="$arr,\"earnings\""
+          [ "$SYMBOLS" = "true" ]         && arr="$arr,\"symbols\""
+          [ "$ECON" = "true" ]            && arr="$arr,\"econ\""
+          [ "$FINDATA" = "true" ]         && arr="$arr,\"findata\""
+          [ "$PRICEDAILY" = "true" ]      && arr="$arr,\"pricedaily\""
+          [ "$PRICEWEEKLY" = "true" ]     && arr="$arr,\"priceweekly\""
+          [ "$PRICEMONTHLY" = "true" ]    && arr="$arr,\"pricemonthly\""
+          [ "$TECHNICALDAILY" = "true" ]  && arr="$arr,\"technicaldaily\""
+          [ "$LOADKEYSTATS" = "true" ]    && arr="$arr,\"loadkeystats\""
+          [ "$EARNINGS" = "true" ]        && arr="$arr,\"earnings\""
           [ "$TECHNICALSWEEKLY" = "true" ]&& arr="$arr,\"technicalsweekly\""
           [ "$TECHNICALSMONTHLY" = "true" ]&& arr="$arr,\"technicalsmonthly\""
-          [ "$BUYSELL" = "true" ]        && arr="$arr,\"buysell\""
+          [ "$BUYSELL" = "true" ]         && arr="$arr,\"buysell\""
           matrix="[${arr#,}]"
           echo "matrix=$matrix" >> $GITHUB_OUTPUT
 
@@ -285,7 +285,7 @@ jobs:
               EarningsImageTag=$(grep '^EarningsImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsWeeklyImageTag=$(grep '^TechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsMonthlyImageTag=$(grep '^TechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-) \
-              BuySellImageTag=$(grep '^BuySellImageTag=' tags.env            | cut -d= -f2-) \
+              BuySellImageTag=$(grep '^BuySellImageTag=' tags.env | cut -d= -f2-) \
               FREDApiKey=$FRED_API_KEY \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
