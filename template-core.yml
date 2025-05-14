@@ -252,7 +252,7 @@ Resources:
           Value: stocks-bastion
           PropagateAtLaunch: true
 
-  ### 4) Auto-shutdown Lambda ###
+  ### 4) Auto-shutdown Lambda ### 
   BastionStopRole:
     Type: AWS::IAM::Role
     Properties:
