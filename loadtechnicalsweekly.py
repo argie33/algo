@@ -30,10 +30,6 @@ logging.basicConfig(
 )
 
 def get_db_config():
-    """
-    Fetch host, port, dbname, username & password from Secrets Manager.
-    SecretString must be JSON with keys: username, password, host, port, dbname.
-    """
     client = boto3.client("secretsmanager")
     resp = client.get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])
     sec = json.loads(resp["SecretString"])
@@ -121,7 +117,7 @@ def main():
     );
     """)
 
-    # Recreate target table for weekly technicals
+    # Recreate target table for weekly technicals with plus_di and minus_di
     cursor.execute("DROP TABLE IF EXISTS technical_data_weekly;")
     cursor.execute("""
     CREATE TABLE technical_data_weekly (
@@ -134,6 +130,8 @@ def main():
         mom             DOUBLE PRECISION,
         roc             DOUBLE PRECISION,
         adx             DOUBLE PRECISION,
+        plus_di         DOUBLE PRECISION,
+        minus_di        DOUBLE PRECISION,
         atr             DOUBLE PRECISION,
         ad              DOUBLE PRECISION,
         cmf             DOUBLE PRECISION,
@@ -175,9 +173,9 @@ def main():
     INSERT INTO technical_data_weekly (
       symbol, date,
       rsi, macd, macd_signal, macd_hist,
-      mom, roc, adx, atr, ad, cmf, mfi,
-      td_sequential, td_combo, marketwatch,
-      dm,
+      mom, roc, adx, plus_di, minus_di,
+      atr, ad, cmf, mfi,
+      td_sequential, td_combo, marketwatch, dm,
       sma_10, sma_20, sma_50, sma_150, sma_200,
       ema_4, ema_9, ema_21,
       bbands_lower, bbands_middle, bbands_upper,
@@ -186,13 +184,12 @@ def main():
     ) VALUES (
       %s, %s,
       %s, %s, %s, %s,
-      %s, %s, %s, %s, %s, %s, %s,
-      %s, %s, %s,
-      %s,
+      %s, %s, %s, %s, %s,
+      %s, %s, %s, %s,
+      %s, %s, %s, %s,
       %s, %s, %s, %s, %s,
       %s, %s, %s,
       %s, %s, %s,
-      %s, %s,
       %s, %s, %s, %s, %s, %s
     );
     """
@@ -216,37 +213,51 @@ def main():
         df.set_index('date', inplace=True)
         df = df.astype(float).ffill().bfill().dropna()
 
-        # indicators...
+        # Indicators
         df['rsi'] = ta.rsi(df['close'], length=14)
+
+        # MACD
         ema_fast = df['close'].ewm(span=12, adjust=False).mean()
         ema_slow = df['close'].ewm(span=26, adjust=False).mean()
         df['macd']        = ema_fast - ema_slow
         df['macd_signal'] = df['macd'].ewm(span=9, adjust=False).mean()
         df['macd_hist']   = df['macd'] - df['macd_signal']
-        df['mom']         = ta.mom(df['close'], length=10)
-        df['roc']         = ta.roc(df['close'], length=10)
-        adx_df            = ta.adx(df['high'], df['low'], df['close'], length=14)
-        df['adx']         = adx_df['ADX_14'] if adx_df is not None else np.nan
-        df['atr']         = ta.atr(df['high'], df['low'], df['close'], length=14)
-        df['ad']          = ta.ad(df['high'], df['low'], df['close'], df['volume'])
-        df['cmf']         = ta.cmf(df['high'], df['low'], df['close'], df['volume'], length=20)
-        df['mfi']         = np.array(ta.mfi(df['high'], df['low'], df['close'], df['volume'], length=14), dtype=float)
+
+        df['mom'] = ta.mom(df['close'], length=10)
+        df['roc'] = ta.roc(df['close'], length=10)
+
+        # ADX + DMI
+        adx_df = ta.adx(df['high'], df['low'], df['close'], length=14)
+        if adx_df is not None:
+            df['adx']      = adx_df['ADX_14']
+            df['plus_di']  = adx_df['DMP_14']
+            df['minus_di'] = adx_df['DMN_14']
+        else:
+            df[['adx','plus_di','minus_di']] = np.nan
+
+        df['atr'] = ta.atr(df['high'], df['low'], df['close'], length=14)
+        df['ad']  = ta.ad(df['high'], df['low'], df['close'], df['volume'])
+        df['cmf'] = ta.cmf(df['high'], df['low'], df['close'], df['volume'], length=20)
+        df['mfi'] = ta.mfi(df['high'], df['low'], df['close'], df['volume'], length=14)
+
         df['td_sequential'] = td_sequential(df['close'], lookback=4)
         df['td_combo']      = td_combo(df['close'], lookback=2)
         df['marketwatch']   = marketwatch_indicator(df['close'], df['open'])
 
-        # directional movement
+        # Original DM
         dm_plus  = df['high'].diff()
         dm_minus = df['low'].shift(1) - df['low']
         dm_plus  = dm_plus.where((dm_plus>dm_minus)&(dm_plus>0), 0)
         dm_minus = dm_minus.where((dm_minus>dm_plus)&(dm_minus>0), 0)
         df['dm'] = dm_plus - dm_minus
 
+        # SMAs & EMAs
         for p in [10,20,50,150,200]:
             df[f'sma_{p}'] = ta.sma(df['close'], length=p)
         for p in [4,9,21]:
             df[f'ema_{p}'] = ta.ema(df['close'], length=p)
 
+        # Bollinger Bands
         bb = ta.bbands(df['close'], length=20, std=2)
         if bb is not None:
             df['bbands_lower']  = bb['BBL_20_2.0']
@@ -255,10 +266,12 @@ def main():
         else:
             df[['bbands_lower','bbands_middle','bbands_upper']] = np.nan
 
+        # Pivot points
         reset = df.reset_index()
         df['pivot_high'] = pivot_high_vectorized(reset,3,3).values
         df['pivot_low']  = pivot_low_vectorized(reset,3,3).values
 
+        # Fibonacci
         hi, lo = df['high'].max(), df['low'].min()
         rng = hi - lo
         df['fib_0']   = hi
@@ -268,13 +281,13 @@ def main():
         df['fib_618'] = hi - 0.618*rng
         df['fib_100'] = lo
 
+        # Clean & insert
         df = df.replace([np.inf, -np.inf], np.nan).where(pd.notnull(df), None)
-
         batch = []
         for _, row in df.reset_index().iterrows():
             batch.append((
                 sym,
-                row['date'].to_pydatetime(),
+                row['date'].date(),
                 sanitize_value(row['rsi']),
                 sanitize_value(row['macd']),
                 sanitize_value(row['macd_signal']),
@@ -282,6 +295,8 @@ def main():
                 sanitize_value(row['mom']),
                 sanitize_value(row['roc']),
                 sanitize_value(row['adx']),
+                sanitize_value(row['plus_di']),
+                sanitize_value(row['minus_di']),
                 sanitize_value(row['atr']),
                 sanitize_value(row['ad']),
                 sanitize_value(row['cmf']),
