@@ -11,7 +11,7 @@ from psycopg2.extras import RealDictCursor
 from datetime import datetime
 
 ###############################################################################
-# ─── Environment & Secrets ───────────────────────────────────────────────────
+# ─── Environment & Secrets ─────────────────────────────────────────────────── 
 ###############################################################################
 FRED_API_KEY = os.environ["FRED_API_KEY"]
 SECRET_ARN   = os.environ["DB_SECRET_ARN"]
