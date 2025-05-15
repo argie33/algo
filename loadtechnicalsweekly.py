@@ -117,7 +117,7 @@ def main():
     );
     """)
 
-    # Recreate target table for weekly technicals with plus_di and minus_di
+    # Recreate target table for weekly technicals
     cursor.execute("DROP TABLE IF EXISTS technical_data_weekly;")
     cursor.execute("""
     CREATE TABLE technical_data_weekly (
@@ -190,6 +190,7 @@ def main():
       %s, %s, %s, %s, %s,
       %s, %s, %s,
       %s, %s, %s,
+      %s, %s,
       %s, %s, %s, %s, %s, %s
     );
     """
@@ -205,7 +206,7 @@ def main():
         """, (sym,))
         rows = cursor.fetchall()
         if not rows:
-            logging.warning(f"No data for {sym}, skipping.")
+            logging.warning(f"No weekly data for {sym}, skipping.")
             continue
 
         df = pd.DataFrame(rows, columns=['date','open','high','low','close','volume'])
@@ -213,20 +214,16 @@ def main():
         df.set_index('date', inplace=True)
         df = df.astype(float).ffill().bfill().dropna()
 
-        # Indicators
+        # --- INDICATORS ---
         df['rsi'] = ta.rsi(df['close'], length=14)
-
-        # MACD
         ema_fast = df['close'].ewm(span=12, adjust=False).mean()
         ema_slow = df['close'].ewm(span=26, adjust=False).mean()
         df['macd']        = ema_fast - ema_slow
         df['macd_signal'] = df['macd'].ewm(span=9, adjust=False).mean()
         df['macd_hist']   = df['macd'] - df['macd_signal']
-
         df['mom'] = ta.mom(df['close'], length=10)
         df['roc'] = ta.roc(df['close'], length=10)
 
-        # ADX + DMI
         adx_df = ta.adx(df['high'], df['low'], df['close'], length=14)
         if adx_df is not None:
             df['adx']      = adx_df['ADX_14']
@@ -244,20 +241,17 @@ def main():
         df['td_combo']      = td_combo(df['close'], lookback=2)
         df['marketwatch']   = marketwatch_indicator(df['close'], df['open'])
 
-        # Original DM
         dm_plus  = df['high'].diff()
         dm_minus = df['low'].shift(1) - df['low']
         dm_plus  = dm_plus.where((dm_plus>dm_minus)&(dm_plus>0), 0)
         dm_minus = dm_minus.where((dm_minus>dm_plus)&(dm_minus>0), 0)
         df['dm'] = dm_plus - dm_minus
 
-        # SMAs & EMAs
         for p in [10,20,50,150,200]:
             df[f'sma_{p}'] = ta.sma(df['close'], length=p)
         for p in [4,9,21]:
             df[f'ema_{p}'] = ta.ema(df['close'], length=p)
 
-        # Bollinger Bands
         bb = ta.bbands(df['close'], length=20, std=2)
         if bb is not None:
             df['bbands_lower']  = bb['BBL_20_2.0']
@@ -266,12 +260,10 @@ def main():
         else:
             df[['bbands_lower','bbands_middle','bbands_upper']] = np.nan
 
-        # Pivot points
         reset = df.reset_index()
         df['pivot_high'] = pivot_high_vectorized(reset,3,3).values
         df['pivot_low']  = pivot_low_vectorized(reset,3,3).values
 
-        # Fibonacci
         hi, lo = df['high'].max(), df['low'].min()
         rng = hi - lo
         df['fib_0']   = hi
@@ -281,7 +273,7 @@ def main():
         df['fib_618'] = hi - 0.618*rng
         df['fib_100'] = lo
 
-        # Clean & insert
+        # Clean & batch-insert
         df = df.replace([np.inf, -np.inf], np.nan).where(pd.notnull(df), None)
         batch = []
         for _, row in df.reset_index().iterrows():
@@ -325,6 +317,7 @@ def main():
                 sanitize_value(row['fib_618']),
                 sanitize_value(row['fib_100']),
             ))
+        logging.info(f"  → Prepared {len(batch)} rows for {sym}")
         if batch:
             cursor.executemany(insert_q, batch)
             logging.info(f"Inserted {len(batch)} rows for {sym}.")
