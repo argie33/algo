@@ -19,10 +19,49 @@ env:
 
 jobs:
   ##########################################################################
+  # 0) Upload Stop-DB Lambda to S3                                          #
+  ##########################################################################
+  upload-stop-db-lambda:
+    name: Upload Stop-DB Lambda to S3
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:      ${{ env.AWS_REGION }}
+          role-to-assume:  ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Get core CodeBucketName
+        id: codebucket
+        run: |
+          BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name stocks-core-infra-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='CodeBucketName'].OutputValue" \
+            --output text)
+          echo "BUCKET=$BUCKET" >> $GITHUB_OUTPUT
+
+      - name: Package Stop-DB Lambda
+        run: |
+          zip -j stop_db_lambda.zip infra/lambdas/bastion_stop/db_schedule.py
+
+      - name: Upload stop_db_lambda.zip to S3
+        run: |
+          aws s3 cp stop_db_lambda.zip \
+            s3://${{ steps.codebucket.outputs.BUCKET }}/stop_db_lambda.zip
+
+  ##########################################################################
   # 1) Detect changed components                                           #
   ##########################################################################
   filter:
     name: Detect changed components
+    needs: upload-stop-db-lambda
     runs-on: ubuntu-latest
     outputs:
       symbols:           ${{ steps.paths.outputs.symbols }}
@@ -146,18 +185,18 @@ jobs:
         run: |
           arr=""
           [ "$SYMBOLS" = "true" ]         && arr="$arr,\"symbols\""
-          [ "$ECON" = "true" ]            && arr="$arr,\"econ\""
-          [ "$FINDATA" = "true" ]         && arr="$arr,\"findata\""
-          [ "$PRICEDAILY" = "true" ]      && arr="$arr,\"pricedaily\""
+          [ "$ECON"   = "true" ]          && arr="$arr,\"econ\""
+          [ "$FINDATA"= "true" ]          && arr="$arr,\"findata\""
+          [ "$PRICEDAILY"  = "true" ]     && arr="$arr,\"pricedaily\""
           [ "$PRICEWEEKLY" = "true" ]     && arr="$arr,\"priceweekly\""
-          [ "$PRICEMONTHLY" = "true" ]    && arr="$arr,\"pricemonthly\""
+          [ "$PRICEMONTHLY"= "true" ]     && arr="$arr,\"pricemonthly\""
           [ "$TECHNICALDAILY" = "true" ]  && arr="$arr,\"technicaldaily\""
-          [ "$LOADKEYSTATS" = "true" ]    && arr="$arr,\"loadkeystats\""
-          [ "$EARNINGS" = "true" ]        && arr="$arr,\"earnings\""
-          [ "$TECHNICALSWEEKLY" = "true" ]&& arr="$arr,\"technicalsweekly\""
+          [ "$LOADKEYSTATS"   = "true" ]  && arr="$arr,\"loadkeystats\""
+          [ "$EARNINGS"       = "true" ]  && arr="$arr,\"earnings\""
+          [ "$TECHNICALSWEEKLY"  = "true" ]&& arr="$arr,\"technicalsweekly\""
           [ "$TECHNICALSMONTHLY" = "true" ]&& arr="$arr,\"technicalsmonthly\""
-          [ "$BUYSELL" = "true" ]         && arr="$arr,\"buysell\""
-          [ "$SWINGTRADER" = "true" ]     && arr="$arr,\"swingtrader\""
+          [ "$BUYSELL"        = "true" ]  && arr="$arr,\"buysell\""
+          [ "$SWINGTRADER"    = "true" ]  && arr="$arr,\"swingtrader\""
           matrix="[${arr#,}]"
           echo "matrix=$matrix" >> $GITHUB_OUTPUT
 
@@ -217,8 +256,7 @@ jobs:
           docker push "$URI:$TAG"
           echo "${PARAM}=$TAG" > build_tag_${{ matrix.loader }}.txt
 
-      - name: Upload tag artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: build-tags-${{ matrix.loader }}
           path: build_tag_${{ matrix.loader }}.txt
@@ -233,8 +271,6 @@ jobs:
       - build
     if: ${{ needs.filter.outputs.any == 'true' }}
     runs-on: ubuntu-latest
-
-    # ensure the IBKR ARNs are in-scope for this job
     env:
       IBKR_USERNAME_SECRET_ARN: ${{ secrets.IBKR_USERNAME_SECRET_ARN }}
       IBKR_PASSWORD_SECRET_ARN: ${{ secrets.IBKR_PASSWORD_SECRET_ARN }}
@@ -266,8 +302,7 @@ jobs:
           fi
           cat tags.env
 
-      - name: Download new tags
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           path: new-tags
 
@@ -286,7 +321,6 @@ jobs:
 
       - name: Deploy stack
         run: |
-          echo "Using IBKR ARNs: $IBKR_USERNAME_SECRET_ARN / $IBKR_PASSWORD_SECRET_ARN"
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
             --template-file template-app-ecs-tasks.yml \
@@ -309,7 +343,7 @@ jobs:
               IBKRPassword=$IBKR_PASSWORD \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
-
+            
   ##########################################################################
   # 4) Run each changed loader                                             #
   ##########################################################################

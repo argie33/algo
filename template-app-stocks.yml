@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Application stack – RDS (public), Secrets (DB creds),
-  ECS cluster, and ECS task execution role.
+  ECS cluster, ECS task execution role, and scheduled RDS shutdown.
 
 Parameters:
   RDSUsername:
@@ -113,6 +113,62 @@ Resources:
                 Action: secretsmanager:GetSecretValue
                 Resource: !Ref DBCredentialsSecret
 
+  ### 7) IAM Role for Stop-DB Lambda ###
+  StopDBLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: StopDBPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - rds:StopDBInstance
+                Resource: !GetAtt StocksDBInstance.Arn
+
+  ### 8) Lambda Function to Stop the RDS ###
+  StopDBLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: stop-stocks-db
+      Runtime: python3.9
+      Handler: db_schedule.handler
+      Role: !GetAtt StopDBLambdaRole.Arn
+      Code:
+        S3Bucket: !ImportValue StocksCore-CodeBucketName
+        S3Key: stop_db_lambda.zip
+
+  ### 9) EventBridge Rule: nightly at 11:59 PM CT ###
+  StopDBEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: stop-stocks-db-nightly
+      ScheduleExpression: 'cron(59 23 * * ? *)'
+      ScheduleExpressionTimezone: 'America/Chicago'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt StopDBLambdaFunction.Arn
+          Id: StopStocksDB
+
+  ### 10) Grant EventBridge Permission to Lambda ###
+  PermissionForEventsToInvokeLambda:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref StopDBLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt StopDBEventRule.Arn
+
 Outputs:
   DBEndpoint:
     Description: RDS endpoint address
@@ -154,4 +210,4 @@ Outputs:
     Description: ARN of ECS Task Execution Role
     Value: !GetAtt EcsTaskExecutionRole.Arn
     Export:
-      Name: StocksApp-EcsTaskExecutionRoleArn 
+      Name: StocksApp-EcsTaskExecutionRoleArn
