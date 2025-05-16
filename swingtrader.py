@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3 
 """
 IBKR paper-trading order placer.
 Auto-connects to IB Gateway, submits a single order, logs status, then disconnects.
