@@ -17,7 +17,6 @@ import yfinance as yf
 # -------------------------------
 SCRIPT_NAME = "loadpricedaily.py"
 
-# — log everything ≥ INFO to stdout, including errors on stderr —
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -80,7 +79,7 @@ CREATE TABLE IF NOT EXISTS last_updated (
 """)
 
 # -------------------------------
-# Recreate price_data_daily Table
+# Recreate price_data_daily and price_data_daily_etf Tables
 # -------------------------------
 cursor.execute("DROP TABLE IF EXISTS price_data_daily;")
 cursor.execute("""
@@ -99,12 +98,33 @@ CREATE TABLE price_data_daily (
 """)
 logging.info("Table 'price_data_daily' ready.")
 
+cursor.execute("DROP TABLE IF EXISTS price_data_daily_etf;")
+cursor.execute("""
+CREATE TABLE price_data_daily_etf (
+    symbol       VARCHAR(20),
+    date         DATE,
+    open         NUMERIC(20,4),
+    high         NUMERIC(20,4),
+    low          NUMERIC(20,4),
+    close        NUMERIC(20,4),
+    volume       BIGINT,
+    dividends    NUMERIC(20,4),
+    stock_splits NUMERIC(20,4),
+    PRIMARY KEY (symbol, date)
+);
+""")
+logging.info("Table 'price_data_daily_etf' ready.")
+
 # -------------------------------
 # Load Symbols
 # -------------------------------
 cursor.execute("SELECT symbol FROM stock_symbols;")
-symbols = [row['symbol'] for row in cursor.fetchall()]
-logging.info(f"Found {len(symbols)} symbols.")
+stock_symbols = [row['symbol'] for row in cursor.fetchall()]
+logging.info(f"Found {len(stock_symbols)} stock symbols.")
+
+cursor.execute("SELECT symbol FROM etf_symbols;")
+etf_symbols = [row['symbol'] for row in cursor.fetchall()]
+logging.info(f"Found {len(etf_symbols)} ETF symbols.")
 
 # -------------------------------
 # Fetch Function
@@ -138,11 +158,11 @@ def fetch_daily_data(symbol, start_date, end_date):
                 'Stock Splits':'stock_splits'
             })
 
-            # Guarantee those columns exist
             for col in ('dividends', 'stock_splits'):
                 if col not in df.columns:
                     df[col] = 0.0
 
+            df['symbol'] = symbol
             return df
 
         except Exception as e:
@@ -153,35 +173,41 @@ def fetch_daily_data(symbol, start_date, end_date):
     return None
 
 # -------------------------------
-# Main Loop
+# Main Loop: Stocks then ETFs
 # -------------------------------
 start = "1800-01-01"
 end   = datetime.now().strftime("%Y-%m-%d")
 
-for idx, sym in enumerate(symbols, start=1):
-    logging.info(f"[{idx}/{len(symbols)}] Fetching {sym}")
-    data = fetch_daily_data(sym, start, end)
-    if data is None:
-        continue
+def load_group(symbols, table_name):
+    for idx, sym in enumerate(symbols, start=1):
+        logging.info(f"[{idx}/{len(symbols)}] Fetching {sym} into {table_name}")
+        data = fetch_daily_data(sym, start, end)
+        if data is None:
+            continue
 
-    data['symbol'] = sym
-    df_to_insert = data[[
-        'symbol','date','open','high','low','close','volume','dividends','stock_splits'
-    ]].where(pd.notnull(data), None)
+        df_to_insert = data[[
+            'symbol','date','open','high','low','close','volume','dividends','stock_splits'
+        ]].where(pd.notnull(data), None)
 
-    rows = list(df_to_insert.itertuples(index=False, name=None))
-    sql  = """
-    INSERT INTO price_data_daily
-      (symbol, date, open, high, low, close, volume, dividends, stock_splits)
-    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
-    """
-    try:
-        cursor.executemany(sql, rows)
-        logging.info(f"Inserted {len(rows)} rows for {sym}.")
-    except Exception as e:
-        logging.error(f"DB error for {sym}: {e}")
+        rows = list(df_to_insert.itertuples(index=False, name=None))
+        sql  = f"""
+        INSERT INTO {table_name}
+          (symbol, date, open, high, low, close, volume, dividends, stock_splits)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        ON CONFLICT (symbol, date) DO NOTHING;
+        """
+        try:
+            cursor.executemany(sql, rows)
+            logging.info(f"Inserted {len(rows)} rows for {sym}.")
+        except Exception as e:
+            logging.error(f"DB error for {sym}: {e}")
 
-    time.sleep(RATE_LIMIT_DELAY)
+        time.sleep(RATE_LIMIT_DELAY)
+
+# Load stock prices
+load_group(stock_symbols, "price_data_daily")
+# Load ETF prices
+load_group(etf_symbols,  "price_data_daily_etf")
 
 # -------------------------------
 # Record this run
