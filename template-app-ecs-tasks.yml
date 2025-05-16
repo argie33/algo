@@ -737,10 +737,6 @@ Resources:
           AssignPublicIp: ENABLED
 
   ########################################
-  # N) buysell loader          #
-  ########################################
-
-  ########################################
   # N) buysell loader                    #
   ########################################
   BuySellTaskDefinition:
@@ -797,7 +793,7 @@ Resources:
   ########################################
   # O) swingtrader loader                #
   ########################################
-  SwingTraderTaskDefinition:    
+  SwingTraderTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: swingtrader-loader
@@ -806,16 +802,19 @@ Resources:
       NetworkMode: awsvpc
       RequiresCompatibilities: [FARGATE]
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
-      TaskRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+
       ContainerDefinitions:
         - Name: swingtrader-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref SwingTraderImageTag]]
+          Image: !Join [ ":", [ !ImportValue StocksCore-ContainerRepositoryUri, !Ref SwingTraderImageTag ] ]
           Essential: true
-          Secrets:                   
+
+          Secrets:
             - Name: IBKR_USERNAME
               ValueFrom: !Ref IBKRUsernameSecretArn
             - Name: IBKR_PASSWORD
               ValueFrom: !Ref IBKRPasswordSecretArn
+
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -823,6 +822,7 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: "true"
+
 
   SwingTraderLoaderService:          
     Type: AWS::ECS::Service

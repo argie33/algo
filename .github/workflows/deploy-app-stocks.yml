@@ -14,8 +14,8 @@ env:
   AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
   AWS_ROLE_SESSION: github-deploy
   FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-  IBKR_USERNAME_SECRET_ARN: ${{ secrets.IBKR_USERNAME_SECRET_ARN }}
-  IBKR_PASSWORD_SECRET_ARN: ${{ secrets.IBKR_PASSWORD_SECRET_ARN }}
+  IBKR_USERNAME_SECRET_ARN: ${{ secrets.IBKR_USERNAME_SECRET_ARN }}    
+  IBKR_PASSWORD_SECRET_ARN: ${{ secrets.IBKR_PASSWORD_SECRET_ARN }}    
 
 jobs:
   ##########################################################################
@@ -234,11 +234,6 @@ jobs:
     if: ${{ needs.filter.outputs.any == 'true' }}
     runs-on: ubuntu-latest
 
-    # ensure the IBKR ARNs are in-scope for this job
-    env:
-      IBKR_USERNAME_SECRET_ARN: ${{ secrets.IBKR_USERNAME_SECRET_ARN }}
-      IBKR_PASSWORD_SECRET_ARN: ${{ secrets.IBKR_PASSWORD_SECRET_ARN }}
-
     steps:
       - uses: actions/checkout@v3
 
@@ -249,44 +244,24 @@ jobs:
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
+      - name: Debug IBKR ARNs               # <<< new
+        run: |
+          echo ">> IBKR_USERNAME_SECRET_ARN is: '$IBKR_USERNAME_SECRET_ARN'"
+          echo ">> IBKR_PASSWORD_SECRET_ARN is: '$IBKR_PASSWORD_SECRET_ARN'"
+
       - name: Fetch existing tags
         run: |
-          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then
-            for key in \
-              StockSymbolsImageTag EconDataImageTag FindataImageTag \
-              PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag \
-              TechnicalDailyImageTag LoadKeyStatsImageTag EarningsImageTag \
-              TechnicalsWeeklyImageTag TechnicalsMonthlyImageTag \
-              BuySellImageTag SwingTraderImageTag; do
-              echo "${key}=$(aws cloudformation describe-stacks \
-                --stack-name stocks-ecs-tasks-stack \
-                --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
-                --output text)" >> tags.env
-            done
-          fi
+          # … your existing fetch logic …
           cat tags.env
 
       - name: Download new tags
-        uses: actions/download-artifact@v4
-        with:
-          path: new-tags
+        # …
 
       - name: Merge tags
-        run: |
-          find new-tags -type f -name 'build_tag_*.txt' -print0 | \
-          while IFS= read -r -d '' f; do
-            kv=$(<"$f"); key=${kv%%=*}; val=${kv#*=}
-            if grep -q "^$key=" tags.env; then
-              sed -i "s|^$key=.*|$key=$val|" tags.env
-            else
-              echo "$key=$val" >> tags.env
-            fi
-          done
-          cat tags.env
+        # …
 
       - name: Deploy stack
         run: |
-          echo "Using IBKR ARNs: $IBKR_USERNAME_SECRET_ARN / $IBKR_PASSWORD_SECRET_ARN"
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
             --template-file template-app-ecs-tasks.yml \
