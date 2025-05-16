@@ -1,17 +1,26 @@
 # Use a slim Python base
-FROM python:3.9-slim
+FROM python:3.10-slim
 
 # Set working directory
 WORKDIR /app
 
-# Install the IB API
+# 1) Install OS-level build dependencies
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+         build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# 2) Upgrade pip and setuptools/wheel
+RUN pip install --upgrade pip setuptools wheel
+
+# 3) Copy & install Python requirements
 COPY requirements-swingtrader.txt .
 RUN pip install --no-cache-dir -r requirements-swingtrader.txt
 
-# Copy your trading script
+# 4) Copy your trading script
 COPY swingtrader.py .
 
-# Default environment variables (override in ECS / CI)
+# Default environment variables
 ENV IBKR_HOST=ibgateway \
     IBKR_PORT=4002 \
     IBKR_CLIENT_ID=1 \
