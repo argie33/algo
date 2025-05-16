@@ -88,6 +88,7 @@ Resources:
               - Effect: Allow
                 Action: logs:CreateLogGroup
                 Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/*"
+
         - PolicyName: AllowReadDBSecret
           PolicyDocument:
             Version: '2012-10-17'
@@ -98,6 +99,16 @@ Resources:
               - Effect: Allow
                 Action: kms:Decrypt
                 Resource: '*'
+
+        - PolicyName: AllowReadSwingTraderSecrets
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource:
+                  - !Ref IBKRUsernameSecret
+                  - !Ref IBKRPasswordSecret
 
   ########################################
   # B) CloudWatch Log Groups             #
