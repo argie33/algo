@@ -14,8 +14,8 @@ env:
   AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
   AWS_ROLE_SESSION: github-deploy
   FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-  IBKR_USERNAME_SECRET_ARN: ${{ secrets.IBKR_USERNAME_SECRET_ARN }}
-  IBKR_PASSWORD_SECRET_ARN: ${{ secrets.IBKR_PASSWORD_SECRET_ARN }}
+  IBKR_USERNAME: ${{ secrets.IBKR_USERNAME }}
+  IBKR_PASSWORD: ${{ secrets.IBKR_PASSWORD }}
 
 jobs:
   ##########################################################################
@@ -305,8 +305,8 @@ jobs:
               BuySellImageTag=$(grep '^BuySellImageTag=' tags.env | cut -d= -f2-) \
               SwingTraderImageTag=$(grep '^SwingTraderImageTag=' tags.env | cut -d= -f2-) \
               FREDApiKey=$FRED_API_KEY \
-              IBKRUsernameSecretArn=$IBKR_USERNAME_SECRET_ARN \
-              IBKRPasswordSecretArn=$IBKR_PASSWORD_SECRET_ARN \
+              IBKRUsername=$IBKR_USERNAME \
+              IBKRPassword=$IBKR_PASSWORD \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
 

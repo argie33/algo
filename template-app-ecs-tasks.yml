@@ -53,14 +53,15 @@ Parameters:
     Type: String
     NoEcho: true
     Description: FRED API key for econ-data loader
-  IBKRUsernameSecretArn:         
+  IBKRUsername:
     Type: String
     NoEcho: true
-    Description: ARN of the SecretsManager secret for IBKR username
-  IBKRPasswordSecretArn:      
+    Description: “Your IBKR username (passed from GitHub Secret)”
+
+  IBKRPassword:
     Type: String
     NoEcho: true
-    Description: ARN of the SecretsManager secret for IBKR password
+    Description: “Your IBKR password (passed from GitHub Secret)”
     
 Resources:
 
@@ -793,6 +794,18 @@ Resources:
   ########################################
   # O) swingtrader loader                #
   ########################################
+  IBKRUsernameSecret:
+  Type: AWS::SecretsManager::Secret
+  Properties:
+    Name: swingtrader/ibkr-username
+    SecretString: !Ref IBKRUsername
+
+  IBKRPasswordSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: swingtrader/ibkr-password
+      SecretString: !Ref IBKRPassword
+
   SwingTraderTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -811,9 +824,10 @@ Resources:
 
           Secrets:
             - Name: IBKR_USERNAME
-              ValueFrom: !Ref IBKRUsernameSecretArn
+              ValueFrom: !GetAtt IBKRUsernameSecret.Arn
             - Name: IBKR_PASSWORD
-              ValueFrom: !Ref IBKRPasswordSecretArn
+              ValueFrom: !GetAtt IBKRPasswordSecret.Arn
+
 
           LogConfiguration:
             LogDriver: awslogs
@@ -898,7 +912,11 @@ Outputs:
     Value: !Ref SwingTraderTaskDefinition
   SwingTraderServiceName:  
     Value: !GetAtt SwingTraderLoaderService.Name
-  IBKRUsernameSecretArn:  
-    Value: !Ref IBKRUsernameSecretArn
-  IBKRPasswordSecretArn:  
-    Value: !Ref IBKRPasswordSecretArn
+  IBKRUsername:
+    Type: String
+    NoEcho: true
+    Description: IBKR username
+  IBKRPassword:
+    Type: String
+    NoEcho: true
+    Description: IBKR password
