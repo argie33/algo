@@ -858,63 +858,68 @@ Outputs:
     Value: !Ref StockSymbolsTaskDefinition
   StockSymbolsServiceName:
     Value: !GetAtt StockSymbolsLoaderService.Name
+
   EconDataTaskDefArn:
     Value: !Ref EconDataTaskDefinition
   EconDataServiceName:
     Value: !GetAtt EconDataLoaderService.Name
+
   MonthlyPriceTaskDefArn:
     Value: !Ref MonthlyPriceTaskDefinition
   MonthlyPriceServiceName:
     Value: !GetAtt MonthlyPriceLoaderService.Name
+
   FindataTaskDefArn:
     Value: !Ref FindataTaskDefinition
   FindataServiceName:
     Value: !GetAtt FindataLoaderService.Name
+
   PriceTaskDefArn:
     Value: !Ref PriceTaskDefinition
   PriceServiceName:
     Value: !GetAtt PriceLoaderService.Name
+
   PriceWeeklyTaskDefArn:
     Value: !Ref PriceWeeklyTaskDefinition
   PriceWeeklyServiceName:
     Value: !GetAtt PriceWeeklyLoaderService.Name
+
   PricemonthlyTaskDefArn:
     Value: !Ref PricemonthlyTaskDefinition
   PricemonthlyServiceName:
     Value: !GetAtt PricemonthlyLoaderService.Name
+
   TechnicalDailyTaskDefArn:
     Value: !Ref TechnicalDailyTaskDefinition
   TechnicalDailyServiceName:
     Value: !GetAtt TechnicalDailyLoaderService.Name
+
   LoadKeyStatsTaskDefArn:
     Value: !Ref LoadKeyStatsTaskDefinition
   LoadKeyStatsServiceName:
     Value: !GetAtt LoadKeyStatsLoaderService.Name
+
   EarningsTaskDefArn:
     Value: !Ref EarningsTaskDefinition
   EarningsServiceName:
     Value: !GetAtt EarningsLoaderService.Name
+
   TechnicalsWeeklyTaskDefArn:
     Value: !Ref TechnicalsWeeklyTaskDefinition
   TechnicalsWeeklyServiceName:
     Value: !GetAtt TechnicalsWeeklyLoaderService.Name
+
   TechnicalsMonthlyTaskDefArn:
     Value: !Ref TechnicalsMonthlyTaskDefinition
   TechnicalsMonthlyServiceName:
     Value: !GetAtt TechnicalsMonthlyLoaderService.Name
+
   BuySellTaskDefArn:
     Value: !Ref BuySellTaskDefinition
   BuySellServiceName:
     Value: !GetAtt BuySellLoaderService.Name
-  SwingTraderTaskDefArn:   
+
+  SwingTraderTaskDefArn:
     Value: !Ref SwingTraderTaskDefinition
-  SwingTraderServiceName:  
+  SwingTraderServiceName:
     Value: !GetAtt SwingTraderLoaderService.Name
-  IBKRUsername:
-    Type: String
-    NoEcho: true
-    Description: IBKR username
-  IBKRPassword:
-    Type: String
-    NoEcho: true
-    Description: IBKR password
