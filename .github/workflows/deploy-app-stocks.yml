@@ -234,6 +234,11 @@ jobs:
     if: ${{ needs.filter.outputs.any == 'true' }}
     runs-on: ubuntu-latest
 
+    # ensure the IBKR ARNs are in-scope for this job
+    env:
+      IBKR_USERNAME_SECRET_ARN: ${{ secrets.IBKR_USERNAME_SECRET_ARN }}
+      IBKR_PASSWORD_SECRET_ARN: ${{ secrets.IBKR_PASSWORD_SECRET_ARN }}
+
     steps:
       - uses: actions/checkout@v3
 
@@ -281,6 +286,7 @@ jobs:
 
       - name: Deploy stack
         run: |
+          echo "Using IBKR ARNs: $IBKR_USERNAME_SECRET_ARN / $IBKR_PASSWORD_SECRET_ARN"
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
             --template-file template-app-ecs-tasks.yml \
@@ -538,20 +544,22 @@ jobs:
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
   run_swingtrader:
-      name: Run swingtrader loader
-      needs: deploy
-      if: ${{ needs.filter.outputs.swingtrader == 'true' }}
-      runs-on: ubuntu-latest
-      steps:
-        - uses: aws-actions/configure-aws-credentials@v4
-          with:
-            aws-region:      ${{ env.AWS_REGION }}
-            role-to-assume:  ${{ env.AWS_ROLE_ARN }}
-            role-session-name: ${{ env.AWS_ROLE_SESSION }}
-        - run: |
-            SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
-              --query "Stacks[0].Outputs[?OutputKey=='SwingTraderServiceName'].OutputValue" \
-              --output text)
-            aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
-            aws ecs wait services-stable  --cluster stocks-cluster --services "$SVC"
-            aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
+    name: Run swingtrader loader
+    needs: deploy
+    if: ${{ needs.filter.outputs.swingtrader == 'true' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:      ${{ env.AWS_REGION }}
+          role-to-assume:  ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - run: |
+          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='SwingTraderServiceName'].OutputValue" \
+            --output text)
+          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
+          aws ecs wait services-stable  --cluster stocks-cluster --services "$SVC"
+          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
