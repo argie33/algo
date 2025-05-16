@@ -19,7 +19,7 @@ env:
 
 jobs:
   ##########################################################################
-  # 1) Detect changed components         #
+  # 1) Detect changed components                                           #
   ##########################################################################
   filter:
     name: Detect changed components
@@ -38,7 +38,6 @@ jobs:
       technicalsmonthly: ${{ steps.paths.outputs.technicalsmonthly }}
       buysell:           ${{ steps.paths.outputs.buysell }}
       swingtrader:       ${{ steps.paths.outputs.swingtrader }}
-      stopdb_lambda:            ${{ steps.paths.outputs.stopdb_lambda }}
       any:               ${{ steps.any.outputs.any }}
       matrix:            ${{ steps.matrix.outputs.matrix }}
 
@@ -106,84 +105,64 @@ jobs:
               - swingtrader.py
               - requirements-swingtrader.txt
               - Dockerfile.swingtrader
-            stopdb_lambda:
-              - infra/lambdas/bastion_stop/db_schedule.py
 
       - id: any
         name: Any changes?
         run: |
-          for key in symbols econ findata pricedaily priceweekly pricemonthly \
-                     technicaldaily loadkeystats earnings technicalsweekly \
-                     technicalsmonthly buysell swingtrader lambda; do
-            if [ "${{ steps.paths.outputs[$key] }}" = "true" ]; then
-              echo "any=true" >> $GITHUB_OUTPUT
-              exit 0
-            fi
-          done
-          echo "any=false" >> $GITHUB_OUTPUT
+          if [ "${{ steps.paths.outputs.symbols }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.econ }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.findata }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.pricedaily }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.priceweekly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.pricemonthly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.technicaldaily }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.loadkeystats }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.earnings }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.technicalsweekly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.technicalsmonthly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.buysell }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.swingtrader }}" = "true" ]; then
+            echo "any=true" >> $GITHUB_OUTPUT
+          else
+            echo "any=false" >> $GITHUB_OUTPUT
+          fi
 
       - id: matrix
         name: Build matrix
+        env:
+          SYMBOLS:           ${{ steps.paths.outputs.symbols }}
+          ECON:              ${{ steps.paths.outputs.econ }}
+          FINDATA:           ${{ steps.paths.outputs.findata }}
+          PRICEDAILY:        ${{ steps.paths.outputs.pricedaily }}
+          PRICEWEEKLY:       ${{ steps.paths.outputs.priceweekly }}
+          PRICEMONTHLY:      ${{ steps.paths.outputs.pricemonthly }}
+          TECHNICALDAILY:    ${{ steps.paths.outputs.technicaldaily }}
+          LOADKEYSTATS:      ${{ steps.paths.outputs.loadkeystats }}
+          EARNINGS:          ${{ steps.paths.outputs.earnings }}
+          TECHNICALSWEEKLY:  ${{ steps.paths.outputs.technicalsweekly }}
+          TECHNICALSMONTHLY: ${{ steps.paths.outputs.technicalsmonthly }}
+          BUYSELL:           ${{ steps.paths.outputs.buysell }}
+          SWINGTRADER:       ${{ steps.paths.outputs.swingtrader }}
         run: |
           arr=""
-          [ "${{ steps.paths.outputs.symbols }}" = "true" ]         && arr="$arr,\"symbols\""
-          [ "${{ steps.paths.outputs.econ }}" = "true" ]            && arr="$arr,\"econ\""
-          [ "${{ steps.paths.outputs.findata }}" = "true" ]         && arr="$arr,\"findata\""
-          [ "${{ steps.paths.outputs.pricedaily }}" = "true" ]      && arr="$arr,\"pricedaily\""
-          [ "${{ steps.paths.outputs.priceweekly }}" = "true" ]     && arr="$arr,\"priceweekly\""
-          [ "${{ steps.paths.outputs.pricemonthly }}" = "true" ]    && arr="$arr,\"pricemonthly\""
-          [ "${{ steps.paths.outputs.technicaldaily }}" = "true" ]  && arr="$arr,\"technicaldaily\""
-          [ "${{ steps.paths.outputs.loadkeystats }}" = "true" ]    && arr="$arr,\"loadkeystats\""
-          [ "${{ steps.paths.outputs.earnings }}" = "true" ]        && arr="$arr,\"earnings\""
-          [ "${{ steps.paths.outputs.technicalsweekly }}" = "true" ]&& arr="$arr,\"technicalsweekly\""
-          [ "${{ steps.paths.outputs.technicalsmonthly }}" = "true" ]&& arr="$arr,\"technicalsmonthly\""
-          [ "${{ steps.paths.outputs.buysell }}" = "true" ]         && arr="$arr,\"buysell\""
-          [ "${{ steps.paths.outputs.swingtrader }}" = "true" ]     && arr="$arr,\"swingtrader\""
+          [ "$SYMBOLS" = "true" ]         && arr="$arr,\"symbols\""
+          [ "$ECON" = "true" ]            && arr="$arr,\"econ\""
+          [ "$FINDATA" = "true" ]         && arr="$arr,\"findata\""
+          [ "$PRICEDAILY" = "true" ]      && arr="$arr,\"pricedaily\""
+          [ "$PRICEWEEKLY" = "true" ]     && arr="$arr,\"priceweekly\""
+          [ "$PRICEMONTHLY" = "true" ]    && arr="$arr,\"pricemonthly\""
+          [ "$TECHNICALDAILY" = "true" ]  && arr="$arr,\"technicaldaily\""
+          [ "$LOADKEYSTATS" = "true" ]    && arr="$arr,\"loadkeystats\""
+          [ "$EARNINGS" = "true" ]        && arr="$arr,\"earnings\""
+          [ "$TECHNICALSWEEKLY" = "true" ]&& arr="$arr,\"technicalsweekly\""
+          [ "$TECHNICALSMONTHLY" = "true" ]&& arr="$arr,\"technicalsmonthly\""
+          [ "$BUYSELL" = "true" ]         && arr="$arr,\"buysell\""
+          [ "$SWINGTRADER" = "true" ]     && arr="$arr,\"swingtrader\""
           matrix="[${arr#,}]"
           echo "matrix=$matrix" >> $GITHUB_OUTPUT
 
   ##########################################################################
-  # 2) Upload Stop-DB Lambda to S3 (only if db_schedule.py changed)       #
-  ##########################################################################
-  upload-stop-db-lambda:
-    name: Upload Stop-DB Lambda to S3
-    needs: filter
-    if: ${{ needs.filter.outputs.stopdb_lambda == 'true' }}
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region:      ${{ env.AWS_REGION }}
-          role-to-assume:  ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - name: Get CodeBucketName from Core stack
-        id: codebucket
-        run: |
-          BUCKET=$(aws cloudformation describe-stacks \
-            --stack-name stocks-core-infra-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='CodeBucketName'].OutputValue" \
-            --output text)
-          echo "BUCKET=$BUCKET" >> $GITHUB_OUTPUT
-
-      - name: Package Stop-DB Lambda
-        run: |
-          zip -j stop_db_lambda.zip infra/lambdas/bastion_stop/db_schedule.py
-
-      - name: Upload stop_db_lambda.zip to S3
-        run: |
-          aws s3 cp stop_db_lambda.zip \
-            s3://${{ steps.codebucket.outputs.BUCKET }}/stop_db_lambda.zip
-
-  ##########################################################################
-  # 3) Build changed images                                                 #
+  # 2) Build changed images                                                 #
   ##########################################################################
   build:
     name: Build changed images
@@ -212,8 +191,8 @@ jobs:
           aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 || \
             aws ecr create-repository --repository-name "$REPO"
           URI=$(aws ecr describe-repositories \
-            --repository-names "$REPO" \
-            --query 'repositories[0].repositoryUri' --output text)
+                  --repository-names "$REPO" \
+                  --query 'repositories[0].repositoryUri' --output text)
           aws ecr get-login-password --region $AWS_REGION | \
             docker login --username AWS --password-stdin "$URI"
 
@@ -224,12 +203,12 @@ jobs:
             pricedaily)       DOCKERFILE=Dockerfile.pricedaily;     PARAM=PriceImageTag;;
             priceweekly)      DOCKERFILE=Dockerfile.priceweekly;    PARAM=PriceWeeklyImageTag;;
             pricemonthly)     DOCKERFILE=Dockerfile.pricemonthly;   PARAM=PriceMonthlyImageTag;;
-            technicaldaily)   DOCKERFILE=Dockerfile.technicalsdaily; PARAM=TechnicalDailyImageTag;;  
+            technicaldaily)   DOCKERFILE=Dockerfile.technicalsdaily; PARAM=TechnicalDailyImageTag;;
             loadkeystats)     DOCKERFILE=Dockerfile.loadkeystats;   PARAM=LoadKeyStatsImageTag;;
             earnings)         DOCKERFILE=Dockerfile.loadearnings;   PARAM=EarningsImageTag;;
             technicalsweekly) DOCKERFILE=Dockerfile.technicalsweekly;PARAM=TechnicalsWeeklyImageTag;;
             technicalsmonthly)DOCKERFILE=Dockerfile.technicalsmonthly;PARAM=TechnicalsMonthlyImageTag;;
-            buysell)          DOCKERFILE=Dockerfile.buysell;        PARAM=BuySellImageTag;;  
+            buysell)          DOCKERFILE=Dockerfile.buysell;        PARAM=BuySellImageTag;;
             swingtrader)      DOCKERFILE=Dockerfile.swingtrader;    PARAM=SwingTraderImageTag;;
           esac
 
@@ -238,13 +217,14 @@ jobs:
           docker push "$URI:$TAG"
           echo "${PARAM}=$TAG" > build_tag_${{ matrix.loader }}.txt
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload tag artifact
+        uses: actions/upload-artifact@v4
         with:
           name: build-tags-${{ matrix.loader }}
           path: build_tag_${{ matrix.loader }}.txt
 
   ##########################################################################
-  # 4) Deploy ECS CloudFormation                                           #
+  # 3) Deploy ECS CloudFormation                                           #
   ##########################################################################
   deploy:
     name: Deploy ECS CloudFormation
@@ -253,6 +233,8 @@ jobs:
       - build
     if: ${{ needs.filter.outputs.any == 'true' }}
     runs-on: ubuntu-latest
+
+    # ensure the IBKR ARNs are in-scope for this job
     env:
       IBKR_USERNAME_SECRET_ARN: ${{ secrets.IBKR_USERNAME_SECRET_ARN }}
       IBKR_PASSWORD_SECRET_ARN: ${{ secrets.IBKR_PASSWORD_SECRET_ARN }}
@@ -269,7 +251,7 @@ jobs:
 
       - name: Fetch existing tags
         run: |
-          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then  
+          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then
             for key in \
               StockSymbolsImageTag EconDataImageTag FindataImageTag \
               PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag \
@@ -278,31 +260,33 @@ jobs:
               BuySellImageTag SwingTraderImageTag; do
               echo "${key}=$(aws cloudformation describe-stacks \
                 --stack-name stocks-ecs-tasks-stack \
-                --query "Stacks[0].Parameters[?ParameterKey=='${key}'][0].ParameterValue" \
+                --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
                 --output text)" >> tags.env
             done
           fi
           cat tags.env
 
-      - uses: actions/download-artifact@v4
+      - name: Download new tags
+        uses: actions/download-artifact@v4
         with:
           path: new-tags
 
       - name: Merge tags
         run: |
           find new-tags -type f -name 'build_tag_*.txt' -print0 | \
-            while IFS= read -r -d '' f; do
-              kv=$(<"$f"); key=${kv%%=*}; val=${kv#*=}
-              if grep -q "^$key=" tags.env; then
-                sed -i "s|^$key=.*|$key=$val|" tags.env
-              else
-                echo "$key=$val" >> tags.env
-              fi
-            done
+          while IFS= read -r -d '' f; do
+            kv=$(<"$f"); key=${kv%%=*}; val=${kv#*=}
+            if grep -q "^$key=" tags.env; then
+              sed -i "s|^$key=.*|$key=$val|" tags.env
+            else
+              echo "$key=$val" >> tags.env
+            fi
+          done
           cat tags.env
 
       - name: Deploy stack
         run: |
+          echo "Using IBKR ARNs: $IBKR_USERNAME_SECRET_ARN / $IBKR_PASSWORD_SECRET_ARN"
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
             --template-file template-app-ecs-tasks.yml \
