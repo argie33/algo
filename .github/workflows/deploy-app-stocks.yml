@@ -14,6 +14,8 @@ env:
   AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
   AWS_ROLE_SESSION: github-deploy
   FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+  IBKR_USERNAME_SECRET_ARN: ${{ secrets.IBKR_USERNAME_SECRET_ARN }}
+  IBKR_PASSWORD_SECRET_ARN: ${{ secrets.IBKR_PASSWORD_SECRET_ARN }}
 
 jobs:
   ##########################################################################
@@ -35,6 +37,7 @@ jobs:
       technicalsweekly:  ${{ steps.paths.outputs.technicalsweekly }}
       technicalsmonthly: ${{ steps.paths.outputs.technicalsmonthly }}
       buysell:           ${{ steps.paths.outputs.buysell }}
+      swingtrader:       ${{ steps.paths.outputs.swingtrader }}
       any:               ${{ steps.any.outputs.any }}
       matrix:            ${{ steps.matrix.outputs.matrix }}
 
@@ -98,6 +101,10 @@ jobs:
               - loadbuysell.py
               - requirements-loadbuysell.txt
               - Dockerfile.buysell
+            swingtrader:
+              - swingtrader.py
+              - requirements-swingtrader.txt
+              - Dockerfile.swingtrader
 
       - id: any
         name: Any changes?
@@ -113,7 +120,8 @@ jobs:
              [ "${{ steps.paths.outputs.earnings }}" = "true" ] || \
              [ "${{ steps.paths.outputs.technicalsweekly }}" = "true" ] || \
              [ "${{ steps.paths.outputs.technicalsmonthly }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.buysell }}" = "true" ]; then
+             [ "${{ steps.paths.outputs.buysell }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.swingtrader }}" = "true" ]; then
             echo "any=true" >> $GITHUB_OUTPUT
           else
             echo "any=false" >> $GITHUB_OUTPUT
@@ -134,6 +142,7 @@ jobs:
           TECHNICALSWEEKLY:  ${{ steps.paths.outputs.technicalsweekly }}
           TECHNICALSMONTHLY: ${{ steps.paths.outputs.technicalsmonthly }}
           BUYSELL:           ${{ steps.paths.outputs.buysell }}
+          SWINGTRADER:       ${{ steps.paths.outputs.swingtrader }}
         run: |
           arr=""
           [ "$SYMBOLS" = "true" ]         && arr="$arr,\"symbols\""
@@ -148,6 +157,7 @@ jobs:
           [ "$TECHNICALSWEEKLY" = "true" ]&& arr="$arr,\"technicalsweekly\""
           [ "$TECHNICALSMONTHLY" = "true" ]&& arr="$arr,\"technicalsmonthly\""
           [ "$BUYSELL" = "true" ]         && arr="$arr,\"buysell\""
+          [ "$SWINGTRADER" = "true" ]     && arr="$arr,\"swingtrader\""
           matrix="[${arr#,}]"
           echo "matrix=$matrix" >> $GITHUB_OUTPUT
 
@@ -199,6 +209,7 @@ jobs:
             technicalsweekly) DOCKERFILE=Dockerfile.technicalsweekly;PARAM=TechnicalsWeeklyImageTag;;
             technicalsmonthly)DOCKERFILE=Dockerfile.technicalsmonthly;PARAM=TechnicalsMonthlyImageTag;;
             buysell)          DOCKERFILE=Dockerfile.buysell;        PARAM=BuySellImageTag;;
+            swingtrader)      DOCKERFILE=Dockerfile.swingtrader;    PARAM=SwingTraderImageTag;;
           esac
 
           TAG=${{ matrix.loader }}-${{ github.sha }}
@@ -241,7 +252,7 @@ jobs:
               PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag \
               TechnicalDailyImageTag LoadKeyStatsImageTag EarningsImageTag \
               TechnicalsWeeklyImageTag TechnicalsMonthlyImageTag \
-              BuySellImageTag; do
+              BuySellImageTag SwingTraderImageTag; do
               echo "${key}=$(aws cloudformation describe-stacks \
                 --stack-name stocks-ecs-tasks-stack \
                 --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
@@ -286,7 +297,10 @@ jobs:
               TechnicalsWeeklyImageTag=$(grep '^TechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsMonthlyImageTag=$(grep '^TechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-) \
               BuySellImageTag=$(grep '^BuySellImageTag=' tags.env | cut -d= -f2-) \
+              SwingTraderImageTag=$(grep '^SwingTraderImageTag=' tags.env | cut -d= -f2-) \
               FREDApiKey=$FRED_API_KEY \
+              IBKRUsernameSecretArn=$IBKR_USERNAME_SECRET_ARN \
+              IBKRPasswordSecretArn=$IBKR_PASSWORD_SECRET_ARN \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
 
@@ -522,3 +536,22 @@ jobs:
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
           aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
+
+  run_swingtrader:
+      name: Run swingtrader loader
+      needs: deploy
+      if: ${{ needs.filter.outputs.swingtrader == 'true' }}
+      runs-on: ubuntu-latest
+      steps:
+        - uses: aws-actions/configure-aws-credentials@v4
+          with:
+            aws-region:      ${{ env.AWS_REGION }}
+            role-to-assume:  ${{ env.AWS_ROLE_ARN }}
+            role-session-name: ${{ env.AWS_ROLE_SESSION }}
+        - run: |
+            SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+              --query "Stacks[0].Outputs[?OutputKey=='SwingTraderServiceName'].OutputValue" \
+              --output text)
+            aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
+            aws ecs wait services-stable  --cluster stocks-cluster --services "$SVC"
+            aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
