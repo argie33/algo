@@ -5,6 +5,7 @@ import logging
 from datetime import datetime
 import json
 import os
+import gc
 
 import boto3
 import psycopg2
@@ -125,16 +126,15 @@ logging.info(f"Found {len(etf_symbols)} ETF symbols.")
 # -------------------------------
 # Fetch Function with retry delay
 # -------------------------------
-MAX_RETRIES      = 3
-RETRY_DELAY      = 2    # pause between retries
-RATE_LIMIT_DELAY = 0.2  # pause between each symbol fetch
+MAX_RETRIES = 3
+RETRY_DELAY = 2  # seconds between retries
 
 def fetch_daily_data(symbol, start_date, end_date):
     yf_sym = symbol.replace('.', '-')
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             ticker = yf.Ticker(yf_sym)
-            df     = ticker.history(
+            df = ticker.history(
                 start=start_date,
                 end=end_date,
                 interval="1d",
@@ -169,15 +169,12 @@ def fetch_daily_data(symbol, start_date, end_date):
     return None
 
 # -------------------------------
-# Main Loop: Stocks then ETFs
+# Insert helper
 # -------------------------------
-start = "1800-01-01"
-end   = datetime.now().strftime("%Y-%m-%d")
-
 def load_group(symbols, table_name):
     for idx, sym in enumerate(symbols, start=1):
         logging.info(f"[{idx}/{len(symbols)}] Fetching {sym} into {table_name}")
-        data = fetch_daily_data(sym, start, end)
+        data = fetch_daily_data(sym, "1800-01-01", datetime.now().strftime("%Y-%m-%d"))
         if data is None:
             continue
 
@@ -186,7 +183,7 @@ def load_group(symbols, table_name):
         ]].where(pd.notnull(data), None)
 
         rows = list(df_to_insert.itertuples(index=False, name=None))
-        sql  = f"""
+        sql = f"""
         INSERT INTO {table_name}
           (symbol, date, open, high, low, close, volume, dividends, stock_splits)
         VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
@@ -198,13 +195,28 @@ def load_group(symbols, table_name):
         except Exception as e:
             logging.error(f"DB error for {sym}: {e}")
 
-        # throttle to avoid OOM / rate limits
-        time.sleep(RATE_LIMIT_DELAY)
+# -------------------------------
+# Batch processing
+# -------------------------------
+BATCH_SIZE = 200
 
-# Load stock prices
-load_group(stock_symbols, "price_data_daily")
-# Load ETF prices
-load_group(etf_symbols,  "price_data_daily_etf")
+def process_in_batches(symbols, table_name):
+    total = len(symbols)
+    for start_idx in range(0, total, BATCH_SIZE):
+        batch = symbols[start_idx:start_idx + BATCH_SIZE]
+        batch_num = (start_idx // BATCH_SIZE) + 1
+        logging.info(f"Starting batch {batch_num}: symbols {start_idx+1}-{start_idx+len(batch)} of {total}")
+        load_group(batch, table_name)
+        logging.info(f"Batch {batch_num} complete; running garbage collection")
+        gc.collect()
+        # optional: small pause between batches to give the container a breath
+        # time.sleep(5)
+
+# -------------------------------
+# Run: Stocks then ETFs
+# -------------------------------
+process_in_batches(stock_symbols, "price_data_daily")
+process_in_batches(etf_symbols,  "price_data_daily_etf")
 
 # -------------------------------
 # Record this run
