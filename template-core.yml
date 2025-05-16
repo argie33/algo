@@ -321,7 +321,7 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Description: Scale bastion down at 6 PM CT daily
-      ScheduleExpression: cron(0 23 * * ? *)
+      ScheduleExpression: cron(59 4 * * ? *)
       State: ENABLED
       Targets:
         - Arn: !GetAtt BastionStopFunction.Arn
