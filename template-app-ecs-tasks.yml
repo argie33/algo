@@ -795,10 +795,10 @@ Resources:
   # O) swingtrader loader                #
   ########################################
   IBKRUsernameSecret:
-  Type: AWS::SecretsManager::Secret
-  Properties:
-    Name: swingtrader/ibkr-username
-    SecretString: !Ref IBKRUsername
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: swingtrader/ibkr-username
+      SecretString: !Ref IBKRUsername
 
   IBKRPasswordSecret:
     Type: AWS::SecretsManager::Secret
@@ -828,7 +828,6 @@ Resources:
             - Name: IBKR_PASSWORD
               ValueFrom: !GetAtt IBKRPasswordSecret.Arn
 
-
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -837,8 +836,7 @@ Resources:
               awslogs-stream-prefix: ecs
               awslogs-create-group: "true"
 
-
-  SwingTraderLoaderService:          
+  SwingTraderLoaderService:
     Type: AWS::ECS::Service
     Properties:
       ServiceName: swingtrader-loader-service

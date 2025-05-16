@@ -10,7 +10,7 @@ from ibapi.wrapper import EWrapper
 from ibapi.contract import Contract
 from ibapi.order import Order
 
-# ─── Configuration via ENV ──────────────────────────────────────────────────
+# ─── Configuration via ENV ────────────────────────────────────────────────── 
 IB_HOST        = os.getenv("IBKR_HOST", "host.docker.internal")
 IB_PORT        = int(os.getenv("IBKR_PORT", 4002))            # default Gateway paper 
 IB_CLIENT_ID   = int(os.getenv("IBKR_CLIENT_ID", 1))
