@@ -29,10 +29,6 @@ logging.basicConfig(
 DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
 
 def get_db_config():
-    """
-    Fetch host, port, dbname, username & password from Secrets Manager.
-    SecretString must be JSON with keys: username, password, host, port, dbname.
-    """
     client = boto3.client("secretsmanager")
     resp = client.get_secret_value(SecretId=DB_SECRET_ARN)
     sec = json.loads(resp["SecretString"])
@@ -127,11 +123,11 @@ etf_symbols = [row['symbol'] for row in cursor.fetchall()]
 logging.info(f"Found {len(etf_symbols)} ETF symbols.")
 
 # -------------------------------
-# Fetch Function
+# Fetch Function with retry delay
 # -------------------------------
 MAX_RETRIES      = 3
-RETRY_DELAY      = 5
-RATE_LIMIT_DELAY = 0.0
+RETRY_DELAY      = 2    # pause between retries
+RATE_LIMIT_DELAY = 0.2  # pause between each symbol fetch
 
 def fetch_daily_data(symbol, start_date, end_date):
     yf_sym = symbol.replace('.', '-')
@@ -202,6 +198,7 @@ def load_group(symbols, table_name):
         except Exception as e:
             logging.error(f"DB error for {sym}: {e}")
 
+        # throttle to avoid OOM / rate limits
         time.sleep(RATE_LIMIT_DELAY)
 
 # Load stock prices
