@@ -234,7 +234,7 @@ def update_last_updated():
     conn.close()
 
 # -------------------------------
-# Main
+# Main 
 # -------------------------------
 if __name__ == "__main__":
     create_key_stats_table()

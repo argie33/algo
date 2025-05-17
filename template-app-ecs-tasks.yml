@@ -588,9 +588,12 @@ Resources:
     Properties:
       Family: loadkeystats-loader
       Cpu: "1024"
-      Memory: "4096"
+      Memory: "2048"
       NetworkMode: awsvpc
       RequiresCompatibilities: [FARGATE]
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
