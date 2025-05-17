@@ -154,7 +154,7 @@ if __name__ == "__main__":
     """)
     log_mem("after DDL")
 
-    # 3) Fetch all symbols
+    # 3) Fetch all symbols 
     cur.execute("SELECT symbol FROM stock_symbols;")
     symbols = [row[0] for row in cur.fetchall()]
     mapping = {s.replace('.', '-').lower(): s for s in symbols}
