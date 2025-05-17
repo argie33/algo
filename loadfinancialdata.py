@@ -7,8 +7,8 @@ import math
 import logging
 from urllib3.util import Retry
 from requests import Session
+from requests.adapters import HTTPAdapter
 from yahooquery import Ticker
-from yahooquery.utils import TimeoutHTTPAdapter
 import boto3
 import psycopg2
 from psycopg2.extras import execute_values, DictCursor
@@ -120,12 +120,16 @@ def update_last_run(conn):
 # MAIN
 # ──────────────────────────────────────────────────────────────────────────────
 def main():
-    # 1) Build a shared HTTP session with timeout & retry
+    # 1) Build a shared HTTP session with retry only—
+    #    timeouts are handled by Ticker(timeout=…)
     session = Session()
-    adapter = TimeoutHTTPAdapter(
-        max_retries=Retry(total=2, backoff_factor=1),
-        timeout=10.0
+    retry_strategy = Retry(
+        total=2,
+        backoff_factor=1,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["HEAD", "GET", "OPTIONS"]
     )
+    adapter = HTTPAdapter(max_retries=retry_strategy)
     session.mount("http://", adapter)
     session.mount("https://", adapter)
 
@@ -165,12 +169,14 @@ def main():
 
     # 6) Process in chunks
     for batch in chunk_list(symbols, CHUNK_SIZE):
-        # a) Fetch in parallel via yahooquery
         ticker = Ticker(
             [s.upper().replace(".", "-") for s in batch],
-            session=session,
             asynchronous=True,
-            max_workers=MAX_WORKERS
+            max_workers=MAX_WORKERS,
+            retry=2,            # number of retries
+            backoff_factor=1,   # seconds between retries: 1,2,4…
+            timeout=10,         # per‐request timeout in seconds :contentReference[oaicite:0]{index=0}
+            session=session     # advanced: use our retry‐configured session
         )
         raw_data = ticker.financial_data  # dict: {SYMBOL: {...}}
         rows     = []
@@ -192,12 +198,11 @@ def main():
               SET {update_clause}, fetched_at = NOW();
             """
             with conn.cursor() as cur:
-                execute_values(cur, sql, rows, template=None, page_size=100)
+                execute_values(cur, sql, rows, page_size=100)
             conn.commit()
             logging.info(f"Upserted {len(rows)} rows in this batch")
 
-        # a small pause between batches to be gentle on API
-        time.sleep(1)
+        time.sleep(1)  # pause between batches
 
     # 7) Record last run & finish
     update_last_run(conn)
