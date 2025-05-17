@@ -5,39 +5,32 @@ import logging
 import functools
 import os
 import sys
+import math
+import gc
 
 import boto3
 import psycopg2
 from psycopg2.extras import DictCursor
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util import Timeout
-from urllib3.util.retry import Retry
-
 from yahooquery import Ticker
 from yahooquery.utils import TimeoutHTTPAdapter
 
-import pandas as pd
-import math
-
 # -------------------------------
-# Script metadata 
+# Script metadata & configuration
 # -------------------------------
 SCRIPT_NAME = "loadfinancialdata.py"
-
-# -------------------------------
-# Environment-driven configuration
-# -------------------------------
 DB_SECRET_ARN = os.getenv("DB_SECRET_ARN")
+if not DB_SECRET_ARN:
+    logging.error("DB_SECRET_ARN not set; aborting")
+    sys.exit(1)
 
-# --- Logging setup: output to both file and stdout for ECS to capture ---
+# ──────────────────
+# Logging setup
+# ──────────────────
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s:%(message)s",
-    handlers=[
-        logging.FileHandler("loadfinancialdata.log"),
-        logging.StreamHandler(sys.stdout),
-    ]
+    handlers=[logging.StreamHandler(sys.stdout)]
 )
 
 def get_db_config():
@@ -50,11 +43,11 @@ def get_db_config():
         sec["password"],
         sec["host"],
         int(sec["port"]),
-        sec["dbname"]
+        sec["dbname"],
     )
 
 def retry(max_attempts=3, initial_delay=2, backoff=2):
-    """Retry decorator with exponential backoff."""
+    """Retry decorator with exponential backoff on any RequestException or other Exception."""
     def decorator(f):
         @functools.wraps(f)
         def wrapper(symbol, *args, **kwargs):
@@ -75,11 +68,9 @@ def retry(max_attempts=3, initial_delay=2, backoff=2):
     return decorator
 
 def ensure_tables(conn):
-    """Drop and recreate the financial_data table, plus ensure last_updated exists."""
+    """Drop & recreate financial_data; ensure last_updated exists."""
     with conn.cursor() as cur:
-        # drop the data table if it exists
         cur.execute("DROP TABLE IF EXISTS financial_data;")
-        # now create fresh financial_data
         cur.execute("""
             CREATE TABLE financial_data (
               symbol               VARCHAR(20) PRIMARY KEY,
@@ -116,7 +107,6 @@ def ensure_tables(conn):
               fetched_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
         """)
-        # last_updated we keep around, so only create if missing
         cur.execute("""
             CREATE TABLE IF NOT EXISTS last_updated (
               script_name   VARCHAR(255) PRIMARY KEY,
@@ -125,13 +115,12 @@ def ensure_tables(conn):
         """)
     conn.commit()
 
-def clean_row(row):
-    """Convert NaN or pandas NAs to None."""
+def clean_row(data_dict):
+    """Convert any float NaNs to None, leave other values intact."""
     clean = {}
-    for k, v in row.items():
-        if isinstance(v, float) and math.isnan(v):
-            clean[k] = None
-        elif pd.isna(v):
+    for k, v in data_dict.items():
+        # NaN is the only float where v != v
+        if isinstance(v, float) and v != v:
             clean[k] = None
         else:
             clean[k] = v
@@ -139,57 +128,59 @@ def clean_row(row):
 
 @retry(max_attempts=3)
 def process_symbol(symbol, conn):
-    """Fetch from yahooquery & upsert into PostgreSQL, skipping symbols with no data."""
+    """Fetch from yahooquery & upsert into PostgreSQL, skipping if no data."""
     yq_symbol = symbol.upper().replace(".", "-")
     ticker = Ticker(yq_symbol, asynchronous=False)
 
-    # mount adapter with explicit timeout
-    adapter = TimeoutHTTPAdapter(
-        max_retries=Retry(total=2, backoff_factor=1),
-        timeout=10.0
-    )
+    # mount a timeout adapter
+    adapter = TimeoutHTTPAdapter(max_retries=2, timeout=10.0)
     ticker.session.mount("https://", adapter)
     ticker.session.mount("http://", adapter)
 
     raw = ticker.financial_data.get(yq_symbol)
     if raw is None:
         logging.warning(f"No financial_data for {symbol}; skipping")
-        return
-
-    if not isinstance(raw, dict):
+    elif not isinstance(raw, dict):
         raise ValueError(f"Bad payload for {symbol}: {raw!r}")
+    else:
+        data = {k.lower(): v for k, v in raw.items()}
+        row = clean_row(data)
 
-    data = {k.lower(): v for k, v in raw.items()}
-    row = clean_row(data)
+        cols = [
+            "symbol","maxage","currentprice","targethighprice","targetlowprice",
+            "targetmeanprice","targetmedianprice","recommendationmean","recommendationkey",
+            "numberofanalystopinions","totalcash","totalcashpershare","ebitda","totaldebt",
+            "quickratio","currentratio","totalrevenue","debttoequity","revenuepershare",
+            "returnonassets","returnonequity","grossprofits","freecashflow","operatingcashflow",
+            "earningsgrowth","revenuegrowth","grossmargins","ebitdamargins","operatingmargins",
+            "profitmargins","financialcurrency"
+        ]
+        values = [row.get(c) for c in cols[1:]]
+        placeholders = ", ".join(["%s"] * len(cols))
+        updates = ", ".join(f"{c}=EXCLUDED.{c}" for c in cols[1:])
+        diff_conds = " OR ".join(
+            f"financial_data.{c} IS DISTINCT FROM EXCLUDED.{c}" for c in cols[1:]
+        )
 
-    cols = [
-        "symbol","maxage","currentprice","targethighprice","targetlowprice",
-        "targetmeanprice","targetmedianprice","recommendationmean","recommendationkey",
-        "numberofanalystopinions","totalcash","totalcashpershare","ebitda","totaldebt",
-        "quickratio","currentratio","totalrevenue","debttoequity","revenuepershare",
-        "returnonassets","returnonequity","grossprofits","freecashflow","operatingcashflow",
-        "earningsgrowth","revenuegrowth","grossmargins","ebitdamargins","operatingmargins",
-        "profitmargins","financialcurrency"
-    ]
-    values = [row.get(c) for c in cols[1:]]
-    placeholders = ", ".join(["%s"] * len(cols))
-    updates = ", ".join([f"{c}=EXCLUDED.{c}" for c in cols[1:]])
+        sql = f"""
+            INSERT INTO financial_data ({','.join(cols)})
+            VALUES ({placeholders})
+            ON CONFLICT(symbol) DO UPDATE
+              SET {updates}, fetched_at = NOW()
+              WHERE {diff_conds};
+        """
+        with conn.cursor() as cur:
+            cur.execute(sql, [symbol] + values)
+        conn.commit()
+        logging.info(f"✅ upserted {symbol}")
 
-    diff_conds = " OR ".join(
-        f"financial_data.{c} IS DISTINCT FROM EXCLUDED.{c}" for c in cols[1:]
-    )
-
-    sql = f"""
-        INSERT INTO financial_data ({','.join(cols)})
-        VALUES ({placeholders})
-        ON CONFLICT(symbol) DO UPDATE
-          SET {updates}, fetched_at = NOW()
-          WHERE {diff_conds};
-    """
-    with conn.cursor() as cur:
-        cur.execute(sql, [symbol] + values)
-    conn.commit()
-    logging.info(f"✅ upserted {symbol}")
+    # teardown to free memory
+    try:
+        ticker.session.close()
+    except Exception:
+        pass
+    del ticker, raw, data, row
+    gc.collect()
 
 def update_last_run(conn):
     with conn.cursor() as cur:
@@ -209,21 +200,21 @@ def main():
         user=user,
         password=pwd,
         dbname=dbname,
-        sslmode="require",
-        cursor_factory=DictCursor
+        sslmode="require"
     )
 
     ensure_tables(conn)
 
-    with conn.cursor() as cur:
+    # stream symbols one at a time via a named cursor
+    with conn.cursor(name="symbol_cursor") as cur:
+        cur.itersize = 100
         cur.execute("SELECT symbol FROM stock_symbols;")
-        symbols = [r["symbol"] for r in cur.fetchall()]
-
-    for s in symbols:
-        try:
-            process_symbol(s, conn)
-        except Exception as e:
-            logging.error(f"Failed symbol {s}: {e}", exc_info=True)
+        for rec in cur:
+            symbol = rec[0]
+            try:
+                process_symbol(symbol, conn)
+            except Exception as e:
+                logging.error(f"Failed symbol {symbol}: {e}", exc_info=True)
 
     update_last_run(conn)
     conn.close()
