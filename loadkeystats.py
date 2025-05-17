@@ -161,7 +161,7 @@ if __name__ == "__main__":
     log_mem("after fetching symbols")
 
     # 4) Process in small batches with GC tuning
-    CHUNK_SIZE = 5    # adjust to your available memory
+    CHUNK_SIZE = 10    # adjust to your available memory
     PAUSE      = 0.1  # adjust to your rate-limit budget
     ts_fields = [
         "sharesShortPreviousMonthDate","dateShortInterest",
