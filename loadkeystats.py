@@ -14,7 +14,7 @@ import boto3
 import psycopg2
 
 # -------------------------------
-# Script metadata & logging setup 
+# Script metadata & logging setup
 # -------------------------------
 SCRIPT_NAME = "loadkeystats.py"
 logging.basicConfig(
