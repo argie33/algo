@@ -26,11 +26,9 @@ logging.basicConfig(
 )
 
 # -------------------------------
-# Configuration
+# Environment-driven configuration
 # -------------------------------
 DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
-BATCH_SIZE     = int(os.getenv("BATCH_SIZE", "100"))  # symbols per API call
-PAUSE_BETWEEN_BATCHES = float(os.getenv("PAUSE_BETWEEN_BATCHES", "0.5"))
 
 def get_db_config():
     """
@@ -38,8 +36,8 @@ def get_db_config():
     SecretString must be JSON with keys: username, password, host, port, dbname.
     """
     client = boto3.client("secretsmanager")
-    resp   = client.get_secret_value(SecretId=DB_SECRET_ARN)
-    sec    = json.loads(resp["SecretString"])
+    resp = client.get_secret_value(SecretId=DB_SECRET_ARN)
+    sec = json.loads(resp["SecretString"])
     return (
         sec["username"],
         sec["password"],
@@ -66,7 +64,7 @@ def pg_connect():
 # -------------------------------
 def create_key_stats_table():
     conn = pg_connect()
-    cur  = conn.cursor()
+    cur = conn.cursor()
     logging.info("Dropping table key_stats if it exists.")
     cur.execute("DROP TABLE IF EXISTS key_stats;")
     logging.info("Creating table key_stats.")
@@ -124,7 +122,8 @@ def retry(max_attempts=3, initial_delay=2, backoff=2):
     def decorator_retry(func):
         @functools.wraps(func)
         def wrapper_retry(*args, **kwargs):
-            attempts, delay = 0, initial_delay
+            attempts = 0
+            delay = initial_delay
             while attempts < max_attempts:
                 try:
                     return func(*args, **kwargs)
@@ -165,7 +164,7 @@ def clean_row(row):
     return out
 
 # -------------------------------
-# Insert function (unchanged)
+# Insert function
 # -------------------------------
 def insert_key_stat(rec, symbol, conn):
     rec = clean_row(rec)
@@ -181,42 +180,38 @@ def insert_key_stat(rec, symbol, conn):
         "lastSplitDate","enterpriseToRevenue","enterpriseToEbitda","week52Change","sp52WeekChange"
     ]
     placeholders = ", ".join(["%s"] * len(cols))
-    col_list     = ", ".join(cols)
-    vals         = [symbol] + [rec.get(c) for c in cols[1:]]
-    sql          = f"INSERT INTO key_stats ({col_list}) VALUES ({placeholders});"
+    col_list = ", ".join(cols)
+    vals = [symbol] + [rec.get(c) for c in cols[1:]]
+    sql = f"INSERT INTO key_stats ({col_list}) VALUES ({placeholders});"
     cur.execute(sql, vals)
     cur.close()
 
 # -------------------------------
-# Batch-fetch & process 
+# Per‑symbol processing
 # -------------------------------
 @retry(max_attempts=3, initial_delay=2, backoff=2)
-def process_batch(symbols, conn):
-    """
-    Fetch key_stats for a list of symbols in one Ticker() call,
-    clean & insert each record into key_stats.
-    """
-    # yahooquery expects lower‐case, dots→dashes
-    yqs = [s.replace('.', '-').lower() for s in symbols]
-    logging.info(f"Fetching key_stats for batch of {len(symbols)} symbols...")
-    data = Ticker(yqs).key_stats
+def process_symbol(symbol):
+    yq = symbol.replace('.', '-').lower()
+    logging.info(f"Fetching key stats for {symbol}")
+    data = Ticker(yq).key_stats
+    rec = data.get(yq)
+    if not isinstance(rec, dict):
+        logging.warning(f"No or invalid key_stats for {symbol}")
+        return
 
-    for sym, yq in zip(symbols, yqs):
-        rec = data.get(yq)
-        if not isinstance(rec, dict):
-            logging.warning(f"No or invalid key_stats for {sym}")
-            continue
+    for fld in [
+        "sharesShortPreviousMonthDate","dateShortInterest",
+        "lastFiscalYearEnd","nextFiscalYearEnd",
+        "mostRecentQuarter","lastSplitDate"
+    ]:
+        rec[fld] = parse_ts(rec.get(fld))
 
-        # parse all timestamp fields
-        for fld in [
-            "sharesShortPreviousMonthDate","dateShortInterest",
-            "lastFiscalYearEnd","nextFiscalYearEnd",
-            "mostRecentQuarter","lastSplitDate"
-        ]:
-            rec[fld] = parse_ts(rec.get(fld))
-
-        insert_key_stat(rec, sym, conn)
-        logging.info(f"Inserted key_stats for {sym}")
+    conn = pg_connect()
+    try:
+        insert_key_stat(rec, symbol, conn)
+        logging.info(f"Inserted key stats for {symbol}")
+    finally:
+        conn.close()
 
 # -------------------------------
 # Update last_updated stamp
@@ -239,7 +234,6 @@ def update_last_updated():
 if __name__ == "__main__":
     create_key_stats_table()
 
-    # load all symbols once
     conn = pg_connect()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     cur.execute("SELECT DISTINCT symbol FROM stock_symbols;")
@@ -247,16 +241,12 @@ if __name__ == "__main__":
     cur.close()
     conn.close()
 
-    # process symbols in batches
-    conn = pg_connect()
-    for i in range(0, len(symbols), BATCH_SIZE):
-        batch = symbols[i : i + BATCH_SIZE]
+    for sym in symbols:
         try:
-            process_batch(batch, conn)
-        except Exception as e:
-            logging.error(f"Batch {i//BATCH_SIZE+1} failed: {e}")
-        time.sleep(PAUSE_BETWEEN_BATCHES)
+            process_symbol(sym)
+        except Exception:
+            pass
+        time.sleep(0.1)
 
-    conn.close()
     update_last_updated()
     logging.info("All symbols processed.")
