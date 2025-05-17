@@ -2,21 +2,19 @@
 import sys
 import time
 import logging
-import functools
 import json
 import os
-
-import requests
-import pandas as pd
 import math
-from yahooquery import Ticker
+import gc
+from datetime import datetime
 
+import psutil
+from yahooquery import Ticker
 import boto3
 import psycopg2
-from psycopg2.extras import RealDictCursor
 
 # -------------------------------
-# Script metadata & logging setup 
+# Script metadata & logging setup
 # -------------------------------
 SCRIPT_NAME = "loadkeystats.py"
 logging.basicConfig(
@@ -26,54 +24,89 @@ logging.basicConfig(
 )
 
 # -------------------------------
-# Environment-driven configuration
+# Memory‐logging helper
 # -------------------------------
-DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
-
-def get_db_config():
-    """
-    Fetch host, port, dbname, username & password from Secrets Manager.
-    SecretString must be JSON with keys: username, password, host, port, dbname.
-    """
-    client = boto3.client("secretsmanager")
-    resp = client.get_secret_value(SecretId=DB_SECRET_ARN)
-    sec = json.loads(resp["SecretString"])
-    return (
-        sec["username"],
-        sec["password"],
-        sec["host"],
-        int(sec["port"]),
-        sec["dbname"]
-    )
+_process = psutil.Process()
+def log_mem(stage: str):
+    mb = _process.memory_info().rss / (1024 * 1024)
+    logging.info(f"[MEM] {stage}: {mb:.1f} MB RSS")
 
 # -------------------------------
-# DB connect helper
+# Timestamp parsing without pandas
 # -------------------------------
-def pg_connect():
-    user, pwd, host, port, db = get_db_config()
+def parse_ts(value):
+    if isinstance(value, (int, float)):
+        try:
+            return datetime.utcfromtimestamp(value)
+        except:
+            return None
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value)
+        except:
+            try:
+                return datetime.utcfromtimestamp(float(value))
+            except:
+                return None
+    return None
+
+# -------------------------------
+# Nullify NaNs in place
+# -------------------------------
+def clean_row(rec):
+    for k, v in list(rec.items()):
+        if isinstance(v, float) and math.isnan(v):
+            rec[k] = None
+    return rec
+
+# -------------------------------
+# Batch insert helper
+# -------------------------------
+KEY_STATS_COLUMNS = [
+    "symbol","maxAge","priceHint","enterpriseValue","forwardPE","profitMargins",
+    "floatShares","sharesOutstanding","sharesShort","sharesShortPriorMonth",
+    "sharesShortPreviousMonthDate","dateShortInterest","sharesPercentSharesOut",
+    "heldPercentInsiders","heldPercentInstitutions","shortRatio","shortPercentOfFloat",
+    "beta","category","bookValue","priceToBook","fundFamily","legalType",
+    "lastFiscalYearEnd","nextFiscalYearEnd","mostRecentQuarter","earningsQuarterlyGrowth",
+    "netIncomeToCommon","trailingEps","forwardEps","pegRatio","lastSplitFactor",
+    "lastSplitDate","enterpriseToRevenue","enterpriseToEbitda","week52Change","sp52WeekChange"
+]
+PLACEHOLDERS = ", ".join(["%s"] * len(KEY_STATS_COLUMNS))
+COL_LIST    = ", ".join(KEY_STATS_COLUMNS)
+
+def insert_key_stats(cursor, rec, symbol):
+    vals = [symbol] + [rec.get(col) for col in KEY_STATS_COLUMNS[1:]]
+    sql = f"INSERT INTO key_stats ({COL_LIST}) VALUES ({PLACEHOLDERS});"
+    cursor.execute(sql, vals)
+
+# -------------------------------
+# Main
+# -------------------------------
+if __name__ == "__main__":
+    log_mem("startup")
+
+    # 1) Load DB creds once
+    secret_arn = os.environ["DB_SECRET_ARN"]
+    sm = boto3.client("secretsmanager")
+    sec = json.loads(sm.get_secret_value(SecretId=secret_arn)["SecretString"])
     conn = psycopg2.connect(
-        host=host, port=port,
-        user=user, password=pwd,
-        dbname=db
+        host=sec["host"], port=int(sec["port"]),
+        user=sec["username"], password=sec["password"],
+        dbname=sec["dbname"]
     )
     conn.autocommit = True
-    return conn
-
-# -------------------------------
-# Create key_stats table
-# -------------------------------
-def create_key_stats_table():
-    conn = pg_connect()
     cur = conn.cursor()
-    logging.info("Dropping table key_stats if it exists.")
+
+    # 2) (Re)create key_stats table
+    logging.info("Recreating key_stats table…")
+    log_mem("before DDL")
     cur.execute("DROP TABLE IF EXISTS key_stats;")
-    logging.info("Creating table key_stats.")
-    cur.execute("""
+    cur.execute(f"""
     CREATE TABLE key_stats (
         id SERIAL PRIMARY KEY,
-        symbol VARCHAR(10),
-        maxAge INT,
-        priceHint INT,
+        maxAge DOUBLE PRECISION,
+        priceHint DOUBLE PRECISION,
         enterpriseValue DOUBLE PRECISION,
         forwardPE DOUBLE PRECISION,
         profitMargins DOUBLE PRECISION,
@@ -108,145 +141,72 @@ def create_key_stats_table():
         enterpriseToEbitda DOUBLE PRECISION,
         week52Change DOUBLE PRECISION,
         sp52WeekChange DOUBLE PRECISION,
+        symbol VARCHAR(10),
         fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     """)
-    cur.close()
-    conn.close()
-    logging.info("key_stats table ready.")
+    log_mem("after DDL")
 
-# -------------------------------
-# Retry decorator
-# -------------------------------
-def retry(max_attempts=3, initial_delay=2, backoff=2):
-    def decorator_retry(func):
-        @functools.wraps(func)
-        def wrapper_retry(*args, **kwargs):
-            attempts = 0
-            delay = initial_delay
-            while attempts < max_attempts:
-                try:
-                    return func(*args, **kwargs)
-                except Exception as e:
-                    attempts += 1
-                    logging.error(
-                        f"Attempt {attempts} for {func.__name__} failed: {e}",
-                        exc_info=True
-                    )
-                    time.sleep(delay)
-                    delay *= backoff
-            raise
-        return wrapper_retry
-    return decorator_retry
+    # 3) Fetch all symbols
+    cur.execute("SELECT symbol FROM stock_symbols;")
+    symbols = [row[0] for row in cur.fetchall()]
+    mapping = {s.replace('.', '-').lower(): s for s in symbols}
+    log_mem("after fetching symbols")
 
-# -------------------------------
-# Helpers to parse & clean
-# -------------------------------
-def parse_ts(value):
-    try:
-        if isinstance(value, (int, float)):
-            dt = pd.to_datetime(value, unit='s', errors='coerce')
-        else:
-            dt = pd.to_datetime(value, errors='coerce')
-        return dt.to_pydatetime() if not pd.isna(dt) else None
-    except:
-        return None
-
-def clean_row(row):
-    out = {}
-    for k, v in row.items():
-        if isinstance(v, float) and math.isnan(v):
-            out[k] = None
-        elif pd.isna(v):
-            out[k] = None
-        else:
-            out[k] = v
-    return out
-
-# -------------------------------
-# Insert function
-# -------------------------------
-def insert_key_stat(rec, symbol, conn):
-    rec = clean_row(rec)
-    cur = conn.cursor()
-    cols = [
-        "symbol","maxAge","priceHint","enterpriseValue","forwardPE","profitMargins",
-        "floatShares","sharesOutstanding","sharesShort","sharesShortPriorMonth",
-        "sharesShortPreviousMonthDate","dateShortInterest","sharesPercentSharesOut",
-        "heldPercentInsiders","heldPercentInstitutions","shortRatio","shortPercentOfFloat",
-        "beta","category","bookValue","priceToBook","fundFamily","legalType",
-        "lastFiscalYearEnd","nextFiscalYearEnd","mostRecentQuarter","earningsQuarterlyGrowth",
-        "netIncomeToCommon","trailingEps","forwardEps","pegRatio","lastSplitFactor",
-        "lastSplitDate","enterpriseToRevenue","enterpriseToEbitda","week52Change","sp52WeekChange"
-    ]
-    placeholders = ", ".join(["%s"] * len(cols))
-    col_list = ", ".join(cols)
-    vals = [symbol] + [rec.get(c) for c in cols[1:]]
-    sql = f"INSERT INTO key_stats ({col_list}) VALUES ({placeholders});"
-    cur.execute(sql, vals)
-    cur.close()
-
-# -------------------------------
-# Per‑symbol processing
-# -------------------------------
-@retry(max_attempts=3, initial_delay=2, backoff=2)
-def process_symbol(symbol):
-    yq = symbol.replace('.', '-').lower()
-    logging.info(f"Fetching key stats for {symbol}")
-    data = Ticker(yq).key_stats
-    rec = data.get(yq)
-    if not isinstance(rec, dict):
-        logging.warning(f"No or invalid key_stats for {symbol}")
-        return
-
-    for fld in [
+    # 4) Process in small batches with GC tuning
+    CHUNK_SIZE = 5    # adjust to your available memory
+    PAUSE      = 0.1  # adjust to your rate-limit budget
+    ts_fields = [
         "sharesShortPreviousMonthDate","dateShortInterest",
         "lastFiscalYearEnd","nextFiscalYearEnd",
         "mostRecentQuarter","lastSplitDate"
-    ]:
-        rec[fld] = parse_ts(rec.get(fld))
+    ]
 
-    conn = pg_connect()
-    try:
-        insert_key_stat(rec, symbol, conn)
-        logging.info(f"Inserted key stats for {symbol}")
-    finally:
-        conn.close()
+    total_batches = (len(symbols) + CHUNK_SIZE - 1) // CHUNK_SIZE
+    for i in range(total_batches):
+        start = i * CHUNK_SIZE
+        end   = start + CHUNK_SIZE
+        batch    = symbols[start:end]
+        yq_batch = [s.replace('.', '-').lower() for s in batch]
 
-# -------------------------------
-# Update last_updated stamp
-# -------------------------------
-def update_last_updated():
-    conn = pg_connect()
-    cur  = conn.cursor()
+        logging.info(f"Batch {i+1}/{total_batches}: symbols {start+1}–{min(end,len(symbols))}")
+        log_mem(f"batch {i+1} start")
+
+        # fetch from Yahooquery
+        ticker = Ticker(yq_batch)
+        data   = ticker.key_stats
+        log_mem(f"after Ticker load")
+
+        # tight insert loop with GC off
+        gc.disable()
+        try:
+            for yq, rec in data.items():
+                orig = mapping.get(yq)
+                if not orig or not isinstance(rec, dict):
+                    continue
+                for fld in ts_fields:
+                    rec[fld] = parse_ts(rec.get(fld))
+                rec = clean_row(rec)
+                insert_key_stats(cur, rec, orig)
+        finally:
+            gc.enable()
+
+        # teardown and collect
+        del data, ticker, batch, yq_batch
+        gc.collect()
+        log_mem(f"batch {i+1} end")
+
+        time.sleep(PAUSE)
+
+    # 5) Update last_run
     cur.execute("""
         INSERT INTO last_updated (script_name, last_run)
         VALUES (%s, NOW())
         ON CONFLICT (script_name) DO UPDATE
           SET last_run = EXCLUDED.last_run;
     """, (SCRIPT_NAME,))
+    log_mem("just before exit")
+
     cur.close()
     conn.close()
-
-# -------------------------------
-# Main
-# -------------------------------
-if __name__ == "__main__":
-    create_key_stats_table()
-
-    conn = pg_connect()
-    cur  = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("SELECT DISTINCT symbol FROM stock_symbols;")
-    symbols = [r["symbol"] for r in cur.fetchall()]
-    cur.close()
-    conn.close()
-
-    for sym in symbols:
-        try:
-            process_symbol(sym)
-        except Exception:
-            pass
-        time.sleep(0.1)
-
-    update_last_updated()
     logging.info("All symbols processed.")
