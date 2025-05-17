@@ -1,13 +1,22 @@
-# Dockerfile.keystats
-FROM python:3.9-slim
+FROM python:3.10-slim
 
-WORKDIR /app
+# 1) Install OS build-deps for any C-extensions (e.g. psycopg2, numpy, etc.)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      build-essential \
+      gcc \
+      libpq-dev \
+      libssl-dev \
+      libffi-dev && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+# 2) Copy your requirements
 COPY requirements-loadkeystats.txt .
+
+# 3) Now pip can compile/install everything
 RUN pip install --no-cache-dir -r requirements-loadkeystats.txt
 
-# Copy script
+# 4) Copy the rest of your app
 COPY loadkeystats.py .
 
-ENTRYPOINT ["python", "loadkeystats.py"]
+CMD ["python", "loadkeystats.py"]
