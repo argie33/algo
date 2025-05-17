@@ -452,37 +452,18 @@ jobs:
     if: ${{ needs.filter.outputs.loadkeystats == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region:      ${{ env.AWS_REGION }}
-          role-to-assume:  ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - name: Spin up loadkeystats, wait, then spin down
-        run: |
-          # Get the Service name from CFN Outputs
-          SVC=$(aws cloudformation describe-stacks \
-            --stack-name stocks-ecs-tasks-stack \
+      - run: |
+          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='LoadKeyStatsServiceName'].OutputValue" \
             --output text)
-
-          # Scale up to 1
-          aws ecs update-service \
-            --cluster stocks-cluster \
-            --service "$SVC" \
-            --desired-count 1
-
-          # Wait until it’s running (script is executing)
-          aws ecs wait services-stable \
-            --cluster stocks-cluster \
-            --services "$SVC"
-
-          # Once finished, scale back down to 0
-          aws ecs update-service \
-            --cluster stocks-cluster \
-            --service "$SVC" \
-            --desired-count 0
+          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
+          aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
+          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
   run_earnings:
     name: Run earnings loader
