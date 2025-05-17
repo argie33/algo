@@ -6,7 +6,7 @@ import json
 import os
 import math
 import gc
-import resource              # <— standard library
+import resource
 from datetime import datetime
 
 from yahooquery import Ticker
@@ -14,7 +14,7 @@ import boto3
 import psycopg2
 
 # -------------------------------
-# Script metadata & logging setup 
+# Script metadata & logging setup
 # -------------------------------
 SCRIPT_NAME = "loadkeystats.py"
 logging.basicConfig(
@@ -28,11 +28,9 @@ logging.basicConfig(
 # -------------------------------
 def get_rss_mb():
     usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    # Linux: ru_maxrss is in kilobytes. macOS: bytes.
     if sys.platform.startswith("linux"):
         return usage / 1024
-    else:
-        return usage / (1024 * 1024)
+    return usage / (1024 * 1024)
 
 def log_mem(stage: str):
     mb = get_rss_mb()
@@ -43,18 +41,13 @@ def log_mem(stage: str):
 # -------------------------------
 def parse_ts(value):
     if isinstance(value, (int, float)):
-        try:
-            return datetime.utcfromtimestamp(value)
-        except:
-            return None
+        try:    return datetime.utcfromtimestamp(value)
+        except: return None
     if isinstance(value, str):
-        try:
-            return datetime.fromisoformat(value)
+        try:    return datetime.fromisoformat(value)
         except:
-            try:
-                return datetime.utcfromtimestamp(float(value))
-            except:
-                return None
+            try:    return datetime.utcfromtimestamp(float(value))
+            except: return None
     return None
 
 # -------------------------------
@@ -154,66 +147,95 @@ if __name__ == "__main__":
     """)
     log_mem("after DDL")
 
-    # 3) Fetch all symbols 
+    # 3) Fetch all symbols
     cur.execute("SELECT symbol FROM stock_symbols;")
     symbols = [row[0] for row in cur.fetchall()]
     mapping = {s.replace('.', '-').lower(): s for s in symbols}
     log_mem("after fetching symbols")
 
     # 4) Process in small batches with GC tuning
-    CHUNK_SIZE = 10    # adjust to your available memory
-    PAUSE      = 0.1  # adjust to your rate-limit budget
+    CHUNK_SIZE = 10    # tune to your memory
+    PAUSE      = 0.1   # tune to your rate limits
     ts_fields = [
         "sharesShortPreviousMonthDate","dateShortInterest",
         "lastFiscalYearEnd","nextFiscalYearEnd",
         "mostRecentQuarter","lastSplitDate"
     ]
 
-    total_batches = (len(symbols) + CHUNK_SIZE - 1) // CHUNK_SIZE
+    total = len(symbols)
+    inserted = 0
+    failed = []
+
+    total_batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
     for i in range(total_batches):
         start = i * CHUNK_SIZE
-        end   = start + CHUNK_SIZE
-        batch    = symbols[start:end]
+        end   = min(start + CHUNK_SIZE, total)
+        batch = symbols[start:end]
         yq_batch = [s.replace('.', '-').lower() for s in batch]
 
-        logging.info(f"Batch {i+1}/{total_batches}: symbols {start+1}–{min(end,len(symbols))}")
+        logging.info(f"Batch {i+1}/{total_batches}: symbols {start+1}–{end}")
         log_mem(f"batch {i+1} start")
 
-        ticker = Ticker(yq_batch)
-        data   = ticker.key_stats
+        try:
+            ticker = Ticker(yq_batch)
+            data   = ticker.key_stats
+        except Exception as e:
+            logging.error(f"Ticker fetch failed for batch {i+1}: {e}", exc_info=True)
+            failed.extend(batch)
+            continue
+
         log_mem("after Ticker load")
 
         gc.disable()
         try:
             for yq, rec in data.items():
                 orig = mapping.get(yq)
-                if not orig or not isinstance(rec, dict):
+                if not orig:
+                    logging.warning(f"No mapping for yahoo-key '{yq}' – skipping")
+                    failed.append(yq)
                     continue
+
+                if not isinstance(rec, dict):
+                    logging.warning(f"Bad record for '{orig}': {rec!r}")
+                    failed.append(orig)
+                    continue
+
                 for fld in ts_fields:
                     rec[fld] = parse_ts(rec.get(fld))
+
                 rec = clean_row(rec)
-                insert_key_stats(cur, rec, orig)
+
+                try:
+                    insert_key_stats(cur, rec, orig)
+                    logging.info(f"Inserted key_stats for {orig}")
+                    inserted += 1
+                except Exception as e:
+                    logging.error(f"Failed to insert {orig}: {e}", exc_info=True)
+                    failed.append(orig)
         finally:
             gc.enable()
 
+        # teardown & pause
         del data, ticker, batch, yq_batch
         gc.collect()
         log_mem(f"batch {i+1} end")
-
         time.sleep(PAUSE)
 
     # 5) Update last_run
     cur.execute("""
-        INSERT INTO last_updated (script_name, last_run)
-        VALUES (%s, NOW())
-        ON CONFLICT (script_name) DO UPDATE
-          SET last_run = EXCLUDED.last_run;
+      INSERT INTO last_updated (script_name, last_run)
+      VALUES (%s, NOW())
+      ON CONFLICT (script_name) DO UPDATE
+        SET last_run = EXCLUDED.last_run;
     """, (SCRIPT_NAME,))
 
-    # 6) Final peak memory log
+    # 6) Final peak memory log & summary
     peak_mb = get_rss_mb()
     logging.info(f"[MEM] peak RSS during run: {peak_mb:.1f} MB")
+    logging.info(f"Total symbols: {total}, inserted: {inserted}, failed: {len(failed)}")
+    if failed:
+        logging.warning("Failed symbols: %s", ", ".join(failed))
 
     cur.close()
     conn.close()
-    logging.info("All symbols processed.")
+    logging.info("All done.")

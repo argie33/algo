@@ -352,7 +352,7 @@ jobs:
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
   run_findata:
-    name: Run findata one-off task
+    name: Run findata task
     needs: deploy
     if: ${{ needs.filter.outputs.findata == 'true' }}
     runs-on: ubuntu-latest
@@ -513,7 +513,7 @@ jobs:
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
   run_loadkeystats:
-    name: Run loadkeystats one-off task
+    name: Run loadkeystats task
     needs: deploy
     if: ${{ needs.filter.outputs.loadkeystats == 'true' }}
     runs-on: ubuntu-latest

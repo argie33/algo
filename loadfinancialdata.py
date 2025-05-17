@@ -130,44 +130,68 @@ if __name__ == "__main__":
     # 3) Fetch all symbols
     cur.execute("SELECT symbol FROM stock_symbols;")
     symbols = [row[0] for row in cur.fetchall()]
-    # map yahooquery format back to original
     mapping = {s.upper().replace('.', '-'): s for s in symbols}
+    total_symbols = len(symbols)
     log_mem("after fetching symbols")
 
-    # 4) Process in small batches with GC tuning
-    CHUNK_SIZE = 10    # tune this to your RAM
-    PAUSE      = 0.1   # tune to avoid API 429s
-    total_batches = (len(symbols) + CHUNK_SIZE - 1) // CHUNK_SIZE
+    # prepare counters
+    inserted = 0
+    failed = []
 
-    for i in range(total_batches):
-        start = i * CHUNK_SIZE
-        end   = start + CHUNK_SIZE
-        batch    = symbols[start:end]
+    # 4) Process in small batches with GC tuning
+    CHUNK_SIZE = 10    # tune to your RAM
+    PAUSE      = 0.1   # tune to avoid API 429s
+    total_batches = (total_symbols + CHUNK_SIZE - 1) // CHUNK_SIZE
+
+    for batch_idx in range(total_batches):
+        start = batch_idx * CHUNK_SIZE
+        end   = min(start + CHUNK_SIZE, total_symbols)
+        batch = symbols[start:end]
         yq_batch = [s.upper().replace('.', '-') for s in batch]
 
-        logging.info(f"Batch {i+1}/{total_batches}: symbols {start+1}–{min(end,len(symbols))}")
-        log_mem(f"batch {i+1} start")
+        logging.info(f"Batch {batch_idx+1}/{total_batches}: symbols {start+1}–{end}")
+        log_mem(f"batch {batch_idx+1} start")
 
-        ticker = Ticker(yq_batch)
-        data   = ticker.financial_data
+        try:
+            ticker = Ticker(yq_batch)
+            data   = ticker.financial_data
+        except Exception as e:
+            logging.error(f"Ticker fetch failed for batch {batch_idx+1}: {e}", exc_info=True)
+            failed.extend(batch)
+            continue
+
         log_mem("after Ticker load")
 
         gc.disable()
         try:
             for yq_sym, rec in data.items():
                 orig = mapping.get(yq_sym)
-                if not orig or not isinstance(rec, dict):
+                if not orig:
+                    logging.warning(f"No mapping for '{yq_sym}'; skipping")
+                    failed.append(yq_sym)
                     continue
+
+                if not isinstance(rec, dict):
+                    logging.warning(f"Bad record for '{orig}': {rec!r}")
+                    failed.append(orig)
+                    continue
+
                 rec = clean_row(rec)
-                insert_fin_data(cur, rec, orig)
+                logging.info(f"Processing {orig}")
+                try:
+                    insert_fin_data(cur, rec, orig)
+                    logging.info(f"Inserted data for {orig}")
+                    inserted += 1
+                except Exception as ex:
+                    logging.error(f"Insert failed for {orig}: {ex}", exc_info=True)
+                    failed.append(orig)
         finally:
             gc.enable()
 
-        # clean up before next batch
+        # teardown & pause
         del data, ticker, batch, yq_batch
         gc.collect()
-        log_mem(f"batch {i+1} end")
-
+        log_mem(f"batch {batch_idx+1} end")
         time.sleep(PAUSE)
 
     # 5) Update last_run
@@ -179,9 +203,12 @@ if __name__ == "__main__":
     """, (SCRIPT_NAME,))
     log_mem("after last_updated")
 
-    # 6) Final peak memory log
+    # 6) Final peak memory log & summary
     peak_mb = get_rss_mb()
     logging.info(f"[MEM] peak RSS during run: {peak_mb:.1f} MB")
+    logging.info(f"Total symbols: {total_symbols}, inserted: {inserted}, failed: {len(failed)}")
+    if failed:
+        logging.warning("Failed symbols: %s", ", ".join(failed[:50]) + ("…" if len(failed)>50 else ""))
 
     cur.close()
     conn.close()
