@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
 """
-Alpaca paper-trading (mock) order placer.
-Reads API credentials and order parameters from environment,
+Alpaca paper-trading order placer.
+Reads PAPER API credentials and order parameters from environment,
 submits a single order, logs response, then exits.
 """
 
 import os
 import sys
 import logging
-from alpaca_trade_api.rest import REST, TimeFrame, APIError
+from alpaca_trade_api.rest import REST, APIError
 
 # ─── Configuration via ENV ──────────────────────────────────────────────────
-ALPACA_API_KEY     = os.getenv("ALPACA_API_KEY")
-ALPACA_SECRET_KEY  = os.getenv("ALPACA_SECRET_KEY")
-# default to Alpaca paper trading URL
-ALPACA_BASE_URL    = os.getenv("ALPACA_BASE_URL", "https://paper-api.alpaca.markets")
+ALPACA_PAPER_API_KEY     = os.getenv("ALPACA_PAPER_API_KEY")
+ALPACA_PAPER_SECRET_KEY  = os.getenv("ALPACA_PAPER_SECRET_KEY")
+ALPACA_BASE_URL          = "https://paper-api.alpaca.markets"  # fixed to paper
 
 SYMBOL             = os.getenv("ALPACA_SYMBOL", "AAPL")
 ACTION             = os.getenv("ALPACA_ACTION", "buy").lower()   # "buy" or "sell"
@@ -33,9 +32,10 @@ logger = logging.getLogger(__name__)
 
 def validate_env():
     missing = []
-    for var in ("ALPACA_API_KEY", "ALPACA_SECRET_KEY"):
-        if not globals().get(var):
-            missing.append(var)
+    if not ALPACA_PAPER_API_KEY:
+        missing.append("ALPACA_PAPER_API_KEY")
+    if not ALPACA_PAPER_SECRET_KEY:
+        missing.append("ALPACA_PAPER_SECRET_KEY")
     if missing:
         logger.error(f"Missing required environment variables: {', '.join(missing)}")
         sys.exit(1)
@@ -57,11 +57,11 @@ def build_order_params():
 
 def main():
     validate_env()
-    logger.info(f"Connecting to Alpaca at {ALPACA_BASE_URL!r} using key {ALPACA_API_KEY[:4]}...")
+    logger.info(f"Connecting to Alpaca PAPER at {ALPACA_BASE_URL!r}…")
 
     api = REST(
-        key_id=ALPACA_API_KEY,
-        secret_key=ALPACA_SECRET_KEY,
+        key_id=ALPACA_PAPER_API_KEY,
+        secret_key=ALPACA_PAPER_SECRET_KEY,
         base_url=ALPACA_BASE_URL,
         api_version='v2'
     )
@@ -75,10 +75,10 @@ def main():
         sys.exit(1)
 
     logger.info(f"[ORDER SUBMITTED] id={order.id} status={order.status}")
-    logger.info(f"Filled qty: {order.filled_qty}, remaining: {order.qty - float(order.filled_qty)}")
+    logger.info(f"Filled qty: {order.filled_qty}, remaining: {float(order.qty) - float(order.filled_qty)}")
     logger.info(f"Submitted at: {order.submitted_at}")
 
-    # Optionally, fetch and print full order details
+    # Fetch and print full order details
     full = api.get_order(order.id)
     logger.info(f"[ORDER DETAILS] {full}")
 
