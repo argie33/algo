@@ -41,13 +41,18 @@ def log_mem(stage: str):
 # -------------------------------
 def parse_ts(value):
     if isinstance(value, (int, float)):
-        try:    return datetime.utcfromtimestamp(value)
-        except: return None
-    if isinstance(value, str):
-        try:    return datetime.fromisoformat(value)
+        try:
+            return datetime.utcfromtimestamp(value)
         except:
-            try:    return datetime.utcfromtimestamp(float(value))
-            except: return None
+            return None
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value)
+        except:
+            try:
+                return datetime.utcfromtimestamp(float(value))
+            except:
+                return None
     return None
 
 # -------------------------------
@@ -58,6 +63,12 @@ def clean_row(rec):
         if isinstance(v, float) and math.isnan(v):
             rec[k] = None
     return rec
+
+# -------------------------------
+# Batch‐level retry config
+# -------------------------------
+MAX_BATCH_RETRIES = 3
+RETRY_DELAY       = 5   # seconds between retries on Invalid Crumb
 
 # -------------------------------
 # Batch insert helper
@@ -98,11 +109,11 @@ if __name__ == "__main__":
     conn.autocommit = True
     cur = conn.cursor()
 
-    # 2) (Re)create key_stats table
+    # 2) (Re)create key_stats table with explicit DDL
     logging.info("Recreating key_stats table…")
     log_mem("before DDL")
     cur.execute("DROP TABLE IF EXISTS key_stats;")
-    cur.execute(f"""
+    cur.execute("""
     CREATE TABLE key_stats (
         id SERIAL PRIMARY KEY,
         maxAge DOUBLE PRECISION,
@@ -151,47 +162,64 @@ if __name__ == "__main__":
     cur.execute("SELECT symbol FROM stock_symbols;")
     symbols = [row[0] for row in cur.fetchall()]
     mapping = {s.replace('.', '-').lower(): s for s in symbols}
+    total = len(symbols)
     log_mem("after fetching symbols")
 
-    # 4) Process in small batches with GC tuning
-    CHUNK_SIZE = 10    # tune to your memory
-    PAUSE      = 0.1   # tune to your rate limits
+    # Prepare counters
+    inserted = 0
+    failed = []
+
+    # 4) Process in small batches with GC tuning + retry
+    CHUNK_SIZE = 10    # tweak to your memory
+    PAUSE      = 0.1   # tweak to your rate limits
     ts_fields = [
         "sharesShortPreviousMonthDate","dateShortInterest",
         "lastFiscalYearEnd","nextFiscalYearEnd",
         "mostRecentQuarter","lastSplitDate"
     ]
-
-    total = len(symbols)
-    inserted = 0
-    failed = []
-
     total_batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
-    for i in range(total_batches):
-        start = i * CHUNK_SIZE
+
+    for batch_idx in range(total_batches):
+        start = batch_idx * CHUNK_SIZE
         end   = min(start + CHUNK_SIZE, total)
         batch = symbols[start:end]
         yq_batch = [s.replace('.', '-').lower() for s in batch]
 
-        logging.info(f"Batch {i+1}/{total_batches}: symbols {start+1}–{end}")
-        log_mem(f"batch {i+1} start")
+        # Batch‐level retry loop
+        for attempt in range(1, MAX_BATCH_RETRIES+1):
+            logging.info(f"Batch {batch_idx+1}/{total_batches} – attempt {attempt}")
+            log_mem(f"batch {batch_idx+1} attempt {attempt} start")
 
-        try:
             ticker = Ticker(yq_batch)
             data   = ticker.key_stats
-        except Exception as e:
-            logging.error(f"Ticker fetch failed for batch {i+1}: {e}", exc_info=True)
+
+            # Detect “Invalid Crumb”
+            if any(isinstance(rec, str) and "Invalid Crumb" in rec for rec in data.values()):
+                logging.warning(f"Invalid Crumb in batch {batch_idx+1}, retrying in {RETRY_DELAY}s…")
+                try:
+                    ticker._session.cookies.clear()
+                except Exception:
+                    pass
+                time.sleep(RETRY_DELAY)
+                continue
+
+            # No crumb error → proceed
+            break
+        else:
+            # All attempts failed
+            logging.error(f"Batch {batch_idx+1} failed after {MAX_BATCH_RETRIES} attempts")
             failed.extend(batch)
             continue
 
         log_mem("after Ticker load")
 
+        # Per-symbol insert
         gc.disable()
         try:
             for yq, rec in data.items():
                 orig = mapping.get(yq)
                 if not orig:
-                    logging.warning(f"No mapping for yahoo-key '{yq}' – skipping")
+                    logging.warning(f"No mapping for '{yq}'; skipping")
                     failed.append(yq)
                     continue
 
@@ -210,15 +238,15 @@ if __name__ == "__main__":
                     logging.info(f"Inserted key_stats for {orig}")
                     inserted += 1
                 except Exception as e:
-                    logging.error(f"Failed to insert {orig}: {e}", exc_info=True)
+                    logging.error(f"Insert failed for {orig}: {e}", exc_info=True)
                     failed.append(orig)
         finally:
             gc.enable()
 
-        # teardown & pause
+        # Teardown & pause
         del data, ticker, batch, yq_batch
         gc.collect()
-        log_mem(f"batch {i+1} end")
+        log_mem(f"batch {batch_idx+1} end")
         time.sleep(PAUSE)
 
     # 5) Update last_run
@@ -234,7 +262,7 @@ if __name__ == "__main__":
     logging.info(f"[MEM] peak RSS during run: {peak_mb:.1f} MB")
     logging.info(f"Total symbols: {total}, inserted: {inserted}, failed: {len(failed)}")
     if failed:
-        logging.warning("Failed symbols: %s", ", ".join(failed))
+        logging.warning("Failed symbols: %s", ", ".join(failed[:50]) + ("…" if len(failed) > 50 else ""))
 
     cur.close()
     conn.close()
