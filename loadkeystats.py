@@ -6,9 +6,9 @@ import json
 import os
 import math
 import gc
+import resource              # <— standard library
 from datetime import datetime
 
-import psutil
 from yahooquery import Ticker
 import boto3
 import psycopg2
@@ -24,11 +24,18 @@ logging.basicConfig(
 )
 
 # -------------------------------
-# Memory‐logging helper
+# Memory‐logging helper (RSS in MB)
 # -------------------------------
-_process = psutil.Process()
+def get_rss_mb():
+    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    # Linux: ru_maxrss is in kilobytes. macOS: bytes.
+    if sys.platform.startswith("linux"):
+        return usage / 1024
+    else:
+        return usage / (1024 * 1024)
+
 def log_mem(stage: str):
-    mb = _process.memory_info().rss / (1024 * 1024)
+    mb = get_rss_mb()
     logging.info(f"[MEM] {stage}: {mb:.1f} MB RSS")
 
 # -------------------------------
@@ -172,12 +179,10 @@ if __name__ == "__main__":
         logging.info(f"Batch {i+1}/{total_batches}: symbols {start+1}–{min(end,len(symbols))}")
         log_mem(f"batch {i+1} start")
 
-        # fetch from Yahooquery
         ticker = Ticker(yq_batch)
         data   = ticker.key_stats
-        log_mem(f"after Ticker load")
+        log_mem("after Ticker load")
 
-        # tight insert loop with GC off
         gc.disable()
         try:
             for yq, rec in data.items():
@@ -191,7 +196,6 @@ if __name__ == "__main__":
         finally:
             gc.enable()
 
-        # teardown and collect
         del data, ticker, batch, yq_batch
         gc.collect()
         log_mem(f"batch {i+1} end")
@@ -205,7 +209,10 @@ if __name__ == "__main__":
         ON CONFLICT (script_name) DO UPDATE
           SET last_run = EXCLUDED.last_run;
     """, (SCRIPT_NAME,))
-    log_mem("just before exit")
+
+    # 6) Final peak memory log
+    peak_mb = get_rss_mb()
+    logging.info(f"[MEM] peak RSS during run: {peak_mb:.1f} MB")
 
     cur.close()
     conn.close()
