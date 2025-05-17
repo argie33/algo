@@ -137,7 +137,7 @@ def load_group(symbols, table_name, cursor):
         logging.error(f"[DB error] batch insert into {table_name}: {e}")
 
 # -------------------------------
-# Batch processing orchestrator
+# Batch processing orchestrator 
 # -------------------------------
 BATCH_SIZE = 10
 PAUSE = 0.1  # seconds between batches
