@@ -447,32 +447,62 @@ jobs:
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
   run_loadkeystats:
-    name: Run loadkeystats one-off task
+    name: Run loadkeystats
     needs: deploy
     if: ${{ needs.filter.outputs.loadkeystats == 'true' }}
     runs-on: ubuntu-latest
+
     steps:
-      - name: Configure AWS creds
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region:      ${{ env.AWS_REGION }}
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Run task and wait for completion
+      - name: Fetch LoadKeyStats TaskDef ARN
+        id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='LoadKeyStatsTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch public subnet IDs
+        id: subnets
+        run: |
+          S1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          S2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          echo "SUB1=$S1" >> $GITHUB_OUTPUT
+          echo "SUB2=$S2" >> $GITHUB_OUTPUT
+
+      - name: Run loadkeystats Fargate task
         run: |
           TASK_ARN=$(aws ecs run-task \
             --cluster stocks-cluster \
             --launch-type FARGATE \
-            --task-definition LoadKeyStatsTaskDefinition \
+            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
             --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[subnet-aaa,subnet-bbb],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.subnets.outputs.SUB1 }},${{ steps.subnets.outputs.SUB2 }}],assignPublicIp=ENABLED}" \
             --query 'tasks[0].taskArn' --output text)
           echo "🟢 Started task: $TASK_ARN"
-          aws ecs wait tasks-stopped --cluster stocks-cluster --tasks "$TASK_ARN"
+
+          # wait for it to finish
+          aws ecs wait tasks-stopped \
+            --cluster stocks-cluster \
+            --tasks "$TASK_ARN"
+
+          # grab and propagate its exit code
           EXIT=$(aws ecs describe-tasks \
-            --cluster stocks-cluster --tasks "$TASK_ARN" \
-            --query 'tasks[0].containers[0].exitCode' --output text)
+            --cluster stocks-cluster \
+            --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
           echo "→ Exit code: $EXIT"
           if [ "$EXIT" -ne 0 ]; then
             echo "❌ loadkeystats failed"
