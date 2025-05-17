@@ -1,8 +1,7 @@
 # 1) Start from slim Python
 FROM python:3.10-slim
 
-# 2) Install OS packages needed for psycopg2 (and any other C-extensions)
-USER root
+# 2) Install OS packages needed for psycopg2 (and any C extensions)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       gcc \
@@ -10,19 +9,22 @@ RUN apt-get update && \
       build-essential && \
     rm -rf /var/lib/apt/lists/*
 
-# 3) Create and switch to a non-root app user
-RUN addgroup --system app && adduser --system --ingroup app app
-USER app
+# 3) Create a non-root user and home directory
+RUN addgroup --system app && \
+    adduser --system --ingroup app --home /home/app app
 
 WORKDIR /home/app
 
-# 4) Copy and install Python deps
-COPY --chown=app:app requirements-loadkeystats.txt .
+# 4) Copy requirements, install deps **as root**
+COPY requirements-loadkeystats.txt .
 RUN pip install --upgrade pip setuptools wheel && \
     pip install --no-cache-dir -r requirements-loadkeystats.txt
 
-# 5) Copy your loader script
+# 5) Switch to unprivileged user
+USER app
+
+# 6) Copy your loader script
 COPY --chown=app:app loadkeystats.py .
 
-# 6) Use Python to launch (no extra chmod needed)
+# 7) Entrypoint
 ENTRYPOINT ["python", "./loadkeystats.py"]
