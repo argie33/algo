@@ -30,7 +30,7 @@ logging.basicConfig(
 # -------------------------------
 DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
 BATCH_SIZE     = int(os.getenv("BATCH_SIZE", "100"))  # symbols per API call
-PAUSE_BETWEEN_BATCHES = float(os.getenv("PAUSE_BETWEEN_BATCHES", "0.1"))
+PAUSE_BETWEEN_BATCHES = float(os.getenv("PAUSE_BETWEEN_BATCHES", "0.2"))
 
 def get_db_config():
     """
