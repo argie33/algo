@@ -118,7 +118,7 @@ if __name__ == "__main__":
     failed = []
 
     # 4) Process in batches
-    CHUNK_SIZE = 10
+    CHUNK_SIZE = 20
     PAUSE      = 0.1
     total_batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
@@ -127,14 +127,19 @@ if __name__ == "__main__":
         end   = min(start + CHUNK_SIZE, total)
         batch = symbols[start:end]
 
+        # --- normalize for yfinance ---
+        yq_batch = [s.replace('.', '-').replace('$', '-').upper() for s in batch]
+        mapping  = dict(zip(yq_batch, batch))
+
         # Retry loop for this batch
         for attempt in range(1, MAX_BATCH_RETRIES + 1):
             logging.info(f"Batch {batch_idx+1}/{total_batches} – attempt {attempt}")
             log_mem(f"batch {batch_idx+1} start")
+
             try:
-                # yfinance batch download
+                # fetch using normalized tickers
                 df = yf.download(
-                    tickers=batch,
+                    tickers=yq_batch,
                     period="1d",
                     group_by="ticker",
                     auto_adjust=False,
@@ -155,39 +160,37 @@ if __name__ == "__main__":
         # Per-symbol insert
         gc.disable()
         try:
-            for sym in batch:
+            for yq_sym, orig_sym in mapping.items():
                 try:
-                    sub = df[sym] if len(batch) > 1 else df
-                    # if no data, skip
+                    sub = df[yq_sym] if len(yq_batch) > 1 else df
                     if sub.empty:
-                        logging.warning(f"No data for {sym}; skipping")
-                        failed.append(sym)
+                        logging.warning(f"No data for {orig_sym}; skipping")
+                        failed.append(orig_sym)
                         continue
 
-                    # take last row
                     last = sub.iloc[-1]
                     rec = {
-                        "date":       last.name.date(),
-                        "open":       float(last["Open"]),
-                        "high":       float(last["High"]),
-                        "low":        float(last["Low"]),
-                        "close":      float(last["Close"]),
-                        "adj_close":  float(last.get("Adj Close", last["Close"])),
-                        "volume":     int(last["Volume"])
+                        "date":      last.name.date(),
+                        "open":      float(last["Open"]),
+                        "high":      float(last["High"]),
+                        "low":       float(last["Low"]),
+                        "close":     float(last["Close"]),
+                        "adj_close": float(last.get("Adj Close", last["Close"])),
+                        "volume":    int(last["Volume"])
                     }
 
-                    insert_price(cur, sym, rec)
-                    logging.info(f"Inserted price_daily for {sym}")
+                    insert_price(cur, orig_sym, rec)
+                    logging.info(f"Inserted price_daily for {orig_sym}")
                     inserted += 1
 
                 except Exception as e:
-                    logging.error(f"Insert failed for {sym}: {e}", exc_info=True)
-                    failed.append(sym)
+                    logging.error(f"Insert failed for {orig_sym}: {e}", exc_info=True)
+                    failed.append(orig_sym)
         finally:
             gc.enable()
 
         # Teardown & pause
-        del df, batch
+        del df, batch, yq_batch, mapping
         gc.collect()
         log_mem(f"batch {batch_idx+1} end")
         time.sleep(PAUSE)
