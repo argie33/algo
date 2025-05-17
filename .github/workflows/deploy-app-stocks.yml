@@ -187,8 +187,6 @@ jobs:
       - id: build
         name: Build & push Docker image
         run: |
-          # enable multi-arch builder (needed for ARM64)
-          docker buildx create --use --name default || true          
           REPO=stocks-app-registry
           aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 || \
             aws ecr create-repository --repository-name "$REPO"
@@ -215,14 +213,8 @@ jobs:
           esac
 
           TAG=${{ matrix.loader }}-${{ github.sha }}
-          # build and push ARM64 image
-          docker buildx build \
-            --platform linux/arm64 \
-            -f "$DOCKERFILE" \
-            -t "$URI:$TAG" \
-            --push \
-            .
-            
+          docker build -f "$DOCKERFILE" -t "$URI:$TAG" .
+          docker push "$URI:$TAG"
           echo "${PARAM}=$TAG" > build_tag_${{ matrix.loader }}.txt
 
       - name: Upload tag artifact

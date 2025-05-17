@@ -188,7 +188,7 @@ def insert_key_stat(rec, symbol, conn):
     cur.close()
 
 # -------------------------------
-# Batch-fetch & process
+# Batch-fetch & process 
 # -------------------------------
 @retry(max_attempts=3, initial_delay=2, backoff=2)
 def process_batch(symbols, conn):
