@@ -13,7 +13,8 @@ import psycopg2
 from psycopg2.extras import DictCursor
 import requests
 from yahooquery import Ticker
-from yahooquery.utils import TimeoutHTTPAdapter
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # -------------------------------
 # Script metadata & configuration
@@ -128,12 +129,13 @@ def clean_row(data_dict):
 
 @retry(max_attempts=3)
 def process_symbol(symbol, conn):
-    """Fetch from yahooquery & upsert into PostgreSQL, skipping if no data."""
+    """Fetch financial_data via direct HTTPS call, upsert into PostgreSQL, free memory."""
     yq_symbol = symbol.upper().replace(".", "-")
     ticker = Ticker(yq_symbol, asynchronous=False)
 
-    # mount a timeout adapter
-    adapter = TimeoutHTTPAdapter(max_retries=2, timeout=10.0)
+    # mount a retry-only adapter
+    retry_strategy = Retry(total=2, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
+    adapter = HTTPAdapter(max_retries=retry_strategy)
     ticker.session.mount("https://", adapter)
     ticker.session.mount("http://", adapter)
 
