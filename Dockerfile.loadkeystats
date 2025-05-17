@@ -1,16 +1,18 @@
+# 1) Use a slim, up‐to‐date base
 FROM python:3.10-slim
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-      build-essential \
-      gcc \
-      libpq-dev \
-      libssl-dev \
-      libffi-dev && \
-    rm -rf /var/lib/apt/lists/*
+# 2) Set a non-root user (optional but good practice)
+RUN addgroup --system app && adduser --system --ingroup app app
+USER app
 
+WORKDIR /home/app
+
+# 3) Copy just your requirements and install with no cache
 COPY requirements-loadkeystats.txt .
 RUN pip install --no-cache-dir -r requirements-loadkeystats.txt
 
+# 4) Copy only the loader script (and any helpers you need)
 COPY loadkeystats.py .
-CMD ["python", "loadkeystats.py"]
+
+# 5) Entrypoint
+ENTRYPOINT ["./loadkeystats.py"]
