@@ -352,23 +352,89 @@ jobs:
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
   run_findata:
-    name: Run findata loader
+    name: Run findata one-off task
     needs: deploy
     if: ${{ needs.filter.outputs.findata == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 60   # allow this job up to 60m total
+
     steps:
-      - uses: aws-actions/configure-aws-credentials@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region:      ${{ env.AWS_REGION }}
+          role-to-assume:  ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-      - run: |
-          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='FindataServiceName'].OutputValue" \
+
+      - name: Fetch Task Definition ARN
+        id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='FindataTaskDefArn'].OutputValue" \
             --output text)
-          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
-          aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
-          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch cluster ARN & subnets
+        id: infra
+        run: |
+          CLUSTER=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+          SUB1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUB2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
+          echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
+          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+
+      - name: Run findata Fargate task
+        id: run
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --launch-type FARGATE \
+            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
+            --count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],assignPublicIp=ENABLED}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "🟢 Started findata task $TASK_ARN"
+
+      - name: Wait up to 60m for task to stop
+        run: |
+          for i in $(seq 1 180); do           # 180 × 20 s = 60 min
+            STATUS=$(aws ecs describe-tasks \
+              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+              --query 'tasks[0].lastStatus' \
+              --output text)
+            echo "Attempt $i – status=$STATUS"
+            [ "$STATUS" = "STOPPED" ] && break
+            sleep 20
+          done
+          if [ "$STATUS" != "STOPPED" ]; then
+            echo "❌ findata task did not stop within 60m"
+            exit 1
+          fi
+
+      - name: Check container exit code
+        run: |
+          EXIT=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          echo "→ Exit code: $EXIT"
+          if [ "$EXIT" -ne 0 ]; then
+            echo "❌ findata failed with exit code $EXIT"
+            exit $EXIT
+          fi
+
 
   run_pricedaily:
     name: Run pricedaily loader
@@ -447,10 +513,11 @@ jobs:
           aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
 
   run_loadkeystats:
-    name: Run loadkeystats
+    name: Run loadkeystats one-off task
     needs: deploy
     if: ${{ needs.filter.outputs.loadkeystats == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 60   # allow this job up to 60m total
 
     steps:
       - name: Configure AWS credentials
@@ -460,7 +527,7 @@ jobs:
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Fetch LoadKeyStats TaskDef ARN
+      - name: Fetch Task Definition ARN
         id: td
         run: |
           ARN=$(aws cloudformation describe-stacks \
@@ -469,38 +536,58 @@ jobs:
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
 
-      - name: Fetch public subnet IDs
-        id: subnets
+      - name: Fetch cluster ARN & subnets
+        id: infra
         run: |
-          S1=$(aws cloudformation list-exports \
+          CLUSTER=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+          SUB1=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
             --output text)
-          S2=$(aws cloudformation list-exports \
+          SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
-          echo "SUB1=$S1" >> $GITHUB_OUTPUT
-          echo "SUB2=$S2" >> $GITHUB_OUTPUT
+          echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
+          echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
+          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
 
       - name: Run loadkeystats Fargate task
+        id: run
         run: |
           TASK_ARN=$(aws ecs run-task \
-            --cluster stocks-cluster \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
             --launch-type FARGATE \
             --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
             --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.subnets.outputs.SUB1 }},${{ steps.subnets.outputs.SUB2 }}],assignPublicIp=ENABLED}" \
-            --query 'tasks[0].taskArn' --output text)
-          echo "🟢 Started task: $TASK_ARN"
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],assignPublicIp=ENABLED}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "🟢 Started task $TASK_ARN"
 
-          # wait for it to finish
-          aws ecs wait tasks-stopped \
-            --cluster stocks-cluster \
-            --tasks "$TASK_ARN"
+      - name: Wait up to 60m for task to stop
+        run: |
+          for i in $(seq 1 180); do           # 180 × 20 s = 3600 s = 60 min
+            STATUS=$(aws ecs describe-tasks \
+              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+              --query 'tasks[0].lastStatus' \
+              --output text)
+            echo "Attempt $i – status=$STATUS"
+            [ "$STATUS" = "STOPPED" ] && break
+            sleep 20
+          done
+          if [ "$STATUS" != "STOPPED" ]; then
+            echo "❌ Task did not stop within 60m"
+            exit 1
+          fi
 
-          # grab and propagate its exit code
+      - name: Check container exit code
+        run: |
           EXIT=$(aws ecs describe-tasks \
-            --cluster stocks-cluster \
-            --tasks "$TASK_ARN" \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
