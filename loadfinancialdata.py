@@ -5,13 +5,29 @@ import json
 import time
 import math
 import logging
+
 from urllib3.util import Retry
 from requests import Session
 from requests.adapters import HTTPAdapter
 from yahooquery import Ticker
+
 import boto3
 import psycopg2
 from psycopg2.extras import execute_values, DictCursor
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Re-define the old TimeoutHTTPAdapter from yahooquery 2.2.x
+# ──────────────────────────────────────────────────────────────────────────────
+class TimeoutHTTPAdapter(HTTPAdapter):
+    """HTTPAdapter that applies a default timeout and retry strategy."""
+    def __init__(self, *args, timeout=None, **kwargs):
+        self.timeout = timeout
+        super().__init__(*args, **kwargs)
+
+    def send(self, request, **kwargs):
+        # if user hasn't set timeout explicitly, use our default
+        kwargs.setdefault('timeout', self.timeout)
+        return super().send(request, **kwargs)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # CONFIGURATION
@@ -20,6 +36,10 @@ SCRIPT_NAME   = "loadfinancialdata.py"
 DB_SECRET_ARN = os.getenv("DB_SECRET_ARN")
 CHUNK_SIZE    = 50       # number of symbols per batch
 MAX_WORKERS   = 8        # number of parallel HTTP workers
+
+if not DB_SECRET_ARN:
+    logging.error("DB_SECRET_ARN not set; aborting")
+    sys.exit(1)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -120,8 +140,7 @@ def update_last_run(conn):
 # MAIN
 # ──────────────────────────────────────────────────────────────────────────────
 def main():
-    # 1) Build a shared HTTP session with retry only—
-    #    timeouts are handled by Ticker(timeout=…)
+    # 1) Build a shared HTTP session with timeout & retry
     session = Session()
     retry_strategy = Retry(
         total=2,
@@ -129,7 +148,10 @@ def main():
         status_forcelist=[429, 500, 502, 503, 504],
         allowed_methods=["HEAD", "GET", "OPTIONS"]
     )
-    adapter = HTTPAdapter(max_retries=retry_strategy)
+    adapter = TimeoutHTTPAdapter(
+        max_retries=retry_strategy,
+        timeout=10.0    # 10s per request
+    )
     session.mount("http://", adapter)
     session.mount("https://", adapter)
 
@@ -164,19 +186,15 @@ def main():
       "earningsgrowth","revenuegrowth","grossmargins","ebitdamargins","operatingmargins",
       "profitmargins","financialcurrency"
     ]
-    placeholder = "(" + ",".join(["%s"] * len(cols)) + ")"
     update_clause = ", ".join(f"{c}=EXCLUDED.{c}" for c in cols if c != "symbol")
 
     # 6) Process in chunks
     for batch in chunk_list(symbols, CHUNK_SIZE):
         ticker = Ticker(
             [s.upper().replace(".", "-") for s in batch],
+            session=session,
             asynchronous=True,
-            max_workers=MAX_WORKERS,
-            retry=2,            # number of retries
-            backoff_factor=1,   # seconds between retries: 1,2,4…
-            timeout=10,         # per‐request timeout in seconds :contentReference[oaicite:0]{index=0}
-            session=session     # advanced: use our retry‐configured session
+            max_workers=MAX_WORKERS
         )
         raw_data = ticker.financial_data  # dict: {SYMBOL: {...}}
         rows     = []
