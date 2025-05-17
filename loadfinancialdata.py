@@ -1,47 +1,39 @@
 #!/usr/bin/env python3
-import json
+import sys
 import time
+import os
+import json
 import logging
 import functools
-import os
-import sys
+import math
+
+import pandas as pd
+from yahooquery import Ticker
 
 import boto3
 import psycopg2
-from psycopg2.extras import DictCursor
-import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util import Timeout
-from urllib3.util.retry import Retry
-
-from yahooquery import Ticker
-from yahooquery.utils import TimeoutHTTPAdapter
-
-import pandas as pd
-import math
+from psycopg2.extras import RealDictCursor
 
 # -------------------------------
-# Script metadata
+# Script metadata & logging setup
 # -------------------------------
 SCRIPT_NAME = "loadfinancialdata.py"
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    stream=sys.stdout
+)
 
 # -------------------------------
 # Environment-driven configuration
 # -------------------------------
-DB_SECRET_ARN = os.getenv("DB_SECRET_ARN")
-
-# --- Logging setup: output to both file and stdout for ECS to capture ---
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s:%(message)s",
-    handlers=[
-        logging.FileHandler("loadfinancialdata.log"),
-        logging.StreamHandler(sys.stdout),
-    ]
-)
+DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
 
 def get_db_config():
-    """Fetch host, port, dbname, username & password from Secrets Manager."""
+    """
+    Fetch host, port, dbname, username & password from Secrets Manager.
+    SecretString must be JSON with keys: username, password, host, port, dbname.
+    """
     client = boto3.client("secretsmanager")
     resp = client.get_secret_value(SecretId=DB_SECRET_ARN)
     sec = json.loads(resp["SecretString"])
@@ -53,115 +45,133 @@ def get_db_config():
         sec["dbname"]
     )
 
+def pg_connect():
+    """Open a new PostgreSQL connection (with SSL)."""
+    user, pwd, host, port, db = get_db_config()
+    conn = psycopg2.connect(
+        host=host,
+        port=port,
+        user=user,
+        password=pwd,
+        dbname=db,
+        sslmode="require"
+    )
+    conn.autocommit = True
+    return conn
+
+# -------------------------------
+# Create financial_data table
+# -------------------------------
+def create_financial_data_table():
+    conn = pg_connect()
+    cur = conn.cursor()
+    logging.info("Dropping table financial_data if it exists.")
+    cur.execute("DROP TABLE IF EXISTS financial_data;")
+    logging.info("Creating table financial_data.")
+    cur.execute("""
+        CREATE TABLE financial_data (
+          symbol               VARCHAR(20) PRIMARY KEY,
+          maxage               INT,
+          currentprice         DOUBLE PRECISION,
+          targethighprice      DOUBLE PRECISION,
+          targetlowprice       DOUBLE PRECISION,
+          targetmeanprice      DOUBLE PRECISION,
+          targetmedianprice    DOUBLE PRECISION,
+          recommendationmean   DOUBLE PRECISION,
+          recommendationkey    VARCHAR(20),
+          numberofanalystopinions INT,
+          totalcash            DOUBLE PRECISION,
+          totalcashpershare    DOUBLE PRECISION,
+          ebitda               DOUBLE PRECISION,
+          totaldebt            DOUBLE PRECISION,
+          quickratio           DOUBLE PRECISION,
+          currentratio         DOUBLE PRECISION,
+          totalrevenue         DOUBLE PRECISION,
+          debttoequity         DOUBLE PRECISION,
+          revenuepershare      DOUBLE PRECISION,
+          returnonassets       DOUBLE PRECISION,
+          returnonequity       DOUBLE PRECISION,
+          grossprofits         DOUBLE PRECISION,
+          freecashflow         DOUBLE PRECISION,
+          operatingcashflow    DOUBLE PRECISION,
+          earningsgrowth       DOUBLE PRECISION,
+          revenuegrowth        DOUBLE PRECISION,
+          grossmargins         DOUBLE PRECISION,
+          ebitdamargins        DOUBLE PRECISION,
+          operatingmargins     DOUBLE PRECISION,
+          profitmargins        DOUBLE PRECISION,
+          financialcurrency    VARCHAR(10),
+          fetched_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+    """)
+    logging.info("Ensuring last_updated table exists.")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS last_updated (
+          script_name   VARCHAR(255) PRIMARY KEY,
+          last_run      TIMESTAMPTZ NOT NULL
+        );
+    """)
+    cur.close()
+    conn.close()
+    logging.info("financial_data schema ready.")
+
+# -------------------------------
+# Helpers to clean data
+# -------------------------------
+def clean_row(row):
+    """Convert NaN or pandas NAs to None."""
+    out = {}
+    for k, v in row.items():
+        if isinstance(v, float) and math.isnan(v):
+            out[k] = None
+        elif pd.isna(v):
+            out[k] = None
+        else:
+            out[k] = v
+    return out
+
+# -------------------------------
+# Retry decorator
+# -------------------------------
 def retry(max_attempts=3, initial_delay=2, backoff=2):
-    """Retry decorator with exponential backoff."""
-    def decorator(f):
-        @functools.wraps(f)
-        def wrapper(symbol, *args, **kwargs):
-            attempts, delay = 0, initial_delay
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(symbol):
+            attempts = 0
+            delay = initial_delay
             while attempts < max_attempts:
                 try:
-                    return f(symbol, *args, **kwargs)
-                except requests.exceptions.RequestException as e:
-                    attempts += 1
-                    logging.error(f"{f.__name__} network error for {symbol} (attempt {attempts}): {e}", exc_info=True)
+                    return func(symbol)
                 except Exception as e:
                     attempts += 1
-                    logging.error(f"{f.__name__} failed for {symbol} (attempt {attempts}): {e}", exc_info=True)
-                time.sleep(delay)
-                delay *= backoff
-            raise RuntimeError(f"All {max_attempts} attempts failed for {f.__name__} with symbol {symbol}")
+                    logging.error(
+                        f"Attempt {attempts} for {func.__name__}({symbol}) failed: {e}",
+                        exc_info=True
+                    )
+                    time.sleep(delay)
+                    delay *= backoff
+            logging.error(f"All {max_attempts} attempts failed for {func.__name__} on {symbol}")
         return wrapper
     return decorator
 
-def ensure_tables(conn):
-    """Drop and recreate the financial_data table, plus ensure last_updated exists."""
-    with conn.cursor() as cur:
-        # drop the data table if it exists
-        cur.execute("DROP TABLE IF EXISTS financial_data;")
-        # now create fresh financial_data
-        cur.execute("""
-            CREATE TABLE financial_data (
-              symbol               VARCHAR(20) PRIMARY KEY,
-              maxage               INT,
-              currentprice         DOUBLE PRECISION,
-              targethighprice      DOUBLE PRECISION,
-              targetlowprice       DOUBLE PRECISION,
-              targetmeanprice      DOUBLE PRECISION,
-              targetmedianprice    DOUBLE PRECISION,
-              recommendationmean   DOUBLE PRECISION,
-              recommendationkey    VARCHAR(20),
-              numberofanalystopinions INT,
-              totalcash            DOUBLE PRECISION,
-              totalcashpershare    DOUBLE PRECISION,
-              ebitda               DOUBLE PRECISION,
-              totaldebt            DOUBLE PRECISION,
-              quickratio           DOUBLE PRECISION,
-              currentratio         DOUBLE PRECISION,
-              totalrevenue         DOUBLE PRECISION,
-              debttoequity         DOUBLE PRECISION,
-              revenuepershare      DOUBLE PRECISION,
-              returnonassets       DOUBLE PRECISION,
-              returnonequity       DOUBLE PRECISION,
-              grossprofits         DOUBLE PRECISION,
-              freecashflow         DOUBLE PRECISION,
-              operatingcashflow    DOUBLE PRECISION,
-              earningsgrowth       DOUBLE PRECISION,
-              revenuegrowth        DOUBLE PRECISION,
-              grossmargins         DOUBLE PRECISION,
-              ebitdamargins        DOUBLE PRECISION,
-              operatingmargins     DOUBLE PRECISION,
-              profitmargins        DOUBLE PRECISION,
-              financialcurrency    VARCHAR(10),
-              fetched_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            );
-        """)
-        # last_updated we keep around, so only create if missing
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS last_updated (
-              script_name   VARCHAR(255) PRIMARY KEY,
-              last_run      TIMESTAMPTZ NOT NULL
-            );
-        """)
-    conn.commit()
-
-def clean_row(row):
-    """Convert NaN or pandas NAs to None."""
-    clean = {}
-    for k, v in row.items():
-        if isinstance(v, float) and math.isnan(v):
-            clean[k] = None
-        elif pd.isna(v):
-            clean[k] = None
-        else:
-            clean[k] = v
-    return clean
-
+# -------------------------------
+# Per-symbol processing
+# -------------------------------
 @retry(max_attempts=3)
-def process_symbol(symbol, conn):
-    """Fetch from yahooquery & upsert into PostgreSQL, skipping symbols with no data."""
-    yq_symbol = symbol.upper().replace(".", "-")
-    ticker = Ticker(yq_symbol, asynchronous=False)
-
-    # mount adapter with explicit timeout
-    adapter = TimeoutHTTPAdapter(
-        max_retries=Retry(total=2, backoff_factor=1),
-        timeout=10.0
-    )
-    ticker.session.mount("https://", adapter)
-    ticker.session.mount("http://", adapter)
-
-    raw = ticker.financial_data.get(yq_symbol)
-    if raw is None:
+def process_symbol(symbol):
+    """Fetch financial_data via yahooquery and insert into PostgreSQL."""
+    yq_sym = symbol.upper().replace('.', '-')
+    logging.info(f"Fetching financial_data for {symbol}")
+    raw = Ticker(yq_sym).financial_data.get(yq_sym)
+    if not isinstance(raw, dict):
         logging.warning(f"No financial_data for {symbol}; skipping")
         return
-
-    if not isinstance(raw, dict):
-        raise ValueError(f"Bad payload for {symbol}: {raw!r}")
 
     data = {k.lower(): v for k, v in raw.items()}
     row = clean_row(data)
 
+    conn = pg_connect()
+    cur = conn.cursor()
     cols = [
         "symbol","maxage","currentprice","targethighprice","targetlowprice",
         "targetmeanprice","targetmedianprice","recommendationmean","recommendationkey",
@@ -171,63 +181,47 @@ def process_symbol(symbol, conn):
         "earningsgrowth","revenuegrowth","grossmargins","ebitdamargins","operatingmargins",
         "profitmargins","financialcurrency"
     ]
-    values = [row.get(c) for c in cols[1:]]
     placeholders = ", ".join(["%s"] * len(cols))
-    updates = ", ".join([f"{c}=EXCLUDED.{c}" for c in cols[1:]])
-
-    diff_conds = " OR ".join(
-        f"financial_data.{c} IS DISTINCT FROM EXCLUDED.{c}" for c in cols[1:]
-    )
-
-    sql = f"""
-        INSERT INTO financial_data ({','.join(cols)})
-        VALUES ({placeholders})
-        ON CONFLICT(symbol) DO UPDATE
-          SET {updates}, fetched_at = NOW()
-          WHERE {diff_conds};
-    """
-    with conn.cursor() as cur:
-        cur.execute(sql, [symbol] + values)
-    conn.commit()
-    logging.info(f"✅ upserted {symbol}")
-
-def update_last_run(conn):
-    with conn.cursor() as cur:
-        cur.execute("""
-            INSERT INTO last_updated (script_name, last_run)
-            VALUES (%s, NOW())
-            ON CONFLICT (script_name) DO UPDATE
-              SET last_run = EXCLUDED.last_run;
-        """, (SCRIPT_NAME,))
-    conn.commit()
-
-def main():
-    user, pwd, host, port, dbname = get_db_config()
-    conn = psycopg2.connect(
-        host=host,
-        port=port,
-        user=user,
-        password=pwd,
-        dbname=dbname,
-        sslmode="require",
-        cursor_factory=DictCursor
-    )
-
-    ensure_tables(conn)
-
-    with conn.cursor() as cur:
-        cur.execute("SELECT symbol FROM stock_symbols;")
-        symbols = [r["symbol"] for r in cur.fetchall()]
-
-    for s in symbols:
-        try:
-            process_symbol(s, conn)
-        except Exception as e:
-            logging.error(f"Failed symbol {s}: {e}", exc_info=True)
-
-    update_last_run(conn)
+    values = [symbol] + [row.get(c) for c in cols[1:]]
+    sql = f"INSERT INTO financial_data ({','.join(cols)}) VALUES ({placeholders});"
+    cur.execute(sql, values)
+    cur.close()
     conn.close()
-    print("loadfinancialdata complete.")
+    logging.info(f"Inserted data for {symbol}")
 
+# -------------------------------
+# Update last_updated stamp
+# -------------------------------
+def update_last_updated():
+    conn = pg_connect()
+    cur  = conn.cursor()
+    cur.execute("""
+        INSERT INTO last_updated (script_name, last_run)
+        VALUES (%s, NOW())
+        ON CONFLICT (script_name) DO UPDATE
+          SET last_run = EXCLUDED.last_run;
+    """, (SCRIPT_NAME,))
+    cur.close()
+    conn.close()
+
+# -------------------------------
+# Main
+# -------------------------------
 if __name__ == "__main__":
-    main()
+    create_financial_data_table()
+
+    # load list of symbols
+    conn = pg_connect()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute("SELECT DISTINCT symbol FROM stock_symbols;")
+    symbols = [r["symbol"] for r in cur.fetchall()]
+    cur.close()
+    conn.close()
+
+    # process each
+    for sym in symbols:
+        process_symbol(sym)
+        time.sleep(0.1)
+
+    update_last_updated()
+    logging.info("All symbols processed.")
