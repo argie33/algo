@@ -6,6 +6,7 @@ import json
 import os
 import gc
 import resource
+import math
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
@@ -16,7 +17,7 @@ import yfinance as yf
 # -------------------------------
 # Script metadata & logging setup
 # -------------------------------
-SCRIPT_NAME = "loadpricemonthly.py"
+SCRIPT_NAME = "loadpricemonthy.py"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -40,25 +41,25 @@ def log_mem(stage: str):
 # Batch-level retry config
 # -------------------------------
 MAX_BATCH_RETRIES = 3
-RETRY_DELAY       = 2   # seconds between retries
+RETRY_DELAY       = 2  # seconds between retries
 
 # -------------------------------
-# Price-monthly columns & SQL helpers
+# Price-monthy columns & SQL helpers
 # -------------------------------
 PRICE_COLUMNS = [
-    "date","open","high","low","close","adj_close","volume"
+    "date", "open", "high", "low", "close", "adj_close", "volume"
 ]
-PLACEHOLDERS  = ", ".join(["%s"] * (len(PRICE_COLUMNS) + 1))
-COL_LIST      = ", ".join(["symbol"] + PRICE_COLUMNS)
+PLACEHOLDERS = ", ".join(["%s"] * (len(PRICE_COLUMNS) + 1))
+COL_LIST     = ", ".join(["symbol"] + PRICE_COLUMNS)
 
 def insert_stock_price(cursor, symbol, rec):
     vals = [symbol] + [rec[col] for col in PRICE_COLUMNS]
-    sql = f"INSERT INTO price_monthly ({COL_LIST}) VALUES ({PLACEHOLDERS});"
+    sql = f"INSERT INTO price_monthy ({COL_LIST}) VALUES ({PLACEHOLDERS});"
     cursor.execute(sql, vals)
 
 def insert_etf_price(cursor, symbol, rec):
     vals = [symbol] + [rec[col] for col in PRICE_COLUMNS]
-    sql = f"INSERT INTO etf_price_monthly ({COL_LIST}) VALUES ({PLACEHOLDERS});"
+    sql = f"INSERT INTO etf_price_monthy ({COL_LIST}) VALUES ({PLACEHOLDERS});"
     cursor.execute(sql, vals)
 
 # -------------------------------
@@ -69,9 +70,9 @@ def get_db_config():
     sm = boto3.client("secretsmanager")
     sec = json.loads(sm.get_secret_value(SecretId=secret_arn)["SecretString"])
     return {
-        "host": sec["host"],
-        "port": int(sec.get("port", 5432)),
-        "user": sec["username"],
+        "host":   sec["host"],
+        "port":   int(sec.get("port", 5432)),
+        "user":   sec["username"],
         "password": sec["password"],
         "dbname": sec["dbname"]
     }
@@ -82,7 +83,7 @@ def get_db_config():
 if __name__ == "__main__":
     log_mem("startup")
 
-    # 1) Connect to DB (now with autocommit OFF)
+    # 1) Connect to DB with autocommit OFF
     cfg = get_db_config()
     conn = psycopg2.connect(
         host=cfg["host"], port=cfg["port"],
@@ -92,12 +93,12 @@ if __name__ == "__main__":
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # 2) (Re)create both tables & commit
-    logging.info("Recreating price_monthly table…")
+    # 2) (Re)create tables & commit
+    logging.info("Recreating price_monthy table…")
     log_mem("before stock DDL")
-    cur.execute("DROP TABLE IF EXISTS price_monthly;")
+    cur.execute("DROP TABLE IF EXISTS price_monthy;")
     cur.execute("""
-    CREATE TABLE price_monthly (
+    CREATE TABLE price_monthy (
         id SERIAL PRIMARY KEY,
         symbol VARCHAR(10) NOT NULL,
         date DATE NOT NULL,
@@ -112,11 +113,11 @@ if __name__ == "__main__":
     """)
     log_mem("after stock DDL")
 
-    logging.info("Recreating etf_price_monthly table…")
+    logging.info("Recreating etf_price_monthy table…")
     log_mem("before etf DDL")
-    cur.execute("DROP TABLE IF EXISTS etf_price_monthly;")
+    cur.execute("DROP TABLE IF EXISTS etf_price_monthy;")
     cur.execute("""
-    CREATE TABLE etf_price_monthly (
+    CREATE TABLE etf_price_monthy (
         id SERIAL PRIMARY KEY,
         symbol VARCHAR(10) NOT NULL,
         date DATE NOT NULL,
@@ -129,12 +130,10 @@ if __name__ == "__main__":
         fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     """)
-    log_mem("after etf DDL")
-
     conn.commit()
 
     # -------------------------------
-    # Helper to process a list of tickers
+    # Helper to process symbols
     # -------------------------------
     def load_prices(table_name, symbols, insert_fn):
         total = len(symbols)
@@ -172,7 +171,7 @@ if __name__ == "__main__":
 
             log_mem(f"{table_name} after yf.download")
 
-            # verify DB connection is alive
+            # Ping DB to catch dropped connections
             cur.execute("SELECT 1;")
 
             # insert per symbol
@@ -180,13 +179,14 @@ if __name__ == "__main__":
             try:
                 for yq_sym, orig_sym in mapping.items():
                     try:
-                        sub = df[yq_sym] if len(yq_batch)>1 else df
+                        sub = df[yq_sym] if len(yq_batch) > 1 else df
                         if sub.empty:
                             logging.warning(f"No data for {orig_sym}; skipping")
                             failed.append(orig_sym)
                             continue
 
                         last = sub.iloc[-1]
+                        vol = last["Volume"]
                         rec = {
                             "date":      last.name.date(),
                             "open":      float(last["Open"]),
@@ -194,13 +194,14 @@ if __name__ == "__main__":
                             "low":       float(last["Low"]),
                             "close":     float(last["Close"]),
                             "adj_close": float(last.get("Adj Close", last["Close"])),
-                            "volume":    int(last["Volume"])
+                            "volume":    int(vol) if not math.isnan(vol) else None
                         }
 
                         insert_fn(cur, orig_sym, rec)
                         conn.commit()
                         logging.info(f"Inserted {table_name} for {orig_sym}")
                         inserted += 1
+
                     except Exception as e:
                         logging.error(f"Insert failed for {orig_sym}: {e}", exc_info=True)
                         conn.rollback()
@@ -218,13 +219,13 @@ if __name__ == "__main__":
 
     # 3) Fetch & load stock symbols
     cur.execute("SELECT symbol FROM stock_symbols;")
-    stock_syms = [r["symbol"] for r in cur.fetchall()]
-    t_s, i_s, f_s = load_prices("price_monthly", stock_syms, insert_stock_price)
+    stock_syms = [row["symbol"] for row in cur.fetchall()]
+    t_s, i_s, f_s = load_prices("price_monthy", stock_syms, insert_stock_price)
 
     # 4) Fetch & load ETF symbols
     cur.execute("SELECT symbol FROM etf_symbols;")
-    etf_syms = [r["symbol"] for r in cur.fetchall()]
-    t_e, i_e, f_e = load_prices("etf_price_monthly", etf_syms, insert_etf_price)
+    etf_syms = [row["symbol"] for row in cur.fetchall()]
+    t_e, i_e, f_e = load_prices("etf_price_monthy", etf_syms, insert_etf_price)
 
     # 5) Record last run
     cur.execute("""
