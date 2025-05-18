@@ -483,7 +483,7 @@ Resources:
   ########################################
   # I) pricemonthly loader               #
   ########################################
-  PricemonthlyTaskDefinition:
+  PriceMonthlyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: pricemonthly-loader
