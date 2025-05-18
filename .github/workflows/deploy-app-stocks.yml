@@ -745,7 +745,13 @@ jobs:
           EXIT=$(aws ecs describe-tasks \
             --cluster "${{ steps.infra.outputs.CLUSTER }}" \
             --tasks "${{ steps.run.outputs.TASK_ARN }}" \
-            --query 'tasks[0].containers[0].exitCode'
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          echo "→ Exit code: $EXIT"
+          if [ "$EXIT" -ne 0 ]; then
+            echo "❌ Task failed with exit code $EXIT"
+            exit $EXIT
+          fi
 
   run_technicalsdaily:
     name: Run technicalsdaily loader
