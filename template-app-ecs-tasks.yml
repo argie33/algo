@@ -522,7 +522,7 @@ Resources:
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
       DesiredCount: 0
-      TaskDefinition: !Ref PricemonthlyTaskDefinition
+      TaskDefinition: !Ref PriceMonthlyTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets:
@@ -895,8 +895,8 @@ Outputs:
   PriceWeeklyServiceName:
     Value: !GetAtt PriceWeeklyLoaderService.Name
 
-  PricemonthlyTaskDefArn:
-    Value: !Ref PricemonthlyTaskDefinition
+  PriceMonthlyTaskDefArn:
+    Value: !Ref PriceMonthlyTaskDefinition
   PricemonthlyServiceName:
     Value: !GetAtt PricemonthlyLoaderService.Name
 
