@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   ECS TaskDefinitions, CloudWatch LogGroups, and zero-scale Services
   for stock-symbols, econ-data, monthly-price, findata, pricedaily,
-  priceweekly, pricemonthly, technicaldaily, loadkeystats, earnings,
+  priceweekly, pricemonthly, TechnicalsDaily, loadkeystats, earnings,
   technicalsweekly & technicalsmonthly.
 
 Parameters:
@@ -27,9 +27,9 @@ Parameters:
   PriceMonthlyImageTag:
     Type: String
     Description: Tag for pricemonthly loader image
-  TechnicalDailyImageTag:
+  TechnicalsDailyImageTag:
     Type: String
-    Description: Tag for technicaldaily loader image
+    Description: Tag for TechnicalsDaily loader image
   LoadKeyStatsImageTag:
     Type: String
     Description: Tag for loadkeystats loader image
@@ -155,10 +155,10 @@ Resources:
       LogGroupName: /ecs/pricemonthly-loader
       RetentionInDays: 14
 
-  TechnicalDailyLogGroup:
+  TechnicalsDailyLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: /ecs/technicaldaily-loader
+      LogGroupName: /ecs/TechnicalsDaily-loader
       RetentionInDays: 14
 
   LoadKeyStatsLogGroup:
@@ -531,12 +531,12 @@ Resources:
           AssignPublicIp: ENABLED
 
   ########################################
-  # J) technicaldaily loader             #
+  # J) TechnicalsDaily loader             #
   ########################################
-  TechnicalDailyTaskDefinition:
+  TechnicalsDailyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: technicaldaily-loader
+      Family: TechnicalsDaily-loader
       Cpu: "512"
       Memory: "1024"
       NetworkMode: awsvpc
@@ -544,8 +544,8 @@ Resources:
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
-        - Name: technicaldaily-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref TechnicalDailyImageTag]]
+        - Name: TechnicalsDaily-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref TechnicalsDailyImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -561,18 +561,18 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: /ecs/technicaldaily-loader
+              awslogs-group: /ecs/TechnicalsDaily-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
-  TechnicalDailyLoaderService:
+  TechnicalsDailyLoaderService:
     Type: AWS::ECS::Service
     Properties:
-      ServiceName: technicaldaily-loader-service
+      ServiceName: TechnicalsDaily-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
       DesiredCount: 0
-      TaskDefinition: !Ref TechnicalDailyTaskDefinition
+      TaskDefinition: !Ref TechnicalsDailyTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets:
@@ -900,10 +900,10 @@ Outputs:
   PricemonthlyServiceName:
     Value: !GetAtt PricemonthlyLoaderService.Name
 
-  TechnicalDailyTaskDefArn:
-    Value: !Ref TechnicalDailyTaskDefinition
-  TechnicalDailyServiceName:
-    Value: !GetAtt TechnicalDailyLoaderService.Name
+  TechnicalsDailyTaskDefArn:
+    Value: !Ref TechnicalsDailyTaskDefinition
+  TechnicalsDailyServiceName:
+    Value: !GetAtt TechnicalsDailyLoaderService.Name
 
   LoadKeyStatsTaskDefArn:
     Value: !Ref LoadKeyStatsTaskDefinition
