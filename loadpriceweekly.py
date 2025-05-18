@@ -6,11 +6,11 @@ import json
 import os
 import gc
 import resource
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from datetime import datetime
 
 import boto3
-import psycopg2
-from psycopg2.extras import RealDictCursor
 import yfinance as yf
 
 # -------------------------------
@@ -48,7 +48,7 @@ RETRY_DELAY       = 2   # seconds between retries
 PRICE_COLUMNS = [
     "date","open","high","low","close","adj_close","volume"
 ]
-PLACEHOLDERS  = ", ".join(["%s"] * (len(PRICE_COLUMNS) + 1))  # +1 for symbol
+PLACEHOLDERS  = ", ".join(["%s"] * (len(PRICE_COLUMNS) + 1))
 COL_LIST      = ", ".join(["symbol"] + PRICE_COLUMNS)
 
 def insert_stock_price(cursor, symbol, rec):
@@ -82,17 +82,17 @@ def get_db_config():
 if __name__ == "__main__":
     log_mem("startup")
 
-    # 1) Connect to DB
+    # 1) Connect to DB (now with autocommit OFF)
     cfg = get_db_config()
     conn = psycopg2.connect(
         host=cfg["host"], port=cfg["port"],
         user=cfg["user"], password=cfg["password"],
         dbname=cfg["dbname"]
     )
-    conn.autocommit = True
+    conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # 2) (Re)create both tables
+    # 2) (Re)create both tables & commit
     logging.info("Recreating price_weekly table…")
     log_mem("before stock DDL")
     cur.execute("DROP TABLE IF EXISTS price_weekly;")
@@ -131,31 +131,26 @@ if __name__ == "__main__":
     """)
     log_mem("after etf DDL")
 
+    conn.commit()
+
     # -------------------------------
-    # Helper to process a list of tickers into a given insert function
+    # Helper to process a list of tickers
     # -------------------------------
     def load_prices(table_name, symbols, insert_fn):
         total = len(symbols)
         logging.info(f"Loading {table_name}: {total} symbols")
-        inserted = 0
-        failed = []
+        inserted, failed = 0, []
+        CHUNK_SIZE, PAUSE = 20, 0.1
+        batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
-        CHUNK_SIZE = 20
-        PAUSE      = 0.1
-        total_batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
-
-        for batch_idx in range(total_batches):
-            start = batch_idx * CHUNK_SIZE
-            end   = min(start + CHUNK_SIZE, total)
-            batch = symbols[start:end]
-
-            # normalize tickers
+        for batch_idx in range(batches):
+            batch = symbols[batch_idx*CHUNK_SIZE : (batch_idx+1)*CHUNK_SIZE]
             yq_batch = [s.replace('.', '-').replace('$', '-').upper() for s in batch]
             mapping  = dict(zip(yq_batch, batch))
 
-            # retry download
-            for attempt in range(1, MAX_BATCH_RETRIES + 1):
-                logging.info(f"{table_name} – batch {batch_idx+1}/{total_batches}, attempt {attempt}")
+            # download with retry
+            for attempt in range(1, MAX_BATCH_RETRIES+1):
+                logging.info(f"{table_name} – batch {batch_idx+1}/{batches}, attempt {attempt}")
                 log_mem(f"{table_name} batch {batch_idx+1} start")
                 try:
                     df = yf.download(
@@ -168,21 +163,24 @@ if __name__ == "__main__":
                     )
                     break
                 except Exception as e:
-                    logging.warning(f"{table_name} batch download failed: {e}; retrying in {RETRY_DELAY}s…")
+                    logging.warning(f"{table_name} download failed: {e}; retrying…")
                     time.sleep(RETRY_DELAY)
             else:
-                logging.error(f"{table_name} batch {batch_idx+1} failed after {MAX_BATCH_RETRIES} attempts")
-                failed.extend(batch)
+                logging.error(f"{table_name} batch {batch_idx+1} failed after retries")
+                failed += batch
                 continue
 
             log_mem(f"{table_name} after yf.download")
+
+            # verify DB connection is alive
+            cur.execute("SELECT 1;")
 
             # insert per symbol
             gc.disable()
             try:
                 for yq_sym, orig_sym in mapping.items():
                     try:
-                        sub = df[yq_sym] if len(yq_batch) > 1 else df
+                        sub = df[yq_sym] if len(yq_batch)>1 else df
                         if sub.empty:
                             logging.warning(f"No data for {orig_sym}; skipping")
                             failed.append(orig_sym)
@@ -200,16 +198,17 @@ if __name__ == "__main__":
                         }
 
                         insert_fn(cur, orig_sym, rec)
+                        conn.commit()
                         logging.info(f"Inserted {table_name} for {orig_sym}")
                         inserted += 1
-
                     except Exception as e:
                         logging.error(f"Insert failed for {orig_sym}: {e}", exc_info=True)
-                        failed.append(orig_sym)
+                        conn.rollback()
+                        sys.exit(1)
             finally:
                 gc.enable()
 
-            # teardown & pause
+            # cleanup & pause
             del df, batch, yq_batch, mapping
             gc.collect()
             log_mem(f"{table_name} batch {batch_idx+1} end")
@@ -219,34 +218,28 @@ if __name__ == "__main__":
 
     # 3) Fetch & load stock symbols
     cur.execute("SELECT symbol FROM stock_symbols;")
-    stock_syms = [row["symbol"] for row in cur.fetchall()]
-    t_stock, i_stock, f_stock = load_prices("price_weekly", stock_syms, insert_stock_price)
+    stock_syms = [r["symbol"] for r in cur.fetchall()]
+    t_s, i_s, f_s = load_prices("price_weekly", stock_syms, insert_stock_price)
 
     # 4) Fetch & load ETF symbols
     cur.execute("SELECT symbol FROM etf_symbols;")
-    etf_syms = [row["symbol"] for row in cur.fetchall()]
-    t_etf, i_etf, f_etf = load_prices("etf_price_weekly", etf_syms, insert_etf_price)
+    etf_syms = [r["symbol"] for r in cur.fetchall()]
+    t_e, i_e, f_e = load_prices("etf_price_weekly", etf_syms, insert_etf_price)
 
-    # 5) Update last_run
+    # 5) Record last run
     cur.execute("""
       INSERT INTO last_updated (script_name, last_run)
       VALUES (%s, NOW())
       ON CONFLICT (script_name) DO UPDATE
         SET last_run = EXCLUDED.last_run;
     """, (SCRIPT_NAME,))
+    conn.commit()
 
-    # 6) Final summary & memory
-    peak_mb = get_rss_mb()
-    logging.info(f"[MEM] peak RSS during run: {peak_mb:.1f} MB")
-    logging.info(f"Stock symbols – total: {t_stock}, inserted: {i_stock}, failed: {len(f_stock)}")
-    if f_stock:
-        logging.warning("Failed stock symbols: %s",
-                        ", ".join(f_stock[:50]) + ("…" if len(f_stock) > 50 else ""))
-
-    logging.info(f"ETF symbols   – total: {t_etf}, inserted: {i_etf}, failed: {len(f_etf)}")
-    if f_etf:
-        logging.warning("Failed ETF symbols: %s",
-                        ", ".join(f_etf[:50]) + ("…" if len(f_etf) > 50 else ""))
+    # 6) Final summary & shutdown
+    peak = get_rss_mb()
+    logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
+    logging.info(f"Stocks — total: {t_s}, inserted: {i_s}, failed: {len(f_s)}")
+    logging.info(f"ETFs   — total: {t_e}, inserted: {i_e}, failed: {len(f_e)}")
 
     cur.close()
     conn.close()
