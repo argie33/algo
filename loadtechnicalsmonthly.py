@@ -121,12 +121,12 @@ def main():
     );
     """)
 
-    # Recreate target table for monthly technicals with plus_di and minus_di
+    # Recreate target table without Fibonacci columns
     cursor.execute("DROP TABLE IF EXISTS technical_data_monthly;")
     cursor.execute("""
     CREATE TABLE technical_data_monthly (
         symbol          VARCHAR(50),
-        date            DATE,
+        date            TIMESTAMP,
         rsi             DOUBLE PRECISION,
         macd            DOUBLE PRECISION,
         macd_signal     DOUBLE PRECISION,
@@ -157,12 +157,6 @@ def main():
         bbands_upper    DOUBLE PRECISION,
         pivot_high      DOUBLE PRECISION,
         pivot_low       DOUBLE PRECISION,
-        fib_0           DOUBLE PRECISION,
-        fib_236         DOUBLE PRECISION,
-        fib_382         DOUBLE PRECISION,
-        fib_50          DOUBLE PRECISION,
-        fib_618         DOUBLE PRECISION,
-        fib_100         DOUBLE PRECISION,
         PRIMARY KEY (symbol, date)
     );
     """)
@@ -177,24 +171,21 @@ def main():
     INSERT INTO technical_data_monthly (
       symbol, date,
       rsi, macd, macd_signal, macd_hist,
-      mom, roc, adx, plus_di, minus_di,
-      atr, ad, cmf, mfi,
+      mom, roc, adx, plus_di, minus_di, atr, ad, cmf, mfi,
       td_sequential, td_combo, marketwatch, dm,
       sma_10, sma_20, sma_50, sma_150, sma_200,
       ema_4, ema_9, ema_21,
       bbands_lower, bbands_middle, bbands_upper,
-      pivot_high, pivot_low,
-      fib_0, fib_236, fib_382, fib_50, fib_618, fib_100
+      pivot_high, pivot_low
     ) VALUES (
       %s, %s,
       %s, %s, %s, %s,
-      %s, %s, %s, %s, %s,
-      %s, %s, %s, %s,
+      %s, %s, %s, %s, %s, %s, %s, %s, %s,
       %s, %s, %s, %s,
       %s, %s, %s, %s, %s,
       %s, %s, %s,
       %s, %s, %s,
-      %s, %s, %s, %s, %s, %s
+      %s, %s
     );
     """
 
@@ -217,7 +208,7 @@ def main():
         df.set_index('date', inplace=True)
         df = df.astype(float).ffill().bfill().dropna()
 
-        # Indicators
+        # --- INDICATORS ---
         df['rsi'] = ta.rsi(df['close'], length=14)
 
         # MACD
@@ -242,13 +233,17 @@ def main():
         df['atr'] = ta.atr(df['high'], df['low'], df['close'], length=14)
         df['ad']  = ta.ad(df['high'], df['low'], df['close'], df['volume'])
         df['cmf'] = ta.cmf(df['high'], df['low'], df['close'], df['volume'], length=20)
-        df['mfi'] = ta.mfi(df['high'], df['low'], df['close'], df['volume'], length=14)
+
+        # MFI
+        mfi_vals = ta.mfi(df['high'], df['low'], df['close'], df['volume'], length=14)
+        if 'mfi' in df.columns: df.drop(columns=['mfi'], inplace=True)
+        df['mfi'] = pd.Series(mfi_vals, index=df.index, dtype='float64')
 
         df['td_sequential'] = td_sequential(df['close'], lookback=4)
         df['td_combo']      = td_combo(df['close'], lookback=2)
         df['marketwatch']   = marketwatch_indicator(df['close'], df['open'])
 
-        # Original DM
+        # original DM column
         dm_plus  = df['high'].diff()
         dm_minus = df['low'].shift(1) - df['low']
         dm_plus  = dm_plus.where((dm_plus>dm_minus)&(dm_plus>0), 0)
@@ -270,28 +265,18 @@ def main():
         else:
             df[['bbands_lower','bbands_middle','bbands_upper']] = np.nan
 
-        # Pivot points
+        # Pivots
         reset = df.reset_index()
         df['pivot_high'] = pivot_high_vectorized(reset,3,3).values
         df['pivot_low']  = pivot_low_vectorized(reset,3,3).values
 
-        # Fibonacci
-        hi, lo = df['high'].max(), df['low'].min()
-        rng = hi - lo
-        df['fib_0']   = hi
-        df['fib_236'] = hi - 0.236*rng
-        df['fib_382'] = hi - 0.382*rng
-        df['fib_50']  = hi - 0.5*rng
-        df['fib_618'] = hi - 0.618*rng
-        df['fib_100'] = lo
-
-        # Clean and insert
+        # clean and batch insert
         df = df.replace([np.inf, -np.inf], np.nan).where(pd.notnull(df), None)
         batch = []
         for _, row in df.reset_index().iterrows():
             batch.append((
                 sym,
-                row['date'].date(),
+                row['date'].to_pydatetime(),
                 sanitize_value(row['rsi']),
                 sanitize_value(row['macd']),
                 sanitize_value(row['macd_signal']),
@@ -322,12 +307,6 @@ def main():
                 sanitize_value(row['bbands_upper']),
                 sanitize_value(row['pivot_high']),
                 sanitize_value(row['pivot_low']),
-                sanitize_value(row['fib_0']),
-                sanitize_value(row['fib_236']),
-                sanitize_value(row['fib_382']),
-                sanitize_value(row['fib_50']),
-                sanitize_value(row['fib_618']),
-                sanitize_value(row['fib_100']),
             ))
         if batch:
             cursor.executemany(insert_q, batch)

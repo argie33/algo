@@ -773,7 +773,7 @@ jobs:
         run: |
           ARN=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='technicalsdailyTaskDefArn'].OutputValue" \
+            --query "Stacks[0].Outputs[?OutputKey=='technicalsDailyTaskDefArn'].OutputValue" \
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
 
@@ -908,24 +908,89 @@ jobs:
             exit $EXIT
           fi
 
-  run_earnings:
-    name: Run earnings loader
-    needs: deploy
-    if: ${{ needs.filter.outputs.earnings == 'true' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}
-      - run: |
-          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='EarningsServiceName'].OutputValue" \
+run_earnings:
+  name: Run earnings loader
+  needs: deploy
+  if: ${{ needs.filter.outputs.earnings == 'true' }}
+  runs-on: ubuntu-latest
+  timeout-minutes: 60
+
+  steps:
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-region:      ${{ env.AWS_REGION }}
+        role-to-assume:  ${{ env.AWS_ROLE_ARN }}
+        role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+    - name: Fetch Task Definition ARN
+      id: td
+      run: |
+        ARN=$(aws cloudformation describe-stacks \
+          --stack-name stocks-ecs-tasks-stack \
+          --query "Stacks[0].Outputs[?OutputKey=='EarningsTaskDefArn'].OutputValue" \
+          --output text)
+        echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+    - name: Fetch cluster ARN & subnets
+      id: infra
+      run: |
+        CLUSTER=$(aws cloudformation list-exports \
+          --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+          --output text)
+        SUB1=$(aws cloudformation list-exports \
+          --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+          --output text)
+        SUB2=$(aws cloudformation list-exports \
+          --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+          --output text)
+        echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
+        echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
+        echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+
+    - name: Run earnings Fargate task
+      id: run
+      run: |
+        TASK_ARN=$(aws ecs run-task \
+          --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+          --launch-type FARGATE \
+          --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
+          --count 1 \
+          --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],assignPublicIp=ENABLED}" \
+          --query 'tasks[0].taskArn' \
+          --output text)
+        echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
+        echo "🟢 Started earnings task $TASK_ARN"
+
+    - name: Wait up to 60m for task to stop
+      run: |
+        for i in $(seq 1 180); do
+          STATUS=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0].lastStatus' \
             --output text)
-          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
-          aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
-          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
+          echo "Attempt $i – status=$STATUS"
+          [ "$STATUS" = "STOPPED" ] && break
+          sleep 20
+        done
+        if [ "$STATUS" != "STOPPED" ]; then
+          echo "❌ earnings task did not stop within 60m"
+          exit 1
+        fi
+
+    - name: Check container exit code
+      run: |
+        EXIT=$(aws ecs describe-tasks \
+          --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+          --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+          --query 'tasks[0].containers[0].exitCode' \
+          --output text)
+        echo "→ Exit code: $EXIT"
+        if [ "$EXIT" -ne 0 ]; then
+          echo "❌ earnings failed with exit code $EXIT"
+          exit $EXIT
+        fi
 
   run_technicalsweekly:
     name: Run technicalsweekly loader
@@ -1069,44 +1134,171 @@ jobs:
             exit 1
           fi
 
-  run_buysell:
-    name: Run buysell loader
-    needs: deploy
-    if: ${{ needs.filter.outputs.buysell == 'true' }}
-    runs-on: ubuntu-latest
+run_buysell:
+  name: Run buysell loader
+  needs: deploy
+  if: ${{ needs.filter.outputs.buysell == 'true' }}
+  runs-on: ubuntu-latest
+  timeout-minutes: 60
 
-    steps:
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region:      ${{ env.AWS_REGION }}
-          role-to-assume:  ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+  steps:
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-region:      ${{ env.AWS_REGION }}
+        role-to-assume:  ${{ env.AWS_ROLE_ARN }}
+        role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - run: |
-          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='BuySellServiceName'].OutputValue" \
+    - name: Fetch Task Definition ARN
+      id: td
+      run: |
+        ARN=$(aws cloudformation describe-stacks \
+          --stack-name stocks-ecs-tasks-stack \
+          --query "Stacks[0].Outputs[?OutputKey=='BuySellTaskDefArn'].OutputValue" \
+          --output text)
+        echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+    - name: Fetch cluster ARN & subnets
+      id: infra
+      run: |
+        CLUSTER=$(aws cloudformation list-exports \
+          --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+          --output text)
+        SUB1=$(aws cloudformation list-exports \
+          --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+          --output text)
+        SUB2=$(aws cloudformation list-exports \
+          --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+          --output text)
+        echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
+        echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
+        echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+
+    - name: Run buysell Fargate task
+      id: run
+      run: |
+        TASK_ARN=$(aws ecs run-task \
+          --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+          --launch-type FARGATE \
+          --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
+          --count 1 \
+          --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],assignPublicIp=ENABLED}" \
+          --query 'tasks[0].taskArn' \
+          --output text)
+        echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
+        echo "🟢 Started buysell task $TASK_ARN"
+
+    - name: Wait up to 60m for task to stop
+      run: |
+        for i in $(seq 1 180); do
+          STATUS=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0].lastStatus' \
             --output text)
-          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
-          aws ecs wait services-stable --cluster stocks-cluster --services "$SVC"
-          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
+          echo "Attempt $i – status=$STATUS"
+          [ "$STATUS" = "STOPPED" ] && break
+          sleep 20
+        done
+        if [ "$STATUS" != "STOPPED" ]; then
+          echo "❌ buysell task did not stop within 60m"
+          exit 1
+        fi
 
-  run_swingtrader:
-    name: Run swingtrader loader
-    needs: deploy
-    if: ${{ needs.filter.outputs.swingtrader == 'true' }}
-    runs-on: ubuntu-latest
+    - name: Check container exit code
+      run: |
+        EXIT=$(aws ecs describe-tasks \
+          --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+          --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+          --query 'tasks[0].containers[0].exitCode' \
+          --output text)
+        echo "→ Exit code: $EXIT"
+        if [ "$EXIT" -ne 0 ]; then
+          echo "❌ buysell failed with exit code $EXIT"
+          exit $EXIT
+        fi
 
-    steps:
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region:      ${{ env.AWS_REGION }}
-          role-to-assume:  ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - run: |
-          SVC=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='SwingTraderServiceName'].OutputValue" \
+run_swingtrader:
+  name: Run swingtrader loader
+  needs: deploy
+  if: ${{ needs.filter.outputs.swingtrader == 'true' }}
+  runs-on: ubuntu-latest
+  timeout-minutes: 60
+
+  steps:
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-region:      ${{ env.AWS_REGION }}
+        role-to-assume:  ${{ env.AWS_ROLE_ARN }}
+        role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+    - name: Fetch Task Definition ARN
+      id: td
+      run: |
+        ARN=$(aws cloudformation describe-stacks \
+          --stack-name stocks-ecs-tasks-stack \
+          --query "Stacks[0].Outputs[?OutputKey=='SwingTraderTaskDefArn'].OutputValue" \
+          --output text)
+        echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+    - name: Fetch cluster ARN & subnets
+      id: infra
+      run: |
+        CLUSTER=$(aws cloudformation list-exports \
+          --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+          --output text)
+        SUB1=$(aws cloudformation list-exports \
+          --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+          --output text)
+        SUB2=$(aws cloudformation list-exports \
+          --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+          --output text)
+        echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
+        echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
+        echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+
+    - name: Run swingtrader Fargate task
+      id: run
+      run: |
+        TASK_ARN=$(aws ecs run-task \
+          --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+          --launch-type FARGATE \
+          --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
+          --count 1 \
+          --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],assignPublicIp=ENABLED}" \
+          --query 'tasks[0].taskArn' \
+          --output text)
+        echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
+        echo "🟢 Started swingtrader task $TASK_ARN"
+
+    - name: Wait up to 60m for task to stop
+      run: |
+        for i in $(seq 1 180); do
+          STATUS=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0].lastStatus' \
             --output text)
-          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 1
-          aws ecs wait services-stable  --cluster stocks-cluster --services "$SVC"
-          aws ecs update-service --cluster stocks-cluster --service "$SVC" --desired-count 0
+          echo "Attempt $i – status=$STATUS"
+          [ "$STATUS" = "STOPPED" ] && break
+          sleep 20
+        done
+        if [ "$STATUS" != "STOPPED" ]; then
+          echo "❌ swingtrader task did not stop within 60m"
+          exit 1
+        fi
+
+    - name: Check container exit code
+      run: |
+        EXIT=$(aws ecs describe-tasks \
+          --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+          --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+          --query 'tasks[0].containers[0].exitCode' \
+          --output text)
+        echo "→ Exit code: $EXIT"
+        if [ "$EXIT" -ne 0 ]; then
+          echo "❌ swingtrader failed with exit code $EXIT"
+          exit $EXIT
+        fi

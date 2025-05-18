@@ -12,7 +12,7 @@ from psycopg2.extras import RealDictCursor
 
 import numpy as np
 # ───────────────────────────────────────────────────────────────────
-# Patch for pandas_ta compatibility: ensure numpy exports NaN
+# Patch for pandas_ta compatibility: ensure numpy exports NaN 
 np.NaN = np.nan
 # ───────────────────────────────────────────────────────────────────
 
@@ -121,7 +121,7 @@ def main():
     );
     """)
 
-    # Recreate target table with plus_di and minus_di
+    # Recreate target table without Fibonacci columns
     cursor.execute("DROP TABLE IF EXISTS technical_data_weekly;")
     cursor.execute("""
     CREATE TABLE technical_data_weekly (
@@ -157,12 +157,6 @@ def main():
         bbands_upper    DOUBLE PRECISION,
         pivot_high      DOUBLE PRECISION,
         pivot_low       DOUBLE PRECISION,
-        fib_0           DOUBLE PRECISION,
-        fib_236         DOUBLE PRECISION,
-        fib_382         DOUBLE PRECISION,
-        fib_50          DOUBLE PRECISION,
-        fib_618         DOUBLE PRECISION,
-        fib_100         DOUBLE PRECISION,
         PRIMARY KEY (symbol, date)
     );
     """)
@@ -182,8 +176,7 @@ def main():
       sma_10, sma_20, sma_50, sma_150, sma_200,
       ema_4, ema_9, ema_21,
       bbands_lower, bbands_middle, bbands_upper,
-      pivot_high, pivot_low,
-      fib_0, fib_236, fib_382, fib_50, fib_618, fib_100
+      pivot_high, pivot_low
     ) VALUES (
       %s, %s,
       %s, %s, %s, %s,
@@ -192,8 +185,7 @@ def main():
       %s, %s, %s, %s, %s,
       %s, %s, %s,
       %s, %s, %s,
-      %s, %s,
-      %s, %s, %s, %s, %s, %s
+      %s, %s
     );
     """
 
@@ -251,7 +243,7 @@ def main():
         df['td_combo']      = td_combo(df['close'], lookback=2)
         df['marketwatch']   = marketwatch_indicator(df['close'], df['open'])
 
-        # original DM column if you still want it
+        # original DM column
         dm_plus  = df['high'].diff()
         dm_minus = df['low'].shift(1) - df['low']
         dm_plus  = dm_plus.where((dm_plus>dm_minus)&(dm_plus>0), 0)
@@ -273,20 +265,10 @@ def main():
         else:
             df[['bbands_lower','bbands_middle','bbands_upper']] = np.nan
 
-        # pivots
+        # Pivots
         reset = df.reset_index()
         df['pivot_high'] = pivot_high_vectorized(reset,3,3).values
         df['pivot_low']  = pivot_low_vectorized(reset,3,3).values
-
-        # Fibonacci extremes
-        hi, lo = df['high'].max(), df['low'].min()
-        rng = hi - lo
-        df['fib_0']   = hi
-        df['fib_236'] = hi - 0.236*rng
-        df['fib_382'] = hi - 0.382*rng
-        df['fib_50']  = hi - 0.5*rng
-        df['fib_618'] = hi - 0.618*rng
-        df['fib_100'] = lo
 
         # clean and batch insert
         df = df.replace([np.inf, -np.inf], np.nan).where(pd.notnull(df), None)
@@ -325,12 +307,6 @@ def main():
                 sanitize_value(row['bbands_upper']),
                 sanitize_value(row['pivot_high']),
                 sanitize_value(row['pivot_low']),
-                sanitize_value(row['fib_0']),
-                sanitize_value(row['fib_236']),
-                sanitize_value(row['fib_382']),
-                sanitize_value(row['fib_50']),
-                sanitize_value(row['fib_618']),
-                sanitize_value(row['fib_100']),
             ))
         if batch:
             cursor.executemany(insert_q, batch)
