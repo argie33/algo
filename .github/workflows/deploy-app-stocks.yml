@@ -203,7 +203,7 @@ jobs:
             pricedaily)       DOCKERFILE=Dockerfile.pricedaily;     PARAM=PriceImageTag;;
             priceweekly)      DOCKERFILE=Dockerfile.priceweekly;    PARAM=PriceWeeklyImageTag;;
             pricemonthly)     DOCKERFILE=Dockerfile.pricemonthly;   PARAM=PriceMonthlyImageTag;;
-            technicalsdaily)   DOCKERFILE=Dockerfile.technicalsdaily; PARAM=technicalsDailyImageTag;;
+            technicalsdaily)   DOCKERFILE=Dockerfile.technicalsdaily; PARAM=TechnicalsDailyImageTag;;
             loadkeystats)     DOCKERFILE=Dockerfile.loadkeystats;   PARAM=LoadKeyStatsImageTag;;
             earnings)         DOCKERFILE=Dockerfile.loadearnings;   PARAM=EarningsImageTag;;
             technicalsweekly) DOCKERFILE=Dockerfile.technicalsweekly;PARAM=TechnicalsWeeklyImageTag;;
@@ -255,7 +255,7 @@ jobs:
             for key in \
               StockSymbolsImageTag EconDataImageTag FindataImageTag \
               PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag \
-              technicalsDailyImageTag LoadKeyStatsImageTag EarningsImageTag \
+              TechnicalsDailyImageTag LoadKeyStatsImageTag EarningsImageTag \
               TechnicalsWeeklyImageTag TechnicalsMonthlyImageTag \
               BuySellImageTag SwingTraderImageTag; do
               echo "${key}=$(aws cloudformation describe-stacks \
@@ -297,7 +297,7 @@ jobs:
               PriceImageTag=$(grep '^PriceImageTag=' tags.env | cut -d= -f2-) \
               PriceWeeklyImageTag=$(grep '^PriceWeeklyImageTag=' tags.env | cut -d= -f2-) \
               PriceMonthlyImageTag=$(grep '^PriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
-              technicalsDailyImageTag=$(grep '^technicalsDailyImageTag=' tags.env | cut -d= -f2-) \
+              TechnicalsDailyImageTag=$(grep '^TechnicalsDailyImageTag=' tags.env | cut -d= -f2-) \
               LoadKeyStatsImageTag=$(grep '^LoadKeyStatsImageTag=' tags.env | cut -d= -f2-) \
               EarningsImageTag=$(grep '^EarningsImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsWeeklyImageTag=$(grep '^TechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-) \
