@@ -14,7 +14,7 @@ from psycopg2.extras import RealDictCursor
 import yfinance as yf
 
 # -------------------------------
-# Script metadata & logging setup
+# Script metadata & logging setup 
 # -------------------------------
 SCRIPT_NAME = "loadpricemonthly.py"
 logging.basicConfig(

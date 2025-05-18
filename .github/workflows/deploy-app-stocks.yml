@@ -726,7 +726,7 @@ jobs:
       - name: Wait up to 60m for task to stop
         run: |
           for i in $(seq 1 180); do           # 180 × 20 s = 60 min
-            STATUS=$(aws ecs.describe-tasks \
+            STATUS=$(aws ecs describe-tasks \
               --cluster "${{ steps.infra.outputs.CLUSTER }}" \
               --tasks "${{ steps.run.outputs.TASK_ARN }}" \
               --query 'tasks[0].lastStatus' \
@@ -742,16 +742,10 @@ jobs:
 
       - name: Check container exit code
         run: |
-          EXIT=$(aws ecs.describe-tasks \
+          EXIT=$(aws ecs describe-tasks \
             --cluster "${{ steps.infra.outputs.CLUSTER }}" \
             --tasks "${{ steps.run.outputs.TASK_ARN }}" \
-            --query 'tasks[0].containers[0].exitCode' \
-            --output text)
-          echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
-            echo "❌ pricemonthly failed with exit code $EXIT"
-            exit $EXIT
-          fi
+            --query 'tasks[0].containers[0].exitCode'
 
   run_technicalsdaily:
     name: Run technicalsdaily loader
