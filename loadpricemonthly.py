@@ -106,7 +106,7 @@ def load_prices(table_name, symbols, insert_fn, cur, conn):
                 df = yf.download(
                     tickers=yq_batch,
                     period="max",       # fetch entire history
-                    interval="1d",      # monthly bars
+                    interval="1mo",      # monthly bars
                     group_by="ticker",
                     auto_adjust=False,
                     threads=True,
