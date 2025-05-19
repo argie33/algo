@@ -15,7 +15,7 @@ import boto3
 import yfinance as yf
 
 # -------------------------------
-# Script metadata & logging setup
+# Script metadata & logging setup 
 # -------------------------------
 SCRIPT_NAME = "loadpricemonthly.py"
 logging.basicConfig(
