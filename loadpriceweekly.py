@@ -15,7 +15,7 @@ import boto3
 import yfinance as yf
 
 # -------------------------------
-# Script metadata & logging setup
+# Script metadata & logging setup 
 # -------------------------------
 SCRIPT_NAME = "loadpriceweekly.py"
 logging.basicConfig(
@@ -122,14 +122,14 @@ def load_prices(table_name, symbols, insert_fn, cur, conn):
             continue
 
         log_mem(f"{table_name} after yf.download")
-
         # Ping DB to catch dropped connections
         cur.execute("SELECT 1;")
 
-        # Insert every historical row per symbol with its own retry loop
+        # Insert every historical row per symbol
         gc.disable()
         try:
             for yq_sym, orig_sym in mapping.items():
+                # prepare subset
                 try:
                     sub = df[yq_sym] if len(yq_batch) > 1 else df
                 except KeyError:
@@ -142,6 +142,7 @@ def load_prices(table_name, symbols, insert_fn, cur, conn):
                     failed.append(orig_sym)
                     continue
 
+                symbol_inserted = 0
                 # iterate all rows
                 for idx, row in sub.iterrows():
                     rec = {
@@ -159,24 +160,29 @@ def load_prices(table_name, symbols, insert_fn, cur, conn):
                         try:
                             insert_fn(cur, orig_sym, rec)
                             conn.commit()
-                            # ping DB before logging success
+                            # ping DB before logging
                             cur.execute("SELECT 1;")
-                            logging.info(f"Inserted {table_name} for {orig_sym} on {rec['date']}")
-                            inserted += 1
+                            symbol_inserted += 1
                             break
                         except Exception as ie:
                             conn.rollback()
                             if i_attempt < MAX_INSERT_RETRIES:
                                 logging.warning(
-                                    f"Insert failed for {orig_sym} {rec['date']} (attempt {i_attempt}/{MAX_INSERT_RETRIES}): {ie}; retrying in {INSERT_RETRY_DELAY}s"
+                                    f"{orig_sym} {rec['date']} insert failed "
+                                    f"(attempt {i_attempt}/{MAX_INSERT_RETRIES}): {ie}; retrying…"
                                 )
                                 time.sleep(INSERT_RETRY_DELAY)
                             else:
                                 logging.error(
-                                    f"Insert failed for {orig_sym} {rec['date']} after {MAX_INSERT_RETRIES} attempts: {ie}",
+                                    f"{orig_sym} {rec['date']} insert failed after "
+                                    f"{MAX_INSERT_RETRIES} attempts: {ie}",
                                     exc_info=True
                                 )
                                 failed.append(orig_sym)
+
+                # per-symbol summary
+                inserted += symbol_inserted
+                logging.info(f"{table_name} — {orig_sym}: inserted {symbol_inserted} rows")
         finally:
             gc.enable()
 
