@@ -34,8 +34,7 @@ def get_rss_mb():
     return usage / (1024 * 1024)
 
 def log_mem(stage: str):
-    mb = get_rss_mb()
-    logging.info(f"[MEM] {stage}: {mb:.1f} MB RSS")
+    logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
 # -------------------------------
 # Retry settings
@@ -70,10 +69,9 @@ def insert_etf_price(cursor, symbol, rec):
 # DB config loader
 # -------------------------------
 def get_db_config():
-    secret_arn = os.environ["DB_SECRET_ARN"]
-    sm = boto3.client("secretsmanager")
     sec = json.loads(
-        sm.get_secret_value(SecretId=secret_arn)["SecretString"]
+        boto3.client("secretsmanager")
+             .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     )
     return {
         "host":   sec["host"],
@@ -98,7 +96,7 @@ def load_prices(table_name, symbols, insert_fn, cur, conn):
         yq_batch = [s.replace('.', '-').replace('$','-').upper() for s in batch]
         mapping  = dict(zip(yq_batch, batch))
 
-        # Download full history with retry
+        # ─── Download full history ──────────────────────────────
         for attempt in range(1, MAX_BATCH_RETRIES+1):
             logging.info(f"{table_name} – batch {batch_idx+1}/{batches}, download attempt {attempt}")
             log_mem(f"{table_name} batch {batch_idx+1} start")
@@ -124,7 +122,7 @@ def load_prices(table_name, symbols, insert_fn, cur, conn):
         log_mem(f"{table_name} after yf.download")
         cur.execute("SELECT 1;")   # ping DB
 
-        # Insert every historical row per symbol
+        # ─── Insert every historical row per symbol ─────────────
         gc.disable()
         try:
             for yq_sym, orig_sym in mapping.items():
@@ -141,8 +139,13 @@ def load_prices(table_name, symbols, insert_fn, cur, conn):
                     failed.append(orig_sym)
                     continue
 
-                # ensure chronological order oldest→newest
+                # ensure chronological order & drop padded NaNs
                 sub = sub.sort_index()
+                sub = sub[sub["Open"].notna()]
+                if sub.empty:
+                    logging.warning(f"No valid price rows for {orig_sym} after dropping NaNs; skipping symbol")
+                    failed.append(orig_sym)
+                    continue
 
                 symbol_inserted = 0
                 for idx, row in sub.iterrows():
@@ -161,7 +164,7 @@ def load_prices(table_name, symbols, insert_fn, cur, conn):
                         try:
                             insert_fn(cur, orig_sym, rec)
                             conn.commit()
-                            cur.execute("SELECT 1;")
+                            cur.execute("SELECT 1;")  # ping before logging
                             symbol_inserted += 1
                             break
                         except Exception as ie:
@@ -207,7 +210,7 @@ if __name__ == "__main__":
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # 2) (Re)create tables & commit
+    # 2) Recreate tables & commit
     logging.info("Recreating price_monthly table…")
     log_mem("before stock DDL")
     cur.execute("DROP TABLE IF EXISTS price_monthly;")
@@ -249,12 +252,12 @@ if __name__ == "__main__":
     # 3) Load stock symbols
     cur.execute("SELECT symbol FROM stock_symbols;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
-    t_s, i_s, f_s = load_prices("price_monthly",   stock_syms, insert_stock_price, cur, conn)
+    t_s, i_s, f_s = load_prices("price_monthly", stock_syms, insert_stock_price, cur, conn)
 
     # 4) Load ETF symbols
     cur.execute("SELECT symbol FROM etf_symbols;")
-    etf_syms   = [r["symbol"] for r in cur.fetchall()]
-    t_e, i_e, f_e = load_prices("etf_price_monthly", etf_syms, insert_etf_price,  cur, conn)
+    etf_syms = [r["symbol"] for r in cur.fetchall()]
+    t_e, i_e, f_e = load_prices("etf_price_monthly", etf_syms, insert_etf_price, cur, conn)
 
     # 5) Record last run
     cur.execute("""
