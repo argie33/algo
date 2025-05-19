@@ -177,6 +177,14 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Set up QEMU for cross-build
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: linux/arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -213,8 +221,12 @@ jobs:
           esac
 
           TAG=${{ matrix.loader }}-${{ github.sha }}
-          docker build -f "$DOCKERFILE" -t "$URI:$TAG" .
-          docker push "$URI:$TAG"
+          docker buildx build \
+            --platform linux/arm64 \
+            --push \
+            -f "$DOCKERFILE" \
+            -t "$URI:$TAG" \
+            .
           echo "${PARAM}=$TAG" > build_tag_${{ matrix.loader }}.txt
 
       - name: Upload tag artifact
