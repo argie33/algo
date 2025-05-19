@@ -621,6 +621,7 @@ jobs:
           TASK_ARN=$(aws ecs run-task \
             --cluster "${{ steps.infra.outputs.CLUSTER }}" \
             --launch-type FARGATE \
+            --runtime-platform cpuArchitecture=ARM64,operatingSystemFamily=LINUX \
             --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
             --count 1 \
             --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],assignPublicIp=ENABLED}" \
