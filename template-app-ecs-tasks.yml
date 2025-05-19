@@ -387,8 +387,8 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: pricedaily-loader
-      Cpu: "512"
-      Memory: "1024"
+      Cpu: "128"
+      Memory: "256"
       NetworkMode: awsvpc
       RequiresCompatibilities: [FARGATE]
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
