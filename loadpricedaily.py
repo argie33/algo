@@ -40,9 +40,9 @@ def log_mem(stage: str):
 # Retry settings
 # -------------------------------
 MAX_BATCH_RETRIES   = 3
-RETRY_DELAY         = 2   # seconds between download retries
+RETRY_DELAY         = 0.2   # seconds between download retries
 MAX_INSERT_RETRIES  = 3
-INSERT_RETRY_DELAY  = 1   # seconds between insert retries
+INSERT_RETRY_DELAY  = 0.2   # seconds between insert retries
 
 # -------------------------------
 # Price-daily columns & SQL helpers
