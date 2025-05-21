@@ -103,16 +103,13 @@ def load_prices(table_name, symbols, insert_fn, cur, conn):
             logging.info(f"{table_name} – batch {batch_idx+1}/{batches}, download attempt {attempt}")
             log_mem(f"{table_name} batch {batch_idx+1} start")
             try:
-                # Download data from Yahoo Finance
                 df = yf.download(
                     tickers=yq_batch,
                     period="max",
                     interval="1d",
                     group_by="ticker",
-                    auto_adjust=True,   # get fully adjusted OHLC
-                    actions=True,       # include dividends & splits
-                    keepna=True,        # keep all dates for ffill/backfill
-                    repair=True,        # fix any 100× mix-ups
+                    auto_adjust=True,
+                    actions=True,
                     threads=True,
                     progress=False
                 )
