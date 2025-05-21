@@ -40,17 +40,17 @@ def log_mem(stage: str):
 # -------------------------------
 # Retry settings
 # -------------------------------
-MAX_BATCH_RETRIES = 3
-RETRY_DELAY       = 0.2   # seconds between download retries
+MAX_BATCH_RETRIES   = 3
+RETRY_DELAY         = 0.2   # seconds between download retries
 
 # -------------------------------
 # Price-daily columns
 # -------------------------------
 PRICE_COLUMNS = [
-    "date", "open", "high", "low", "close",
-    "adj_close", "volume", "dividends", "stock_splits"
+    "date","open","high","low","close",
+    "adj_close","volume","dividends","stock_splits"
 ]
-COL_LIST = ", ".join(["symbol"] + PRICE_COLUMNS)
+COL_LIST     = ", ".join(["symbol"] + PRICE_COLUMNS)
 
 # -------------------------------
 # DB config loader
@@ -82,7 +82,7 @@ def load_prices(table_name, symbols, cur, conn):
         yq_batch = [s.replace('.', '-').replace('$','-').upper() for s in batch]
         mapping  = dict(zip(yq_batch, batch))
 
-        # ─── Download full history with your settings ─────────────────────────────
+        # ─── Download full history ──────────────────────────────
         for attempt in range(1, MAX_BATCH_RETRIES+1):
             logging.info(f"{table_name} – batch {batch_idx+1}/{batches}, download attempt {attempt}")
             log_mem(f"{table_name} batch {batch_idx+1} start")
@@ -109,7 +109,7 @@ def load_prices(table_name, symbols, cur, conn):
         log_mem(f"{table_name} after yf.download")
         cur.execute("SELECT 1;")   # ping DB
 
-        # ─── Batch up and insert per symbol ───────────────────────────────────────
+        # ─── Batch-insert per symbol ─────────────────────────────
         gc.disable()
         try:
             for yq_sym, orig_sym in mapping.items():
@@ -120,15 +120,16 @@ def load_prices(table_name, symbols, cur, conn):
                     failed.append(orig_sym)
                     continue
 
-                if sub.empty or sub["Open"].dropna().empty:
-                    logging.warning(f"No valid data for {orig_sym}; skipping")
+                sub = sub.sort_index()
+                sub = sub[sub["Open"].notna()]
+                if sub.empty:
+                    logging.warning(f"No valid price rows for {orig_sym}; skipping")
                     failed.append(orig_sym)
                     continue
 
-                sub = sub.sort_index()
                 rows = []
                 for idx, row in sub.iterrows():
-                    rows.append((
+                    rows.append([
                         orig_sym,
                         idx.date(),
                         None if math.isnan(row["Open"])      else float(row["Open"]),
@@ -139,7 +140,7 @@ def load_prices(table_name, symbols, cur, conn):
                         None if math.isnan(row["Volume"])    else int(row["Volume"]),
                         0.0  if ("Dividends" not in row or math.isnan(row["Dividends"])) else float(row["Dividends"]),
                         0.0  if ("Stock Splits" not in row or math.isnan(row["Stock Splits"])) else float(row["Stock Splits"])
-                    ))
+                    ])
 
                 if not rows:
                     logging.warning(f"{orig_sym}: no rows after cleaning; skipping")
@@ -167,7 +168,7 @@ def load_prices(table_name, symbols, cur, conn):
 if __name__ == "__main__":
     log_mem("startup")
 
-    # 1) Connect to DB
+    # Connect to DB
     cfg  = get_db_config()
     conn = psycopg2.connect(
         host=cfg["host"], port=cfg["port"],
@@ -177,58 +178,57 @@ if __name__ == "__main__":
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # 2) Recreate price_daily table
+    # Recreate tables
     logging.info("Recreating price_daily table…")
     cur.execute("DROP TABLE IF EXISTS price_daily;")
-    cur.execute(f"""
-    CREATE TABLE price_daily (
-        id           SERIAL PRIMARY KEY,
-        symbol       VARCHAR(10) NOT NULL,
-        date         DATE         NOT NULL,
-        open         DOUBLE PRECISION,
-        high         DOUBLE PRECISION,
-        low          DOUBLE PRECISION,
-        close        DOUBLE PRECISION,
-        adj_close    DOUBLE PRECISION,
-        volume       BIGINT,
-        dividends    DOUBLE PRECISION,
-        stock_splits DOUBLE PRECISION,
-        fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
+    cur.execute("""
+        CREATE TABLE price_daily (
+            id           SERIAL PRIMARY KEY,
+            symbol       VARCHAR(10) NOT NULL,
+            date         DATE         NOT NULL,
+            open         DOUBLE PRECISION,
+            high         DOUBLE PRECISION,
+            low          DOUBLE PRECISION,
+            close        DOUBLE PRECISION,
+            adj_close    DOUBLE PRECISION,
+            volume       BIGINT,
+            dividends    DOUBLE PRECISION,
+            stock_splits DOUBLE PRECISION,
+            fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
     """)
 
-    # 3) Recreate etf_price_daily table
     logging.info("Recreating etf_price_daily table…")
     cur.execute("DROP TABLE IF EXISTS etf_price_daily;")
-    cur.execute(f"""
-    CREATE TABLE etf_price_daily (
-        id           SERIAL PRIMARY KEY,
-        symbol       VARCHAR(10) NOT NULL,
-        date         DATE         NOT NULL,
-        open         DOUBLE PRECISION,
-        high         DOUBLE PRECISION,
-        low          DOUBLE PRECISION,
-        close        DOUBLE PRECISION,
-        adj_close    DOUBLE PRECISION,
-        volume       BIGINT,
-        dividends    DOUBLE PRECISION,
-        stock_splits DOUBLE PRECISION,
-        fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
+    cur.execute("""
+        CREATE TABLE etf_price_daily (
+            id           SERIAL PRIMARY KEY,
+            symbol       VARCHAR(10) NOT NULL,
+            date         DATE         NOT NULL,
+            open         DOUBLE PRECISION,
+            high         DOUBLE PRECISION,
+            low          DOUBLE PRECISION,
+            close        DOUBLE PRECISION,
+            adj_close    DOUBLE PRECISION,
+            volume       BIGINT,
+            dividends    DOUBLE PRECISION,
+            stock_splits DOUBLE PRECISION,
+            fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
     """)
     conn.commit()
 
-    # 4) Load stock symbols
+    # Load stock symbols
     cur.execute("SELECT symbol FROM stock_symbols;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
     t_s, i_s, f_s = load_prices("price_daily", stock_syms, cur, conn)
 
-    # 5) Load ETF symbols
+    # Load ETF symbols
     cur.execute("SELECT symbol FROM etf_symbols;")
     etf_syms = [r["symbol"] for r in cur.fetchall()]
     t_e, i_e, f_e = load_prices("etf_price_daily", etf_syms, cur, conn)
 
-    # 6) Record last run
+    # Record last run
     cur.execute("""
       INSERT INTO last_updated (script_name, last_run)
       VALUES (%s, NOW())
@@ -237,7 +237,6 @@ if __name__ == "__main__":
     """, (SCRIPT_NAME,))
     conn.commit()
 
-    # 7) Final summary & shutdown
     peak = get_rss_mb()
     logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
     logging.info(f"Stocks — total: {t_s}, inserted: {i_s}, failed: {len(f_s)}")
