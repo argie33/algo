@@ -26,11 +26,13 @@ logging.basicConfig(
 )
 
 # -------------------------------
-# Memory‐logging helper (RSS in MB)
+# Memory-logging helper (RSS in MB)
 # -------------------------------
 def get_rss_mb():
     usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    return usage / 1024 if sys.platform.startswith("linux") else usage / (1024 * 1024)
+    if sys.platform.startswith("linux"):
+        return usage / 1024
+    return usage / (1024 * 1024)
 
 def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
@@ -39,15 +41,14 @@ def log_mem(stage: str):
 # Retry settings
 # -------------------------------
 MAX_BATCH_RETRIES = 3
-RETRY_DELAY       = 0.2   # seconds between yf.download retries
+RETRY_DELAY       = 0.2   # seconds between download retries
 
 # -------------------------------
-# Columns for INSERT
+# Price-daily columns
 # -------------------------------
 PRICE_COLUMNS = [
-    "date", "open", "high", "low",
-    "close", "adj_close", "volume",
-    "dividends", "stock_splits"
+    "date", "open", "high", "low", "close",
+    "adj_close", "volume", "dividends", "stock_splits"
 ]
 COL_LIST = ", ".join(["symbol"] + PRICE_COLUMNS)
 
@@ -55,10 +56,9 @@ COL_LIST = ", ".join(["symbol"] + PRICE_COLUMNS)
 # DB config loader
 # -------------------------------
 def get_db_config():
-    sec = json.loads(
-        boto3.client("secretsmanager")
-             .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
-    )
+    secret_str = boto3.client("secretsmanager") \
+                     .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
+    sec = json.loads(secret_str)
     return {
         "host":   sec["host"],
         "port":   int(sec.get("port", 5432)),
@@ -68,34 +68,21 @@ def get_db_config():
     }
 
 # -------------------------------
-# Main loader with skipping & batched inserts
+# Main loader with batched inserts
 # -------------------------------
 def load_prices(table_name, symbols, cur, conn):
-    # 1) Skip any symbols already in the existing table
-    cur.execute(
-        f"SELECT DISTINCT symbol FROM {table_name} WHERE symbol = ANY(%s);",
-        (symbols,)
-    )
-    loaded = {row["symbol"] for row in cur.fetchall()}
-    to_load = [s for s in symbols if s not in loaded]
-    logging.info(
-        f"{table_name}: {len(to_load)} new symbols to load;"
-        f" skipping {len(loaded)} already present"
-    )
-    if not to_load:
-        return 0, 0, []
-
-    # 2) Chunk & download
-    total, inserted, failed = len(to_load), 0, []
+    total = len(symbols)
+    logging.info(f"Loading {table_name}: {total} symbols")
+    inserted, failed = 0, []
     CHUNK_SIZE, PAUSE = 20, 0.1
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     for batch_idx in range(batches):
-        batch   = to_load[batch_idx*CHUNK_SIZE : (batch_idx+1)*CHUNK_SIZE]
-        yq_batch = [s.strip().upper() for s in batch]
+        batch    = symbols[batch_idx*CHUNK_SIZE : (batch_idx+1)*CHUNK_SIZE]
+        yq_batch = [s.replace('.', '-').replace('$','-').upper() for s in batch]
         mapping  = dict(zip(yq_batch, batch))
 
-        # ─── Download history ───────────────────────────────
+        # ─── Download full history with your settings ─────────────────────────────
         for attempt in range(1, MAX_BATCH_RETRIES+1):
             logging.info(f"{table_name} – batch {batch_idx+1}/{batches}, download attempt {attempt}")
             log_mem(f"{table_name} batch {batch_idx+1} start")
@@ -105,32 +92,45 @@ def load_prices(table_name, symbols, cur, conn):
                     period="max",
                     interval="1d",
                     group_by="ticker",
-                    auto_adjust=False,
-                    actions=True,     # include dividends & splits
-                    threads=True,
-                    progress=False
+                    auto_adjust=True,    # preserved
+                    actions=True,        # preserved
+                    threads=True,        # preserved
+                    progress=False       # preserved
                 )
                 break
             except Exception as e:
-                logging.warning(f"Download failed: {e}; retrying…")
+                logging.warning(f"{table_name} download failed: {e}; retrying…")
                 time.sleep(RETRY_DELAY)
         else:
-            logging.error(f"Batch {batch_idx+1} failed after {MAX_BATCH_RETRIES} attempts")
+            logging.error(f"{table_name} batch {batch_idx+1} failed after {MAX_BATCH_RETRIES} attempts")
             failed += batch
             continue
 
         log_mem(f"{table_name} after yf.download")
-        cur.execute("SELECT 1;")  # ping
+        cur.execute("SELECT 1;")   # ping DB
 
-        # ─── Batch‐insert per symbol ─────────────────────────
+        # ─── Batch up and insert per symbol ───────────────────────────────────────
         gc.disable()
         try:
             for yq_sym, orig_sym in mapping.items():
-                sub = df[yq_sym] if len(yq_batch) > 1 else df
-                # drop any missing‐Open rows
-                sub = sub[sub["Open"].notna()]
-                if sub.empty:
+                # skip symbols that already have rows
+                cur.execute(
+                    f"SELECT 1 FROM {table_name} WHERE symbol = %s LIMIT 1;",
+                    (orig_sym,)
+                )
+                if cur.fetchone():
+                    logging.info(f"{orig_sym} already in {table_name}; skipping")
+                    continue
+
+                try:
+                    sub = df[yq_sym] if len(yq_batch) > 1 else df
+                except KeyError:
                     logging.warning(f"No data for {orig_sym}; skipping")
+                    failed.append(orig_sym)
+                    continue
+
+                if sub.empty or sub["Open"].dropna().empty:
+                    logging.warning(f"No valid data for {orig_sym}; skipping")
                     failed.append(orig_sym)
                     continue
 
@@ -144,17 +144,14 @@ def load_prices(table_name, symbols, cur, conn):
                         None if math.isnan(row["High"]) else float(row["High"]),
                         None if math.isnan(row["Low"]) else float(row["Low"]),
                         None if math.isnan(row["Close"]) else float(row["Close"]),
-                        None if math.isnan(row.get("Adj Close", row["Close"])) 
-                             else float(row.get("Adj Close", row["Close"])),
+                        None if math.isnan(row.get("Adj Close", row["Close"])) else float(row.get("Adj Close", row["Close"])),
                         None if math.isnan(row["Volume"]) else int(row["Volume"]),
-                        0.0  if ("Dividends" not in row or math.isnan(row["Dividends"])) 
-                             else float(row["Dividends"]),
-                        0.0  if ("Stock Splits" not in row or math.isnan(row["Stock Splits"])) 
-                             else float(row["Stock Splits"])
+                        0.0 if ("Dividends" not in row or math.isnan(row["Dividends"])) else float(row["Dividends"]),
+                        0.0 if ("Stock Splits" not in row or math.isnan(row["Stock Splits"])) else float(row["Stock Splits"])
                     ))
 
                 if not rows:
-                    logging.warning(f"{orig_sym}: no valid rows after cleaning; skipping")
+                    logging.warning(f"{orig_sym}: no rows after cleaning; skipping")
                     failed.append(orig_sym)
                     continue
 
@@ -162,7 +159,7 @@ def load_prices(table_name, symbols, cur, conn):
                 execute_values(cur, sql, rows)
                 conn.commit()
                 inserted += len(rows)
-                logging.info(f"{table_name} — {orig_sym}: batch‐inserted {len(rows)} rows")
+                logging.info(f"{table_name} — {orig_sym}: batch-inserted {len(rows)} rows")
         finally:
             gc.enable()
 
@@ -179,7 +176,7 @@ def load_prices(table_name, symbols, cur, conn):
 if __name__ == "__main__":
     log_mem("startup")
 
-    # 1) Connect to the database
+    # Connect to DB
     cfg  = get_db_config()
     conn = psycopg2.connect(
         host=cfg["host"], port=cfg["port"],
@@ -189,17 +186,17 @@ if __name__ == "__main__":
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # 2) Load stock symbols, skipping any already in price_daily
+    # Load stock symbols, skipping those already loaded
     cur.execute("SELECT symbol FROM stock_symbols;")
-    stocks = [r["symbol"] for r in cur.fetchall()]
-    t_s, i_s, f_s = load_prices("price_daily", stocks, cur, conn)
+    stock_syms = [r["symbol"] for r in cur.fetchall()]
+    t_s, i_s, f_s = load_prices("price_daily", stock_syms, cur, conn)
 
-    # 3) Load ETF symbols, skipping any already in etf_price_daily
+    # Load ETF symbols, skipping those already loaded
     cur.execute("SELECT symbol FROM etf_symbols;")
-    etfs = [r["symbol"] for r in cur.fetchall()]
-    t_e, i_e, f_e = load_prices("etf_price_daily", etfs, cur, conn)
+    etf_syms = [r["symbol"] for r in cur.fetchall()]
+    t_e, i_e, f_e = load_prices("etf_price_daily", etf_syms, cur, conn)
 
-    # 4) Record last run
+    # Record last run
     cur.execute("""
       INSERT INTO last_updated (script_name, last_run)
       VALUES (%s, NOW())
@@ -208,7 +205,7 @@ if __name__ == "__main__":
     """, (SCRIPT_NAME,))
     conn.commit()
 
-    # 5) Summary & shutdown
+    # Final summary & shutdown
     peak = get_rss_mb()
     logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
     logging.info(f"Stocks — total: {t_s}, inserted: {i_s}, failed: {len(f_s)}")
