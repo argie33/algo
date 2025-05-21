@@ -204,10 +204,13 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: stocksymbols-loader
-      Cpu: "512"
-      Memory: "1024"
+      Cpu: "256"
+      Memory: "512"
       NetworkMode: awsvpc
       RequiresCompatibilities: [FARGATE]
+      RuntimePlatform:
+        CpuArchitecture: ARM64  
+        OperatingSystemFamily: LINUX      
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
@@ -246,10 +249,13 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: econdata-loader
-      Cpu: "512"
-      Memory: "1024"
+      Cpu: "256"
+      Memory: "512"
       NetworkMode: awsvpc
       RequiresCompatibilities: [FARGATE]
+      RuntimePlatform:
+        CpuArchitecture: ARM64  
+        OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
@@ -293,10 +299,13 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: monthlyprice-loader
-      Cpu: "512"
-      Memory: "1024"
+      Cpu: "256"
+      Memory: "512"
       NetworkMode: awsvpc
       RequiresCompatibilities: [FARGATE]
+      RuntimePlatform:
+        CpuArchitecture: ARM64  
+        OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
@@ -337,10 +346,13 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: findata-loader
-      Cpu: "1024"
-      Memory: "2048"
+      Cpu: "256"
+      Memory: "512"
       NetworkMode: awsvpc
       RequiresCompatibilities: [FARGATE]
+      RuntimePlatform:
+        CpuArchitecture: ARM64  
+        OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
@@ -440,10 +452,13 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: priceweekly-loader
-      Cpu: "512"
-      Memory: "1024"
+      Cpu: "256"
+      Memory: "512"
       NetworkMode: awsvpc
       RequiresCompatibilities: [FARGATE]
+      RuntimePlatform:
+        CpuArchitecture: ARM64  
+        OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
@@ -490,10 +505,13 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: pricemonthly-loader
-      Cpu: "512"
-      Memory: "1024"
+      Cpu: "256"
+      Memory: "512"
       NetworkMode: awsvpc
       RequiresCompatibilities: [FARGATE]
+      RuntimePlatform:
+        CpuArchitecture: ARM64  
+        OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
@@ -540,10 +558,13 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: TechnicalsDaily-loader
-      Cpu: "512"
-      Memory: "1024"
+      Cpu: "256"
+      Memory: "512"
       NetworkMode: awsvpc
       RequiresCompatibilities: [FARGATE]
+      RuntimePlatform:
+        CpuArchitecture: ARM64  
+        OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
@@ -590,10 +611,13 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: loadkeystats-loader
-      Cpu: "512"
-      Memory: "1024"
+      Cpu: "256"
+      Memory: "512"
       NetworkMode: awsvpc
       RequiresCompatibilities: [FARGATE]
+      RuntimePlatform:
+        CpuArchitecture: ARM64  
+        OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
@@ -632,10 +656,13 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: earnings-loader
-      Cpu: "512"
-      Memory: "1024"
+      Cpu: "256"
+      Memory: "512"
       NetworkMode: awsvpc
       RequiresCompatibilities: [FARGATE]
+      RuntimePlatform:
+        CpuArchitecture: ARM64  
+        OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
@@ -674,10 +701,13 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: technicalsweekly-loader
-      Cpu: "512"
-      Memory: "1024"
+      Cpu: "256"
+      Memory: "512"
       NetworkMode: awsvpc
       RequiresCompatibilities: [FARGATE]
+      RuntimePlatform:
+        CpuArchitecture: ARM64  
+        OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
@@ -716,10 +746,13 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: technicalsmonthly-loader
-      Cpu: "512"
-      Memory: "1024"
+      Cpu: "256"
+      Memory: "512"
       NetworkMode: awsvpc
       RequiresCompatibilities: [FARGATE]
+      RuntimePlatform:
+        CpuArchitecture: ARM64  
+        OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
@@ -758,11 +791,14 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: buysell-loader
-      Cpu: "512"
-      Memory: "1024"
+      Cpu: "256"
+      Memory: "512"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64  
+        OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
@@ -824,10 +860,13 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: swingtrader-loader
-      Cpu: "512"
-      Memory: "1024"
+      Cpu: "256"
+      Memory: "512"
       NetworkMode: awsvpc
       RequiresCompatibilities: [FARGATE]
+      RuntimePlatform:
+        CpuArchitecture: ARM64  
+        OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
 
