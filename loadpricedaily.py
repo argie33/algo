@@ -103,19 +103,20 @@ def load_prices(table_name, symbols, insert_fn, cur, conn):
             logging.info(f"{table_name} – batch {batch_idx+1}/{batches}, download attempt {attempt}")
             log_mem(f"{table_name} batch {batch_idx+1} start")
             try:
+                # Download data from Yahoo Finance
                 df = yf.download(
                     tickers=yq_batch,
-                    start="1800-01-01",
-                    end=datetime.today().strftime("%Y-%m-%d"),
+                    period="max",
                     interval="1d",
                     group_by="ticker",
-                    auto_adjust=True,   # gives you OHLC already adjusted for splits & dividends
-                    actions=True,       # still brings in Dividends & Stock Splits columns if you need them
-                    keepna=False,       # only trading days—no NaN rows for weekends/holidays
-                    repair=True,        # auto-fix any 100× pricing glitches
+                    auto_adjust=True,   # get fully adjusted OHLC
+                    actions=True,       # include dividends & splits
+                    keepna=True,        # keep all dates for ffill/backfill
+                    repair=True,        # fix any 100× mix-ups
                     threads=True,
                     progress=False
                 )
+
 
                 break
             except Exception as e:
