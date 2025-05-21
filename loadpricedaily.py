@@ -78,7 +78,7 @@ def load_prices(table_name, symbols, cur, conn):
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     for batch_idx in range(batches):
-        batch    = symbols[batch_idx*CHUNK_SIZE : (batch_idx+1)*CHUNK_SIZE]
+        batch    = symbols[batch_idx*CHUNK_SIZE:(batch_idx+1)*CHUNK_SIZE]
         yq_batch = [s.replace('.', '-').replace('$','-').upper() for s in batch]
         mapping  = dict(zip(yq_batch, batch))
 
@@ -113,15 +113,6 @@ def load_prices(table_name, symbols, cur, conn):
         gc.disable()
         try:
             for yq_sym, orig_sym in mapping.items():
-                # skip symbols that already have rows
-                cur.execute(
-                    f"SELECT 1 FROM {table_name} WHERE symbol = %s LIMIT 1;",
-                    (orig_sym,)
-                )
-                if cur.fetchone():
-                    logging.info(f"{orig_sym} already in {table_name}; skipping")
-                    continue
-
                 try:
                     sub = df[yq_sym] if len(yq_batch) > 1 else df
                 except KeyError:
@@ -140,14 +131,14 @@ def load_prices(table_name, symbols, cur, conn):
                     rows.append((
                         orig_sym,
                         idx.date(),
-                        None if math.isnan(row["Open"]) else float(row["Open"]),
-                        None if math.isnan(row["High"]) else float(row["High"]),
-                        None if math.isnan(row["Low"]) else float(row["Low"]),
-                        None if math.isnan(row["Close"]) else float(row["Close"]),
+                        None if math.isnan(row["Open"])      else float(row["Open"]),
+                        None if math.isnan(row["High"])      else float(row["High"]),
+                        None if math.isnan(row["Low"])       else float(row["Low"]),
+                        None if math.isnan(row["Close"])     else float(row["Close"]),
                         None if math.isnan(row.get("Adj Close", row["Close"])) else float(row.get("Adj Close", row["Close"])),
-                        None if math.isnan(row["Volume"]) else int(row["Volume"]),
-                        0.0 if ("Dividends" not in row or math.isnan(row["Dividends"])) else float(row["Dividends"]),
-                        0.0 if ("Stock Splits" not in row or math.isnan(row["Stock Splits"])) else float(row["Stock Splits"])
+                        None if math.isnan(row["Volume"])    else int(row["Volume"]),
+                        0.0  if ("Dividends" not in row or math.isnan(row["Dividends"])) else float(row["Dividends"]),
+                        0.0  if ("Stock Splits" not in row or math.isnan(row["Stock Splits"])) else float(row["Stock Splits"])
                     ))
 
                 if not rows:
@@ -176,7 +167,7 @@ def load_prices(table_name, symbols, cur, conn):
 if __name__ == "__main__":
     log_mem("startup")
 
-    # Connect to DB
+    # 1) Connect to DB
     cfg  = get_db_config()
     conn = psycopg2.connect(
         host=cfg["host"], port=cfg["port"],
@@ -186,17 +177,58 @@ if __name__ == "__main__":
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Load stock symbols, skipping those already loaded
+    # 2) Recreate price_daily table
+    logging.info("Recreating price_daily table…")
+    cur.execute("DROP TABLE IF EXISTS price_daily;")
+    cur.execute(f"""
+    CREATE TABLE price_daily (
+        id           SERIAL PRIMARY KEY,
+        symbol       VARCHAR(10) NOT NULL,
+        date         DATE         NOT NULL,
+        open         DOUBLE PRECISION,
+        high         DOUBLE PRECISION,
+        low          DOUBLE PRECISION,
+        close        DOUBLE PRECISION,
+        adj_close    DOUBLE PRECISION,
+        volume       BIGINT,
+        dividends    DOUBLE PRECISION,
+        stock_splits DOUBLE PRECISION,
+        fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
+    # 3) Recreate etf_price_daily table
+    logging.info("Recreating etf_price_daily table…")
+    cur.execute("DROP TABLE IF EXISTS etf_price_daily;")
+    cur.execute(f"""
+    CREATE TABLE etf_price_daily (
+        id           SERIAL PRIMARY KEY,
+        symbol       VARCHAR(10) NOT NULL,
+        date         DATE         NOT NULL,
+        open         DOUBLE PRECISION,
+        high         DOUBLE PRECISION,
+        low          DOUBLE PRECISION,
+        close        DOUBLE PRECISION,
+        adj_close    DOUBLE PRECISION,
+        volume       BIGINT,
+        dividends    DOUBLE PRECISION,
+        stock_splits DOUBLE PRECISION,
+        fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+    conn.commit()
+
+    # 4) Load stock symbols
     cur.execute("SELECT symbol FROM stock_symbols;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
     t_s, i_s, f_s = load_prices("price_daily", stock_syms, cur, conn)
 
-    # Load ETF symbols, skipping those already loaded
+    # 5) Load ETF symbols
     cur.execute("SELECT symbol FROM etf_symbols;")
     etf_syms = [r["symbol"] for r in cur.fetchall()]
     t_e, i_e, f_e = load_prices("etf_price_daily", etf_syms, cur, conn)
 
-    # Record last run
+    # 6) Record last run
     cur.execute("""
       INSERT INTO last_updated (script_name, last_run)
       VALUES (%s, NOW())
@@ -205,7 +237,7 @@ if __name__ == "__main__":
     """, (SCRIPT_NAME,))
     conn.commit()
 
-    # Final summary & shutdown
+    # 7) Final summary & shutdown
     peak = get_rss_mb()
     logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
     logging.info(f"Stocks — total: {t_s}, inserted: {i_s}, failed: {len(f_s)}")
