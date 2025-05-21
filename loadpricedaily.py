@@ -105,13 +105,18 @@ def load_prices(table_name, symbols, insert_fn, cur, conn):
             try:
                 df = yf.download(
                     tickers=yq_batch,
-                    period="max",
+                    start="1800-01-01",
+                    end=datetime.today().strftime("%Y-%m-%d"),
                     interval="1d",
                     group_by="ticker",
-                    auto_adjust=False,
+                    auto_adjust=True,   # gives you OHLC already adjusted for splits & dividends
+                    actions=True,       # still brings in Dividends & Stock Splits columns if you need them
+                    keepna=False,       # only trading days—no NaN rows for weekends/holidays
+                    repair=True,        # auto-fix any 100× pricing glitches
                     threads=True,
                     progress=False
                 )
+
                 break
             except Exception as e:
                 logging.warning(f"{table_name} download failed: {e}; retrying…")
