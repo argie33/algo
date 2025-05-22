@@ -557,7 +557,7 @@ Resources:
   TechnicalsDailyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: TechnicalsDaily-loader
+      Family: technicalsdaily-loader
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
@@ -568,7 +568,7 @@ Resources:
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
-        - Name: TechnicalsDaily-loader
+        - Name: technicalsdaily-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref TechnicalsDailyImageTag]]
           Essential: true
           Environment:
@@ -585,14 +585,14 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: /ecs/TechnicalsDaily-loader
+              awslogs-group: /ecs/technicalsdaily-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
   TechnicalsDailyLoaderService:
     Type: AWS::ECS::Service
     Properties:
-      ServiceName: TechnicalsDaily-loader-service
+      ServiceName: technicalsdaily-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
       DesiredCount: 0
