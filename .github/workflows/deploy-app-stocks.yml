@@ -32,7 +32,7 @@ jobs:
       priceweekly:       ${{ steps.paths.outputs.priceweekly }}
       pricemonthly:      ${{ steps.paths.outputs.pricemonthly }}
       technicalsdaily:    ${{ steps.paths.outputs.technicalsdaily }}
-      loadkeystats:      ${{ steps.paths.outputs.loadkeystats }}
+      loadinfo:      ${{ steps.paths.outputs.loadinfo }}
       earnings:          ${{ steps.paths.outputs.earnings }}
       technicalsweekly:  ${{ steps.paths.outputs.technicalsweekly }}
       technicalsmonthly: ${{ steps.paths.outputs.technicalsmonthly }}
@@ -81,10 +81,10 @@ jobs:
               - loadtechnicalsdaily.py
               - requirements-loadtechnicalsdaily.txt
               - Dockerfile.technicalsdaily
-            loadkeystats:
-              - loadkeystats.py
-              - requirements-loadkeystats.txt
-              - Dockerfile.loadkeystats
+            loadinfo:
+              - loadinfo.py
+              - requirements-loadinfo.txt
+              - Dockerfile.loadinfo
             earnings:
               - loadearnings.py
               - requirements-loadearnings.txt
@@ -116,7 +116,7 @@ jobs:
              [ "${{ steps.paths.outputs.priceweekly }}" = "true" ] || \
              [ "${{ steps.paths.outputs.pricemonthly }}" = "true" ] || \
              [ "${{ steps.paths.outputs.technicalsdaily }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.loadkeystats }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.loadinfo }}" = "true" ] || \
              [ "${{ steps.paths.outputs.earnings }}" = "true" ] || \
              [ "${{ steps.paths.outputs.technicalsweekly }}" = "true" ] || \
              [ "${{ steps.paths.outputs.technicalsmonthly }}" = "true" ] || \
@@ -137,7 +137,7 @@ jobs:
           PRICEWEEKLY:       ${{ steps.paths.outputs.priceweekly }}
           PRICEMONTHLY:      ${{ steps.paths.outputs.pricemonthly }}
           technicalsdaily:    ${{ steps.paths.outputs.technicalsdaily }}
-          LOADKEYSTATS:      ${{ steps.paths.outputs.loadkeystats }}
+          LOADINFO:      ${{ steps.paths.outputs.loadinfo }}
           EARNINGS:          ${{ steps.paths.outputs.earnings }}
           TECHNICALSWEEKLY:  ${{ steps.paths.outputs.technicalsweekly }}
           TECHNICALSMONTHLY: ${{ steps.paths.outputs.technicalsmonthly }}
@@ -152,7 +152,7 @@ jobs:
           [ "$PRICEWEEKLY" = "true" ]     && arr="$arr,\"priceweekly\""
           [ "$PRICEMONTHLY" = "true" ]    && arr="$arr,\"pricemonthly\""
           [ "$technicalsdaily" = "true" ]  && arr="$arr,\"technicalsdaily\""
-          [ "$LOADKEYSTATS" = "true" ]    && arr="$arr,\"loadkeystats\""
+          [ "$LOADINFO" = "true" ]    && arr="$arr,\"loadinfo\""
           [ "$EARNINGS" = "true" ]        && arr="$arr,\"earnings\""
           [ "$TECHNICALSWEEKLY" = "true" ]&& arr="$arr,\"technicalsweekly\""
           [ "$TECHNICALSMONTHLY" = "true" ]&& arr="$arr,\"technicalsmonthly\""
@@ -212,7 +212,7 @@ jobs:
             priceweekly)      DOCKERFILE=Dockerfile.priceweekly;    PARAM=PriceWeeklyImageTag;;
             pricemonthly)     DOCKERFILE=Dockerfile.pricemonthly;   PARAM=PriceMonthlyImageTag;;
             technicalsdaily)   DOCKERFILE=Dockerfile.technicalsdaily; PARAM=TechnicalsDailyImageTag;;
-            loadkeystats)     DOCKERFILE=Dockerfile.loadkeystats;   PARAM=LoadKeyStatsImageTag;;
+            loadinfo)     DOCKERFILE=Dockerfile.loadinfo;   PARAM=LoadInfoImageTag;;
             earnings)         DOCKERFILE=Dockerfile.loadearnings;   PARAM=EarningsImageTag;;
             technicalsweekly) DOCKERFILE=Dockerfile.technicalsweekly;PARAM=TechnicalsWeeklyImageTag;;
             technicalsmonthly)DOCKERFILE=Dockerfile.technicalsmonthly;PARAM=TechnicalsMonthlyImageTag;;
@@ -267,7 +267,7 @@ jobs:
             for key in \
               StockSymbolsImageTag EconDataImageTag FindataImageTag \
               PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag \
-              TechnicalsDailyImageTag LoadKeyStatsImageTag EarningsImageTag \
+              TechnicalsDailyImageTag LoadInfoImageTag EarningsImageTag \
               TechnicalsWeeklyImageTag TechnicalsMonthlyImageTag \
               BuySellImageTag SwingTraderImageTag; do
               echo "${key}=$(aws cloudformation describe-stacks \
@@ -310,7 +310,7 @@ jobs:
               PriceWeeklyImageTag=$(grep '^PriceWeeklyImageTag=' tags.env | cut -d= -f2-) \
               PriceMonthlyImageTag=$(grep '^PriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsDailyImageTag=$(grep '^TechnicalsDailyImageTag=' tags.env | cut -d= -f2-) \
-              LoadKeyStatsImageTag=$(grep '^LoadKeyStatsImageTag=' tags.env | cut -d= -f2-) \
+              LoadInfoImageTag=$(grep '^LoadInfoImageTag=' tags.env | cut -d= -f2-) \
               EarningsImageTag=$(grep '^EarningsImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsWeeklyImageTag=$(grep '^TechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsMonthlyImageTag=$(grep '^TechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-) \
@@ -910,10 +910,10 @@ jobs:
             exit 1
           fi
 
-  run_loadkeystats:
-    name: Run loadkeystats task
+  run_loadinfo:
+    name: Run loadinfo task
     needs: deploy
-    if: ${{ needs.filter.outputs.loadkeystats == 'true' }}
+    if: ${{ needs.filter.outputs.loadinfo == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60   # allow this job up to 60m total
 
@@ -930,7 +930,7 @@ jobs:
         run: |
           ARN=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='LoadKeyStatsTaskDefArn'].OutputValue" \
+            --query "Stacks[0].Outputs[?OutputKey=='LoadInfoTaskDefArn'].OutputValue" \
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
 
@@ -950,7 +950,7 @@ jobs:
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
 
-      - name: Run loadkeystats Fargate task
+      - name: Run loadinfo Fargate task
         id: run
         run: |
           TASK_ARN=$(aws ecs run-task \
@@ -990,7 +990,7 @@ jobs:
             --output text)
           echo "→ Exit code: $EXIT"
           if [ "$EXIT" -ne 0 ]; then
-            echo "❌ loadkeystats failed"
+            echo "❌ loadinfo failed"
             exit $EXIT
           fi
 
