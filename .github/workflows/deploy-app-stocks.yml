@@ -32,7 +32,7 @@ jobs:
       priceweekly:       ${{ steps.paths.outputs.priceweekly }}
       pricemonthly:      ${{ steps.paths.outputs.pricemonthly }}
       technicalsdaily:    ${{ steps.paths.outputs.technicalsdaily }}
-      loadinfo:      ${{ steps.paths.outputs.loadinfo }}
+      loadkeystats:      ${{ steps.paths.outputs.loadkeystats }}
       earnings:          ${{ steps.paths.outputs.earnings }}
       technicalsweekly:  ${{ steps.paths.outputs.technicalsweekly }}
       technicalsmonthly: ${{ steps.paths.outputs.technicalsmonthly }}
@@ -81,10 +81,10 @@ jobs:
               - loadtechnicalsdaily.py
               - requirements-loadtechnicalsdaily.txt
               - Dockerfile.technicalsdaily
-            loadinfo:
-              - loadinfo.py
-              - requirements-loadinfo.txt
-              - Dockerfile.loadinfo
+            loadkeystats:
+              - loadkeystats.py
+              - requirements-loadkeystats.txt
+              - Dockerfile.loadkeystats
             earnings:
               - loadearnings.py
               - requirements-loadearnings.txt
@@ -116,7 +116,7 @@ jobs:
              [ "${{ steps.paths.outputs.priceweekly }}" = "true" ] || \
              [ "${{ steps.paths.outputs.pricemonthly }}" = "true" ] || \
              [ "${{ steps.paths.outputs.technicalsdaily }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.loadinfo }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.loadkeystats }}" = "true" ] || \
              [ "${{ steps.paths.outputs.earnings }}" = "true" ] || \
              [ "${{ steps.paths.outputs.technicalsweekly }}" = "true" ] || \
              [ "${{ steps.paths.outputs.technicalsmonthly }}" = "true" ] || \
@@ -137,7 +137,7 @@ jobs:
           PRICEWEEKLY:       ${{ steps.paths.outputs.priceweekly }}
           PRICEMONTHLY:      ${{ steps.paths.outputs.pricemonthly }}
           technicalsdaily:    ${{ steps.paths.outputs.technicalsdaily }}
-          LOADINFO:      ${{ steps.paths.outputs.loadinfo }}
+          LOADKEYSTATS:      ${{ steps.paths.outputs.loadkeystats }}
           EARNINGS:          ${{ steps.paths.outputs.earnings }}
           TECHNICALSWEEKLY:  ${{ steps.paths.outputs.technicalsweekly }}
           TECHNICALSMONTHLY: ${{ steps.paths.outputs.technicalsmonthly }}
@@ -152,7 +152,7 @@ jobs:
           [ "$PRICEWEEKLY" = "true" ]     && arr="$arr,\"priceweekly\""
           [ "$PRICEMONTHLY" = "true" ]    && arr="$arr,\"pricemonthly\""
           [ "$technicalsdaily" = "true" ]  && arr="$arr,\"technicalsdaily\""
-          [ "$LOADINFO" = "true" ]    && arr="$arr,\"loadinfo\""
+          [ "$LOADKEYSTATS" = "true" ]    && arr="$arr,\"loadkeystats\""
           [ "$EARNINGS" = "true" ]        && arr="$arr,\"earnings\""
           [ "$TECHNICALSWEEKLY" = "true" ]&& arr="$arr,\"technicalsweekly\""
           [ "$TECHNICALSMONTHLY" = "true" ]&& arr="$arr,\"technicalsmonthly\""
@@ -212,7 +212,7 @@ jobs:
             priceweekly)      DOCKERFILE=Dockerfile.priceweekly;    PARAM=PriceWeeklyImageTag;;
             pricemonthly)     DOCKERFILE=Dockerfile.pricemonthly;   PARAM=PriceMonthlyImageTag;;
             technicalsdaily)   DOCKERFILE=Dockerfile.technicalsdaily; PARAM=TechnicalsDailyImageTag;;
-            loadinfo)     DOCKERFILE=Dockerfile.loadinfo;   PARAM=LoadInfoImageTag;;
+            loadkeystats)     DOCKERFILE=Dockerfile.loadkeystats;   PARAM=LoadKeyStatsImageTag;;
             earnings)         DOCKERFILE=Dockerfile.loadearnings;   PARAM=EarningsImageTag;;
             technicalsweekly) DOCKERFILE=Dockerfile.technicalsweekly;PARAM=TechnicalsWeeklyImageTag;;
             technicalsmonthly)DOCKERFILE=Dockerfile.technicalsmonthly;PARAM=TechnicalsMonthlyImageTag;;
@@ -263,35 +263,19 @@ jobs:
 
       - name: Fetch existing tags
         run: |
-          # 1) Fail fast if the stack isn't there
-          if ! aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then
-            echo "ERROR: CloudFormation stack 'stocks-ecs-tasks-stack' not found!" >&2
-            exit 1
+          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then
+            for key in \
+              StockSymbolsImageTag EconDataImageTag FindataImageTag \
+              PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag \
+              TechnicalsDailyImageTag LoadKeyStatsImageTag EarningsImageTag \
+              TechnicalsWeeklyImageTag TechnicalsMonthlyImageTag \
+              BuySellImageTag SwingTraderImageTag; do
+              echo "${key}=$(aws cloudformation describe-stacks \
+                --stack-name stocks-ecs-tasks-stack \
+                --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
+                --output text)" >> tags.env
+            done
           fi
-
-          # 2) Initialize tags.env (empty file, overwrite any old copy)
-          > tags.env
-
-          # 3) Read each parameter; echo it (so you always see something),
-          #    and write into tags.env via tee
-          echo "Reading existing parameters into tags.env..."
-          for key in \
-            StockSymbolsImageTag EconDataImageTag FindataImageTag \
-            PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag \
-            TechnicalsDailyImageTag LoadInfoImageTag EarningsImageTag \
-            TechnicalsWeeklyImageTag TechnicalsMonthlyImageTag \
-            BuySellImageTag SwingTraderImageTag; do
-
-            value=$(aws cloudformation describe-stacks \
-              --stack-name stocks-ecs-tasks-stack \
-              --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
-              --output text)
-
-            echo "${key}=${value}"
-          done | tee tags.env
-
-          # 4) Finally, show the complete file so you can immediately spot any missing lines
-          echo "--- final tags.env contents ---"
           cat tags.env
 
       - name: Download new tags
@@ -326,7 +310,7 @@ jobs:
               PriceWeeklyImageTag=$(grep '^PriceWeeklyImageTag=' tags.env | cut -d= -f2-) \
               PriceMonthlyImageTag=$(grep '^PriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsDailyImageTag=$(grep '^TechnicalsDailyImageTag=' tags.env | cut -d= -f2-) \
-              LoadInfoImageTag=$(grep '^LoadInfoImageTag=' tags.env | cut -d= -f2-) \
+              LoadKeyStatsImageTag=$(grep '^LoadKeyStatsImageTag=' tags.env | cut -d= -f2-) \
               EarningsImageTag=$(grep '^EarningsImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsWeeklyImageTag=$(grep '^TechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsMonthlyImageTag=$(grep '^TechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-) \
@@ -926,10 +910,10 @@ jobs:
             exit 1
           fi
 
-  run_loadinfo:
-    name: Run loadinfo task
+  run_loadkeystats:
+    name: Run loadkeystats task
     needs: deploy
-    if: ${{ needs.filter.outputs.loadinfo == 'true' }}
+    if: ${{ needs.filter.outputs.loadkeystats == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60   # allow this job up to 60m total
 
@@ -946,7 +930,7 @@ jobs:
         run: |
           ARN=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='LoadInfoTaskDefArn'].OutputValue" \
+            --query "Stacks[0].Outputs[?OutputKey=='LoadKeyStatsTaskDefArn'].OutputValue" \
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
 
@@ -966,7 +950,7 @@ jobs:
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
 
-      - name: Run loadinfo Fargate task
+      - name: Run loadkeystats Fargate task
         id: run
         run: |
           TASK_ARN=$(aws ecs run-task \
@@ -1006,7 +990,7 @@ jobs:
             --output text)
           echo "→ Exit code: $EXIT"
           if [ "$EXIT" -ne 0 ]; then
-            echo "❌ loadinfo failed"
+            echo "❌ loadkeystats failed"
             exit $EXIT
           fi
 
