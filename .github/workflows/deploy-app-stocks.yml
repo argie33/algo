@@ -257,6 +257,10 @@ jobs:
 
       - name: Fetch existing tags
         run: |
+          # 1) make sure tags.env exists (even if empty)
+          touch tags.env
+
+          # 2) if the tasks-stack is already up, pull in its Parameter values
           if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then
             for key in \
               StockSymbolsImageTag EconDataImageTag FindataImageTag \
@@ -270,24 +274,10 @@ jobs:
                 --output text)" >> tags.env
             done
           fi
-          cat tags.env
-      - name: Download new tags
-        uses: actions/download-artifact@v4
-        with:
-          path: new-tags
 
-      - name: Merge tags
-        run: |
-          find new-tags -type f -name 'build_tag_*.txt' -print0 | \
-          while IFS= read -r -d '' f; do
-            kv=$(<"$f"); key=${kv%%=*}; val=${kv#*=}
-            if grep -q "^$key=" tags.env; then
-              sed -i "s|^$key=.*|$key=$val|" tags.env
-            else
-              echo "$key=$val" >> tags.env
-            fi
-          done
+          # 3) show whatever (maybe empty) tags.env
           cat tags.env
+          
       - name: Deploy stack
         run: |
           echo "Using IBKR ARNs: $IBKR_USERNAME_SECRET_ARN / $IBKR_PASSWORD_SECRET_ARN"
