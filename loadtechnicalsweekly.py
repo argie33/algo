@@ -6,15 +6,18 @@ from datetime import datetime
 import json
 import os
 
+import numpy as np
+import numpy
+
+# ───────────────────────────────────────────────────────────────────
+# Monkey-patch numpy so that “from numpy import NaN” in pandas_ta will succeed
+numpy.NaN = numpy.nan
+np.NaN    = np.nan
+# ───────────────────────────────────────────────────────────────────
+
 import boto3
 import psycopg2
 from psycopg2.extras import RealDictCursor
-
-import numpy as np
-# ───────────────────────────────────────────────────────────────────
-# Patch for pandas_ta compatibility: ensure numpy exports NaN
-np.NaN = np.nan
-# ───────────────────────────────────────────────────────────────────
 
 import pandas as pd
 import pandas_ta as ta

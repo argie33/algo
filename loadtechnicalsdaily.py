@@ -197,7 +197,7 @@ def main():
         logging.info(f"Processing {sym}")
         cursor.execute("""
             SELECT date, open, high, low, close, volume
-              FROM price_data_daily
+              FROM price_daily
              WHERE symbol = %s
              ORDER BY date ASC
         """, (sym,))
