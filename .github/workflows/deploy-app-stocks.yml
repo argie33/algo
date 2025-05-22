@@ -14,8 +14,8 @@ env:
   AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
   AWS_ROLE_SESSION: github-deploy
   FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-  IBKR_USERNAME: ${{ secrets.IBKR_USERNAME }}
-  IBKR_PASSWORD: ${{ secrets.IBKR_PASSWORD }}
+  IBKR_USERNAME_SECRET_ARN: ${{ secrets.IBKR_PASSWORD}}
+  IBKR_PASSWORD_SECRET_ARN: ${{ secrets.IBKR_USERNAME }}
 
 jobs:
   ##########################################################################
@@ -257,17 +257,18 @@ jobs:
 
       - name: Fetch existing tags
         run: |
-          # 1) make sure tags.env exists (even if empty)
+          # 1) Make sure tags.env always exists (even if empty)
           touch tags.env
 
-          # 2) if the tasks-stack is already up, pull in its Parameter values
+          # 2) If the stack already exists, pull in every image-tag Parameter
           if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then
             for key in \
               StockSymbolsImageTag EconDataImageTag FindataImageTag \
-              PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag \
-              TechnicalsDailyImageTag LoadInfoImageTag EarningsImageTag \
-              TechnicalsWeeklyImageTag TechnicalsMonthlyImageTag \
+              PriceImageTag PriceWeeklyImageTag MonthlyPriceImageTag \
+              TechnicalsDailyImageTag LoadKeyStatsImageTag LoadInfoImageTag \
+              EarningsImageTag TechnicalsWeeklyImageTag TechnicalsMonthlyImageTag \
               BuySellImageTag SwingTraderImageTag; do
+
               echo "${key}=$(aws cloudformation describe-stacks \
                 --stack-name stocks-ecs-tasks-stack \
                 --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
@@ -275,12 +276,13 @@ jobs:
             done
           fi
 
-          # 3) show whatever (maybe empty) tags.env
+          # 3) Show whatever got written (or nothing)
           cat tags.env
-          
+
       - name: Deploy stack
         run: |
           echo "Using IBKR ARNs: $IBKR_USERNAME_SECRET_ARN / $IBKR_PASSWORD_SECRET_ARN"
+
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
             --template-file template-app-ecs-tasks.yml \
@@ -290,8 +292,9 @@ jobs:
               FindataImageTag=$(grep '^FindataImageTag=' tags.env | cut -d= -f2-) \
               PriceImageTag=$(grep '^PriceImageTag=' tags.env | cut -d= -f2-) \
               PriceWeeklyImageTag=$(grep '^PriceWeeklyImageTag=' tags.env | cut -d= -f2-) \
-              PriceMonthlyImageTag=$(grep '^PriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
+              MonthlyPriceImageTag=$(grep '^MonthlyPriceImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsDailyImageTag=$(grep '^TechnicalsDailyImageTag=' tags.env | cut -d= -f2-) \
+              LoadKeyStatsImageTag=$(grep '^LoadKeyStatsImageTag=' tags.env | cut -d= -f2-) \
               LoadInfoImageTag=$(grep '^LoadInfoImageTag=' tags.env | cut -d= -f2-) \
               EarningsImageTag=$(grep '^EarningsImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsWeeklyImageTag=$(grep '^TechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-) \
@@ -299,10 +302,11 @@ jobs:
               BuySellImageTag=$(grep '^BuySellImageTag=' tags.env | cut -d= -f2-) \
               SwingTraderImageTag=$(grep '^SwingTraderImageTag=' tags.env | cut -d= -f2-) \
               FREDApiKey=$FRED_API_KEY \
-              IBKRUsername=$IBKR_USERNAME \
-              IBKRPassword=$IBKR_PASSWORD \
+              IBKRUsernameSecretArn=$IBKR_USERNAME_SECRET_ARN \
+              IBKRPasswordSecretArn=$IBKR_PASSWORD_SECRET_ARN \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
+
       - name: Enable ECS Container Insights
         run: |
           CLUSTER=$(aws cloudformation list-exports \
