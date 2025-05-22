@@ -19,7 +19,7 @@ env:
 
 jobs:
   ##########################################################################
-  # 1) Detect changed components                                           #
+  # 1) Detect changed components                                           # 
   ##########################################################################
   filter:
     name: Detect changed components
