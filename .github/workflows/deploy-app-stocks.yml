@@ -263,7 +263,7 @@ jobs:
             for key in \
               StockSymbolsImageTag EconDataImageTag FindataImageTag \
               PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag \
-              TechnicalsDailyImageTag LoadKeyStatsImageTag LoadInfoImageTag \
+              TechnicalsDailyImageTag LoadInfoImageTag \
               EarningsImageTag TechnicalsWeeklyImageTag TechnicalsMonthlyImageTag \
               BuySellImageTag SwingTraderImageTag; do
 
@@ -292,7 +292,6 @@ jobs:
               PriceWeeklyImageTag=$(grep '^PriceWeeklyImageTag=' tags.env | cut -d= -f2-) \
               PriceMonthlyImageTag=$(grep '^PriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsDailyImageTag=$(grep '^TechnicalsDailyImageTag=' tags.env | cut -d= -f2-) \
-              LoadKeyStatsImageTag=$(grep '^LoadKeyStatsImageTag=' tags.env | cut -d= -f2-) \
               LoadInfoImageTag=$(grep '^LoadInfoImageTag=' tags.env | cut -d= -f2-) \
               EarningsImageTag=$(grep '^EarningsImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsWeeklyImageTag=$(grep '^TechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-) \

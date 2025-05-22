@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   ECS TaskDefinitions, CloudWatch LogGroups, and zero-scale Services
   for stock-symbols, econ-data, monthly-price, findata, pricedaily,
-  priceweekly, pricemonthly, TechnicalsDaily, loadkeystats, earnings,
+  priceweekly, pricemonthly, TechnicalsDaily, loadinfo, earnings,
   technicalsweekly & technicalsmonthly.
 
 Parameters:
@@ -27,9 +27,9 @@ Parameters:
   TechnicalsDailyImageTag:
     Type: String
     Description: Tag for TechnicalsDaily loader image
-  LoadKeyStatsImageTag:
+  LoadInfoImageTag:
     Type: String
-    Description: Tag for loadkeystats loader image
+    Description: Tag for loadinfo loader image
   EarningsImageTag:
     Type: String
     Description: Tag for earnings loader image
@@ -122,12 +122,6 @@ Resources:
       LogGroupName: /ecs/econdata-loader
       RetentionInDays: 14
 
-  MonthlyPriceLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /ecs/monthlyprice-loader
-      RetentionInDays: 14
-
   FindataLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -158,10 +152,10 @@ Resources:
       LogGroupName: /ecs/TechnicalsDaily-loader
       RetentionInDays: 14
 
-  LoadKeyStatsLogGroup:
+  LoadInfoLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: /ecs/loadkeystats-loader
+      LogGroupName: /ecs/loadinfo-loader
       RetentionInDays: 14
 
   EarningsLogGroup:
@@ -608,12 +602,12 @@ Resources:
           AssignPublicIp: ENABLED
 
   ########################################
-  # K) loadkeystats loader               #
+  # K) loadinfo loader               #
   ########################################
-  LoadKeyStatsTaskDefinition:
+  LoadInfoTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: loadkeystats-loader
+      Family: loadinfo-loader
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
@@ -624,8 +618,8 @@ Resources:
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
-        - Name: loadkeystats-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref LoadKeyStatsImageTag]]
+        - Name: loadinfo-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref LoadInfoImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -633,18 +627,18 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: /ecs/loadkeystats-loader
+              awslogs-group: /ecs/loadinfo-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
-  LoadKeyStatsLoaderService:
+  LoadInfoLoaderService:
     Type: AWS::ECS::Service
     Properties:
-      ServiceName: loadkeystats-loader-service
+      ServiceName: loadinfo-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
       DesiredCount: 0
-      TaskDefinition: !Ref LoadKeyStatsTaskDefinition
+      TaskDefinition: !Ref LoadInfoTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets:
@@ -950,10 +944,10 @@ Outputs:
   TechnicalsDailyServiceName:
     Value: !GetAtt TechnicalsDailyLoaderService.Name
 
-  LoadKeyStatsTaskDefArn:
-    Value: !Ref LoadKeyStatsTaskDefinition
-  LoadKeyStatsServiceName:
-    Value: !GetAtt LoadKeyStatsLoaderService.Name
+  LoadInfoTaskDefArn:
+    Value: !Ref LoadInfoTaskDefinition
+  LoadInfoServiceName:
+    Value: !GetAtt LoadInfoLoaderService.Name
 
   EarningsTaskDefArn:
     Value: !Ref EarningsTaskDefinition
