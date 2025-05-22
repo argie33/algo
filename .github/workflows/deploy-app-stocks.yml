@@ -257,14 +257,14 @@ jobs:
 
       - name: Fetch existing tags
         run: |
-          # 1) Make sure tags.env always exists (even if empty)
+          # always create tags.env so cat never fails
           touch tags.env
 
-          # 2) If the stack already exists, pull in every image-tag Parameter
+          # if the stack exists, read every image‐tag parameter into tags.env
           if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then
             for key in \
               StockSymbolsImageTag EconDataImageTag FindataImageTag \
-              PriceImageTag PriceWeeklyImageTag MonthlyPriceImageTag \
+              PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag \
               TechnicalsDailyImageTag LoadKeyStatsImageTag LoadInfoImageTag \
               EarningsImageTag TechnicalsWeeklyImageTag TechnicalsMonthlyImageTag \
               BuySellImageTag SwingTraderImageTag; do
@@ -276,7 +276,7 @@ jobs:
             done
           fi
 
-          # 3) Show whatever got written (or nothing)
+          # show what we have (even if empty)
           cat tags.env
 
       - name: Deploy stack
@@ -292,7 +292,7 @@ jobs:
               FindataImageTag=$(grep '^FindataImageTag=' tags.env | cut -d= -f2-) \
               PriceImageTag=$(grep '^PriceImageTag=' tags.env | cut -d= -f2-) \
               PriceWeeklyImageTag=$(grep '^PriceWeeklyImageTag=' tags.env | cut -d= -f2-) \
-              MonthlyPriceImageTag=$(grep '^MonthlyPriceImageTag=' tags.env | cut -d= -f2-) \
+              PriceMonthlyImageTag=$(grep '^PriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsDailyImageTag=$(grep '^TechnicalsDailyImageTag=' tags.env | cut -d= -f2-) \
               LoadKeyStatsImageTag=$(grep '^LoadKeyStatsImageTag=' tags.env | cut -d= -f2-) \
               LoadInfoImageTag=$(grep '^LoadInfoImageTag=' tags.env | cut -d= -f2-) \
@@ -302,8 +302,8 @@ jobs:
               BuySellImageTag=$(grep '^BuySellImageTag=' tags.env | cut -d= -f2-) \
               SwingTraderImageTag=$(grep '^SwingTraderImageTag=' tags.env | cut -d= -f2-) \
               FREDApiKey=$FRED_API_KEY \
-              IBKRUsernameSecretArn=$IBKR_USERNAME_SECRET_ARN \
-              IBKRPasswordSecretArn=$IBKR_PASSWORD_SECRET_ARN \
+              IBKRUsername=$IBKR_USERNAME_SECRET_ARN \
+              IBKRPassword=$IBKR_PASSWORD_SECRET_ARN \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
 
