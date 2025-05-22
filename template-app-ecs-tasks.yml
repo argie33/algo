@@ -155,7 +155,7 @@ Resources:
       LogGroupName: /ecs/pricemonthly-loader
       RetentionInDays: 14
 
-  TechnicalsdailyLogGroup:
+  TechnicalsDailyLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/technicalsdaily-loader
