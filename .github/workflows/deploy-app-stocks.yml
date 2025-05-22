@@ -264,6 +264,7 @@ jobs:
       - name: Fetch existing tags
         run: |
           if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then
+            touch tags.env  # Ensure the file exists
             for key in \
               StockSymbolsImageTag EconDataImageTag FindataImageTag \
               PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag \
@@ -272,9 +273,11 @@ jobs:
               BuySellImageTag SwingTraderImageTag; do
               echo "${key}=$(aws cloudformation describe-stacks \
                 --stack-name stocks-ecs-tasks-stack \
-                --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
+                --query \"Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue\" \
                 --output text)" >> tags.env
             done
+          else
+            touch tags.env  # Create an empty file if the stack does not exist
           fi
           cat tags.env
 
