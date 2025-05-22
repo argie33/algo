@@ -42,7 +42,7 @@ Parameters:
 
 Resources:
 
-  ### 1) Lambda execution role ###
+  ### 1) Lambda execution role ### 
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
