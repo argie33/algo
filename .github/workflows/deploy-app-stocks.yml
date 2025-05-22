@@ -263,19 +263,35 @@ jobs:
 
       - name: Fetch existing tags
         run: |
-          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then
-            for key in \
-              StockSymbolsImageTag EconDataImageTag FindataImageTag \
-              PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag \
-              TechnicalsDailyImageTag LoadInfoImageTag EarningsImageTag \
-              TechnicalsWeeklyImageTag TechnicalsMonthlyImageTag \
-              BuySellImageTag SwingTraderImageTag; do
-              echo "${key}=$(aws cloudformation describe-stacks \
-                --stack-name stocks-ecs-tasks-stack \
-                --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
-                --output text)" >> tags.env
-            done
+          # 1) Fail fast if the stack isn't there
+          if ! aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then
+            echo "ERROR: CloudFormation stack 'stocks-ecs-tasks-stack' not found!" >&2
+            exit 1
           fi
+
+          # 2) Initialize tags.env (empty file, overwrite any old copy)
+          > tags.env
+
+          # 3) Read each parameter; echo it (so you always see something),
+          #    and write into tags.env via tee
+          echo "Reading existing parameters into tags.env..."
+          for key in \
+            StockSymbolsImageTag EconDataImageTag FindataImageTag \
+            PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag \
+            TechnicalsDailyImageTag LoadInfoImageTag EarningsImageTag \
+            TechnicalsWeeklyImageTag TechnicalsMonthlyImageTag \
+            BuySellImageTag SwingTraderImageTag; do
+
+            value=$(aws cloudformation describe-stacks \
+              --stack-name stocks-ecs-tasks-stack \
+              --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
+              --output text)
+
+            echo "${key}=${value}"
+          done | tee tags.env
+
+          # 4) Finally, show the complete file so you can immediately spot any missing lines
+          echo "--- final tags.env contents ---"
           cat tags.env
 
       - name: Download new tags
