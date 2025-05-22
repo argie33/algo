@@ -32,7 +32,7 @@ jobs:
       priceweekly:       ${{ steps.paths.outputs.priceweekly }}
       pricemonthly:      ${{ steps.paths.outputs.pricemonthly }}
       technicalsdaily:    ${{ steps.paths.outputs.technicalsdaily }}
-      loadkeystats:      ${{ steps.paths.outputs.loadkeystats }}
+      loadinfo:      ${{ steps.paths.outputs.loadinfo }}
       earnings:          ${{ steps.paths.outputs.earnings }}
       technicalsweekly:  ${{ steps.paths.outputs.technicalsweekly }}
       technicalsmonthly: ${{ steps.paths.outputs.technicalsmonthly }}
@@ -81,10 +81,10 @@ jobs:
               - loadtechnicalsdaily.py
               - requirements-loadtechnicalsdaily.txt
               - Dockerfile.technicalsdaily
-            loadkeystats:
-              - loadkeystats.py
-              - requirements-loadkeystats.txt
-              - Dockerfile.loadkeystats
+            loadinfo:
+              - loadinfo.py
+              - requirements-loadinfo.txt
+              - Dockerfile.loadinfo
             earnings:
               - loadearnings.py
               - requirements-loadearnings.txt
@@ -105,7 +105,6 @@ jobs:
               - swingtrader.py
               - requirements-swingtrader.txt
               - Dockerfile.swingtrader
-
       - id: any
         name: Any changes?
         run: |
@@ -116,7 +115,7 @@ jobs:
              [ "${{ steps.paths.outputs.priceweekly }}" = "true" ] || \
              [ "${{ steps.paths.outputs.pricemonthly }}" = "true" ] || \
              [ "${{ steps.paths.outputs.technicalsdaily }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.loadkeystats }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.loadinfo }}" = "true" ] || \
              [ "${{ steps.paths.outputs.earnings }}" = "true" ] || \
              [ "${{ steps.paths.outputs.technicalsweekly }}" = "true" ] || \
              [ "${{ steps.paths.outputs.technicalsmonthly }}" = "true" ] || \
@@ -126,7 +125,6 @@ jobs:
           else
             echo "any=false" >> $GITHUB_OUTPUT
           fi
-
       - id: matrix
         name: Build matrix
         env:
@@ -137,7 +135,7 @@ jobs:
           PRICEWEEKLY:       ${{ steps.paths.outputs.priceweekly }}
           PRICEMONTHLY:      ${{ steps.paths.outputs.pricemonthly }}
           technicalsdaily:    ${{ steps.paths.outputs.technicalsdaily }}
-          LOADKEYSTATS:      ${{ steps.paths.outputs.loadkeystats }}
+          LOADINFO:      ${{ steps.paths.outputs.loadinfo }}
           EARNINGS:          ${{ steps.paths.outputs.earnings }}
           TECHNICALSWEEKLY:  ${{ steps.paths.outputs.technicalsweekly }}
           TECHNICALSMONTHLY: ${{ steps.paths.outputs.technicalsmonthly }}
@@ -152,7 +150,7 @@ jobs:
           [ "$PRICEWEEKLY" = "true" ]     && arr="$arr,\"priceweekly\""
           [ "$PRICEMONTHLY" = "true" ]    && arr="$arr,\"pricemonthly\""
           [ "$technicalsdaily" = "true" ]  && arr="$arr,\"technicalsdaily\""
-          [ "$LOADKEYSTATS" = "true" ]    && arr="$arr,\"loadkeystats\""
+          [ "$LOADINFO" = "true" ]    && arr="$arr,\"loadinfo\""
           [ "$EARNINGS" = "true" ]        && arr="$arr,\"earnings\""
           [ "$TECHNICALSWEEKLY" = "true" ]&& arr="$arr,\"technicalsweekly\""
           [ "$TECHNICALSMONTHLY" = "true" ]&& arr="$arr,\"technicalsmonthly\""
@@ -160,7 +158,6 @@ jobs:
           [ "$SWINGTRADER" = "true" ]     && arr="$arr,\"swingtrader\""
           matrix="[${arr#,}]"
           echo "matrix=$matrix" >> $GITHUB_OUTPUT
-
   ##########################################################################
   # 2) Build changed images                                                 #
   ##########################################################################
@@ -203,7 +200,6 @@ jobs:
                   --query 'repositories[0].repositoryUri' --output text)
           aws ecr get-login-password --region $AWS_REGION | \
             docker login --username AWS --password-stdin "$URI"
-
           case "${{ matrix.loader }}" in
             symbols)          DOCKERFILE=Dockerfile.stocksymbols;   PARAM=StockSymbolsImageTag;;
             econ)             DOCKERFILE=Dockerfile.econdata;       PARAM=EconDataImageTag;;
@@ -212,14 +208,13 @@ jobs:
             priceweekly)      DOCKERFILE=Dockerfile.priceweekly;    PARAM=PriceWeeklyImageTag;;
             pricemonthly)     DOCKERFILE=Dockerfile.pricemonthly;   PARAM=PriceMonthlyImageTag;;
             technicalsdaily)   DOCKERFILE=Dockerfile.technicalsdaily; PARAM=TechnicalsDailyImageTag;;
-            loadkeystats)     DOCKERFILE=Dockerfile.loadkeystats;   PARAM=LoadKeyStatsImageTag;;
+            loadinfo)     DOCKERFILE=Dockerfile.loadinfo;   PARAM=LoadInfoImageTag;;
             earnings)         DOCKERFILE=Dockerfile.loadearnings;   PARAM=EarningsImageTag;;
             technicalsweekly) DOCKERFILE=Dockerfile.technicalsweekly;PARAM=TechnicalsWeeklyImageTag;;
             technicalsmonthly)DOCKERFILE=Dockerfile.technicalsmonthly;PARAM=TechnicalsMonthlyImageTag;;
             buysell)          DOCKERFILE=Dockerfile.buysell;        PARAM=BuySellImageTag;;
             swingtrader)      DOCKERFILE=Dockerfile.swingtrader;    PARAM=SwingTraderImageTag;;
           esac
-
           TAG=${{ matrix.loader }}-${{ github.sha }}
           docker buildx build \
             --platform linux/arm64 \
@@ -228,7 +223,6 @@ jobs:
             -t "$URI:$TAG" \
             .
           echo "${PARAM}=$TAG" > build_tag_${{ matrix.loader }}.txt
-
       - name: Upload tag artifact
         uses: actions/upload-artifact@v4
         with:
@@ -264,23 +258,19 @@ jobs:
       - name: Fetch existing tags
         run: |
           if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then
-            touch tags.env  # Ensure the file exists
             for key in \
               StockSymbolsImageTag EconDataImageTag FindataImageTag \
               PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag \
-              TechnicalsDailyImageTag LoadKeyStatsImageTag EarningsImageTag \
+              TechnicalsDailyImageTag LoadInfoImageTag EarningsImageTag \
               TechnicalsWeeklyImageTag TechnicalsMonthlyImageTag \
               BuySellImageTag SwingTraderImageTag; do
               echo "${key}=$(aws cloudformation describe-stacks \
                 --stack-name stocks-ecs-tasks-stack \
-                --query \"Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue\" \
+                --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
                 --output text)" >> tags.env
             done
-          else
-            touch tags.env  # Create an empty file if the stack does not exist
           fi
           cat tags.env
-
       - name: Download new tags
         uses: actions/download-artifact@v4
         with:
@@ -298,24 +288,6 @@ jobs:
             fi
           done
           cat tags.env
-
-      - name: Validate tags.env
-        run: |
-          REQUIRED_KEYS=(
-            StockSymbolsImageTag EconDataImageTag FindataImageTag \
-            PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag \
-            TechnicalsDailyImageTag LoadKeyStatsImageTag EarningsImageTag \
-            TechnicalsWeeklyImageTag TechnicalsMonthlyImageTag \
-            BuySellImageTag SwingTraderImageTag MonthlyPriceImageTag
-          )
-          for key in "${REQUIRED_KEYS[@]}"; do
-            if ! grep -q "^$key=" tags.env; then
-              echo "✖ ERROR: Missing $key in tags.env!" >&2
-              exit 1
-            fi
-          done
-          echo "✔ All required keys are present in tags.env."
-
       - name: Deploy stack
         run: |
           echo "Using IBKR ARNs: $IBKR_USERNAME_SECRET_ARN / $IBKR_PASSWORD_SECRET_ARN"
@@ -330,7 +302,7 @@ jobs:
               PriceWeeklyImageTag=$(grep '^PriceWeeklyImageTag=' tags.env | cut -d= -f2-) \
               PriceMonthlyImageTag=$(grep '^PriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsDailyImageTag=$(grep '^TechnicalsDailyImageTag=' tags.env | cut -d= -f2-) \
-              LoadKeyStatsImageTag=$(grep '^LoadKeyStatsImageTag=' tags.env | cut -d= -f2-) \
+              LoadInfoImageTag=$(grep '^LoadInfoImageTag=' tags.env | cut -d= -f2-) \
               EarningsImageTag=$(grep '^EarningsImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsWeeklyImageTag=$(grep '^TechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsMonthlyImageTag=$(grep '^TechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-) \
@@ -341,7 +313,6 @@ jobs:
               IBKRPassword=$IBKR_PASSWORD \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
-
       - name: Enable ECS Container Insights
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -377,7 +348,6 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='StockSymbolsTaskDefArn'].OutputValue" \
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
@@ -393,7 +363,6 @@ jobs:
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
-
       - name: Run stock-symbols Fargate task
         id: run
         run: |
@@ -407,7 +376,6 @@ jobs:
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
           echo "🟢 Started stock-symbols task $TASK_ARN"
-
       - name: Wait up to 60m for task to stop
         run: |
           for i in $(seq 1 180); do           # 180 × 20 s = 60 min
@@ -424,7 +392,6 @@ jobs:
             echo "❌ stock-symbols task did not stop within 60m"
             exit 1
           fi
-
       - name: Check container exit code
         run: |
           EXIT=$(aws ecs describe-tasks \
@@ -437,7 +404,6 @@ jobs:
             echo "❌ stock-symbols failed with exit code $EXIT"
             exit $EXIT
           fi
-
   run_econ:
     name: Run econ-data loader
     needs: deploy
@@ -461,7 +427,6 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='EconDataTaskDefArn'].OutputValue" \
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
@@ -477,7 +442,6 @@ jobs:
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
-
       - name: Run econ-data Fargate task
         id: run
         run: |
@@ -491,7 +455,6 @@ jobs:
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
           echo "🟢 Started econ-data task $TASK_ARN"
-
       - name: Wait up to 60m for task to stop
         run: |
           for i in $(seq 1 180); do           # 180 × 20 s = 60 min
@@ -508,7 +471,6 @@ jobs:
             echo "❌ econ-data task did not stop within 60m"
             exit 1
           fi
-
       - name: Check container exit code
         run: |
           EXIT=$(aws ecs describe-tasks \
@@ -521,7 +483,6 @@ jobs:
             echo "❌ econ-data failed with exit code $EXIT"
             exit $EXIT
           fi
-
   run_findata:
     name: Run findata task
     needs: deploy
@@ -545,7 +506,6 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='FindataTaskDefArn'].OutputValue" \
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
@@ -561,7 +521,6 @@ jobs:
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
-
       - name: Run findata Fargate task
         id: run
         run: |
@@ -575,7 +534,6 @@ jobs:
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
           echo "🟢 Started findata task $TASK_ARN"
-
       - name: Wait up to 60m for task to stop
         run: |
           for i in $(seq 1 180); do           # 180 × 20 s = 60 min
@@ -592,7 +550,6 @@ jobs:
             echo "❌ findata task did not stop within 60m"
             exit 1
           fi
-
       - name: Check container exit code
         run: |
           EXIT=$(aws ecs describe-tasks \
@@ -605,8 +562,6 @@ jobs:
             echo "❌ findata failed with exit code $EXIT"
             exit $EXIT
           fi
-
-
   run_pricedaily:
     name: Run pricedaily loader
     needs: deploy
@@ -630,7 +585,6 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='PriceTaskDefArn'].OutputValue" \
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
@@ -646,7 +600,6 @@ jobs:
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
-
       - name: Run pricedaily Fargate task
         id: run
         run: |
@@ -660,7 +613,6 @@ jobs:
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
           echo "🟢 Started pricedaily task $TASK_ARN"
-
       - name: Wait up to 60m for task to stop
         run: |
           for i in $(seq 1 180); do           # 180 × 20 s = 60 min
@@ -677,7 +629,6 @@ jobs:
             echo "❌ pricedaily task did not stop within 60m"
             exit 1
           fi
-
       - name: Check container exit code
         run: |
           EXIT=$(aws ecs describe-tasks \
@@ -690,7 +641,6 @@ jobs:
             echo "❌ pricedaily failed with exit code $EXIT"
             exit $EXIT
           fi
-
   run_priceweekly:
     name: Run priceweekly loader
     needs: deploy
@@ -714,7 +664,6 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyTaskDefArn'].OutputValue" \
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
@@ -730,7 +679,6 @@ jobs:
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
-
       - name: Run priceweekly Fargate task
         id: run
         run: |
@@ -744,7 +692,6 @@ jobs:
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
           echo "🟢 Started priceweekly task $TASK_ARN"
-
       - name: Wait up to 60m for task to stop
         run: |
           for i in $(seq 1 180); do           # 180 × 20 s = 60 min
@@ -761,7 +708,6 @@ jobs:
             echo "❌ priceweekly task did not stop within 60m"
             exit 1
           fi
-
       - name: Check container exit code
         run: |
           EXIT=$(aws ecs describe-tasks \
@@ -774,7 +720,6 @@ jobs:
             echo "❌ priceweekly failed with exit code $EXIT"
             exit $EXIT
           fi
-
   run_pricemonthly:
     name: Run pricemonthly loader
     needs: deploy
@@ -798,7 +743,6 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='PriceMonthlyTaskDefArn'].OutputValue" \
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
@@ -814,7 +758,6 @@ jobs:
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
-
       - name: Run pricemonthly Fargate task
         id: run
         run: |
@@ -828,7 +771,6 @@ jobs:
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
           echo "🟢 Started pricemonthly task $TASK_ARN"
-
       - name: Wait up to 60m for task to stop
         run: |
           for i in $(seq 1 180); do           # 180 × 20 s = 60 min
@@ -845,7 +787,6 @@ jobs:
             echo "❌ pricemonthly task did not stop within 60m"
             exit 1
           fi
-
       - name: Check container exit code
         run: |
           EXIT=$(aws ecs describe-tasks \
@@ -858,7 +799,6 @@ jobs:
             echo "❌ Task failed with exit code $EXIT"
             exit $EXIT
           fi
-
   run_technicalsdaily:
     name: Run technicalsdaily loader
     needs: deploy
@@ -882,7 +822,6 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='TechnicalsDailyTaskDefArn'].OutputValue" \
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
@@ -898,7 +837,6 @@ jobs:
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
-
       - name: Run technicalsdaily Fargate task
         id: run
         run: |
@@ -912,7 +850,6 @@ jobs:
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
           echo "🟢 Started technicalsdaily task $TASK_ARN"
-
       - name: Wait up to 60m for task to stop
         run: |
           for i in $(seq 1 180); do           # 180 × 20 s = 60 min
@@ -929,11 +866,10 @@ jobs:
             echo "❌ technicalsdaily task did not stop within 60m"
             exit 1
           fi
-
-  run_loadkeystats:
-    name: Run loadkeystats task
+  run_loadinfo:
+    name: Run loadinfo task
     needs: deploy
-    if: ${{ needs.filter.outputs.loadkeystats == 'true' }}
+    if: ${{ needs.filter.outputs.loadinfo == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60   # allow this job up to 60m total
 
@@ -950,10 +886,9 @@ jobs:
         run: |
           ARN=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='LoadKeyStatsTaskDefArn'].OutputValue" \
+            --query "Stacks[0].Outputs[?OutputKey=='LoadInfoTaskDefArn'].OutputValue" \
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
@@ -969,8 +904,7 @@ jobs:
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
-
-      - name: Run loadkeystats Fargate task
+      - name: Run loadinfo Fargate task
         id: run
         run: |
           TASK_ARN=$(aws ecs run-task \
@@ -983,7 +917,6 @@ jobs:
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
           echo "🟢 Started task $TASK_ARN"
-
       - name: Wait up to 60m for task to stop
         run: |
           for i in $(seq 1 180); do           # 180 × 20 s = 3600 s = 60 min
@@ -1000,7 +933,6 @@ jobs:
             echo "❌ Task did not stop within 60m"
             exit 1
           fi
-
       - name: Check container exit code
         run: |
           EXIT=$(aws ecs describe-tasks \
@@ -1010,10 +942,9 @@ jobs:
             --output text)
           echo "→ Exit code: $EXIT"
           if [ "$EXIT" -ne 0 ]; then
-            echo "❌ loadkeystats failed"
+            echo "❌ loadinfo failed"
             exit $EXIT
           fi
-
   run_earnings:
     name: Run earnings loader
     needs: deploy
@@ -1037,7 +968,6 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='EarningsTaskDefArn'].OutputValue" \
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
@@ -1053,7 +983,6 @@ jobs:
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
-
       - name: Run earnings Fargate task
         id: run
         run: |
@@ -1067,7 +996,6 @@ jobs:
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
           echo "🟢 Started earnings task $TASK_ARN"
-
       - name: Wait up to 60m for task to stop
         run: |
           for i in $(seq 1 180); do
@@ -1084,7 +1012,6 @@ jobs:
             echo "❌ earnings task did not stop within 60m"
             exit 1
           fi
-
       - name: Check container exit code
         run: |
           EXIT=$(aws ecs describe-tasks \
@@ -1097,7 +1024,6 @@ jobs:
             echo "❌ earnings failed with exit code $EXIT"
             exit $EXIT
           fi
-
   run_technicalsweekly:
     name: Run technicalsweekly loader
     needs: deploy
@@ -1121,7 +1047,6 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='TechnicalsWeeklyTaskDefArn'].OutputValue" \
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
@@ -1137,7 +1062,6 @@ jobs:
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
-
       - name: Run technicalsweekly Fargate task
         id: run
         run: |
@@ -1151,7 +1075,6 @@ jobs:
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
           echo "🟢 Started technicalsweekly task $TASK_ARN"
-
       - name: Wait up to 60m for task to stop
         run: |
           for i in $(seq 1 180); do           # 180 × 20 s = 60 min
@@ -1168,7 +1091,6 @@ jobs:
             echo "❌ technicalsweekly task did not stop within 60m"
             exit 1
           fi
-
   run_technicalsmonthly:
     name: Run technicalsmonthly loader
     needs: deploy
@@ -1192,7 +1114,6 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='TechnicalsMonthlyTaskDefArn'].OutputValue" \
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
@@ -1208,7 +1129,6 @@ jobs:
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
-
       - name: Run technicalsmonthly Fargate task
         id: run
         run: |
@@ -1222,7 +1142,6 @@ jobs:
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
           echo "🟢 Started technicalsmonthly task $TASK_ARN"
-
       - name: Wait up to 60m for task to stop
         run: |
           for i in $(seq 1 180); do           # 180 × 20 s = 60 min
@@ -1239,7 +1158,6 @@ jobs:
             echo "❌ technicalsmonthly task did not stop within 60m"
             exit 1
           fi
-
   run_buysell:
     name: Run buysell loader
     needs: deploy
@@ -1263,7 +1181,6 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='BuySellTaskDefArn'].OutputValue" \
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
@@ -1279,7 +1196,6 @@ jobs:
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
-
       - name: Run buysell Fargate task
         id: run
         run: |
@@ -1293,7 +1209,6 @@ jobs:
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
           echo "🟢 Started buysell task $TASK_ARN"
-
       - name: Wait up to 60m for task to stop
         run: |
           for i in $(seq 1 180); do
@@ -1310,7 +1225,6 @@ jobs:
             echo "❌ buysell task did not stop within 60m"
             exit 1
           fi
-
       - name: Check container exit code
         run: |
           EXIT=$(aws ecs describe-tasks \
@@ -1323,8 +1237,6 @@ jobs:
             echo "❌ buysell failed with exit code $EXIT"
             exit $EXIT
           fi
-
-
   run_swingtrader:
     name: Run swingtrader loader
     needs: deploy
@@ -1348,7 +1260,6 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='SwingTraderTaskDefArn'].OutputValue" \
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
@@ -1364,7 +1275,6 @@ jobs:
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
-
       - name: Run swingtrader Fargate task
         id: run
         run: |
@@ -1378,7 +1288,6 @@ jobs:
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
           echo "🟢 Started swingtrader task $TASK_ARN"
-
       - name: Wait up to 60m for task to stop
         run: |
           for i in $(seq 1 180); do
@@ -1395,7 +1304,6 @@ jobs:
             echo "❌ swingtrader task did not stop within 60m"
             exit 1
           fi
-
       - name: Check container exit code
         run: |
           EXIT=$(aws ecs describe-tasks \

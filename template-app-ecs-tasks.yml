@@ -158,7 +158,7 @@ Resources:
   TechnicalsDailyLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: /ecs/Technicalsdaily-loader
+      LogGroupName: /ecs/TechnicalsDaily-loader
       RetentionInDays: 14
 
   LoadKeyStatsLogGroup:
