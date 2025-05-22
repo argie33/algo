@@ -14,8 +14,8 @@ env:
   AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
   AWS_ROLE_SESSION: github-deploy
   FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-  IBKR_USERNAME_SECRET_ARN: ${{ secrets.IBKR_PASSWORD}}
-  IBKR_PASSWORD_SECRET_ARN: ${{ secrets.IBKR_USERNAME }}
+  IBKR_USERNAME_SECRET_ARN: ${{ secrets.IBKR_USERNAME }}
+  IBKR_PASSWORD_SECRET_ARN: ${{ secrets.IBKR_PASSWORD }}
 
 jobs:
   ##########################################################################
