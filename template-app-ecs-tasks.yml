@@ -920,11 +920,6 @@ Outputs:
   EconDataServiceName:
     Value: !GetAtt EconDataLoaderService.Name
 
-  MonthlyPriceTaskDefArn:
-    Value: !Ref MonthlyPriceTaskDefinition
-  MonthlyPriceServiceName:
-    Value: !GetAtt MonthlyPriceLoaderService.Name
-
   FindataTaskDefArn:
     Value: !Ref FindataTaskDefinition
   FindataServiceName:
@@ -941,10 +936,10 @@ Outputs:
     Value: !GetAtt PriceWeeklyLoaderService.Name
 
   PriceMonthlyTaskDefArn:
-    Description: ARN of the price‐monthly task definition
+    Description: ARN of the price-monthly loader task definition
     Value: !Ref PriceMonthlyTaskDefinition
   PriceMonthlyServiceName:
-    Description: Name of the price‐monthly ECS Service
+    Description: Name of the price-monthly ECS Service
     Value: !GetAtt PriceMonthlyService.Name
     
   PricemonthlyServiceName:

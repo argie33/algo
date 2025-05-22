@@ -396,6 +396,7 @@ jobs:
             echo "❌ stock-symbols failed with exit code $EXIT"
             exit $EXIT
           fi
+
   run_econ:
     name: Run econ-data loader
     needs: deploy
@@ -475,6 +476,7 @@ jobs:
             echo "❌ econ-data failed with exit code $EXIT"
             exit $EXIT
           fi
+
   run_findata:
     name: Run findata task
     needs: deploy
@@ -554,6 +556,7 @@ jobs:
             echo "❌ findata failed with exit code $EXIT"
             exit $EXIT
           fi
+
   run_pricedaily:
     name: Run pricedaily loader
     needs: deploy
@@ -633,6 +636,7 @@ jobs:
             echo "❌ pricedaily failed with exit code $EXIT"
             exit $EXIT
           fi
+
   run_priceweekly:
     name: Run priceweekly loader
     needs: deploy
@@ -712,6 +716,7 @@ jobs:
             echo "❌ priceweekly failed with exit code $EXIT"
             exit $EXIT
           fi
+          
   run_pricemonthly:
     name: Run pricemonthly loader
     needs: deploy
