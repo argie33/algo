@@ -557,43 +557,34 @@ Resources:
   TechnicalsDailyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: TechnicalsDaily-loader
+      Family: technicalsdaily-loader
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
       RequiresCompatibilities: [FARGATE]
       RuntimePlatform:
-        CpuArchitecture: ARM64
+        CpuArchitecture: ARM64  
         OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
-        - Name: TechnicalsDaily-loader
+        - Name: technicalsdaily-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref TechnicalsDailyImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
-            - Name: DB_HOST
-              Value: !ImportValue StocksApp-DBEndpoint
-            - Name: DB_PORT
-              Value: !ImportValue StocksApp-DBPort
-            - Name: DB_NAME
-              Value: !ImportValue StocksApp-DBName
-            - Name: DB_USER
-              Value: !ImportValue StocksApp-DBUsername
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group:        /ecs/technicalsdaily-loader
-              awslogs-region:       !Ref AWS::Region
+              awslogs-group: /ecs/technicalsdaily-loader
+              awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
-              awslogs-create-group:  'true'
 
   TechnicalsDailyLoaderService:
     Type: AWS::ECS::Service
     Properties:
-      ServiceName: TechnicalsDaily-loader-service
+      ServiceName: technicalsdaily-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
       DesiredCount: 0
@@ -604,7 +595,7 @@ Resources:
             - !ImportValue StocksCore-PublicSubnet1Id
             - !ImportValue StocksCore-PublicSubnet2Id
           AssignPublicIp: ENABLED
-
+          
   ########################################
   # K) loadinfo loader               #
   ########################################
