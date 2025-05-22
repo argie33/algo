@@ -299,6 +299,23 @@ jobs:
           done
           cat tags.env
 
+      - name: Validate tags.env
+        run: |
+          REQUIRED_KEYS=(
+            StockSymbolsImageTag EconDataImageTag FindataImageTag \
+            PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag \
+            TechnicalsDailyImageTag LoadKeyStatsImageTag EarningsImageTag \
+            TechnicalsWeeklyImageTag TechnicalsMonthlyImageTag \
+            BuySellImageTag SwingTraderImageTag MonthlyPriceImageTag
+          )
+          for key in "${REQUIRED_KEYS[@]}"; do
+            if ! grep -q "^$key=" tags.env; then
+              echo "✖ ERROR: Missing $key in tags.env!" >&2
+              exit 1
+            fi
+          done
+          echo "✔ All required keys are present in tags.env."
+
       - name: Deploy stack
         run: |
           echo "Using IBKR ARNs: $IBKR_USERNAME_SECRET_ARN / $IBKR_PASSWORD_SECRET_ARN"
