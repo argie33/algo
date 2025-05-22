@@ -12,9 +12,6 @@ Parameters:
   EconDataImageTag:
     Type: String
     Description: Tag for econ-data loader image
-  MonthlyPriceImageTag:
-    Type: String
-    Description: Tag for monthly-price loader image
   FindataImageTag:
     Type: String
     Description: Tag for findata loader image
@@ -26,7 +23,7 @@ Parameters:
     Description: Tag for priceweekly loader image
   PriceMonthlyImageTag:
     Type: String
-    Description: Tag for pricemonthly loader image
+    Description: Tag for the “pricemonthly” loader image
   TechnicalsDailyImageTag:
     Type: String
     Description: Tag for TechnicalsDaily loader image
@@ -149,7 +146,7 @@ Resources:
       LogGroupName: /ecs/priceweekly-loader
       RetentionInDays: 14
 
-  PricemonthlyLogGroup:
+  PriceMonthlyLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/pricemonthly-loader
@@ -295,50 +292,57 @@ Resources:
   ########################################
   # E) monthly-price loader              #
   ########################################
-  MonthlyPriceTaskDefinition:
+  PriceMonthlyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: monthlyprice-loader
+      Family: pricemonthly-loader
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
-      RequiresCompatibilities: [FARGATE]
+      RequiresCompatibilities:
+        - FARGATE
       RuntimePlatform:
-        CpuArchitecture: ARM64  
+        CpuArchitecture: ARM64
         OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
-        - Name: monthlyprice-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref MonthlyPriceImageTag]]
+        - Name: pricemonthly-loader
+          Image: !Join [ ":", [ !ImportValue StocksCore-ContainerRepositoryUri, !Ref PriceMonthlyImageTag ] ]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
-            - Name: FRED_API_KEY
-              Value: !Ref FREDApiKey
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: /ecs/monthlyprice-loader
+              awslogs-group: /ecs/pricemonthly-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
-  MonthlyPriceLoaderService:
+  PriceMonthlyService:
     Type: AWS::ECS::Service
     Properties:
-      ServiceName: monthlyprice-loader-service
+      ServiceName: pricemonthly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
       DesiredCount: 0
-      TaskDefinition: !Ref MonthlyPriceTaskDefinition
+      TaskDefinition: !Ref PriceMonthlyTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets:
             - !ImportValue StocksCore-PublicSubnet1Id
             - !ImportValue StocksCore-PublicSubnet2Id
           AssignPublicIp: ENABLED
-
+          
   ########################################
   # F) findata loader                    #
   ########################################
