@@ -242,6 +242,9 @@ jobs:
     env:
       IBKR_USERNAME_SECRET_ARN: ${{ secrets.IBKR_USERNAME_SECRET_ARN }}
       IBKR_PASSWORD_SECRET_ARN: ${{ secrets.IBKR_PASSWORD_SECRET_ARN }}
+      AWS_REGION: us-east-1
+      AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+      AWS_ROLE_SESSION: github-deploy
 
     steps:
       - uses: actions/checkout@v3
@@ -253,34 +256,40 @@ jobs:
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
+      - name: Delete broken stack if in ROLLBACK_COMPLETE
+        run: |
+          STACK_NAME=stocks-ecs-tasks-stack
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query "Stacks[0].StackStatus" \
+            --output text 2>/dev/null || echo "NOT_FOUND")
+          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+            echo "⚠️  Stack is in ROLLBACK_COMPLETE — deleting it so we can recreate."
+            aws cloudformation delete-stack --stack-name $STACK_NAME
+            aws cloudformation wait stack-delete-complete --stack-name $STACK_NAME
+          fi
+
       - name: Fetch existing tags
         run: |
-          # 1) Ensure tags.env always exists
           touch tags.env
-
-          # 2) If the tasks stack is up, pull in every image-tag parameter
           if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then
             for key in \
               StockSymbolsImageTag EconDataImageTag FindataImageTag \
               PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag \
-              TechnicalsDailyImageTag LoadInfoImageTag \
+              TechnicalsDailyImageTag LoadKeyStatsImageTag LoadInfoImageTag \
               EarningsImageTag TechnicalsWeeklyImageTag TechnicalsMonthlyImageTag \
               BuySellImageTag SwingTraderImageTag; do
-
               echo "${key}=$(aws cloudformation describe-stacks \
                 --stack-name stocks-ecs-tasks-stack \
                 --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
                 --output text)" >> tags.env
             done
           fi
-
-          # 3) Dump whatever we have (even if empty)
           cat tags.env
 
       - name: Deploy stack
         run: |
           echo "Using IBKR secrets from GitHub"
-
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
             --template-file template-app-ecs-tasks.yml \
@@ -292,6 +301,7 @@ jobs:
               PriceWeeklyImageTag=$(grep '^PriceWeeklyImageTag=' tags.env | cut -d= -f2-) \
               PriceMonthlyImageTag=$(grep '^PriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsDailyImageTag=$(grep '^TechnicalsDailyImageTag=' tags.env | cut -d= -f2-) \
+              LoadKeyStatsImageTag=$(grep '^LoadKeyStatsImageTag=' tags.env | cut -d= -f2-) \
               LoadInfoImageTag=$(grep '^LoadInfoImageTag=' tags.env | cut -d= -f2-) \
               EarningsImageTag=$(grep '^EarningsImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsWeeklyImageTag=$(grep '^TechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-) \
@@ -312,6 +322,7 @@ jobs:
           aws ecs update-cluster-settings \
             --cluster "$CLUSTER" \
             --settings name=containerInsights,value=enabled
+
             
   ##########################################################################
   # 4) Run each changed loader                                             #
