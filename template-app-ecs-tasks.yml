@@ -157,6 +157,7 @@ Resources:
 
   TechnicalsdailyLogGroup:
     Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
     Properties:
       LogGroupName:    /ecs/technicalsdaily-loader
       RetentionInDays: 14
@@ -595,7 +596,7 @@ Resources:
             - !ImportValue StocksCore-PublicSubnet1Id
             - !ImportValue StocksCore-PublicSubnet2Id
           AssignPublicIp: ENABLED
-          
+
   ########################################
   # K) loadinfo loader               #
   ########################################
