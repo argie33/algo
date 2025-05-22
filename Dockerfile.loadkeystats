@@ -9,8 +9,8 @@ RUN apt-get update && \
       libffi-dev && \
     rm -rf /var/lib/apt/lists/*
 
-COPY requirements-loadinfo.txt .
-RUN pip install --no-cache-dir -r requirements-loadinfo.txt
+COPY requirements-loadkeystats.txt .
+RUN pip install --no-cache-dir -r requirements-loadkeystats.txt
 
-COPY loadinfo.py .
-CMD ["python", "loadinfo.py"]
+COPY loadkeystats.py .
+CMD ["python", "loadkeystats.py"]
