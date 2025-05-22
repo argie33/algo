@@ -14,8 +14,6 @@ env:
   AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
   AWS_ROLE_SESSION: github-deploy
   FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-  IBKR_USERNAME_SECRET_ARN: ${{ secrets.IBKR_USERNAME }}
-  IBKR_PASSWORD_SECRET_ARN: ${{ secrets.IBKR_PASSWORD }}
 
 jobs:
   ##########################################################################
@@ -257,14 +255,14 @@ jobs:
 
       - name: Fetch existing tags
         run: |
-          # always create tags.env so cat never fails
+          # 1) Ensure tags.env always exists
           touch tags.env
 
-          # if the stack exists, read every image‐tag parameter into tags.env
+          # 2) If the tasks stack is up, pull in every image-tag parameter
           if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then
             for key in \
               StockSymbolsImageTag EconDataImageTag FindataImageTag \
-              PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag \
+              PriceImageTag PriceWeeklyImageTag MonthlyPriceImageTag \
               TechnicalsDailyImageTag LoadKeyStatsImageTag LoadInfoImageTag \
               EarningsImageTag TechnicalsWeeklyImageTag TechnicalsMonthlyImageTag \
               BuySellImageTag SwingTraderImageTag; do
@@ -276,12 +274,12 @@ jobs:
             done
           fi
 
-          # show what we have (even if empty)
+          # 3) Dump whatever we have (even if empty)
           cat tags.env
 
       - name: Deploy stack
         run: |
-          echo "Using IBKR ARNs: $IBKR_USERNAME_SECRET_ARN / $IBKR_PASSWORD_SECRET_ARN"
+          echo "Using IBKR secrets from GitHub"
 
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
@@ -292,7 +290,7 @@ jobs:
               FindataImageTag=$(grep '^FindataImageTag=' tags.env | cut -d= -f2-) \
               PriceImageTag=$(grep '^PriceImageTag=' tags.env | cut -d= -f2-) \
               PriceWeeklyImageTag=$(grep '^PriceWeeklyImageTag=' tags.env | cut -d= -f2-) \
-              PriceMonthlyImageTag=$(grep '^PriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
+              MonthlyPriceImageTag=$(grep '^MonthlyPriceImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsDailyImageTag=$(grep '^TechnicalsDailyImageTag=' tags.env | cut -d= -f2-) \
               LoadKeyStatsImageTag=$(grep '^LoadKeyStatsImageTag=' tags.env | cut -d= -f2-) \
               LoadInfoImageTag=$(grep '^LoadInfoImageTag=' tags.env | cut -d= -f2-) \
@@ -301,9 +299,9 @@ jobs:
               TechnicalsMonthlyImageTag=$(grep '^TechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-) \
               BuySellImageTag=$(grep '^BuySellImageTag=' tags.env | cut -d= -f2-) \
               SwingTraderImageTag=$(grep '^SwingTraderImageTag=' tags.env | cut -d= -f2-) \
-              FREDApiKey=$FRED_API_KEY \
-              IBKRUsername=$IBKR_USERNAME_SECRET_ARN \
-              IBKRPassword=$IBKR_PASSWORD_SECRET_ARN \
+              FREDApiKey=${{ secrets.FRED_API_KEY }} \
+              IBKRUsername=${{ secrets.IBKR_USERNAME }} \
+              IBKRPassword=${{ secrets.IBKR_PASSWORD }} \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
 
