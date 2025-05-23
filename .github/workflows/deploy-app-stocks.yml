@@ -291,22 +291,22 @@ jobs:
           fi
 
       - name: Delete ECS tasks stack if not in a stable state (idempotency fix)
+        shell: bash
         run: |
           STATUS=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query 'Stacks[0].StackStatus' \
-            --output text 2>$null)
-          if ($STATUS -eq "ROLLBACK_COMPLETE" -or $STATUS -eq "DELETE_FAILED" -or $STATUS -eq "CREATE_FAILED") {
-            Write-Host "Stack in $STATUS, deleting before redeploy."
+            --output text 2>/dev/null || echo "")
+          if [[ "$STATUS" == "ROLLBACK_COMPLETE" || "$STATUS" == "DELETE_FAILED" || "$STATUS" == "CREATE_FAILED" ]]; then
+            echo "Stack in $STATUS, deleting before redeploy."
             aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
             aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
-            Write-Host "Stack deleted."
-          } elseif ($STATUS -eq $null -or $STATUS -eq "") {
-            Write-Host "Stack does not exist, nothing to delete."
-          } else {
-            Write-Host "Stack status is $STATUS, not deleting."
-          }
-        shell: pwsh
+            echo "Stack deleted."
+          elif [[ -z "$STATUS" ]]; then
+            echo "Stack does not exist, nothing to delete."
+          else
+            echo "Stack status is $STATUS, not deleting."
+          fi
 
       - name: Deploy ECS-tasks CloudFormation stack
         run: |
