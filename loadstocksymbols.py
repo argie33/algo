@@ -10,7 +10,7 @@ import boto3
 import psycopg2
 from psycopg2.extras import execute_values
 
-# ─── Logging setup ───────────────────────────────────────────────────────────── 
+# ─── Logging setup ─────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
     stream=sys.stdout,

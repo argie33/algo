@@ -15,10 +15,39 @@ env:
   AWS_ROLE_SESSION: github-deploy
   FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
 
+################################################################################
+# 1) Deploy core infrastructure (RDS, Secrets, ECS cluster)                    #
+################################################################################
 jobs:
-  ##########################################################################
-  # 1) Detect changed components                                           #
-  ##########################################################################
+  infra:
+    name: Deploy core infra stack
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:      ${{ env.AWS_REGION }}
+          role-to-assume:  ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Deploy Stocks Core infra
+        run: |
+          aws cloudformation deploy \
+            --stack-name stocks-core-stack \
+            --template-file template-infra.yml \
+            --parameter-overrides \
+              RDSUsername=${{ secrets.RDS_USERNAME }} \
+              RDSPassword=${{ secrets.RDS_PASSWORD }} \
+              FREDApiKey=${{ secrets.FRED_API_KEY }} \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
+
+################################################################################
+# 2) Detect changed components                                                 #
+################################################################################
   filter:
     name: Detect changed components
     runs-on: ubuntu-latest
@@ -144,9 +173,9 @@ jobs:
           [ "${{ steps.paths.outputs.swingtrader }}" = "true" ]     && arr="$arr,\"swingtrader\""
           echo "matrix=[${arr#,}]" >> $GITHUB_OUTPUT
 
-  ##########################################################################
-  # 2) Build changed images                                                 #
-  ##########################################################################
+################################################################################
+# 3) Build only the changed Docker images                                      #
+################################################################################
   build:
     name: Build changed images
     needs: filter
@@ -168,7 +197,9 @@ jobs:
           aws-region:      ${{ env.AWS_REGION }}
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
       - id: build
+        name: Build & push Docker image
         run: |
           REPO=stocks-app-registry
           aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 || \
@@ -201,52 +232,51 @@ jobs:
             -t "$URI:$TAG" \
             .
           echo "${PARAM}=$TAG" > build_tag_${{ matrix.loader }}.txt
+
       - uses: actions/upload-artifact@v4
         with:
           name: build-tags-${{ matrix.loader }}
           path: build_tag_${{ matrix.loader }}.txt
 
-  ##########################################################################
-  # 3) Deploy ECS CloudFormation                                           #
-  ##########################################################################
-  deploy:
-    name: Deploy ECS CloudFormation
+################################################################################
+# 4) Deploy ECS “tasks” stack, with automatic cleanup of any ROLLBACK_COMPLETE #
+################################################################################
+  deploy-tasks:
+    name: Deploy ECS‐tasks stack
     needs:
-      - filter
+      - infra
       - build
+      - filter
     if: ${{ needs.filter.outputs.any == 'true' }}
     runs-on: ubuntu-latest
+
     env:
       IBKR_USERNAME_SECRET_ARN: ${{ secrets.IBKR_USERNAME_SECRET_ARN }}
       IBKR_PASSWORD_SECRET_ARN: ${{ secrets.IBKR_PASSWORD_SECRET_ARN }}
 
     steps:
-      - uses: actions/checkout@v3
-      - uses: aws-actions/configure-aws-credentials@v4
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region:      ${{ env.AWS_REGION }}
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Fetch existing tags
+      - name: Wipe out any ROLLBACK_COMPLETE copy of the tasks stack
         run: |
-          touch tags.env
-          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then
-            for key in \
-              StockSymbolsImageTag EconDataImageTag FindataImageTag \
-              PriceImageTag PriceWeeklyImageTag PriceMonthlyImageTag \
-              TechnicalsDailyImageTag LoadKeyStatsImageTag LoadInfoImageTag \
-              EarningsImageTag TechnicalsWeeklyImageTag TechnicalsMonthlyImageTag \
-              BuySellImageTag SwingTraderImageTag; do
-              echo "${key}=$(aws cloudformation describe-stacks \
-                --stack-name stocks-ecs-tasks-stack \
-                --query "Stacks[0].Parameters[?ParameterKey=='${key}'].ParameterValue" \
-                --output text)" >> tags.env
-            done
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query 'Stacks[0].StackStatus' --output text || echo "")
+          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+            echo "Found ROLLBACK_COMPLETE, deleting…"
+            aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
+            aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
           fi
-          cat tags.env
 
-      - name: Deploy stack
+      - name: Deploy ECS tasks stack
         run: |
           echo "Using IBKR secrets from GitHub"
           aws cloudformation deploy \
@@ -276,35 +306,11 @@ jobs:
       - name: Enable ECS Container Insights
         run: |
           CLUSTER=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
-            --output text)
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" --output text)
           aws ecs update-cluster-settings \
             --cluster "$CLUSTER" \
             --settings name=containerInsights,value=enabled
-
-  ##########################################################################
-  # 4) Clean up on failure – delete ROLLBACK_COMPLETE stack               #
-  ##########################################################################
-  cleanup:
-    name: Tear down failed tasks stack
-    needs: deploy
-    if: ${{ needs.deploy.result == 'failure' }}
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region:      ${{ env.AWS_REGION }}
-          role-to-assume:  ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - name: Delete failed CloudFormation stack
-        run: |
-          echo "Cleaning up failed stack stocks-ecs-tasks-stack…"
-          aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
-          aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
-
+            
   ##########################################################################
   # 5) Run each changed loader                                             #
   ##########################################################################
@@ -314,7 +320,7 @@ jobs:
     if: ${{ needs.filter.outputs.symbols == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    
+
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
