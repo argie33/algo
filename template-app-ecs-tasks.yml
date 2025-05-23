@@ -931,11 +931,7 @@ Outputs:
 
   PriceMonthlyTaskDefArn:
     Description: ARN of the price-monthly loader task definition
-    Value: !Ref PriceMonthlyTaskDefinition
-  PriceMonthlyServiceName:
-    Description: Name of the price-monthly ECS Service
-    Value: !GetAtt PriceMonthlyService.Name
-    
+    Value: !Ref PriceMonthlyTaskDefinition    
   PricemonthlyServiceName:
     Value: !GetAtt PricemonthlyLoaderService.Name
 
