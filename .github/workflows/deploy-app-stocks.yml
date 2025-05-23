@@ -273,13 +273,13 @@ jobs:
           merge-multiple: true
 
       - name: Generate tags.env
-        shell: pwsh
+        shell: bash
         run: |
-          Get-Content build_tag_*.txt | Set-Content tags.env
-          if (-not (Test-Path tags.env)) {
-            Write-Error "No build tag files found or tags.env not created"
+          cat build_tag_*.txt > tags.env
+          if [ ! -f tags.env ]; then
+            echo "No build tag files found or tags.env not created" >&2
             exit 1
-          }
+          fi
 
       - name: Wait for app stack to finish exporting
         run: |
