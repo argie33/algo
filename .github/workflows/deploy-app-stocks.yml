@@ -290,15 +290,19 @@ jobs:
             echo "Stack is not updating, skipping wait."
           fi
 
-      - name: Cleanup any ROLLBACK_COMPLETE tasks stack
+      - name: Delete ECS tasks stack if in ROLLBACK_COMPLETE or DELETE_FAILED
         run: |
           STATUS=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query 'Stacks[0].StackStatus' \
             --output text 2>/dev/null || echo "")
-          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+          if [ "$STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STATUS" = "DELETE_FAILED" ]; then
+            echo "Stack in $STATUS, deleting before redeploy."
             aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
             aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+            echo "Stack deleted."
+          else
+            echo "Stack status is $STATUS, not deleting."
           fi
 
       - name: Deploy ECS-tasks CloudFormation stack
