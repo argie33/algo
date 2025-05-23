@@ -52,6 +52,7 @@ jobs:
     name: Detect changed components
     runs-on: ubuntu-latest
     outputs:
+      app:               ${{ steps.paths.outputs.app }}
       symbols:           ${{ steps.paths.outputs.symbols }}
       econ:              ${{ steps.paths.outputs.econ }}
       findata:           ${{ steps.paths.outputs.findata }}
@@ -132,7 +133,10 @@ jobs:
               - swingtrader.py
               - requirements-swingtrader.txt
               - Dockerfile.swingtrader
-
+            app:
+              - template-app-stocks.yml
+              - template-app-ecs-tasks.yml
+              
       - id: any
         name: Any changes?
         run: |
