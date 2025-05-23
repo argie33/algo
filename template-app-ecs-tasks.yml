@@ -316,7 +316,8 @@ Resources:
               Value: !ImportValue StocksApp-DBUsername
           LogConfiguration:
             LogDriver: awslogs
-            Options:              awslogs-group: /ecs/pricemonthly-loader
+            Options:
+              awslogs-group: /ecs/pricemonthly-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
