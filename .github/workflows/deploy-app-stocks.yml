@@ -283,8 +283,12 @@ jobs:
 
       - name: Wait for app stack to finish exporting
         run: |
-          aws cloudformation wait stack-update-complete \
-            --stack-name stocks-app-stack
+          STATUS=$(aws cloudformation describe-stacks --stack-name stocks-app-stack --query 'Stacks[0].StackStatus' --output text)
+          if [[ "$STATUS" == "UPDATE_IN_PROGRESS" || "$STATUS" == "CREATE_IN_PROGRESS" ]]; then
+            aws cloudformation wait stack-update-complete --stack-name stocks-app-stack
+          else
+            echo "Stack is not updating, skipping wait."
+          fi
 
       - name: Cleanup any ROLLBACK_COMPLETE tasks stack
         run: |
