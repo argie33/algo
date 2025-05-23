@@ -38,7 +38,7 @@ jobs:
         run: |
           aws cloudformation deploy \
             --stack-name stocks-core-stack \
-            --template-file template-infra.yml \
+            --template-file template-app-stocks.yml \
             --parameter-overrides \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
