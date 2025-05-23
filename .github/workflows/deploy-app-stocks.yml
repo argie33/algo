@@ -1129,7 +1129,7 @@ jobs:
           SUB1=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
             --output text)
-          SUB2=$(aws cloudformation.list-exports \
+          SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
