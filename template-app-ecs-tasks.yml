@@ -316,8 +316,7 @@ Resources:
               Value: !ImportValue StocksApp-DBUsername
           LogConfiguration:
             LogDriver: awslogs
-            Options:
-              awslogs-group: /ecs/pricemonthly-loader
+            Options:              awslogs-group: /ecs/pricemonthly-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
@@ -532,22 +531,6 @@ Resources:
               awslogs-group: /ecs/pricemonthly-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
-
-  PricemonthlyLoaderService:
-    Type: AWS::ECS::Service
-    Properties:
-      ServiceName: pricemonthly-loader-service
-      Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
-      DesiredCount: 0
-      TaskDefinition: !Ref PriceMonthlyTaskDefinition
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          Subnets:
-            - !ImportValue StocksCore-PublicSubnet1Id
-            - !ImportValue StocksCore-PublicSubnet2Id
-          AssignPublicIp: ENABLED
-
   ########################################
   # J) TechnicalsDaily loader             #
   ########################################
@@ -928,12 +911,11 @@ Outputs:
     Value: !Ref PriceWeeklyTaskDefinition
   PriceWeeklyServiceName:
     Value: !GetAtt PriceWeeklyLoaderService.Name
-
   PriceMonthlyTaskDefArn:
     Description: ARN of the price-monthly loader task definition
     Value: !Ref PriceMonthlyTaskDefinition    
-  PricemonthlyServiceName:
-    Value: !GetAtt PricemonthlyLoaderService.Name
+  PriceMonthlyServiceName:
+    Value: !GetAtt PriceMonthlyService.Name
 
   TechnicalsDailyTaskDefArn:
     Value: !Ref TechnicalsDailyTaskDefinition
