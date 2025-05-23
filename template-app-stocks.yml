@@ -63,13 +63,12 @@ Resources:
       MultiAZ: false
       DeletionProtection: false
 
-  ### 4) Secrets Manager: DB creds ###
-  DBCredentialsSecret:
+  ### 4) Secrets Manager: DB creds ###  DBCredentialsSecret:
     Type: AWS::SecretsManager::Secret
     DeletionPolicy: Retain
     DependsOn: StocksDBInstance
     Properties:
-      Name: stocks-db-secrets
+      Name: !Sub stocks-db-secrets-${AWS::StackName}-${AWS::Region}
       Description: JSON with username, password, host, port, dbname
       SecretString:
         Fn::Join:
