@@ -20,7 +20,7 @@ env:
 ################################################################################
 jobs:
   infra:
-    name: Deploy core infra stack
+    name: Deploy application stack
     runs-on: ubuntu-latest
 
     steps:
@@ -34,10 +34,10 @@ jobs:
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Deploy Stocks Core infra
+      - name: Deploy application stack
         run: |
           aws cloudformation deploy \
-            --stack-name stocks-core-stack \
+            --stack-name stocks-app-stack \
             --template-file template-app-stocks.yml \
             --parameter-overrides \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
@@ -250,10 +250,6 @@ jobs:
     if: ${{ needs.filter.outputs.any == 'true' }}
     runs-on: ubuntu-latest
 
-    env:
-      IBKR_USERNAME_SECRET_ARN: ${{ secrets.IBKR_USERNAME_SECRET_ARN }}
-      IBKR_PASSWORD_SECRET_ARN: ${{ secrets.IBKR_PASSWORD_SECRET_ARN }}
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -265,20 +261,24 @@ jobs:
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
+      # ← C) Wait for the app stack to finish exporting before importing its values
+      - name: Wait for app stack to finish
+        run: |
+          aws cloudformation wait stack-update-complete \
+            --stack-name stocks-app-stack
+
       - name: Wipe out any ROLLBACK_COMPLETE copy of the tasks stack
         run: |
           STATUS=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query 'Stacks[0].StackStatus' --output text || echo "")
           if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            echo "Found ROLLBACK_COMPLETE, deleting…"
             aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
             aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
           fi
-
+          
       - name: Deploy ECS tasks stack
         run: |
-          echo "Using IBKR secrets from GitHub"
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
             --template-file template-app-ecs-tasks.yml \
@@ -290,7 +290,6 @@ jobs:
               PriceWeeklyImageTag=$(grep '^PriceWeeklyImageTag=' tags.env | cut -d= -f2-) \
               PriceMonthlyImageTag=$(grep '^PriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsDailyImageTag=$(grep '^TechnicalsDailyImageTag=' tags.env | cut -d= -f2-) \
-              LoadKeyStatsImageTag=$(grep '^LoadKeyStatsImageTag=' tags.env | cut -d= -f2-) \
               LoadInfoImageTag=$(grep '^LoadInfoImageTag=' tags.env | cut -d= -f2-) \
               EarningsImageTag=$(grep '^EarningsImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsWeeklyImageTag=$(grep '^TechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-) \
