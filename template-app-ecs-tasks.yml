@@ -39,6 +39,9 @@ Parameters:
   TechnicalsMonthlyImageTag:
     Type: String
     Description: Tag for technicalsmonthly loader image
+  BuySellImageTag:
+    Type: String
+    Description: Tag for buysell loader image
   SwingTraderImageTag:       
     Type: String
     Description: Tag for swingtrader loader image
