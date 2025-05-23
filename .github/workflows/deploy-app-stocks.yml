@@ -15,6 +15,7 @@ env:
   AWS_ROLE_SESSION: github-deploy
   FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
 
+jobs:
 ################################################################################
 # 1) Deploy core infrastructure (RDS, Secrets, ECS cluster)                    #
 ################################################################################
