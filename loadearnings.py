@@ -5,6 +5,7 @@ import logging
 import functools
 import os
 import json
+import resource
 
 import boto3
 import psycopg2
@@ -133,6 +134,15 @@ def ensure_tables(conn):
         """)
     conn.commit()
 
+def get_rss_mb():
+    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    if sys.platform.startswith("linux"):
+        return usage / 1024
+    return usage / (1024 * 1024)
+
+def log_mem(stage: str):
+    logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
+
 @retry(max_attempts=3, initial_delay=2, backoff=2)
 def process_symbol(symbol, conn):
     """Fetch earnings via yahooquery and insert into PostgreSQL."""
@@ -145,8 +155,8 @@ def process_symbol(symbol, conn):
     ticker.session.mount("https://", adapter)
     ticker.session.mount("http://", adapter)
 
-    data = ticker.earnings
-    earnings_data = data.get(yq_symbol)
+    data = ticker.all_modules
+    earnings_data = data.get("earnings")
     if not earnings_data or not isinstance(earnings_data, dict):
         raise ValueError(f"No valid earnings data for {symbol}: {earnings_data!r}")
 
@@ -219,19 +229,24 @@ def main():
 
     ensure_tables(conn)
 
+    log_mem("Before fetching symbols")
     with conn.cursor() as cur:
         cur.execute("SELECT DISTINCT symbol FROM stock_symbols;")
         symbols = [r["symbol"] for r in cur.fetchall()]
+    log_mem("After fetching symbols")
 
     for sym in symbols:
         try:
+            log_mem(f"Before processing {sym}")
             process_symbol(sym, conn)
+            log_mem(f"After processing {sym}")
         except Exception:
             logger.exception(f"Failed to process {sym}")
         time.sleep(0.2)
 
     update_last_run(conn)
     conn.close()
+    log_mem("End of script")
     logger.info("loadearnings complete.")
 
 if __name__ == "__main__":
