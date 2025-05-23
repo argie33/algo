@@ -262,16 +262,21 @@ jobs:
         with:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - name: Download all build-tag artifacts
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}      - name: Download all build-tag artifacts
         uses: actions/download-artifact@v4
         with:
+          pattern: build-tags-*
           path: .
+          merge-multiple: true
 
       - name: Generate tags.env
+        shell: pwsh
         run: |
-          cat build_tag_*.txt > tags.env
+          Get-Content build_tag_*.txt | Set-Content tags.env
+          if (-not (Test-Path tags.env)) {
+            Write-Error "No build tag files found or tags.env not created"
+            exit 1
+          }
 
       - name: Wait for app stack to finish exporting
         run: |
