@@ -253,7 +253,9 @@ jobs:
     if: ${{ needs.filter.outputs.any == 'true' }}
     runs-on: ubuntu-latest
 
-    steps:      - name: Checkout code
+
+    steps:
+      - name: Checkout code
         uses: actions/checkout@v3
 
       - name: Configure AWS credentials
@@ -262,7 +264,7 @@ jobs:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-          
+
       - name: Download all build-tag artifacts
         uses: actions/download-artifact@v4
         with:
