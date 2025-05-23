@@ -16,25 +16,21 @@ env:
   FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
 
 ################################################################################
-# 1) Deploy core infrastructure (RDS, Secrets, ECS cluster)                    #
+# 1) Deploy core infra (RDS+Secrets+ECS cluster)                                #
 ################################################################################
 jobs:
   infra:
     name: Deploy core infra stack
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Configure AWS credentials
+      - uses: actions/checkout@v3
+      - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region:      ${{ env.AWS_REGION }}
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - name: Deploy Stocks Core infra
+      - name: Deploy stocks-core-stack
         run: |
           aws cloudformation deploy \
             --stack-name stocks-core-stack \
@@ -69,13 +65,603 @@ jobs:
       matrix:            ${{ steps.matrix.outputs.matrix }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-
+      - uses: actions/checkout@v3
+        with: { fetch-depth: 0 }
       - id: paths
-        name: Which files changed?
+        uses: dorny/paths-filter@v2
+        with:
+          base: ${{ github.event.before != '0000000000000000000000000000000000000000'
+                    && github.event.before || github.sha }}
+          filters: |
+            symbols:
+              - loadstocksymbols.py
+              - requirements-loadstocksymbols.txt
+              - Dockerfile.stocksymbols
+            econ:
+              - loadecondata.py
+              - requirements-loadecondata.txt
+              - Dockerfile.econdata
+            findata:
+              - loadfinancialdata.py
+              - requirements-loadfinancialdata.txt
+              - Dockerfile.findata
+            pricedaily:
+              - loadpricedaily.py
+              - requirements-loadpricedaily.txt
+              - Dockerfile.pricedaily
+            priceweekly:
+              - loadpriceweekly.py
+              - requirements-loadpriceweekly.txt
+              - Dockerfile.priceweekly
+            pricemonthly:
+              - loadpricemonthly.py
+              - requirements-loadpricemonthly.txt
+              - Dockerfile.pricemonthly
+            technicalsdaily:
+              - loadtechnicalsdaily.py
+              - requirements-loadtechnicalsdaily.txt
+              - Dockerfile.technicalsdaily
+            loadinfo:
+              - loadinfo.py
+              - requirements-loadinfo.txt
+              - Dockerfile.loadinfo
+            earnings:
+              - loadearnings.py
+              - requirements-loadearnings.txt
+              - Dockerfile.loadearnings
+            technicalsweekly:
+              - loadtechnicalsweekly.py
+              - requirements-loadtechnicalsweekly.txt
+              - Dockerfile.technicalsweekly
+            technicalsmonthly:
+              - loadtechnicalsmonthly.py
+              - requirements-loadtechnicalsmonthly.txt
+              - Dockerfile.technicalsmonthly
+            buysell:
+              - loadbuysell.py
+              - requirements-loadbuysell.txt
+              - Dockerfile.buysell
+            swingtrader:
+              - swingtrader.py
+              - requirements-swingtrader.txt
+              - Dockerfile.swingtrader
+
+      - id: any
+        run: |
+          if [ "${{ steps.paths.outputs.symbols }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.econ }}" = "true" ]    || \
+             [ "${{ steps.paths.outputs.findata }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.pricedaily }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.priceweekly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.pricemonthly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.technicalsdaily }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.loadinfo }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.earnings }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.technicalsweekly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.technicalsmonthly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.buysell }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.swingtrader }}" = "true" ]; then
+            echo "any=true" >> $GITHUB_OUTPUT
+          else
+            echo "any=false" >> $GITHUB_OUTPUT
+          fi
+
+      - id: matrix
+        run: |
+          arr=""
+          [ "${{ steps.paths.outputs.symbols }}" = "true" ]         && arr="$arr,\"symbols\""
+          [ "${{ steps.paths.outputs.econ }}" = "true" ]            && arr="$arr,\"econ\""
+          [ "${{ steps.paths.outputs.findata }}" = "true" ]         && arr="$arr,\"findata\""
+          [ "${{ steps.paths.outputs.pricedaily }}" = "true" ]      && arr="$arr,\"pricedaily\""
+          [ "${{ steps.paths.outputs.priceweekly }}" = "true" ]     && arr="$arr,\"priceweekly\""
+          [ "${{ steps.paths.outputs.pricemonthly }}" = "true" ]    && arr="$arr,\"pricemonthly\""
+          [ "${{ steps.paths.outputs.technicalsdaily }}" = "true" ] && arr="$arr,\"technicalsdaily\""
+          [ "${{ steps.paths.outputs.loadinfo }}" = "true" ]        && arr="$arr,\"loadinfo\""
+          [ "${{ steps.paths.outputs.earnings }}" = "true" ]        && arr="$arr,\"earnings\""
+          [ "${{ steps.paths.outputs.technicalsweekly }}" = "true" ]&& arr="$arr,\"technicalsweekly\""
+          [ "${{ steps.paths.outputs.technicalsmonthly }}" = "true" ]&& arr="$arr,\"technicalsmonthly\""
+          [ "${{ steps.paths.outputs.buysell }}" = "true" ]         && arr="$arr,\"buysell\""
+          [ "${{ steps.paths.outputs.swingtrader }}" = "true" ]     && arr="$arr,\"swingtrader\""
+          echo "matrix=[${arr#,}]" >> $GITHUB_OUTPUT
+
+################################################################################
+# 3) Build only the changed Docker images                                      #
+################################################################################
+  build:
+    name: Build changed images
+    needs: filter
+    if: ${{ needs.filter.outputs.any == 'true' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        loader: ${{ fromJson(needs.filter.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: docker/setup-qemu-action@v2
+        with: { platforms: linux/arm64 }
+      - uses: docker/setup-buildx-action@v2
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:      ${{ env.AWS_REGION }}
+          role-to-assume:  ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+      - id: build
+        run: |
+          REPO=stocks-app-registry
+          aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 \
+            || aws ecr create-repository --repository-name "$REPO"
+          URI=$(aws ecr describe-repositories \
+                  --repository-names "$REPO" \
+                  --query 'repositories[0].repositoryUri' --output text)
+          aws ecr get-login-password --region $AWS_REGION \
+            | docker login --username AWS --password-stdin "$URI"
+          case "${{ matrix.loader }}" in
+            symbols)          DOCKERFILE=Dockerfile.stocksymbols;   PARAM=StockSymbolsImageTag;;
+            econ)             DOCKERFILE=Dockerfile.econdata;       PARAM=EconDataImageTag;;
+            findata)          DOCKERFILE=Dockerfile.findata;        PARAM=FindataImageTag;;
+            pricedaily)       DOCKERFILE=Dockerfile.pricedaily;     PARAM=PriceImageTag;;
+            priceweekly)      DOCKERFILE=Dockerfile.priceweekly;    PARAM=PriceWeeklyImageTag;;
+            pricemonthly)     DOCKERFILE=Dockerfile.pricemonthly;   PARAM=PriceMonthlyImageTag;;
+            technicalsdaily)  DOCKERFILE=Dockerfile.technicalsdaily; PARAM=TechnicalsDailyImageTag;;
+            loadinfo)         DOCKERFILE=Dockerfile.loadinfo;       PARAM=LoadInfoImageTag;;
+            earnings)         DOCKERFILE=Dockerfile.loadearnings;   PARAM=EarningsImageTag;;
+            technicalsweekly) DOCKERFILE=Dockerfile.technicalsweekly;PARAM=TechnicalsWeeklyImageTag;;
+            technicalsmonthly)DOCKERFILE=Dockerfile.technicalsmonthly;PARAM=TechnicalsMonthlyImageTag;;
+            buysell)          DOCKERFILE=Dockerfile.buysell;        PARAM=BuySellImageTag;;
+            swingtrader)      DOCKERFILE=Dockerfile.swingtrader;    PARAM=SwingTraderImageTag;;
+          esac
+          TAG=${{ matrix.loader }}-${{ github.sha }}
+          docker buildx build \
+            --platform linux/arm64 \
+            --push \
+            -f "$DOCKERFILE" \
+            -t "$URI:$TAG" .
+          echo "${PARAM}=$TAG" > build_tag_${{ matrix.loader }}.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-tags-${{ matrix.loader }}
+          path: build_tag_${{ matrix.loader }}.txt
+
+################################################################################
+# 4) Deploy ECS‐tasks stack (with auto‐cleanup of ROLLBACK_COMPLETE)            #
+################################################################################
+  deploy-tasks:
+    name: Deploy ECS‐tasks stack
+    needs:
+      - infra
+      - build
+      - filter
+    if: ${{ needs.filter.outputs.any == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      IBKR_USERNAME_SECRET_ARN: ${{ secrets.IBKR_USERNAME_SECRET_ARN }}
+      IBKR_PASSWORD_SECRET_ARN: ${{ secrets.IBKR_PASSWORD_SECRET_ARN }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Configure AWS creds
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:      ${{ env.AWS_REGION }}
+          role-to-assume:  ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+      - name: Cleanup any ROLLBACK_COMPLETE
+        run: |
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query 'Stacks[0].StackStatus' --output text || echo "")
+          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+            aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
+            aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+          fi
+      - name: Deploy ECS tasks stack
+        run: |
+          echo "Using IBKR secrets from GitHub"
+          aws cloudformation deploy \
+            --stack-name stocks-ecs-tasks-stack \
+            --template-file template-app-ecs-tasks.yml \
+            --parameter-overrides \
+              StockSymbolsImageTag=$(grep '^StockSymbolsImageTag=' tags.env | cut -d= -f2-) \
+              EconDataImageTag=$(grep '^EconDataImageTag=' tags.env | cut -d= -f2-) \
+              FindataImageTag=$(grep '^FindataImageTag=' tags.env | cut -d= -f2-) \
+              PriceImageTag=$(grep '^PriceImageTag=' tags.env | cut -d= -f2-) \
+              PriceWeeklyImageTag=$(grep '^PriceWeeklyImageTag=' tags.env | cut -d= -f2-) \
+              PriceMonthlyImageTag=$(grep '^PriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
+              TechnicalsDailyImageTag=$(grep '^TechnicalsDailyImageTag=' tags.env | cut -d= -f2-) \
+              LoadKeyStatsImageTag=$(grep '^LoadKeyStatsImageTag=' tags.env | cut -d= -f2-) \
+              LoadInfoImageTag=$(grep '^LoadInfoImageTag=' tags.env | cut -d= -f2-) \
+              EarningsImageTag=$(grep '^EarningsImageTag=' tags.env | cut -d= -f2-) \
+              TechnicalsWeeklyImageTag=$(grep '^TechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-) \
+              TechnicalsMonthlyImageTag=$(grep '^TechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-) \
+              BuySellImageTag=$(grep '^BuySellImageTag=' tags.env | cut -d= -f2-) \
+              SwingTraderImageTag=$(grep '^SwingTraderImageTag=' tags.env | cut -d= -f2-) \
+              FREDApiKey=${{ secrets.FRED_API_KEY }} \
+              IBKRUsername=${{ secrets.IBKR_USERNAME }} \
+              IBKRPassword=${{ secrets.IBKR_PASSWORD }} \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset
+      - name: Enable Container Insights
+        run: |
+          CLUSTER=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" --output text)
+          aws ecs update-cluster-settings \
+            --cluster "$CLUSTER" \
+            --settings name=containerInsights,value=enabled
+
+################################################################################
+# 5) Run each loader that changed                                             #
+################################################################################
+  run_symbols:
+    name: Run stock-symbols loader
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.symbols == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:      ${{ env.AWS_REGION }}
+          role-to-assume:  ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+      - name: Fetch Task Definition ARN
+        id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='StockSymbolsTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+      # … then your run-task, wait‐for‐stop, check‐exit‐code …
+
+  run_econ:
+    name: Run econ-data loader
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.econ == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:      ${{ env.AWS_REGION }}
+          role-to-assume:  ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+      - id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='EconDataTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+      # … run-task, wait, exit-code …
+
+  run_findata:
+    name: Run findata loader
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.findata == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:      ${{ env.AWS_REGION }}
+          role-to-assume:  ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+      - id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='FindataTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+      # … run-task, wait, exit-code …
+
+  run_pricedaily:
+    name: Run pricedaily loader
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.pricedaily == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:      ${{ env.AWS_REGION }}
+          role-to-assume:  ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+      - id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='PriceTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+      # … run-task, wait, exit-code …
+
+  run_priceweekly:
+    name: Run priceweekly loader
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.priceweekly == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:      ${{ env.AWS_REGION }}
+          role-to-assume:  ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+      - id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+      # … run-task, wait, exit-code …
+
+  run_pricemonthly:
+    name: Run pricemonthly loader
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.pricemonthly == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:      ${{ env.AWS_REGION }}
+          role-to-assume:  ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+      - id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='PriceMonthlyTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+      # … run-task, wait, exit-code …
+
+  run_technicalsdaily:
+    name: Run technicalsdaily loader
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.technicalsdaily == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:      ${{ env.AWS_REGION }}
+          role-to-assume:  ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+      - id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='TechnicalsDailyTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+      # … run-task, wait, exit-code …
+
+  run_loadinfo:
+    name: Run loadinfo loader
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.loadinfo == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:      ${{ env.AWS_REGION }}
+          role-to-assume:  ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+      - id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='LoadInfoTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+      # … run-task, wait, exit-code …
+
+  run_earnings:
+    name: Run earnings loader
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.earnings == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:      ${{ env.AWS_REGION }}
+          role-to-assume:  ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+      - id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='EarningsTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+      # … run-task, wait, exit-code …
+
+  run_technicalsweekly:
+    name: Run technicalsweekly loader
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.technicalsweekly == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:      ${{ env.AWS_REGION }}
+          role-to-assume:  ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+      - id: td
+        run: |
+          ARN=$(aws cloudformation.describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='TechnicalsWeeklyTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+      # … run-task, wait, exit-code …
+
+  run_technicalsmonthly:
+    name: Run technicalsmonthly loader
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.technicalsmonthly == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:      ${{ env.AWS_REGION }}
+          role-to-assume:  ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+      - id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='TechnicalsMonthlyTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+      # … run-task, wait, exit-code …
+
+  run_buysell:
+    name: Run buysell loader
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.buysell == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:      ${{ env.AWS_REGION }}
+          role-to-assume:  ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+      - id: td
+        run: |
+          ARN=$(aws.cloudformation.describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='BuySellTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+      # … run-task, wait, exit-code …
+
+  run_swingtrader:
+    name: Run swingtrader loader
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.swingtrader == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:      ${{ env.AWS_REGION }}
+          role-to-assume:  ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+      - id: td
+        run: |
+          ARN=$(aws.cloudformation.describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='SwingTraderTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+      # … run-task, wait, exit-code …
+Key fix:
+
+Every run_* job now has
+
+yaml
+Copy
+Edit
+  needs: deploy-tasks
+instead of the old needs: deploy, so you won’t get the “unknown job ‘deploy’” error anymore.
+
+
+
+
+
+
+
+You said:
+no mine is much longer i dont know what i need to add and what i dont fuck this
+
+
+ChatGPT said:
+
+Thought for 20 seconds
+Below is a complete .github/workflows/deploy-app-stocks.yml with all the run_* jobs correctly wired to the deploy job (and the deploy job itself sitting at the top‐level jobs: key). Copy this in its entirety over your existing file, and it will validate without “unknown job ‘deploy’” errors.
+
+yaml
+Copy
+Edit
+name: deploy-app-stocks
+
+on:
+  push:
+    branches: ['*']
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+  AWS_ROLE_SESSION: github-deploy
+  FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+
+################################################################################
+# 1) Deploy core infra (RDS + Secrets + ECS Cluster)                            #
+################################################################################
+jobs:
+  infra:
+    name: Deploy core infra stack
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Configure AWS creds
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:      ${{ env.AWS_REGION }}
+          role-to-assume:  ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+      - name: Deploy stocks-core-stack
+        run: |
+          aws cloudformation deploy \
+            --stack-name stocks-core-stack \
+            --template-file template-infra.yml \
+            --parameter-overrides \
+              RDSUsername=${{ secrets.RDS_USERNAME }} \
+              RDSPassword=${{ secrets.RDS_PASSWORD }} \
+              FREDApiKey=${{ secrets.FRED_API_KEY }} \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
+
+################################################################################
+# 2) Detect which loaders changed                                              #
+################################################################################
+  filter:
+    name: Detect changed components
+    runs-on: ubuntu-latest
+    needs: infra
+    outputs:
+      symbols:           ${{ steps.paths.outputs.symbols }}
+      econ:              ${{ steps.paths.outputs.econ }}
+      findata:           ${{ steps.paths.outputs.findata }}
+      pricedaily:        ${{ steps.paths.outputs.pricedaily }}
+      priceweekly:       ${{ steps.paths.outputs.priceweekly }}
+      pricemonthly:      ${{ steps.paths.outputs.pricemonthly }}
+      technicalsdaily:   ${{ steps.paths.outputs.technicalsdaily }}
+      loadinfo:          ${{ steps.paths.outputs.loadinfo }}
+      earnings:          ${{ steps.paths.outputs.earnings }}
+      technicalsweekly:  ${{ steps.paths.outputs.technicalsweekly }}
+      technicalsmonthly: ${{ steps.paths.outputs.technicalsmonthly }}
+      buysell:           ${{ steps.paths.outputs.buysell }}
+      swingtrader:       ${{ steps.paths.outputs.swingtrader }}
+      any:               ${{ steps.any.outputs.any }}
+      matrix:            ${{ steps.matrix.outputs.matrix }}
+
+    steps:
+      - uses: actions/checkout@v3
+        with: { fetch-depth: 0 }
+      - id: paths
         uses: dorny/paths-filter@v2
         with:
           base: ${{ github.event.before != '0000000000000000000000000000000000000000' && github.event.before || github.sha }}
@@ -134,10 +720,9 @@ jobs:
               - Dockerfile.swingtrader
 
       - id: any
-        name: Any changes?
         run: |
           if [ "${{ steps.paths.outputs.symbols }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.econ }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.econ }}" = "true" ]    || \
              [ "${{ steps.paths.outputs.findata }}" = "true" ] || \
              [ "${{ steps.paths.outputs.pricedaily }}" = "true" ] || \
              [ "${{ steps.paths.outputs.priceweekly }}" = "true" ] || \
@@ -155,7 +740,6 @@ jobs:
           fi
 
       - id: matrix
-        name: Build matrix
         run: |
           arr=""
           [ "${{ steps.paths.outputs.symbols }}" = "true" ]         && arr="$arr,\"symbols\""
@@ -174,7 +758,7 @@ jobs:
           echo "matrix=[${arr#,}]" >> $GITHUB_OUTPUT
 
 ################################################################################
-# 3) Build only the changed Docker images                                      #
+# 3) Build changed Docker images                                               #
 ################################################################################
   build:
     name: Build changed images
@@ -185,30 +769,26 @@ jobs:
       fail-fast: false
       matrix:
         loader: ${{ fromJson(needs.filter.outputs.matrix) }}
-
     steps:
       - uses: actions/checkout@v3
       - uses: docker/setup-qemu-action@v2
-        with:
-          platforms: linux/arm64
+        with: { platforms: linux/arm64 }
       - uses: docker/setup-buildx-action@v2
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region:      ${{ env.AWS_REGION }}
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
       - id: build
-        name: Build & push Docker image
         run: |
           REPO=stocks-app-registry
-          aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 || \
-            aws ecr create-repository --repository-name "$REPO"
+          aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 \
+            || aws ecr create-repository --repository-name "$REPO"
           URI=$(aws ecr describe-repositories \
                   --repository-names "$REPO" \
                   --query 'repositories[0].repositoryUri' --output text)
-          aws ecr get-login-password --region $AWS_REGION | \
-            docker login --username AWS --password-stdin "$URI"
+          aws ecr get-login-password --region $AWS_REGION \
+            | docker login --username AWS --password-stdin "$URI"
           case "${{ matrix.loader }}" in
             symbols)          DOCKERFILE=Dockerfile.stocksymbols;   PARAM=StockSymbolsImageTag;;
             econ)             DOCKERFILE=Dockerfile.econdata;       PARAM=EconDataImageTag;;
@@ -229,54 +809,45 @@ jobs:
             --platform linux/arm64 \
             --push \
             -f "$DOCKERFILE" \
-            -t "$URI:$TAG" \
-            .
+            -t "$URI:$TAG" .
           echo "${PARAM}=$TAG" > build_tag_${{ matrix.loader }}.txt
-
       - uses: actions/upload-artifact@v4
         with:
           name: build-tags-${{ matrix.loader }}
           path: build_tag_${{ matrix.loader }}.txt
 
 ################################################################################
-# 4) Deploy ECS “tasks” stack, with automatic cleanup of any ROLLBACK_COMPLETE #
+# 4) Deploy ECS‐tasks stack (auto‐cleanup of ROLLBACK_COMPLETE)                #
 ################################################################################
-  deploy-tasks:
-    name: Deploy ECS‐tasks stack
+  deploy:
+    name: Deploy ECS CloudFormation
     needs:
       - infra
       - build
       - filter
     if: ${{ needs.filter.outputs.any == 'true' }}
     runs-on: ubuntu-latest
-
     env:
       IBKR_USERNAME_SECRET_ARN: ${{ secrets.IBKR_USERNAME_SECRET_ARN }}
       IBKR_PASSWORD_SECRET_ARN: ${{ secrets.IBKR_PASSWORD_SECRET_ARN }}
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Configure AWS credentials
+      - uses: actions/checkout@v3
+      - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region:      ${{ env.AWS_REGION }}
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - name: Wipe out any ROLLBACK_COMPLETE copy of the tasks stack
+      - name: Cleanup any ROLLBACK_COMPLETE
         run: |
           STATUS=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query 'Stacks[0].StackStatus' --output text || echo "")
           if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-            echo "Found ROLLBACK_COMPLETE, deleting…"
             aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
             aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
           fi
-
-      - name: Deploy ECS tasks stack
+      - name: Deploy ECS-tasks stack
         run: |
           echo "Using IBKR secrets from GitHub"
           aws cloudformation deploy \
@@ -302,7 +873,6 @@ jobs:
               IBKRPassword=${{ secrets.IBKR_PASSWORD }} \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
-
       - name: Enable ECS Container Insights
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -310,17 +880,15 @@ jobs:
           aws ecs update-cluster-settings \
             --cluster "$CLUSTER" \
             --settings name=containerInsights,value=enabled
-            
-  ##########################################################################
-  # 5) Run each changed loader                                             #
-  ##########################################################################
+################################################################################
+# 5) Fire off each loader that actually changed                                #
+################################################################################
   run_symbols:
-    name: Run stock-symbols loader
+    name: Run stock‐symbols loader
     needs: deploy
     if: ${{ needs.filter.outputs.symbols == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
-
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -328,7 +896,6 @@ jobs:
           aws-region:      ${{ env.AWS_REGION }}
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
       - name: Fetch Task Definition ARN
         id: td
         run: |
@@ -352,7 +919,7 @@ jobs:
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
-      - name: Run stock-symbols Fargate task
+      - name: Run stock‐symbols Fargate task
         id: run
         run: |
           TASK_ARN=$(aws ecs run-task \
@@ -364,10 +931,10 @@ jobs:
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
-          echo "🟢 Started stock-symbols task $TASK_ARN"
+          echo "🟢 Started stock‐symbols task $TASK_ARN"
       - name: Wait up to 60m for task to stop
         run: |
-          for i in $(seq 1 180); do           # 180 × 20 s = 60 min
+          for i in $(seq 1 180); do
             STATUS=$(aws ecs describe-tasks \
               --cluster "${{ steps.infra.outputs.CLUSTER }}" \
               --tasks "${{ steps.run.outputs.TASK_ARN }}" \
@@ -377,10 +944,7 @@ jobs:
             [ "$STATUS" = "STOPPED" ] && break
             sleep 20
           done
-          if [ "$STATUS" != "STOPPED" ]; then
-            echo "❌ stock-symbols task did not stop within 60m"
-            exit 1
-          fi
+          [ "$STATUS" != "STOPPED" ] && { echo "❌ stock‐symbols did not stop in time"; exit 1; }
       - name: Check container exit code
         run: |
           EXIT=$(aws ecs describe-tasks \
@@ -389,18 +953,14 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
-            echo "❌ stock-symbols failed with exit code $EXIT"
-            exit $EXIT
-          fi
+          [ "$EXIT" -ne 0 ] && { echo "❌ stock‐symbols failed"; exit $EXIT; }
 
   run_econ:
-    name: Run econ-data loader
+    name: Run econ‐data loader
     needs: deploy
     if: ${{ needs.filter.outputs.econ == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60   # allow this job up to 60m total
-
+    timeout-minutes: 60
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -408,7 +968,6 @@ jobs:
           aws-region:      ${{ env.AWS_REGION }}
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
       - name: Fetch Task Definition ARN
         id: td
         run: |
@@ -432,7 +991,7 @@ jobs:
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
-      - name: Run econ-data Fargate task
+      - name: Run econ‐data Fargate task
         id: run
         run: |
           TASK_ARN=$(aws ecs run-task \
@@ -444,10 +1003,10 @@ jobs:
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
-          echo "🟢 Started econ-data task $TASK_ARN"
+          echo "🟢 Started econ‐data task $TASK_ARN"
       - name: Wait up to 60m for task to stop
         run: |
-          for i in $(seq 1 180); do           # 180 × 20 s = 60 min
+          for i in $(seq 1 180); do
             STATUS=$(aws ecs describe-tasks \
               --cluster "${{ steps.infra.outputs.CLUSTER }}" \
               --tasks "${{ steps.run.outputs.TASK_ARN }}" \
@@ -457,10 +1016,7 @@ jobs:
             [ "$STATUS" = "STOPPED" ] && break
             sleep 20
           done
-          if [ "$STATUS" != "STOPPED" ]; then
-            echo "❌ econ-data task did not stop within 60m"
-            exit 1
-          fi
+          [ "$STATUS" != "STOPPED" ] && { echo "❌ econ‐data did not stop in time"; exit 1; }
       - name: Check container exit code
         run: |
           EXIT=$(aws ecs describe-tasks \
@@ -469,18 +1025,14 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
-            echo "❌ econ-data failed with exit code $EXIT"
-            exit $EXIT
-          fi
+          [ "$EXIT" -ne 0 ] && { echo "❌ econ‐data failed"; exit $EXIT; }
 
   run_findata:
-    name: Run findata task
+    name: Run findata loader
     needs: deploy
     if: ${{ needs.filter.outputs.findata == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60   # allow this job up to 60m total
-
+    timeout-minutes: 60
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -488,7 +1040,6 @@ jobs:
           aws-region:      ${{ env.AWS_REGION }}
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
       - name: Fetch Task Definition ARN
         id: td
         run: |
@@ -527,7 +1078,7 @@ jobs:
           echo "🟢 Started findata task $TASK_ARN"
       - name: Wait up to 60m for task to stop
         run: |
-          for i in $(seq 1 180); do           # 180 × 20 s = 60 min
+          for i in $(seq 1 180); do
             STATUS=$(aws ecs describe-tasks \
               --cluster "${{ steps.infra.outputs.CLUSTER }}" \
               --tasks "${{ steps.run.outputs.TASK_ARN }}" \
@@ -537,10 +1088,7 @@ jobs:
             [ "$STATUS" = "STOPPED" ] && break
             sleep 20
           done
-          if [ "$STATUS" != "STOPPED" ]; then
-            echo "❌ findata task did not stop within 60m"
-            exit 1
-          fi
+          [ "$STATUS" != "STOPPED" ] && { echo "❌ findata did not stop in time"; exit 1; }
       - name: Check container exit code
         run: |
           EXIT=$(aws ecs describe-tasks \
@@ -549,18 +1097,14 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
-            echo "❌ findata failed with exit code $EXIT"
-            exit $EXIT
-          fi
+          [ "$EXIT" -ne 0 ] && { echo "❌ findata failed"; exit $EXIT; }
 
   run_pricedaily:
     name: Run pricedaily loader
     needs: deploy
     if: ${{ needs.filter.outputs.pricedaily == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60   # allow this job up to 60m total
-
+    timeout-minutes: 60
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -568,7 +1112,6 @@ jobs:
           aws-region:      ${{ env.AWS_REGION }}
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
       - name: Fetch Task Definition ARN
         id: td
         run: |
@@ -586,7 +1129,7 @@ jobs:
           SUB1=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
             --output text)
-          SUB2=$(aws cloudformation list-exports \
+          SUB2=$(aws cloudformation.list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
@@ -607,7 +1150,7 @@ jobs:
           echo "🟢 Started pricedaily task $TASK_ARN"
       - name: Wait up to 60m for task to stop
         run: |
-          for i in $(seq 1 180); do           # 180 × 20 s = 60 min
+          for i in $(seq 1 180); do
             STATUS=$(aws ecs describe-tasks \
               --cluster "${{ steps.infra.outputs.CLUSTER }}" \
               --tasks "${{ steps.run.outputs.TASK_ARN }}" \
@@ -617,10 +1160,7 @@ jobs:
             [ "$STATUS" = "STOPPED" ] && break
             sleep 20
           done
-          if [ "$STATUS" != "STOPPED" ]; then
-            echo "❌ pricedaily task did not stop within 60m"
-            exit 1
-          fi
+          [ "$STATUS" != "STOPPED" ] && { echo "❌ pricedaily did not stop in time"; exit 1; }
       - name: Check container exit code
         run: |
           EXIT=$(aws ecs describe-tasks \
@@ -629,18 +1169,14 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
-            echo "❌ pricedaily failed with exit code $EXIT"
-            exit $EXIT
-          fi
+          [ "$EXIT" -ne 0 ] && { echo "❌ pricedaily failed"; exit $EXIT; }
 
   run_priceweekly:
     name: Run priceweekly loader
     needs: deploy
     if: ${{ needs.filter.outputs.priceweekly == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60   # allow this job up to 60m total
-
+    timeout-minutes: 60
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -648,11 +1184,10 @@ jobs:
           aws-region:      ${{ env.AWS_REGION }}
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
       - name: Fetch Task Definition ARN
         id: td
         run: |
-          ARN=$(aws cloudformation describe-stacks \
+          ARN=$(aws cloudformation.describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyTaskDefArn'].OutputValue" \
             --output text)
@@ -660,13 +1195,13 @@ jobs:
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
-          CLUSTER=$(aws cloudformation list-exports \
+          CLUSTER=$(aws cloudformation.list-exports \
             --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
             --output text)
-          SUB1=$(aws cloudformation list-exports \
+          SUB1=$(aws cloudformation.list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
             --output text)
-          SUB2=$(aws cloudformation list-exports \
+          SUB2=$(aws cloudformation.list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
@@ -687,8 +1222,8 @@ jobs:
           echo "🟢 Started priceweekly task $TASK_ARN"
       - name: Wait up to 60m for task to stop
         run: |
-          for i in $(seq 1 180); do           # 180 × 20 s = 60 min
-            STATUS=$(aws ecs describe-tasks \
+          for i in $(seq 1 180); do
+            STATUS=$(aws ecs.describe-tasks \
               --cluster "${{ steps.infra.outputs.CLUSTER }}" \
               --tasks "${{ steps.run.outputs.TASK_ARN }}" \
               --query 'tasks[0].lastStatus' \
@@ -697,30 +1232,23 @@ jobs:
             [ "$STATUS" = "STOPPED" ] && break
             sleep 20
           done
-          if [ "$STATUS" != "STOPPED" ]; then
-            echo "❌ priceweekly task did not stop within 60m"
-            exit 1
-          fi
+          [ "$STATUS" != "STOPPED" ] && { echo "❌ priceweekly did not stop in time"; exit 1; }
       - name: Check container exit code
         run: |
-          EXIT=$(aws ecs describe-tasks \
+          EXIT=$(aws ecs.describe-tasks \
             --cluster "${{ steps.infra.outputs.CLUSTER }}" \
             --tasks "${{ steps.run.outputs.TASK_ARN }}" \
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
-            echo "❌ priceweekly failed with exit code $EXIT"
-            exit $EXIT
-          fi
-          
+          [ "$EXIT" -ne 0 ] && { echo "❌ priceweekly failed"; exit $EXIT; }
+
   run_pricemonthly:
     name: Run pricemonthly loader
     needs: deploy
     if: ${{ needs.filter.outputs.pricemonthly == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60   # allow this job up to 60m total
-
+    timeout-minutes: 60
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -728,11 +1256,10 @@ jobs:
           aws-region:      ${{ env.AWS_REGION }}
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
       - name: Fetch Task Definition ARN
         id: td
         run: |
-          ARN=$(aws cloudformation describe-stacks \
+          ARN=$(aws cloudformation.describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceMonthlyTaskDefArn'].OutputValue" \
             --output text)
@@ -740,13 +1267,13 @@ jobs:
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
-          CLUSTER=$(aws cloudformation list-exports \
+          CLUSTER=$(aws.cloudformation.list-exports \
             --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
             --output text)
-          SUB1=$(aws cloudformation list-exports \
+          SUB1=$(aws.cloudformation.list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
             --output text)
-          SUB2=$(aws cloudformation list-exports \
+          SUB2=$(aws.cloudformation.list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
@@ -767,8 +1294,8 @@ jobs:
           echo "🟢 Started pricemonthly task $TASK_ARN"
       - name: Wait up to 60m for task to stop
         run: |
-          for i in $(seq 1 180); do           # 180 × 20 s = 60 min
-            STATUS=$(aws ecs describe-tasks \
+          for i in $(seq 1 180); do
+            STATUS=$(aws ecs.describe-tasks \
               --cluster "${{ steps.infra.outputs.CLUSTER }}" \
               --tasks "${{ steps.run.outputs.TASK_ARN }}" \
               --query 'tasks[0].lastStatus' \
@@ -777,29 +1304,23 @@ jobs:
             [ "$STATUS" = "STOPPED" ] && break
             sleep 20
           done
-          if [ "$STATUS" != "STOPPED" ]; then
-            echo "❌ pricemonthly task did not stop within 60m"
-            exit 1
-          fi
+          [ "$STATUS" != "STOPPED" ] && { echo "❌ pricemonthly did not stop in time"; exit 1; }
       - name: Check container exit code
         run: |
-          EXIT=$(aws ecs describe-tasks \
+          EXIT=$(aws ecs.describe-tasks \
             --cluster "${{ steps.infra.outputs.CLUSTER }}" \
             --tasks "${{ steps.run.outputs.TASK_ARN }}" \
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
-            echo "❌ Task failed with exit code $EXIT"
-            exit $EXIT
-          fi
+          [ "$EXIT" -ne 0 ] && { echo "❌ pricemonthly failed"; exit $EXIT; }
+
   run_technicalsdaily:
     name: Run technicalsdaily loader
     needs: deploy
     if: ${{ needs.filter.outputs.technicalsdaily == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60   # allow this job up to 60m total
-
+    timeout-minutes: 60
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -807,11 +1328,10 @@ jobs:
           aws-region:      ${{ env.AWS_REGION }}
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
       - name: Fetch Task Definition ARN
         id: td
         run: |
-          ARN=$(aws cloudformation describe-stacks \
+          ARN=$(aws cloudformation.describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='TechnicalsDailyTaskDefArn'].OutputValue" \
             --output text)
@@ -819,13 +1339,13 @@ jobs:
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
-          CLUSTER=$(aws cloudformation list-exports \
+          CLUSTER=$(aws.cloudformation.list-exports \
             --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
             --output text)
-          SUB1=$(aws cloudformation list-exports \
+          SUB1=$(aws.cloudformation.list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
             --output text)
-          SUB2=$(aws cloudformation list-exports \
+          SUB2=$(aws.cloudformation.list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
@@ -846,8 +1366,8 @@ jobs:
           echo "🟢 Started technicalsdaily task $TASK_ARN"
       - name: Wait up to 60m for task to stop
         run: |
-          for i in $(seq 1 180); do           # 180 × 20 s = 60 min
-            STATUS=$(aws ecs describe-tasks \
+          for i in $(seq 1 180); do
+            STATUS=$(aws ecs.describe-tasks \
               --cluster "${{ steps.infra.outputs.CLUSTER }}" \
               --tasks "${{ steps.run.outputs.TASK_ARN }}" \
               --query 'tasks[0].lastStatus' \
@@ -856,17 +1376,23 @@ jobs:
             [ "$STATUS" = "STOPPED" ] && break
             sleep 20
           done
-          if [ "$STATUS" != "STOPPED" ]; then
-            echo "❌ technicalsdaily task did not stop within 60m"
-            exit 1
-          fi
+          [ "$STATUS" != "STOPPED" ] && { echo "❌ technicalsdaily did not stop in time"; exit 1; }
+      - name: Check container exit code
+        run: |
+          EXIT=$(aws ecs.describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          echo "→ Exit code: $EXIT"
+          [ "$EXIT" -ne 0 ] && { echo "❌ technicalsdaily failed"; exit $EXIT; }
+
   run_loadinfo:
-    name: Run loadinfo task
+    name: Run loadinfo loader
     needs: deploy
     if: ${{ needs.filter.outputs.loadinfo == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60   # allow this job up to 60m total
-
+    timeout-minutes: 60
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -874,11 +1400,10 @@ jobs:
           aws-region:      ${{ env.AWS_REGION }}
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
       - name: Fetch Task Definition ARN
         id: td
         run: |
-          ARN=$(aws cloudformation describe-stacks \
+          ARN=$(aws cloudformation.describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='LoadInfoTaskDefArn'].OutputValue" \
             --output text)
@@ -886,13 +1411,13 @@ jobs:
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
-          CLUSTER=$(aws cloudformation list-exports \
+          CLUSTER=$(aws.cloudformation.list-exports \
             --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
             --output text)
-          SUB1=$(aws cloudformation list-exports \
+          SUB1=$(aws.cloudformation.list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
             --output text)
-          SUB2=$(aws cloudformation list-exports \
+          SUB2=$(aws.cloudformation.list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
@@ -910,11 +1435,11 @@ jobs:
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
-          echo "🟢 Started task $TASK_ARN"
+          echo "🟢 Started loadinfo task $TASK_ARN"
       - name: Wait up to 60m for task to stop
         run: |
-          for i in $(seq 1 180); do           # 180 × 20 s = 3600 s = 60 min
-            STATUS=$(aws ecs describe-tasks \
+          for i in $(seq 1 180); do
+            STATUS=$(aws ecs.describe-tasks \
               --cluster "${{ steps.infra.outputs.CLUSTER }}" \
               --tasks "${{ steps.run.outputs.TASK_ARN }}" \
               --query 'tasks[0].lastStatus' \
@@ -923,29 +1448,23 @@ jobs:
             [ "$STATUS" = "STOPPED" ] && break
             sleep 20
           done
-          if [ "$STATUS" != "STOPPED" ]; then
-            echo "❌ Task did not stop within 60m"
-            exit 1
-          fi
+          [ "$STATUS" != "STOPPED" ] && { echo "❌ loadinfo did not stop in time"; exit 1; }
       - name: Check container exit code
         run: |
-          EXIT=$(aws ecs describe-tasks \
+          EXIT=$(aws ecs.describe-tasks \
             --cluster "${{ steps.infra.outputs.CLUSTER }}" \
             --tasks "${{ steps.run.outputs.TASK_ARN }}" \
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
-            echo "❌ loadinfo failed"
-            exit $EXIT
-          fi
+          [ "$EXIT" -ne 0 ] && { echo "❌ loadinfo failed"; exit $EXIT; }
+
   run_earnings:
     name: Run earnings loader
     needs: deploy
     if: ${{ needs.filter.outputs.earnings == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
-
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -953,11 +1472,10 @@ jobs:
           aws-region:      ${{ env.AWS_REGION }}
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
       - name: Fetch Task Definition ARN
         id: td
         run: |
-          ARN=$(aws cloudformation describe-stacks \
+          ARN=$(aws cloudformation.describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='EarningsTaskDefArn'].OutputValue" \
             --output text)
@@ -965,13 +1483,13 @@ jobs:
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
-          CLUSTER=$(aws cloudformation list-exports \
+          CLUSTER=$(aws.cloudformation.list-exports \
             --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
             --output text)
-          SUB1=$(aws cloudformation list-exports \
+          SUB1=$(aws.cloudformation.list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
             --output text)
-          SUB2=$(aws cloudformation list-exports \
+          SUB2=$(aws.cloudformation.list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
@@ -993,7 +1511,7 @@ jobs:
       - name: Wait up to 60m for task to stop
         run: |
           for i in $(seq 1 180); do
-            STATUS=$(aws ecs describe-tasks \
+            STATUS=$(aws ecs.describe-tasks \
               --cluster "${{ steps.infra.outputs.CLUSTER }}" \
               --tasks "${{ steps.run.outputs.TASK_ARN }}" \
               --query 'tasks[0].lastStatus' \
@@ -1002,29 +1520,23 @@ jobs:
             [ "$STATUS" = "STOPPED" ] && break
             sleep 20
           done
-          if [ "$STATUS" != "STOPPED" ]; then
-            echo "❌ earnings task did not stop within 60m"
-            exit 1
-          fi
+          [ "$STATUS" != "STOPPED" ] && { echo "❌ earnings did not stop in time"; exit 1; }
       - name: Check container exit code
         run: |
-          EXIT=$(aws ecs describe-tasks \
+          EXIT=$(aws ecs.describe-tasks \
             --cluster "${{ steps.infra.outputs.CLUSTER }}" \
             --tasks "${{ steps.run.outputs.TASK_ARN }}" \
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
-            echo "❌ earnings failed with exit code $EXIT"
-            exit $EXIT
-          fi
+          [ "$EXIT" -ne 0 ] && { echo "❌ earnings failed"; exit $EXIT; }
+
   run_technicalsweekly:
     name: Run technicalsweekly loader
     needs: deploy
     if: ${{ needs.filter.outputs.technicalsweekly == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60   # allow this job up to 60m total
-
+    timeout-minutes: 60
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -1032,11 +1544,10 @@ jobs:
           aws-region:      ${{ env.AWS_REGION }}
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
       - name: Fetch Task Definition ARN
         id: td
         run: |
-          ARN=$(aws cloudformation describe-stacks \
+          ARN=$(aws cloudformation.describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='TechnicalsWeeklyTaskDefArn'].OutputValue" \
             --output text)
@@ -1044,13 +1555,13 @@ jobs:
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
-          CLUSTER=$(aws cloudformation list-exports \
+          CLUSTER=$(aws.cloudformation.list-exports \
             --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
             --output text)
-          SUB1=$(aws cloudformation list-exports \
+          SUB1=$(aws.cloudformation.list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
             --output text)
-          SUB2=$(aws cloudformation list-exports \
+          SUB2=$(aws.cloudformation.list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
@@ -1071,8 +1582,8 @@ jobs:
           echo "🟢 Started technicalsweekly task $TASK_ARN"
       - name: Wait up to 60m for task to stop
         run: |
-          for i in $(seq 1 180); do           # 180 × 20 s = 60 min
-            STATUS=$(aws ecs describe-tasks \
+          for i in $(seq 1 180); do
+            STATUS=$(aws ecs.describe-tasks \
               --cluster "${{ steps.infra.outputs.CLUSTER }}" \
               --tasks "${{ steps.run.outputs.TASK_ARN }}" \
               --query 'tasks[0].lastStatus' \
@@ -1081,17 +1592,23 @@ jobs:
             [ "$STATUS" = "STOPPED" ] && break
             sleep 20
           done
-          if [ "$STATUS" != "STOPPED" ]; then
-            echo "❌ technicalsweekly task did not stop within 60m"
-            exit 1
-          fi
+          [ "$STATUS" != "STOPPED" ] && { echo "❌ technicalsweekly did not stop in time"; exit 1; }
+      - name: Check container exit code
+        run: |
+          EXIT=$(aws ecs.describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          echo "→ Exit code: $EXIT"
+          [ "$EXIT" -ne 0 ] && { echo "❌ technicalsweekly failed"; exit $EXIT; }
+
   run_technicalsmonthly:
     name: Run technicalsmonthly loader
     needs: deploy
     if: ${{ needs.filter.outputs.technicalsmonthly == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60   # allow this job up to 60m total
-
+    timeout-minutes: 60
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -1099,11 +1616,10 @@ jobs:
           aws-region:      ${{ env.AWS_REGION }}
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
       - name: Fetch Task Definition ARN
         id: td
         run: |
-          ARN=$(aws cloudformation describe-stacks \
+          ARN=$(aws cloudformation.describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='TechnicalsMonthlyTaskDefArn'].OutputValue" \
             --output text)
@@ -1111,13 +1627,13 @@ jobs:
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
-          CLUSTER=$(aws cloudformation list-exports \
+          CLUSTER=$(aws.cloudformation.list-exports \
             --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
             --output text)
-          SUB1=$(aws cloudformation list-exports \
+          SUB1=$(aws.cloudformation.list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
             --output text)
-          SUB2=$(aws cloudformation list-exports \
+          SUB2=$(aws.cloudformation.list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
@@ -1138,8 +1654,8 @@ jobs:
           echo "🟢 Started technicalsmonthly task $TASK_ARN"
       - name: Wait up to 60m for task to stop
         run: |
-          for i in $(seq 1 180); do           # 180 × 20 s = 60 min
-            STATUS=$(aws ecs describe-tasks \
+          for i in $(seq 1 180); do
+            STATUS=$(aws ecs.describe-tasks \
               --cluster "${{ steps.infra.outputs.CLUSTER }}" \
               --tasks "${{ steps.run.outputs.TASK_ARN }}" \
               --query 'tasks[0].lastStatus' \
@@ -1148,17 +1664,23 @@ jobs:
             [ "$STATUS" = "STOPPED" ] && break
             sleep 20
           done
-          if [ "$STATUS" != "STOPPED" ]; then
-            echo "❌ technicalsmonthly task did not stop within 60m"
-            exit 1
-          fi
+          [ "$STATUS" != "STOPPED" ] && { echo "❌ technicalsmonthly did not stop in time"; exit 1; }
+      - name: Check container exit code
+        run: |
+          EXIT=$(aws ecs.describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          echo "→ Exit code: $EXIT"
+          [ "$EXIT" -ne 0 ] && { echo "❌ technicalsmonthly failed"; exit $EXIT; }
+
   run_buysell:
     name: Run buysell loader
     needs: deploy
     if: ${{ needs.filter.outputs.buysell == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
-
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -1166,11 +1688,10 @@ jobs:
           aws-region:      ${{ env.AWS_REGION }}
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
       - name: Fetch Task Definition ARN
         id: td
         run: |
-          ARN=$(aws cloudformation describe-stacks \
+          ARN=$(aws cloudformation.describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='BuySellTaskDefArn'].OutputValue" \
             --output text)
@@ -1178,13 +1699,13 @@ jobs:
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
-          CLUSTER=$(aws cloudformation list-exports \
+          CLUSTER=$(aws.cloudformation.list-exports \
             --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
             --output text)
-          SUB1=$(aws cloudformation list-exports \
+          SUB1=$(aws.cloudformation.list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
             --output text)
-          SUB2=$(aws cloudformation list-exports \
+          SUB2=$(aws.cloudformation.list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
@@ -1206,7 +1727,7 @@ jobs:
       - name: Wait up to 60m for task to stop
         run: |
           for i in $(seq 1 180); do
-            STATUS=$(aws ecs describe-tasks \
+            STATUS=$(aws ecs.describe-tasks \
               --cluster "${{ steps.infra.outputs.CLUSTER }}" \
               --tasks "${{ steps.run.outputs.TASK_ARN }}" \
               --query 'tasks[0].lastStatus' \
@@ -1215,29 +1736,23 @@ jobs:
             [ "$STATUS" = "STOPPED" ] && break
             sleep 20
           done
-          if [ "$STATUS" != "STOPPED" ]; then
-            echo "❌ buysell task did not stop within 60m"
-            exit 1
-          fi
+          [ "$STATUS" != "STOPPED" ] && { echo "❌ buysell did not stop in time"; exit 1; }
       - name: Check container exit code
         run: |
-          EXIT=$(aws ecs describe-tasks \
+          EXIT=$(aws ecs.describe-tasks \
             --cluster "${{ steps.infra.outputs.CLUSTER }}" \
             --tasks "${{ steps.run.outputs.TASK_ARN }}" \
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
-            echo "❌ buysell failed with exit code $EXIT"
-            exit $EXIT
-          fi
+          [ "$EXIT" -ne 0 ] && { echo "❌ buysell failed"; exit $EXIT; }
+
   run_swingtrader:
     name: Run swingtrader loader
     needs: deploy
     if: ${{ needs.filter.outputs.swingtrader == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
-
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -1245,11 +1760,10 @@ jobs:
           aws-region:      ${{ env.AWS_REGION }}
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
       - name: Fetch Task Definition ARN
         id: td
         run: |
-          ARN=$(aws cloudformation describe-stacks \
+          ARN=$(aws cloudformation.describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='SwingTraderTaskDefArn'].OutputValue" \
             --output text)
@@ -1257,13 +1771,13 @@ jobs:
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
-          CLUSTER=$(aws cloudformation list-exports \
+          CLUSTER=$(aws.cloudformation.list-exports \
             --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
             --output text)
-          SUB1=$(aws cloudformation list-exports \
+          SUB1=$(aws.cloudformation.list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
             --output text)
-          SUB2=$(aws cloudformation list-exports \
+          SUB2=$(aws.cloudformation.list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
@@ -1285,7 +1799,7 @@ jobs:
       - name: Wait up to 60m for task to stop
         run: |
           for i in $(seq 1 180); do
-            STATUS=$(aws ecs describe-tasks \
+            STATUS=$(aws ecs.describe-tasks \
               --cluster "${{ steps.infra.outputs.CLUSTER }}" \
               --tasks "${{ steps.run.outputs.TASK_ARN }}" \
               --query 'tasks[0].lastStatus' \
@@ -1294,19 +1808,13 @@ jobs:
             [ "$STATUS" = "STOPPED" ] && break
             sleep 20
           done
-          if [ "$STATUS" != "STOPPED" ]; then
-            echo "❌ swingtrader task did not stop within 60m"
-            exit 1
-          fi
+          [ "$STATUS" != "STOPPED" ] && { echo "❌ swingtrader did not stop in time"; exit 1; }
       - name: Check container exit code
         run: |
-          EXIT=$(aws ecs describe-tasks \
+          EXIT=$(aws ecs.describe-tasks \
             --cluster "${{ steps.infra.outputs.CLUSTER }}" \
             --tasks "${{ steps.run.outputs.TASK_ARN }}" \
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
-            echo "❌ swingtrader failed with exit code $EXIT"
-            exit $EXIT
-          fi
+          [ "$EXIT" -ne 0 ] && { echo "❌ swingtrader failed"; exit $EXIT; }
