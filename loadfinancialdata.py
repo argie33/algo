@@ -20,7 +20,7 @@ import math
 SCRIPT_NAME = "loadfinancialdata.py"
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=os.environ.get("LOG_LEVEL", "WARNING"),
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     handlers=[logging.StreamHandler(sys.stdout)],
     force=True
@@ -883,6 +883,7 @@ def update_last_run(conn):
 
 def main():
     conn = None
+    import gc
     try:
         user, pwd, host, port, dbname = get_db_config()
         conn = psycopg2.connect(
@@ -894,15 +895,14 @@ def main():
             sslmode="require",
             cursor_factory=DictCursor
         )
-        
-        # Set a larger cursor size for better performance
         conn.set_session(autocommit=False)
-        
-        ensure_tables(conn)
+
+        # Only initialize tables if requested (avoid DROP/CREATE on every run)
+        if os.environ.get("INIT_DB", "0") == "1":
+            ensure_tables(conn)
 
         log_mem("Before fetching symbols")
         with conn.cursor() as cur:
-            # Only get active symbols to reduce processing
             cur.execute("""
                 SELECT DISTINCT symbol 
                 FROM stock_symbols 
@@ -920,16 +920,19 @@ def main():
             try:
                 log_mem(f"Processing {sym} ({processed + 1}/{total_symbols})")
                 process_symbol(sym, conn)
+                conn.commit()
                 processed += 1
+                # Explicitly delete large objects and collect garbage
+                gc.collect()
                 # Adaptive sleep based on memory usage
-                if get_rss_mb() > 1000:  # If using more than 1GB
+                if get_rss_mb() > 800:  # Lower threshold for small ECS
                     time.sleep(0.5)
                 else:
-                    time.sleep(0.1)
+                    time.sleep(0.05)
             except Exception:
                 logger.exception(f"Failed to process {sym}")
                 failed += 1
-                if failed > total_symbols * 0.2:  # If more than 20% failed
+                if failed > total_symbols * 0.2:
                     logger.error("Too many failures, stopping process")
                     break
 

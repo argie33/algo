@@ -10,10 +10,7 @@ import resource
 import boto3
 import psycopg2
 from psycopg2.extras import DictCursor
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
-from yahooquery import Ticker
-from yahooquery.utils import TimeoutHTTPAdapter
+import yfinance as yf
 import pandas as pd
 import math
 
@@ -23,7 +20,7 @@ import math
 SCRIPT_NAME = "loadearnings.py"
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=os.environ.get("LOG_LEVEL", "WARNING"),
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     handlers=[logging.StreamHandler(sys.stdout)],
     force=True
@@ -145,61 +142,57 @@ def log_mem(stage: str):
 
 @retry(max_attempts=3, initial_delay=2, backoff=2)
 def process_symbol(symbol, conn):
-    """Fetch earnings via yahooquery and insert into PostgreSQL."""
-    yq_symbol = symbol.upper().replace(".", "-")
-    ticker = Ticker(yq_symbol, asynchronous=False)
-    adapter = TimeoutHTTPAdapter(
-        max_retries=Retry(total=2, backoff_factor=1),
-        timeout=10.0
-    )
-    ticker.session.mount("https://", adapter)
-    ticker.session.mount("http://", adapter)
+    """Fetch earnings via yfinance and insert into PostgreSQL."""
+    yf_symbol = symbol.upper().replace(".", "-")
+    ticker = yf.Ticker(yf_symbol)
+    earnings = ticker.earnings
+    quarterly_earnings = ticker.quarterly_earnings
+    financials = ticker.financials
+    quarterly_financials = ticker.quarterly_financials
 
-    data = ticker.all_modules
-    earnings_data = data.get("earnings")
-    if not earnings_data or not isinstance(earnings_data, dict):
-        raise ValueError(f"No valid earnings data for {symbol}: {earnings_data!r}")
-
-    # Insert EPS
-    for record in earnings_data.get("earningsChart", {}).get("quarterly", []):
-        with conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO earnings_eps (symbol, period, actual, estimate) VALUES (%s, %s, %s, %s)",
-                (
-                    symbol,
-                    record.get("date"),
-                    clean_value(record.get("actual")),
-                    clean_value(record.get("estimate"))
+    # Insert EPS (quarterly)
+    if quarterly_earnings is not None and not quarterly_earnings.empty:
+        for idx, row in quarterly_earnings.iterrows():
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO earnings_eps (symbol, period, actual, estimate) VALUES (%s, %s, %s, %s)",
+                    (
+                        symbol,
+                        str(idx),
+                        clean_value(row.get("Actual Earnings")),
+                        clean_value(row.get("Estimated Earnings"))
+                    )
                 )
-            )
     conn.commit()
 
     # Insert financial annual
-    for record in earnings_data.get("financialsChart", {}).get("yearly", []):
-        with conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO earnings_financial_annual (symbol, period, revenue, earnings) VALUES (%s, %s, %s, %s)",
-                (
-                    symbol,
-                    str(record.get("date")),
-                    clean_value(record.get("revenue")),
-                    clean_value(record.get("earnings"))
+    if earnings is not None and not earnings.empty:
+        for idx, row in earnings.iterrows():
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO earnings_financial_annual (symbol, period, revenue, earnings) VALUES (%s, %s, %s, %s)",
+                    (
+                        symbol,
+                        str(idx),
+                        clean_value(row.get("Revenue")),
+                        clean_value(row.get("Earnings"))
+                    )
                 )
-            )
     conn.commit()
 
     # Insert financial quarterly
-    for record in earnings_data.get("financialsChart", {}).get("quarterly", []):
-        with conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO earnings_financial_quarterly (symbol, period, revenue, earnings) VALUES (%s, %s, %s, %s)",
-                (
-                    symbol,
-                    record.get("date"),
-                    clean_value(record.get("revenue")),
-                    clean_value(record.get("earnings"))
+    if quarterly_financials is not None and not quarterly_financials.empty:
+        for idx, row in quarterly_financials.iterrows():
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO earnings_financial_quarterly (symbol, period, revenue, earnings) VALUES (%s, %s, %s, %s)",
+                    (
+                        symbol,
+                        str(idx),
+                        clean_value(row.get("Total Revenue")),
+                        clean_value(row.get("Net Income"))
+                    )
                 )
-            )
     conn.commit()
 
     logger.info(f"Successfully processed earnings for {symbol}")
@@ -216,6 +209,7 @@ def update_last_run(conn):
     conn.commit()
 
 def main():
+    import gc
     user, pwd, host, port, dbname = get_db_config()
     conn = psycopg2.connect(
         host=host,
@@ -227,25 +221,44 @@ def main():
         cursor_factory=DictCursor
     )
 
-    ensure_tables(conn)
+    # Only initialize tables if requested (avoid DROP/CREATE on every run)
+    if os.environ.get("INIT_DB", "0") == "1":
+        ensure_tables(conn)
 
     log_mem("Before fetching symbols")
     with conn.cursor() as cur:
-        cur.execute("SELECT DISTINCT symbol FROM stock_symbols;")
+        cur.execute("SELECT DISTINCT symbol FROM stock_symbols WHERE is_active = true;")
         symbols = [r["symbol"] for r in cur.fetchall()]
     log_mem("After fetching symbols")
 
+    total_symbols = len(symbols)
+    processed = 0
+    failed = 0
+
     for sym in symbols:
         try:
-            log_mem(f"Before processing {sym}")
+            log_mem(f"Before processing {sym} ({processed + 1}/{total_symbols})")
             process_symbol(sym, conn)
+            conn.commit()
+            processed += 1
+            gc.collect()
+            if get_rss_mb() > 800:
+                time.sleep(0.5)
+            else:
+                time.sleep(0.05)
             log_mem(f"After processing {sym}")
         except Exception:
             logger.exception(f"Failed to process {sym}")
-        time.sleep(0.2)
+            failed += 1
+            if failed > total_symbols * 0.2:
+                logger.error("Too many failures, stopping process")
+                break
 
     update_last_run(conn)
-    conn.close()
+    try:
+        conn.close()
+    except Exception:
+        logger.exception("Error closing database connection")
     log_mem("End of script")
     logger.info("loadearnings complete.")
 
