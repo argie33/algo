@@ -18,7 +18,7 @@ Parameters:
 
 Resources:
 
-  ### 1) RDS Subnet Group (public) ###
+  ### 1) RDS Subnet Group (public) ### 
   StocksDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     DeletionPolicy: Retain
