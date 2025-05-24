@@ -906,7 +906,6 @@ def main():
             cur.execute("""
                 SELECT DISTINCT symbol 
                 FROM stock_symbols 
-                WHERE is_active = true
                 ORDER BY symbol;
             """)
             symbols = [r["symbol"] for r in cur.fetchall()]

@@ -106,6 +106,7 @@ def ensure_tables(conn):
                 symbol      VARCHAR(10) NOT NULL,
                 period      VARCHAR(20) NOT NULL,
                 revenue     BIGINT,
+                revenue_estimate BIGINT,
                 earnings    BIGINT,
                 fetched_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
@@ -118,6 +119,7 @@ def ensure_tables(conn):
                 symbol      VARCHAR(10) NOT NULL,
                 period      VARCHAR(20) NOT NULL,
                 revenue     BIGINT,
+                revenue_estimate BIGINT,
                 earnings    BIGINT,
                 fetched_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
@@ -165,31 +167,50 @@ def process_symbol(symbol, conn):
                 )
     conn.commit()
 
-    # Insert financial annual
+
+    # Insert financial annual (with revenue estimates if available)
+    revenue_est_annual = None
+    try:
+        revenue_est_annual = ticker.get_earnings_forecast().get('annualRevenueEstimate')
+    except Exception:
+        revenue_est_annual = None
     if earnings is not None and not earnings.empty:
         for idx, row in earnings.iterrows():
+            revenue_est = None
+            if revenue_est_annual is not None and str(idx) in revenue_est_annual:
+                revenue_est = clean_value(revenue_est_annual[str(idx)])
             with conn.cursor() as cur:
                 cur.execute(
-                    "INSERT INTO earnings_financial_annual (symbol, period, revenue, earnings) VALUES (%s, %s, %s, %s)",
+                    "INSERT INTO earnings_financial_annual (symbol, period, revenue, revenue_estimate, earnings) VALUES (%s, %s, %s, %s, %s)",
                     (
                         symbol,
                         str(idx),
                         clean_value(row.get("Revenue")),
+                        revenue_est,
                         clean_value(row.get("Earnings"))
                     )
                 )
     conn.commit()
 
-    # Insert financial quarterly
+    # Insert financial quarterly (with revenue estimates if available)
+    revenue_est_quarterly = None
+    try:
+        revenue_est_quarterly = ticker.get_earnings_forecast().get('quarterlyRevenueEstimate')
+    except Exception:
+        revenue_est_quarterly = None
     if quarterly_financials is not None and not quarterly_financials.empty:
         for idx, row in quarterly_financials.iterrows():
+            revenue_est = None
+            if revenue_est_quarterly is not None and str(idx) in revenue_est_quarterly:
+                revenue_est = clean_value(revenue_est_quarterly[str(idx)])
             with conn.cursor() as cur:
                 cur.execute(
-                    "INSERT INTO earnings_financial_quarterly (symbol, period, revenue, earnings) VALUES (%s, %s, %s, %s)",
+                    "INSERT INTO earnings_financial_quarterly (symbol, period, revenue, revenue_estimate, earnings) VALUES (%s, %s, %s, %s, %s)",
                     (
                         symbol,
                         str(idx),
                         clean_value(row.get("Total Revenue")),
+                        revenue_est,
                         clean_value(row.get("Net Income"))
                     )
                 )

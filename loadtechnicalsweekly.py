@@ -102,8 +102,15 @@ def marketwatch_indicator(close, open_):
 
 def main():
     logging.info(f"Starting {SCRIPT_NAME}")
+    def get_rss_mb():
+        import resource
+        usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        if sys.platform.startswith("linux"):
+            return usage / 1024
+        return usage / (1024 * 1024)
+    def log_mem(stage: str):
+        logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
-    # Connect to Postgres
     try:
         user, pwd, host, port, db = get_db_config()
         conn = psycopg2.connect(
@@ -116,7 +123,6 @@ def main():
         logging.error(f"Unable to connect to Postgres: {e}")
         sys.exit(1)
 
-    # Ensure metadata table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS last_updated (
         script_name VARCHAR(255) PRIMARY KEY,
@@ -124,7 +130,6 @@ def main():
     );
     """)
 
-    # Recreate target table without Fibonacci columns
     cursor.execute("DROP TABLE IF EXISTS technical_data_weekly;")
     cursor.execute("""
     CREATE TABLE technical_data_weekly (
@@ -165,7 +170,6 @@ def main():
     """)
     logging.info("Table 'technical_data_weekly' ready.")
 
-    # Grab symbols
     cursor.execute("SELECT symbol FROM stock_symbols;")
     symbols = [r[0] for r in cursor.fetchall()]
     logging.info(f"Found {len(symbols)} symbols.")
@@ -193,11 +197,12 @@ def main():
     """
 
     start = time.time()
-    for sym in symbols:
-        logging.info(f"Processing {sym}")
+    total_inserted = 0
+    for idx, sym in enumerate(symbols):
+        log_mem(f"Processing {sym} ({idx+1}/{len(symbols)})")
         cursor.execute("""
             SELECT date, open, high, low, close, volume
-              FROM price_data_weekly
+              FROM price_weekly
              WHERE symbol = %s
              ORDER BY date ASC
         """, (sym,))
@@ -313,12 +318,13 @@ def main():
             ))
         if batch:
             cursor.executemany(insert_q, batch)
+            total_inserted += len(batch)
             logging.info(f"Inserted {len(batch)} rows for {sym}.")
+        log_mem(f"After {sym}")
 
     elapsed = time.time() - start
-    logging.info(f"All symbols processed in {elapsed:.2f} seconds.")
+    logging.info(f"All symbols processed in {elapsed:.2f} seconds. Total rows inserted: {total_inserted}")
 
-    # Stamp last run
     now = datetime.now()
     cursor.execute("""
     INSERT INTO last_updated (script_name, last_run)

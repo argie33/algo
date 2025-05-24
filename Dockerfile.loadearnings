@@ -9,5 +9,8 @@ COPY requirements-loadearnings.txt .
 RUN pip install --no-cache-dir -r requirements-loadearnings.txt
 
 
+# Copy the loader script to the image
+COPY loadearnings.py ./
+
 # Default command
 CMD ["python", "-u", "loadearnings.py"]
