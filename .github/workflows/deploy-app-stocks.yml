@@ -476,11 +476,10 @@ jobs:
         with:
           aws-region:      ${{ env.AWS_REGION }}
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - name: Fetch Task Definition ARN
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}      - name: Fetch Task Definition ARN
         id: td
-        run: |          ARN=$(aws cloudformation describe-stacks \
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='StockSymbolsTaskDefArn'].OutputValue" \
             --output text)
