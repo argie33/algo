@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 import os
 import sys
@@ -9,6 +10,17 @@ import boto3
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
+import logging
+
+# -------------------------------
+# Script metadata & logging setup
+# -------------------------------
+SCRIPT_NAME = "loadbuysell.py"
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    stream=sys.stdout
+)
 
 ###############################################################################
 # ─── Environment & Secrets ───────────────────────────────────────────────────
@@ -262,9 +274,9 @@ def compute_metrics_fixed_capital(rets, durs, annual_rfr=0.0):
 def analyze_trade_returns_fixed_capital(rets, durs, tag, annual_rfr=0.0):
     m = compute_metrics_fixed_capital(rets, durs, annual_rfr)
     if not m:
-        print(f"{tag}: No trades.")
+        logging.info(f"{tag}: No trades.")
         return
-    print(
+    logging.info(
       f"{tag} → Trades:{m['num_trades']} "
       f"WinRate:{m['win_rate']:.2%} "
       f"AvgRet:{m['avg_return']*100:.2f}% "
@@ -301,11 +313,11 @@ def main():
                'Monthly':{'rets':[],'durs':[]}}
 
     for sym in symbols:
-        print(f"\n=== {sym} ===")
+        logging.info(f"=== {sym} ===")
         for tf in ['Daily','Weekly','Monthly']:
             df = process_symbol(sym, tf)
             if df.empty:
-                print(f"[{tf}] no data")
+                logging.info(f"[{tf}] no data")
                 continue
             insert_symbol_results(cur, sym, tf, df)
             conn.commit()
@@ -316,21 +328,21 @@ def main():
                 rets, durs, f"[{tf}] {sym}", annual_rfr
             )
 
-    print("\n=========================")
-    print(" AGGREGATED PERFORMANCE (FIXED $10k PER TRADE) ")
-    print("=========================")
+    logging.info("=========================")
+    logging.info(" AGGREGATED PERFORMANCE (FIXED $10k PER TRADE) ")
+    logging.info("=========================")
     for tf in ['Daily','Weekly','Monthly']:
         analyze_trade_returns_fixed_capital(
             results[tf]['rets'], results[tf]['durs'],
             f"[{tf} (Overall)]", annual_rfr
         )
 
-    print("\n=== Global (All Timeframes) ===")
+    logging.info("=== Global (All Timeframes) ===")
     all_rets = [r for tf in results for r in results[tf]['rets']]
     all_durs = [d for tf in results for d in results[tf]['durs']]
     analyze_trade_returns_fixed_capital(all_rets, all_durs, "[Global (All TFs)]", annual_rfr)
 
-    print("Processing complete.")
+    logging.info("Processing complete.")
     cur.close()
     conn.close()
 
