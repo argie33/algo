@@ -86,7 +86,10 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action: logs:CreateLogGroup
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
                 Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/*"
 
         - PolicyName: AllowReadDBSecret
@@ -191,12 +194,6 @@ Resources:
       LogGroupName: /ecs/swingtrader-loader
       RetentionInDays: 14
 
-  CalendarLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /ecs/calendar-loader
-      RetentionInDays: 14
-
   ########################################
   # C) stock-symbols loader              #
   ########################################
@@ -226,6 +223,7 @@ Resources:
               awslogs-group: /ecs/stocksymbols-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
 
   StockSymbolsLoaderService:
     Type: AWS::ECS::Service
@@ -329,6 +327,7 @@ Resources:
               awslogs-group: /ecs/pricemonthly-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
 
   PriceMonthlyService:
     Type: AWS::ECS::Service
@@ -382,6 +381,7 @@ Resources:
               awslogs-group: /ecs/findata-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
 
   FindataLoaderService:
     Type: AWS::ECS::Service
@@ -435,6 +435,7 @@ Resources:
               awslogs-group: /ecs/pricedaily-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
 
   PriceLoaderService:
     Type: AWS::ECS::Service
@@ -488,6 +489,7 @@ Resources:
               awslogs-group: /ecs/priceweekly-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
 
   PriceWeeklyLoaderService:
     Type: AWS::ECS::Service
@@ -541,6 +543,7 @@ Resources:
               awslogs-group: /ecs/pricemonthly-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
   ########################################
   # J) TechnicalsDaily loader             #
   ########################################
@@ -578,6 +581,7 @@ Resources:
               awslogs-group: /ecs/TechnicalsDaily-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
 
   TechnicalsDailyLoaderService:
     Type: AWS::ECS::Service
@@ -623,6 +627,7 @@ Resources:
               awslogs-group: /ecs/loadinfo-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
 
   LoadInfoLoaderService:
     Type: AWS::ECS::Service
@@ -676,6 +681,7 @@ Resources:
               awslogs-group: /ecs/earnings-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
 
   EarningsLoaderService:
     Type: AWS::ECS::Service
@@ -721,6 +727,7 @@ Resources:
               awslogs-group: /ecs/technicalsweekly-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
 
   TechnicalsWeeklyLoaderService:
     Type: AWS::ECS::Service
@@ -766,6 +773,7 @@ Resources:
               awslogs-group: /ecs/technicalsmonthly-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
 
   TechnicalsMonthlyLoaderService:
     Type: AWS::ECS::Service
