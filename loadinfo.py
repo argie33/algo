@@ -381,6 +381,8 @@ def process_symbol(symbol, conn):
             ])
         except Exception:
             logger.exception(f"Failed to insert company_profile for {symbol}")
+            conn.rollback()
+            return
 
         # 2a. leadership_team (companyOfficers)
         officers = info.get("companyOfficers") or []
