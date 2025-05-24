@@ -1479,7 +1479,7 @@ jobs:
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
 
-      - name: Fetch Infrastructure Settings
+      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
