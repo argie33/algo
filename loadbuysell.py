@@ -116,7 +116,7 @@ def get_risk_free_rate_fred(api_key):
 ###############################################################################
 def fetch_symbol_from_db(symbol, timeframe):
     tf = timeframe.lower()
-    price_table = f"price_data_{tf}"
+    price_table = f"price_{tf}"
     tech_table  = f"technical_data_{tf}"
     conn = get_db_connection()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
