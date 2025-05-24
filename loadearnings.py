@@ -147,73 +147,81 @@ def process_symbol(symbol, conn):
     """Fetch earnings via yfinance and insert into PostgreSQL."""
     yf_symbol = symbol.upper().replace(".", "-")
     ticker = yf.Ticker(yf_symbol)
-    earnings = ticker.earnings
-    quarterly_earnings = ticker.quarterly_earnings
-    financials = ticker.financials
-    quarterly_financials = ticker.quarterly_financials
 
-    # Insert EPS (quarterly)
-    if quarterly_earnings is not None and not quarterly_earnings.empty:
-        for idx, row in quarterly_earnings.iterrows():
-            with conn.cursor() as cur:
-                cur.execute(
-                    "INSERT INTO earnings_eps (symbol, period, actual, estimate) VALUES (%s, %s, %s, %s)",
-                    (
-                        symbol,
-                        str(idx),
-                        clean_value(row.get("Actual Earnings")),
-                        clean_value(row.get("Estimated Earnings"))
+    # --- earnings_dates ---
+    try:
+        earnings_dates = ticker.get_earnings_dates()
+        if earnings_dates is not None and not earnings_dates.empty:
+            for idx, row in earnings_dates.iterrows():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "INSERT INTO earnings_eps (symbol, period, actual, estimate) VALUES (%s, %s, %s, %s)",
+                        (
+                            symbol,
+                            str(row.get("Earnings Date")),
+                            clean_value(row.get("Reported EPS")),
+                            clean_value(row.get("EPS Estimate"))
+                        )
                     )
-                )
+    except Exception as e:
+        logger.warning(f"earnings_dates failed for {symbol}: {e}")
     conn.commit()
 
-
-    # Insert financial annual (with revenue estimates if available)
-    revenue_est_annual = None
+    # --- earnings_estimate ---
     try:
-        revenue_est_annual = ticker.get_earnings_forecast().get('annualRevenueEstimate')
-    except Exception:
-        revenue_est_annual = None
-    if earnings is not None and not earnings.empty:
-        for idx, row in earnings.iterrows():
-            revenue_est = None
-            if revenue_est_annual is not None and str(idx) in revenue_est_annual:
-                revenue_est = clean_value(revenue_est_annual[str(idx)])
-            with conn.cursor() as cur:
-                cur.execute(
-                    "INSERT INTO earnings_financial_annual (symbol, period, revenue, revenue_estimate, earnings) VALUES (%s, %s, %s, %s, %s)",
-                    (
-                        symbol,
-                        str(idx),
-                        clean_value(row.get("Revenue")),
-                        revenue_est,
-                        clean_value(row.get("Earnings"))
+        est = ticker.earnings_forecast
+        if est:
+            for period in ["0q", "+1q", "0y", "+1y"]:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "INSERT INTO earnings_eps (symbol, period, actual, estimate) VALUES (%s, %s, %s, %s)",
+                        (
+                            symbol,
+                            period,
+                            clean_value(est.get("avg", {}).get(period)),
+                            clean_value(est.get("high", {}).get(period))
+                        )
                     )
-                )
+    except Exception as e:
+        logger.warning(f"earnings_estimate failed for {symbol}: {e}")
     conn.commit()
 
-    # Insert financial quarterly (with revenue estimates if available)
-    revenue_est_quarterly = None
+    # --- earnings_history ---
     try:
-        revenue_est_quarterly = ticker.get_earnings_forecast().get('quarterlyRevenueEstimate')
-    except Exception:
-        revenue_est_quarterly = None
-    if quarterly_financials is not None and not quarterly_financials.empty:
-        for idx, row in quarterly_financials.iterrows():
-            revenue_est = None
-            if revenue_est_quarterly is not None and str(idx) in revenue_est_quarterly:
-                revenue_est = clean_value(revenue_est_quarterly[str(idx)])
-            with conn.cursor() as cur:
-                cur.execute(
-                    "INSERT INTO earnings_financial_quarterly (symbol, period, revenue, revenue_estimate, earnings) VALUES (%s, %s, %s, %s, %s)",
-                    (
-                        symbol,
-                        str(idx),
-                        clean_value(row.get("Total Revenue")),
-                        revenue_est,
-                        clean_value(row.get("Net Income"))
+        hist = ticker.earnings_history
+        if hist:
+            for k in hist.get("epsActual", {}):
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "INSERT INTO earnings_eps (symbol, period, actual, estimate) VALUES (%s, %s, %s, %s)",
+                        (
+                            symbol,
+                            str(k),
+                            clean_value(hist["epsActual"][k]),
+                            clean_value(hist["epsEstimate"][k])
+                        )
                     )
-                )
+    except Exception as e:
+        logger.warning(f"earnings_history failed for {symbol}: {e}")
+    conn.commit()
+
+    # --- eps_revisions ---
+    try:
+        rev = ticker.eps_revisions
+        if rev:
+            for period in ["0q", "+1q", "0y", "+1y"]:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "INSERT INTO earnings_eps (symbol, period, actual, estimate) VALUES (%s, %s, %s, %s)",
+                        (
+                            symbol,
+                            period,
+                            clean_value(rev.get("upLast7days", {}).get(period)),
+                            clean_value(rev.get("downLast7Days", {}).get(period))
+                        )
+                    )
+    except Exception as e:
+        logger.warning(f"eps_revisions failed for {symbol}: {e}")
     conn.commit()
 
     logger.info(f"Successfully processed earnings for {symbol}")
