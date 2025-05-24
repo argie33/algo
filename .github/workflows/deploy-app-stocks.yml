@@ -1,3 +1,4 @@
+```yaml
 name: deploy-app-stocks
 
 on:
@@ -24,7 +25,6 @@ jobs:
     needs: filter
     if: ${{ needs.filter.outputs.app == 'true' }}
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -57,7 +57,6 @@ jobs:
       app:               ${{ steps.paths.outputs.app }}
       symbols:           ${{ steps.paths.outputs.symbols }}
       econ:              ${{ steps.paths.outputs.econ }}
-
       findata:           ${{ steps.paths.outputs.findata }}
       pricedaily:        ${{ steps.paths.outputs.pricedaily }}
       priceweekly:       ${{ steps.paths.outputs.priceweekly }}
@@ -72,10 +71,9 @@ jobs:
       technicalsmonthly: ${{ steps.paths.outputs.technicalsmonthly }}
       swingtrader:       ${{ steps.paths.outputs.swingtrader }}
       calendar:          ${{ steps.paths.outputs.calendar }}
+      buysell:           ${{ steps.paths.outputs.buysell }}
       any:               ${{ steps.any.outputs.any }}
       matrix:            ${{ steps.matrix.outputs.matrix }}
-
-      buysell:           ${{ steps.paths.outputs.buysell }}
 
     steps:
       - name: Checkout code
@@ -160,55 +158,32 @@ jobs:
             app:
               - template-app-stocks.yml
               - template-app-ecs-tasks.yml
-              
+
       - id: any
         name: Any changes?
         run: |
-          if [ "${{ steps.paths.outputs.symbols }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.econ }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.findata }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.pricedaily }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.priceweekly }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.pricemonthly }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.loadlatestpricedaily }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.loadlatestpriceweekly }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.loadlatestpricemonthly }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.technicalsdaily }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.loadinfo }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.earnings }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.technicalsweekly }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.technicalsmonthly }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.swingtrader }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.calendar }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.buysell }}" = "true" ]; then
-            echo "any=true" >> $GITHUB_OUTPUT
-          else
-            echo "any=false" >> $GITHUB_OUTPUT
-          fi
+          any=false
+          for comp in symbols econ findata pricedaily priceweekly pricemonthly loadlatestpricedaily loadlatestpriceweekly loadlatestpricemonthly technicalsdaily loadinfo earnings technicalsweekly technicalsmonthly swingtrader calendar buysell; do
+            if [ "${{ steps.paths.outputs.$comp }}" = "true" ]; then
+              any=true
+            fi
+          done
+          echo "any=$any" >> $GITHUB_OUTPUT
 
       - id: matrix
         name: Build matrix
         run: |
           arr=""
-          [ "${{ steps.paths.outputs.symbols }}" = "true" ]         && arr="$arr,\"symbols\""
-          [ "${{ steps.paths.outputs.econ }}" = "true" ]            && arr="$arr,\"econ\""
-          [ "${{ steps.paths.outputs.findata }}" = "true" ]         && arr="$arr,\"findata\""
-          [ "${{ steps.paths.outputs.pricedaily }}" = "true" ]      && arr="$arr,\"pricedaily\""
-          [ "${{ steps.paths.outputs.priceweekly }}" = "true" ]     && arr="$arr,\"priceweekly\""
-          [ "${{ steps.paths.outputs.pricemonthly }}" = "true" ]    && arr="$arr,\"pricemonthly\""
-          [ "${{ steps.paths.outputs.loadlatestpricedaily }}" = "true" ]      && arr="$arr,\"loadlatestpricedaily\""
-          [ "${{ steps.paths.outputs.loadlatestpriceweekly }}" = "true" ]     && arr="$arr,\"loadlatestpriceweekly\""
-          [ "${{ steps.paths.outputs.loadlatestpricemonthly }}" = "true" ]    && arr="$arr,\"loadlatestpricemonthly\""
-          [ "${{ steps.paths.outputs.technicalsdaily }}" = "true" ] && arr="$arr,\"technicalsdaily\""
-          [ "${{ steps.paths.outputs.loadinfo }}" = "true" ]        && arr="$arr,\"loadinfo\""
-          [ "${{ steps.paths.outputs.earnings }}" = "true" ]        && arr="$arr,\"earnings\""
-          [ "${{ steps.paths.outputs.technicalsweekly }}" = "true" ]&& arr="$arr,\"technicalsweekly\""
-          [ "${{ steps.paths.outputs.technicalsmonthly }}" = "true" ]&& arr="$arr,\"technicalsmonthly\""
-          [ "${{ steps.paths.outputs.swingtrader }}" = "true" ]     && arr="$arr,\"swingtrader\""
-          [ "${{ steps.paths.outputs.calendar }}" = "true" ]        && arr="$arr,\"calendar\""
-          [ "${{ steps.paths.outputs.buysell }}" = "true" ]         && arr="$arr,\"buysell\""
-          echo "matrix=[${arr#,}]" >> $GITHUB_OUTPUT
-# 6) Run calendar loader
+          for comp in symbols econ findata pricedaily priceweekly pricemonthly loadlatestpricedaily loadlatestpriceweekly loadlatestpricemonthly technicalsdaily loadinfo earnings technicalsweekly technicalsmonthly swingtrader calendar buysell; do
+            if [ "${{ steps.paths.outputs.$comp }}" = "true" ]; then
+              arr+="\"$comp\","  
+            fi
+          done
+          echo "matrix=[${arr%,}]" >> $GITHUB_OUTPUT
+
+################################################################################
+# 3) Run calendar loader                                                      #
+################################################################################
   run_calendar:
     name: Run calendar loader
     needs: deploy-tasks
@@ -232,6 +207,7 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='CalendarTaskDefArn'].OutputValue" \
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
@@ -247,6 +223,7 @@ jobs:
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+
       - name: Run calendar Fargate task
         id: run
         run: |
@@ -290,7 +267,7 @@ jobs:
           fi
 
 ################################################################################
-# 3) Build only the changed Docker images                                      #
+# 4) Build only the changed Docker images                                      #
 ################################################################################
   build:
     name: Build changed images
@@ -359,14 +336,13 @@ jobs:
           path: build_tag_${{ matrix.loader }}.txt
 
 ################################################################################
-# 4) Deploy ECS‐tasks stack (build artifacts → CFN → container-insights)       #
+# 5) Deploy ECS‐tasks stack (build artifacts → CFN → container-insights)       #
 ################################################################################
   deploy-tasks:
     name: Deploy ECS-tasks stack
     needs: [build, filter]
     if: ${{ needs.filter.outputs.any == 'true' }}
     runs-on: ubuntu-latest
-
 
     steps:
       - name: Checkout code
@@ -458,7 +434,8 @@ jobs:
             --output text)
           aws ecs update-cluster-settings \
             --cluster "$CLUSTER" \
-            --settings name=containerInsights,value=enabled################################################################################
+            --settings name=containerInsights,value=enabled
+
 # 5) Run each changed loader                                                    #
 ################################################################################
   run_symbols:
