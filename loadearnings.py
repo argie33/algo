@@ -242,9 +242,11 @@ def main():
         cursor_factory=DictCursor
     )
 
-    # Only initialize tables if requested (avoid DROP/CREATE on every run)
-    if os.environ.get("INIT_DB", "0") == "1":
-        ensure_tables(conn)
+
+    # Always drop and create tables before inserting data
+    logger.info("Dropping and creating all earnings tables before data load...")
+    ensure_tables(conn)
+    logger.info("Table creation complete.")
 
     log_mem("Before fetching symbols")
     with conn.cursor() as cur:
