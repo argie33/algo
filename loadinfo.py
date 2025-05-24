@@ -304,254 +304,283 @@ def safe_get(d, *keys, default=None):
         d = d.get(k, default)
     return d
 
+
+# --- Robust ECS loader pattern for process_symbol ---
 @retry(max_attempts=3, initial_delay=2, backoff=2)
 def process_symbol(symbol, conn):
     yf_symbol = symbol.upper().replace(".", "-")
-    ticker = yf.Ticker(yf_symbol)
-    info = ticker.info or {}
-    summary = ticker.get_info() or {}
-    # 1. company_profile and all DB operations must be inside the same cursor context
-    with conn.cursor() as cur:
-        cur.execute("""
-            INSERT INTO company_profile (
-                ticker, short_name, long_name, display_name, quote_type, symbol_type, triggerable, has_pre_post_market_data, price_hint, max_age_sec, language, region, financial_currency, currency, market, quote_source_name, custom_price_alert_confidence, address1, city, state, postal_code, country, phone_number, website_url, ir_website_url, message_board_id, corporate_actions, sector, sector_key, sector_disp, industry, industry_key, industry_disp, business_summary, employee_count, first_trade_date_ms, gmt_offset_ms, exchange, full_exchange_name, exchange_timezone_name, exchange_timezone_short_name, exchange_data_delayed_by_sec, post_market_time_ms, regular_market_time_ms
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (ticker) DO UPDATE SET
-                short_name=EXCLUDED.short_name, long_name=EXCLUDED.long_name, display_name=EXCLUDED.display_name, quote_type=EXCLUDED.quote_type, symbol_type=EXCLUDED.symbol_type, triggerable=EXCLUDED.triggerable, has_pre_post_market_data=EXCLUDED.has_pre_post_market_data, price_hint=EXCLUDED.price_hint, max_age_sec=EXCLUDED.max_age_sec, language=EXCLUDED.language, region=EXCLUDED.region, financial_currency=EXCLUDED.financial_currency, currency=EXCLUDED.currency, market=EXCLUDED.market, quote_source_name=EXCLUDED.quote_source_name, custom_price_alert_confidence=EXCLUDED.custom_price_alert_confidence, address1=EXCLUDED.address1, city=EXCLUDED.city, state=EXCLUDED.state, postal_code=EXCLUDED.postal_code, country=EXCLUDED.country, phone_number=EXCLUDED.phone_number, website_url=EXCLUDED.website_url, ir_website_url=EXCLUDED.ir_website_url, message_board_id=EXCLUDED.message_board_id, corporate_actions=EXCLUDED.corporate_actions, sector=EXCLUDED.sector, sector_key=EXCLUDED.sector_key, sector_disp=EXCLUDED.sector_disp, industry=EXCLUDED.industry, industry_key=EXCLUDED.industry_key, industry_disp=EXCLUDED.industry_disp, business_summary=EXCLUDED.business_summary, employee_count=EXCLUDED.employee_count, first_trade_date_ms=EXCLUDED.first_trade_date_ms, gmt_offset_ms=EXCLUDED.gmt_offset_ms, exchange=EXCLUDED.exchange, full_exchange_name=EXCLUDED.full_exchange_name, exchange_timezone_name=EXCLUDED.exchange_timezone_name, exchange_timezone_short_name=EXCLUDED.exchange_timezone_short_name, exchange_data_delayed_by_sec=EXCLUDED.exchange_data_delayed_by_sec, post_market_time_ms=EXCLUDED.post_market_time_ms, regular_market_time_ms=EXCLUDED.regular_market_time_ms
-            ;
-        """,
-        [
-            symbol,
-            info.get("shortName"),
-            info.get("longName"),
-            info.get("displayName"),
-            info.get("quoteType"),
-            info.get("typeDisp"),
-            info.get("triggerable"),
-            info.get("hasPrePostMarketData"),
-            info.get("priceHint"),
-            info.get("maxAge"),
-            info.get("language"),
-            info.get("region"),
-            info.get("financialCurrency"),
-            info.get("currency"),
-            info.get("market"),
-            info.get("quoteSourceName"),
-            info.get("customPriceAlertConfidence"),
-            info.get("address1"),
-            info.get("city"),
-            info.get("state"),
-            info.get("zip"),
-            info.get("country"),
-            info.get("phone"),
-            info.get("website"),
-            info.get("irWebsite"),
-            info.get("messageBoardId"),
-            json.dumps(info.get("corporateActions")) if info.get("corporateActions") else None,
-            info.get("sector"),
-            info.get("sectorKey"),
-            info.get("sectorDisp"),
-            info.get("industry"),
-            info.get("industryKey"),
-            info.get("industryDisp"),
-            info.get("longBusinessSummary"),
-            info.get("fullTimeEmployees"),
-            info.get("firstTradeDateMilliseconds"),
-            info.get("gmtOffSetMilliseconds"),
-            info.get("exchange"),
-            info.get("fullExchangeName"),
-            info.get("exchangeTimezoneName"),
-            info.get("exchangeTimezoneShortName"),
-            info.get("exchangeDataDelayedBy"),
-            info.get("postMarketTime"),
-            info.get("regularMarketTime")
-        ])
+    try:
+        ticker = yf.Ticker(yf_symbol)
+        info = ticker.get_info() or {}
+    except Exception as e:
+        logger.warning(f"yfinance failed for {symbol}: {e}")
+        info = {}
 
-        # 2a. leadership_team (companyOfficers)
-        officers = info.get("companyOfficers") or []
-        for officer in officers:
+    def jdump(val):
+        try:
+            return json.dumps(val) if val is not None else None
+        except Exception:
+            return None
+
+    with conn.cursor() as cur:
+        # 1. company_profile
+        try:
             cur.execute("""
-                INSERT INTO leadership_team (
-                    ticker, person_name, age, title, birth_year, fiscal_year, total_pay, exercised_value, unexercised_value, role_source
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (ticker, person_name, role_source) DO UPDATE SET
-                    age=EXCLUDED.age, title=EXCLUDED.title, birth_year=EXCLUDED.birth_year, fiscal_year=EXCLUDED.fiscal_year, total_pay=EXCLUDED.total_pay, exercised_value=EXCLUDED.exercised_value, unexercised_value=EXCLUDED.unexercised_value
+                INSERT INTO company_profile (
+                    ticker, short_name, long_name, display_name, quote_type, symbol_type, triggerable, has_pre_post_market_data, price_hint, max_age_sec, language, region, financial_currency, currency, market, quote_source_name, custom_price_alert_confidence, address1, city, state, postal_code, country, phone_number, website_url, ir_website_url, message_board_id, corporate_actions, sector, sector_key, sector_disp, industry, industry_key, industry_disp, business_summary, employee_count, first_trade_date_ms, gmt_offset_ms, exchange, full_exchange_name, exchange_timezone_name, exchange_timezone_short_name, exchange_data_delayed_by_sec, post_market_time_ms, regular_market_time_ms
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (ticker) DO UPDATE SET
+                    short_name=EXCLUDED.short_name, long_name=EXCLUDED.long_name, display_name=EXCLUDED.display_name, quote_type=EXCLUDED.quote_type, symbol_type=EXCLUDED.symbol_type, triggerable=EXCLUDED.triggerable, has_pre_post_market_data=EXCLUDED.has_pre_post_market_data, price_hint=EXCLUDED.price_hint, max_age_sec=EXCLUDED.max_age_sec, language=EXCLUDED.language, region=EXCLUDED.region, financial_currency=EXCLUDED.financial_currency, currency=EXCLUDED.currency, market=EXCLUDED.market, quote_source_name=EXCLUDED.quote_source_name, custom_price_alert_confidence=EXCLUDED.custom_price_alert_confidence, address1=EXCLUDED.address1, city=EXCLUDED.city, state=EXCLUDED.state, postal_code=EXCLUDED.postal_code, country=EXCLUDED.country, phone_number=EXCLUDED.phone_number, website_url=EXCLUDED.website_url, ir_website_url=EXCLUDED.ir_website_url, message_board_id=EXCLUDED.message_board_id, corporate_actions=EXCLUDED.corporate_actions, sector=EXCLUDED.sector, sector_key=EXCLUDED.sector_key, sector_disp=EXCLUDED.sector_disp, industry=EXCLUDED.industry, industry_key=EXCLUDED.industry_key, industry_disp=EXCLUDED.industry_disp, business_summary=EXCLUDED.business_summary, employee_count=EXCLUDED.employee_count, first_trade_date_ms=EXCLUDED.first_trade_date_ms, gmt_offset_ms=EXCLUDED.gmt_offset_ms, exchange=EXCLUDED.exchange, full_exchange_name=EXCLUDED.full_exchange_name, exchange_timezone_name=EXCLUDED.exchange_timezone_name, exchange_timezone_short_name=EXCLUDED.exchange_timezone_short_name, exchange_data_delayed_by_sec=EXCLUDED.exchange_data_delayed_by_sec, post_market_time_ms=EXCLUDED.post_market_time_ms, regular_market_time_ms=EXCLUDED.regular_market_time_ms
                 ;
             """,
             [
                 symbol,
-                officer.get("name"),
-                officer.get("age"),
-                officer.get("title"),
-                officer.get("yearBorn"),
-                officer.get("fiscalYear"),
-                officer.get("totalPay"),
-                officer.get("exercisedValue"),
-                officer.get("unexercisedValue"),
-                "companyOfficer"
+                clean_value(info.get("shortName")),
+                clean_value(info.get("longName")),
+                clean_value(info.get("displayName")),
+                clean_value(info.get("quoteType")),
+                clean_value(info.get("typeDisp")),
+                clean_value(info.get("triggerable")),
+                clean_value(info.get("hasPrePostMarketData")),
+                clean_value(info.get("priceHint")),
+                clean_value(info.get("maxAge")),
+                clean_value(info.get("language")),
+                clean_value(info.get("region")),
+                clean_value(info.get("financialCurrency")),
+                clean_value(info.get("currency")),
+                clean_value(info.get("market")),
+                clean_value(info.get("quoteSourceName")),
+                clean_value(info.get("customPriceAlertConfidence")),
+                clean_value(info.get("address1")),
+                clean_value(info.get("city")),
+                clean_value(info.get("state")),
+                clean_value(info.get("zip")),
+                clean_value(info.get("country")),
+                clean_value(info.get("phone")),
+                clean_value(info.get("website")),
+                clean_value(info.get("irWebsite")),
+                clean_value(info.get("messageBoardId")),
+                jdump(info.get("corporateActions")),
+                clean_value(info.get("sector")),
+                clean_value(info.get("sectorKey")),
+                clean_value(info.get("sectorDisp")),
+                clean_value(info.get("industry")),
+                clean_value(info.get("industryKey")),
+                clean_value(info.get("industryDisp")),
+                clean_value(info.get("longBusinessSummary")),
+                clean_value(info.get("fullTimeEmployees")),
+                clean_value(info.get("firstTradeDateMilliseconds")),
+                clean_value(info.get("gmtOffSetMilliseconds")),
+                clean_value(info.get("exchange")),
+                clean_value(info.get("fullExchangeName")),
+                clean_value(info.get("exchangeTimezoneName")),
+                clean_value(info.get("exchangeTimezoneShortName")),
+                clean_value(info.get("exchangeDataDelayedBy")),
+                clean_value(info.get("postMarketTime")),
+                clean_value(info.get("regularMarketTime"))
             ])
+        except Exception:
+            logger.exception(f"Failed to insert company_profile for {symbol}")
+
+        # 2a. leadership_team (companyOfficers)
+        officers = info.get("companyOfficers") or []
+        for officer in officers:
+            try:
+                cur.execute("""
+                    INSERT INTO leadership_team (
+                        ticker, person_name, age, title, birth_year, fiscal_year, total_pay, exercised_value, unexercised_value, role_source
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (ticker, person_name, role_source) DO UPDATE SET
+                        age=EXCLUDED.age, title=EXCLUDED.title, birth_year=EXCLUDED.birth_year, fiscal_year=EXCLUDED.fiscal_year, total_pay=EXCLUDED.total_pay, exercised_value=EXCLUDED.exercised_value, unexercised_value=EXCLUDED.unexercised_value
+                    ;
+                """,
+                [
+                    symbol,
+                    clean_value(officer.get("name")),
+                    clean_value(officer.get("age")),
+                    clean_value(officer.get("title")),
+                    clean_value(officer.get("yearBorn")),
+                    clean_value(officer.get("fiscalYear")),
+                    clean_value(officer.get("totalPay")),
+                    clean_value(officer.get("exercisedValue")),
+                    clean_value(officer.get("unexercisedValue")),
+                    "companyOfficer"
+                ])
+            except Exception:
+                logger.exception(f"Failed to insert officer for {symbol}")
 
         # 2b. governance_scores
-        gov = info.get("governanceEpochDate") or None
         gov_scores = info.get("governanceScores") or {}
         comp_asof = info.get("compensationAsOfEpochDate")
-        cur.execute("""
-            INSERT INTO governance_scores (
-                ticker, audit_risk, board_risk, compensation_risk, shareholder_rights_risk, overall_risk, governance_epoch_ms, comp_data_as_of_ms
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (ticker) DO UPDATE SET
-                audit_risk=EXCLUDED.audit_risk, board_risk=EXCLUDED.board_risk, compensation_risk=EXCLUDED.compensation_risk, shareholder_rights_risk=EXCLUDED.shareholder_rights_risk, overall_risk=EXCLUDED.overall_risk, governance_epoch_ms=EXCLUDED.governance_epoch_ms, comp_data_as_of_ms=EXCLUDED.comp_data_as_of_ms
-            ;
-        """,
-        [
-            symbol,
-            safe_get(gov_scores, "auditRisk"),
-            safe_get(gov_scores, "boardRisk"),
-            safe_get(gov_scores, "compensationRisk"),
-            safe_get(gov_scores, "shareHolderRightsRisk"),
-            safe_get(gov_scores, "overallRisk"),
-            info.get("governanceEpochDate"),
-            comp_asof
-        ])
+        try:
+            cur.execute("""
+                INSERT INTO governance_scores (
+                    ticker, audit_risk, board_risk, compensation_risk, shareholder_rights_risk, overall_risk, governance_epoch_ms, comp_data_as_of_ms
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (ticker) DO UPDATE SET
+                    audit_risk=EXCLUDED.audit_risk, board_risk=EXCLUDED.board_risk, compensation_risk=EXCLUDED.compensation_risk, shareholder_rights_risk=EXCLUDED.shareholder_rights_risk, overall_risk=EXCLUDED.overall_risk, governance_epoch_ms=EXCLUDED.governance_epoch_ms, comp_data_as_of_ms=EXCLUDED.comp_data_as_of_ms
+                ;
+            """,
+            [
+                symbol,
+                clean_value(gov_scores.get("auditRisk")),
+                clean_value(gov_scores.get("boardRisk")),
+                clean_value(gov_scores.get("compensationRisk")),
+                clean_value(gov_scores.get("shareHolderRightsRisk")),
+                clean_value(gov_scores.get("overallRisk")),
+                clean_value(info.get("governanceEpochDate")),
+                clean_value(comp_asof)
+            ])
+        except Exception:
+            logger.exception(f"Failed to insert governance_scores for {symbol}")
 
         # 3. market_data
-        cur.execute("""
-            INSERT INTO market_data (
-                ticker, previous_close, regular_market_previous_close, open_price, regular_market_open, day_low, regular_market_day_low, day_high, regular_market_day_high, regular_market_price, current_price, post_market_price, post_market_change, post_market_change_pct, volume, regular_market_volume, average_volume, avg_volume_10d, avg_daily_volume_10d, avg_daily_volume_3m, bid_price, ask_price, bid_size, ask_size, market_state, fifty_two_week_low, fifty_two_week_high, fifty_two_week_range, fifty_two_week_low_change, fifty_two_week_low_change_pct, fifty_two_week_high_change, fifty_two_week_high_change_pct, fifty_two_week_change_pct, fifty_day_avg, two_hundred_day_avg, fifty_day_avg_change, fifty_day_avg_change_pct, two_hundred_day_avg_change, two_hundred_day_avg_change_pct, source_interval_sec, market_cap
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (ticker) DO UPDATE SET
-                previous_close=EXCLUDED.previous_close, regular_market_previous_close=EXCLUDED.regular_market_previous_close, open_price=EXCLUDED.open_price, regular_market_open=EXCLUDED.regular_market_open, day_low=EXCLUDED.day_low, regular_market_day_low=EXCLUDED.regular_market_day_low, day_high=EXCLUDED.day_high, regular_market_day_high=EXCLUDED.regular_market_day_high, regular_market_price=EXCLUDED.regular_market_price, current_price=EXCLUDED.current_price, post_market_price=EXCLUDED.post_market_price, post_market_change=EXCLUDED.post_market_change, post_market_change_pct=EXCLUDED.post_market_change_pct, volume=EXCLUDED.volume, regular_market_volume=EXCLUDED.regular_market_volume, average_volume=EXCLUDED.average_volume, avg_volume_10d=EXCLUDED.avg_volume_10d, avg_daily_volume_10d=EXCLUDED.avg_daily_volume_10d, avg_daily_volume_3m=EXCLUDED.avg_daily_volume_3m, bid_price=EXCLUDED.bid_price, ask_price=EXCLUDED.ask_price, bid_size=EXCLUDED.bid_size, ask_size=EXCLUDED.ask_size, market_state=EXCLUDED.market_state, fifty_two_week_low=EXCLUDED.fifty_two_week_low, fifty_two_week_high=EXCLUDED.fifty_two_week_high, fifty_two_week_range=EXCLUDED.fifty_two_week_range, fifty_two_week_low_change=EXCLUDED.fifty_two_week_low_change, fifty_two_week_low_change_pct=EXCLUDED.fifty_two_week_low_change_pct, fifty_two_week_high_change=EXCLUDED.fifty_two_week_high_change, fifty_two_week_high_change_pct=EXCLUDED.fifty_two_week_high_change_pct, fifty_two_week_change_pct=EXCLUDED.fifty_two_week_change_pct, fifty_day_avg=EXCLUDED.fifty_day_avg, two_hundred_day_avg=EXCLUDED.two_hundred_day_avg, fifty_day_avg_change=EXCLUDED.fifty_day_avg_change, fifty_day_avg_change_pct=EXCLUDED.fifty_day_avg_change_pct, two_hundred_day_avg_change=EXCLUDED.two_hundred_day_avg_change, two_hundred_day_avg_change_pct=EXCLUDED.two_hundred_day_avg_change_pct, source_interval_sec=EXCLUDED.source_interval_sec, market_cap=EXCLUDED.market_cap
-            ;
-        """,
-        [
-            symbol,
-            info.get("previousClose"),
-            info.get("regularMarketPreviousClose"),
-            info.get("open"),
-            info.get("regularMarketOpen"),
-            info.get("dayLow"),
-            info.get("regularMarketDayLow"),
-            info.get("dayHigh"),
-            info.get("regularMarketDayHigh"),
-            info.get("regularMarketPrice"),
-            info.get("currentPrice"),
-            info.get("postMarketPrice"),
-            info.get("postMarketChange"),
-            info.get("postMarketChangePercent"),
-            info.get("volume"),
-            info.get("regularMarketVolume"),
-            info.get("averageVolume"),
-            info.get("averageVolume10days"),
-            info.get("averageDailyVolume10Day"),
-            info.get("averageDailyVolume3Month"),
-            info.get("bid"),
-            info.get("ask"),
-            info.get("bidSize"),
-            info.get("askSize"),
-            info.get("marketState"),
-            info.get("fiftyTwoWeekLow"),
-            info.get("fiftyTwoWeekHigh"),
-            info.get("fiftyTwoWeekRange"),
-            info.get("fiftyTwoWeekLowChange"),
-            info.get("fiftyTwoWeekLowChangePercent"),
-            info.get("fiftyTwoWeekHighChange"),
-            info.get("fiftyTwoWeekHighChangePercent"),
-            info.get("fiftyTwoWeekChangePercent"),
-            info.get("fiftyDayAverage"),
-            info.get("twoHundredDayAverage"),
-            info.get("fiftyDayAverageChange"),
-            info.get("fiftyDayAverageChangePercent"),
-            info.get("twoHundredDayAverageChange"),
-            info.get("twoHundredDayAverageChangePercent"),
-            info.get("sourceInterval"),
-            info.get("marketCap")
-        ])
+        try:
+            cur.execute("""
+                INSERT INTO market_data (
+                    ticker, previous_close, regular_market_previous_close, open_price, regular_market_open, day_low, regular_market_day_low, day_high, regular_market_day_high, regular_market_price, current_price, post_market_price, post_market_change, post_market_change_pct, volume, regular_market_volume, average_volume, avg_volume_10d, avg_daily_volume_10d, avg_daily_volume_3m, bid_price, ask_price, bid_size, ask_size, market_state, fifty_two_week_low, fifty_two_week_high, fifty_two_week_range, fifty_two_week_low_change, fifty_two_week_low_change_pct, fifty_two_week_high_change, fifty_two_week_high_change_pct, fifty_two_week_change_pct, fifty_day_avg, two_hundred_day_avg, fifty_day_avg_change, fifty_day_avg_change_pct, two_hundred_day_avg_change, two_hundred_day_avg_change_pct, source_interval_sec, market_cap
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (ticker) DO UPDATE SET
+                    previous_close=EXCLUDED.previous_close, regular_market_previous_close=EXCLUDED.regular_market_previous_close, open_price=EXCLUDED.open_price, regular_market_open=EXCLUDED.regular_market_open, day_low=EXCLUDED.day_low, regular_market_day_low=EXCLUDED.regular_market_day_low, day_high=EXCLUDED.day_high, regular_market_day_high=EXCLUDED.regular_market_day_high, regular_market_price=EXCLUDED.regular_market_price, current_price=EXCLUDED.current_price, post_market_price=EXCLUDED.post_market_price, post_market_change=EXCLUDED.post_market_change, post_market_change_pct=EXCLUDED.post_market_change_pct, volume=EXCLUDED.volume, regular_market_volume=EXCLUDED.regular_market_volume, average_volume=EXCLUDED.average_volume, avg_volume_10d=EXCLUDED.avg_volume_10d, avg_daily_volume_10d=EXCLUDED.avg_daily_volume_10d, avg_daily_volume_3m=EXCLUDED.avg_daily_volume_3m, bid_price=EXCLUDED.bid_price, ask_price=EXCLUDED.ask_price, bid_size=EXCLUDED.bid_size, ask_size=EXCLUDED.ask_size, market_state=EXCLUDED.market_state, fifty_two_week_low=EXCLUDED.fifty_two_week_low, fifty_two_week_high=EXCLUDED.fifty_two_week_high, fifty_two_week_range=EXCLUDED.fifty_two_week_range, fifty_two_week_low_change=EXCLUDED.fifty_two_week_low_change, fifty_two_week_low_change_pct=EXCLUDED.fifty_two_week_low_change_pct, fifty_two_week_high_change=EXCLUDED.fifty_two_week_high_change, fifty_two_week_high_change_pct=EXCLUDED.fifty_two_week_high_change_pct, fifty_two_week_change_pct=EXCLUDED.fifty_two_week_change_pct, fifty_day_avg=EXCLUDED.fifty_day_avg, two_hundred_day_avg=EXCLUDED.two_hundred_day_avg, fifty_day_avg_change=EXCLUDED.fifty_day_avg_change, fifty_day_avg_change_pct=EXCLUDED.fifty_day_avg_change_pct, two_hundred_day_avg_change=EXCLUDED.two_hundred_day_avg_change, two_hundred_day_avg_change_pct=EXCLUDED.two_hundred_day_avg_change_pct, source_interval_sec=EXCLUDED.source_interval_sec, market_cap=EXCLUDED.market_cap
+                ;
+            """,
+            [
+                symbol,
+                clean_value(info.get("previousClose")),
+                clean_value(info.get("regularMarketPreviousClose")),
+                clean_value(info.get("open")),
+                clean_value(info.get("regularMarketOpen")),
+                clean_value(info.get("dayLow")),
+                clean_value(info.get("regularMarketDayLow")),
+                clean_value(info.get("dayHigh")),
+                clean_value(info.get("regularMarketDayHigh")),
+                clean_value(info.get("regularMarketPrice")),
+                clean_value(info.get("currentPrice")),
+                clean_value(info.get("postMarketPrice")),
+                clean_value(info.get("postMarketChange")),
+                clean_value(info.get("postMarketChangePercent")),
+                clean_value(info.get("volume")),
+                clean_value(info.get("regularMarketVolume")),
+                clean_value(info.get("averageVolume")),
+                clean_value(info.get("averageVolume10days")),
+                clean_value(info.get("averageDailyVolume10Day")),
+                clean_value(info.get("averageDailyVolume3Month")),
+                clean_value(info.get("bid")),
+                clean_value(info.get("ask")),
+                clean_value(info.get("bidSize")),
+                clean_value(info.get("askSize")),
+                clean_value(info.get("marketState")),
+                clean_value(info.get("fiftyTwoWeekLow")),
+                clean_value(info.get("fiftyTwoWeekHigh")),
+                clean_value(info.get("fiftyTwoWeekRange")),
+                clean_value(info.get("fiftyTwoWeekLowChange")),
+                clean_value(info.get("fiftyTwoWeekLowChangePercent")),
+                clean_value(info.get("fiftyTwoWeekHighChange")),
+                clean_value(info.get("fiftyTwoWeekHighChangePercent")),
+                clean_value(info.get("fiftyTwoWeekChangePercent")),
+                clean_value(info.get("fiftyDayAverage")),
+                clean_value(info.get("twoHundredDayAverage")),
+                clean_value(info.get("fiftyDayAverageChange")),
+                clean_value(info.get("fiftyDayAverageChangePercent")),
+                clean_value(info.get("twoHundredDayAverageChange")),
+                clean_value(info.get("twoHundredDayAverageChangePercent")),
+                clean_value(info.get("sourceInterval")),
+                clean_value(info.get("marketCap"))
+            ])
+        except Exception:
+            logger.exception(f"Failed to insert market_data for {symbol}")
 
         # 4. key_metrics
-        cur.execute("""
-            INSERT INTO key_metrics (
-                ticker, trailing_pe, forward_pe, price_to_sales_ttm, price_to_book, book_value, peg_ratio, enterprise_value, ev_to_revenue, ev_to_ebitda, total_revenue, net_income, ebitda, gross_profit, eps_trailing, eps_forward, eps_current_year, price_eps_current_year, earnings_q_growth_pct, earnings_ts_ms, earnings_ts_start_ms, earnings_ts_end_ms, earnings_call_ts_start_ms, earnings_call_ts_end_ms, is_earnings_date_estimate, total_cash, cash_per_share, operating_cashflow, free_cashflow, total_debt, debt_to_equity, quick_ratio, current_ratio, profit_margin_pct, gross_margin_pct, ebitda_margin_pct, operating_margin_pct, return_on_assets_pct, return_on_equity_pct, revenue_growth_pct, earnings_growth_pct, last_split_factor, last_split_date_ms, dividend_rate, dividend_yield, five_year_avg_dividend_yield, ex_dividend_date_ms, last_annual_dividend_amt, last_annual_dividend_yield, last_dividend_amt, last_dividend_date_ms, dividend_date_ms, payout_ratio
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (ticker) DO UPDATE SET
-                trailing_pe=EXCLUDED.trailing_pe, forward_pe=EXCLUDED.forward_pe, price_to_sales_ttm=EXCLUDED.price_to_sales_ttm, price_to_book=EXCLUDED.price_to_book, book_value=EXCLUDED.book_value, peg_ratio=EXCLUDED.peg_ratio, enterprise_value=EXCLUDED.enterprise_value, ev_to_revenue=EXCLUDED.ev_to_revenue, ev_to_ebitda=EXCLUDED.ev_to_ebitda, total_revenue=EXCLUDED.total_revenue, net_income=EXCLUDED.net_income, ebitda=EXCLUDED.ebitda, gross_profit=EXCLUDED.gross_profit, eps_trailing=EXCLUDED.eps_trailing, eps_forward=EXCLUDED.eps_forward, eps_current_year=EXCLUDED.eps_current_year, price_eps_current_year=EXCLUDED.price_eps_current_year, earnings_q_growth_pct=EXCLUDED.earnings_q_growth_pct, earnings_ts_ms=EXCLUDED.earnings_ts_ms, earnings_ts_start_ms=EXCLUDED.earnings_ts_start_ms, earnings_ts_end_ms=EXCLUDED.earnings_ts_end_ms, earnings_call_ts_start_ms=EXCLUDED.earnings_call_ts_start_ms, earnings_call_ts_end_ms=EXCLUDED.earnings_call_ts_end_ms, is_earnings_date_estimate=EXCLUDED.is_earnings_date_estimate, total_cash=EXCLUDED.total_cash, cash_per_share=EXCLUDED.cash_per_share, operating_cashflow=EXCLUDED.operating_cashflow, free_cashflow=EXCLUDED.free_cashflow, total_debt=EXCLUDED.total_debt, debt_to_equity=EXCLUDED.debt_to_equity, quick_ratio=EXCLUDED.quick_ratio, current_ratio=EXCLUDED.current_ratio, profit_margin_pct=EXCLUDED.profit_margin_pct, gross_margin_pct=EXCLUDED.gross_margin_pct, ebitda_margin_pct=EXCLUDED.ebitda_margin_pct, operating_margin_pct=EXCLUDED.operating_margin_pct, return_on_assets_pct=EXCLUDED.return_on_assets_pct, return_on_equity_pct=EXCLUDED.return_on_equity_pct, revenue_growth_pct=EXCLUDED.revenue_growth_pct, earnings_growth_pct=EXCLUDED.earnings_growth_pct, last_split_factor=EXCLUDED.last_split_factor, last_split_date_ms=EXCLUDED.last_split_date_ms, dividend_rate=EXCLUDED.dividend_rate, dividend_yield=EXCLUDED.dividend_yield, five_year_avg_dividend_yield=EXCLUDED.five_year_avg_dividend_yield, ex_dividend_date_ms=EXCLUDED.ex_dividend_date_ms, last_annual_dividend_amt=EXCLUDED.last_annual_dividend_amt, last_annual_dividend_yield=EXCLUDED.last_annual_dividend_yield, last_dividend_amt=EXCLUDED.last_dividend_amt, last_dividend_date_ms=EXCLUDED.last_dividend_date_ms, dividend_date_ms=EXCLUDED.dividend_date_ms, payout_ratio=EXCLUDED.payout_ratio
-            ;
-        """,
-        [
-            symbol,
-            info.get("trailingPE"),
-            info.get("forwardPE"),
-            info.get("priceToSalesTrailing12Months"),
-            info.get("priceToBook"),
-            info.get("bookValue"),
-            info.get("trailingPegRatio"),
-            info.get("enterpriseValue"),
-            info.get("enterpriseToRevenue"),
-            info.get("enterpriseToEbitda"),
-            info.get("totalRevenue"),
-            info.get("netIncomeToCommon"),
-            info.get("ebitda"),
-            info.get("grossProfits"),
-            info.get("trailingEps"),
-            info.get("forwardEps"),
-            info.get("epsCurrentYear"),
-            info.get("priceEpsCurrentYear"),
-            info.get("earningsQuarterlyGrowth"),
-            info.get("earningsTimestamp"),
-            info.get("earningsTimestampStart"),
-            info.get("earningsTimestampEnd"),
-            info.get("earningsCallTimestampStart"),
-            info.get("earningsCallTimestampEnd"),
-            info.get("isEarningsDateEstimate"),
-            info.get("totalCash"),
-            info.get("totalCashPerShare"),
-            info.get("operatingCashflow"),
-            info.get("freeCashflow"),
-            info.get("totalDebt"),
-            info.get("debtToEquity"),
-            info.get("quickRatio"),
-            info.get("currentRatio"),
-            info.get("profitMargins"),
-            info.get("grossMargins"),
-            info.get("ebitdaMargins"),
-            info.get("operatingMargins"),
-            info.get("returnOnAssets"),
-            info.get("returnOnEquity"),
-            info.get("revenueGrowth"),
-            info.get("earningsGrowth"),
-            info.get("lastSplitFactor"),
-            info.get("lastSplitDate"),
-            info.get("dividendRate"),
-            info.get("dividendYield"),
-            info.get("fiveYearAvgDividendYield"),
-            info.get("exDividendDate"),
-            info.get("trailingAnnualDividendRate"),
-            info.get("trailingAnnualDividendYield"),
-            info.get("lastDividendValue"),
-            info.get("lastDividendDate"),
-            info.get("dividendDate"),
-            info.get("payoutRatio")
-        ])
+        try:
+            cur.execute("""
+                INSERT INTO key_metrics (
+                    ticker, trailing_pe, forward_pe, price_to_sales_ttm, price_to_book, book_value, peg_ratio, enterprise_value, ev_to_revenue, ev_to_ebitda, total_revenue, net_income, ebitda, gross_profit, eps_trailing, eps_forward, eps_current_year, price_eps_current_year, earnings_q_growth_pct, earnings_ts_ms, earnings_ts_start_ms, earnings_ts_end_ms, earnings_call_ts_start_ms, earnings_call_ts_end_ms, is_earnings_date_estimate, total_cash, cash_per_share, operating_cashflow, free_cashflow, total_debt, debt_to_equity, quick_ratio, current_ratio, profit_margin_pct, gross_margin_pct, ebitda_margin_pct, operating_margin_pct, return_on_assets_pct, return_on_equity_pct, revenue_growth_pct, earnings_growth_pct, last_split_factor, last_split_date_ms, dividend_rate, dividend_yield, five_year_avg_dividend_yield, ex_dividend_date_ms, last_annual_dividend_amt, last_annual_dividend_yield, last_dividend_amt, last_dividend_date_ms, dividend_date_ms, payout_ratio
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (ticker) DO UPDATE SET
+                    trailing_pe=EXCLUDED.trailing_pe, forward_pe=EXCLUDED.forward_pe, price_to_sales_ttm=EXCLUDED.price_to_sales_ttm, price_to_book=EXCLUDED.price_to_book, book_value=EXCLUDED.book_value, peg_ratio=EXCLUDED.peg_ratio, enterprise_value=EXCLUDED.enterprise_value, ev_to_revenue=EXCLUDED.ev_to_revenue, ev_to_ebitda=EXCLUDED.ev_to_ebitda, total_revenue=EXCLUDED.total_revenue, net_income=EXCLUDED.net_income, ebitda=EXCLUDED.ebitda, gross_profit=EXCLUDED.gross_profit, eps_trailing=EXCLUDED.eps_trailing, eps_forward=EXCLUDED.eps_forward, eps_current_year=EXCLUDED.eps_current_year, price_eps_current_year=EXCLUDED.price_eps_current_year, earnings_q_growth_pct=EXCLUDED.earnings_q_growth_pct, earnings_ts_ms=EXCLUDED.earnings_ts_ms, earnings_ts_start_ms=EXCLUDED.earnings_ts_start_ms, earnings_ts_end_ms=EXCLUDED.earnings_ts_end_ms, earnings_call_ts_start_ms=EXCLUDED.earnings_call_ts_start_ms, earnings_call_ts_end_ms=EXCLUDED.earnings_call_ts_end_ms, is_earnings_date_estimate=EXCLUDED.is_earnings_date_estimate, total_cash=EXCLUDED.total_cash, cash_per_share=EXCLUDED.cash_per_share, operating_cashflow=EXCLUDED.operating_cashflow, free_cashflow=EXCLUDED.free_cashflow, total_debt=EXCLUDED.total_debt, debt_to_equity=EXCLUDED.debt_to_equity, quick_ratio=EXCLUDED.quick_ratio, current_ratio=EXCLUDED.current_ratio, profit_margin_pct=EXCLUDED.profit_margin_pct, gross_margin_pct=EXCLUDED.gross_margin_pct, ebitda_margin_pct=EXCLUDED.ebitda_margin_pct, operating_margin_pct=EXCLUDED.operating_margin_pct, return_on_assets_pct=EXCLUDED.return_on_assets_pct, return_on_equity_pct=EXCLUDED.return_on_equity_pct, revenue_growth_pct=EXCLUDED.revenue_growth_pct, earnings_growth_pct=EXCLUDED.earnings_growth_pct, last_split_factor=EXCLUDED.last_split_factor, last_split_date_ms=EXCLUDED.last_split_date_ms, dividend_rate=EXCLUDED.dividend_rate, dividend_yield=EXCLUDED.dividend_yield, five_year_avg_dividend_yield=EXCLUDED.five_year_avg_dividend_yield, ex_dividend_date_ms=EXCLUDED.ex_dividend_date_ms, last_annual_dividend_amt=EXCLUDED.last_annual_dividend_amt, last_annual_dividend_yield=EXCLUDED.last_annual_dividend_yield, last_dividend_amt=EXCLUDED.last_dividend_amt, last_dividend_date_ms=EXCLUDED.last_dividend_date_ms, dividend_date_ms=EXCLUDED.dividend_date_ms, payout_ratio=EXCLUDED.payout_ratio
+                ;
+            """,
+            [
+                symbol,
+                clean_value(info.get("trailingPE")),
+                clean_value(info.get("forwardPE")),
+                clean_value(info.get("priceToSalesTrailing12Months")),
+                clean_value(info.get("priceToBook")),
+                clean_value(info.get("bookValue")),
+                clean_value(info.get("trailingPegRatio")),
+                clean_value(info.get("enterpriseValue")),
+                clean_value(info.get("enterpriseToRevenue")),
+                clean_value(info.get("enterpriseToEbitda")),
+                clean_value(info.get("totalRevenue")),
+                clean_value(info.get("netIncomeToCommon")),
+                clean_value(info.get("ebitda")),
+                clean_value(info.get("grossProfits")),
+                clean_value(info.get("trailingEps")),
+                clean_value(info.get("forwardEps")),
+                clean_value(info.get("epsCurrentYear")),
+                clean_value(info.get("priceEpsCurrentYear")),
+                clean_value(info.get("earningsQuarterlyGrowth")),
+                clean_value(info.get("earningsTimestamp")),
+                clean_value(info.get("earningsTimestampStart")),
+                clean_value(info.get("earningsTimestampEnd")),
+                clean_value(info.get("earningsCallTimestampStart")),
+                clean_value(info.get("earningsCallTimestampEnd")),
+                clean_value(info.get("isEarningsDateEstimate")),
+                clean_value(info.get("totalCash")),
+                clean_value(info.get("totalCashPerShare")),
+                clean_value(info.get("operatingCashflow")),
+                clean_value(info.get("freeCashflow")),
+                clean_value(info.get("totalDebt")),
+                clean_value(info.get("debtToEquity")),
+                clean_value(info.get("quickRatio")),
+                clean_value(info.get("currentRatio")),
+                clean_value(info.get("profitMargins")),
+                clean_value(info.get("grossMargins")),
+                clean_value(info.get("ebitdaMargins")),
+                clean_value(info.get("operatingMargins")),
+                clean_value(info.get("returnOnAssets")),
+                clean_value(info.get("returnOnEquity")),
+                clean_value(info.get("revenueGrowth")),
+                clean_value(info.get("earningsGrowth")),
+                clean_value(info.get("lastSplitFactor")),
+                clean_value(info.get("lastSplitDate")),
+                clean_value(info.get("dividendRate")),
+                clean_value(info.get("dividendYield")),
+                clean_value(info.get("fiveYearAvgDividendYield")),
+                clean_value(info.get("exDividendDate")),
+                clean_value(info.get("trailingAnnualDividendRate")),
+                clean_value(info.get("trailingAnnualDividendYield")),
+                clean_value(info.get("lastDividendValue")),
+                clean_value(info.get("lastDividendDate")),
+                clean_value(info.get("dividendDate")),
+                clean_value(info.get("payoutRatio"))
+            ])
+        except Exception:
+            logger.exception(f"Failed to insert key_metrics for {symbol}")
 
         # 5. analyst_estimates
-        cur.execute("""
-            INSERT INTO analyst_estimates (
-                ticker, target_high_price, target_low_price, target_mean_price, target_median_price, recommendation_key, recommendation_mean, analyst_opinion_count, average_analyst_rating
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (ticker) DO UPDATE SET
-                target_high_price=EXCLUDED.target_high_price, target_low_price=EXCLUDED.target_low_price, target_mean_price=EXCLUDED.target_mean_price, target_median_price=EXCLUDED.target_median_price, recommendation_key=EXCLUDED.recommendation_key, recommendation_mean=EXCLUDED.recommendation_mean, analyst_opinion_count=EXCLUDED.analyst_opinion_count, average_analyst_rating=EXCLUDED.average_analyst_rating
-            ;
-        """,
-        [
-            symbol,
-            info.get("targetHighPrice"),
-            info.get("targetLowPrice"),
-            info.get("targetMeanPrice"),
-            info.get("targetMedianPrice"),
-            info.get("recommendationKey"),
-            info.get("recommendationMean"),
-            info.get("numberOfAnalystOpinions"),
-            info.get("averageAnalystRating")
-        ])
+        try:
+            cur.execute("""
+                INSERT INTO analyst_estimates (
+                    ticker, target_high_price, target_low_price, target_mean_price, target_median_price, recommendation_key, recommendation_mean, analyst_opinion_count, average_analyst_rating
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (ticker) DO UPDATE SET
+                    target_high_price=EXCLUDED.target_high_price, target_low_price=EXCLUDED.target_low_price, target_mean_price=EXCLUDED.target_mean_price, target_median_price=EXCLUDED.target_median_price, recommendation_key=EXCLUDED.recommendation_key, recommendation_mean=EXCLUDED.recommendation_mean, analyst_opinion_count=EXCLUDED.analyst_opinion_count, average_analyst_rating=EXCLUDED.average_analyst_rating
+                ;
+            """,
+            [
+                symbol,
+                clean_value(info.get("targetHighPrice")),
+                clean_value(info.get("targetLowPrice")),
+                clean_value(info.get("targetMeanPrice")),
+                clean_value(info.get("targetMedianPrice")),
+                clean_value(info.get("recommendationKey")),
+                clean_value(info.get("recommendationMean")),
+                clean_value(info.get("numberOfAnalystOpinions")),
+                clean_value(info.get("averageAnalystRating"))
+            ])
+        except Exception:
+            logger.exception(f"Failed to insert analyst_estimates for {symbol}")
 
     conn.commit()
     logger.info(f"Successfully processed info for {symbol}")
