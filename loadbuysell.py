@@ -39,13 +39,16 @@ DB_PORT     = int(creds.get("port", 5432))
 DB_NAME     = creds["dbname"]
 
 def get_db_connection():
-    return psycopg2.connect(
+    # Set statement timeout to 30 seconds (30000 ms)
+    conn = psycopg2.connect(
         host=DB_HOST,
         port=DB_PORT,
         user=DB_USER,
         password=DB_PASSWORD,
-        dbname=DB_NAME
+        dbname=DB_NAME,
+        options='-c statement_timeout=30000'
     )
+    return conn
 
 ###############################################################################
 # 1) DATABASE FUNCTIONS
@@ -99,16 +102,28 @@ def insert_symbol_results(cur, symbol, timeframe, df):
       ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
       ON CONFLICT (symbol, timeframe, date) DO NOTHING;
     """
-    for _, row in df.iterrows():
-        cur.execute(insert_q, (
-            symbol,
-            timeframe,
-            row['date'].date(),
-            float(row['open']), float(row['high']), float(row['low']),
-            float(row['close']), int(row['volume']),
-            row['Signal'], float(row['buyLevel']),
-            float(row['stopLevel']), bool(row['inPosition'])
-        ))
+    inserted = 0
+    for idx, row in df.iterrows():
+        try:
+            # Check for NaNs or missing values
+            vals = [row.get('open'), row.get('high'), row.get('low'), row.get('close'), row.get('volume'),
+                    row.get('Signal'), row.get('buyLevel'), row.get('stopLevel'), row.get('inPosition')]
+            if any(pd.isnull(v) for v in vals):
+                logging.warning(f"Skipping row {idx} for {symbol} {timeframe} due to NaN: {vals}")
+                continue
+            cur.execute(insert_q, (
+                symbol,
+                timeframe,
+                row['date'].date(),
+                float(row['open']), float(row['high']), float(row['low']),
+                float(row['close']), int(row['volume']),
+                row['Signal'], float(row['buyLevel']),
+                float(row['stopLevel']), bool(row['inPosition'])
+            ))
+            inserted += 1
+        except Exception as e:
+            logging.error(f"Insert failed for {symbol} {timeframe} row {idx}: {e} | row={row}")
+    logging.info(f"Inserted {inserted} rows for {symbol} {timeframe}")
 
 ###############################################################################
 # 2) RISK-FREE RATE (FRED)
@@ -159,8 +174,13 @@ def fetch_symbol_from_db(symbol, timeframe):
           WHERE p.symbol = %s
           ORDER BY p.date ASC;
         """
+        logging.info(f"[fetch_symbol_from_db] Executing SQL for {symbol} {timeframe}")
         cur.execute(sql, (symbol,))
         rows = cur.fetchall()
+        logging.info(f"[fetch_symbol_from_db] Got {len(rows)} rows for {symbol} {timeframe}")
+    except Exception as e:
+        logging.error(f"[fetch_symbol_from_db] SQL error for {symbol} {timeframe}: {e}")
+        rows = []
     finally:
         cur.close()
         conn.close()
@@ -288,17 +308,21 @@ def analyze_trade_returns_fixed_capital(rets, durs, tag, annual_rfr=0.0):
 # 6) PROCESS & MAIN
 ###############################################################################
 def process_symbol(symbol, timeframe):
+    logging.info(f"  [process_symbol] Fetching {symbol} {timeframe}")
     df = fetch_symbol_from_db(symbol, timeframe)
+    logging.info(f"  [process_symbol] Done fetching {symbol} {timeframe}, rows: {len(df)}")
     return generate_signals(df) if not df.empty else df
 
 def main():
+
     try:
         annual_rfr = get_risk_free_rate_fred(FRED_API_KEY)
         print(f"Annual RFR: {annual_rfr:.2%}")
-    except:
+    except Exception as e:
+        logging.warning(f"Failed to get risk-free rate: {e}")
         annual_rfr = 0.0
 
-    symbols = get_symbols_from_db()
+    symbols = get_symbols_from_db(limit=3)  # Limit for debugging, remove or increase as needed
     if not symbols:
         print("No symbols in DB.")
         return
@@ -315,7 +339,9 @@ def main():
     for sym in symbols:
         logging.info(f"=== {sym} ===")
         for tf in ['Daily','Weekly','Monthly']:
+            logging.info(f"  [main] Processing {sym} {tf}")
             df = process_symbol(sym, tf)
+            logging.info(f"  [main] Done processing {sym} {tf}")
             if df.empty:
                 logging.info(f"[{tf}] no data")
                 continue
