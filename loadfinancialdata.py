@@ -884,8 +884,16 @@ def update_last_run(conn):
 def main():
     conn = None
     import gc
+    logger.info("==============================")
+    logger.info("Starting loadfinancialdata.py")
+    logger.info(f"Process PID: {os.getpid()}")
+    logger.info(f"Python version: {sys.version}")
+    logger.info(f"Memory usage at start: {get_rss_mb():.1f} MB RSS")
+    logger.info(f"DB_SECRET_ARN: {DB_SECRET_ARN}")
+    logger.info("==============================")
     try:
         user, pwd, host, port, dbname = get_db_config()
+        logger.info(f"Connecting to DB at {host}:{port} db={dbname} user={user}")
         conn = psycopg2.connect(
             host=host,
             port=port,
@@ -897,9 +905,11 @@ def main():
         )
         conn.set_session(autocommit=False)
 
-        # Only initialize tables if requested (avoid DROP/CREATE on every run)
-        if os.environ.get("INIT_DB", "0") == "1":
-            ensure_tables(conn)
+
+        # Always drop and create tables before inserting data
+        logger.info("Dropping and creating all financial tables before data load...")
+        ensure_tables(conn)
+        logger.info("Table creation complete.")
 
         log_mem("Before fetching symbols")
         with conn.cursor() as cur:
@@ -914,6 +924,7 @@ def main():
         total_symbols = len(symbols)
         processed = 0
         failed = 0
+        start_time = time.time()
 
         for sym in symbols:
             try:
@@ -930,13 +941,19 @@ def main():
                     time.sleep(0.05)
             except Exception:
                 logger.exception(f"Failed to process {sym}")
+                try:
+                    conn.rollback()
+                except Exception:
+                    logger.exception("Error during conn.rollback() after failure")
                 failed += 1
                 if failed > total_symbols * 0.2:
                     logger.error("Too many failures, stopping process")
                     break
 
         update_last_run(conn)
-        logger.info(f"Completed processing {processed}/{total_symbols} symbols with {failed} failures")
+        elapsed = time.time() - start_time
+        logger.info(f"Completed processing {processed}/{total_symbols} symbols with {failed} failures in {elapsed:.1f} seconds")
+        log_mem("End of main loop")
     except Exception:
         logger.exception("Fatal error in main()")
         raise
