@@ -48,6 +48,15 @@ Parameters:
   CalendarImageTag:
     Type: String
     Description: Tag for calendar loader image
+  LoadLatestPriceDailyImageTag:
+    Type: String
+    Description: Tag for loadlatestpricedaily loader image
+  LoadLatestPriceWeeklyImageTag:
+    Type: String
+    Description: Tag for loadlatestpriceweekly loader image
+  LoadLatestPriceMonthlyImageTag:
+    Type: String
+    Description: Tag for loadlatestpricemonthly loader image
   ########################################
   FREDApiKey:
     Type: String
