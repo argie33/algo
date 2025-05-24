@@ -485,8 +485,7 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='StockSymbolsTaskDefArn'].OutputValue" \
             --output text)
-          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-      - name: Fetch cluster ARN & subnets
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -498,10 +497,13 @@ jobs:
           SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
-      - name: Run stock-symbols Fargate task
+          echo "SG=$SG" >> $GITHUB_OUTPUT      - name: Run stock-symbols Fargate task
         id: run
         run: |
           TASK_ARN=$(aws ecs run-task \
@@ -509,7 +511,7 @@ jobs:
             --launch-type FARGATE \
             --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
             --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
@@ -580,8 +582,7 @@ jobs:
             --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
-          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
-      - name: Run econ-data Fargate task
+          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT      - name: Run econ-data Fargate task
         id: run
         run: |
           TASK_ARN=$(aws ecs run-task \
@@ -589,7 +590,7 @@ jobs:
             --launch-type FARGATE \
             --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
             --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
@@ -645,8 +646,7 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='FindataTaskDefArn'].OutputValue" \
             --output text)
-          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-      - name: Fetch cluster ARN & subnets
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -658,9 +658,13 @@ jobs:
           SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
       - name: Run findata Fargate task
         id: run
         run: |
@@ -669,7 +673,7 @@ jobs:
             --launch-type FARGATE \
             --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
             --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
@@ -725,8 +729,7 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceTaskDefArn'].OutputValue" \
             --output text)
-          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-      - name: Fetch cluster ARN & subnets
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -738,9 +741,13 @@ jobs:
           SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
       - name: Run pricedaily Fargate task
         id: run
         run: |
@@ -749,7 +756,7 @@ jobs:
             --launch-type FARGATE \
             --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
             --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
@@ -805,8 +812,7 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='PriceWeeklyTaskDefArn'].OutputValue" \
             --output text)
-          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-      - name: Fetch cluster ARN & subnets
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -818,9 +824,13 @@ jobs:
           SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
       - name: Run priceweekly Fargate task
         id: run
         run: |
@@ -829,7 +839,7 @@ jobs:
             --launch-type FARGATE \
             --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
             --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
@@ -900,8 +910,7 @@ jobs:
             --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
-          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
-      - name: Run pricemonthly Fargate task
+          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT      - name: Run pricemonthly Fargate task
         id: run
         run: |
           TASK_ARN=$(aws ecs run-task \
@@ -909,7 +918,7 @@ jobs:
             --launch-type FARGATE \
             --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
             --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
@@ -964,8 +973,7 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='TechnicalsDailyTaskDefArn'].OutputValue" \
             --output text)
-          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-      - name: Fetch cluster ARN & subnets
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -977,9 +985,13 @@ jobs:
           SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
       - name: Run technicalsdaily Fargate task
         id: run
         run: |
@@ -988,8 +1000,8 @@ jobs:
             --launch-type FARGATE \
             --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
             --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],assignPublicIp=ENABLED}" \
-            --query 'tasks[0].taskArn' \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
+            --query 'tasks[0].taskArn'\
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
           echo "🟢 Started technicalsdaily task $TASK_ARN"
@@ -1043,8 +1055,7 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='LoadInfoTaskDefArn'].OutputValue" \
             --output text)
-          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-      - name: Fetch cluster ARN & subnets
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -1056,9 +1067,13 @@ jobs:
           SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
       - name: Run loadinfo Fargate task
         id: run
         run: |
@@ -1067,7 +1082,7 @@ jobs:
             --launch-type FARGATE \
             --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
             --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
@@ -1122,8 +1137,7 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='EarningsTaskDefArn'].OutputValue" \
             --output text)
-          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-      - name: Fetch cluster ARN & subnets
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -1135,9 +1149,13 @@ jobs:
           SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
       - name: Run earnings Fargate task
         id: run
         run: |
@@ -1146,7 +1164,7 @@ jobs:
             --launch-type FARGATE \
             --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
             --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
@@ -1201,8 +1219,7 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='TechnicalsWeeklyTaskDefArn'].OutputValue" \
             --output text)
-          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-      - name: Fetch cluster ARN & subnets
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -1214,9 +1231,13 @@ jobs:
           SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
       - name: Run technicalsweekly Fargate task
         id: run
         run: |
@@ -1225,7 +1246,7 @@ jobs:
             --launch-type FARGATE \
             --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
             --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
@@ -1280,8 +1301,7 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='TechnicalsMonthlyTaskDefArn'].OutputValue" \
             --output text)
-          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-      - name: Fetch cluster ARN & subnets
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -1293,9 +1313,13 @@ jobs:
           SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
       - name: Run technicalsmonthly Fargate task
         id: run
         run: |
@@ -1304,7 +1328,7 @@ jobs:
             --launch-type FARGATE \
             --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
             --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
@@ -1347,8 +1371,7 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='SwingTraderTaskDefArn'].OutputValue" \
             --output text)
-          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-      - name: Fetch cluster ARN & subnets
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -1360,9 +1383,13 @@ jobs:
           SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
       - name: Run swingtrader Fargate task
         id: run
         run: |
@@ -1371,7 +1398,7 @@ jobs:
             --launch-type FARGATE \
             --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
             --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
@@ -1428,9 +1455,7 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='BuySellTaskDefArn'].OutputValue" \
             --output text)
-          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-
-      - name: Fetch cluster ARN & subnets
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -1442,9 +1467,13 @@ jobs:
           SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
 
       - name: Run buysell Fargate task
         id: run
@@ -1454,7 +1483,7 @@ jobs:
             --launch-type FARGATE \
             --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
             --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
@@ -1513,9 +1542,7 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='LoadLatestPriceDailyTaskDefArn'].OutputValue" \
             --output text)
-          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-
-      - name: Fetch cluster ARN & subnets
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -1527,9 +1554,13 @@ jobs:
           SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
 
       - name: Run loadlatestpricedaily Fargate task
         id: run
@@ -1539,7 +1570,7 @@ jobs:
             --launch-type FARGATE \
             --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
             --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
@@ -1598,9 +1629,7 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='LoadLatestPriceWeeklyTaskDefArn'].OutputValue" \
             --output text)
-          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-
-      - name: Fetch cluster ARN & subnets
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -1612,9 +1641,13 @@ jobs:
           SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
 
       - name: Run loadlatestpriceweekly Fargate task
         id: run
@@ -1624,7 +1657,7 @@ jobs:
             --launch-type FARGATE \
             --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
             --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
@@ -1683,9 +1716,7 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='LoadLatestPriceMonthlyTaskDefArn'].OutputValue" \
             --output text)
-          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-
-      - name: Fetch cluster ARN & subnets
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -1697,9 +1728,13 @@ jobs:
           SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
 
       - name: Run loadlatestpricemonthly Fargate task
         id: run
@@ -1709,7 +1744,7 @@ jobs:
             --launch-type FARGATE \
             --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
             --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT

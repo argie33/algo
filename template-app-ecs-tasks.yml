@@ -216,8 +216,7 @@ Resources:
       RetentionInDays: 14
   ########################################
   # C) stock-symbols loader              #
-  ########################################
-  StockSymbolsTaskDefinition:
+  ########################################  StockSymbolsTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: stocksymbols-loader
@@ -237,6 +236,14 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -244,7 +251,6 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
-
   StockSymbolsLoaderService:
     Type: AWS::ECS::Service
     Properties:
@@ -258,12 +264,13 @@ Resources:
           Subnets:
             - !ImportValue StocksCore-PublicSubnet1Id
             - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
 
   ########################################
   # D) econ-data loader                  #
-  ########################################
-  EconDataTaskDefinition:
+  ########################################  EconDataTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: econdata-loader
@@ -285,6 +292,14 @@ Resources:
               Value: /ecs/econdata-loader
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
             - Name: FRED_API_KEY
               Value: !Ref FREDApiKey
           LogConfiguration:
@@ -294,7 +309,6 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
-
   EconDataLoaderService:
     Type: AWS::ECS::Service
     Properties:
@@ -308,6 +322,8 @@ Resources:
           Subnets:
             - !ImportValue StocksCore-PublicSubnet1Id
             - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
 
   ########################################
@@ -348,7 +364,6 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
-
   PriceMonthlyService:
     Type: AWS::ECS::Service
     Properties:
@@ -362,6 +377,8 @@ Resources:
           Subnets:
             - !ImportValue StocksCore-PublicSubnet1Id
             - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
           
   ########################################
@@ -421,7 +438,6 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
-
   FindataLoaderService:
     Type: AWS::ECS::Service
     Properties:
@@ -435,6 +451,8 @@ Resources:
           Subnets:
             - !ImportValue StocksCore-PublicSubnet1Id
             - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
 
   ########################################
@@ -475,7 +493,6 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
-
   PriceLoaderService:
     Type: AWS::ECS::Service
     Properties:
@@ -489,6 +506,8 @@ Resources:
           Subnets:
             - !ImportValue StocksCore-PublicSubnet1Id
             - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
 
   ########################################
@@ -529,7 +548,6 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
-
   PriceWeeklyLoaderService:
     Type: AWS::ECS::Service
     Properties:
@@ -543,6 +561,8 @@ Resources:
           Subnets:
             - !ImportValue StocksCore-PublicSubnet1Id
             - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
 
   ########################################
@@ -640,7 +660,6 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
-
   TechnicalsDailyLoaderService:
     Type: AWS::ECS::Service
     Properties:
@@ -654,6 +673,8 @@ Resources:
           Subnets:
             - !ImportValue StocksCore-PublicSubnet1Id
             - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
 
   ########################################
@@ -997,7 +1018,6 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
-
   BuySellLoaderService:
     Type: AWS::ECS::Service
     Properties:
@@ -1011,12 +1031,13 @@ Resources:
           Subnets:
             - !ImportValue StocksCore-PublicSubnet1Id
             - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
 
   ########################################
   # Q) loadlatestpricedaily loader        #
-  ########################################
-  LoadLatestPriceDailyTaskDefinition:
+  ########################################  LoadLatestPriceDailyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: loadlatestpricedaily-loader
@@ -1036,6 +1057,14 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1043,8 +1072,18 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
-
-  LoadLatestPriceDailyLoaderService:
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref LoadLatestPriceDailyImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/loadlatestpricedaily-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'  LoadLatestPriceDailyLoaderService:
     Type: AWS::ECS::Service
     Properties:
       ServiceName: loadlatestpricedaily-loader-service
@@ -1057,12 +1096,13 @@ Resources:
           Subnets:
             - !ImportValue StocksCore-PublicSubnet1Id
             - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
 
   ########################################
   # R) loadlatestpriceweekly loader       #
   ########################################
-
   LoadLatestPriceWeeklyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -1083,6 +1123,14 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1090,7 +1138,22 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
-
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: loadlatestpriceweekly-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref LoadLatestPriceWeeklyImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/loadlatestpriceweekly-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
   LoadLatestPriceWeeklyLoaderService:
     Type: AWS::ECS::Service
     Properties:
@@ -1098,12 +1161,13 @@ Resources:
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
       DesiredCount: 0
-      TaskDefinition: !Ref LoadLatestPriceWeeklyTaskDefinition
-      NetworkConfiguration:
+      TaskDefinition: !Ref LoadLatestPriceWeeklyTaskDefinition      NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets:
             - !ImportValue StocksCore-PublicSubnet1Id
             - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
 
   ########################################
@@ -1132,9 +1196,16 @@ Resources:
         - Name: loadlatestpricemonthly-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref LoadLatestPriceMonthlyImageTag]]
           Essential: true
-          Environment:
-            - Name: DB_SECRET_ARN
+          Environment:            - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1142,7 +1213,6 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
-
   LoadLatestPriceMonthlyLoaderService:
     Type: AWS::ECS::Service
     Properties:
@@ -1156,6 +1226,8 @@ Resources:
           Subnets:
             - !ImportValue StocksCore-PublicSubnet1Id
             - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
 
 Outputs:
