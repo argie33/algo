@@ -248,7 +248,7 @@ def main():
 
     log_mem("Before fetching symbols")
     with conn.cursor() as cur:
-        cur.execute("SELECT DISTINCT symbol FROM stock_symbols WHERE is_active = true;")
+        cur.execute("SELECT DISTINCT symbol FROM stock_symbols;")
         symbols = [r["symbol"] for r in cur.fetchall()]
     log_mem("After fetching symbols")
 
