@@ -116,8 +116,21 @@ def get_risk_free_rate_fred(api_key):
 ###############################################################################
 def fetch_symbol_from_db(symbol, timeframe):
     tf = timeframe.lower()
-    price_table = f"price_{tf}"
-    tech_table  = f"technical_data_{tf}"
+    # Table name mapping for consistency with loader scripts
+    price_table_map = {
+        "daily": "price_daily",
+        "weekly": "price_weekly",
+        "monthly": "price_monthly"
+    }
+    tech_table_map = {
+        "daily": "technical_data_daily",
+        "weekly": "technical_data_weekly",
+        "monthly": "technical_data_monthly"
+    }
+    if tf not in price_table_map or tf not in tech_table_map:
+        raise ValueError(f"Invalid timeframe: {timeframe}")
+    price_table = price_table_map[tf]
+    tech_table  = tech_table_map[tf]
     conn = get_db_connection()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
