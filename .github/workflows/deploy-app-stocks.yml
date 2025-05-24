@@ -458,11 +458,9 @@ jobs:
             --output text)
           aws ecs update-cluster-settings \
             --cluster "$CLUSTER" \
-            --settings name=containerInsights,value=enabled
-            
-  ##########################################################################
-  # 5) Run each changed loader                                             #
-  ##########################################################################
+            --settings name=containerInsights,value=enabled################################################################################
+# 5) Run each changed loader                                                    #
+################################################################################
   run_symbols:
     name: Run stock-symbols loader
     needs: deploy-tasks
@@ -472,12 +470,11 @@ jobs:
 
     steps:
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4        with:
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
           aws-region:      ${{ env.AWS_REGION }}
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - name: Fetch Task Definition ARN
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}      - name: Fetch Task Definition ARN
         id: td
         run: |
           ARN=$(aws cloudformation describe-stacks \
@@ -504,7 +501,9 @@ jobs:
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
-          echo "SG=$SG" >> $GITHUB_OUTPUT      - name: Run stock-symbols Fargate task
+          echo "SG=$SG" >> $GITHUB_OUTPUT
+
+      - name: Run stock-symbols Fargate task
         id: run
         run: |
           TASK_ARN=$(aws ecs run-task \
@@ -583,7 +582,9 @@ jobs:
             --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
-          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT      - name: Run econ-data Fargate task
+          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+
+      - name: Run econ-data Fargate task
         id: run
         run: |
           TASK_ARN=$(aws ecs run-task \
@@ -911,7 +912,9 @@ jobs:
             --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
-          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT      - name: Run pricemonthly Fargate task
+          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+
+      - name: Run pricemonthly Fargate task
         id: run
         run: |
           TASK_ARN=$(aws ecs run-task \
@@ -955,8 +958,7 @@ jobs:
   run_technicalsdaily:
     name: Run technicalsdaily loader
     needs: deploy-tasks
-    if: ${{ needs.filter.outputs.technicalsdaily == 'true' }}
-    runs-on: ubuntu-latest
+    if: ${{ needs.filter.outputs.technicalsdaily == 'true' }}    runs-on: ubuntu-latest
     timeout-minutes: 60   # allow this job up to 60m total
 
     steps:
@@ -974,7 +976,9 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='TechnicalsDailyTaskDefArn'].OutputValue" \
             --output text)
-          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT      - name: Fetch cluster ARN & subnets
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -1051,12 +1055,13 @@ jobs:
 
       - name: Fetch Task Definition ARN
         id: td
-        run: |
-          ARN=$(aws cloudformation describe-stacks \
+        run: |          ARN=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='LoadInfoTaskDefArn'].OutputValue" \
             --output text)
-          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT      - name: Fetch cluster ARN & subnets
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -1133,12 +1138,13 @@ jobs:
 
       - name: Fetch Task Definition ARN
         id: td
-        run: |
-          ARN=$(aws cloudformation describe-stacks \
+        run: |          ARN=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='EarningsTaskDefArn'].OutputValue" \
             --output text)
-          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT      - name: Fetch cluster ARN & subnets
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -1215,12 +1221,13 @@ jobs:
 
       - name: Fetch Task Definition ARN
         id: td
-        run: |
-          ARN=$(aws cloudformation describe-stacks \
+        run: |          ARN=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='TechnicalsWeeklyTaskDefArn'].OutputValue" \
             --output text)
-          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT      - name: Fetch cluster ARN & subnets
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -1297,12 +1304,13 @@ jobs:
 
       - name: Fetch Task Definition ARN
         id: td
-        run: |
-          ARN=$(aws cloudformation describe-stacks \
+        run: |          ARN=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='TechnicalsMonthlyTaskDefArn'].OutputValue" \
             --output text)
-          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT      - name: Fetch cluster ARN & subnets
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -1451,12 +1459,13 @@ jobs:
 
       - name: Fetch Task Definition ARN
         id: td
-        run: |
-          ARN=$(aws cloudformation describe-stacks \
+        run: |          ARN=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='BuySellTaskDefArn'].OutputValue" \
             --output text)
-          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT      - name: Fetch cluster ARN & subnets
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
