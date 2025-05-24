@@ -201,19 +201,18 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: stocksymbols-loader
-      Cpu: "512"
-      Memory: "1024"
+      Cpu: "256"
+      Memory: "512"
       NetworkMode: awsvpc
-      RequiresCompatibilities: [ FARGATE ]
+      RequiresCompatibilities: [FARGATE]
+      RuntimePlatform:
+        CpuArchitecture: ARM64  
+        OperatingSystemFamily: LINUX      
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: stocksymbols-loader
-          Image:
-            Fn::Join:
-              - ":"
-              - - !ImportValue StocksCore-ContainerRepositoryUri
-                - !Ref StockSymbolsImageTag
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref StockSymbolsImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -221,9 +220,10 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group:         /ecs/stocksymbols-loader
-              awslogs-region:        !Ref AWS::Region
+              awslogs-group: /ecs/stocksymbols-loader
+              awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
@@ -280,19 +280,18 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: econdata-loader
-      Cpu: "512"
-      Memory: "1024"
+      Cpu: "256"
+      Memory: "512"
       NetworkMode: awsvpc
-      RequiresCompatibilities: [ FARGATE ]
+      RequiresCompatibilities: [FARGATE]
+      RuntimePlatform:
+        CpuArchitecture: ARM64  
+        OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: econdata-loader
-          Image:
-            Fn::Join:
-              - ":"
-              - - !ImportValue StocksCore-ContainerRepositoryUri
-                - !Ref EconDataImageTag
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref EconDataImageTag]]
           Essential: true
           Environment:
             - Name: LOG_GROUP
@@ -304,10 +303,10 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group:         /ecs/econdata-loader
-              awslogs-region:        !Ref AWS::Region
+              awslogs-group: /ecs/econdata-loader
+              awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
-              awslogs-create-group:  'true'
+              awslogs-create-group: 'true'
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
@@ -368,19 +367,18 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: pricemonthly-loader
-      Cpu: "512"
-      Memory: "1024"
+      Cpu: "256"
+      Memory: "512"
       NetworkMode: awsvpc
-      RequiresCompatibilities: [ FARGATE ]
+      RequiresCompatibilities: [FARGATE]
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: pricemonthly-loader
-          Image:
-            Fn::Join:
-              - ":"
-              - - !ImportValue StocksCore-ContainerRepositoryUri
-                - !Ref PriceMonthlyImageTag
+          Image: !Join [ ":", [ !ImportValue StocksCore-ContainerRepositoryUri, !Ref PriceMonthlyImageTag ] ]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -396,10 +394,10 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group:         /ecs/pricemonthly-loader
-              awslogs-region:        !Ref AWS::Region
+              awslogs-group: /ecs/pricemonthly-loader
+              awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
-              awslogs-create-group:  'true'
+              awslogs-create-group: 'true'
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
@@ -464,40 +462,6 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: findata-loader
-      Cpu: "512"
-      Memory: "1024"
-      NetworkMode: awsvpc
-      RequiresCompatibilities: [ FARGATE ]
-      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
-      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
-      ContainerDefinitions:
-        - Name: findata-loader
-          Image:
-            Fn::Join:
-              - ":"
-              - - !ImportValue StocksCore-ContainerRepositoryUri
-                - !Ref FindataImageTag
-          Essential: true
-          Environment:
-            - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksApp-SecretArn
-            - Name: DB_HOST
-              Value: !ImportValue StocksApp-DBEndpoint
-            - Name: DB_PORT
-              Value: !ImportValue StocksApp-DBPort
-            - Name: DB_NAME
-              Value: !ImportValue StocksApp-DBName
-            - Name: DB_USER
-              Value: !ImportValue StocksApp-DBUsername
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group:         /ecs/findata-loader
-              awslogs-region:        !Ref AWS::Region
-              awslogs-stream-prefix: ecs
-              awslogs-create-group:  'true'
-    Properties:
-      Family: findata-loader
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
@@ -544,18 +508,6 @@ Resources:
             - !ImportValue StocksCore-PublicSubnet1Id
             - !ImportValue StocksCore-PublicSubnet2Id
           AssignPublicIp: ENABLED
-    Properties:
-      ServiceName: findata-loader-service
-      Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
-      DesiredCount: 0
-      TaskDefinition: !Ref FindataTaskDefinition
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          Subnets:
-            - !ImportValue StocksCore-PublicSubnet1Id
-            - !ImportValue StocksCore-PublicSubnet2Id
-          AssignPublicIp: ENABLED
 
   ########################################
   # G) pricedaily loader                 #
@@ -564,19 +516,18 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: pricedaily-loader
-      Cpu: "512"
-      Memory: "1024"
+      Cpu: "256"
+      Memory: "512"
       NetworkMode: awsvpc
-      RequiresCompatibilities: [ FARGATE ]
+      RequiresCompatibilities: [FARGATE]
+      RuntimePlatform:
+        CpuArchitecture: ARM64  
+        OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: pricedaily-loader
-          Image:
-            Fn::Join:
-              - ":"
-              - - !ImportValue StocksCore-ContainerRepositoryUri
-                - !Ref PriceImageTag
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref PriceImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -592,10 +543,10 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group:         /ecs/pricedaily-loader
-              awslogs-region:        !Ref AWS::Region
+              awslogs-group: /ecs/pricedaily-loader
+              awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
-              awslogs-create-group:  'true'
+              awslogs-create-group: 'true'
     Properties:
       Family: pricedaily-loader
       Cpu: "256"
@@ -664,19 +615,18 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: priceweekly-loader
-      Cpu: "512"
-      Memory: "1024"
+      Cpu: "256"
+      Memory: "512"
       NetworkMode: awsvpc
-      RequiresCompatibilities: [ FARGATE ]
+      RequiresCompatibilities: [FARGATE]
+      RuntimePlatform:
+        CpuArchitecture: ARM64  
+        OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: priceweekly-loader
-          Image:
-            Fn::Join:
-              - ":"
-              - - !ImportValue StocksCore-ContainerRepositoryUri
-                - !Ref PriceWeeklyImageTag
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref PriceWeeklyImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -692,10 +642,10 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group:         /ecs/priceweekly-loader
-              awslogs-region:        !Ref AWS::Region
+              awslogs-group: /ecs/priceweekly-loader
+              awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
-              awslogs-create-group:  'true'
+              awslogs-create-group: 'true'
     Properties:
       Family: priceweekly-loader
       Cpu: "256"
