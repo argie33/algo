@@ -480,12 +480,13 @@ jobs:
 
       - name: Fetch Task Definition ARN
         id: td
-        run: |
-          ARN=$(aws cloudformation describe-stacks \
+        run: |          ARN=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='StockSymbolsTaskDefArn'].OutputValue" \
             --output text)
-          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT      - name: Fetch cluster ARN & subnets
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \

@@ -580,7 +580,7 @@ Resources:
         CpuArchitecture: ARM64  
         OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
-      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: pricemonthly-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref PriceMonthlyImageTag]]
@@ -1230,7 +1230,102 @@ Resources:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
 
-Outputs:
+  ########################################
+  # Z) EventBridge Scheduler Role       #
+  ########################################
+  LoaderEventsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeRunTask
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ecs:RunTask
+                Resource: "*"
+              - Effect: Allow
+                Action: iam:PassRole
+                Resource:
+                  - !GetAtt ECSExecutionRole.Arn
+
+  ########################################
+  # Z) EventBridge Scheduler Rules      #
+  ########################################
+  LoadLatestPriceDailySchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: run-loadlatestpricedaily-weekdays-10am
+      ScheduleExpression: cron(0 10 ? * MON-FRI *)
+      State: ENABLED
+      Targets:
+        - Id: RunLoadLatestPriceDailyLoader
+          Arn: !ImportValue StocksApp-ClusterArn
+          RoleArn: !GetAtt LoaderEventsRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref LoadLatestPriceDailyTaskDefinition
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+
+  LoadLatestPriceWeeklySchedule:
+    Type: AWS::Events::Rule
+    Properties: 
+      Name: run-loadlatestpriceweekly-weekdays-10am
+      ScheduleExpression: cron(0 10 ? * MON-FRI *)
+      State: ENABLED
+      Targets:
+        - Id: RunLoadLatestPriceWeeklyLoader
+          Arn: !ImportValue StocksApp-ClusterArn
+          RoleArn: !GetAtt LoaderEventsRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref LoadLatestPriceWeeklyTaskDefinition
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+
+  LoadLatestPriceMonthlySchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: run-loadlatestpricemonthly-weekdays-10am
+      ScheduleExpression: cron(0 10 ? * MON-FRI *)
+      State: ENABLED
+      Targets:
+        - Id: RunLoadLatestPriceMonthlyLoader
+          Arn: !ImportValue StocksApp-ClusterArn
+          RoleArn: !GetAtt LoaderEventsRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref LoadLatestPriceMonthlyTaskDefinition
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+
+  Outputs:
   StockSymbolsTaskDefArn:
     Value: !Ref StockSymbolsTaskDefinition
   StockSymbolsServiceName:
@@ -1286,12 +1381,10 @@ Outputs:
   TechnicalsMonthlyServiceName:
     Value: !GetAtt TechnicalsMonthlyLoaderService.Name
 
-
   BuySellTaskDefArn:
     Value: !Ref BuySellTaskDefinition
   BuySellServiceName:
     Value: !GetAtt BuySellLoaderService.Name
-
 
   SwingTraderTaskDefArn:
     Value: !Ref SwingTraderTaskDefinition
@@ -1312,3 +1405,21 @@ Outputs:
     Value: !Ref LoadLatestPriceMonthlyTaskDefinition
   LoadLatestPriceMonthlyServiceName:
     Value: !GetAtt LoadLatestPriceMonthlyLoaderService.Name
+
+  LoadLatestPriceDailyScheduleArn:
+    Value: !GetAtt LoadLatestPriceDailySchedule.Arn
+  LoadLatestPriceDailyScheduleName:
+    Value: !Ref LoadLatestPriceDailySchedule
+
+  LoadLatestPriceWeeklyScheduleArn:
+    Value: !GetAtt LoadLatestPriceWeeklySchedule.Arn
+  LoadLatestPriceWeeklyScheduleName:
+    Value: !Ref LoadLatestPriceWeeklySchedule
+
+  LoadLatestPriceMonthlyScheduleArn:
+    Value: !GetAtt LoadLatestPriceMonthlySchedule.Arn
+  LoadLatestPriceMonthlyScheduleName:
+    Value: !Ref LoadLatestPriceMonthlySchedule
+
+  LoaderEventsRoleArn:
+    Value: !GetAtt LoaderEventsRole.Arn
