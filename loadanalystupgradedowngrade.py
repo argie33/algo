@@ -115,7 +115,8 @@ def load_analyst_actions(symbols, cur, conn):
         time.sleep(0.05)
     return total, inserted, failed
 
-if __name__ == "__main__":
+
+def lambda_handler(event, context):
     log_mem("startup")
     cfg  = get_db_config()
     conn = psycopg2.connect(
@@ -148,3 +149,9 @@ if __name__ == "__main__":
     cur.close()
     conn.close()
     logging.info("All done.")
+    return {
+        "total": t,
+        "inserted": i,
+        "failed": f,
+        "peak_rss_mb": peak
+    }
