@@ -13,7 +13,7 @@ from datetime import datetime
 import logging
 
 # -------------------------------
-# Script metadata & logging setup
+# Script metadata & logging setup 
 # -------------------------------
 SCRIPT_NAME = "loadbuysell.py"
 logging.basicConfig(
