@@ -167,29 +167,15 @@ def process_symbol(symbol, conn):
         logger.warning(f"earnings_dates failed for {symbol}: {e}")
     conn.commit()
 
+
     # --- earnings_estimate ---
-    try:
-        est = ticker.earnings_forecast
-        if est:
-            for period in ["0q", "+1q", "0y", "+1y"]:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "INSERT INTO earnings_eps (symbol, period, actual, estimate) VALUES (%s, %s, %s, %s)",
-                        (
-                            symbol,
-                            period,
-                            clean_value(est.get("avg", {}).get(period)),
-                            clean_value(est.get("high", {}).get(period))
-                        )
-                    )
-    except Exception as e:
-        logger.warning(f"earnings_estimate failed for {symbol}: {e}")
-    conn.commit()
+    # yfinance no longer provides 'earnings_forecast' attribute; skip or update if new API is available
+    pass
 
     # --- earnings_history ---
     try:
         hist = ticker.earnings_history
-        if hist:
+        if hist is not None and isinstance(hist, dict) and "epsActual" in hist and "epsEstimate" in hist:
             for k in hist.get("epsActual", {}):
                 with conn.cursor() as cur:
                     cur.execute(
@@ -208,18 +194,33 @@ def process_symbol(symbol, conn):
     # --- eps_revisions ---
     try:
         rev = ticker.eps_revisions
-        if rev:
-            for period in ["0q", "+1q", "0y", "+1y"]:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "INSERT INTO earnings_eps (symbol, period, actual, estimate) VALUES (%s, %s, %s, %s)",
-                        (
-                            symbol,
-                            period,
-                            clean_value(rev.get("upLast7days", {}).get(period)),
-                            clean_value(rev.get("downLast7Days", {}).get(period))
+        # yfinance returns a DataFrame for eps_revisions; check for DataFrame and handle accordingly
+        if rev is not None:
+            if isinstance(rev, pd.DataFrame):
+                if not rev.empty:
+                    for period in rev.columns:
+                        with conn.cursor() as cur:
+                            cur.execute(
+                                "INSERT INTO earnings_eps (symbol, period, actual, estimate) VALUES (%s, %s, %s, %s)",
+                                (
+                                    symbol,
+                                    period,
+                                    clean_value(rev.at["upLast7days", period] if "upLast7days" in rev.index else None),
+                                    clean_value(rev.at["downLast7Days", period] if "downLast7Days" in rev.index else None)
+                                )
+                            )
+            elif isinstance(rev, dict):
+                for period in ["0q", "+1q", "0y", "+1y"]:
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            "INSERT INTO earnings_eps (symbol, period, actual, estimate) VALUES (%s, %s, %s, %s)",
+                            (
+                                symbol,
+                                period,
+                                clean_value(rev.get("upLast7days", {}).get(period)),
+                                clean_value(rev.get("downLast7Days", {}).get(period))
+                            )
                         )
-                    )
     except Exception as e:
         logger.warning(f"eps_revisions failed for {symbol}: {e}")
     conn.commit()

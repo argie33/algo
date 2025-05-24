@@ -905,11 +905,17 @@ def main():
         )
         conn.set_session(autocommit=False)
 
-
         # Always drop and create tables before inserting data
         logger.info("Dropping and creating all financial tables before data load...")
-        ensure_tables(conn)
-        logger.info("Table creation complete.")
+        try:
+            ensure_tables(conn)
+            logger.info("Table creation complete.")
+        except Exception as e:
+            logger.exception("Error creating tables. Exiting.")
+            if conn:
+                conn.rollback()
+                conn.close()
+            sys.exit(1)
 
         log_mem("Before fetching symbols")
         with conn.cursor() as cur:
@@ -956,6 +962,11 @@ def main():
         log_mem("End of main loop")
     except Exception:
         logger.exception("Fatal error in main()")
+        if conn:
+            try:
+                conn.rollback()
+            except Exception:
+                logger.exception("Error during conn.rollback() after fatal error")
         raise
     finally:
         if conn:
