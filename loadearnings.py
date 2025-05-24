@@ -91,8 +91,8 @@ def ensure_tables(conn):
         cur.execute("""
             CREATE TABLE earnings_eps (
                 id          SERIAL PRIMARY KEY,
-                symbol      VARCHAR(10) NOT NULL,
-                period      VARCHAR(20) NOT NULL,
+                symbol      VARCHAR(64) NOT NULL,
+                period      VARCHAR(64) NOT NULL,
                 actual      DOUBLE PRECISION,
                 estimate    DOUBLE PRECISION,
                 fetched_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -103,8 +103,8 @@ def ensure_tables(conn):
         cur.execute("""
             CREATE TABLE earnings_financial_annual (
                 id          SERIAL PRIMARY KEY,
-                symbol      VARCHAR(10) NOT NULL,
-                period      VARCHAR(20) NOT NULL,
+                symbol      VARCHAR(64) NOT NULL,
+                period      VARCHAR(64) NOT NULL,
                 revenue     BIGINT,
                 revenue_estimate BIGINT,
                 earnings    BIGINT,
@@ -116,8 +116,8 @@ def ensure_tables(conn):
         cur.execute("""
             CREATE TABLE earnings_financial_quarterly (
                 id          SERIAL PRIMARY KEY,
-                symbol      VARCHAR(10) NOT NULL,
-                period      VARCHAR(20) NOT NULL,
+                symbol      VARCHAR(64) NOT NULL,
+                period      VARCHAR(64) NOT NULL,
                 revenue     BIGINT,
                 revenue_estimate BIGINT,
                 earnings    BIGINT,
