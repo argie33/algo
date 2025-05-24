@@ -456,6 +456,20 @@ def ensure_tables(conn):
         """)
     conn.commit()
 
+def check_tables_exist(conn, required_tables):
+    """Check that all required tables exist in the current database/schema."""
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'public';
+        """)
+        existing = {row[0] for row in cur.fetchall()}
+    missing = [t for t in required_tables if t not in existing]
+    if missing:
+        logger.error(f"Missing required tables after creation: {missing}")
+        return False
+    return True
+
 @retry(max_attempts=3, initial_delay=2, backoff=2)
 def process_symbol(symbol, conn):
     """Process a single symbol's financial data"""
@@ -882,8 +896,23 @@ def update_last_run(conn):
     conn.commit()
 
 def main():
+    """
+    Main workflow for loading financial data:
+    1. Drop and create all required tables
+    2. Check all required tables exist
+    3. Fetch all symbols
+    4. For each symbol, fetch and insert data
+    """
     conn = None
     import gc
+    # List of all tables that must exist for the workflow
+    required_tables = [
+        'balance_sheet_annual', 'balance_sheet_quarterly', 'balance_sheet_ttm',
+        'income_statement_annual', 'income_statement_quarterly', 'income_statement_ttm',
+        'cash_flow_annual', 'cash_flow_quarterly', 'cash_flow_ttm',
+        'financials', 'financials_quarterly', 'financials_ttm', 'last_updated'
+    ]
+
     logger.info("==============================")
     logger.info("Starting loadfinancialdata.py")
     logger.info(f"Process PID: {os.getpid()}")
@@ -891,7 +920,9 @@ def main():
     logger.info(f"Memory usage at start: {get_rss_mb():.1f} MB RSS")
     logger.info(f"DB_SECRET_ARN: {DB_SECRET_ARN}")
     logger.info("==============================")
+
     try:
+        # --- Step 1: Connect to DB ---
         user, pwd, host, port, dbname = get_db_config()
         logger.info(f"Connecting to DB at {host}:{port} db={dbname} user={user}")
         conn = psycopg2.connect(
@@ -905,7 +936,7 @@ def main():
         )
         conn.set_session(autocommit=False)
 
-        # Always drop and create tables before inserting data
+        # --- Step 2: Drop and create all tables ---
         logger.info("Dropping and creating all financial tables before data load...")
         try:
             ensure_tables(conn)
@@ -917,6 +948,15 @@ def main():
                 conn.close()
             sys.exit(1)
 
+        # --- Step 3: Check all required tables exist ---
+        if not check_tables_exist(conn, required_tables):
+            logger.error("Table creation failed or tables missing. Exiting.")
+            if conn:
+                conn.rollback()
+                conn.close()
+            sys.exit(1)
+
+        # --- Step 4: Fetch all symbols ---
         log_mem("Before fetching symbols")
         with conn.cursor() as cur:
             cur.execute("""
@@ -927,6 +967,7 @@ def main():
             symbols = [r["symbol"] for r in cur.fetchall()]
         log_mem("After fetching symbols")
 
+        # --- Step 5: For each symbol, fetch and insert data ---
         total_symbols = len(symbols)
         processed = 0
         failed = 0
@@ -960,6 +1001,7 @@ def main():
         elapsed = time.time() - start_time
         logger.info(f"Completed processing {processed}/{total_symbols} symbols with {failed} failures in {elapsed:.1f} seconds")
         log_mem("End of main loop")
+
     except Exception:
         logger.exception("Fatal error in main()")
         if conn:

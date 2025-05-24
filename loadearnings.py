@@ -77,10 +77,14 @@ def retry(max_attempts=3, initial_delay=2, backoff=2):
 
 def clean_value(value):
     """Convert NaN or pandas NAs to None."""
+    # Convert numpy scalars to native Python types
+    import numpy as np
     if isinstance(value, float) and math.isnan(value):
         return None
     if pd.isna(value):
         return None
+    if isinstance(value, (np.generic,)):
+        return value.item()
     return value
 
 def ensure_tables(conn):
