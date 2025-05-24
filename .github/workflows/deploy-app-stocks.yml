@@ -472,11 +472,12 @@ jobs:
 
     steps:
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
+        uses: aws-actions/configure-aws-credentials@v4        with:
           aws-region:      ${{ env.AWS_REGION }}
           role-to-assume:  ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}      - name: Fetch Task Definition ARN
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Fetch Task Definition ARN
         id: td
         run: |
           ARN=$(aws cloudformation describe-stacks \
