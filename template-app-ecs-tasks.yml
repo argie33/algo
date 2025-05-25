@@ -1097,3 +1097,100 @@ Resources:
           SecurityGroups:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
+
+Outputs:
+  StockSymbolsTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for stock-symbols loader
+    Value: !Ref StockSymbolsTaskDefinition
+    Export:
+      Name: StockSymbolsTaskDefArn
+
+  EconDataTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for econ-data loader
+    Value: !Ref EconDataTaskDefinition
+    Export:
+      Name: EconDataTaskDefArn
+
+  FindataTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for findata loader
+    Value: !Ref FindataTaskDefinition
+    Export:
+      Name: FindataTaskDefArn
+
+  PriceTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for pricedaily loader
+    Value: !Ref PriceTaskDefinition
+    Export:
+      Name: PriceTaskDefArn
+
+  PriceWeeklyTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for priceweekly loader
+    Value: !Ref PriceWeeklyTaskDefinition
+    Export:
+      Name: PriceWeeklyTaskDefArn
+
+  PriceMonthlyTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for pricemonthly loader
+    Value: !Ref PriceMonthlyTaskDefinition
+    Export:
+      Name: PriceMonthlyTaskDefArn
+
+  TechnicalsDailyTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for technicals-daily loader
+    Value: !Ref TechnicalsDailyTaskDefinition
+    Export:
+      Name: TechnicalsDailyTaskDefArn
+
+  LoadInfoTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for load-info loader
+    Value: !Ref LoadInfoTaskDefinition
+    Export:
+      Name: LoadInfoTaskDefArn
+
+  EarningsTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for earnings loader
+    Value: !Ref EarningsTaskDefinition
+    Export:
+      Name: EarningsTaskDefArn
+
+  TechnicalsWeeklyTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for technicals-weekly loader
+    Value: !Ref TechnicalsWeeklyTaskDefinition
+    Export:
+      Name: TechnicalsWeeklyTaskDefArn
+
+  TechnicalsMonthlyTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for technicals-monthly loader
+    Value: !Ref TechnicalsMonthlyTaskDefinition
+    Export:
+      Name: TechnicalsMonthlyTaskDefArn
+
+  SwingTraderTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for swing-trader loader
+    Value: !Ref SwingTraderTaskDefinition
+    Export:
+      Name: SwingTraderTaskDefArn
+
+  BuySellTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for buysell loader
+    Value: !Ref BuySellTaskDefinition
+    Export:
+      Name: BuySellTaskDefArn
+
+  LoadLatestPriceDailyTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for load-latest-price-daily loader
+    Value: !Ref LoadLatestPriceDailyTaskDefinition
+    Export:
+      Name: LoadLatestPriceDailyTaskDefArn
+
+  LoadLatestPriceWeeklyTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for load-latest-price-weekly loader
+    Value: !Ref LoadLatestPriceWeeklyTaskDefinition
+    Export:
+      Name: LoadLatestPriceWeeklyTaskDefArn
+
+  LoadLatestPriceMonthlyTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for load-latest-price-monthly loader
+    Value: !Ref LoadLatestPriceMonthlyTaskDefinition
+    Export:
+      Name: LoadLatestPriceMonthlyTaskDefArn
