@@ -1,16 +1,13 @@
-# Use a small Python base image
-FROM python:3.10-slim
+# Dockerfile.loadearnings
+FROM python:3.9-slim
 
-# Set our working directory
 WORKDIR /app
 
-# Copy and install Python dependencies
-COPY requirements-loadearnings.txt .
-RUN pip install --no-cache-dir -r requirements-loadearnings.txt
+COPY Dockerfile.loadearnings requirements.txt loadearnings.py ./
 
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the loader script to the image
-COPY loadearnings.py ./
+# Run as non-root
+USER 1000
 
-# Default command
-CMD ["python", "-u", "loadearnings.py"]
+ENTRYPOINT ["python", "loadearnings.py"]

@@ -38,7 +38,7 @@ def get_db_config():
 nyse = ecals.get_calendar("XNYS")
 
 # Use naive dates (no tz) to satisfy sessions_in_range
-start = datetime.date(1900, 1, 1)
+start = datetime.date(2005, 5, 25)
 # derive today in calendar's timezone, then strip tz to get a date
 end = pd.Timestamp.now(tz=nyse.tz).date()
 

@@ -1,208 +1,226 @@
 #!/usr/bin/env python3
 import os
+import sys
 import time
-import math
 import json
+import math
+import gc
 import logging
 import functools
 import resource
 
 import boto3
-import pandas as pd
-import yfinance as yf
 import psycopg2
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import DictCursor
+import yfinance as yf
+import pandas as pd
 
-# ─── LOGGING ────────────────────────────────────────────────────────────────
+SCRIPT_NAME = "loadearnings.py"
+
+# ─── Logging ────────────────────────────────────────────────────────────────
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+    level=os.environ.get("LOG_LEVEL", "INFO"),
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+    force=True
 )
 logger = logging.getLogger(__name__)
 
-# ─── MEMORY INSTRUMENTATION ─────────────────────────────────────────────────
+# ─── SecretsManager DB config ────────────────────────────────────────────────
+DB_SECRET_ARN = os.getenv("DB_SECRET_ARN")
+if not DB_SECRET_ARN:
+    logger.error("DB_SECRET_ARN environment variable is not set")
+    sys.exit(1)
+
+def get_db_config():
+    client = boto3.client("secretsmanager")
+    resp = client.get_secret_value(SecretId=DB_SECRET_ARN)
+    sec = json.loads(resp["SecretString"])
+    return (
+        sec["username"],
+        sec["password"],
+        sec["host"],
+        int(sec.get("port", 5432)),
+        sec["dbname"]
+    )
+
+# ─── Memory logging ─────────────────────────────────────────────────────────
+def get_rss_mb():
+    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return (usage/1024) if sys.platform.startswith("linux") else (usage/(1024*1024))
+
 def log_mem(stage: str):
-    """Log current RSS memory usage in MB."""
-    usage_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    mem_mb = usage_kb / 1024
-    logger.info(f"[MEM] {stage}: {mem_mb:.1f} MB")
+    logger.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
-# ─── BUILD DB_PARAMS (may come from AWS Secrets) ─────────────────────────────
-# First pick up any individually injected env-vars
-DB_PARAMS = {
-    "host":     os.getenv("DB_HOST"),
-    "port":     int(os.getenv("DB_PORT", 5432)),
-    "dbname":   os.getenv("DB_NAME"),
-    "user":     os.getenv("DB_USER"),
-    "password": os.getenv("DB_PASSWORD"),  # likely None
-    "cursor_factory": RealDictCursor
-}
+# ─── Clean NaN/None ─────────────────────────────────────────────────────────
+def clean_value(v):
+    if isinstance(v, float) and math.isnan(v):
+        return None
+    if pd.isna(v):
+        return None
+    return v
 
-# If they only passed a secret ARN, unwrap it into host/port/dbname/user/password
-if os.getenv("DB_SECRET_ARN") and not DB_PARAMS["password"]:
-    sm = boto3.client("secretsmanager")
-    secret_value = sm.get_secret_value(SecretId=os.getenv("DB_SECRET_ARN"))
-    creds = json.loads(secret_value["SecretString"])
-    DB_PARAMS.update({
-        "host":     creds["host"],
-        "port":     int(creds.get("port", 5432)),
-        "dbname":   creds["dbname"],
-        "user":     creds["username"],
-        "password": creds["password"],
-    })
-
-# ─── RETRY DECORATOR ─────────────────────────────────────────────────────────
+# ─── Retry decorator ─────────────────────────────────────────────────────────
 def retry(max_attempts=3, initial_delay=2, backoff=2):
     def deco(fn):
         @functools.wraps(fn)
-        def wrapper(symbol, *args, **kw):
+        def wrapper(symbol, *args, **kwargs):
             attempts, delay = 0, initial_delay
             while attempts < max_attempts:
+                attempts += 1
                 try:
-                    return fn(symbol, *args, **kw)
+                    return fn(symbol, *args, **kwargs)
                 except Exception as e:
-                    attempts += 1
-                    logger.error(f"{fn.__name__} [{symbol}] failed (#{attempts}): {e}", exc_info=True)
+                    logger.error(f"{fn.__name__}({symbol}) attempt {attempts}: {e}", exc_info=True)
                     time.sleep(delay)
                     delay *= backoff
-            raise RuntimeError(f"All {max_attempts} attempts failed for {fn.__name__} [{symbol}]")
+            raise RuntimeError(f"All {max_attempts} attempts failed for {symbol}")
         return wrapper
     return deco
 
-# ─── TABLE CREATION ─────────────────────────────────────────────────────────
+# ─── Create tables (FIXED) ─────────────────────────────────────────────────────
 def create_tables():
     log_mem("before table DDL")
-    ddls = [
-        # EPS
-        """
-        CREATE TABLE IF NOT EXISTS earnings_eps (
-          id          SERIAL PRIMARY KEY,
-          symbol      VARCHAR(10) NOT NULL,
-          period      VARCHAR(20) NOT NULL,
-          actual      DOUBLE PRECISION,
-          estimate    DOUBLE PRECISION,
-          fetched_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        );
-        CREATE INDEX IF NOT EXISTS idx_eps_symbol ON earnings_eps(symbol);
-        """,
-        # Annual financials
-        """
-        CREATE TABLE IF NOT EXISTS earnings_financial_annual (
-          id          SERIAL PRIMARY KEY,
-          symbol      VARCHAR(10) NOT NULL,
-          period      VARCHAR(20) NOT NULL,
-          revenue     BIGINT,
-          earnings    BIGINT,
-          fetched_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        );
-        CREATE INDEX IF NOT EXISTS idx_ann_symbol ON earnings_financial_annual(symbol);
-        """,
-        # Quarterly financials
-        """
-        CREATE TABLE IF NOT EXISTS earnings_financial_quarterly (
-          id          SERIAL PRIMARY KEY,
-          symbol      VARCHAR(10) NOT NULL,
-          period      VARCHAR(20) NOT NULL,
-          revenue     BIGINT,
-          earnings    BIGINT,
-          fetched_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        );
-        CREATE INDEX IF NOT EXISTS idx_qtr_symbol ON earnings_financial_quarterly(symbol);
-        """
-    ]
-    conn = psycopg2.connect(**DB_PARAMS)
+    # ← fetch real credentials here
+    user, pwd, host, port, dbname = get_db_config()
+    conn = psycopg2.connect(
+        host=host, port=port,
+        user=user, password=pwd,
+        dbname=dbname, sslmode="require",
+        cursor_factory=DictCursor
+    )
     cur = conn.cursor()
-    for ddl in ddls:
-        cur.execute(ddl)
+    # drop & recreate your three tables
+    cur.execute("DROP TABLE IF EXISTS earnings_eps;")
+    cur.execute("""
+        CREATE TABLE earnings_eps (
+            id SERIAL PRIMARY KEY,
+            symbol VARCHAR(10),
+            period VARCHAR(20),
+            actual DOUBLE PRECISION,
+            estimate DOUBLE PRECISION,
+            fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+    """)
+    cur.execute("CREATE INDEX ON earnings_eps(symbol);")
+
+    cur.execute("DROP TABLE IF EXISTS earnings_financial_annual;")
+    cur.execute("""
+        CREATE TABLE earnings_financial_annual (
+            id SERIAL PRIMARY KEY,
+            symbol VARCHAR(10),
+            period VARCHAR(20),
+            revenue BIGINT,
+            earnings BIGINT,
+            fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+    """)
+    cur.execute("CREATE INDEX ON earnings_financial_annual(symbol);")
+
+    cur.execute("DROP TABLE IF EXISTS earnings_financial_quarterly;")
+    cur.execute("""
+        CREATE TABLE earnings_financial_quarterly (
+            id SERIAL PRIMARY KEY,
+            symbol VARCHAR(10),
+            period VARCHAR(20),
+            revenue BIGINT,
+            earnings BIGINT,
+            fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+    """)
+    cur.execute("CREATE INDEX ON earnings_financial_quarterly(symbol);")
+
     conn.commit()
     cur.close()
     conn.close()
     log_mem("after table DDL")
     logger.info("Tables created or already exist.")
 
-# ─── HELPERS & UPSERT ────────────────────────────────────────────────────────
-def clean_value(v):
-    if v is None or (isinstance(v, float) and math.isnan(v)):
-        return None
-    return v
-
-def upsert(sql: str, params: tuple):
-    conn = psycopg2.connect(**DB_PARAMS)
+# ─── Insert helpers ───────────────────────────────────────────────────────────
+def upsert(conn, sql, params):
     cur = conn.cursor()
     cur.execute(sql, params)
     conn.commit()
     cur.close()
-    conn.close()
 
-# ─── INSERT FUNCTIONS ────────────────────────────────────────────────────────
-def insert_eps(symbol, period, actual, estimate):
-    upsert(
-        "INSERT INTO earnings_eps(symbol, period, actual, estimate) VALUES (%s, %s, %s, %s);",
+def insert_eps(conn, symbol, period, actual, estimate):
+    upsert(conn,
+        "INSERT INTO earnings_eps(symbol,period,actual,estimate) VALUES (%s,%s,%s,%s);",
         (symbol, period, actual, estimate)
     )
 
-def insert_fin_ann(symbol, period, revenue, earnings):
-    upsert(
-        "INSERT INTO earnings_financial_annual(symbol, period, revenue, earnings) VALUES (%s, %s, %s, %s);",
+def insert_fin_ann(conn, symbol, period, revenue, earnings):
+    upsert(conn,
+        "INSERT INTO earnings_financial_annual(symbol,period,revenue,earnings) VALUES (%s,%s,%s,%s);",
         (symbol, period, revenue, earnings)
     )
 
-def insert_fin_qtr(symbol, period, revenue, earnings):
-    upsert(
-        "INSERT INTO earnings_financial_quarterly(symbol, period, revenue, earnings) VALUES (%s, %s, %s, %s);",
+def insert_fin_qtr(conn, symbol, period, revenue, earnings):
+    upsert(conn,
+        "INSERT INTO earnings_financial_quarterly(symbol,period,revenue,earnings) VALUES (%s,%s,%s,%s);",
         (symbol, period, revenue, earnings)
     )
 
-# ─── PROCESS ONE SYMBOL ──────────────────────────────────────────────────────
-@retry(max_attempts=3)
+# ─── Process one symbol ───────────────────────────────────────────────────────
+@retry()
 def process_symbol(symbol):
-    log_mem(f"{symbol} ▶ start")
+    log_mem(f"{symbol} start")
     start = time.time()
     logger.info(f"Fetching earnings for {symbol}")
-    ticker = yf.Ticker(symbol)
+    yf_sym = symbol.upper().replace(".", "-")
+    ticker = yf.Ticker(yf_sym)
 
-    # Annual earnings DataFrame
+    # open a new connection for each symbol
+    user, pwd, host, port, dbname = get_db_config()
+    conn = psycopg2.connect(
+        host=host, port=port,
+        user=user, password=pwd,
+        dbname=dbname, sslmode="require",
+        cursor_factory=DictCursor
+    )
+
+    # annual
     ann = ticker.earnings
-    if ann is None or ann.empty:
-        raise ValueError("No annual earnings data")
     for year, row in ann.iterrows():
-        insert_fin_ann(symbol, str(year),
-                       clean_value(row.get("Revenue")),
-                       clean_value(row.get("Earnings")))
+        insert_fin_ann(conn, symbol, str(year),
+                       clean_value(row["Revenue"]),
+                       clean_value(row["Earnings"]))
 
-    # Quarterly earnings DataFrame
+    # quarterly
     qtr = ticker.quarterly_earnings
-    if qtr is not None and not qtr.empty:
-        for idx, row in qtr.iterrows():
-            insert_fin_qtr(symbol, str(idx.date()),
-                           clean_value(row.get("Revenue")),
-                           clean_value(row.get("Earnings")))
-    else:
-        logger.warning(f"No quarterly earnings for {symbol}")
-
-    # EPS — record actual net earnings; estimates are not available via yfinance
-    for year, row in ann.iterrows():
-        insert_eps(symbol, str(year),
-                   clean_value(row.get("Earnings")), None)
     if qtr is not None:
         for idx, row in qtr.iterrows():
-            insert_eps(symbol, str(idx.date()),
-                       clean_value(row.get("Earnings")), None)
+            insert_fin_qtr(conn, symbol, str(idx.date()),
+                           clean_value(row["Revenue"]),
+                           clean_value(row["Earnings"]))
 
+    # EPS (just reuse earnings field)
+    for year, row in ann.iterrows():
+        insert_eps(conn, symbol, str(year), clean_value(row["Earnings"]), None)
+    if qtr is not None:
+        for idx, row in qtr.iterrows():
+            insert_eps(conn, symbol, str(idx.date()), clean_value(row["Earnings"]), None)
+
+    conn.close()
     elapsed = time.time() - start
     logger.info(f"{symbol} done in {elapsed:.1f}s")
-    log_mem(f"{symbol} ◀ end")
+    log_mem(f"{symbol} end")
 
-# ─── MAIN ────────────────────────────────────────────────────────────────────
+# ─── Main ────────────────────────────────────────────────────────────────────
 def main():
     log_mem("startup")
     create_tables()
 
-    # Load symbol list
-    conn = psycopg2.connect(**DB_PARAMS)
+    user, pwd, host, port, dbname = get_db_config()
+    conn = psycopg2.connect(
+        host=host, port=port,
+        user=user, password=pwd,
+        dbname=dbname, sslmode="require",
+        cursor_factory=DictCursor
+    )
     cur = conn.cursor()
     cur.execute("SELECT DISTINCT symbol FROM stock_symbols;")
-    symbols = [r["symbol"] for r in cur.fetchall()]
+    symbols = [r[0] for r in cur.fetchall()]
     cur.close()
     conn.close()
 
@@ -211,10 +229,10 @@ def main():
             process_symbol(sym)
         except Exception:
             logger.exception(f"Failed processing {sym}")
+        gc.collect()
         time.sleep(0.2)
 
-    log_mem("all symbols complete")
-    logger.info("All done.")
+    log_mem("complete")
 
 if __name__ == "__main__":
     main()
