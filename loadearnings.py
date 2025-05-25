@@ -1,325 +1,200 @@
 #!/usr/bin/env python3
-import sys
+import os
 import time
+import math
 import logging
 import functools
-import os
-import json
 import resource
 
-import boto3
-import psycopg2
-from psycopg2.extras import DictCursor
-import yfinance as yf
 import pandas as pd
-import math
+import yfinance as yf
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
-SCRIPT_NAME = "loadearnings.py"
-
+# ─── LOGGING ────────────────────────────────────────────────────────────────
 logging.basicConfig(
-    level=os.environ.get("LOG_LEVEL", "WARNING"),
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
-    force=True
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s"
 )
 logger = logging.getLogger(__name__)
 
-DB_SECRET_ARN = os.getenv("DB_SECRET_ARN")
-if not DB_SECRET_ARN:
-    logger.error("DB_SECRET_ARN environment variable is not set")
-    sys.exit(1)
+# ─── MEMORY INSTRUMENTATION ─────────────────────────────────────────────────
+def log_mem(stage: str):
+    """Log current RSS memory usage in MB."""
+    usage_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    mem_mb = usage_kb / 1024
+    logger.info(f"[MEM] {stage}: {mem_mb:.1f} MB")
 
-def get_db_config():
-    """Fetch DB credentials from AWS Secrets Manager."""
-    sm = boto3.client("secretsmanager")
-    resp = sm.get_secret_value(SecretId=DB_SECRET_ARN)
-    sec = json.loads(resp["SecretString"])
-    return sec["username"], sec["password"], sec["host"], int(sec["port"]), sec["dbname"]
+# ─── DB CONFIG FROM ENV ─────────────────────────────────────────────────────
+DB_PARAMS = {
+    "host":     os.getenv("DB_HOST"),
+    "port":     int(os.getenv("DB_PORT", 5432)),
+    "dbname":   os.getenv("DB_NAME"),
+    "user":     os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
+    "cursor_factory": RealDictCursor
+}
 
+# ─── RETRY DECORATOR ─────────────────────────────────────────────────────────
 def retry(max_attempts=3, initial_delay=2, backoff=2):
-    """Retry decorator with exponential backoff."""
-    def decorator(fn):
+    def deco(fn):
         @functools.wraps(fn)
-        def wrapper(symbol, conn, *args, **kwargs):
+        def wrapper(symbol, *args, **kw):
             attempts, delay = 0, initial_delay
             while attempts < max_attempts:
                 try:
-                    return fn(symbol, conn, *args, **kwargs)
+                    return fn(symbol, *args, **kw)
                 except Exception as e:
                     attempts += 1
-                    logger.error(
-                        f"{fn.__name__} failed for {symbol} "
-                        f"(attempt {attempts}/{max_attempts}): {e}",
-                        exc_info=True
-                    )
+                    logger.error(f"{fn.__name__} [{symbol}] failed (#{attempts}): {e}", exc_info=True)
                     time.sleep(delay)
                     delay *= backoff
-            raise RuntimeError(f"All {max_attempts} attempts failed for {fn.__name__}({symbol})")
+            raise RuntimeError(f"All {max_attempts} attempts failed for {fn.__name__} [{symbol}]")
         return wrapper
-    return decorator
+    return deco
 
+# ─── TABLE CREATION ─────────────────────────────────────────────────────────
+def create_tables():
+    log_mem("before table DDL")
+    ddl_statements = [
+        """
+        CREATE TABLE IF NOT EXISTS earnings_eps (
+          id          SERIAL PRIMARY KEY,
+          symbol      VARCHAR(10) NOT NULL,
+          period      VARCHAR(20) NOT NULL,
+          actual      DOUBLE PRECISION,
+          estimate    DOUBLE PRECISION,
+          fetched_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_eps_symbol ON earnings_eps(symbol);
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS earnings_financial_annual (
+          id          SERIAL PRIMARY KEY,
+          symbol      VARCHAR(10) NOT NULL,
+          period      VARCHAR(20) NOT NULL,
+          revenue     BIGINT,
+          earnings    BIGINT,
+          fetched_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_ann_symbol ON earnings_financial_annual(symbol);
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS earnings_financial_quarterly (
+          id          SERIAL PRIMARY KEY,
+          symbol      VARCHAR(10) NOT NULL,
+          period      VARCHAR(20) NOT NULL,
+          revenue     BIGINT,
+          earnings    BIGINT,
+          fetched_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_qtr_symbol ON earnings_financial_quarterly(symbol);
+        """
+    ]
+    conn = psycopg2.connect(**DB_PARAMS)
+    cur = conn.cursor()
+    for ddl in ddl_statements:
+        cur.execute(ddl)
+    conn.commit()
+    cur.close()
+    conn.close()
+    log_mem("after table DDL")
+    logger.info("Tables created or already exist.")
+
+# ─── HELPERS & UPSERT ────────────────────────────────────────────────────────
 def clean_value(v):
-    """Convert pandas/Numpy NaN to None, unwrap Numpy scalars."""
-    import numpy as np
-    if isinstance(v, float) and math.isnan(v):
+    if v is None or (isinstance(v, float) and math.isnan(v)):
         return None
-    if pd.isna(v):
-        return None
-    if isinstance(v, np.generic):
-        return v.item()
     return v
 
-def ensure_tables(conn):
-    """Drop & recreate all earnings tables with appropriate constraints."""
-    with conn.cursor() as cur:
-        # EPS table
-        cur.execute("DROP TABLE IF EXISTS earnings_eps;")
-        cur.execute("""
-            CREATE TABLE earnings_eps (
-                id          SERIAL PRIMARY KEY,
-                symbol      VARCHAR(64)   NOT NULL,
-                period      TIMESTAMPTZ   NOT NULL,
-                actual      DOUBLE PRECISION,
-                estimate    DOUBLE PRECISION,
-                fetched_at  TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-                UNIQUE(symbol, period, actual, estimate)
-            );
-        """)
-
-        # Annual financials
-        cur.execute("DROP TABLE IF EXISTS earnings_financial_annual;")
-        cur.execute("""
-            CREATE TABLE earnings_financial_annual (
-                id               SERIAL PRIMARY KEY,
-                symbol           VARCHAR(64) NOT NULL,
-                period           VARCHAR(64) NOT NULL,
-                revenue          BIGINT,
-                revenue_estimate BIGINT,
-                earnings         BIGINT,
-                fetched_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                UNIQUE(symbol, period)
-            );
-        """)
-
-        # Quarterly financials
-        cur.execute("DROP TABLE IF EXISTS earnings_financial_quarterly;")
-        cur.execute("""
-            CREATE TABLE earnings_financial_quarterly (
-                id               SERIAL PRIMARY KEY,
-                symbol           VARCHAR(64) NOT NULL,
-                period           VARCHAR(64) NOT NULL,
-                revenue          BIGINT,
-                revenue_estimate BIGINT,
-                earnings         BIGINT,
-                fetched_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                UNIQUE(symbol, period)
-            );
-        """)
-
-        # EPS revisions & trend tables
-        cur.execute("DROP TABLE IF EXISTS earnings_eps_trend;")
-        cur.execute("""
-            CREATE TABLE earnings_eps_trend (
-                id         SERIAL PRIMARY KEY,
-                symbol     VARCHAR(64) NOT NULL,
-                period     VARCHAR(64) NOT NULL,
-                up_count   INTEGER,
-                down_count INTEGER,
-                fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                UNIQUE(symbol, period)
-            );
-        """)
-
-        # Last-run stamp
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS last_updated (
-                script_name VARCHAR(255) PRIMARY KEY,
-                last_run    TIMESTAMPTZ NOT NULL
-            );
-        """)
+def upsert(sql: str, params: tuple):
+    conn = psycopg2.connect(**DB_PARAMS)
+    cur = conn.cursor()
+    cur.execute(sql, params)
     conn.commit()
+    cur.close()
+    conn.close()
 
-def get_rss_mb():
-    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    return (usage/1024) if sys.platform.startswith("linux") else (usage/(1024*1024))
-
-def log_mem(stage):
-    logger.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
-
-@retry()
-def process_symbol(symbol, conn):
-    yf_sym = symbol.upper().replace(".", "-")
-    ticker = yf.Ticker(yf_sym)
-
-    # 1) Earnings dates (reported vs estimate)
-    try:
-        df = ticker.get_earnings_dates()
-        if isinstance(df, pd.DataFrame) and not df.empty:
-            for _, row in df.iterrows():
-                dt = row["Earnings Date"]
-                with conn.cursor() as cur:
-                    cur.execute(
-                        """
-                        INSERT INTO earnings_eps(symbol, period, actual, estimate)
-                        VALUES (%s, %s, %s, %s)
-                        ON CONFLICT(symbol, period, actual, estimate) DO NOTHING
-                        """,
-                        (
-                            symbol,
-                            dt,
-                            clean_value(row.get("Reported EPS")),
-                            clean_value(row.get("EPS Estimate"))
-                        )
-                    )
-            conn.commit()
-    except Exception as e:
-        logger.warning(f"get_earnings_dates failed for {symbol}: {e}", exc_info=True)
-
-    # 2) Annual revenue & earnings
-    try:
-        ann = ticker.earnings
-        if isinstance(ann, pd.DataFrame) and not ann.empty:
-            for period, row in ann.iterrows():
-                period_str = getattr(period, "date", lambda: period)()
-                with conn.cursor() as cur:
-                    cur.execute(
-                        """
-                        INSERT INTO earnings_financial_annual
-                          (symbol, period, revenue, revenue_estimate, earnings)
-                        VALUES (%s, %s, %s, %s, %s)
-                        ON CONFLICT(symbol, period) DO NOTHING
-                        """,
-                        (
-                            symbol,
-                            str(period_str),
-                            clean_value(row.get("Revenue")),
-                            None,
-                            clean_value(row.get("Earnings"))
-                        )
-                    )
-            conn.commit()
-    except Exception as e:
-        logger.warning(f"ticker.earnings failed for {symbol}: {e}", exc_info=True)
-
-    # 3) Quarterly revenue & earnings
-    try:
-        qtr = ticker.quarterly_earnings
-        if isinstance(qtr, pd.DataFrame) and not qtr.empty:
-            for period, row in qtr.iterrows():
-                period_str = getattr(period, "date", lambda: period)()
-                with conn.cursor() as cur:
-                    cur.execute(
-                        """
-                        INSERT INTO earnings_financial_quarterly
-                          (symbol, period, revenue, revenue_estimate, earnings)
-                        VALUES (%s, %s, %s, %s, %s)
-                        ON CONFLICT(symbol, period) DO NOTHING
-                        """,
-                        (
-                            symbol,
-                            str(period_str),
-                            clean_value(row.get("Revenue")),
-                            None,
-                            clean_value(row.get("Earnings"))
-                        )
-                    )
-            conn.commit()
-    except Exception as e:
-        logger.warning(f"ticker.quarterly_earnings failed for {symbol}: {e}", exc_info=True)
-
-    # 4) EPS revisions (ups/downs in last 7 days)
-    if hasattr(ticker, "eps_revisions"):
-        try:
-            rev = ticker.eps_revisions
-            if isinstance(rev, pd.DataFrame) and not rev.empty:
-                for row_name in rev.index:
-                    for col in rev.columns:
-                        val = clean_value(rev.at[row_name, col])
-                        period = f"{col}_{row_name}"
-                        with conn.cursor() as cur:
-                            cur.execute(
-                                """
-                                INSERT INTO earnings_eps(symbol, period, actual, estimate)
-                                VALUES (%s, %s, %s, %s)
-                                ON CONFLICT(symbol, period, actual, estimate) DO NOTHING
-                                """,
-                                (symbol, period, val, None)
-                            )
-                conn.commit()
-        except Exception as e:
-            logger.warning(f"eps_revisions failed for {symbol}: {e}", exc_info=True)
-
-    # 5) EPS trend (analyst upgrades/downgrades)
-    if hasattr(ticker, "eps_trend"):
-        try:
-            trend = ticker.eps_trend
-            if isinstance(trend, pd.DataFrame) and not trend.empty:
-                for month, row in trend.iterrows():
-                    up   = clean_value(row.get("upLastMonth"))
-                    down = clean_value(row.get("downLastMonth"))
-                    with conn.cursor() as cur:
-                        cur.execute(
-                            """
-                            INSERT INTO earnings_eps_trend(symbol, period, up_count, down_count)
-                            VALUES (%s, %s, %s, %s)
-                            ON CONFLICT(symbol, period) DO NOTHING
-                            """,
-                            (symbol, str(month), up, down)
-                        )
-                conn.commit()
-        except Exception as e:
-            logger.warning(f"eps_trend failed for {symbol}: {e}", exc_info=True)
-
-    logger.info(f"Finished all earnings modules for {symbol}")
-
-def update_last_run(conn):
-    with conn.cursor() as cur:
-        cur.execute("""
-            INSERT INTO last_updated(script_name, last_run)
-            VALUES(%s, NOW())
-            ON CONFLICT(script_name) DO UPDATE
-              SET last_run = EXCLUDED.last_run;
-        """, (SCRIPT_NAME,))
-    conn.commit()
-
-def main():
-    import gc
-    user, pwd, host, port, dbname = get_db_config()
-    conn = psycopg2.connect(
-        host=host, port=port, user=user, password=pwd,
-        dbname=dbname, sslmode="require", cursor_factory=DictCursor
+# ─── INSERT FUNCTIONS ────────────────────────────────────────────────────────
+def insert_eps(symbol, period, actual, estimate):
+    upsert(
+        "INSERT INTO earnings_eps(symbol, period, actual, estimate) VALUES (%s, %s, %s, %s);",
+        (symbol, period, actual, estimate)
     )
 
-    logger.info("Recreating tables...")
-    ensure_tables(conn)
+def insert_fin_ann(symbol, period, revenue, earnings):
+    upsert(
+        "INSERT INTO earnings_financial_annual(symbol, period, revenue, earnings) VALUES (%s, %s, %s, %s);",
+        (symbol, period, revenue, earnings)
+    )
 
-    log_mem("Before fetching symbols")
-    with conn.cursor() as cur:
-        cur.execute("SELECT DISTINCT symbol FROM stock_symbols;")
-        symbols = [r["symbol"] for r in cur.fetchall()]
-    log_mem("Fetched symbols")
+def insert_fin_qtr(symbol, period, revenue, earnings):
+    upsert(
+        "INSERT INTO earnings_financial_quarterly(symbol, period, revenue, earnings) VALUES (%s, %s, %s, %s);",
+        (symbol, period, revenue, earnings)
+    )
 
-    total = len(symbols)
-    done = 0
-    fails = 0
+# ─── PROCESS ONE SYMBOL ──────────────────────────────────────────────────────
+@retry(max_attempts=3)
+def process_symbol(symbol):
+    log_mem(f"{symbol} ▶ start")
+    start_ts = time.time()
+    logger.info(f"Fetching {symbol}…")
+    ticker = yf.Ticker(symbol)
+
+    # Annual earnings DataFrame
+    ann = ticker.earnings
+    if ann is None or ann.empty:
+        raise ValueError("No annual earnings data")
+    for year, row in ann.iterrows():
+        insert_fin_ann(symbol, str(year),
+                       clean_value(row.get("Revenue")),
+                       clean_value(row.get("Earnings")))
+
+    # Quarterly earnings DataFrame
+    qtr = ticker.quarterly_earnings
+    if qtr is not None and not qtr.empty:
+        for idx, row in qtr.iterrows():
+            insert_fin_qtr(symbol, str(idx.date()),
+                           clean_value(row.get("Revenue")),
+                           clean_value(row.get("Earnings")))
+    else:
+        logger.warning(f"No quarterly earnings for {symbol}")
+
+    # EPS — use actual from net earnings; estimate=NULL
+    for year, row in ann.iterrows():
+        insert_eps(symbol, str(year),
+                   clean_value(row.get("Earnings")), None)
+    if qtr is not None:
+        for idx, row in qtr.iterrows():
+            insert_eps(symbol, str(idx.date()),
+                       clean_value(row.get("Earnings")), None)
+
+    elapsed = time.time() - start_ts
+    logger.info(f"{symbol} done in {elapsed:.1f}s")
+    log_mem(f"{symbol} ◀ end")
+
+# ─── MAIN ────────────────────────────────────────────────────────────────────
+def main():
+    log_mem("startup")
+    create_tables()
+
+    # load symbols
+    conn = psycopg2.connect(**DB_PARAMS)
+    cur = conn.cursor()
+    cur.execute("SELECT DISTINCT symbol FROM stock_symbols;")
+    symbols = [r["symbol"] for r in cur.fetchall()]
+    cur.close()
+    conn.close()
+
     for sym in symbols:
         try:
-            log_mem(f"Start {sym} ({done+1}/{total})")
-            process_symbol(sym, conn)
-            done += 1
-            gc.collect()
-            time.sleep(0.05 if get_rss_mb() < 800 else 0.5)
-            log_mem(f"End {sym}")
+            process_symbol(sym)
         except Exception:
-            logger.exception(f"Error processing {sym}")
-            fails += 1
-            if fails > total * 0.2:
-                logger.error("Too many failures, aborting.")
-                break
+            logger.exception(f"Processing failed for {sym}")
+        time.sleep(0.1)
 
-    update_last_run(conn)
-    conn.close()
-    log_mem("Script end")
+    log_mem("all symbols complete")
     logger.info("All done.")
 
 if __name__ == "__main__":
