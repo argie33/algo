@@ -1380,7 +1380,7 @@ jobs:
           SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
-          SG=$(aws cloudformation.list-exports \
+          SG=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
             --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
@@ -1450,7 +1450,7 @@ jobs:
       - name: Fetch Task Definition ARN
         id: td
         run: |
-          ARN=$(aws cloudformation.describe-stacks \
+          ARN=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='BuySellTaskDefArn'].OutputValue" \
             --output.text)
@@ -1459,16 +1459,16 @@ jobs:
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
-          CLUSTER=$(aws cloudformation.list-exports \
+          CLUSTER=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
             --output.text)
-          SUB1=$(aws cloudformation.list-exports \
+          SUB1=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
             --output.text)
-          SUB2=$(aws cloudformation.list-exports \
+          SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output.text)
-          SG=$(aws cloudformation.list-exports \
+          SG=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
             --output.text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
@@ -1547,16 +1547,16 @@ jobs:
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
-          CLUSTER=$(aws cloudformation.list-exports \
+          CLUSTER=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
             --output text)
-          SUB1=$(aws cloudformation.list-exports \
+          SUB1=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
             --output text)
-          SUB2=$(aws cloudformation.list-exports \
+          SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
-          SG=$(aws cloudformation.list-exports \
+          SG=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
             --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
@@ -1626,7 +1626,7 @@ jobs:
       - name: Fetch Task Definition ARN
         id: td
         run: |
-          ARN=$(aws cloudformation.describe-stacks \
+          ARN=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='LoadLatestPriceWeeklyTaskDefArn'].OutputValue" \
             --output text)
@@ -1635,16 +1635,16 @@ jobs:
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
-          CLUSTER=$(aws cloudformation.list-exports \
+          CLUSTER=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
             --output text)
-          SUB1=$(aws cloudformation.list-exports \
+          SUB1=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
             --output text)
-          SUB2=$(aws cloudformation.list-exports \
+          SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
-          SG=$(aws cloudformation.list-exports \
+          SG=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
             --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
@@ -1714,7 +1714,7 @@ jobs:
       - name: Fetch Task Definition ARN
         id: td
         run: |
-          ARN=$(aws cloudformation.describe-stacks \
+          ARN=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='LoadLatestPriceMonthlyTaskDefArn'].OutputValue" \
             --output text)
@@ -1723,16 +1723,16 @@ jobs:
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
-          CLUSTER=$(aws cloudformation.list-exports \
+          CLUSTER=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
             --output text)
-          SUB1=$(aws cloudformation.list-exports \
+          SUB1=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
             --output text)
-          SUB2=$(aws cloudformation.list-exports \
+          SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
-          SG=$(aws cloudformation.list-exports \
+          SG=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
             --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
