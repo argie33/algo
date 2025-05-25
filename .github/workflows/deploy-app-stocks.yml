@@ -1433,7 +1433,7 @@ jobs:
           fi
 
   run_buysell:
-    name: Run buy-sell loader
+    name: Run buysell loader
     needs: deploy-tasks
     if: ${{ needs.filter.outputs.buysell == 'true' }}
     runs-on: ubuntu-latest
@@ -1456,7 +1456,7 @@ jobs:
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
 
-      - name: Fetch cluster ARN & subnets
+      - name: Fetch cluster ARN & subnets & SG
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -1476,26 +1476,26 @@ jobs:
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
           echo "SG=$SG" >> $GITHUB_OUTPUT
 
-      - name: Run buy-sell Fargate task
+      - name: Run buysell Fargate task
         id: run
         run: |
           TASK_ARN=$(aws ecs run-task \
-            --cluster "${steps.infra.outputs.CLUSTER}" \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
             --launch-type FARGATE \
-            --task-definition "${steps.td.outputs.TASK_DEF_ARN}" \
+            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
             --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${steps.infra.outputs.SUB1},${steps.infra.outputs.SUB2}],securityGroups=[${steps.infra.outputs.SG}],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
-          echo "🟢 Started buy-sell task $TASK_ARN"
+          echo "🟢 Started buysell task $TASK_ARN"
 
       - name: Wait up to 60m for task to stop
         run: |
           for i in $(seq 1 180); do
-            STATUS=$(aws ecs.describe-tasks \
-              --cluster "${steps.infra.outputs.CLUSTER}" \
-              --tasks "${steps.run.outputs.TASK_ARN}" \
+            STATUS=$(aws ecs describe-tasks \
+              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
               --query 'tasks[0].lastStatus' \
               --output text)
             echo "Attempt $i – status=$STATUS"
@@ -1503,20 +1503,20 @@ jobs:
             sleep 20
           done
           if [ "$STATUS" != "STOPPED" ]; then
-            echo "❌ buy-sell task did not stop within 60m"
+            echo "❌ buysell task did not stop within 60m"
             exit 1
           fi
 
       - name: Check container exit code
         run: |
-          EXIT=$(aws ecs.describe-tasks \
-            --cluster "${steps.infra.outputs.CLUSTER}" \
-            --tasks "${steps.run.outputs.TASK_ARN}" \
+          EXIT=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
           if [ "$EXIT" -ne 0 ]; then
-            echo "❌ buy-sell failed with exit code $EXIT"
+            echo "❌ buysell failed with exit code $EXIT"
             exit $EXIT
           fi
 
@@ -1544,7 +1544,7 @@ jobs:
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
 
-      - name: Fetch cluster ARN & subnets
+      - name: Fetch cluster ARN & subnets & SG
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -1581,9 +1581,9 @@ jobs:
       - name: Wait up to 60m for task to stop
         run: |
           for i in $(seq 1 180); do
-            STATUS=$(aws ecs.describe-tasks \
-              --cluster "${steps.infra.outputs.CLUSTER}" \
-              --tasks "${steps.run.outputs.TASK_ARN}" \
+            STATUS=$(aws ecs describe-tasks \
+              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
               --query 'tasks[0].lastStatus' \
               --output text)
             echo "Attempt $i – status=$STATUS"
@@ -1597,9 +1597,9 @@ jobs:
 
       - name: Check container exit code
         run: |
-          EXIT=$(aws ecs.describe-tasks \
-            --cluster "${steps.infra.outputs.CLUSTER}" \
-            --tasks "${steps.run.outputs.TASK_ARN}" \
+          EXIT=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
@@ -1632,7 +1632,7 @@ jobs:
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
 
-      - name: Fetch cluster ARN & subnets
+      - name: Fetch cluster ARN & subnets & SG
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -1669,9 +1669,9 @@ jobs:
       - name: Wait up to 60m for task to stop
         run: |
           for i in $(seq 1 180); do
-            STATUS=$(aws ecs.describe-tasks \
-              --cluster "${steps.infra.outputs.CLUSTER}" \
-              --tasks "${steps.run.outputs.TASK_ARN}" \
+            STATUS=$(aws ecs describe-tasks \
+              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
               --query 'tasks[0].lastStatus' \
               --output text)
             echo "Attempt $i – status=$STATUS"
@@ -1685,9 +1685,9 @@ jobs:
 
       - name: Check container exit code
         run: |
-          EXIT=$(aws ecs.describe-tasks \
-            --cluster "${steps.infra.outputs.CLUSTER}" \
-            --tasks "${steps.run.outputs.TASK_ARN}" \
+          EXIT=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
@@ -1720,7 +1720,7 @@ jobs:
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
 
-      - name: Fetch cluster ARN & subnets
+      - name: Fetch cluster ARN & subnets & SG
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -1757,9 +1757,9 @@ jobs:
       - name: Wait up to 60m for task to stop
         run: |
           for i in $(seq 1 180); do
-            STATUS=$(aws ecs.describe-tasks \
-              --cluster "${steps.infra.outputs.CLUSTER}" \
-              --tasks "${steps.run.outputs.TASK_ARN}" \
+            STATUS=$(aws ecs describe-tasks \
+              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
               --query 'tasks[0].lastStatus' \
               --output text)
             echo "Attempt $i – status=$STATUS"
@@ -1773,9 +1773,9 @@ jobs:
 
       - name: Check container exit code
         run: |
-          EXIT=$(aws ecs.describe-tasks \
-            --cluster "${steps.infra.outputs.CLUSTER}" \
-            --tasks "${steps.run.outputs.TASK_ARN}" \
+          EXIT=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
