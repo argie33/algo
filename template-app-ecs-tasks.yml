@@ -8,70 +8,69 @@ Description: >
 Parameters:
   StockSymbolsImageTag:
     Type: String
-    Description: Tag for stock-symbols loader image
+    Description: "Tag for stock-symbols loader image"
   EconDataImageTag:
     Type: String
-    Description: Tag for econ-data loader image
+    Description: "Tag for econ-data loader image"
   FindataImageTag:
     Type: String
-    Description: Tag for findata loader image
+    Description: "Tag for findata loader image"
   PriceImageTag:
     Type: String
-    Description: Tag for pricedaily loader image
+    Description: "Tag for pricedaily loader image"
   PriceWeeklyImageTag:
     Type: String
-    Description: Tag for priceweekly loader image
+    Description: "Tag for priceweekly loader image"
   PriceMonthlyImageTag:
     Type: String
-    Description: Tag for the “pricemonthly” loader image
+    Description: "Tag for pricemonthly loader image"
   TechnicalsDailyImageTag:
     Type: String
-    Description: Tag for TechnicalsDaily loader image
+    Description: "Tag for TechnicalsDaily loader image"
   LoadInfoImageTag:
     Type: String
-    Description: Tag for loadinfo loader image
+    Description: "Tag for loadinfo loader image"
   EarningsImageTag:
     Type: String
-    Description: Tag for earnings loader image
+    Description: "Tag for earnings loader image"
   TechnicalsWeeklyImageTag:
     Type: String
-    Description: Tag for technicalsweekly loader image
+    Description: "Tag for technicalsweekly loader image"
   TechnicalsMonthlyImageTag:
     Type: String
-    Description: Tag for technicalsmonthly loader image
+    Description: "Tag for technicalsmonthly loader image"
   BuySellImageTag:
     Type: String
-    Description: Tag for buysell loader image
-  SwingTraderImageTag:       
+    Description: "Tag for buysell loader image"
+  SwingTraderImageTag:
     Type: String
-    Description: Tag for swingtrader loader image
+    Description: "Tag for swingtrader loader image"
   CalendarImageTag:
     Type: String
-    Description: Tag for calendar loader image
+    Description: "Tag for calendar loader image"
   LoadLatestPriceDailyImageTag:
     Type: String
-    Description: Tag for loadlatestpricedaily loader image
+    Description: "Tag for loadlatestpricedaily loader image"
   LoadLatestPriceWeeklyImageTag:
     Type: String
-    Description: Tag for loadlatestpriceweekly loader image
+    Description: "Tag for loadlatestpriceweekly loader image"
   LoadLatestPriceMonthlyImageTag:
     Type: String
-    Description: Tag for loadlatestpricemonthly loader image
-  ########################################
+    Description: "Tag for loadlatestpricemonthly loader image"
+
   FREDApiKey:
     Type: String
     NoEcho: true
-    Description: FRED API key for econ-data loader
+    Description: "FRED API key for econ-data loader"
   IBKRUsername:
     Type: String
     NoEcho: true
-    Description: “Your IBKR username (passed from GitHub Secret)”
-
+    Description: "Your IBKR username (passed from GitHub Secret)"
   IBKRPassword:
     Type: String
     NoEcho: true
-    Description: “Your IBKR password (passed from GitHub Secret)”
-    
+    Description: "Your IBKR password (passed from GitHub Secret)"
+
 Resources:
 
   ########################################
@@ -100,7 +99,6 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/*"
-
         - PolicyName: AllowReadDBSecret
           PolicyDocument:
             Version: '2012-10-17'
@@ -111,7 +109,6 @@ Resources:
               - Effect: Allow
                 Action: kms:Decrypt
                 Resource: '*'
-
         - PolicyName: AllowReadSwingTraderSecrets
           PolicyDocument:
             Version: '2012-10-17'
@@ -130,112 +127,48 @@ Resources:
     Properties:
       LogGroupName: /ecs/stocksymbols-loader
       RetentionInDays: 14
-
   EconDataLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/econdata-loader
       RetentionInDays: 14
-
   FindataLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/findata-loader
       RetentionInDays: 14
-
   PriceLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/pricedaily-loader
       RetentionInDays: 14
-
   WeeklyLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/priceweekly-loader
       RetentionInDays: 14
-
   PriceMonthlyLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/pricemonthly-loader
       RetentionInDays: 14
-
-  TechnicalsDailyLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /ecs/TechnicalsDaily-loader
-      RetentionInDays: 14
-
-  LoadInfoLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /ecs/loadinfo-loader
-      RetentionInDays: 14
-
-  EarningsLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /ecs/earnings-loader
-      RetentionInDays: 14
-
-  TechnicalsWeeklyLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /ecs/technicalsweekly-loader
-      RetentionInDays: 14
-
-  TechnicalsMonthlyLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /ecs/technicalsmonthly-loader
-      RetentionInDays: 14
-
-  BuySellLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /ecs/buysell-loader
-      RetentionInDays: 14
-
-  SwingTraderLogGroup:   
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /ecs/swingtrader-loader
-      RetentionInDays: 14
-
-  LoadLatestPriceDailyLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /ecs/loadlatestpricedaily-loader
-      RetentionInDays: 14
-  
-  LoadLatestPriceWeeklyLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /ecs/loadlatestpriceweekly-loader
-      RetentionInDays: 14
-  
-  LoadLatestPriceMonthlyLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /ecs/loadlatestpricemonthly-loader
-      RetentionInDays: 14
-
   ########################################
   # C) stock-symbols loader              #
-  ########################################  StockSymbolsTaskDefinition:
+  ########################################
+  StockSymbolsTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: stocksymbols-loader
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
-      RequiresCompatibilities: [FARGATE]
+      RequiresCompatibilities:
+        - FARGATE
       RuntimePlatform:
         CpuArchitecture: ARM64
         OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
-      TaskRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: stocksymbols-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref StockSymbolsImageTag]]
@@ -258,6 +191,7 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
+
   StockSymbolsLoaderService:
     Type: AWS::ECS::Service
     Properties:
@@ -277,7 +211,7 @@ Resources:
 
   ########################################
   # D) econ-data loader                  #
-  ########################################  
+  ########################################
   EconDataTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -285,12 +219,13 @@ Resources:
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
-      RequiresCompatibilities: [FARGATE]
+      RequiresCompatibilities:
+        - FARGATE
       RuntimePlatform:
         CpuArchitecture: ARM64
         OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
-      TaskRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: econdata-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref EconDataImageTag]]
@@ -317,6 +252,7 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
+
   EconDataLoaderService:
     Type: AWS::ECS::Service
     Properties:
@@ -344,15 +280,16 @@ Resources:
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
-      RequiresCompatibilities: [FARGATE]
+      RequiresCompatibilities:
+        - FARGATE
       RuntimePlatform:
         CpuArchitecture: ARM64
         OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
-      TaskRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: pricemonthly-loader
-          Image: !Join [ ":", [ !ImportValue StocksCore-ContainerRepositoryUri, !Ref PriceMonthlyImageTag ] ]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref PriceMonthlyImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -372,6 +309,7 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
+
   PriceMonthlyService:
     Type: AWS::ECS::Service
     Properties:
@@ -388,7 +326,7 @@ Resources:
           SecurityGroups:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
-          
+
   ########################################
   # F) findata loader                    #
   ########################################
@@ -399,9 +337,10 @@ Resources:
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
-      RequiresCompatibilities: [FARGATE]
+      RequiresCompatibilities:
+        - FARGATE
       RuntimePlatform:
-        CpuArchitecture: ARM64  
+        CpuArchitecture: ARM64
         OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
@@ -427,25 +366,7 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
-          Essential: true
-          Environment:
-            - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksApp-SecretArn
-            - Name: DB_HOST
-              Value: !ImportValue StocksApp-DBEndpoint
-            - Name: DB_PORT
-              Value: !ImportValue StocksApp-DBPort
-            - Name: DB_NAME
-              Value: !ImportValue StocksApp-DBName
-            - Name: DB_USER
-              Value: !ImportValue StocksApp-DBUsername
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: /ecs/findata-loader
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: ecs
-              awslogs-create-group: 'true'
+
   FindataLoaderService:
     Type: AWS::ECS::Service
     Properties:
@@ -473,12 +394,13 @@ Resources:
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
-      RequiresCompatibilities: [FARGATE]
+      RequiresCompatibilities:
+        - FARGATE
       RuntimePlatform:
         CpuArchitecture: ARM64
         OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
-      TaskRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: pricedaily-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref PriceImageTag]]
@@ -501,6 +423,7 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
+
   PriceLoaderService:
     Type: AWS::ECS::Service
     Properties:
@@ -528,12 +451,13 @@ Resources:
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
-      RequiresCompatibilities: [FARGATE]
+      RequiresCompatibilities:
+        - FARGATE
       RuntimePlatform:
         CpuArchitecture: ARM64
         OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
-      TaskRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: priceweekly-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref PriceWeeklyImageTag]]
@@ -556,6 +480,7 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
+
   PriceWeeklyLoaderService:
     Type: AWS::ECS::Service
     Properties:
@@ -572,7 +497,6 @@ Resources:
           SecurityGroups:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
-
   ########################################
   # I) pricemonthly loader               #
   ########################################
@@ -583,12 +507,13 @@ Resources:
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
-      RequiresCompatibilities: [FARGATE]
+      RequiresCompatibilities:
+        - FARGATE
       RuntimePlatform:
-        CpuArchitecture: ARM64  
+        CpuArchitecture: ARM64
         OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
-      TaskRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: pricemonthly-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref PriceMonthlyImageTag]]
@@ -611,24 +536,43 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
+
+  PriceMonthlyService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: pricemonthly-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref PriceMonthlyTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
   ########################################
   # J) TechnicalsDaily loader             #
   ########################################
   TechnicalsDailyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: TechnicalsDaily-loader
+      Family: technicalsdaily-loader
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
-      RequiresCompatibilities: [FARGATE]
+      RequiresCompatibilities:
+        - FARGATE
       RuntimePlatform:
-        CpuArchitecture: ARM64  
+        CpuArchitecture: ARM64
         OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
-        - Name: TechnicalsDaily-loader
+        - Name: technicalsdaily-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref TechnicalsDailyImageTag]]
           Essential: true
           Environment:
@@ -645,33 +589,15 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: /ecs/TechnicalsDaily-loader
+              awslogs-group: /ecs/technicals-daily
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
-          Essential: true
-          Environment:
-            - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksApp-SecretArn
-            - Name: DB_HOST
-              Value: !ImportValue StocksApp-DBEndpoint
-            - Name: DB_PORT
-              Value: !ImportValue StocksApp-DBPort
-            - Name: DB_NAME
-              Value: !ImportValue StocksApp-DBName
-            - Name: DB_USER
-              Value: !ImportValue StocksApp-DBUsername
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: /ecs/TechnicalsDaily-loader
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: ecs
-              awslogs-create-group: 'true'
+
   TechnicalsDailyLoaderService:
     Type: AWS::ECS::Service
     Properties:
-      ServiceName: TechnicalsDaily-loader-service
+      ServiceName: technicalsdaily-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
       DesiredCount: 0
@@ -686,7 +612,7 @@ Resources:
           AssignPublicIp: ENABLED
 
   ########################################
-  # K) loadinfo loader               #
+  # K) loadinfo loader                   #
   ########################################
   LoadInfoTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -695,26 +621,16 @@ Resources:
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
-      RequiresCompatibilities: [FARGATE]
+      RequiresCompatibilities:
+        - FARGATE
       RuntimePlatform:
-        CpuArchitecture: ARM64  
+        CpuArchitecture: ARM64
         OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: loadinfo-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref LoadInfoImageTag]]
-          Essential: true
-          Environment:
-            - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksApp-SecretArn
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: /ecs/loadinfo-loader
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: ecs
-              awslogs-create-group: 'true'
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -740,6 +656,8 @@ Resources:
           Subnets:
             - !ImportValue StocksCore-PublicSubnet1Id
             - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
 
   ########################################
@@ -752,34 +670,16 @@ Resources:
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
-      RequiresCompatibilities: [FARGATE]
+      RequiresCompatibilities:
+        - FARGATE
       RuntimePlatform:
-        CpuArchitecture: ARM64  
+        CpuArchitecture: ARM64
         OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: earnings-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref EarningsImageTag]]
-          Essential: true
-          Environment:
-            - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksApp-SecretArn
-            - Name: DB_HOST
-              Value: !ImportValue StocksApp-DBEndpoint
-            - Name: DB_PORT
-              Value: !ImportValue StocksApp-DBPort
-            - Name: DB_NAME
-              Value: !ImportValue StocksApp-DBName
-            - Name: DB_USER
-              Value: !ImportValue StocksApp-DBUsername
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: /ecs/earnings-loader
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: ecs
-              awslogs-create-group: 'true'
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -813,8 +713,9 @@ Resources:
           Subnets:
             - !ImportValue StocksCore-PublicSubnet1Id
             - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
-
   ########################################
   # M) technicalsweekly loader           #
   ########################################
@@ -825,26 +726,15 @@ Resources:
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
-      RequiresCompatibilities: [FARGATE]
+      RequiresCompatibilities:
+        - FARGATE
       RuntimePlatform:
-        CpuArchitecture: ARM64  
+        CpuArchitecture: ARM64
         OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: technicalsweekly-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref TechnicalsWeeklyImageTag]]
-          Essential: true
-          Environment:
-            - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksApp-SecretArn
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: /ecs/technicalsweekly-loader
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: ecs
-              awslogs-create-group: 'true'
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref TechnicalsWeeklyImageTag]]
           Essential: true
           Environment:
@@ -871,6 +761,8 @@ Resources:
           Subnets:
             - !ImportValue StocksCore-PublicSubnet1Id
             - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
 
   ########################################
@@ -883,26 +775,15 @@ Resources:
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
-      RequiresCompatibilities: [FARGATE]
+      RequiresCompatibilities:
+        - FARGATE
       RuntimePlatform:
-        CpuArchitecture: ARM64  
+        CpuArchitecture: ARM64
         OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: technicalsmonthly-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref TechnicalsMonthlyImageTag]]
-          Essential: true
-          Environment:
-            - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksApp-SecretArn
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: /ecs/technicalsmonthly-loader
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: ecs
-              awslogs-create-group: 'true'
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref TechnicalsMonthlyImageTag]]
           Essential: true
           Environment:
@@ -929,6 +810,8 @@ Resources:
           Subnets:
             - !ImportValue StocksCore-PublicSubnet1Id
             - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
 
   ########################################
@@ -953,31 +836,29 @@ Resources:
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
-      RequiresCompatibilities: [FARGATE]
+      RequiresCompatibilities:
+        - FARGATE
       RuntimePlatform:
-        CpuArchitecture: ARM64  
+        CpuArchitecture: ARM64
         OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
-
       ContainerDefinitions:
         - Name: swingtrader-loader
-          Image: !Join [ ":", [ !ImportValue StocksCore-ContainerRepositoryUri, !Ref SwingTraderImageTag ] ]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref SwingTraderImageTag]]
           Essential: true
-
           Secrets:
             - Name: IBKR_USERNAME
               ValueFrom: !Ref IBKRUsernameSecret
             - Name: IBKR_PASSWORD
               ValueFrom: !Ref IBKRPasswordSecret
-
           LogConfiguration:
             LogDriver: awslogs
             Options:
               awslogs-group: /ecs/swingtrader-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
-              awslogs-create-group: "true"
+              awslogs-create-group: 'true'
 
   SwingTraderLoaderService:
     Type: AWS::ECS::Service
@@ -992,8 +873,9 @@ Resources:
           Subnets:
             - !ImportValue StocksCore-PublicSubnet1Id
             - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
-
   ########################################
   # P) buysell loader                    #
   ########################################
@@ -1004,9 +886,10 @@ Resources:
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
-      RequiresCompatibilities: [FARGATE]
+      RequiresCompatibilities:
+        - FARGATE
       RuntimePlatform:
-        CpuArchitecture: ARM64  
+        CpuArchitecture: ARM64
         OperatingSystemFamily: LINUX
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
@@ -1026,6 +909,7 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
+
   BuySellLoaderService:
     Type: AWS::ECS::Service
     Properties:
@@ -1046,7 +930,6 @@ Resources:
   ########################################
   # Q) loadlatestpricedaily loader       #
   ########################################
-
   LoadLatestPriceDailyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -1082,14 +965,14 @@ Resources:
               awslogs-group: /ecs/loadlatestpricedaily-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
-              awslogs-create-group: "true"
+              awslogs-create-group: 'true'
 
   LoadLatestPriceDailyLoaderService:
     Type: AWS::ECS::Service
     Properties:
       ServiceName: loadlatestpricedaily-loader-service
-      Cluster:     !ImportValue StocksApp-ClusterArn
-      LaunchType:  FARGATE
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
       DesiredCount: 0
       TaskDefinition: !Ref LoadLatestPriceDailyTaskDefinition
       NetworkConfiguration:
@@ -1104,7 +987,6 @@ Resources:
   ########################################
   # R) loadlatestpriceweekly loader      #
   ########################################
-
   LoadLatestPriceWeeklyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -1140,14 +1022,14 @@ Resources:
               awslogs-group: /ecs/loadlatestpriceweekly-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
-              awslogs-create-group: "true"
+              awslogs-create-group: 'true'
 
   LoadLatestPriceWeeklyLoaderService:
     Type: AWS::ECS::Service
     Properties:
       ServiceName: loadlatestpriceweekly-loader-service
-      Cluster:     !ImportValue StocksApp-ClusterArn
-      LaunchType:  FARGATE
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
       DesiredCount: 0
       TaskDefinition: !Ref LoadLatestPriceWeeklyTaskDefinition
       NetworkConfiguration:
@@ -1197,14 +1079,14 @@ Resources:
               awslogs-group: /ecs/loadlatestpricemonthly-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
-              awslogs-create-group: "true"
+              awslogs-create-group: 'true'
 
   LoadLatestPriceMonthlyLoaderService:
     Type: AWS::ECS::Service
     Properties:
       ServiceName: loadlatestpricemonthly-loader-service
-      Cluster:     !ImportValue StocksApp-ClusterArn
-      LaunchType:  FARGATE
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
       DesiredCount: 0
       TaskDefinition: !Ref LoadLatestPriceMonthlyTaskDefinition
       NetworkConfiguration:
