@@ -1453,7 +1453,7 @@ jobs:
           ARN=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='BuySellTaskDefArn'].OutputValue" \
-            --output.text)
+            --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
 
       - name: Fetch cluster ARN & subnets
@@ -1461,16 +1461,16 @@ jobs:
         run: |
           CLUSTER=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
-            --output.text)
+            --output text)
           SUB1=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
-            --output.text)
+            --output text)
           SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
-            --output.text)
+            --output text)
           SG=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
-            --output.text)
+            --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
