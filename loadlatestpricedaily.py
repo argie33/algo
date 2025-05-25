@@ -3,9 +3,7 @@ import os
 import json
 import logging
 import math
-import gc
 import sys
-import time
 
 import boto3
 import psycopg2
@@ -14,6 +12,7 @@ from psycopg2.extras import RealDictCursor, execute_values
 import yfinance as yf
 import pandas as pd
 import exchange_calendars as ecals
+import datetime
 
 SCRIPT_NAME = "loadlatestpricedaily.py"
 logging.basicConfig(
@@ -24,9 +23,9 @@ logging.basicConfig(
 
 # --- DB config loader ---
 def get_db_config():
-    secret_str = boto3.client("secretsmanager") \
-        .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])['SecretString']
-    sec = json.loads(secret_str)
+    secret = boto3.client("secretsmanager") \
+        .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
+    sec = json.loads(secret)
     return {
         "host":   sec["host"],
         "port":   int(sec.get("port", 5432)),
@@ -38,9 +37,10 @@ def get_db_config():
 # --- NYSE trading days ---
 nyse = ecals.get_calendar("XNYS")
 
-# Use the calendar's own timezone (so tz.key exists)
-start = pd.Timestamp("1900-01-01", tz=nyse.tz)
-end   = pd.Timestamp.now(tz=nyse.tz)
+# Use naive dates (no tz) to satisfy sessions_in_range
+start = datetime.date(1900, 1, 1)
+# derive today in calendar's timezone, then strip tz to get a date
+end = pd.Timestamp.now(tz=nyse.tz).date()
 
 all_trading_days = nyse.sessions_in_range(start, end)
 all_trading_days_set = set(d.date() for d in all_trading_days)
@@ -54,7 +54,7 @@ def fetch_and_insert(symbol, table, cur, conn, from_date=None):
     try:
         df = yf.download(
             tickers=yf_sym,
-            start=from_date if from_date else None,
+            start=from_date,
             interval="1d",
             auto_adjust=True,
             actions=True,
@@ -68,8 +68,7 @@ def fetch_and_insert(symbol, table, cur, conn, from_date=None):
         logging.warning(f"{symbol}: no data returned from yfinance")
         return 0
 
-    df = df.sort_index()
-    df = df[df["Open"].notna()]
+    df = df.sort_index().dropna(subset=["Open"])
     if df.empty:
         logging.warning(f"{symbol}: no valid price rows after cleaning")
         return 0
@@ -85,29 +84,26 @@ def fetch_and_insert(symbol, table, cur, conn, from_date=None):
             None if math.isnan(row["Close"]) else float(row["Close"]),
             None if math.isnan(row.get("Adj Close", row["Close"])) else float(row.get("Adj Close", row["Close"])),
             None if math.isnan(row["Volume"]) else int(row["Volume"]),
-            0.0 if ("Dividends" not in row or math.isnan(row["Dividends"])) else float(row["Dividends"]),
-            0.0 if ("Stock Splits" not in row or math.isnan(row["Stock Splits"])) else float(row["Stock Splits"])
+            0.0 if math.isnan(row.get("Dividends", 0.0)) else float(row["Dividends"]),
+            0.0 if math.isnan(row.get("Stock Splits", 0.0)) else float(row["Stock Splits"])
         ])
 
     if not rows:
         logging.warning(f"{symbol}: no rows after cleaning; skipping")
         return 0
 
-    COL_LIST = ", ".join([
-        "symbol","date","open","high","low",
-        "close","adj_close","volume","dividends","stock_splits"
-    ])
+    cols = "symbol,date,open,high,low,close,adj_close,volume,dividends,stock_splits"
     sql = f"""
-        INSERT INTO {table} ({COL_LIST}) VALUES %s
+        INSERT INTO {table} ({cols}) VALUES %s
         ON CONFLICT (symbol, date) DO UPDATE SET
-            open        = EXCLUDED.open,
-            high        = EXCLUDED.high,
-            low         = EXCLUDED.low,
-            close       = EXCLUDED.close,
-            adj_close   = EXCLUDED.adj_close,
-            volume      = EXCLUDED.volume,
-            dividends   = EXCLUDED.dividends,
-            stock_splits= EXCLUDED.stock_splits
+            open         = EXCLUDED.open,
+            high         = EXCLUDED.high,
+            low          = EXCLUDED.low,
+            close        = EXCLUDED.close,
+            adj_close    = EXCLUDED.adj_close,
+            volume       = EXCLUDED.volume,
+            dividends    = EXCLUDED.dividends,
+            stock_splits = EXCLUDED.stock_splits
     """
     execute_values(cur, sql, rows)
     conn.commit()
@@ -124,31 +120,30 @@ def main():
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Stock symbols
+    # Load symbols
     cur.execute("SELECT symbol FROM stock_symbols;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
-    # ETF symbols
     cur.execute("SELECT symbol FROM etf_symbols;")
-    etf_syms = [r["symbol"] for r in cur.fetchall()]
+    etf_syms   = [r["symbol"] for r in cur.fetchall()]
 
     for table, syms in [("price_daily", stock_syms), ("etf_price_daily", etf_syms)]:
         for symbol in syms:
-            existing_dates = get_existing_dates(cur, table, symbol)
-            missing_days = all_trading_days_set - existing_dates
+            existing = get_existing_dates(cur, table, symbol)
+            missing  = all_trading_days_set - existing
 
-            if missing_days:
-                logging.info(f"{symbol}: missing {len(missing_days)} trading days, reloading full history")
+            if missing:
+                logging.info(f"{symbol}: missing {len(missing)} days, reloading full history")
                 fetch_and_insert(symbol, table, cur, conn, from_date=None)
             else:
-                if not existing_dates:
+                if not existing:
                     logging.info(f"{symbol}: no data in table, loading full history")
                     fetch_and_insert(symbol, table, cur, conn, from_date=None)
                 else:
-                    last_date = max(existing_dates)
-                    if last_date >= pd.Timestamp.now(tz=nyse.tz).date():
+                    last = max(existing)
+                    if last >= end:
                         logging.info(f"{symbol}: up to date")
                         continue
-                    fetch_and_insert(symbol, table, cur, conn, from_date=last_date + pd.Timedelta(days=1))
+                    fetch_and_insert(symbol, table, cur, conn, from_date=last + datetime.timedelta(days=1))
 
     # Record last run
     cur.execute("""

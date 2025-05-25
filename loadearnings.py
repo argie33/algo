@@ -2,10 +2,12 @@
 import os
 import time
 import math
+import json
 import logging
 import functools
 import resource
 
+import boto3
 import pandas as pd
 import yfinance as yf
 import psycopg2
@@ -25,15 +27,29 @@ def log_mem(stage: str):
     mem_mb = usage_kb / 1024
     logger.info(f"[MEM] {stage}: {mem_mb:.1f} MB")
 
-# ─── DB CONFIG FROM ENV ─────────────────────────────────────────────────────
+# ─── BUILD DB_PARAMS (may come from AWS Secrets) ─────────────────────────────
+# First pick up any individually injected env-vars
 DB_PARAMS = {
     "host":     os.getenv("DB_HOST"),
     "port":     int(os.getenv("DB_PORT", 5432)),
     "dbname":   os.getenv("DB_NAME"),
     "user":     os.getenv("DB_USER"),
-    "password": os.getenv("DB_PASSWORD"),
+    "password": os.getenv("DB_PASSWORD"),  # likely None
     "cursor_factory": RealDictCursor
 }
+
+# If they only passed a secret ARN, unwrap it into host/port/dbname/user/password
+if os.getenv("DB_SECRET_ARN") and not DB_PARAMS["password"]:
+    sm = boto3.client("secretsmanager")
+    secret_value = sm.get_secret_value(SecretId=os.getenv("DB_SECRET_ARN"))
+    creds = json.loads(secret_value["SecretString"])
+    DB_PARAMS.update({
+        "host":     creds["host"],
+        "port":     int(creds.get("port", 5432)),
+        "dbname":   creds["dbname"],
+        "user":     creds["username"],
+        "password": creds["password"],
+    })
 
 # ─── RETRY DECORATOR ─────────────────────────────────────────────────────────
 def retry(max_attempts=3, initial_delay=2, backoff=2):
@@ -56,7 +72,8 @@ def retry(max_attempts=3, initial_delay=2, backoff=2):
 # ─── TABLE CREATION ─────────────────────────────────────────────────────────
 def create_tables():
     log_mem("before table DDL")
-    ddl_statements = [
+    ddls = [
+        # EPS
         """
         CREATE TABLE IF NOT EXISTS earnings_eps (
           id          SERIAL PRIMARY KEY,
@@ -68,6 +85,7 @@ def create_tables():
         );
         CREATE INDEX IF NOT EXISTS idx_eps_symbol ON earnings_eps(symbol);
         """,
+        # Annual financials
         """
         CREATE TABLE IF NOT EXISTS earnings_financial_annual (
           id          SERIAL PRIMARY KEY,
@@ -79,6 +97,7 @@ def create_tables():
         );
         CREATE INDEX IF NOT EXISTS idx_ann_symbol ON earnings_financial_annual(symbol);
         """,
+        # Quarterly financials
         """
         CREATE TABLE IF NOT EXISTS earnings_financial_quarterly (
           id          SERIAL PRIMARY KEY,
@@ -93,7 +112,7 @@ def create_tables():
     ]
     conn = psycopg2.connect(**DB_PARAMS)
     cur = conn.cursor()
-    for ddl in ddl_statements:
+    for ddl in ddls:
         cur.execute(ddl)
     conn.commit()
     cur.close()
@@ -138,8 +157,8 @@ def insert_fin_qtr(symbol, period, revenue, earnings):
 @retry(max_attempts=3)
 def process_symbol(symbol):
     log_mem(f"{symbol} ▶ start")
-    start_ts = time.time()
-    logger.info(f"Fetching {symbol}…")
+    start = time.time()
+    logger.info(f"Fetching earnings for {symbol}")
     ticker = yf.Ticker(symbol)
 
     # Annual earnings DataFrame
@@ -161,7 +180,7 @@ def process_symbol(symbol):
     else:
         logger.warning(f"No quarterly earnings for {symbol}")
 
-    # EPS — use actual from net earnings; estimate=NULL
+    # EPS — record actual net earnings; estimates are not available via yfinance
     for year, row in ann.iterrows():
         insert_eps(symbol, str(year),
                    clean_value(row.get("Earnings")), None)
@@ -170,7 +189,7 @@ def process_symbol(symbol):
             insert_eps(symbol, str(idx.date()),
                        clean_value(row.get("Earnings")), None)
 
-    elapsed = time.time() - start_ts
+    elapsed = time.time() - start
     logger.info(f"{symbol} done in {elapsed:.1f}s")
     log_mem(f"{symbol} ◀ end")
 
@@ -179,7 +198,7 @@ def main():
     log_mem("startup")
     create_tables()
 
-    # load symbols
+    # Load symbol list
     conn = psycopg2.connect(**DB_PARAMS)
     cur = conn.cursor()
     cur.execute("SELECT DISTINCT symbol FROM stock_symbols;")
@@ -191,8 +210,8 @@ def main():
         try:
             process_symbol(sym)
         except Exception:
-            logger.exception(f"Processing failed for {sym}")
-        time.sleep(0.1)
+            logger.exception(f"Failed processing {sym}")
+        time.sleep(0.2)
 
     log_mem("all symbols complete")
     logger.info("All done.")
