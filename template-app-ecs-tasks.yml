@@ -127,31 +127,97 @@ Resources:
     Properties:
       LogGroupName: /ecs/stocksymbols-loader
       RetentionInDays: 14
+
   EconDataLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/econdata-loader
       RetentionInDays: 14
+
   FindataLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/findata-loader
       RetentionInDays: 14
+
   PriceLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/pricedaily-loader
       RetentionInDays: 14
+
   WeeklyLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/priceweekly-loader
       RetentionInDays: 14
+
   PriceMonthlyLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/pricemonthly-loader
       RetentionInDays: 14
+
+  TechnicalsDailyLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/technicals-daily
+      RetentionInDays: 14
+
+  LoadInfoLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/loadinfo-loader
+      RetentionInDays: 14
+
+  EarningsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/earnings-loader
+      RetentionInDays: 14
+
+  TechnicalsWeeklyLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/technicalsweekly-loader
+      RetentionInDays: 14
+
+  TechnicalsMonthlyLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/technicalsmonthly-loader
+      RetentionInDays: 14
+
+  BuySellLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/buysell-loader
+      RetentionInDays: 14
+
+  SwingTraderLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/swingtrader-loader
+      RetentionInDays: 14
+
+  LoadLatestPriceDailyLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/loadlatestpricedaily-loader
+      RetentionInDays: 14
+
+  LoadLatestPriceWeeklyLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/loadlatestpriceweekly-loader
+      RetentionInDays: 14
+
+  LoadLatestPriceMonthlyLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/loadlatestpricemonthly-loader
+      RetentionInDays: 14
+
   ########################################
   # C) stock-symbols loader              #
   ########################################
@@ -716,6 +782,7 @@ Resources:
           SecurityGroups:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
+
   ########################################
   # M) technicalsweekly loader           #
   ########################################

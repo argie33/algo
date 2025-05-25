@@ -424,7 +424,7 @@ jobs:
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
           echo "SG=$SG" >> $GITHUB_OUTPUT
 
-      - name: Run stock-symbols Fargate task
+      - name: Run buy-sell Fargate task
         id: run
         run: |
           TASK_ARN=$(aws ecs run-task \
@@ -436,7 +436,7 @@ jobs:
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
-          echo "🟢 Started stock-symbols task $TASK_ARN"
+          echo "🟢 Started buy-sell task $TASK_ARN"
 
       - name: Wait up to 60m for task to stop
         run: |
@@ -1568,11 +1568,11 @@ jobs:
         id: run
         run: |
           TASK_ARN=$(aws ecs run-task \
-            --cluster "${steps.infra.outputs.CLUSTER}" \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
             --launch-type FARGATE \
-            --task-definition "${steps.td.outputs.TASK_DEF_ARN}" \
+            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
             --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${steps.infra.outputs.SUB1},${steps.infra.outputs.SUB2}],securityGroups=[${steps.infra.outputs.SG}],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
@@ -1656,11 +1656,11 @@ jobs:
         id: run
         run: |
           TASK_ARN=$(aws ecs run-task \
-            --cluster "${steps.infra.outputs.CLUSTER}" \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
             --launch-type FARGATE \
-            --task-definition "${steps.td.outputs.TASK_DEF_ARN}" \
+            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
             --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${steps.infra.outputs.SUB1},${steps.infra.outputs.SUB2}],securityGroups=[${steps.infra.outputs.SG}],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
@@ -1744,11 +1744,11 @@ jobs:
         id: run
         run: |
           TASK_ARN=$(aws ecs run-task \
-            --cluster "${steps.infra.outputs.CLUSTER}" \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
             --launch-type FARGATE \
-            --task-definition "${steps.td.outputs.TASK_DEF_ARN}" \
+            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
             --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${steps.infra.outputs.SUB1},${steps.infra.outputs.SUB2}],securityGroups=[${steps.infra.outputs.SG}],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
