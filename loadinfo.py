@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
 import sys
 import os
 import time
@@ -278,7 +278,8 @@ def update_last_run(conn):
     with conn.cursor() as cur:
         cur.execute("""
             INSERT INTO last_updated (script_name, last_run)
-            VALUES (%s, NOW());
+            VALUES (%s, NOW())
+            ON CONFLICT (script_name) DO UPDATE SET last_run = EXCLUDED.last_run;
         """, (SCRIPT_NAME,))
     conn.commit()
 
@@ -473,7 +474,7 @@ INSERT INTO market_data (
 ) VALUES ({','.join(['%s']*len(mparams))});
 """, mparams)
 
-        # 4) key_metrics
+        # 4) key_metrics (columns now match your schema exactly)
         km = info
         kparams = [
             symbol,
@@ -501,9 +502,12 @@ INSERT INTO market_data (
             clean_value(km.get("earningsGrowth")), clean_value(km.get("lastSplitFactor")),
             clean_value(km.get("lastSplitDate")), clean_value(km.get("dividendRate")),
             clean_value(km.get("dividendYield")), clean_value(km.get("fiveYearAvgDividendYield")),
-            clean_value(km.get("exDividendDate")), clean_value(km.get("trailingAnnualDividendRate")),
-            clean_value(km.get("trailingAnnualDividendYield")), clean_value(km.get("lastDividendValue")),
-            clean_value(km.get("lastDividendDate")), clean_value(km.get("dividendDate")),
+            clean_value(km.get("exDividendDate")),
+            clean_value(km.get("trailingAnnualDividendRate")),   # → last_annual_dividend_amt
+            clean_value(km.get("trailingAnnualDividendYield")),  # → last_annual_dividend_yield
+            clean_value(km.get("lastDividendValue")),           # → last_dividend_amt
+            clean_value(km.get("lastDividendDate")),            # → last_dividend_date_ms
+            clean_value(km.get("dividendDate")),                # → dividend_date_ms
             clean_value(km.get("payoutRatio"))
         ]
         cur.execute(f"""
@@ -521,8 +525,8 @@ INSERT INTO key_metrics (
     revenue_growth_pct, earnings_growth_pct, last_split_factor,
     last_split_date_ms, dividend_rate, dividend_yield,
     five_year_avg_dividend_yield, ex_dividend_date_ms,
-    trailing_annual_dividend_rate, trailing_annual_dividend_yield,
-    last_dividend_value, last_dividend_date, dividend_date, payout_ratio
+    last_annual_dividend_amt, last_annual_dividend_yield,
+    last_dividend_amt, last_dividend_date_ms, dividend_date_ms, payout_ratio
 ) VALUES ({','.join(['%s']*len(kparams))});
 """, kparams)
 
@@ -549,7 +553,6 @@ INSERT INTO analyst_estimates (
 # ─── Entrypoint ──────────────────────────────────────────────────────────────
 def main():
     user,pwd,host,port,db = get_db_config()
-    # 1) rebuild schema
     logger.info("Rebuilding tables…")
     conn = psycopg2.connect(
         host=host, port=port, user=user, password=pwd,
@@ -558,7 +561,6 @@ def main():
     ensure_tables(conn)
     conn.close()
 
-    # 2) load symbols
     user,pwd,host,port,db = get_db_config()
     conn = psycopg2.connect(
         host=host, port=port, user=user, password=pwd,
@@ -583,7 +585,6 @@ def main():
     cur.close()
     conn.close()
 
-    # 3) record last run
     user,pwd,host,port,db = get_db_config()
     conn = psycopg2.connect(
         host=host, port=port, user=user, password=pwd,
