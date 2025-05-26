@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3  
 import sys
 import time
 import logging
@@ -73,7 +73,7 @@ def get_db_config():
 # Build NYSE trading days set
 # -------------------------------
 nyse = ecals.get_calendar("XNYS")
-start = datetime.date(2006, 1, 1)
+start = datetime.date(1900, 1, 1)
 end   = pd.Timestamp.now(tz=nyse.tz).date()
 all_trading_days = nyse.sessions_in_range(start, end)
 all_trading_days_set = {d.date() for d in all_trading_days}
