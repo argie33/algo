@@ -24,13 +24,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # -------------------------------
-# Memory-logging helper (RSS in MB)
+# Memory‐logging helper (RSS in MB)
 # -------------------------------
 def get_rss_mb():
     usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    if sys.platform.startswith("linux"):
-        return usage / 1024
-    return usage / (1024 * 1024)
+    return usage / 1024 if sys.platform.startswith("linux") else usage / (1024*1024)
 
 def log_mem(stage: str):
     logger.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
@@ -70,7 +68,7 @@ cursor = conn.cursor(cursor_factory=DictCursor)
 log_mem("after DB connect")
 
 # -------------------------------
-# Prepare date ranges
+# Prepare date ranges (if you need them later)
 # -------------------------------
 log_mem("before date calc")
 today = datetime.now()
@@ -88,17 +86,12 @@ log_mem("after date calc")
 # -------------------------------
 # 1) READ SYMBOLS
 # -------------------------------
-def get_symbols(limit=None):
-    q = """
+def get_symbols():
+    cursor.execute("""
       SELECT symbol
       FROM stock_symbols
       WHERE exchange IN ('NASDAQ','New York Stock Exchange')
-    """
-    if limit:
-        q += " LIMIT %s"
-        cursor.execute(q, (limit,))
-    else:
-        cursor.execute(q)
+    """)
     return [r["symbol"] for r in cursor.fetchall()]
 
 # -------------------------------
@@ -107,168 +100,141 @@ def get_symbols(limit=None):
 def create_buy_sell_table():
     cursor.execute("DROP TABLE IF EXISTS buy_sell;")
     cursor.execute("""
-    CREATE TABLE buy_sell (
-      id         SERIAL        PRIMARY KEY,
-      symbol     VARCHAR(20),
-      timeframe  VARCHAR(10),
-      date       DATE,
-      open       DOUBLE PRECISION,
-      high       DOUBLE PRECISION,
-      low        DOUBLE PRECISION,
-      close      DOUBLE PRECISION,
-      volume     BIGINT,
-      signal     VARCHAR(10),
-      buylevel   DOUBLE PRECISION,
-      stoplevel  DOUBLE PRECISION,
-      inposition BOOLEAN,
-      UNIQUE(symbol, timeframe, date)
-    );
+      CREATE TABLE buy_sell (
+        id         SERIAL        PRIMARY KEY,
+        symbol     VARCHAR(20),
+        timeframe  VARCHAR(10),
+        date       DATE,
+        open       DOUBLE PRECISION,
+        high       DOUBLE PRECISION,
+        low        DOUBLE PRECISION,
+        close      DOUBLE PRECISION,
+        volume     BIGINT,
+        signal     VARCHAR(10),
+        buylevel   DOUBLE PRECISION,
+        stoplevel  DOUBLE PRECISION,
+        inposition BOOLEAN,
+        UNIQUE(symbol, timeframe, date)
+      );
     """)
     conn.commit()
 
 # -------------------------------
-# 3) FETCH PRICE + TECH DATA
+# 3) FETCH BATCHED DATA FOR A SYMBOL LIST
 # -------------------------------
-def fetch_data(symbol, timeframe, start_date=None, end_date=None):
-    price_table = {
-        "Daily":   "price_daily",
-        "Weekly":  "price_weekly",
-        "Monthly": "price_monthly"
-    }[timeframe]
-    tech_table = {
-        "Daily":   "technical_data_daily",
-        "Weekly":  "technical_data_weekly",
-        "Monthly": "technical_data_monthly"
-    }[timeframe]
-
-    q = f"""
-    SELECT
-      p.date, p.open, p.high, p.low, p.close, p.volume,
-      t.rsi, t.adx, t.plus_di, t.minus_di,
-      t.atr, t.pivot_high, t.pivot_low, t.sma_50
-    FROM {price_table} p
-    JOIN {tech_table} t
-      ON p.symbol = t.symbol AND p.date = t.date
-    WHERE p.symbol = %s
-      {"AND p.date >= %s" if start_date else ""}
-      {"AND p.date <= %s" if end_date else ""}
-    ORDER BY p.date;
-    """
-    params = [symbol]
-    if start_date: params.append(start_date)
-    if end_date:   params.append(end_date)
-    cursor.execute(q, params)
-    return [dict(r) for r in cursor.fetchall()]
+def fetch_batch_data(symbols, timeframe):
+    price_t = {"Daily":"price_daily","Weekly":"price_weekly","Monthly":"price_monthly"}[timeframe]
+    tech_t  = {"Daily":"technical_data_daily","Weekly":"technical_data_weekly","Monthly":"technical_data_monthly"}[timeframe]
+    cursor.execute(f"""
+      SELECT p.symbol, p.date, p.open, p.high, p.low, p.close, p.volume,
+             t.rsi, t.adx, t.plus_di, t.minus_di,
+             t.atr, t.pivot_high, t.pivot_low, t.sma_50
+      FROM {price_t} p
+      JOIN {tech_t} t
+        ON p.symbol = t.symbol AND p.date = t.date
+      WHERE p.symbol = ANY(%s)
+      ORDER BY p.symbol, p.date;
+    """, (symbols,))
+    data = {}
+    for row in cursor:
+        d = dict(row)
+        sym = d.pop("symbol")
+        data.setdefault(sym, []).append(d)
+    return data
 
 # -------------------------------
-# 4) SIGNAL LOGIC (updated to guard None)
+# 4) SIGNAL LOGIC (unchanged, guards None)
 # -------------------------------
 def generate_signals(data,
                      atrMult=1.0,
                      useTrendMA=True,
                      adxStrong=30, adxWeak=20):
     n = len(data)
-    # pull off dicts (lowercase keys)
-    RSI       = [row["rsi"]        for row in data]
+    RSI       = [r["rsi"]        for r in data]
     RSI_prev  = [None] + RSI[:-1]
-    ADX       = [row["adx"]        for row in data]
-    plusDI    = [row["plus_di"]    for row in data]
-    minusDI   = [row["minus_di"]   for row in data]
-    ATR       = [row["atr"]        for row in data]
-    PivotHigh = [row["pivot_high"] for row in data]
-    PivotLow  = [row["pivot_low"]  for row in data]
-    TrendMA   = [row["sma_50"]     for row in data]
-    highs     = [row["high"]       for row in data]
-    lows      = [row["low"]        for row in data]
-    closes    = [row["close"]      for row in data]
+    ADX       = [r["adx"]        for r in data]
+    plusDI    = [r["plus_di"]    for r in data]
+    minusDI   = [r["minus_di"]   for r in data]
+    ATR       = [r["atr"]        for r in data]
+    PH        = [r["pivot_high"] for r in data]
+    PL        = [r["pivot_low"]  for r in data]
+    MA        = [r["sma_50"]     for r in data]
+    H         = [r["high"]       for r in data]
+    L         = [r["low"]        for r in data]
+    C         = [r["close"]      for r in data]
 
-    # RSI crosses (guard None)
+    # RSI crosses
     rsiBuy  = [
-        True
-        if (RSI[i] is not None and RSI_prev[i] is not None and RSI[i] > 50 and RSI_prev[i] <= 50)
-        else False
+        bool(RSI[i] is not None and RSI_prev[i] is not None and RSI[i]>50 and RSI_prev[i]<=50)
         for i in range(n)
     ]
     rsiSell = [
-        True
-        if (RSI[i] is not None and RSI_prev[i] is not None and RSI[i] < 50 and RSI_prev[i] >= 50)
-        else False
+        bool(RSI[i] is not None and RSI_prev[i] is not None and RSI[i]<50 and RSI_prev[i]>=50)
         for i in range(n)
     ]
 
     # Trend filter
     trendOK = [
-        (closes[i] > TrendMA[i]) if useTrendMA and TrendMA[i] is not None else True
+        (not useTrendMA) or (MA[i] is not None and C[i]>MA[i])
         for i in range(n)
     ]
 
     # Pivot breakout
-    phConf = [None] + PivotHigh[:-1]
-    plConf = [None] + PivotLow[:-1]
-    lastPH = lastPL = None
-    buyL  = [None]*n
-    stopL = [None]*n
-    breakoutBuy  = [False]*n
-    breakoutSell = [False]*n
-
+    phc= [None]+PH[:-1]
+    plc= [None]+PL[:-1]
+    lastPH=lastPL=None
+    buyL=[None]*n; stopL=[None]*n
+    bBuy=[False]*n; bSell=[False]*n
     for i in range(n):
-        if phConf[i] is not None: lastPH = phConf[i]
-        if plConf[i] is not None: lastPL = plConf[i]
+        if phc[i] is not None: lastPH=phc[i]
+        if plc[i] is not None: lastPL=plc[i]
         if lastPH is not None:
-            buyL[i] = lastPH
-            breakoutBuy[i] = highs[i] > lastPH
+            buyL[i]=lastPH; bBuy[i]= H[i]>lastPH
         if lastPL is not None:
-            buff = ATR[i] * atrMult if ATR[i] is not None else 0
-            stopL[i] = lastPL - buff
-            breakoutSell[i] = lows[i] < stopL[i]
+            buf = (ATR[i] or 0)*atrMult
+            stopL[i]=lastPL-buf; bSell[i]= L[i]<stopL[i]
 
     # ADX/DMI filter
-    finalBuy  = [False]*n
-    finalSell = [False]*n
+    finalBuy=[False]*n; finalSell=[False]*n
     for i in range(n):
         if ADX[i] is None:
-            adx_ok = True
+            adx_ok=True
         else:
-            rising = (i>0 and ADX[i] is not None and ADX[i] > (ADX[i-1] or 0))
-            adx_ok = (ADX[i] > adxStrong) or ((ADX[i] > adxWeak) and rising)
+            rising = bool(i>0 and ADX[i-1] is not None and ADX[i]>ADX[i-1])
+            adx_ok = (ADX[i]>adxStrong) or ((ADX[i]>adxWeak) and rising)
         dmi_ok  = (plusDI[i] or 0) > (minusDI[i] or 0)
-        exitDmi = (
-            i>0 and (plusDI[i-1] or 0) > (minusDI[i-1] or 0)
-               and (plusDI[i] or 0) < (minusDI[i] or 0)
+        exitDmi = bool(
+            i>0 and (plusDI[i-1] or 0)>(minusDI[i-1] or 0)
+               and (plusDI[i] or 0)<(minusDI[i] or 0)
         )
-
         if useTrendMA:
-            finalBuy[i]  = (rsiBuy[i] and trendOK[i] and adx_ok and dmi_ok) or breakoutBuy[i]
-            finalSell[i] = rsiSell[i] or breakoutSell[i] or exitDmi
+            finalBuy[i]  = (rsiBuy[i] and trendOK[i] and adx_ok and dmi_ok) or bBuy[i]
+            finalSell[i] = rsiSell[i] or bSell[i] or exitDmi
         else:
-            finalBuy[i]  = (rsiBuy[i] and adx_ok and dmi_ok) or breakoutBuy[i]
-            finalSell[i] = rsiSell[i] or breakoutSell[i]
+            finalBuy[i]  = (rsiBuy[i] and adx_ok and dmi_ok) or bBuy[i]
+            finalSell[i] = rsiSell[i] or bSell[i]
 
-    # in-position & assign
-    in_pos = False
-    signals = []
-    inPositions = []
+    # in-position & signals
+    in_pos=False; signals=[]; inPos=[]
     for i in range(n):
         if in_pos and finalSell[i]:
-            sig = "Sell"; in_pos = False
+            sig="Sell"; in_pos=False
         elif not in_pos and finalBuy[i]:
-            sig = "Buy"; in_pos = True
+            sig="Buy"; in_pos=True
         else:
-            sig = "None"
-        signals.append(sig)
-        inPositions.append(in_pos)
+            sig="None"
+        signals.append(sig); inPos.append(in_pos)
 
-    # attach back to data
     for i,row in enumerate(data):
         row["Signal"]     = signals[i]
-        row["inPosition"] = inPositions[i]
+        row["inPosition"] = inPos[i]
         row["buyLevel"]   = buyL[i]
         row["stopLevel"]  = stopL[i]
 
     return data
 
 # -------------------------------
-# 5) INSERT INTO buy_sell
+# 5) BATCH INSERT RESULTS
 # -------------------------------
 def insert_results(symbol, timeframe, data):
     if not data:
@@ -293,37 +259,46 @@ def insert_results(symbol, timeframe, data):
     conn.commit()
 
 # -------------------------------
-# 6) MAIN DRIVER
+# 6) MAIN DRIVER with chunking
 # -------------------------------
+def chunked(lst, n):
+    for i in range(0, len(lst), n):
+        yield lst[i:i+n]
+
 def main():
     log_mem("main start")
 
     create_buy_sell_table()
-    log_mem("table created")
+    log_mem("table ready")
 
     symbols = get_symbols()
     if not symbols:
         logger.error("No symbols, exiting")
         return
 
+    batch_size = int(os.getenv("SYMBOL_BATCH_SIZE", "50"))
     for timeframe in ("Daily","Weekly","Monthly"):
-        for sym in symbols:
-            logger.info(f"Processing {sym} [{timeframe}]")
-            try:
-                data = fetch_data(sym, timeframe)
-                if not data:
-                    logger.info(f"No data for {sym} {timeframe}")
-                    continue
-                data = generate_signals(data)
-                insert_results(sym, timeframe, data)
-                log_mem(f"done {sym} {timeframe}")
-            except Exception:
-                logger.exception(f"Error {sym} {timeframe}")
+        log_mem(f"begin {timeframe}")
+        for batch in chunked(symbols, batch_size):
+            log_mem(f"fetch batch {len(batch)}")
+            data_map = fetch_batch_data(batch, timeframe)
+            for sym in batch:
+                data = data_map.get(sym)
+                if data:
+                    try:
+                        processed = generate_signals(data)
+                        insert_results(sym, timeframe, processed)
+                    except Exception:
+                        logger.exception(f"Error {sym}[{timeframe}]")
+            del data_map
+            gc.collect()
+            log_mem("after GC")
+        log_mem(f"end {timeframe}")
 
     cursor.close()
     conn.close()
     log_mem("end")
-    logger.info("Processing complete.")
+    logger.info("All processing complete.")
 
 if __name__ == "__main__":
     main()
