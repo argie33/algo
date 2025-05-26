@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
 import sys
 import time
 import logging
@@ -15,7 +15,7 @@ import boto3
 # -------------------------------
 # Script metadata & logging setup
 # -------------------------------
-SCRIPT_NAME = "loadbuysell.py"
+SCRIPT_NAME = "buy_sell_signals.py"
 logging.basicConfig(
     level=os.environ.get("LOG_LEVEL", "INFO"),
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -35,20 +35,22 @@ def get_rss_mb():
 def log_mem(stage: str):
     logger.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
-# initial memory watermark
 log_mem("after imports")
 
 # -------------------------------
 # 0) FETCH DB CREDENTIALS & CONNECT
 # -------------------------------
+log_mem("start")
 DB_SECRET_ARN = os.getenv("DB_SECRET_ARN")
 if not DB_SECRET_ARN:
     logger.error("DB_SECRET_ARN environment variable is not set")
     sys.exit(1)
 
+log_mem("before secrets fetch")
 sm = boto3.client("secretsmanager", region_name=os.getenv("AWS_REGION"))
 resp = sm.get_secret_value(SecretId=DB_SECRET_ARN)
 secrets = json.loads(resp["SecretString"])
+log_mem("after secrets fetch")
 
 pg_host     = secrets["host"]
 pg_port     = secrets.get("port", 5432)
@@ -56,6 +58,7 @@ pg_db       = secrets["dbname"]
 pg_user     = secrets["username"]
 pg_password = secrets["password"]
 
+log_mem("before DB connect")
 conn = psycopg2.connect(
     host=pg_host,
     port=pg_port,
@@ -69,6 +72,7 @@ log_mem("after DB connect")
 # -------------------------------
 # Prepare date ranges
 # -------------------------------
+log_mem("before date calc")
 today = datetime.now()
 current_month_start = today.replace(day=1)
 last_day            = calendar.monthrange(today.year, today.month)[1]
@@ -79,6 +83,7 @@ last_4_weeks_start  = current_week_start - timedelta(weeks=3)
 last_4_weeks_end    = current_week_end
 two_weeks_start     = today - timedelta(days=13)
 two_weeks_end       = today
+log_mem("after date calc")
 
 # -------------------------------
 # 1) READ SYMBOLS
@@ -107,6 +112,11 @@ def create_buy_sell_table():
       symbol     VARCHAR(20),
       timeframe  VARCHAR(10),
       date       DATE,
+      open       DOUBLE PRECISION,
+      high       DOUBLE PRECISION,
+      low        DOUBLE PRECISION,
+      close      DOUBLE PRECISION,
+      volume     BIGINT,
       signal     VARCHAR(10),
       buylevel   DOUBLE PRECISION,
       stoplevel  DOUBLE PRECISION,
@@ -119,12 +129,17 @@ def create_buy_sell_table():
 # -------------------------------
 # 3) FETCH PRICE + TECH DATA
 # -------------------------------
-PRICE_TABLE = {"Daily": "price_daily", "Weekly": "price_weekly", "Monthly": "price_monthly"}
-TECH_TABLE  = {"Daily": "technical_data_daily", "Weekly": "technical_data_weekly", "Monthly": "technical_data_monthly"}
-
 def fetch_data(symbol, timeframe, start_date=None, end_date=None):
-    price_table = PRICE_TABLE[timeframe]
-    tech_table  = TECH_TABLE[timeframe]
+    price_table = {
+        "Daily":   "price_daily",
+        "Weekly":  "price_weekly",
+        "Monthly": "price_monthly"
+    }[timeframe]
+    tech_table = {
+        "Daily":   "technical_data_daily",
+        "Weekly":  "technical_data_weekly",
+        "Monthly": "technical_data_monthly"
+    }[timeframe]
 
     q = f"""
     SELECT
@@ -146,14 +161,14 @@ def fetch_data(symbol, timeframe, start_date=None, end_date=None):
     return [dict(r) for r in cursor.fetchall()]
 
 # -------------------------------
-# 4) SIGNAL LOGIC (unchanged)
+# 4) SIGNAL LOGIC (updated to guard None)
 # -------------------------------
 def generate_signals(data,
                      atrMult=1.0,
                      useTrendMA=True,
                      adxStrong=30, adxWeak=20):
-    # … your existing logic exactly as before …
     n = len(data)
+    # pull off dicts (lowercase keys)
     RSI       = [row["rsi"]        for row in data]
     RSI_prev  = [None] + RSI[:-1]
     ADX       = [row["adx"]        for row in data]
@@ -167,19 +182,27 @@ def generate_signals(data,
     lows      = [row["low"]        for row in data]
     closes    = [row["close"]      for row in data]
 
+    # RSI crosses (guard None)
     rsiBuy  = [
-        True if (RSI[i] is not None and RSI_prev[i] is not None and RSI[i] > 50 and RSI_prev[i] <= 50)
-        else False for i in range(n)
+        True
+        if (RSI[i] is not None and RSI_prev[i] is not None and RSI[i] > 50 and RSI_prev[i] <= 50)
+        else False
+        for i in range(n)
     ]
     rsiSell = [
-        True if (RSI[i] is not None and RSI_prev[i] is not None and RSI[i] < 50 and RSI_prev[i] >= 50)
-        else False for i in range(n)
+        True
+        if (RSI[i] is not None and RSI_prev[i] is not None and RSI[i] < 50 and RSI_prev[i] >= 50)
+        else False
+        for i in range(n)
     ]
+
+    # Trend filter
     trendOK = [
         (closes[i] > TrendMA[i]) if useTrendMA and TrendMA[i] is not None else True
         for i in range(n)
     ]
 
+    # Pivot breakout
     phConf = [None] + PivotHigh[:-1]
     plConf = [None] + PivotLow[:-1]
     lastPH = lastPL = None
@@ -199,13 +222,14 @@ def generate_signals(data,
             stopL[i] = lastPL - buff
             breakoutSell[i] = lows[i] < stopL[i]
 
+    # ADX/DMI filter
     finalBuy  = [False]*n
     finalSell = [False]*n
     for i in range(n):
         if ADX[i] is None:
             adx_ok = True
         else:
-            rising = (i>0 and ADX[i] > (ADX[i-1] or 0))
+            rising = (i>0 and ADX[i] is not None and ADX[i] > (ADX[i-1] or 0))
             adx_ok = (ADX[i] > adxStrong) or ((ADX[i] > adxWeak) and rising)
         dmi_ok  = (plusDI[i] or 0) > (minusDI[i] or 0)
         exitDmi = (
@@ -220,6 +244,7 @@ def generate_signals(data,
             finalBuy[i]  = (rsiBuy[i] and adx_ok and dmi_ok) or breakoutBuy[i]
             finalSell[i] = rsiSell[i] or breakoutSell[i]
 
+    # in-position & assign
     in_pos = False
     signals = []
     inPositions = []
@@ -233,6 +258,7 @@ def generate_signals(data,
         signals.append(sig)
         inPositions.append(in_pos)
 
+    # attach back to data
     for i,row in enumerate(data):
         row["Signal"]     = signals[i]
         row["inPosition"] = inPositions[i]
@@ -250,6 +276,7 @@ def insert_results(symbol, timeframe, data):
     vals = [
         (
             symbol, timeframe, row["date"],
+            row["open"], row["high"], row["low"], row["close"], row["volume"],
             row["Signal"], row["buyLevel"], row["stopLevel"], row["inPosition"]
         )
         for row in data
@@ -257,6 +284,7 @@ def insert_results(symbol, timeframe, data):
     sql = """
       INSERT INTO buy_sell(
         symbol, timeframe, date,
+        open, high, low, close, volume,
         signal, buylevel, stoplevel, inposition
       ) VALUES %s
       ON CONFLICT (symbol, timeframe, date) DO NOTHING;
@@ -265,10 +293,8 @@ def insert_results(symbol, timeframe, data):
     conn.commit()
 
 # -------------------------------
-# 6) MAIN DRIVER (with batching)
+# 6) MAIN DRIVER
 # -------------------------------
-BATCH_SIZE = 10
-
 def main():
     log_mem("main start")
 
@@ -280,26 +306,19 @@ def main():
         logger.error("No symbols, exiting")
         return
 
-    for timeframe in ("Daily", "Weekly", "Monthly"):
-        logger.info(f"→ Starting {timeframe}")
-        for idx, sym in enumerate(symbols, start=1):
+    for timeframe in ("Daily","Weekly","Monthly"):
+        for sym in symbols:
+            logger.info(f"Processing {sym} [{timeframe}]")
             try:
                 data = fetch_data(sym, timeframe)
                 if not data:
-                    logger.debug(f"No data for {sym} {timeframe}")
+                    logger.info(f"No data for {sym} {timeframe}")
                     continue
                 data = generate_signals(data)
                 insert_results(sym, timeframe, data)
+                log_mem(f"done {sym} {timeframe}")
             except Exception:
                 logger.exception(f"Error {sym} {timeframe}")
-
-            # log every BATCH_SIZE symbols
-            if idx % BATCH_SIZE == 0:
-                log_mem(f"processed {idx} {timeframe} symbols")
-
-        # final batch log for leftovers
-        if len(symbols) % BATCH_SIZE != 0:
-            log_mem(f"processed all {len(symbols)} {timeframe} symbols")
 
     cursor.close()
     conn.close()

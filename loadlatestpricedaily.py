@@ -33,9 +33,7 @@ logging.basicConfig(
 # -------------------------------
 def get_rss_mb():
     usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    if sys.platform.startswith("linux"):
-        return usage / 1024
-    return usage / (1024 * 1024)
+    return (usage / 1024) if sys.platform.startswith("linux") else (usage / (1024 * 1024))
 
 def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
@@ -44,7 +42,7 @@ def log_mem(stage: str):
 # Retry settings
 # -------------------------------
 MAX_DOWNLOAD_RETRIES = 3
-RETRY_DELAY         = 0.2  # seconds
+RETRY_DELAY = 0.2  # seconds between retries
 
 # -------------------------------
 # Price-daily columns (for INSERT)
@@ -73,17 +71,12 @@ def get_db_config():
 # -------------------------------
 # Build NYSE trading days set
 # -------------------------------
-# calendar only goes back to Jan 1, 2006
 calendar_start_date = datetime.date(2006, 1, 1)
-
 nyse = ecals.get_calendar("XNYS")
-# compute last trading day as naive date
 today_aware      = pd.Timestamp.now(tz=nyse.tz)
 last_trading_day = today_aware.date()
-
-# get all sessions between calendar_start_date and last_trading_day
-sessions = nyse.sessions_in_range(calendar_start_date, last_trading_day)
-all_trading_days_set = {sess.date() for sess in sessions}
+sessions         = nyse.sessions_in_range(calendar_start_date, last_trading_day)
+all_trading_days = {s.date() for s in sessions}
 
 # -------------------------------
 # Helper: fetch existing dates
@@ -98,7 +91,7 @@ def get_existing_dates(cur, table, symbol):
 def fetch_and_insert(symbol, table, cur, conn, from_date=None):
     yf_sym = symbol.replace('.', '-').upper()
 
-    # retry download
+    # ─── Download with retries ──────────────────────
     for attempt in range(1, MAX_DOWNLOAD_RETRIES + 1):
         logging.info(f"{symbol}: yf.download attempt {attempt} (from {from_date})")
         log_mem(f"{symbol} download start")
@@ -119,60 +112,62 @@ def fetch_and_insert(symbol, table, cur, conn, from_date=None):
         logging.error(f"{symbol}: failed download after {MAX_DOWNLOAD_RETRIES} attempts")
         return 0
 
-    # no data?
+    # ─── Sanity checks ───────────────────────────────
     if df is None or df.empty:
         logging.warning(f"{symbol}: no data returned; skipping")
         return 0
 
-    # flatten multi-index columns
+    # flatten multi-index columns (ticker, field) → just field
     if hasattr(df.columns, "nlevels") and df.columns.nlevels > 1:
         df.columns = df.columns.get_level_values(1)
 
-    # required columns
-    required = ["Open", "High", "Low", "Close", "Volume"]
+    # normalize to lowercase with underscores
+    df.columns = [c.lower().replace(" ", "_") for c in df.columns]
+
+    required = ["open", "high", "low", "close", "volume"]
     missing  = [c for c in required if c not in df.columns]
     if missing:
         logging.warning(f"{symbol}: missing cols {missing}; skipping")
         return 0
 
     df = df.sort_index()
-    df = df[df["Open"].notna()]
+    df = df[df["open"].notna()]
     if df.empty:
-        logging.warning(f"{symbol}: all Open NaN; skipping")
+        logging.warning(f"{symbol}: all open NaN; skipping")
         return 0
 
-    # build rows
+    # ─── Build rows ───────────────────────────────────
     rows = []
     for idx, row in df.iterrows():
         rows.append([
             symbol,
             idx.date(),
-            None if math.isnan(row["Open"]) else float(row["Open"]),
-            None if math.isnan(row["High"]) else float(row["High"]),
-            None if math.isnan(row["Low"]) else float(row["Low"]),
-            None if math.isnan(row["Close"]) else float(row["Close"]),
-            None if math.isnan(row.get("Adj Close", row["Close"])) else float(row.get("Adj Close", row["Close"])),
-            None if math.isnan(row["Volume"]) else int(row["Volume"]),
-            0.0 if ("Dividends" not in row or math.isnan(row["Dividends"])) else float(row["Dividends"]),
-            0.0 if ("Stock Splits" not in row or math.isnan(row["Stock Splits"])) else float(row["Stock Splits"])
+            float(row["open"]),
+            float(row["high"]),
+            float(row["low"]),
+            float(row["close"]),
+            float(row.get("adj_close", row["close"])),
+            int(row["volume"]),
+            float(row.get("dividends", 0.0) or 0.0),
+            float(row.get("stock_splits", 0.0) or 0.0),
         ])
     if not rows:
         logging.warning(f"{symbol}: no valid rows; skipping")
         return 0
 
-    # upsert into PostgreSQL
+    # ─── Upsert into PostgreSQL ──────────────────────
     sql = f"""
-        INSERT INTO {table} ({COL_LIST})
-        VALUES %s
-        ON CONFLICT (symbol, date) DO UPDATE SET
-          open         = EXCLUDED.open,
-          high         = EXCLUDED.high,
-          low          = EXCLUDED.low,
-          close        = EXCLUDED.close,
-          adj_close    = EXCLUDED.adj_close,
-          volume       = EXCLUDED.volume,
-          dividends    = EXCLUDED.dividends,
-          stock_splits = EXCLUDED.stock_splits
+      INSERT INTO {table} ({COL_LIST})
+      VALUES %s
+      ON CONFLICT (symbol, date) DO UPDATE SET
+        open         = EXCLUDED.open,
+        high         = EXCLUDED.high,
+        low          = EXCLUDED.low,
+        close        = EXCLUDED.close,
+        adj_close    = EXCLUDED.adj_close,
+        volume       = EXCLUDED.volume,
+        dividends    = EXCLUDED.dividends,
+        stock_splits = EXCLUDED.stock_splits
     """
     execute_values(cur, sql, rows)
     conn.commit()
@@ -187,15 +182,11 @@ def main():
     log_mem("startup")
 
     cfg  = get_db_config()
-    conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
-        dbname=cfg["dbname"]
-    )
+    conn = psycopg2.connect(**cfg)
     conn.autocommit = False
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
 
-    # load stock & ETF symbols
+    # load symbols
     cur.execute("SELECT symbol FROM stock_symbols;")
     stocks = [r["symbol"] for r in cur.fetchall()]
     cur.execute("SELECT symbol FROM etf_symbols;")
@@ -210,27 +201,27 @@ def main():
                 if existing:
                     first_loaded = min(existing)
                     baseline     = max(first_loaded, calendar_start_date)
-                    relevant     = {d for d in all_trading_days_set if d >= baseline}
+                    relevant     = {d for d in all_trading_days if d >= baseline}
                     missing      = relevant - existing
                 else:
-                    missing = all_trading_days_set
+                    missing = all_trading_days
 
                 if not existing:
                     # initial load
                     logging.info(f"{sym}: no data → full history")
-                    rows = fetch_and_insert(sym, table, cur, conn, from_date=None)
+                    rows = fetch_and_insert(sym, table, cur, conn, None)
 
                 elif missing:
-                    # fill historic gaps only
+                    # backfill historic gaps only
                     gap_start = min(missing)
                     logging.info(f"{sym}: {len(missing)} gaps → from {gap_start}")
-                    rows = fetch_and_insert(sym, table, cur, conn, from_date=gap_start)
+                    rows = fetch_and_insert(sym, table, cur, conn, gap_start)
                     if rows == 0:
                         logging.warning(f"{sym}: gap fill failed → full history")
-                        rows = fetch_and_insert(sym, table, cur, conn, from_date=None)
+                        rows = fetch_and_insert(sym, table, cur, conn, None)
 
                 else:
-                    # upsert latest days, always including last_trading_day
+                    # no gaps → always fetch/upsert today's price
                     last_date = max(existing)
                     if last_date < last_trading_day:
                         start_date = last_date + datetime.timedelta(days=1)
@@ -238,21 +229,21 @@ def main():
                         start_date = last_trading_day
 
                     logging.info(f"{sym}: incremental from {start_date}")
-                    rows = fetch_and_insert(sym, table, cur, conn, from_date=start_date)
+                    rows = fetch_and_insert(sym, table, cur, conn, start_date)
                     if rows == 0:
                         logging.warning(f"{sym}: incremental failed → full history")
-                        rows = fetch_and_insert(sym, table, cur, conn, from_date=None)
+                        rows = fetch_and_insert(sym, table, cur, conn, None)
 
             except Exception as e:
                 logging.error(f"{sym}: unexpected error, full reload: {e}", exc_info=True)
-                fetch_and_insert(sym, table, cur, conn, from_date=None)
+                fetch_and_insert(sym, table, cur, conn, None)
 
     # record last run
     cur.execute("""
-        INSERT INTO last_updated (script_name, last_run)
-        VALUES (%s, NOW())
-        ON CONFLICT (script_name) DO UPDATE
-          SET last_run = EXCLUDED.last_run;
+      INSERT INTO last_updated (script_name, last_run)
+      VALUES (%s, NOW())
+      ON CONFLICT (script_name) DO UPDATE
+        SET last_run = EXCLUDED.last_run;
     """, (SCRIPT_NAME,))
     conn.commit()
 
