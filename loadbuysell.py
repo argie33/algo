@@ -38,19 +38,21 @@ log_mem("after imports")
 # -------------------------------
 # 0) FETCH DB CREDENTIALS & CONNECT
 # -------------------------------
+log_mem("start")
 DB_SECRET_ARN = os.getenv("DB_SECRET_ARN")
 if not DB_SECRET_ARN:
-    logger.error("DB_SECRET_ARN env var missing")
+    logger.error("DB_SECRET_ARN env var not set")
     sys.exit(1)
 
 sm = boto3.client("secretsmanager", region_name=os.getenv("AWS_REGION"))
-sec = json.loads(sm.get_secret_value(SecretId=DB_SECRET_ARN)["SecretString"])
+resp = sm.get_secret_value(SecretId=DB_SECRET_ARN)
+creds = json.loads(resp["SecretString"])
 conn = psycopg2.connect(
-    host=sec["host"],
-    port=sec.get("port",5432),
-    dbname=sec["dbname"],
-    user=sec["username"],
-    password=sec["password"]
+    host=creds["host"],
+    port=creds.get("port",5432),
+    dbname=creds["dbname"],
+    user=creds["username"],
+    password=creds["password"]
 )
 cursor = conn.cursor(cursor_factory=DictCursor)
 log_mem("DB connected")
@@ -74,9 +76,9 @@ def create_buy_sell_table():
     cursor.execute("""
       CREATE TABLE buy_sell (
         id         SERIAL        PRIMARY KEY,
-        symbol     VARCHAR(20),
-        timeframe  VARCHAR(10),
-        date       DATE,
+        symbol     VARCHAR(20)   NOT NULL,
+        timeframe  VARCHAR(10)   NOT NULL,
+        date       DATE          NOT NULL,
         signal     VARCHAR(10),
         buylevel   DOUBLE PRECISION,
         stoplevel  DOUBLE PRECISION,
@@ -92,6 +94,7 @@ def create_buy_sell_table():
 def fetch_batch_data(symbols, timeframe):
     price_t = {"Daily":"price_daily","Weekly":"price_weekly","Monthly":"price_monthly"}[timeframe]
     tech_t  = {"Daily":"technical_data_daily","Weekly":"technical_data_weekly","Monthly":"technical_data_monthly"}[timeframe]
+    # we need date, high, low, pivot_high, pivot_low, sma_50
     cursor.execute(f"""
       SELECT p.symbol, p.date, p.high, p.low,
              t.pivot_high, t.pivot_low, t.sma_50
@@ -112,105 +115,101 @@ def fetch_batch_data(symbols, timeframe):
 # 4) SIGNAL LOGIC (Pivot Breakout Follower)
 # -------------------------------
 def generate_signals(data,
-                     useMaFilter=True,
-                     maLength=50,
-                     maType="SMA"):
-    # parameters from Pine script
-    shunt = 1
-
+                     pvtLenL=3, pvtLenR=3,
+                     useMaFilter=True):
     n = len(data)
-    # extract arrays
-    highs      = [r["high"] for r in data]
-    lows       = [r["low"]  for r in data]
-    piv_hi     = [r["pivot_high"] for r in data]
-    piv_lo     = [r["pivot_low"]  for r in data]
-    ma_vals    = [r["sma_50"]      for r in data]  # using sma_50 as MA filter
+    highs      = [r["high"]       for r in data]
+    lows       = [r["low"]        for r in data]
+    piv_hi_raw = [r["pivot_high"] for r in data]
+    piv_lo_raw = [r["pivot_low"]  for r in data]
+    ma_vals    = [r["sma_50"]     for r in data]
 
-    # shift for confirmation
+    # Confirm pivots by shifting raw pivot arrays by Shunt=1
+    Shunt = 1
     ph_conf = [None]*n
     pl_conf = [None]*n
-    for i in range(n):
-        if i - shunt >= 0:
-            ph_conf[i] = piv_hi[i - shunt]
-            pl_conf[i] = piv_lo[i - shunt]
+    for i in range(Shunt, n):
+        ph_conf[i] = piv_hi_raw[i - Shunt]
+        pl_conf[i] = piv_lo_raw[i - Shunt]
 
-    # forward‐fill last pivot levels
-    last_ph = None
-    last_pl = None
+    # Forward‐fill last confirmed pivot into buyLevel/stopLevel
+    lastPH = lastPL = None
     buyL   = [None]*n
     stopL  = [None]*n
     for i in range(n):
         if ph_conf[i] is not None:
-            last_ph = ph_conf[i]
+            lastPH = ph_conf[i]
         if pl_conf[i] is not None:
-            last_pl = pl_conf[i]
-        buyL[i]  = last_ph
-        stopL[i] = last_pl
+            lastPL = pl_conf[i]
+        buyL[i]  = lastPH
+        stopL[i] = lastPL
 
-    # warn if none ever set
+    # Warn if no pivot ever found
     if all(x is None for x in buyL):
-        logger.warning("buyLevel never set: check pivot_high data")
+        logger.warning("No buyLevel set: check pivot_high data")
     if all(x is None for x in stopL):
-        logger.warning("stopLevel never set: check pivot_low data")
+        logger.warning("No stopLevel set: check pivot_low data")
 
-    # in‐position logic
+    # Build signal and inPosition arrays
     in_pos = False
-    signals = []
-    ins = []
-
+    out = []
     for i in range(n):
-        lvl_buy  = buyL[i]
-        lvl_stop = stopL[i]
         hi = highs[i]
         lo = lows[i]
-        ma = ma_vals[i]
+        lvl_buy  = buyL[i]
+        lvl_stop = stopL[i]
+        ma        = ma_vals[i]
 
         # breakout conditions
         buy_signal  = (lvl_buy is not None and hi > lvl_buy)
         sell_signal = (lvl_stop is not None and lo < lvl_stop)
 
-        # MA filter
+        # MA filter applied to buys
         if useMaFilter and ma is not None:
             buy_signal = buy_signal and (lvl_buy > ma)
 
-        # decide signal
-        if in_pos:
-            if sell_signal:
-                sig = "Sell"
-                in_pos = False
-            else:
-                sig = "None"
-        else:
-            if buy_signal:
-                sig = "Buy"
+        # replicate Pine’s inPosition logic: use previous bar’s signal
+        if i > 0:
+            if prev_buy:
                 in_pos = True
-            else:
-                sig = "None"
+            elif prev_sell:
+                in_pos = False
 
-        signals.append(sig)
-        ins.append(in_pos)
+        # determine this bar’s signal (study plots on the bar of breakout)
+        if not in_pos and buy_signal:
+            sig = "Buy"
+        elif in_pos and sell_signal:
+            sig = "Sell"
+        else:
+            sig = "None"
 
-    # attach back to data
-    for i,row in enumerate(data):
-        row["Signal"]     = signals[i]
-        row["inPosition"] = ins[i]
-        row["buyLevel"]   = buyL[i]
-        row["stopLevel"]  = stopL[i]
+        out.append({
+            "date":       data[i]["date"],
+            "Signal":     sig,
+            "buyLevel":   lvl_buy,
+            "stopLevel":  lvl_stop,
+            "inPosition": in_pos
+        })
 
-    return data
+        # save for next iteration
+        prev_buy  = buy_signal
+        prev_sell = sell_signal
+
+        # debug logging
+        if sig in ("Buy","Sell"):
+            logger.debug(f"{data[i]['date']} {sig}  buyLevel={lvl_buy} stopLevel={lvl_stop}")
+
+    return out
 
 # -------------------------------
 # 5) BATCH INSERT RESULTS
 # -------------------------------
-def insert_results(symbol, timeframe, data):
-    if not data:
+def insert_results(symbol, timeframe, rows):
+    if not rows:
         return
     vals = [
-        (
-            symbol, timeframe, row["date"],
-            row["Signal"], row["buyLevel"], row["stopLevel"], row["inPosition"]
-        )
-        for row in data
+        (symbol, timeframe, r["date"], r["Signal"], r["buyLevel"], r["stopLevel"], r["inPosition"])
+        for r in rows
     ]
     sql = """
       INSERT INTO buy_sell(
@@ -238,7 +237,6 @@ def main():
         return
 
     batch_size = int(os.getenv("SYMBOL_BATCH_SIZE", "50"))
-
     for timeframe in ("Daily","Weekly","Monthly"):
         logger.info(f"Processing timeframe: {timeframe}")
         for batch in chunked(symbols, batch_size):
@@ -246,16 +244,17 @@ def main():
             data_map = fetch_batch_data(batch, timeframe)
             for sym in batch:
                 data = data_map.get(sym)
-                if data:
-                    try:
-                        processed = generate_signals(data)
-                        insert_results(sym, timeframe, processed)
-                    except Exception:
-                        logger.exception(f"Error processing {sym}[{timeframe}]")
+                if not data:
+                    logger.info(f"{sym}: no data")
+                    continue
+                try:
+                    rows = generate_signals(data)
+                    insert_results(sym, timeframe, rows)
+                except Exception:
+                    logger.exception(f"Error processing {sym}[{timeframe}]")
             del data_map
             gc.collect()
-            log_mem("after gc")
-
+            log_mem("after GC")
     cursor.close()
     conn.close()
     log_mem("end")
