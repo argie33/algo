@@ -15,7 +15,7 @@ import boto3
 # -------------------------------
 # Script metadata & logging setup
 # -------------------------------
-SCRIPT_NAME = "buy_sell_signals.py"
+SCRIPT_NAME = "loadbuysell.py"
 logging.basicConfig(
     level=os.environ.get("LOG_LEVEL", "INFO"),
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -161,32 +161,46 @@ def fetch_data(symbol, timeframe, start_date=None, end_date=None):
     return [dict(r) for r in cursor.fetchall()]
 
 # -------------------------------
-# 4) SIGNAL LOGIC (mirrors original)
+# 4) SIGNAL LOGIC (updated to guard None)
 # -------------------------------
 def generate_signals(data,
                      atrMult=1.0,
                      useTrendMA=True,
                      adxStrong=30, adxWeak=20):
     n = len(data)
-    # lowercase keys
-    RSI       = [row["rsi"]          for row in data]
+    # pull off dicts (lowercase keys)
+    RSI       = [row["rsi"]        for row in data]
     RSI_prev  = [None] + RSI[:-1]
-    ADX       = [row["adx"]          for row in data]
-    plusDI    = [row["plus_di"]      for row in data]
-    minusDI   = [row["minus_di"]     for row in data]
-    ATR       = [row["atr"]          for row in data]
-    PivotHigh = [row["pivot_high"]   for row in data]
-    PivotLow  = [row["pivot_low"]    for row in data]
-    TrendMA   = [row["sma_50"]       for row in data]
-    highs     = [row["high"]         for row in data]
-    lows      = [row["low"]          for row in data]
-    closes    = [row["close"]        for row in data]
+    ADX       = [row["adx"]        for row in data]
+    plusDI    = [row["plus_di"]    for row in data]
+    minusDI   = [row["minus_di"]   for row in data]
+    ATR       = [row["atr"]        for row in data]
+    PivotHigh = [row["pivot_high"] for row in data]
+    PivotLow  = [row["pivot_low"]  for row in data]
+    TrendMA   = [row["sma_50"]     for row in data]
+    highs     = [row["high"]       for row in data]
+    lows      = [row["low"]        for row in data]
+    closes    = [row["close"]      for row in data]
 
-    # RSI crosses
-    rsiBuy  = [(RSI[i]>50 and (RSI_prev[i] or 0)<=50) for i in range(n)]
-    rsiSell = [(RSI[i]<50 and (RSI_prev[i] or 100)>=50) for i in range(n)]
+    # RSI crosses (guard None)
+    rsiBuy  = [
+        True
+        if (RSI[i] is not None and RSI_prev[i] is not None and RSI[i] > 50 and RSI_prev[i] <= 50)
+        else False
+        for i in range(n)
+    ]
+    rsiSell = [
+        True
+        if (RSI[i] is not None and RSI_prev[i] is not None and RSI[i] < 50 and RSI_prev[i] >= 50)
+        else False
+        for i in range(n)
+    ]
+
     # Trend filter
-    trendOK = [(closes[i] > TrendMA[i]) if useTrendMA else True for i in range(n)]
+    trendOK = [
+        (closes[i] > TrendMA[i]) if useTrendMA and TrendMA[i] is not None else True
+        for i in range(n)
+    ]
 
     # Pivot breakout
     phConf = [None] + PivotHigh[:-1]
@@ -204,7 +218,7 @@ def generate_signals(data,
             buyL[i] = lastPH
             breakoutBuy[i] = highs[i] > lastPH
         if lastPL is not None:
-            buff = ATR[i] * atrMult
+            buff = ATR[i] * atrMult if ATR[i] is not None else 0
             stopL[i] = lastPL - buff
             breakoutSell[i] = lows[i] < stopL[i]
 
@@ -215,10 +229,13 @@ def generate_signals(data,
         if ADX[i] is None:
             adx_ok = True
         else:
-            rising = (i>0 and ADX[i]>ADX[i-1])
-            adx_ok = (ADX[i]>adxStrong) or ((ADX[i]>adxWeak) and rising)
-        dmi_ok  = plusDI[i] > minusDI[i]
-        exitDmi = (i>0 and plusDI[i-1]>minusDI[i-1] and plusDI[i]<minusDI[i])
+            rising = (i>0 and ADX[i] is not None and ADX[i] > (ADX[i-1] or 0))
+            adx_ok = (ADX[i] > adxStrong) or ((ADX[i] > adxWeak) and rising)
+        dmi_ok  = (plusDI[i] or 0) > (minusDI[i] or 0)
+        exitDmi = (
+            i>0 and (plusDI[i-1] or 0) > (minusDI[i-1] or 0)
+               and (plusDI[i] or 0) < (minusDI[i] or 0)
+        )
 
         if useTrendMA:
             finalBuy[i]  = (rsiBuy[i] and trendOK[i] and adx_ok and dmi_ok) or breakoutBuy[i]
@@ -227,7 +244,7 @@ def generate_signals(data,
             finalBuy[i]  = (rsiBuy[i] and adx_ok and dmi_ok) or breakoutBuy[i]
             finalSell[i] = rsiSell[i] or breakoutSell[i]
 
-    # in-position & signals
+    # in-position & assign
     in_pos = False
     signals = []
     inPositions = []
@@ -241,12 +258,12 @@ def generate_signals(data,
         signals.append(sig)
         inPositions.append(in_pos)
 
-    # attach back
+    # attach back to data
     for i,row in enumerate(data):
-        row["Signal"]    = signals[i]
-        row["inPosition"]= inPositions[i]
-        row["buyLevel"]  = buyL[i]
-        row["stopLevel"] = stopL[i]
+        row["Signal"]     = signals[i]
+        row["inPosition"] = inPositions[i]
+        row["buyLevel"]   = buyL[i]
+        row["stopLevel"]  = stopL[i]
 
     return data
 
@@ -256,13 +273,14 @@ def generate_signals(data,
 def insert_results(symbol, timeframe, data):
     if not data:
         return
-    vals = []
-    for row in data:
-        vals.append((
+    vals = [
+        (
             symbol, timeframe, row["date"],
             row["open"], row["high"], row["low"], row["close"], row["volume"],
             row["Signal"], row["buyLevel"], row["stopLevel"], row["inPosition"]
-        ))
+        )
+        for row in data
+    ]
     sql = """
       INSERT INTO buy_sell(
         symbol, timeframe, date,
@@ -280,17 +298,14 @@ def insert_results(symbol, timeframe, data):
 def main():
     log_mem("main start")
 
-    # prepare table
     create_buy_sell_table()
     log_mem("table created")
 
-    # symbols
     symbols = get_symbols()
     if not symbols:
         logger.error("No symbols, exiting")
         return
 
-    # process
     for timeframe in ("Daily","Weekly","Monthly"):
         for sym in symbols:
             logger.info(f"Processing {sym} [{timeframe}]")
@@ -305,7 +320,6 @@ def main():
             except Exception:
                 logger.exception(f"Error {sym} {timeframe}")
 
-    # cleanup
     cursor.close()
     conn.close()
     log_mem("end")
