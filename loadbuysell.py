@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 # -------------------------------
 def get_rss_mb():
     usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    return usage / 1024 if sys.platform.startswith("linux") else usage / (1024*1024)
+    return usage/1024 if sys.platform.startswith("linux") else usage/(1024*1024)
 
 def log_mem(stage: str):
     logger.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
@@ -38,50 +38,22 @@ log_mem("after imports")
 # -------------------------------
 # 0) FETCH DB CREDENTIALS & CONNECT
 # -------------------------------
-log_mem("start")
 DB_SECRET_ARN = os.getenv("DB_SECRET_ARN")
 if not DB_SECRET_ARN:
-    logger.error("DB_SECRET_ARN environment variable is not set")
+    logger.error("DB_SECRET_ARN env var missing")
     sys.exit(1)
 
-log_mem("before secrets fetch")
 sm = boto3.client("secretsmanager", region_name=os.getenv("AWS_REGION"))
-resp = sm.get_secret_value(SecretId=DB_SECRET_ARN)
-secrets = json.loads(resp["SecretString"])
-log_mem("after secrets fetch")
-
-pg_host     = secrets["host"]
-pg_port     = secrets.get("port", 5432)
-pg_db       = secrets["dbname"]
-pg_user     = secrets["username"]
-pg_password = secrets["password"]
-
-log_mem("before DB connect")
+sec = json.loads(sm.get_secret_value(SecretId=DB_SECRET_ARN)["SecretString"])
 conn = psycopg2.connect(
-    host=pg_host,
-    port=pg_port,
-    dbname=pg_db,
-    user=pg_user,
-    password=pg_password
+    host=sec["host"],
+    port=sec.get("port",5432),
+    dbname=sec["dbname"],
+    user=sec["username"],
+    password=sec["password"]
 )
 cursor = conn.cursor(cursor_factory=DictCursor)
-log_mem("after DB connect")
-
-# -------------------------------
-# Prepare date ranges (if you need them later)
-# -------------------------------
-log_mem("before date calc")
-today = datetime.now()
-current_month_start = today.replace(day=1)
-last_day            = calendar.monthrange(today.year, today.month)[1]
-current_month_end   = today.replace(day=last_day)
-current_week_start  = today - timedelta(days=today.weekday())
-current_week_end    = current_week_start + timedelta(days=6)
-last_4_weeks_start  = current_week_start - timedelta(weeks=3)
-last_4_weeks_end    = current_week_end
-two_weeks_start     = today - timedelta(days=13)
-two_weeks_end       = today
-log_mem("after date calc")
+log_mem("DB connected")
 
 # -------------------------------
 # 1) READ SYMBOLS
@@ -105,11 +77,6 @@ def create_buy_sell_table():
         symbol     VARCHAR(20),
         timeframe  VARCHAR(10),
         date       DATE,
-        open       DOUBLE PRECISION,
-        high       DOUBLE PRECISION,
-        low        DOUBLE PRECISION,
-        close      DOUBLE PRECISION,
-        volume     BIGINT,
         signal     VARCHAR(10),
         buylevel   DOUBLE PRECISION,
         stoplevel  DOUBLE PRECISION,
@@ -120,15 +87,14 @@ def create_buy_sell_table():
     conn.commit()
 
 # -------------------------------
-# 3) FETCH BATCHED DATA FOR A SYMBOL LIST
+# 3) FETCH BATCHED DATA FOR SYMBOLS
 # -------------------------------
 def fetch_batch_data(symbols, timeframe):
     price_t = {"Daily":"price_daily","Weekly":"price_weekly","Monthly":"price_monthly"}[timeframe]
     tech_t  = {"Daily":"technical_data_daily","Weekly":"technical_data_weekly","Monthly":"technical_data_monthly"}[timeframe]
     cursor.execute(f"""
-      SELECT p.symbol, p.date, p.open, p.high, p.low, p.close, p.volume,
-             t.rsi, t.adx, t.plus_di, t.minus_di,
-             t.atr, t.pivot_high, t.pivot_low, t.sma_50
+      SELECT p.symbol, p.date, p.high, p.low,
+             t.pivot_high, t.pivot_low, t.sma_50
       FROM {price_t} p
       JOIN {tech_t} t
         ON p.symbol = t.symbol AND p.date = t.date
@@ -143,91 +109,91 @@ def fetch_batch_data(symbols, timeframe):
     return data
 
 # -------------------------------
-# 4) SIGNAL LOGIC (unchanged, guards None)
+# 4) SIGNAL LOGIC (Pivot Breakout Follower)
 # -------------------------------
 def generate_signals(data,
-                     atrMult=1.0,
-                     useTrendMA=True,
-                     adxStrong=30, adxWeak=20):
+                     useMaFilter=True,
+                     maLength=50,
+                     maType="SMA"):
+    # parameters from Pine script
+    shunt = 1
+
     n = len(data)
-    RSI       = [r["rsi"]        for r in data]
-    RSI_prev  = [None] + RSI[:-1]
-    ADX       = [r["adx"]        for r in data]
-    plusDI    = [r["plus_di"]    for r in data]
-    minusDI   = [r["minus_di"]   for r in data]
-    ATR       = [r["atr"]        for r in data]
-    PH        = [r["pivot_high"] for r in data]
-    PL        = [r["pivot_low"]  for r in data]
-    MA        = [r["sma_50"]     for r in data]
-    H         = [r["high"]       for r in data]
-    L         = [r["low"]        for r in data]
-    C         = [r["close"]      for r in data]
+    # extract arrays
+    highs      = [r["high"] for r in data]
+    lows       = [r["low"]  for r in data]
+    piv_hi     = [r["pivot_high"] for r in data]
+    piv_lo     = [r["pivot_low"]  for r in data]
+    ma_vals    = [r["sma_50"]      for r in data]  # using sma_50 as MA filter
 
-    # RSI crosses
-    rsiBuy  = [
-        bool(RSI[i] is not None and RSI_prev[i] is not None and RSI[i]>50 and RSI_prev[i]<=50)
-        for i in range(n)
-    ]
-    rsiSell = [
-        bool(RSI[i] is not None and RSI_prev[i] is not None and RSI[i]<50 and RSI_prev[i]>=50)
-        for i in range(n)
-    ]
-
-    # Trend filter
-    trendOK = [
-        (not useTrendMA) or (MA[i] is not None and C[i]>MA[i])
-        for i in range(n)
-    ]
-
-    # Pivot breakout
-    phc= [None]+PH[:-1]
-    plc= [None]+PL[:-1]
-    lastPH=lastPL=None
-    buyL=[None]*n; stopL=[None]*n
-    bBuy=[False]*n; bSell=[False]*n
+    # shift for confirmation
+    ph_conf = [None]*n
+    pl_conf = [None]*n
     for i in range(n):
-        if phc[i] is not None: lastPH=phc[i]
-        if plc[i] is not None: lastPL=plc[i]
-        if lastPH is not None:
-            buyL[i]=lastPH; bBuy[i]= H[i]>lastPH
-        if lastPL is not None:
-            buf = (ATR[i] or 0)*atrMult
-            stopL[i]=lastPL-buf; bSell[i]= L[i]<stopL[i]
+        if i - shunt >= 0:
+            ph_conf[i] = piv_hi[i - shunt]
+            pl_conf[i] = piv_lo[i - shunt]
 
-    # ADX/DMI filter
-    finalBuy=[False]*n; finalSell=[False]*n
+    # forward‐fill last pivot levels
+    last_ph = None
+    last_pl = None
+    buyL   = [None]*n
+    stopL  = [None]*n
     for i in range(n):
-        if ADX[i] is None:
-            adx_ok=True
-        else:
-            rising = bool(i>0 and ADX[i-1] is not None and ADX[i]>ADX[i-1])
-            adx_ok = (ADX[i]>adxStrong) or ((ADX[i]>adxWeak) and rising)
-        dmi_ok  = (plusDI[i] or 0) > (minusDI[i] or 0)
-        exitDmi = bool(
-            i>0 and (plusDI[i-1] or 0)>(minusDI[i-1] or 0)
-               and (plusDI[i] or 0)<(minusDI[i] or 0)
-        )
-        if useTrendMA:
-            finalBuy[i]  = (rsiBuy[i] and trendOK[i] and adx_ok and dmi_ok) or bBuy[i]
-            finalSell[i] = rsiSell[i] or bSell[i] or exitDmi
-        else:
-            finalBuy[i]  = (rsiBuy[i] and adx_ok and dmi_ok) or bBuy[i]
-            finalSell[i] = rsiSell[i] or bSell[i]
+        if ph_conf[i] is not None:
+            last_ph = ph_conf[i]
+        if pl_conf[i] is not None:
+            last_pl = pl_conf[i]
+        buyL[i]  = last_ph
+        stopL[i] = last_pl
 
-    # in-position & signals
-    in_pos=False; signals=[]; inPos=[]
+    # warn if none ever set
+    if all(x is None for x in buyL):
+        logger.warning("buyLevel never set: check pivot_high data")
+    if all(x is None for x in stopL):
+        logger.warning("stopLevel never set: check pivot_low data")
+
+    # in‐position logic
+    in_pos = False
+    signals = []
+    ins = []
+
     for i in range(n):
-        if in_pos and finalSell[i]:
-            sig="Sell"; in_pos=False
-        elif not in_pos and finalBuy[i]:
-            sig="Buy"; in_pos=True
-        else:
-            sig="None"
-        signals.append(sig); inPos.append(in_pos)
+        lvl_buy  = buyL[i]
+        lvl_stop = stopL[i]
+        hi = highs[i]
+        lo = lows[i]
+        ma = ma_vals[i]
 
+        # breakout conditions
+        buy_signal  = (lvl_buy is not None and hi > lvl_buy)
+        sell_signal = (lvl_stop is not None and lo < lvl_stop)
+
+        # MA filter
+        if useMaFilter and ma is not None:
+            buy_signal = buy_signal and (lvl_buy > ma)
+
+        # decide signal
+        if in_pos:
+            if sell_signal:
+                sig = "Sell"
+                in_pos = False
+            else:
+                sig = "None"
+        else:
+            if buy_signal:
+                sig = "Buy"
+                in_pos = True
+            else:
+                sig = "None"
+
+        signals.append(sig)
+        ins.append(in_pos)
+
+    # attach back to data
     for i,row in enumerate(data):
         row["Signal"]     = signals[i]
-        row["inPosition"] = inPos[i]
+        row["inPosition"] = ins[i]
         row["buyLevel"]   = buyL[i]
         row["stopLevel"]  = stopL[i]
 
@@ -242,7 +208,6 @@ def insert_results(symbol, timeframe, data):
     vals = [
         (
             symbol, timeframe, row["date"],
-            row["open"], row["high"], row["low"], row["close"], row["volume"],
             row["Signal"], row["buyLevel"], row["stopLevel"], row["inPosition"]
         )
         for row in data
@@ -250,16 +215,15 @@ def insert_results(symbol, timeframe, data):
     sql = """
       INSERT INTO buy_sell(
         symbol, timeframe, date,
-        open, high, low, close, volume,
         signal, buylevel, stoplevel, inposition
       ) VALUES %s
-      ON CONFLICT (symbol, timeframe, date) DO NOTHING;
+      ON CONFLICT(symbol, timeframe, date) DO NOTHING;
     """
     execute_values(cursor, sql, vals)
     conn.commit()
 
 # -------------------------------
-# 6) MAIN DRIVER with chunking
+# 6) MAIN DRIVER
 # -------------------------------
 def chunked(lst, n):
     for i in range(0, len(lst), n):
@@ -267,20 +231,18 @@ def chunked(lst, n):
 
 def main():
     log_mem("main start")
-
     create_buy_sell_table()
-    log_mem("table ready")
-
     symbols = get_symbols()
     if not symbols:
-        logger.error("No symbols, exiting")
+        logger.error("No symbols found")
         return
 
     batch_size = int(os.getenv("SYMBOL_BATCH_SIZE", "50"))
+
     for timeframe in ("Daily","Weekly","Monthly"):
-        log_mem(f"begin {timeframe}")
+        logger.info(f"Processing timeframe: {timeframe}")
         for batch in chunked(symbols, batch_size):
-            log_mem(f"fetch batch {len(batch)}")
+            log_mem(f"fetching batch of {len(batch)}")
             data_map = fetch_batch_data(batch, timeframe)
             for sym in batch:
                 data = data_map.get(sym)
@@ -289,16 +251,15 @@ def main():
                         processed = generate_signals(data)
                         insert_results(sym, timeframe, processed)
                     except Exception:
-                        logger.exception(f"Error {sym}[{timeframe}]")
+                        logger.exception(f"Error processing {sym}[{timeframe}]")
             del data_map
             gc.collect()
-            log_mem("after GC")
-        log_mem(f"end {timeframe}")
+            log_mem("after gc")
 
     cursor.close()
     conn.close()
     log_mem("end")
-    logger.info("All processing complete.")
+    logger.info("All done.")
 
 if __name__ == "__main__":
     main()
