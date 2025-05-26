@@ -75,11 +75,15 @@ def get_db_config():
 # Calendar only goes back to Jan 1, 2006
 calendar_start_date = datetime.date(2006, 1, 1)
 
-nyse     = ecals.get_calendar("XNYS")
-end_ts   = pd.Timestamp.now(tz=nyse.tz)
-sessions = nyse.sessions_in_range(calendar_start_date, end_ts)
-all_trading_days_set = {d.date() for d in sessions}
-last_trading_day     = sessions[-1].date()
+nyse = ecals.get_calendar("XNYS")
+
+# Compute “today” in the exchange’s timezone, then strip tzinfo to get a date
+today_aware = pd.Timestamp.now(tz=nyse.tz)
+last_trading_day = today_aware.date()
+
+# Now pass plain dates into sessions_in_range
+sessions = nyse.sessions_in_range(calendar_start_date, last_trading_day)
+all_trading_days_set = {session.date() for session in sessions}
 
 # -------------------------------
 # Helper: fetch existing dates
@@ -199,42 +203,40 @@ def main():
                 existing = get_existing_dates(cur, table, sym)
 
                 if existing:
-                    first_loaded = min(existing)
-                    # baseline: never backfill before calendar_start_date
-                    baseline      = max(first_loaded, calendar_start_date)
-                    relevant_days = {d for d in all_trading_days_set if d >= baseline}
-                    missing_days  = relevant_days - existing
+                    first_loaded   = min(existing)
+                    # never backfill before calendar_start_date
+                    baseline       = max(first_loaded, calendar_start_date)
+                    relevant_days  = {d for d in all_trading_days_set if d >= baseline}
+                    missing_days   = relevant_days - existing
                 else:
                     missing_days = all_trading_days_set
 
                 if not existing:
-                    # never loaded before → full history
+                    # full history
                     logging.info(f"{sym}: no data → full history load")
                     rows = fetch_and_insert(sym, table, cur, conn, from_date=None)
 
                 elif missing_days:
-                    # fill only the gap window
+                    # backfill earliest gap
                     earliest_gap = min(missing_days)
-                    logging.info(f"{sym}: {len(missing_days)} historical gaps → incremental from {earliest_gap}")
+                    logging.info(f"{sym}: {len(missing_days)} gaps → incremental from {earliest_gap}")
                     rows = fetch_and_insert(sym, table, cur, conn, from_date=earliest_gap)
                     if rows == 0:
-                        logging.warning(f"{sym}: incremental fetch failed, falling back to full history")
+                        logging.warning(f"{sym}: incremental failed, falling back to full history")
                         rows = fetch_and_insert(sym, table, cur, conn, from_date=None)
 
                 else:
-                    # no gaps → decide incremental start
+                    # no gaps → incremental up to today, always including last_trading_day
                     last_date = max(existing)
                     if last_date < last_trading_day:
-                        # catch up on all days after last_date
                         from_date = last_date + datetime.timedelta(days=1)
                     else:
-                        # we're at or past last_trading_day → re-fetch today
                         from_date = last_trading_day
 
                     logging.info(f"{sym}: incremental from {from_date}")
                     rows = fetch_and_insert(sym, table, cur, conn, from_date=from_date)
                     if rows == 0:
-                        logging.warning(f"{sym}: incremental fetch failed, falling back to full history")
+                        logging.warning(f"{sym}: incremental failed, falling back to full history")
                         rows = fetch_and_insert(sym, table, cur, conn, from_date=None)
 
             except Exception as exc:
