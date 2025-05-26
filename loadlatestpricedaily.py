@@ -1,4 +1,5 @@
-#!/usr/bin/env python3  
+#!/usr/bin/env python3
+
 import sys
 import time
 import logging
@@ -18,7 +19,7 @@ import pandas as pd
 import exchange_calendars as ecals
 
 # -------------------------------
-# Script metadata & logging setup 
+# Script metadata & logging setup
 # -------------------------------
 SCRIPT_NAME = "loadlatestpricedaily.py"
 logging.basicConfig(
@@ -49,8 +50,8 @@ RETRY_DELAY         = 0.2  # seconds
 # Price-daily columns (for INSERT)
 # -------------------------------
 PRICE_COLUMNS = [
-    "symbol","date","open","high","low",
-    "close","adj_close","volume","dividends","stock_splits"
+    "symbol", "date", "open", "high", "low",
+    "close", "adj_close", "volume", "dividends", "stock_splits"
 ]
 COL_LIST = ", ".join(PRICE_COLUMNS)
 
@@ -72,18 +73,17 @@ def get_db_config():
 # -------------------------------
 # Build NYSE trading days set
 # -------------------------------
-# Calendar only goes back to Jan 1, 2006
+# calendar only goes back to Jan 1, 2006
 calendar_start_date = datetime.date(2006, 1, 1)
 
 nyse = ecals.get_calendar("XNYS")
-
-# Compute “today” in the exchange’s timezone, then strip tzinfo to get a date
-today_aware = pd.Timestamp.now(tz=nyse.tz)
+# compute last trading day as naive date
+today_aware      = pd.Timestamp.now(tz=nyse.tz)
 last_trading_day = today_aware.date()
 
-# Now pass plain dates into sessions_in_range
+# get all sessions between calendar_start_date and last_trading_day
 sessions = nyse.sessions_in_range(calendar_start_date, last_trading_day)
-all_trading_days_set = {session.date() for session in sessions}
+all_trading_days_set = {sess.date() for sess in sessions}
 
 # -------------------------------
 # Helper: fetch existing dates
@@ -98,8 +98,8 @@ def get_existing_dates(cur, table, symbol):
 def fetch_and_insert(symbol, table, cur, conn, from_date=None):
     yf_sym = symbol.replace('.', '-').upper()
 
-    # ── retry loop ───────────────────────────
-    for attempt in range(1, MAX_DOWNLOAD_RETRIES+1):
+    # retry download
+    for attempt in range(1, MAX_DOWNLOAD_RETRIES + 1):
         logging.info(f"{symbol}: yf.download attempt {attempt} (from {from_date})")
         log_mem(f"{symbol} download start")
         try:
@@ -119,54 +119,60 @@ def fetch_and_insert(symbol, table, cur, conn, from_date=None):
         logging.error(f"{symbol}: failed download after {MAX_DOWNLOAD_RETRIES} attempts")
         return 0
 
-    # ── sanity checks ────────────────────────
+    # no data?
     if df is None or df.empty:
         logging.warning(f"{symbol}: no data returned; skipping")
         return 0
 
-    expected = ["Open","High","Low","Close","Volume"]
-    missing  = [c for c in expected if c not in df.columns]
+    # flatten multi-index columns
+    if hasattr(df.columns, "nlevels") and df.columns.nlevels > 1:
+        df.columns = df.columns.get_level_values(1)
+
+    # required columns
+    required = ["Open", "High", "Low", "Close", "Volume"]
+    missing  = [c for c in required if c not in df.columns]
     if missing:
         logging.warning(f"{symbol}: missing cols {missing}; skipping")
         return 0
 
-    df = df.sort_index().loc[df["Open"].notna()]
+    df = df.sort_index()
+    df = df[df["Open"].notna()]
     if df.empty:
         logging.warning(f"{symbol}: all Open NaN; skipping")
         return 0
 
-    # ── build upsert rows ────────────────────
+    # build rows
     rows = []
     for idx, row in df.iterrows():
         rows.append([
             symbol,
             idx.date(),
-            float(row["Open"]),
-            float(row["High"]),
-            float(row["Low"]),
-            float(row["Close"]),
-            float(row.get("Adj Close", row["Close"])),
-            int(row["Volume"]),
-            float(row.get("Dividends", 0.0) or 0.0),
-            float(row.get("Stock Splits", 0.0) or 0.0)
+            None if math.isnan(row["Open"]) else float(row["Open"]),
+            None if math.isnan(row["High"]) else float(row["High"]),
+            None if math.isnan(row["Low"]) else float(row["Low"]),
+            None if math.isnan(row["Close"]) else float(row["Close"]),
+            None if math.isnan(row.get("Adj Close", row["Close"])) else float(row.get("Adj Close", row["Close"])),
+            None if math.isnan(row["Volume"]) else int(row["Volume"]),
+            0.0 if ("Dividends" not in row or math.isnan(row["Dividends"])) else float(row["Dividends"]),
+            0.0 if ("Stock Splits" not in row or math.isnan(row["Stock Splits"])) else float(row["Stock Splits"])
         ])
     if not rows:
         logging.warning(f"{symbol}: no valid rows; skipping")
         return 0
 
-    # ── upsert into PostgreSQL ───────────────
+    # upsert into PostgreSQL
     sql = f"""
-    INSERT INTO {table} ({COL_LIST})
-    VALUES %s
-    ON CONFLICT (symbol, date) DO UPDATE SET
-      open         = EXCLUDED.open,
-      high         = EXCLUDED.high,
-      low          = EXCLUDED.low,
-      close        = EXCLUDED.close,
-      adj_close    = EXCLUDED.adj_close,
-      volume       = EXCLUDED.volume,
-      dividends    = EXCLUDED.dividends,
-      stock_splits = EXCLUDED.stock_splits
+        INSERT INTO {table} ({COL_LIST})
+        VALUES %s
+        ON CONFLICT (symbol, date) DO UPDATE SET
+          open         = EXCLUDED.open,
+          high         = EXCLUDED.high,
+          low          = EXCLUDED.low,
+          close        = EXCLUDED.close,
+          adj_close    = EXCLUDED.adj_close,
+          volume       = EXCLUDED.volume,
+          dividends    = EXCLUDED.dividends,
+          stock_splits = EXCLUDED.stock_splits
     """
     execute_values(cur, sql, rows)
     conn.commit()
@@ -195,7 +201,6 @@ def main():
     cur.execute("SELECT symbol FROM etf_symbols;")
     etfs   = [r["symbol"] for r in cur.fetchall()]
 
-    # process each table
     for table, syms in [("price_daily", stocks), ("etf_price_daily", etfs)]:
         logging.info(f"Processing {table} ({len(syms)} symbols)")
         for sym in syms:
@@ -203,52 +208,51 @@ def main():
                 existing = get_existing_dates(cur, table, sym)
 
                 if existing:
-                    first_loaded   = min(existing)
-                    # never backfill before calendar_start_date
-                    baseline       = max(first_loaded, calendar_start_date)
-                    relevant_days  = {d for d in all_trading_days_set if d >= baseline}
-                    missing_days   = relevant_days - existing
+                    first_loaded = min(existing)
+                    baseline     = max(first_loaded, calendar_start_date)
+                    relevant     = {d for d in all_trading_days_set if d >= baseline}
+                    missing      = relevant - existing
                 else:
-                    missing_days = all_trading_days_set
+                    missing = all_trading_days_set
 
                 if not existing:
-                    # full history
-                    logging.info(f"{sym}: no data → full history load")
+                    # initial load
+                    logging.info(f"{sym}: no data → full history")
                     rows = fetch_and_insert(sym, table, cur, conn, from_date=None)
 
-                elif missing_days:
-                    # backfill earliest gap
-                    earliest_gap = min(missing_days)
-                    logging.info(f"{sym}: {len(missing_days)} gaps → incremental from {earliest_gap}")
-                    rows = fetch_and_insert(sym, table, cur, conn, from_date=earliest_gap)
+                elif missing:
+                    # fill historic gaps only
+                    gap_start = min(missing)
+                    logging.info(f"{sym}: {len(missing)} gaps → from {gap_start}")
+                    rows = fetch_and_insert(sym, table, cur, conn, from_date=gap_start)
                     if rows == 0:
-                        logging.warning(f"{sym}: incremental failed, falling back to full history")
+                        logging.warning(f"{sym}: gap fill failed → full history")
                         rows = fetch_and_insert(sym, table, cur, conn, from_date=None)
 
                 else:
-                    # no gaps → incremental up to today, always including last_trading_day
+                    # upsert latest days, always including last_trading_day
                     last_date = max(existing)
                     if last_date < last_trading_day:
-                        from_date = last_date + datetime.timedelta(days=1)
+                        start_date = last_date + datetime.timedelta(days=1)
                     else:
-                        from_date = last_trading_day
+                        start_date = last_trading_day
 
-                    logging.info(f"{sym}: incremental from {from_date}")
-                    rows = fetch_and_insert(sym, table, cur, conn, from_date=from_date)
+                    logging.info(f"{sym}: incremental from {start_date}")
+                    rows = fetch_and_insert(sym, table, cur, conn, from_date=start_date)
                     if rows == 0:
-                        logging.warning(f"{sym}: incremental failed, falling back to full history")
+                        logging.warning(f"{sym}: incremental failed → full history")
                         rows = fetch_and_insert(sym, table, cur, conn, from_date=None)
 
-            except Exception as exc:
-                logging.error(f"{sym}: unexpected error, doing full reload: {exc}", exc_info=True)
+            except Exception as e:
+                logging.error(f"{sym}: unexpected error, full reload: {e}", exc_info=True)
                 fetch_and_insert(sym, table, cur, conn, from_date=None)
 
     # record last run
     cur.execute("""
-      INSERT INTO last_updated (script_name, last_run)
-      VALUES (%s, NOW())
-      ON CONFLICT (script_name) DO UPDATE
-        SET last_run = EXCLUDED.last_run;
+        INSERT INTO last_updated (script_name, last_run)
+        VALUES (%s, NOW())
+        ON CONFLICT (script_name) DO UPDATE
+          SET last_run = EXCLUDED.last_run;
     """, (SCRIPT_NAME,))
     conn.commit()
 
