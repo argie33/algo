@@ -70,16 +70,16 @@ def get_db_config():
     }
 
 # -------------------------------
-# Fetch NYSE trading days
+# Build NYSE trading days set
 # -------------------------------
 nyse = ecals.get_calendar("XNYS")
-start = datetime.date(1900, 1, 1)
+start = datetime.date(2006, 1, 1)
 end   = pd.Timestamp.now(tz=nyse.tz).date()
 all_trading_days = nyse.sessions_in_range(start, end)
 all_trading_days_set = {d.date() for d in all_trading_days}
 
 # -------------------------------
-# Existing-dates helper
+# Helper: fetch existing dates
 # -------------------------------
 def get_existing_dates(cur, table, symbol):
     cur.execute(f"SELECT date FROM {table} WHERE symbol = %s", (symbol,))
@@ -90,9 +90,10 @@ def get_existing_dates(cur, table, symbol):
 # -------------------------------
 def fetch_and_insert(symbol, table, cur, conn, from_date=None):
     yf_sym = symbol.replace('.', '-').upper()
-    # --- retry download ---
+
+    # ── retry loop ───────────────────────────
     for attempt in range(1, MAX_DOWNLOAD_RETRIES+1):
-        logging.info(f"{symbol}: yf.download attempt {attempt}")
+        logging.info(f"{symbol}: yf.download attempt {attempt} (from {from_date})")
         log_mem(f"{symbol} download start")
         try:
             df = yf.download(
@@ -111,7 +112,7 @@ def fetch_and_insert(symbol, table, cur, conn, from_date=None):
         logging.error(f"{symbol}: failed download after {MAX_DOWNLOAD_RETRIES} attempts")
         return 0
 
-    # --- sanity checks ---
+    # ── sanity checks ────────────────────────
     if df is None or df.empty:
         logging.warning(f"{symbol}: no data returned; skipping")
         return 0
@@ -127,7 +128,7 @@ def fetch_and_insert(symbol, table, cur, conn, from_date=None):
         logging.warning(f"{symbol}: all Open NaN; skipping")
         return 0
 
-    # --- build rows ---
+    # ── build upsert rows ────────────────────
     rows = []
     for idx, row in df.iterrows():
         rows.append([
@@ -146,7 +147,7 @@ def fetch_and_insert(symbol, table, cur, conn, from_date=None):
         logging.warning(f"{symbol}: no valid rows; skipping")
         return 0
 
-    # --- upsert ---
+    # ── upsert into PostgreSQL ───────────────
     sql = f"""
     INSERT INTO {table} ({COL_LIST})
     VALUES %s
@@ -167,7 +168,7 @@ def fetch_and_insert(symbol, table, cur, conn, from_date=None):
     return len(rows)
 
 # -------------------------------
-# Main
+# Main entrypoint
 # -------------------------------
 def main():
     log_mem("startup")
@@ -181,38 +182,54 @@ def main():
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # load stock symbols
+    # load stock & ETF symbols
     cur.execute("SELECT symbol FROM stock_symbols;")
     stocks = [r["symbol"] for r in cur.fetchall()]
-    # load ETF symbols
     cur.execute("SELECT symbol FROM etf_symbols;")
     etfs   = [r["symbol"] for r in cur.fetchall()]
 
+    # process each table
     for table, syms in [("price_daily", stocks), ("etf_price_daily", etfs)]:
         logging.info(f"Processing {table} ({len(syms)} symbols)")
         for sym in syms:
-            existing = get_existing_dates(cur, table, sym)
-            if existing:
-                first_trade   = min(existing)
-                relevant_days = {d for d in all_trading_days_set if d >= first_trade}
-                missing_days  = relevant_days - existing
-            else:
-                missing_days = all_trading_days_set
+            try:
+                existing = get_existing_dates(cur, table, sym)
 
-            if not existing:
-                logging.info(f"{sym}: no data in table, loading full history")
-                fetch_and_insert(sym, table, cur, conn, from_date=None)
-
-            elif missing_days:
-                logging.info(f"{sym}: {len(missing_days)} missing days since first trade, reloading full history")
-                fetch_and_insert(sym, table, cur, conn, from_date=None)
-
-            else:
-                last = max(existing)
-                if last >= end:
-                    logging.info(f"{sym}: up to date")
+                if existing:
+                    first_loaded   = min(existing)
+                    relevant_days  = {d for d in all_trading_days_set if d >= first_loaded}
+                    missing_days   = relevant_days - existing
                 else:
-                    fetch_and_insert(sym, table, cur, conn, from_date=last + datetime.timedelta(days=1))
+                    missing_days = all_trading_days_set
+
+                if not existing:
+                    logging.info(f"{sym}: no data → full history load")
+                    rows = fetch_and_insert(sym, table, cur, conn, from_date=None)
+
+                elif missing_days:
+                    earliest_gap = min(missing_days)
+                    logging.info(f"{sym}: {len(missing_days)} gaps → incremental from {earliest_gap}")
+                    rows = fetch_and_insert(sym, table, cur, conn, from_date=earliest_gap)
+                    if rows == 0:
+                        logging.warning(f"{sym}: incremental fetch failed, falling back to full history")
+                        rows = fetch_and_insert(sym, table, cur, conn, from_date=None)
+
+                else:
+                    last_date = max(existing)
+                    if last_date >= end:
+                        logging.info(f"{sym}: up to date")
+                        rows = 0
+                    else:
+                        next_day = last_date + datetime.timedelta(days=1)
+                        logging.info(f"{sym}: incremental from {next_day}")
+                        rows = fetch_and_insert(sym, table, cur, conn, from_date=next_day)
+                        if rows == 0:
+                            logging.warning(f"{sym}: incremental fetch failed, falling back to full history")
+                            rows = fetch_and_insert(sym, table, cur, conn, from_date=None)
+
+            except Exception as exc:
+                logging.error(f"{sym}: unexpected error, doing full reload: {exc}", exc_info=True)
+                fetch_and_insert(sym, table, cur, conn, from_date=None)
 
     # record last run
     cur.execute("""
