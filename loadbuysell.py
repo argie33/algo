@@ -10,6 +10,8 @@ import psycopg2
 from psycopg2.extras import DictCursor
 from datetime import datetime, timedelta
 import calendar
+import boto3
+from psycopg2.extras import DictCursor, execute_values
 
 # -------------------------------
 # Script metadata & logging setup
