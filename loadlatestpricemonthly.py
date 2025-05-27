@@ -106,7 +106,7 @@ def load_prices(table_name, symbols, cur, conn):
                 "tickers":     yq_sym,
                 "start":       last_date.isoformat(),
                 "end":         (today + timedelta(days=1)).isoformat(),
-                "interval":    "1d",
+                "interval":    "1mo",
                 "auto_adjust": True,
                 "actions":     True,
                 "threads":     True,
@@ -117,7 +117,7 @@ def load_prices(table_name, symbols, cur, conn):
             download_kwargs = {
                 "tickers":     yq_sym,
                 "period":      "max",
-                "interval":    "1d",
+                "interval":    "1mo",
                 "auto_adjust": True,
                 "actions":     True,
                 "threads":     True,
