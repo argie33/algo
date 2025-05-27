@@ -73,7 +73,7 @@ def load_prices_incremental(table_name, symbols, cur, conn):
     total = len(symbols)
     logger.info(f"Loading {table_name} incrementally: {total} symbols")
 
-    # 1) Fetch each symbol’s last_date in one query
+    # Fetch each symbol’s last_date in one query
     cur.execute(f"SELECT symbol, MAX(date) AS last_date FROM {table_name} GROUP BY symbol;")
     last_dates = {r['symbol']: r['last_date'] for r in cur.fetchall()}
 
@@ -83,7 +83,11 @@ def load_prices_incremental(table_name, symbols, cur, conn):
 
     for batch_idx in range(batches):
         batch_syms = symbols[batch_idx*CHUNK_SIZE:(batch_idx+1)*CHUNK_SIZE]
+        logger.info(f"{table_name} batch {batch_idx+1}/{batches} symbols: {batch_syms}")
+
         yq_tickers = [s.replace('.', '-').replace('$','-').upper() for s in batch_syms]
+        batch_failed = []
+        symbol_row_counts = {}
 
         # decide full vs incremental for the batch
         existing_dates = [last_dates.get(s) for s in batch_syms if last_dates.get(s)]
@@ -127,30 +131,39 @@ def load_prices_incremental(table_name, symbols, cur, conn):
         else:
             logger.error(f"batch {batch_idx+1} failed after {MAX_BATCH_RETRIES} attempts")
             failed.extend(batch_syms)
+            batch_failed.extend(batch_syms)
             continue
 
         log_mem(f"{table_name} after download")
 
-        # build rows
+        # build rows, track per-symbol counts
         rows = []
         for i, orig_sym in enumerate(batch_syms):
+            logger.info(f"{table_name} – {orig_sym}: processing")
             yq_sym = yq_tickers[i]
             try:
                 sub = df[yq_sym] if len(yq_tickers) > 1 else df
             except KeyError:
-                logger.warning(f"{orig_sym}: no data; skipping")
+                logger.warning(f"{orig_sym}: no data returned; skipping")
                 failed.append(orig_sym)
+                batch_failed.append(orig_sym)
+                symbol_row_counts[orig_sym] = 0
                 continue
 
             sub = sub.sort_index()
             sub = sub[sub["Open"].notna()]
+
             last = last_dates.get(orig_sym)
             if last:
                 sub = sub[sub.index.date > last]
 
-            if sub.empty:
+            count = len(sub)
+            symbol_row_counts[orig_sym] = count
+            if count == 0:
+                logger.info(f"{orig_sym}: no new rows")
                 continue
 
+            logger.info(f"{orig_sym}: {count} new rows")
             for ts, row in sub.iterrows():
                 rows.append([
                     orig_sym,
@@ -168,14 +181,23 @@ def load_prices_incremental(table_name, symbols, cur, conn):
                         else float(row.get("Stock Splits", 0.0))
                 ])
 
-        # one insert + commit per batch
+        # insert + commit once per batch
         if rows:
             sql = f"INSERT INTO {table_name} ({COL_LIST}) VALUES %s"
             execute_values(cur, sql, rows)
             conn.commit()
             inserted += len(rows)
-            logger.info(f"{table_name} batch {batch_idx+1}/{batches}: inserted {len(rows)} rows")
+            logger.info(f"{table_name} batch {batch_idx+1}/{batches}: batch-inserted {len(rows)} rows")
 
+        # batch summary
+        succeeded = [s for s, c in symbol_row_counts.items() if c > 0]
+        skipped   = [s for s, c in symbol_row_counts.items() if c == 0]
+        logger.info(f"{table_name} batch {batch_idx+1}/{batches} summary – "
+                    f"succeeded ({len(succeeded)}): {succeeded}; "
+                    f"skipped ({len(skipped)}): {skipped}; "
+                    f"failed ({len(batch_failed)}): {batch_failed}")
+
+        # cleanup
         del df, rows
         gc.collect()
         log_mem(f"{table_name} batch {batch_idx+1} end")
