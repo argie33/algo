@@ -156,7 +156,7 @@ def fetch_data(symbol, timeframe, start_date=None, end_date=None):
     return [dict(r) for r in cursor.fetchall()]
 
 # -------------------------------
-# 4) SIGNAL LOGIC (updated to guard None)
+# 4) SIGNAL LOGIC (unchanged)
 # -------------------------------
 def generate_signals(data,
                      atrMult=1.0,
@@ -219,7 +219,7 @@ def generate_signals(data,
         if ADX[i] is None:
             adx_ok = True
         else:
-            rising = (i>0 and ADX[i] is not None and ADX[i] > (ADX[i-1] or 0))
+            rising = (i>0 and ADX[i] > (ADX[i-1] or 0))
             adx_ok = (ADX[i] > adxStrong) or ((ADX[i] > adxWeak) and rising)
         dmi_ok  = (plusDI[i] or 0) > (minusDI[i] or 0)
         exitDmi = (
@@ -247,7 +247,7 @@ def generate_signals(data,
         signals.append(sig)
         inPositions.append(in_pos)
 
-    for i,row in enumerate(data):
+    for i, row in enumerate(data):
         row["Signal"]     = signals[i]
         row["inPosition"] = inPositions[i]
         row["buyLevel"]   = buyL[i]
@@ -256,7 +256,7 @@ def generate_signals(data,
     return data
 
 # -------------------------------
-# 5) INSERT INTO buy_sell (no price cols)
+# 5) INSERT INTO buy_sell (batched commit)
 # -------------------------------
 def insert_results(symbol, timeframe, data):
     if not data:
@@ -286,10 +286,10 @@ def insert_results(symbol, timeframe, data):
       ON CONFLICT (symbol, timeframe, date) DO NOTHING;
     """
     execute_values(cursor, sql, vals)
-    conn.commit()
+    # commit will happen once per batch
 
 # -------------------------------
-# 6) MAIN DRIVER (batched by 10)
+# 6) MAIN DRIVER (reduced batch size, batched commits)
 # -------------------------------
 def main():
     create_buy_sell_table()
@@ -299,27 +299,34 @@ def main():
         logger.error("No symbols, exiting")
         return
 
-    batch_size = 10
+    batch_size = 3
     for batch_start in range(0, len(symbols), batch_size):
         batch_num = batch_start // batch_size + 1
         batch = symbols[batch_start:batch_start + batch_size]
         logger.info(f"Starting batch {batch_num}: {batch}")
-        failures = []
 
+        failures = []
         for timeframe in ("Daily", "Weekly", "Monthly"):
             for sym in batch:
-                logger.info(f"Processing {sym} [{timeframe}]")
+                logger.info(f"  Processing {sym} [{timeframe}]")
                 try:
                     data = fetch_data(sym, timeframe)
                     if not data:
-                        logger.info(f"No data for {sym} {timeframe}")
+                        logger.info(f"    No data for {sym} {timeframe}")
                         continue
                     data = generate_signals(data)
                     insert_results(sym, timeframe, data)
-                    log_mem(f"done {sym} {timeframe}")
+                    # free up memory for next iteration
+                    del data
                 except Exception:
-                    logger.exception(f"Error {sym} {timeframe}")
+                    logger.exception(f"    Error {sym} {timeframe}")
                     failures.append(f"{sym} [{timeframe}]")
+
+        # commit all inserts for this batch at once
+        conn.commit()
+        # force garbage collection to release memory back to OS
+        gc.collect()
+        log_mem(f"after batch {batch_num}")
 
         if not failures:
             logger.info(f"Batch {batch_num} succeeded: {batch}")
