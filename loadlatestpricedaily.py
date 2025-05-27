@@ -155,7 +155,7 @@ def load_prices_incremental(table_name, symbols, cur, conn):
 
             last = last_dates.get(orig_sym)
             if last:
-                # include last_date itself so we always refresh current period
+                # include last_date to refresh current period
                 sub = sub[sub.index.date >= last]
 
             count = len(sub)
@@ -232,15 +232,40 @@ if __name__ == "__main__":
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # ensure a unique index on (symbol, date) for ON CONFLICT to work
+    # 1) Remove duplicates so we can build a unique index
+    logger.info("Deduplicating price_daily…")
     cur.execute("""
-      CREATE UNIQUE INDEX IF NOT EXISTS price_daily_symbol_date_idx
-        ON price_daily(symbol, date);
-      CREATE UNIQUE INDEX IF NOT EXISTS etf_price_daily_symbol_date_idx
-        ON etf_price_daily(symbol, date);
-    """)
+WITH ranked AS (
+  SELECT ctid,
+         ROW_NUMBER() OVER (PARTITION BY symbol, date ORDER BY ctid) AS rn
+  FROM price_daily
+)
+DELETE FROM price_daily
+WHERE ctid IN (SELECT ctid FROM ranked WHERE rn > 1);
+""")
+    logger.info("Deduplicating etf_price_daily…")
+    cur.execute("""
+WITH ranked AS (
+  SELECT ctid,
+         ROW_NUMBER() OVER (PARTITION BY symbol, date ORDER BY ctid) AS rn
+  FROM etf_price_daily
+)
+DELETE FROM etf_price_daily
+WHERE ctid IN (SELECT ctid FROM ranked WHERE rn > 1);
+""")
     conn.commit()
 
+    # 2) Create unique indexes for ON CONFLICT
+    logger.info("Creating unique indexes…")
+    cur.execute("""
+CREATE UNIQUE INDEX IF NOT EXISTS price_daily_symbol_date_idx
+  ON price_daily(symbol, date);
+CREATE UNIQUE INDEX IF NOT EXISTS etf_price_daily_symbol_date_idx
+  ON etf_price_daily(symbol, date);
+""")
+    conn.commit()
+
+    # 3) Run the batched incremental loader
     cur.execute("SELECT symbol FROM stock_symbols;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
     t_s, i_s, f_s = load_prices_incremental("price_daily", stock_syms, cur, conn)
@@ -249,6 +274,7 @@ if __name__ == "__main__":
     etf_syms = [r["symbol"] for r in cur.fetchall()]
     t_e, i_e, f_e = load_prices_incremental("etf_price_daily", etf_syms, cur, conn)
 
+    # 4) Record last run
     cur.execute("""
       INSERT INTO last_updated (script_name, last_run)
       VALUES (%s, NOW())
