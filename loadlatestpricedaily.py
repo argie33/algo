@@ -6,7 +6,7 @@ import json
 import os
 import gc
 import resource
-import math
+import pandas as pd
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
@@ -61,54 +61,63 @@ def get_db_config():
                      .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     sec = json.loads(secret_str)
     return {
-        "host":     sec["host"],
-        "port":     int(sec.get("port", 5432)),
-        "user":     sec["username"],
+        "host":   sec["host"],
+        "port":   int(sec.get("port", 5432)),
+        "user":   sec["username"],
         "password": sec["password"],
-        "dbname":   sec["dbname"]
+        "dbname": sec["dbname"]
     }
 
 # -------------------------------
-# Incremental loader
+# Helper to extract a single scalar
+# -------------------------------
+def extract_scalar(val):
+    """
+    If pandas gives us a one-element Series, pull out that element.
+    Otherwise, return val as-is.
+    """
+    if isinstance(val, pd.Series) and len(val) == 1:
+        return val.iloc[0]
+    return val
+
+# -------------------------------
+# Incremental loader (always refresh current bar)
 # -------------------------------
 def load_prices(table_name, symbols, cur, conn):
     logging.info(f"Loading {table_name}: {len(symbols)} symbols")
     inserted = 0
-    failed = []
+    failed   = []
 
     for orig_sym in symbols:
         yq_sym = orig_sym.replace('.', '-').replace('$', '-').upper()
 
-        # ─── Determine starting point ────────────────────────────
+        # ─── Determine starting point ───────────────────────────
         cur.execute(
             f"SELECT MAX(date) AS last_date FROM {table_name} WHERE symbol = %s;",
             (orig_sym,)
         )
         res = cur.fetchone()
-        last_date = res["last_date"] if isinstance(res, dict) else res[0]
+        last_date = (res["last_date"] if isinstance(res, dict) else res[0])
+        today     = datetime.now().date()
 
         if last_date:
-            start_date = last_date + timedelta(days=1)
-            today = datetime.now().date()
-            if start_date > today:
-                logging.info(f"{table_name} – {orig_sym}: up to date (last_date={last_date}); skipping")
-                continue
+            # always include last_date so we refresh today’s bar too
             download_kwargs = {
-                "tickers":   yq_sym,
-                "start":     start_date.isoformat(),
-                "end":       (today + timedelta(days=1)).isoformat(),
-                "interval":  "1d",
+                "tickers":     yq_sym,
+                "start":       last_date.isoformat(),
+                "end":         (today + timedelta(days=1)).isoformat(),
+                "interval":    "1d",
                 "auto_adjust": True,
                 "actions":     True,
                 "threads":     True,
                 "progress":    False
             }
-            logging.info(f"{table_name} – {orig_sym}: downloading incremental from {start_date} to {today}")
+            logging.info(f"{table_name} – {orig_sym}: downloading from {last_date} to {today}")
         else:
             download_kwargs = {
-                "tickers":   yq_sym,
-                "period":    "max",
-                "interval":  "1d",
+                "tickers":     yq_sym,
+                "period":      "max",
+                "interval":    "1d",
                 "auto_adjust": True,
                 "actions":     True,
                 "threads":     True,
@@ -143,17 +152,26 @@ def load_prices(table_name, symbols, cur, conn):
         df = df[df["Open"].notna()]
         rows = []
         for idx, row in df.iterrows():
+            o  = extract_scalar(row["Open"])
+            h  = extract_scalar(row["High"])
+            l  = extract_scalar(row["Low"])
+            c  = extract_scalar(row["Close"])
+            ac = extract_scalar(row.get("Adj Close", c))
+            v  = extract_scalar(row["Volume"])
+            d  = extract_scalar(row.get("Dividends", 0.0))
+            s  = extract_scalar(row.get("Stock Splits", 0.0))
+
             rows.append([
                 orig_sym,
                 idx.date(),
-                None if math.isnan(row["Open"])      else float(row["Open"]),
-                None if math.isnan(row["High"])      else float(row["High"]),
-                None if math.isnan(row["Low"])       else float(row["Low"]),
-                None if math.isnan(row["Close"])     else float(row["Close"]),
-                None if math.isnan(row.get("Adj Close", row["Close"])) else float(row.get("Adj Close", row["Close"])),
-                None if math.isnan(row["Volume"])    else int(row["Volume"]),
-                0.0  if ("Dividends" not in row or math.isnan(row["Dividends"])) else float(row["Dividends"]),
-                0.0  if ("Stock Splits" not in row or math.isnan(row["Stock Splits"])) else float(row["Stock Splits"])
+                None if pd.isna(o)  else float(o),
+                None if pd.isna(h)  else float(h),
+                None if pd.isna(l)  else float(l),
+                None if pd.isna(c)  else float(c),
+                None if pd.isna(ac) else float(ac),
+                None if pd.isna(v)  else int(v),
+                0.0  if pd.isna(d)  else float(d),
+                0.0  if pd.isna(s)  else float(s)
             ])
 
         if not rows:
@@ -169,7 +187,6 @@ def load_prices(table_name, symbols, cur, conn):
         logging.info(f"{table_name} – {orig_sym}: inserted {len(rows)} rows")
         log_mem(f"{table_name} {orig_sym} insert end")
 
-        # small pause to avoid hammering yfinance
         time.sleep(0.1)
 
     return len(symbols), inserted, failed

@@ -112,11 +112,6 @@ def create_buy_sell_table():
       symbol     VARCHAR(20),
       timeframe  VARCHAR(10),
       date       DATE,
-      open       DOUBLE PRECISION,
-      high       DOUBLE PRECISION,
-      low        DOUBLE PRECISION,
-      close      DOUBLE PRECISION,
-      volume     BIGINT,
       signal     VARCHAR(10),
       buylevel   DOUBLE PRECISION,
       stoplevel  DOUBLE PRECISION,
@@ -261,24 +256,32 @@ def generate_signals(data,
     return data
 
 # -------------------------------
-# 5) INSERT INTO buy_sell
+# 5) INSERT INTO buy_sell (no price cols)
 # -------------------------------
 def insert_results(symbol, timeframe, data):
     if not data:
         return
     vals = [
         (
-            symbol, timeframe, row["date"],
-            row["open"], row["high"], row["low"], row["close"], row["volume"],
-            row["Signal"], row["buyLevel"], row["stopLevel"], row["inPosition"]
+            symbol,
+            timeframe,
+            row["date"],
+            row["Signal"],
+            row["buyLevel"],
+            row["stopLevel"],
+            row["inPosition"]
         )
         for row in data
     ]
     sql = """
       INSERT INTO buy_sell(
-        symbol, timeframe, date,
-        open, high, low, close, volume,
-        signal, buylevel, stoplevel, inposition
+        symbol,
+        timeframe,
+        date,
+        signal,
+        buylevel,
+        stoplevel,
+        inposition
       ) VALUES %s
       ON CONFLICT (symbol, timeframe, date) DO NOTHING;
     """
@@ -286,7 +289,7 @@ def insert_results(symbol, timeframe, data):
     conn.commit()
 
 # -------------------------------
-# 6) MAIN DRIVER
+# 6) MAIN DRIVER (batched by 10)
 # -------------------------------
 def main():
     create_buy_sell_table()
@@ -296,24 +299,35 @@ def main():
         logger.error("No symbols, exiting")
         return
 
-    for timeframe in ("Daily","Weekly","Monthly"):
-        for sym in symbols:
-            logger.info(f"Processing {sym} [{timeframe}]")
-            try:
-                data = fetch_data(sym, timeframe)
-                if not data:
-                    logger.info(f"No data for {sym} {timeframe}")
-                    continue
-                data = generate_signals(data)
-                insert_results(sym, timeframe, data)
-                # memory check per symbol/timeframe
-                log_mem(f"done {sym} {timeframe}")
-            except Exception:
-                logger.exception(f"Error {sym} {timeframe}")
+    batch_size = 10
+    for batch_start in range(0, len(symbols), batch_size):
+        batch_num = batch_start // batch_size + 1
+        batch = symbols[batch_start:batch_start + batch_size]
+        logger.info(f"Starting batch {batch_num}: {batch}")
+        failures = []
+
+        for timeframe in ("Daily", "Weekly", "Monthly"):
+            for sym in batch:
+                logger.info(f"Processing {sym} [{timeframe}]")
+                try:
+                    data = fetch_data(sym, timeframe)
+                    if not data:
+                        logger.info(f"No data for {sym} {timeframe}")
+                        continue
+                    data = generate_signals(data)
+                    insert_results(sym, timeframe, data)
+                    log_mem(f"done {sym} {timeframe}")
+                except Exception:
+                    logger.exception(f"Error {sym} {timeframe}")
+                    failures.append(f"{sym} [{timeframe}]")
+
+        if not failures:
+            logger.info(f"Batch {batch_num} succeeded: {batch}")
+        else:
+            logger.error(f"Batch {batch_num} failed for: {failures}")
 
     cursor.close()
     conn.close()
-    # final memory check
     log_mem("end")
     logger.info("Processing complete.")
 
