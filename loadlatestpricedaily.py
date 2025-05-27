@@ -155,7 +155,7 @@ def load_prices_incremental(table_name, symbols, cur, conn):
 
             last = last_dates.get(orig_sym)
             if last:
-                # include last_date itself so we refresh current-period row
+                # include last_date itself so we always refresh current period
                 sub = sub[sub.index.date >= last]
 
             count = len(sub)
@@ -164,7 +164,7 @@ def load_prices_incremental(table_name, symbols, cur, conn):
                 logger.info(f"{orig_sym}: no new or updated rows")
                 continue
 
-            logger.info(f"{orig_sym}: {count} rows to insert/update")
+            logger.info(f"{orig_sym}: {count} rows to upsert")
             for ts, row in sub.iterrows():
                 rows.append([
                     orig_sym,
@@ -188,15 +188,15 @@ def load_prices_incremental(table_name, symbols, cur, conn):
 INSERT INTO {table_name} ({COL_LIST})
 VALUES %s
 ON CONFLICT (symbol, date) DO UPDATE SET
-    open       = EXCLUDED.open,
-    high       = EXCLUDED.high,
-    low        = EXCLUDED.low,
-    close      = EXCLUDED.close,
-    adj_close  = EXCLUDED.adj_close,
-    volume     = EXCLUDED.volume,
-    dividends  = EXCLUDED.dividends,
+    open         = EXCLUDED.open,
+    high         = EXCLUDED.high,
+    low          = EXCLUDED.low,
+    close        = EXCLUDED.close,
+    adj_close    = EXCLUDED.adj_close,
+    volume       = EXCLUDED.volume,
+    dividends    = EXCLUDED.dividends,
     stock_splits = EXCLUDED.stock_splits,
-    fetched_at = NOW()
+    fetched_at   = NOW()
 """
             execute_values(cur, sql, rows)
             conn.commit()
@@ -232,6 +232,15 @@ if __name__ == "__main__":
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
+    # ensure a unique index on (symbol, date) for ON CONFLICT to work
+    cur.execute("""
+      CREATE UNIQUE INDEX IF NOT EXISTS price_daily_symbol_date_idx
+        ON price_daily(symbol, date);
+      CREATE UNIQUE INDEX IF NOT EXISTS etf_price_daily_symbol_date_idx
+        ON etf_price_daily(symbol, date);
+    """)
+    conn.commit()
+
     cur.execute("SELECT symbol FROM stock_symbols;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
     t_s, i_s, f_s = load_prices_incremental("price_daily", stock_syms, cur, conn)
@@ -249,8 +258,8 @@ if __name__ == "__main__":
 
     peak = get_rss_mb()
     logger.info(f"[MEM] peak RSS: {peak:.1f} MB")
-    logger.info(f"Stocks — total: {t_s}, inserted/updated: {i_s}, failed: {len(f_s)}")
-    logger.info(f"ETFs   — total: {t_e}, inserted/updated: {i_e}, failed: {len(f_e)}")
+    logger.info(f"Stocks — total: {t_s}, upserted: {i_s}, failed: {len(f_s)}")
+    logger.info(f"ETFs   — total: {t_e}, upserted: {i_e}, failed: {len(f_e)}")
 
     cur.close()
     conn.close()
