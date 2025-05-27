@@ -35,22 +35,20 @@ def get_rss_mb():
 def log_mem(stage: str):
     logger.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
+# initial memory check
 log_mem("after imports")
 
 # -------------------------------
 # 0) FETCH DB CREDENTIALS & CONNECT
 # -------------------------------
-log_mem("start")
 DB_SECRET_ARN = os.getenv("DB_SECRET_ARN")
 if not DB_SECRET_ARN:
     logger.error("DB_SECRET_ARN environment variable is not set")
     sys.exit(1)
 
-log_mem("before secrets fetch")
 sm = boto3.client("secretsmanager", region_name=os.getenv("AWS_REGION"))
 resp = sm.get_secret_value(SecretId=DB_SECRET_ARN)
 secrets = json.loads(resp["SecretString"])
-log_mem("after secrets fetch")
 
 pg_host     = secrets["host"]
 pg_port     = secrets.get("port", 5432)
@@ -58,7 +56,6 @@ pg_db       = secrets["dbname"]
 pg_user     = secrets["username"]
 pg_password = secrets["password"]
 
-log_mem("before DB connect")
 conn = psycopg2.connect(
     host=pg_host,
     port=pg_port,
@@ -67,12 +64,13 @@ conn = psycopg2.connect(
     password=pg_password
 )
 cursor = conn.cursor(cursor_factory=DictCursor)
+
+# after DB is ready
 log_mem("after DB connect")
 
 # -------------------------------
 # Prepare date ranges
 # -------------------------------
-log_mem("before date calc")
 today = datetime.now()
 current_month_start = today.replace(day=1)
 last_day            = calendar.monthrange(today.year, today.month)[1]
@@ -83,6 +81,8 @@ last_4_weeks_start  = current_week_start - timedelta(weeks=3)
 last_4_weeks_end    = current_week_end
 two_weeks_start     = today - timedelta(days=13)
 two_weeks_end       = today
+
+# after date calculations
 log_mem("after date calc")
 
 # -------------------------------
@@ -168,7 +168,6 @@ def generate_signals(data,
                      useTrendMA=True,
                      adxStrong=30, adxWeak=20):
     n = len(data)
-    # pull off dicts (lowercase keys)
     RSI       = [row["rsi"]        for row in data]
     RSI_prev  = [None] + RSI[:-1]
     ADX       = [row["adx"]        for row in data]
@@ -182,7 +181,6 @@ def generate_signals(data,
     lows      = [row["low"]        for row in data]
     closes    = [row["close"]      for row in data]
 
-    # RSI crosses (guard None)
     rsiBuy  = [
         True
         if (RSI[i] is not None and RSI_prev[i] is not None and RSI[i] > 50 and RSI_prev[i] <= 50)
@@ -196,13 +194,11 @@ def generate_signals(data,
         for i in range(n)
     ]
 
-    # Trend filter
     trendOK = [
         (closes[i] > TrendMA[i]) if useTrendMA and TrendMA[i] is not None else True
         for i in range(n)
     ]
 
-    # Pivot breakout
     phConf = [None] + PivotHigh[:-1]
     plConf = [None] + PivotLow[:-1]
     lastPH = lastPL = None
@@ -222,7 +218,6 @@ def generate_signals(data,
             stopL[i] = lastPL - buff
             breakoutSell[i] = lows[i] < stopL[i]
 
-    # ADX/DMI filter
     finalBuy  = [False]*n
     finalSell = [False]*n
     for i in range(n):
@@ -244,7 +239,6 @@ def generate_signals(data,
             finalBuy[i]  = (rsiBuy[i] and adx_ok and dmi_ok) or breakoutBuy[i]
             finalSell[i] = rsiSell[i] or breakoutSell[i]
 
-    # in-position & assign
     in_pos = False
     signals = []
     inPositions = []
@@ -258,7 +252,6 @@ def generate_signals(data,
         signals.append(sig)
         inPositions.append(in_pos)
 
-    # attach back to data
     for i,row in enumerate(data):
         row["Signal"]     = signals[i]
         row["inPosition"] = inPositions[i]
@@ -296,10 +289,7 @@ def insert_results(symbol, timeframe, data):
 # 6) MAIN DRIVER
 # -------------------------------
 def main():
-    log_mem("main start")
-
     create_buy_sell_table()
-    log_mem("table created")
 
     symbols = get_symbols()
     if not symbols:
@@ -316,12 +306,14 @@ def main():
                     continue
                 data = generate_signals(data)
                 insert_results(sym, timeframe, data)
+                # memory check per symbol/timeframe
                 log_mem(f"done {sym} {timeframe}")
             except Exception:
                 logger.exception(f"Error {sym} {timeframe}")
 
     cursor.close()
     conn.close()
+    # final memory check
     log_mem("end")
     logger.info("Processing complete.")
 
