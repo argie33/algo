@@ -81,7 +81,7 @@ def extract_scalar(val):
     return val
 
 # -------------------------------
-# Incremental loader (always refresh current bar)
+# Incremental monthly loader
 # -------------------------------
 def load_prices(table_name, symbols, cur, conn):
     logging.info(f"Loading {table_name}: {len(symbols)} symbols")
@@ -101,7 +101,7 @@ def load_prices(table_name, symbols, cur, conn):
         today     = datetime.now().date()
 
         if last_date:
-            # always include last_date so we refresh today’s bar too
+            # always include last_date so we refresh that month's bar too
             download_kwargs = {
                 "tickers":     yq_sym,
                 "start":       last_date.isoformat(),
@@ -112,7 +112,7 @@ def load_prices(table_name, symbols, cur, conn):
                 "threads":     True,
                 "progress":    False
             }
-            logging.info(f"{table_name} – {orig_sym}: downloading from {last_date} to {today}")
+            logging.info(f"{table_name} – {orig_sym}: downloading monthly from {last_date} to {today}")
         else:
             download_kwargs = {
                 "tickers":     yq_sym,
@@ -123,7 +123,7 @@ def load_prices(table_name, symbols, cur, conn):
                 "threads":     True,
                 "progress":    False
             }
-            logging.info(f"{table_name} – {orig_sym}: no existing data; downloading full history")
+            logging.info(f"{table_name} – {orig_sym}: no existing data; downloading full monthly history")
 
         # ─── Download with retries ───────────────────────────────
         df = None
@@ -207,12 +207,12 @@ if __name__ == "__main__":
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Load stock symbols incrementally
+    # Load stock symbols incrementally (monthly)
     cur.execute("SELECT symbol FROM stock_symbols;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
     t_s, i_s, f_s = load_prices("price_monthly", stock_syms, cur, conn)
 
-    # Load ETF symbols incrementally
+    # Load ETF symbols incrementally (monthly)
     cur.execute("SELECT symbol FROM etf_symbols;")
     etf_syms = [r["symbol"] for r in cur.fetchall()]
     t_e, i_e, f_e = load_prices("etf_price_monthly", etf_syms, cur, conn)
