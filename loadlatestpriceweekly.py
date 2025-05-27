@@ -1,31 +1,64 @@
-#!/usr/bin/env python3  
-import os
-import json
-import logging
-import math
-import gc
+#!/usr/bin/env python3
 import sys
 import time
+import logging
+import json
+import os
+import gc
+import resource
+import pandas as pd
 
-import boto3
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
+from datetime import datetime, timedelta
 
+import boto3
 import yfinance as yf
-import pandas as pd
-import exchange_calendars as ecals
 
-SCRIPT_NAME = "loadlatestpriceweekly.py"
+# -------------------------------
+# Script metadata & logging setup
+# -------------------------------
+SCRIPT_NAME = "loadpriceweekly.py"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
     stream=sys.stdout
 )
+logger = logging.getLogger(__name__)
 
-# --- DB config loader ---
+# -------------------------------
+# Memory-logging helper (RSS in MB)
+# -------------------------------
+def get_rss_mb():
+    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    if sys.platform.startswith("linux"):
+        return usage / 1024
+    return usage / (1024 * 1024)
+
+def log_mem(stage: str):
+    logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
+
+# -------------------------------
+# Retry settings
+# -------------------------------
+MAX_BATCH_RETRIES = 3
+RETRY_DELAY       = 0.2  # seconds between download retries
+
+# -------------------------------
+# Price-weekly columns
+# -------------------------------
+PRICE_COLUMNS = [
+    "date", "open", "high", "low", "close",
+    "adj_close", "volume", "dividends", "stock_splits"
+]
+COL_LIST = ", ".join(["symbol"] + PRICE_COLUMNS)
+
+# -------------------------------
+# DB config loader
+# -------------------------------
 def get_db_config():
     secret_str = boto3.client("secretsmanager") \
-        .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])['SecretString']
+                     .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     sec = json.loads(secret_str)
     return {
         "host":   sec["host"],
@@ -35,86 +68,136 @@ def get_db_config():
         "dbname": sec["dbname"]
     }
 
-# --- NYSE trading days ---
-nyse = ecals.get_calendar("XNYS")
-
-# Use the calendar's own timezone (so tz.key exists)
-start = pd.Timestamp("1900-01-01", tz=nyse.tz)
-end   = pd.Timestamp.now(tz=nyse.tz)
-
-all_trading_days = nyse.sessions_in_range(start, end)
-all_trading_days_set = set(d.date() for d in all_trading_days)
-
-def get_existing_dates(cur, table, symbol):
-    cur.execute(f"SELECT date FROM {table} WHERE symbol = %s", (symbol,))
-    return {r["date"] for r in cur.fetchall()}
-
-def fetch_and_insert(symbol, table, cur, conn, from_date=None):
-    yf_sym = symbol.replace('.', '-')
-    try:
-        df = yf.download(
-            tickers=yf_sym,
-            start=from_date if from_date else None,
-            interval="1d",
-            auto_adjust=True,
-            actions=True,
-            progress=False
-        )
-    except Exception as e:
-        logging.warning(f"{symbol}: yfinance download failed: {e}")
-        return 0
-
-    if df is None or df.empty:
-        logging.warning(f"{symbol}: no data returned from yfinance")
-        return 0
-
-    df = df.sort_index()
-    df = df[df["Open"].notna()]
-    if df.empty:
-        logging.warning(f"{symbol}: no valid price rows after cleaning")
-        return 0
-
-    rows = []
-    for idx, row in df.iterrows():
-        rows.append([
-            symbol,
-            idx.date(),
-            None if math.isnan(row["Open"]) else float(row["Open"]),
-            None if math.isnan(row["High"]) else float(row["High"]),
-            None if math.isnan(row["Low"]) else float(row["Low"]),
-            None if math.isnan(row["Close"]) else float(row["Close"]),
-            None if math.isnan(row.get("Adj Close", row["Close"])) else float(row.get("Adj Close", row["Close"])),
-            None if math.isnan(row["Volume"]) else int(row["Volume"]),
-            0.0 if ("Dividends" not in row or math.isnan(row["Dividends"])) else float(row["Dividends"]),
-            0.0 if ("Stock Splits" not in row or math.isnan(row["Stock Splits"])) else float(row["Stock Splits"])
-        ])
-
-    if not rows:
-        logging.warning(f"{symbol}: no rows after cleaning; skipping")
-        return 0
-
-    COL_LIST = ", ".join([
-        "symbol","date","open","high","low",
-        "close","adj_close","volume","dividends","stock_splits"
-    ])
-    sql = f"""
-        INSERT INTO {table} ({COL_LIST}) VALUES %s
-        ON CONFLICT (symbol, date) DO UPDATE SET
-            open        = EXCLUDED.open,
-            high        = EXCLUDED.high,
-            low         = EXCLUDED.low,
-            close       = EXCLUDED.close,
-            adj_close   = EXCLUDED.adj_close,
-            volume      = EXCLUDED.volume,
-            dividends   = EXCLUDED.dividends,
-            stock_splits= EXCLUDED.stock_splits
+# -------------------------------
+# Helper to extract a single scalar
+# -------------------------------
+def extract_scalar(val):
     """
-    execute_values(cur, sql, rows)
-    conn.commit()
-    logging.info(f"{table} — {symbol}: upserted {len(rows)} rows")
-    return len(rows)
+    If pandas gives us a one-element Series, pull out that element.
+    Otherwise, return val as-is.
+    """
+    if isinstance(val, pd.Series) and len(val) == 1:
+        return val.iloc[0]
+    return val
 
-def main():
+# -------------------------------
+# Incremental loader (always refresh current bar)
+# -------------------------------
+def load_prices(table_name, symbols, cur, conn):
+    logging.info(f"Loading {table_name}: {len(symbols)} symbols")
+    inserted = 0
+    failed   = []
+
+    for orig_sym in symbols:
+        yq_sym = orig_sym.replace('.', '-').replace('$', '-').upper()
+
+        # ─── Determine starting point ───────────────────────────
+        cur.execute(
+            f"SELECT MAX(date) AS last_date FROM {table_name} WHERE symbol = %s;",
+            (orig_sym,)
+        )
+        res = cur.fetchone()
+        last_date = (res["last_date"] if isinstance(res, dict) else res[0])
+        today     = datetime.now().date()
+
+        if last_date:
+            # always include last_date so we refresh today’s bar too
+            download_kwargs = {
+                "tickers":     yq_sym,
+                "start":       last_date.isoformat(),
+                "end":         (today + timedelta(days=1)).isoformat(),
+                "interval":    "1d",
+                "auto_adjust": True,
+                "actions":     True,
+                "threads":     True,
+                "progress":    False
+            }
+            logging.info(f"{table_name} – {orig_sym}: downloading from {last_date} to {today}")
+        else:
+            download_kwargs = {
+                "tickers":     yq_sym,
+                "period":      "max",
+                "interval":    "1d",
+                "auto_adjust": True,
+                "actions":     True,
+                "threads":     True,
+                "progress":    False
+            }
+            logging.info(f"{table_name} – {orig_sym}: no existing data; downloading full history")
+
+        # ─── Download with retries ───────────────────────────────
+        df = None
+        for attempt in range(1, MAX_BATCH_RETRIES + 1):
+            try:
+                logging.info(f"{table_name} – {orig_sym}: download attempt {attempt}")
+                log_mem(f"{table_name} {orig_sym} download start")
+                df = yf.download(**download_kwargs)
+                break
+            except Exception as e:
+                logging.warning(f"{table_name} – {orig_sym}: download failed: {e}; retrying…")
+                time.sleep(RETRY_DELAY)
+
+        if df is None or df.empty:
+            logging.warning(f"{table_name} – {orig_sym}: no data returned; skipping")
+            failed.append(orig_sym)
+            continue
+
+        # ─── Clean and prepare rows ─────────────────────────────
+        df = df.sort_index()
+        if "Open" not in df.columns:
+            logging.warning(f"{table_name} – {orig_sym}: unexpected data format; skipping")
+            failed.append(orig_sym)
+            continue
+
+        df = df[df["Open"].notna()]
+        rows = []
+        for idx, row in df.iterrows():
+            o  = extract_scalar(row["Open"])
+            h  = extract_scalar(row["High"])
+            l  = extract_scalar(row["Low"])
+            c  = extract_scalar(row["Close"])
+            ac = extract_scalar(row.get("Adj Close", c))
+            v  = extract_scalar(row["Volume"])
+            d  = extract_scalar(row.get("Dividends", 0.0))
+            s  = extract_scalar(row.get("Stock Splits", 0.0))
+
+            rows.append([
+                orig_sym,
+                idx.date(),
+                None if pd.isna(o)  else float(o),
+                None if pd.isna(h)  else float(h),
+                None if pd.isna(l)  else float(l),
+                None if pd.isna(c)  else float(c),
+                None if pd.isna(ac) else float(ac),
+                None if pd.isna(v)  else int(v),
+                0.0  if pd.isna(d)  else float(d),
+                0.0  if pd.isna(s)  else float(s)
+            ])
+
+        if not rows:
+            logging.warning(f"{table_name} – {orig_sym}: no valid rows after cleaning; skipping")
+            failed.append(orig_sym)
+            continue
+
+        # ─── Insert into DB ─────────────────────────────────────
+        sql = f"INSERT INTO {table_name} ({COL_LIST}) VALUES %s"
+        execute_values(cur, sql, rows)
+        conn.commit()
+        inserted += len(rows)
+        logging.info(f"{table_name} – {orig_sym}: inserted {len(rows)} rows")
+        log_mem(f"{table_name} {orig_sym} insert end")
+
+        time.sleep(0.1)
+
+    return len(symbols), inserted, failed
+
+# -------------------------------
+# Entrypoint
+# -------------------------------
+if __name__ == "__main__":
+    log_mem("startup")
+
+    # Connect to DB
     cfg  = get_db_config()
     conn = psycopg2.connect(
         host=cfg["host"], port=cfg["port"],
@@ -124,31 +207,15 @@ def main():
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Stock symbols
+    # Load stock symbols incrementally
     cur.execute("SELECT symbol FROM stock_symbols;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
-    # ETF symbols
+    t_s, i_s, f_s = load_prices("price_weekly", stock_syms, cur, conn)
+
+    # Load ETF symbols incrementally
     cur.execute("SELECT symbol FROM etf_symbols;")
     etf_syms = [r["symbol"] for r in cur.fetchall()]
-
-    for table, syms in [("price_weekly", stock_syms), ("etf_price_weekly", etf_syms)]:
-        for symbol in syms:
-            existing_dates = get_existing_dates(cur, table, symbol)
-            missing_days = all_trading_days_set - existing_dates
-
-            if missing_days:
-                logging.info(f"{symbol}: missing {len(missing_days)} trading days, reloading full history")
-                fetch_and_insert(symbol, table, cur, conn, from_date=None)
-            else:
-                if not existing_dates:
-                    logging.info(f"{symbol}: no data in table, loading full history")
-                    fetch_and_insert(symbol, table, cur, conn, from_date=None)
-                else:
-                    last_date = max(existing_dates)
-                    if last_date >= pd.Timestamp.now(tz=nyse.tz).date():
-                        logging.info(f"{symbol}: up to date")
-                        continue
-                    fetch_and_insert(symbol, table, cur, conn, from_date=last_date + pd.Timedelta(days=1))
+    t_e, i_e, f_e = load_prices("etf_price_weekly", etf_syms, cur, conn)
 
     # Record last run
     cur.execute("""
@@ -158,9 +225,12 @@ def main():
         SET last_run = EXCLUDED.last_run;
     """, (SCRIPT_NAME,))
     conn.commit()
+
+    peak = get_rss_mb()
+    logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
+    logging.info(f"Stocks — total: {t_s}, inserted: {i_s}, failed: {len(f_s)}")
+    logging.info(f"ETFs   — total: {t_e}, inserted: {i_e}, failed: {len(f_e)}")
+
     cur.close()
     conn.close()
     logging.info("All done.")
-
-if __name__ == "__main__":
-    main()
