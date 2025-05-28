@@ -18,7 +18,7 @@ import yfinance as yf
 # -------------------------------
 # Script metadata & logging setup
 # -------------------------------
-SCRIPT_NAME = "loadpriceweekly_incremental.py"
+SCRIPT_NAME = "loadlatestpricedaily.py"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -44,7 +44,7 @@ MAX_BATCH_RETRIES = 3
 RETRY_DELAY       = 0.2   # seconds between download retries
 
 # -------------------------------
-# Price-weekly columns
+# Price-daily columns
 # -------------------------------
 PRICE_COLUMNS = [
     "date","open","high","low","close",
@@ -113,7 +113,7 @@ def load_prices_range(table_name, symbols, cur, conn, start_date, end_date):
                     tickers=yq_batch,
                     start=start_date.isoformat(),
                     end=end_date.isoformat(),
-                    interval="1wk",
+                    interval="1d",
                     group_by="ticker",
                     auto_adjust=True,
                     actions=True,
@@ -201,15 +201,31 @@ if __name__ == "__main__":
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Ensure unique constraint for UPSERT
+    # Ensure unique constraints for UPSERT
     cur.execute("""
-      ALTER TABLE price_weekly
-        ADD CONSTRAINT IF NOT EXISTS uq_price_weekly_symbol_date UNIQUE(symbol, date);
+      SELECT 1
+        FROM information_schema.table_constraints
+       WHERE table_name = 'price_daily'
+         AND constraint_name = 'uq_price_daily_symbol_date'
     """)
+    if not cur.fetchone():
+        cur.execute("""
+          ALTER TABLE price_daily
+            ADD CONSTRAINT uq_price_daily_symbol_date UNIQUE(symbol, date)
+        """)
+
     cur.execute("""
-      ALTER TABLE etf_price_weekly
-        ADD CONSTRAINT IF NOT EXISTS uq_etf_price_weekly_symbol_date UNIQUE(symbol, date);
+      SELECT 1
+        FROM information_schema.table_constraints
+       WHERE table_name = 'etf_price_daily'
+         AND constraint_name = 'uq_etf_price_daily_symbol_date'
     """)
+    if not cur.fetchone():
+        cur.execute("""
+          ALTER TABLE etf_price_daily
+            ADD CONSTRAINT uq_etf_price_daily_symbol_date UNIQUE(symbol, date)
+        """)
+
     conn.commit()
 
     # Prepare date ranges
@@ -223,11 +239,11 @@ if __name__ == "__main__":
 
     # Phase 1: finalize yesterday
     logging.info("Finalizing yesterday's stock data…")
-    t_sy, i_sy, f_sy = load_prices_range("price_weekly", stock_syms, cur, conn, yesterday, today)
+    t_sy, i_sy, f_sy = load_prices_range("price_daily", stock_syms, cur, conn, yesterday, today)
 
     # Phase 2: refresh today
     logging.info("Refreshing today's stock data…")
-    t_st, i_st, f_st = load_prices_range("price_weekly", stock_syms, cur, conn, today, tomorrow)
+    t_st, i_st, f_st = load_prices_range("price_daily", stock_syms, cur, conn, today, tomorrow)
 
     # Load ETF symbols
     cur.execute("SELECT symbol FROM etf_symbols;")
@@ -235,11 +251,11 @@ if __name__ == "__main__":
 
     # Phase 1: finalize yesterday for ETFs
     logging.info("Finalizing yesterday's ETF data…")
-    t_ey, i_ey, f_ey = load_prices_range("etf_price_weekly", etf_syms, cur, conn, yesterday, today)
+    t_ey, i_ey, f_ey = load_prices_range("etf_price_daily", etf_syms, cur, conn, yesterday, today)
 
     # Phase 2: refresh today for ETFs
     logging.info("Refreshing today's ETF data…")
-    t_et, i_et, f_et = load_prices_range("etf_price_weekly", etf_syms, cur, conn, today, tomorrow)
+    t_et, i_et, f_et = load_prices_range("etf_price_daily", etf_syms, cur, conn, today, tomorrow)
 
     # Record last run
     cur.execute("""

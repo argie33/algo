@@ -18,7 +18,7 @@ import yfinance as yf
 # -------------------------------
 # Script metadata & logging setup
 # -------------------------------
-SCRIPT_NAME = "loadpricedaily_incremental.py"
+SCRIPT_NAME = "loadlatestpricedaily.py"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -201,15 +201,31 @@ if __name__ == "__main__":
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Ensure unique constraint for UPSERT
+    # Ensure unique constraints for UPSERT
     cur.execute("""
-      ALTER TABLE price_daily
-        ADD CONSTRAINT IF NOT EXISTS uq_price_daily_symbol_date UNIQUE(symbol, date);
+      SELECT 1
+        FROM information_schema.table_constraints
+       WHERE table_name = 'price_daily'
+         AND constraint_name = 'uq_price_daily_symbol_date'
     """)
+    if not cur.fetchone():
+        cur.execute("""
+          ALTER TABLE price_daily
+            ADD CONSTRAINT uq_price_daily_symbol_date UNIQUE(symbol, date)
+        """)
+
     cur.execute("""
-      ALTER TABLE etf_price_daily
-        ADD CONSTRAINT IF NOT EXISTS uq_etf_price_daily_symbol_date UNIQUE(symbol, date);
+      SELECT 1
+        FROM information_schema.table_constraints
+       WHERE table_name = 'etf_price_daily'
+         AND constraint_name = 'uq_etf_price_daily_symbol_date'
     """)
+    if not cur.fetchone():
+        cur.execute("""
+          ALTER TABLE etf_price_daily
+            ADD CONSTRAINT uq_etf_price_daily_symbol_date UNIQUE(symbol, date)
+        """)
+
     conn.commit()
 
     # Prepare date ranges
