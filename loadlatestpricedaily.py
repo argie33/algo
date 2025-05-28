@@ -155,15 +155,16 @@ def load_prices_incremental(table_name, symbols, cur, conn):
 
             last = last_dates.get(orig_sym)
             if last:
-                sub = sub[sub.index.date > last]
+                # include last_date itself so we refresh current-period row
+                sub = sub[sub.index.date >= last]
 
             count = len(sub)
             symbol_row_counts[orig_sym] = count
             if count == 0:
-                logger.info(f"{orig_sym}: no new rows")
+                logger.info(f"{orig_sym}: no new or updated rows")
                 continue
 
-            logger.info(f"{orig_sym}: {count} new rows")
+            logger.info(f"{orig_sym}: {count} rows to insert/update")
             for ts, row in sub.iterrows():
                 rows.append([
                     orig_sym,
@@ -181,21 +182,36 @@ def load_prices_incremental(table_name, symbols, cur, conn):
                         else float(row.get("Stock Splits", 0.0))
                 ])
 
-        # insert + commit once per batch
+        # single upsert per batch
         if rows:
-            sql = f"INSERT INTO {table_name} ({COL_LIST}) VALUES %s"
+            sql = f"""
+INSERT INTO {table_name} ({COL_LIST})
+VALUES %s
+ON CONFLICT (symbol, date) DO UPDATE SET
+    open       = EXCLUDED.open,
+    high       = EXCLUDED.high,
+    low        = EXCLUDED.low,
+    close      = EXCLUDED.close,
+    adj_close  = EXCLUDED.adj_close,
+    volume     = EXCLUDED.volume,
+    dividends  = EXCLUDED.dividends,
+    stock_splits = EXCLUDED.stock_splits,
+    fetched_at = NOW()
+"""
             execute_values(cur, sql, rows)
             conn.commit()
             inserted += len(rows)
-            logger.info(f"{table_name} batch {batch_idx+1}/{batches}: batch-inserted {len(rows)} rows")
+            logger.info(f"{table_name} batch {batch_idx+1}/{batches}: upserted {len(rows)} rows")
 
         # batch summary
         succeeded = [s for s, c in symbol_row_counts.items() if c > 0]
         skipped   = [s for s, c in symbol_row_counts.items() if c == 0]
-        logger.info(f"{table_name} batch {batch_idx+1}/{batches} summary – "
-                    f"succeeded ({len(succeeded)}): {succeeded}; "
-                    f"skipped ({len(skipped)}): {skipped}; "
-                    f"failed ({len(batch_failed)}): {batch_failed}")
+        logger.info(
+            f"{table_name} batch {batch_idx+1}/{batches} summary – "
+            f"succeeded ({len(succeeded)}): {succeeded}; "
+            f"skipped ({len(skipped)}): {skipped}; "
+            f"failed ({len(batch_failed)}): {batch_failed}"
+        )
 
         # cleanup
         del df, rows
@@ -233,8 +249,8 @@ if __name__ == "__main__":
 
     peak = get_rss_mb()
     logger.info(f"[MEM] peak RSS: {peak:.1f} MB")
-    logger.info(f"Stocks — total: {t_s}, inserted: {i_s}, failed: {len(f_s)}")
-    logger.info(f"ETFs   — total: {t_e}, inserted: {i_e}, failed: {len(f_e)}")
+    logger.info(f"Stocks — total: {t_s}, inserted/updated: {i_s}, failed: {len(f_s)}")
+    logger.info(f"ETFs   — total: {t_e}, inserted/updated: {i_e}, failed: {len(f_e)}")
 
     cur.close()
     conn.close()
