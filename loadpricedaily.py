@@ -1,4 +1,4 @@
-#!/usr/bin/env python3  
+#!/usr/bin/env python3 
 import sys
 import time
 import logging
@@ -16,7 +16,7 @@ import boto3
 import yfinance as yf
 
 # -------------------------------
-# Script metadata & logging setup 
+# Script metadata & logging setup
 # -------------------------------
 SCRIPT_NAME = "loadpricedaily.py"
 logging.basicConfig(
