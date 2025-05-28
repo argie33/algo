@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+ #!/usr/bin/env python3 
 import sys
 import time
 import logging
@@ -10,8 +10,7 @@ import math
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
-from psycopg2.errors import DuplicateTable
-from datetime import datetime, date, timedelta
+from datetime import datetime
 
 import boto3
 import yfinance as yf
@@ -19,7 +18,7 @@ import yfinance as yf
 # -------------------------------
 # Script metadata & logging setup
 # -------------------------------
-SCRIPT_NAME = "loadlatestpricedaily.py"
+SCRIPT_NAME = "loadpricedaily.py"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -41,8 +40,8 @@ def log_mem(stage: str):
 # -------------------------------
 # Retry settings
 # -------------------------------
-MAX_BATCH_RETRIES = 3
-RETRY_DELAY       = 0.2   # seconds between download retries
+MAX_BATCH_RETRIES   = 3
+RETRY_DELAY         = 0.2   # seconds between download retries
 
 # -------------------------------
 # Price-daily columns
@@ -51,8 +50,7 @@ PRICE_COLUMNS = [
     "date","open","high","low","close",
     "adj_close","volume","dividends","stock_splits"
 ]
-ALL_COLUMNS = ["symbol"] + PRICE_COLUMNS + ["fetched_at"]
-COL_LIST    = ", ".join(ALL_COLUMNS)
+COL_LIST     = ", ".join(["symbol"] + PRICE_COLUMNS)
 
 # -------------------------------
 # DB config loader
@@ -70,32 +68,11 @@ def get_db_config():
     }
 
 # -------------------------------
-# Upsert helper
+# Main loader with batched inserts
 # -------------------------------
-def upsert_rows(table_name, rows, cur, conn):
-    sql = f"""
-      INSERT INTO {table_name} ({COL_LIST})
-        VALUES %s
-      ON CONFLICT (symbol, date) DO UPDATE
-        SET open         = EXCLUDED.open,
-            high         = EXCLUDED.high,
-            low          = EXCLUDED.low,
-            close        = EXCLUDED.close,
-            adj_close    = EXCLUDED.adj_close,
-            volume       = EXCLUDED.volume,
-            dividends    = EXCLUDED.dividends,
-            stock_splits = EXCLUDED.stock_splits,
-            fetched_at   = EXCLUDED.fetched_at
-    """
-    execute_values(cur, sql, rows)
-    conn.commit()
-
-# -------------------------------
-# Load & upsert price data for a date-range
-# -------------------------------
-def load_prices_range(table_name, symbols, cur, conn, start_date, end_date):
+def load_prices(table_name, symbols, cur, conn):
     total = len(symbols)
-    logging.info(f"{table_name}: loading {total} symbols for {start_date} to {end_date}")
+    logging.info(f"Loading {table_name}: {total} symbols")
     inserted, failed = 0, []
     CHUNK_SIZE, PAUSE = 20, 0.1
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
@@ -105,21 +82,20 @@ def load_prices_range(table_name, symbols, cur, conn, start_date, end_date):
         yq_batch = [s.replace('.', '-').replace('$','-').upper() for s in batch]
         mapping  = dict(zip(yq_batch, batch))
 
-        # ─── Download date range ──────────────────────────────
+        # ─── Download full history ──────────────────────────────
         for attempt in range(1, MAX_BATCH_RETRIES+1):
             logging.info(f"{table_name} – batch {batch_idx+1}/{batches}, download attempt {attempt}")
             log_mem(f"{table_name} batch {batch_idx+1} start")
             try:
                 df = yf.download(
                     tickers=yq_batch,
-                    start=start_date.isoformat(),
-                    end=end_date.isoformat(),
+                    period="max",
                     interval="1d",
                     group_by="ticker",
-                    auto_adjust=True,
-                    actions=True,
-                    threads=True,
-                    progress=False
+                    auto_adjust=True,    # preserved
+                    actions=True,        # preserved
+                    threads=True,        # preserved
+                    progress=False       # preserved
                 )
                 break
             except Exception as e:
@@ -133,7 +109,7 @@ def load_prices_range(table_name, symbols, cur, conn, start_date, end_date):
         log_mem(f"{table_name} after yf.download")
         cur.execute("SELECT 1;")   # ping DB
 
-        # ─── Upsert per symbol ────────────────────────────────
+        # ─── Batch-insert per symbol ─────────────────────────────
         gc.disable()
         try:
             for yq_sym, orig_sym in mapping.items():
@@ -152,7 +128,6 @@ def load_prices_range(table_name, symbols, cur, conn, start_date, end_date):
                     continue
 
                 rows = []
-                fetched_at = datetime.now()
                 for idx, row in sub.iterrows():
                     rows.append([
                         orig_sym,
@@ -163,9 +138,8 @@ def load_prices_range(table_name, symbols, cur, conn, start_date, end_date):
                         None if math.isnan(row["Close"])     else float(row["Close"]),
                         None if math.isnan(row.get("Adj Close", row["Close"])) else float(row.get("Adj Close", row["Close"])),
                         None if math.isnan(row["Volume"])    else int(row["Volume"]),
-                        0.0  if ("Dividends" not in row or math.isnan(row["Dividends"]))     else float(row["Dividends"]),
-                        0.0  if ("Stock Splits" not in row or math.isnan(row["Stock Splits"])) else float(row["Stock Splits"]),
-                        fetched_at
+                        0.0  if ("Dividends" not in row or math.isnan(row["Dividends"])) else float(row["Dividends"]),
+                        0.0  if ("Stock Splits" not in row or math.isnan(row["Stock Splits"])) else float(row["Stock Splits"])
                     ])
 
                 if not rows:
@@ -173,9 +147,11 @@ def load_prices_range(table_name, symbols, cur, conn, start_date, end_date):
                     failed.append(orig_sym)
                     continue
 
-                upsert_rows(table_name, rows, cur, conn)
+                sql = f"INSERT INTO {table_name} ({COL_LIST}) VALUES %s"
+                execute_values(cur, sql, rows)
+                conn.commit()
                 inserted += len(rows)
-                logging.info(f"{table_name} — {orig_sym}: upserted {len(rows)} rows")
+                logging.info(f"{table_name} — {orig_sym}: batch-inserted {len(rows)} rows")
         finally:
             gc.enable()
 
@@ -202,68 +178,69 @@ if __name__ == "__main__":
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # ─── Ensure unique constraints for UPSERT ───────────────
-    for tbl in ("price_daily", "etf_price_daily"):
-        constraint = f"uq_{tbl}_symbol_date"
-        try:
-            cur.execute(
-                f"ALTER TABLE {tbl} "
-                f"ADD CONSTRAINT {constraint} UNIQUE(symbol, date)"
-            )
-            logging.info(f"Created constraint {constraint} on {tbl}")
-        except DuplicateTable:
-            logging.debug(f"Constraint {constraint} already exists on {tbl}, skipping")
-    conn.commit()
+    # Recreate tables
+    logging.info("Recreating price_daily table…")
+    cur.execute("DROP TABLE IF EXISTS price_daily;")
+    cur.execute("""
+        CREATE TABLE price_daily (
+            id           SERIAL PRIMARY KEY,
+            symbol       VARCHAR(10) NOT NULL,
+            date         DATE         NOT NULL,
+            open         DOUBLE PRECISION,
+            high         DOUBLE PRECISION,
+            low          DOUBLE PRECISION,
+            close        DOUBLE PRECISION,
+            adj_close    DOUBLE PRECISION,
+            volume       BIGINT,
+            dividends    DOUBLE PRECISION,
+            stock_splits DOUBLE PRECISION,
+            fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
 
-    # Prepare date ranges
-    today     = date.today()
-    yesterday = today - timedelta(days=1)
-    tomorrow  = today + timedelta(days=1)
+    logging.info("Recreating etf_price_daily table…")
+    cur.execute("DROP TABLE IF EXISTS etf_price_daily;")
+    cur.execute("""
+        CREATE TABLE etf_price_daily (
+            id           SERIAL PRIMARY KEY,
+            symbol       VARCHAR(10) NOT NULL,
+            date         DATE         NOT NULL,
+            open         DOUBLE PRECISION,
+            high         DOUBLE PRECISION,
+            low          DOUBLE PRECISION,
+            close        DOUBLE PRECISION,
+            adj_close    DOUBLE PRECISION,
+            volume       BIGINT,
+            dividends    DOUBLE PRECISION,
+            stock_splits DOUBLE PRECISION,
+            fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    conn.commit()
 
     # Load stock symbols
     cur.execute("SELECT symbol FROM stock_symbols;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
-
-    # Phase 1: finalize yesterday
-    logging.info("Finalizing yesterday's stock data…")
-    t_sy, i_sy, f_sy = load_prices_range("price_daily", stock_syms, cur, conn, yesterday, today)
-
-    # Phase 2: refresh today
-    logging.info("Refreshing today's stock data…")
-    t_st, i_st, f_st = load_prices_range("price_daily", stock_syms, cur, conn, today, tomorrow)
+    t_s, i_s, f_s = load_prices("price_daily", stock_syms, cur, conn)
 
     # Load ETF symbols
     cur.execute("SELECT symbol FROM etf_symbols;")
     etf_syms = [r["symbol"] for r in cur.fetchall()]
-
-    # Phase 1: finalize yesterday for ETFs
-    logging.info("Finalizing yesterday's ETF data…")
-    t_ey, i_ey, f_ey = load_prices_range("etf_price_daily", etf_syms, cur, conn, yesterday, today)
-
-    # Phase 2: refresh today for ETFs
-    logging.info("Refreshing today's ETF data…")
-    t_et, i_et, f_et = load_prices_range("etf_price_daily", etf_syms, cur, conn, today, tomorrow)
+    t_e, i_e, f_e = load_prices("etf_price_daily", etf_syms, cur, conn)
 
     # Record last run
     cur.execute("""
       INSERT INTO last_updated (script_name, last_run)
-        VALUES (%s, NOW())
+      VALUES (%s, NOW())
       ON CONFLICT (script_name) DO UPDATE
         SET last_run = EXCLUDED.last_run;
     """, (SCRIPT_NAME,))
     conn.commit()
 
-    # Final logs
     peak = get_rss_mb()
     logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
-    logging.info(
-        f"Stocks — yesterday: total {t_sy}, upserted {i_sy}, failed {len(f_sy)}; "
-        f"today: total {t_st}, upserted {i_st}, failed {len(f_st)}"
-    )
-    logging.info(
-        f"ETFs   — yesterday: total {t_ey}, upserted {i_ey}, failed {len(f_ey)}; "
-        f"today: total {t_et}, upserted {i_et}, failed {len(f_et)}"
-    )
+    logging.info(f"Stocks — total: {t_s}, inserted: {i_s}, failed: {len(f_s)}")
+    logging.info(f"ETFs   — total: {t_e}, inserted: {i_e}, failed: {len(f_e)}")
 
     cur.close()
     conn.close()
