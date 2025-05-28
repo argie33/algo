@@ -10,6 +10,7 @@ import math
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
+from psycopg2.errors import DuplicateTable
 from datetime import datetime, date, timedelta
 
 import boto3
@@ -201,31 +202,17 @@ if __name__ == "__main__":
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Ensure unique constraints for UPSERT
-    cur.execute("""
-      SELECT 1
-        FROM information_schema.table_constraints
-       WHERE table_name = 'price_daily'
-         AND constraint_name = 'uq_price_daily_symbol_date'
-    """)
-    if not cur.fetchone():
-        cur.execute("""
-          ALTER TABLE price_daily
-            ADD CONSTRAINT uq_price_daily_symbol_date UNIQUE(symbol, date)
-        """)
-
-    cur.execute("""
-      SELECT 1
-        FROM information_schema.table_constraints
-       WHERE table_name = 'etf_price_daily'
-         AND constraint_name = 'uq_etf_price_daily_symbol_date'
-    """)
-    if not cur.fetchone():
-        cur.execute("""
-          ALTER TABLE etf_price_daily
-            ADD CONSTRAINT uq_etf_price_daily_symbol_date UNIQUE(symbol, date)
-        """)
-
+    # ─── Ensure unique constraints for UPSERT ───────────────
+    for tbl in ("price_daily", "etf_price_daily"):
+        constraint = f"uq_{tbl}_symbol_date"
+        try:
+            cur.execute(
+                f"ALTER TABLE {tbl} "
+                f"ADD CONSTRAINT {constraint} UNIQUE(symbol, date)"
+            )
+            logging.info(f"Created constraint {constraint} on {tbl}")
+        except DuplicateTable:
+            logging.debug(f"Constraint {constraint} already exists on {tbl}, skipping")
     conn.commit()
 
     # Prepare date ranges
