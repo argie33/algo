@@ -18,7 +18,7 @@ import yfinance as yf
 # -------------------------------
 # Script metadata & logging setup
 # -------------------------------
-SCRIPT_NAME = "loadpricedaily.py"
+SCRIPT_NAME = "loadpriceweekly.py"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -45,7 +45,7 @@ MAX_BATCH_RETRIES = 3
 RETRY_DELAY       = 0.2  # seconds between download retries
 
 # -------------------------------
-# Price-daily columns
+# Price-weekly columns
 # -------------------------------
 PRICE_COLUMNS = [
     "date", "open", "high", "low", "close",
@@ -81,7 +81,7 @@ def extract_scalar(val):
     return val
 
 # -------------------------------
-# Incremental loader (always refresh current bar)
+# Incremental loader (always refresh current and previous week)
 # -------------------------------
 def load_prices(table_name, symbols, cur, conn):
     logging.info(f"Loading {table_name}: {len(symbols)} symbols")
@@ -101,10 +101,10 @@ def load_prices(table_name, symbols, cur, conn):
         today     = datetime.now().date()
 
         if last_date:
-            # Set start date to one day before last_date to ensure we update last two dates
-            start_date = last_date - timedelta(days=1)
+            # Set start date to 14 days before last_date to ensure we update last two weeks
+            start_date = last_date - timedelta(days=14)
             
-            # Delete existing records for the last two days to avoid conflicts
+            # Delete existing records for the last two weeks to avoid conflicts
             cur.execute(
                 f"DELETE FROM {table_name} WHERE symbol = %s AND date >= %s;",
                 (orig_sym, start_date)
@@ -219,12 +219,12 @@ if __name__ == "__main__":
     # Load stock symbols incrementally
     cur.execute("SELECT symbol FROM stock_symbols;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
-    t_s, i_s, f_s = load_prices("price_daily", stock_syms, cur, conn)
+    t_s, i_s, f_s = load_prices("price_weekly", stock_syms, cur, conn)
 
     # Load ETF symbols incrementally
     cur.execute("SELECT symbol FROM etf_symbols;")
     etf_syms = [r["symbol"] for r in cur.fetchall()]
-    t_e, i_e, f_e = load_prices("etf_price_daily", etf_syms, cur, conn)
+    t_e, i_e, f_e = load_prices("etf_price_weekly", etf_syms, cur, conn)
 
     # Record last run
     cur.execute("""
