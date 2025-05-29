@@ -1,12 +1,27 @@
 #!/usr/bin/env python3
 import os
 import sys
+import psutil
 from pathlib import Path
 
 # Add parent directory to path so we can import the original scripts
 parent_dir = str(Path(__file__).resolve().parent.parent)
 if parent_dir not in sys.path:
     sys.path.append(parent_dir)
+
+# Patch resource module for Windows
+import types
+def mock_getrusage(who):
+    class Usage:
+        def __init__(self):
+            process = psutil.Process()
+            self.ru_maxrss = int(process.memory_info().rss / 1024)  # Convert to KB
+    return Usage()
+
+mock_resource = types.ModuleType('resource')
+setattr(mock_resource, 'getrusage', mock_getrusage)
+setattr(mock_resource, 'RUSAGE_SELF', 0)
+sys.modules['resource'] = mock_resource
 
 # Override AWS dependencies
 import boto3
