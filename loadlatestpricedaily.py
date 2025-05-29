@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 
 import boto3
 import yfinance as yf
+from yfinance.shared import YFPricesMissingError   # ← catch missing‐data errors
 
 # -------------------------------
 # Script metadata & logging setup
@@ -71,10 +72,6 @@ def get_db_config():
 # Helper to extract a single scalar
 # -------------------------------
 def extract_scalar(val):
-    """
-    If pandas gives us a one-element Series, pull out that element.
-    Otherwise, return val as-is.
-    """
     if isinstance(val, pd.Series) and len(val) == 1:
         return val.iloc[0]
     return val
@@ -114,7 +111,11 @@ def load_prices(table_name, symbols, cur, conn):
 
             if missing_dates:
                 logging.info(f"{table_name} – {orig_sym}: found {len(missing_dates)} missing dates; backfilling")
+                skip_backfill = False
                 for md in missing_dates:
+                    if skip_backfill:
+                        break
+
                     download_kwargs = {
                         "tickers":     yq_sym,
                         "start":       md.isoformat(),
@@ -126,15 +127,26 @@ def load_prices(table_name, symbols, cur, conn):
                         "progress":    False
                     }
                     logging.info(f"{table_name} – {orig_sym}: backfilling {md}")
+
                     df_md = None
                     for attempt in range(1, MAX_BATCH_RETRIES + 1):
                         try:
                             log_mem(f"{table_name} {orig_sym} backfill download start {md}")
                             df_md = yf.download(**download_kwargs)
                             break
+
+                        except YFPricesMissingError as e:
+                            logging.warning(f"{table_name} – {orig_sym}: no data for {md}, assuming delisted; stopping backfill")
+                            skip_backfill = True
+                            break
+
                         except Exception as e:
                             logging.warning(f"{table_name} – {orig_sym}: backfill download failed ({e}); retrying…")
                             time.sleep(RETRY_DELAY)
+
+                    if skip_backfill:
+                        break
+
                     if df_md is None or df_md.empty or "Open" not in df_md.columns:
                         logging.warning(f"{table_name} – {orig_sym}: backfill for {md} no data; skipping")
                         continue
@@ -152,7 +164,6 @@ def load_prices(table_name, symbols, cur, conn):
                         v  = extract_scalar(row["Volume"])
                         d  = extract_scalar(row.get("Dividends", 0.0))
                         s  = extract_scalar(row.get("Stock Splits", 0.0))
-
                         rows_md.append([
                             orig_sym,
                             idx.date(),
@@ -240,7 +251,6 @@ def load_prices(table_name, symbols, cur, conn):
             v  = extract_scalar(row["Volume"])
             d  = extract_scalar(row.get("Dividends", 0.0))
             s  = extract_scalar(row.get("Stock Splits", 0.0))
-
             rows.append([
                 orig_sym,
                 idx.date(),
@@ -295,7 +305,7 @@ if __name__ == "__main__":
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # ─── Remove any existing duplicates so our unique index can be created ───
+    # ─── Remove any existing duplicates ─────────────────────
     cur.execute("""
       DELETE FROM price_daily a
       USING price_daily b
@@ -312,7 +322,7 @@ if __name__ == "__main__":
     """)
     conn.commit()
 
-    # ─── Ensure unique index on (symbol,date) so ON CONFLICT works ───────────
+    # ─── Ensure unique index on (symbol,date) ──────────────
     cur.execute("""
       CREATE UNIQUE INDEX IF NOT EXISTS price_daily_symbol_date_idx
       ON price_daily(symbol, date);
@@ -323,12 +333,12 @@ if __name__ == "__main__":
     """)
     conn.commit()
 
-    # Load stock symbols incrementally (with backfill & upsert)
+    # Load stock symbols
     cur.execute("SELECT symbol FROM stock_symbols;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
     t_s, i_s, f_s = load_prices("price_daily", stock_syms, cur, conn)
 
-    # Load ETF symbols incrementally (with backfill & upsert)
+    # Load ETF symbols
     cur.execute("SELECT symbol FROM etf_symbols;")
     etf_syms = [r["symbol"] for r in cur.fetchall()]
     t_e, i_e, f_e = load_prices("etf_price_daily", etf_syms, cur, conn)
