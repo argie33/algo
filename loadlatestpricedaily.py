@@ -161,6 +161,18 @@ def load_prices(table_name, symbols, cur, conn):
 
         df = df[df["Open"].notna()]
         rows = []
+        
+        # Get the actual date range from downloaded data and delete those dates
+        dates = [idx.date() for idx in df.index]
+        if dates:
+            min_date = min(dates)
+            max_date = max(dates)
+            cur.execute(
+                f"DELETE FROM {table_name} WHERE symbol = %s AND date >= %s AND date <= %s;",
+                (orig_sym, min_date, max_date)
+            )
+            conn.commit()
+            
         for idx, row in df.iterrows():
             o  = extract_scalar(row["Open"])
             h  = extract_scalar(row["High"])
