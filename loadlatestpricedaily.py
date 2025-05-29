@@ -101,13 +101,14 @@ def load_prices(table_name, symbols, cur, conn):
         today     = datetime.now().date()
 
         if last_date:
-            # Set start date to one day before last_date to ensure we update last two dates
-            start_date = last_date - timedelta(days=1)
+            # For daily data, get exactly 2 days: yesterday and today
+            yesterday = today - timedelta(days=1)
+            start_date = yesterday
             
-            # Delete existing records for the last two days to avoid conflicts
+            # Delete existing records for these specific dates
             cur.execute(
-                f"DELETE FROM {table_name} WHERE symbol = %s AND date >= %s;",
-                (orig_sym, start_date)
+                f"DELETE FROM {table_name} WHERE symbol = %s AND date >= %s AND date <= %s;",
+                (orig_sym, start_date, today)
             )
             conn.commit()
             

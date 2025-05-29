@@ -101,19 +101,20 @@ def load_prices(table_name, symbols, cur, conn):
         today     = datetime.now().date()
 
         if last_date:
-            # Set start date to 14 days before last_date to ensure we update last two weeks
-            start_date = last_date - timedelta(days=14)
+            # For weekly data, we want the last completed week and current week
+            current_week_start = today - timedelta(days=today.weekday())  # Start of current week
+            last_week_start = current_week_start - timedelta(days=7)      # Start of last week
             
-            # Delete existing records for the last two weeks to avoid conflicts
+            # Delete existing records for these specific weeks
             cur.execute(
                 f"DELETE FROM {table_name} WHERE symbol = %s AND date >= %s;",
-                (orig_sym, start_date)
+                (orig_sym, last_week_start)
             )
             conn.commit()
             
             download_kwargs = {
                 "tickers":     yq_sym,
-                "start":       start_date.isoformat(),
+                "start":       last_week_start.isoformat(),
                 "end":        (today + timedelta(days=1)).isoformat(),
                 "interval":    "1wk",
                 "auto_adjust": True,
@@ -121,7 +122,7 @@ def load_prices(table_name, symbols, cur, conn):
                 "threads":     True,
                 "progress":    False
             }
-            logging.info(f"{table_name} – {orig_sym}: downloading from {start_date} to {today}")
+            logging.info(f"{table_name} – {orig_sym}: downloading from {last_week_start} to {today}")
         else:
             download_kwargs = {
                 "tickers":     yq_sym,
