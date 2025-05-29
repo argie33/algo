@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3 
 import sys
 import time
 import logging
@@ -6,11 +6,11 @@ import json
 import os
 import gc
 import resource
-import math
+import pandas as pd
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
-from datetime import datetime, date, timedelta
+from datetime import datetime, timedelta
 
 import boto3
 import yfinance as yf
@@ -18,7 +18,7 @@ import yfinance as yf
 # -------------------------------
 # Script metadata & logging setup
 # -------------------------------
-SCRIPT_NAME = "loadpricemonthly_incremental.py"
+SCRIPT_NAME = "loadpricemonthly.py"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -41,17 +41,16 @@ def log_mem(stage: str):
 # Retry settings
 # -------------------------------
 MAX_BATCH_RETRIES = 3
-RETRY_DELAY       = 0.2   # seconds between download retries
+RETRY_DELAY       = 0.2  # seconds between download retries
 
 # -------------------------------
 # Price-monthly columns
 # -------------------------------
 PRICE_COLUMNS = [
-    "date","open","high","low","close",
-    "adj_close","volume","dividends","stock_splits"
+    "date", "open", "high", "low", "close",
+    "adj_close", "volume", "dividends", "stock_splits"
 ]
-ALL_COLUMNS = ["symbol"] + PRICE_COLUMNS + ["fetched_at"]
-COL_LIST    = ", ".join(ALL_COLUMNS)
+COL_LIST = ", ".join(["symbol"] + PRICE_COLUMNS)
 
 # -------------------------------
 # DB config loader
@@ -69,121 +68,226 @@ def get_db_config():
     }
 
 # -------------------------------
-# Upsert helper
+# Helper to extract a single scalar
 # -------------------------------
-def upsert_rows(table_name, rows, cur, conn):
-    sql = f"""
-      INSERT INTO {table_name} ({COL_LIST})
-        VALUES %s
-      ON CONFLICT (symbol, date) DO UPDATE
-        SET open         = EXCLUDED.open,
-            high         = EXCLUDED.high,
-            low          = EXCLUDED.low,
-            close        = EXCLUDED.close,
-            adj_close    = EXCLUDED.adj_close,
-            volume       = EXCLUDED.volume,
-            dividends    = EXCLUDED.dividends,
-            stock_splits = EXCLUDED.stock_splits,
-            fetched_at   = EXCLUDED.fetched_at
+def extract_scalar(val):
     """
-    execute_values(cur, sql, rows)
-    conn.commit()
+    If pandas gives us a one-element Series, pull out that element.
+    Otherwise, return val as-is.
+    """
+    if isinstance(val, pd.Series) and len(val) == 1:
+        return val.iloc[0]
+    return val
 
 # -------------------------------
-# Load & upsert price data for a date-range
+# Incremental loader (with backfill + upsert)
 # -------------------------------
-def load_prices_range(table_name, symbols, cur, conn, start_date, end_date):
-    total = len(symbols)
-    logging.info(f"{table_name}: loading {total} symbols for {start_date} to {end_date}")
-    inserted, failed = 0, []
-    CHUNK_SIZE, PAUSE = 20, 0.1
-    batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
+def load_prices(table_name, symbols, cur, conn):
+    logging.info(f"Loading {table_name}: {len(symbols)} symbols")
+    inserted = 0
+    failed   = []
 
-    for batch_idx in range(batches):
-        batch    = symbols[batch_idx*CHUNK_SIZE:(batch_idx+1)*CHUNK_SIZE]
-        yq_batch = [s.replace('.', '-').replace('$','-').upper() for s in batch]
-        mapping  = dict(zip(yq_batch, batch))
+    for orig_sym in symbols:
+        yq_sym = orig_sym.replace('.', '-').replace('$', '-').upper()
 
-        # ─── Download date range ──────────────────────────────
-        for attempt in range(1, MAX_BATCH_RETRIES+1):
-            logging.info(f"{table_name} – batch {batch_idx+1}/{batches}, download attempt {attempt}")
-            log_mem(f"{table_name} batch {batch_idx+1} start")
+        # ─── Determine date bounds ────────────────────────────
+        cur.execute(
+            f"SELECT MIN(date) AS first_date, MAX(date) AS last_date "
+            f"FROM {table_name} WHERE symbol = %s;",
+            (orig_sym,)
+        )
+        res = cur.fetchone()
+        first_date = (res["first_date"] if isinstance(res, dict) else res[0])
+        last_date  = (res["last_date"]  if isinstance(res, dict) else res[1])
+        today      = datetime.now().date()
+
+        # ─── Backfill any historical gaps ─────────────────────
+        if first_date:
+            # expected trading days (Mon–Fri)
+            expected_dates = pd.bdate_range(start=first_date, end=last_date).date
+            cur.execute(
+                f"SELECT date FROM {table_name} "
+                f"WHERE symbol = %s AND date BETWEEN %s AND %s;",
+                (orig_sym, first_date, last_date)
+            )
+            existing = {r["date"] for r in cur.fetchall()}
+            missing_dates = [d for d in expected_dates if d not in existing]
+
+            if missing_dates:
+                logging.info(f"{table_name} – {orig_sym}: found {len(missing_dates)} missing dates; backfilling")
+                for md in missing_dates:
+                    download_kwargs = {
+                        "tickers":     yq_sym,
+                        "start":       md.isoformat(),
+                        "end":         (md + timedelta(days=1)).isoformat(),
+                        "interval":    "1mo",
+                        "auto_adjust": True,
+                        "actions":     True,
+                        "threads":     True,
+                        "progress":    False
+                    }
+                    logging.info(f"{table_name} – {orig_sym}: backfilling {md}")
+                    df_md = None
+                    for attempt in range(1, MAX_BATCH_RETRIES + 1):
+                        try:
+                            log_mem(f"{table_name} {orig_sym} backfill download start {md}")
+                            df_md = yf.download(**download_kwargs)
+                            break
+                        except Exception as e:
+                            logging.warning(f"{table_name} – {orig_sym}: backfill download failed ({e}); retrying…")
+                            time.sleep(RETRY_DELAY)
+                    if df_md is None or df_md.empty or "Open" not in df_md.columns:
+                        logging.warning(f"{table_name} – {orig_sym}: backfill for {md} no data; skipping")
+                        continue
+
+                    df_md = df_md.sort_index()
+                    df_md = df_md[df_md["Open"].notna()]
+
+                    rows_md = []
+                    for idx, row in df_md.iterrows():
+                        o  = extract_scalar(row["Open"])
+                        h  = extract_scalar(row["High"])
+                        l  = extract_scalar(row["Low"])
+                        c  = extract_scalar(row["Close"])
+                        ac = extract_scalar(row.get("Adj Close", c))
+                        v  = extract_scalar(row["Volume"])
+                        d  = extract_scalar(row.get("Dividends", 0.0))
+                        s  = extract_scalar(row.get("Stock Splits", 0.0))
+
+                        rows_md.append([
+                            orig_sym,
+                            idx.date(),
+                            None if pd.isna(o)  else float(o),
+                            None if pd.isna(h)  else float(h),
+                            None if pd.isna(l)  else float(l),
+                            None if pd.isna(c)  else float(c),
+                            None if pd.isna(ac) else float(ac),
+                            None if pd.isna(v)  else int(v),
+                            0.0  if pd.isna(d)  else float(d),
+                            0.0  if pd.isna(s)  else float(s)
+                        ])
+
+                    if not rows_md:
+                        logging.warning(f"{table_name} – {orig_sym}: no valid backfill rows for {md}; skipping")
+                    else:
+                        # Upsert missing rows
+                        sql_upsert = f"""INSERT INTO {table_name} ({COL_LIST}) VALUES %s
+                                         ON CONFLICT (symbol, date) DO UPDATE SET
+                                           open         = EXCLUDED.open,
+                                           high         = EXCLUDED.high,
+                                           low          = EXCLUDED.low,
+                                           close        = EXCLUDED.close,
+                                           adj_close    = EXCLUDED.adj_close,
+                                           volume       = EXCLUDED.volume,
+                                           dividends    = EXCLUDED.dividends,
+                                           stock_splits = EXCLUDED.stock_splits;"""
+                        execute_values(cur, sql_upsert, rows_md)
+                        conn.commit()
+                        logging.info(f"{table_name} – {orig_sym}: backfilled {len(rows_md)} rows for {md}")
+                        log_mem(f"{table_name} {orig_sym} backfill insert end {md}")
+
+        # ─── Incremental / refresh previous & current bar ──────
+        if last_date:
+            # start at last_date to refresh it, end=T+1 to get today
+            download_kwargs = {
+                "tickers":     yq_sym,
+                "start":       last_date.isoformat(),
+                "end":         (today + timedelta(days=1)).isoformat(),
+                "interval":    "1d",
+                "auto_adjust": True,
+                "actions":     True,
+                "threads":     True,
+                "progress":    False
+            }
+            logging.info(f"{table_name} – {orig_sym}: downloading from {last_date} to {today}")
+        else:
+            # no data yet: full history
+            download_kwargs = {
+                "tickers":     yq_sym,
+                "period":      "max",
+                "interval":    "1d",
+                "auto_adjust": True,
+                "actions":     True,
+                "threads":     True,
+                "progress":    False
+            }
+            logging.info(f"{table_name} – {orig_sym}: no existing data; downloading full history")
+
+        # ─── Download with retries ───────────────────────────────
+        df = None
+        for attempt in range(1, MAX_BATCH_RETRIES + 1):
             try:
-                df = yf.download(
-                    tickers=yq_batch,
-                    start=start_date.isoformat(),
-                    end=end_date.isoformat(),
-                    interval="1mo",
-                    group_by="ticker",
-                    auto_adjust=True,
-                    actions=True,
-                    threads=True,
-                    progress=False
-                )
+                logging.info(f"{table_name} – {orig_sym}: download attempt {attempt}")
+                log_mem(f"{table_name} {orig_sym} download start")
+                df = yf.download(**download_kwargs)
                 break
             except Exception as e:
-                logging.warning(f"{table_name} download failed: {e}; retrying…")
+                logging.warning(f"{table_name} – {orig_sym}: download failed: {e}; retrying…")
                 time.sleep(RETRY_DELAY)
-        else:
-            logging.error(f"{table_name} batch {batch_idx+1} failed after {MAX_BATCH_RETRIES} attempts")
-            failed += batch
+
+        if df is None or df.empty:
+            logging.warning(f"{table_name} – {orig_sym}: no data returned; skipping")
+            failed.append(orig_sym)
             continue
 
-        log_mem(f"{table_name} after yf.download")
-        cur.execute("SELECT 1;")   # ping DB
+        # ─── Clean and prepare rows ─────────────────────────────
+        df = df.sort_index()
+        if "Open" not in df.columns:
+            logging.warning(f"{table_name} – {orig_sym}: unexpected data format; skipping")
+            failed.append(orig_sym)
+            continue
 
-        # ─── Upsert per symbol ────────────────────────────────
-        gc.disable()
-        try:
-            for yq_sym, orig_sym in mapping.items():
-                try:
-                    sub = df[yq_sym] if len(yq_batch) > 1 else df
-                except KeyError:
-                    logging.warning(f"No data for {orig_sym}; skipping")
-                    failed.append(orig_sym)
-                    continue
+        df = df[df["Open"].notna()]
+        rows = []
+        for idx, row in df.iterrows():
+            o  = extract_scalar(row["Open"])
+            h  = extract_scalar(row["High"])
+            l  = extract_scalar(row["Low"])
+            c  = extract_scalar(row["Close"])
+            ac = extract_scalar(row.get("Adj Close", c))
+            v  = extract_scalar(row["Volume"])
+            d  = extract_scalar(row.get("Dividends", 0.0))
+            s  = extract_scalar(row.get("Stock Splits", 0.0))
 
-                sub = sub.sort_index()
-                sub = sub[sub["Open"].notna()]
-                if sub.empty:
-                    logging.warning(f"No valid price rows for {orig_sym}; skipping")
-                    failed.append(orig_sym)
-                    continue
+            rows.append([
+                orig_sym,
+                idx.date(),
+                None if pd.isna(o)  else float(o),
+                None if pd.isna(h)  else float(h),
+                None if pd.isna(l)  else float(l),
+                None if pd.isna(c)  else float(c),
+                None if pd.isna(ac) else float(ac),
+                None if pd.isna(v)  else int(v),
+                0.0  if pd.isna(d)  else float(d),
+                0.0  if pd.isna(s)  else float(s)
+            ])
 
-                rows = []
-                fetched_at = datetime.now()
-                for idx, row in sub.iterrows():
-                    rows.append([
-                        orig_sym,
-                        idx.date(),
-                        None if math.isnan(row["Open"])      else float(row["Open"]),
-                        None if math.isnan(row["High"])      else float(row["High"]),
-                        None if math.isnan(row["Low"])       else float(row["Low"]),
-                        None if math.isnan(row["Close"])     else float(row["Close"]),
-                        None if math.isnan(row.get("Adj Close", row["Close"])) else float(row.get("Adj Close", row["Close"])),
-                        None if math.isnan(row["Volume"])    else int(row["Volume"]),
-                        0.0  if ("Dividends" not in row or math.isnan(row["Dividends"]))     else float(row["Dividends"]),
-                        0.0  if ("Stock Splits" not in row or math.isnan(row["Stock Splits"])) else float(row["Stock Splits"]),
-                        fetched_at
-                    ])
+        if not rows:
+            logging.warning(f"{table_name} – {orig_sym}: no valid rows after cleaning; skipping")
+            failed.append(orig_sym)
+            continue
 
-                if not rows:
-                    logging.warning(f"{orig_sym}: no rows after cleaning; skipping")
-                    failed.append(orig_sym)
-                    continue
+        # ─── Upsert into DB ────────────────────────────────────
+        sql_upsert = f"""INSERT INTO {table_name} ({COL_LIST}) VALUES %s
+                         ON CONFLICT (symbol, date) DO UPDATE SET
+                           open         = EXCLUDED.open,
+                           high         = EXCLUDED.high,
+                           low          = EXCLUDED.low,
+                           close        = EXCLUDED.close,
+                           adj_close    = EXCLUDED.adj_close,
+                           volume       = EXCLUDED.volume,
+                           dividends    = EXCLUDED.dividends,
+                           stock_splits = EXCLUDED.stock_splits;"""
+        execute_values(cur, sql_upsert, rows)
+        conn.commit()
+        inserted += len(rows)
+        logging.info(f"{table_name} – {orig_sym}: upserted {len(rows)} rows")
+        log_mem(f"{table_name} {orig_sym} insert end")
 
-                upsert_rows(table_name, rows, cur, conn)
-                inserted += len(rows)
-                logging.info(f"{table_name} — {orig_sym}: upserted {len(rows)} rows")
-        finally:
-            gc.enable()
+        # throttle to avoid rate limits
+        time.sleep(0.1)
 
-        del df, batch, yq_batch, mapping
-        gc.collect()
-        log_mem(f"{table_name} batch {batch_idx+1} end")
-        time.sleep(PAUSE)
-
-    return total, inserted, failed
+    return len(symbols), inserted, failed
 
 # -------------------------------
 # Entrypoint
@@ -201,66 +305,29 @@ if __name__ == "__main__":
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Ensure unique constraint for UPSERT
-    cur.execute("""
-      ALTER TABLE price_monthly
-        ADD CONSTRAINT IF NOT EXISTS uq_price_monthly_symbol_date UNIQUE(symbol, date);
-    """)
-    cur.execute("""
-      ALTER TABLE etf_price_monthly
-        ADD CONSTRAINT IF NOT EXISTS uq_etf_price_monthly_symbol_date UNIQUE(symbol, date);
-    """)
-    conn.commit()
-
-    # Prepare date ranges
-    today     = date.today()
-    yesterday = today - timedelta(days=1)
-    tomorrow  = today + timedelta(days=1)
-
-    # Load stock symbols
+    # Load stock symbols incrementally (with backfill & upsert)
     cur.execute("SELECT symbol FROM stock_symbols;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
+    t_s, i_s, f_s = load_prices("price_monthly", stock_syms, cur, conn)
 
-    # Phase 1: finalize yesterday
-    logging.info("Finalizing yesterday's stock data…")
-    t_sy, i_sy, f_sy = load_prices_range("price_monthly", stock_syms, cur, conn, yesterday, today)
-
-    # Phase 2: refresh today
-    logging.info("Refreshing today's stock data…")
-    t_st, i_st, f_st = load_prices_range("price_monthly", stock_syms, cur, conn, today, tomorrow)
-
-    # Load ETF symbols
+    # Load ETF symbols incrementally (with backfill & upsert)
     cur.execute("SELECT symbol FROM etf_symbols;")
     etf_syms = [r["symbol"] for r in cur.fetchall()]
-
-    # Phase 1: finalize yesterday for ETFs
-    logging.info("Finalizing yesterday's ETF data…")
-    t_ey, i_ey, f_ey = load_prices_range("etf_price_monthly", etf_syms, cur, conn, yesterday, today)
-
-    # Phase 2: refresh today for ETFs
-    logging.info("Refreshing today's ETF data…")
-    t_et, i_et, f_et = load_prices_range("etf_price_monthly", etf_syms, cur, conn, today, tomorrow)
+    t_e, i_e, f_e = load_prices("etf_price_monthly", etf_syms, cur, conn)
 
     # Record last run
     cur.execute("""
       INSERT INTO last_updated (script_name, last_run)
-        VALUES (%s, NOW())
+      VALUES (%s, NOW())
       ON CONFLICT (script_name) DO UPDATE
         SET last_run = EXCLUDED.last_run;
     """, (SCRIPT_NAME,))
     conn.commit()
 
-    # Final logs
     peak = get_rss_mb()
     logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
-    logging.info(
-        f"Stocks — yesterday: total {t_sy}, upserted {i_sy}, failed {len(f_sy)}; "
-        f"today: total {t_st}, upserted {i_st}, failed {len(f_st)}"
-    )
-    logging.info(
-        f"ETFs   — yesterday: total {t_ey}, upserted {i_ey}, failed {len(f_ey)}; "
-        f"today: total {t_et}, upserted {i_et}, failed {len(f_et)}"
-    )
+    logging.info(f"Stocks — total: {t_s}, upserted: {i_s}, failed: {len(f_s)}")
+    logging.info(f"ETFs   — total: {t_e}, upserted: {i_e}, failed: {len(f_e)}")
 
     cur.close()
     conn.close()

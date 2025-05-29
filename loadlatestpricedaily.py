@@ -103,7 +103,6 @@ def load_prices(table_name, symbols, cur, conn):
 
         # ─── Backfill any historical gaps ─────────────────────
         if first_date:
-            # expected trading days (Mon–Fri)
             expected_dates = pd.bdate_range(start=first_date, end=last_date).date
             cur.execute(
                 f"SELECT date FROM {table_name} "
@@ -188,7 +187,6 @@ def load_prices(table_name, symbols, cur, conn):
 
         # ─── Incremental / refresh previous & current bar ──────
         if last_date:
-            # start at last_date to refresh it, end=T+1 to get today
             download_kwargs = {
                 "tickers":     yq_sym,
                 "start":       last_date.isoformat(),
@@ -201,7 +199,6 @@ def load_prices(table_name, symbols, cur, conn):
             }
             logging.info(f"{table_name} – {orig_sym}: downloading from {last_date} to {today}")
         else:
-            # no data yet: full history
             download_kwargs = {
                 "tickers":     yq_sym,
                 "period":      "max",
@@ -284,7 +281,6 @@ def load_prices(table_name, symbols, cur, conn):
         logging.info(f"{table_name} – {orig_sym}: upserted {len(rows)} rows")
         log_mem(f"{table_name} {orig_sym} insert end")
 
-        # throttle to avoid rate limits
         time.sleep(0.1)
 
     return len(symbols), inserted, failed
@@ -304,6 +300,17 @@ if __name__ == "__main__":
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    # ─── Ensure unique index on (symbol,date) so ON CONFLICT works ───
+    cur.execute("""
+      CREATE UNIQUE INDEX IF NOT EXISTS price_daily_symbol_date_idx
+      ON price_daily(symbol, date);
+    """)
+    cur.execute("""
+      CREATE UNIQUE INDEX IF NOT EXISTS etf_price_daily_symbol_date_idx
+      ON etf_price_daily(symbol, date);
+    """)
+    conn.commit()
 
     # Load stock symbols incrementally (with backfill & upsert)
     cur.execute("SELECT symbol FROM stock_symbols;")
