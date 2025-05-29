@@ -16,7 +16,7 @@ import boto3
 import yfinance as yf
 
 # -------------------------------
-# Script metadata & logging setup 
+# Script metadata & logging setup
 # -------------------------------
 SCRIPT_NAME = "loadpricedaily.py"
 logging.basicConfig(
@@ -81,7 +81,7 @@ def extract_scalar(val):
     return val
 
 # -------------------------------
-# Incremental loader (always refresh last two dates)
+# Incremental loader (always refresh current bar)
 # -------------------------------
 def load_prices(table_name, symbols, cur, conn):
     logging.info(f"Loading {table_name}: {len(symbols)} symbols")
@@ -96,17 +96,25 @@ def load_prices(table_name, symbols, cur, conn):
             f"SELECT MAX(date) AS last_date FROM {table_name} WHERE symbol = %s;",
             (orig_sym,)
         )
-        res       = cur.fetchone()
+        res = cur.fetchone()
         last_date = (res["last_date"] if isinstance(res, dict) else res[0])
         today     = datetime.now().date()
 
         if last_date:
-            # back up one more day so we refresh the last two dates
+            # Set start date to one day before last_date to ensure we update last two dates
             start_date = last_date - timedelta(days=1)
+            
+            # Delete existing records for the last two days to avoid conflicts
+            cur.execute(
+                f"DELETE FROM {table_name} WHERE symbol = %s AND date >= %s;",
+                (orig_sym, start_date)
+            )
+            conn.commit()
+            
             download_kwargs = {
                 "tickers":     yq_sym,
                 "start":       start_date.isoformat(),
-                "end":         (today + timedelta(days=1)).isoformat(),
+                "end":        (today + timedelta(days=1)).isoformat(),
                 "interval":    "1d",
                 "auto_adjust": True,
                 "actions":     True,
