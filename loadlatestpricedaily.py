@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3 
 import sys
 import time
 import logging
@@ -10,7 +10,7 @@ import math
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import boto3
 import yfinance as yf
@@ -36,12 +36,6 @@ def get_rss_mb():
 
 def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
-
-# -------------------------------
-# Date settings
-# -------------------------------
-CURRENT_DATE = datetime.now().date()
-PREVIOUS_DATE = CURRENT_DATE - timedelta(days=1)
 
 # -------------------------------
 # Retry settings
@@ -74,13 +68,12 @@ def get_db_config():
     }
 
 # -------------------------------
-# Main loader with batched inserts/updates
+# Main loader with batched inserts
 # -------------------------------
 def load_prices(table_name, symbols, cur, conn):
     total = len(symbols)
     logging.info(f"Loading {table_name}: {total} symbols")
-    inserted = 0
-    failed = []
+    inserted, failed = 0, []
     CHUNK_SIZE, PAUSE = 20, 0.1
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
@@ -99,10 +92,10 @@ def load_prices(table_name, symbols, cur, conn):
                     period="max",
                     interval="1d",
                     group_by="ticker",
-                    auto_adjust=True,
-                    actions=True,
-                    threads=True,
-                    progress=False
+                    auto_adjust=True,    # preserved
+                    actions=True,        # preserved
+                    threads=True,        # preserved
+                    progress=False       # preserved
                 )
                 break
             except Exception as e:
@@ -116,11 +109,10 @@ def load_prices(table_name, symbols, cur, conn):
         log_mem(f"{table_name} after yf.download")
         cur.execute("SELECT 1;")   # ping DB
 
-        # ─── Batch-insert/update per symbol ─────────────────────
+        # ─── Batch-insert per symbol ─────────────────────────────
         gc.disable()
         try:
             for yq_sym, orig_sym in mapping.items():
-                # extract sub-DataFrame for this symbol
                 try:
                     sub = df[yq_sym] if len(yq_batch) > 1 else df
                 except KeyError:
@@ -135,45 +127,31 @@ def load_prices(table_name, symbols, cur, conn):
                     failed.append(orig_sym)
                     continue
 
-                # fetch existing dates for this symbol
-                cur.execute(f"SELECT date FROM {table_name} WHERE symbol = %s", (orig_sym,))
-                existing_dates = set([r["date"] for r in cur.fetchall()])
-
-                # build rows for new or stale dates (missing, previous, or current)
-                rows_to_process = []
+                rows = []
                 for idx, row in sub.iterrows():
-                    date_val = idx.date()
-                    if date_val == PREVIOUS_DATE or date_val == CURRENT_DATE or date_val not in existing_dates:
-                        rows_to_process.append([
-                            orig_sym,
-                            date_val,
-                            None if math.isnan(row["Open"])      else float(row["Open"]),
-                            None if math.isnan(row["High"])      else float(row["High"]),
-                            None if math.isnan(row["Low"])       else float(row["Low"]),
-                            None if math.isnan(row["Close"])     else float(row["Close"]),
-                            None if math.isnan(row.get("Adj Close", row["Close"])) else float(row.get("Adj Close", row["Close"])),
-                            None if math.isnan(row["Volume"])    else int(row["Volume"]),
-                            0.0  if ("Dividends" not in row or math.isnan(row["Dividends"])) else float(row["Dividends"]),
-                            0.0  if ("Stock Splits" not in row or math.isnan(row["Stock Splits"])) else float(row["Stock Splits"])
-                        ])
+                    rows.append([
+                        orig_sym,
+                        idx.date(),
+                        None if math.isnan(row["Open"])      else float(row["Open"]),
+                        None if math.isnan(row["High"])      else float(row["High"]),
+                        None if math.isnan(row["Low"])       else float(row["Low"]),
+                        None if math.isnan(row["Close"])     else float(row["Close"]),
+                        None if math.isnan(row.get("Adj Close", row["Close"])) else float(row.get("Adj Close", row["Close"])),
+                        None if math.isnan(row["Volume"])    else int(row["Volume"]),
+                        0.0  if ("Dividends" not in row or math.isnan(row["Dividends"])) else float(row["Dividends"]),
+                        0.0  if ("Stock Splits" not in row or math.isnan(row["Stock Splits"])) else float(row["Stock Splits"])
+                    ])
 
-                if not rows_to_process:
-                    logging.info(f"{orig_sym}: no new or updated rows; skipping")
+                if not rows:
+                    logging.warning(f"{orig_sym}: no rows after cleaning; skipping")
+                    failed.append(orig_sym)
                     continue
 
-                # delete any existing rows for these dates to allow upsert
-                dates_set  = set(r[1] for r in rows_to_process)
-                dates_list = sorted(dates_set)
-                placeholder = ','.join(['%s'] * len(dates_list))
-                delete_sql = f"DELETE FROM {table_name} WHERE symbol = %s AND date IN ({placeholder})"
-                cur.execute(delete_sql, [orig_sym] + dates_list)
-
-                # insert fresh rows
                 sql = f"INSERT INTO {table_name} ({COL_LIST}) VALUES %s"
-                execute_values(cur, sql, rows_to_process)
+                execute_values(cur, sql, rows)
                 conn.commit()
-                inserted += len(rows_to_process)
-                logging.info(f"{table_name} — {orig_sym}: upserted {len(rows_to_process)} rows")
+                inserted += len(rows)
+                logging.info(f"{table_name} — {orig_sym}: batch-inserted {len(rows)} rows")
         finally:
             gc.enable()
 
@@ -200,10 +178,11 @@ if __name__ == "__main__":
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Ensure tables exist (no drops, so data is preserved)
-    logging.info("Ensuring price_daily table exists…")
+    # Recreate tables
+    logging.info("Recreating price_daily table…")
+    cur.execute("DROP TABLE IF EXISTS price_daily;")
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS price_daily (
+        CREATE TABLE price_daily (
             id           SERIAL PRIMARY KEY,
             symbol       VARCHAR(10) NOT NULL,
             date         DATE         NOT NULL,
@@ -218,9 +197,11 @@ if __name__ == "__main__":
             fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
     """)
-    logging.info("Ensuring etf_price_daily table exists…")
+
+    logging.info("Recreating etf_price_daily table…")
+    cur.execute("DROP TABLE IF EXISTS etf_price_daily;")
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS etf_price_daily (
+        CREATE TABLE etf_price_daily (
             id           SERIAL PRIMARY KEY,
             symbol       VARCHAR(10) NOT NULL,
             date         DATE         NOT NULL,
@@ -258,10 +239,9 @@ if __name__ == "__main__":
 
     peak = get_rss_mb()
     logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
-    logging.info(f"Stocks — total: {t_s}, upserted: {i_s}, failed: {len(f_s)}")
-    logging.info(f"ETFs   — total: {t_e}, upserted: {i_e}, failed: {len(f_e)}")
+    logging.info(f"Stocks — total: {t_s}, inserted: {i_s}, failed: {len(f_s)}")
+    logging.info(f"ETFs   — total: {t_e}, inserted: {i_e}, failed: {len(f_e)}")
 
     cur.close()
     conn.close()
-
     logging.info("All done.")
