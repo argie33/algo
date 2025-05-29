@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3 
 import sys
 import time
 import logging
@@ -166,10 +166,7 @@ def load_prices(table_name, symbols, cur, conn):
                             0.0  if pd.isna(s)  else float(s)
                         ])
 
-                    if not rows_md:
-                        logging.warning(f"{table_name} – {orig_sym}: no valid backfill rows for {md}; skipping")
-                    else:
-                        # Upsert missing rows
+                    if rows_md:
                         sql_upsert = f"""INSERT INTO {table_name} ({COL_LIST}) VALUES %s
                                          ON CONFLICT (symbol, date) DO UPDATE SET
                                            open         = EXCLUDED.open,
@@ -210,7 +207,6 @@ def load_prices(table_name, symbols, cur, conn):
             }
             logging.info(f"{table_name} – {orig_sym}: no existing data; downloading full history")
 
-        # ─── Download with retries ───────────────────────────────
         df = None
         for attempt in range(1, MAX_BATCH_RETRIES + 1):
             try:
@@ -227,7 +223,6 @@ def load_prices(table_name, symbols, cur, conn):
             failed.append(orig_sym)
             continue
 
-        # ─── Clean and prepare rows ─────────────────────────────
         df = df.sort_index()
         if "Open" not in df.columns:
             logging.warning(f"{table_name} – {orig_sym}: unexpected data format; skipping")
@@ -264,7 +259,6 @@ def load_prices(table_name, symbols, cur, conn):
             failed.append(orig_sym)
             continue
 
-        # ─── Upsert into DB ────────────────────────────────────
         sql_upsert = f"""INSERT INTO {table_name} ({COL_LIST}) VALUES %s
                          ON CONFLICT (symbol, date) DO UPDATE SET
                            open         = EXCLUDED.open,
@@ -301,7 +295,24 @@ if __name__ == "__main__":
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # ─── Ensure unique index on (symbol,date) so ON CONFLICT works ───
+    # ─── Remove any existing duplicates so our unique index can be created ───
+    cur.execute("""
+      DELETE FROM price_daily a
+      USING price_daily b
+      WHERE a.ctid < b.ctid
+        AND a.symbol = b.symbol
+        AND a.date   = b.date;
+    """)
+    cur.execute("""
+      DELETE FROM etf_price_daily a
+      USING etf_price_daily b
+      WHERE a.ctid < b.ctid
+        AND a.symbol = b.symbol
+        AND a.date   = b.date;
+    """)
+    conn.commit()
+
+    # ─── Ensure unique index on (symbol,date) so ON CONFLICT works ───────────
     cur.execute("""
       CREATE UNIQUE INDEX IF NOT EXISTS price_daily_symbol_date_idx
       ON price_daily(symbol, date);
