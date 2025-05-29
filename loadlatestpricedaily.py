@@ -6,11 +6,11 @@ import json
 import os
 import gc
 import resource
-import math
+import pandas as pd
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import boto3
 import yfinance as yf
@@ -24,6 +24,7 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
     stream=sys.stdout
 )
+logger = logging.getLogger(__name__)
 
 # -------------------------------
 # Memory-logging helper (RSS in MB)
@@ -40,17 +41,17 @@ def log_mem(stage: str):
 # -------------------------------
 # Retry settings
 # -------------------------------
-MAX_BATCH_RETRIES   = 3
-RETRY_DELAY         = 0.2   # seconds between download retries
+MAX_BATCH_RETRIES = 3
+RETRY_DELAY       = 0.2  # seconds between download retries
 
 # -------------------------------
 # Price-daily columns
 # -------------------------------
 PRICE_COLUMNS = [
-    "date","open","high","low","close",
-    "adj_close","volume","dividends","stock_splits"
+    "date", "open", "high", "low", "close",
+    "adj_close", "volume", "dividends", "stock_splits"
 ]
-COL_LIST     = ", ".join(["symbol"] + PRICE_COLUMNS)
+COL_LIST = ", ".join(["symbol"] + PRICE_COLUMNS)
 
 # -------------------------------
 # DB config loader
@@ -68,99 +69,127 @@ def get_db_config():
     }
 
 # -------------------------------
-# Main loader with batched inserts
+# Helper to extract a single scalar
+# -------------------------------
+def extract_scalar(val):
+    """
+    If pandas gives us a one-element Series, pull out that element.
+    Otherwise, return val as-is.
+    """
+    if isinstance(val, pd.Series) and len(val) == 1:
+        return val.iloc[0]
+    return val
+
+# -------------------------------
+# Incremental loader (always refresh current bar)
 # -------------------------------
 def load_prices(table_name, symbols, cur, conn):
-    total = len(symbols)
-    logging.info(f"Loading {table_name}: {total} symbols")
-    inserted, failed = 0, []
-    CHUNK_SIZE, PAUSE = 20, 0.1
-    batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
+    logging.info(f"Loading {table_name}: {len(symbols)} symbols")
+    inserted = 0
+    failed   = []
 
-    for batch_idx in range(batches):
-        batch    = symbols[batch_idx*CHUNK_SIZE:(batch_idx+1)*CHUNK_SIZE]
-        yq_batch = [s.replace('.', '-').replace('$','-').upper() for s in batch]
-        mapping  = dict(zip(yq_batch, batch))
+    for orig_sym in symbols:
+        yq_sym = orig_sym.replace('.', '-').replace('$', '-').upper()
 
-        # ─── Download full history ──────────────────────────────
-        for attempt in range(1, MAX_BATCH_RETRIES+1):
-            logging.info(f"{table_name} – batch {batch_idx+1}/{batches}, download attempt {attempt}")
-            log_mem(f"{table_name} batch {batch_idx+1} start")
+        # ─── Determine starting point ───────────────────────────
+        cur.execute(
+            f"SELECT MAX(date) AS last_date FROM {table_name} WHERE symbol = %s;",
+            (orig_sym,)
+        )
+        res = cur.fetchone()
+        last_date = (res["last_date"] if isinstance(res, dict) else res[0])
+        today     = datetime.now().date()
+
+        if last_date:
+            # always include last_date so we refresh today’s bar too
+            download_kwargs = {
+                "tickers":     yq_sym,
+                "start":       last_date.isoformat(),
+                "end":         (today + timedelta(days=1)).isoformat(),
+                "interval":    "1d",
+                "auto_adjust": True,
+                "actions":     True,
+                "threads":     True,
+                "progress":    False
+            }
+            logging.info(f"{table_name} – {orig_sym}: downloading from {last_date} to {today}")
+        else:
+            download_kwargs = {
+                "tickers":     yq_sym,
+                "period":      "max",
+                "interval":    "1d",
+                "auto_adjust": True,
+                "actions":     True,
+                "threads":     True,
+                "progress":    False
+            }
+            logging.info(f"{table_name} – {orig_sym}: no existing data; downloading full history")
+
+        # ─── Download with retries ───────────────────────────────
+        df = None
+        for attempt in range(1, MAX_BATCH_RETRIES + 1):
             try:
-                df = yf.download(
-                    tickers=yq_batch,
-                    period="max",
-                    interval="1d",
-                    group_by="ticker",
-                    auto_adjust=True,    # preserved
-                    actions=True,        # preserved
-                    threads=True,        # preserved
-                    progress=False       # preserved
-                )
+                logging.info(f"{table_name} – {orig_sym}: download attempt {attempt}")
+                log_mem(f"{table_name} {orig_sym} download start")
+                df = yf.download(**download_kwargs)
                 break
             except Exception as e:
-                logging.warning(f"{table_name} download failed: {e}; retrying…")
+                logging.warning(f"{table_name} – {orig_sym}: download failed: {e}; retrying…")
                 time.sleep(RETRY_DELAY)
-        else:
-            logging.error(f"{table_name} batch {batch_idx+1} failed after {MAX_BATCH_RETRIES} attempts")
-            failed += batch
+
+        if df is None or df.empty:
+            logging.warning(f"{table_name} – {orig_sym}: no data returned; skipping")
+            failed.append(orig_sym)
             continue
 
-        log_mem(f"{table_name} after yf.download")
-        cur.execute("SELECT 1;")   # ping DB
+        # ─── Clean and prepare rows ─────────────────────────────
+        df = df.sort_index()
+        if "Open" not in df.columns:
+            logging.warning(f"{table_name} – {orig_sym}: unexpected data format; skipping")
+            failed.append(orig_sym)
+            continue
 
-        # ─── Batch-insert per symbol ─────────────────────────────
-        gc.disable()
-        try:
-            for yq_sym, orig_sym in mapping.items():
-                try:
-                    sub = df[yq_sym] if len(yq_batch) > 1 else df
-                except KeyError:
-                    logging.warning(f"No data for {orig_sym}; skipping")
-                    failed.append(orig_sym)
-                    continue
+        df = df[df["Open"].notna()]
+        rows = []
+        for idx, row in df.iterrows():
+            o  = extract_scalar(row["Open"])
+            h  = extract_scalar(row["High"])
+            l  = extract_scalar(row["Low"])
+            c  = extract_scalar(row["Close"])
+            ac = extract_scalar(row.get("Adj Close", c))
+            v  = extract_scalar(row["Volume"])
+            d  = extract_scalar(row.get("Dividends", 0.0))
+            s  = extract_scalar(row.get("Stock Splits", 0.0))
 
-                sub = sub.sort_index()
-                sub = sub[sub["Open"].notna()]
-                if sub.empty:
-                    logging.warning(f"No valid price rows for {orig_sym}; skipping")
-                    failed.append(orig_sym)
-                    continue
+            rows.append([
+                orig_sym,
+                idx.date(),
+                None if pd.isna(o)  else float(o),
+                None if pd.isna(h)  else float(h),
+                None if pd.isna(l)  else float(l),
+                None if pd.isna(c)  else float(c),
+                None if pd.isna(ac) else float(ac),
+                None if pd.isna(v)  else int(v),
+                0.0  if pd.isna(d)  else float(d),
+                0.0  if pd.isna(s)  else float(s)
+            ])
 
-                rows = []
-                for idx, row in sub.iterrows():
-                    rows.append([
-                        orig_sym,
-                        idx.date(),
-                        None if math.isnan(row["Open"])      else float(row["Open"]),
-                        None if math.isnan(row["High"])      else float(row["High"]),
-                        None if math.isnan(row["Low"])       else float(row["Low"]),
-                        None if math.isnan(row["Close"])     else float(row["Close"]),
-                        None if math.isnan(row.get("Adj Close", row["Close"])) else float(row.get("Adj Close", row["Close"])),
-                        None if math.isnan(row["Volume"])    else int(row["Volume"]),
-                        0.0  if ("Dividends" not in row or math.isnan(row["Dividends"])) else float(row["Dividends"]),
-                        0.0  if ("Stock Splits" not in row or math.isnan(row["Stock Splits"])) else float(row["Stock Splits"])
-                    ])
+        if not rows:
+            logging.warning(f"{table_name} – {orig_sym}: no valid rows after cleaning; skipping")
+            failed.append(orig_sym)
+            continue
 
-                if not rows:
-                    logging.warning(f"{orig_sym}: no rows after cleaning; skipping")
-                    failed.append(orig_sym)
-                    continue
+        # ─── Insert into DB ─────────────────────────────────────
+        sql = f"INSERT INTO {table_name} ({COL_LIST}) VALUES %s"
+        execute_values(cur, sql, rows)
+        conn.commit()
+        inserted += len(rows)
+        logging.info(f"{table_name} – {orig_sym}: inserted {len(rows)} rows")
+        log_mem(f"{table_name} {orig_sym} insert end")
 
-                sql = f"INSERT INTO {table_name} ({COL_LIST}) VALUES %s"
-                execute_values(cur, sql, rows)
-                conn.commit()
-                inserted += len(rows)
-                logging.info(f"{table_name} — {orig_sym}: batch-inserted {len(rows)} rows")
-        finally:
-            gc.enable()
+        time.sleep(0.1)
 
-        del df, batch, yq_batch, mapping
-        gc.collect()
-        log_mem(f"{table_name} batch {batch_idx+1} end")
-        time.sleep(PAUSE)
-
-    return total, inserted, failed
+    return len(symbols), inserted, failed
 
 # -------------------------------
 # Entrypoint
@@ -178,52 +207,12 @@ if __name__ == "__main__":
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Recreate tables
-    logging.info("Recreating price_daily table…")
-    cur.execute("DROP TABLE IF EXISTS price_daily;")
-    cur.execute("""
-        CREATE TABLE price_daily (
-            id           SERIAL PRIMARY KEY,
-            symbol       VARCHAR(10) NOT NULL,
-            date         DATE         NOT NULL,
-            open         DOUBLE PRECISION,
-            high         DOUBLE PRECISION,
-            low          DOUBLE PRECISION,
-            close        DOUBLE PRECISION,
-            adj_close    DOUBLE PRECISION,
-            volume       BIGINT,
-            dividends    DOUBLE PRECISION,
-            stock_splits DOUBLE PRECISION,
-            fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-    """)
-
-    logging.info("Recreating etf_price_daily table…")
-    cur.execute("DROP TABLE IF EXISTS etf_price_daily;")
-    cur.execute("""
-        CREATE TABLE etf_price_daily (
-            id           SERIAL PRIMARY KEY,
-            symbol       VARCHAR(10) NOT NULL,
-            date         DATE         NOT NULL,
-            open         DOUBLE PRECISION,
-            high         DOUBLE PRECISION,
-            low          DOUBLE PRECISION,
-            close        DOUBLE PRECISION,
-            adj_close    DOUBLE PRECISION,
-            volume       BIGINT,
-            dividends    DOUBLE PRECISION,
-            stock_splits DOUBLE PRECISION,
-            fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-    """)
-    conn.commit()
-
-    # Load stock symbols
+    # Load stock symbols incrementally
     cur.execute("SELECT symbol FROM stock_symbols;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
     t_s, i_s, f_s = load_prices("price_daily", stock_syms, cur, conn)
 
-    # Load ETF symbols
+    # Load ETF symbols incrementally
     cur.execute("SELECT symbol FROM etf_symbols;")
     etf_syms = [r["symbol"] for r in cur.fetchall()]
     t_e, i_e, f_e = load_prices("etf_price_daily", etf_syms, cur, conn)
@@ -244,4 +233,4 @@ if __name__ == "__main__":
 
     cur.close()
     conn.close()
-    logging.info("All done.")
+    logging.info("All done.")  and #!/usr/bin/env python3  
