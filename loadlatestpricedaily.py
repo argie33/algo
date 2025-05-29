@@ -14,7 +14,6 @@ from datetime import datetime, timedelta
 
 import boto3
 import yfinance as yf
-from yfinance.shared import YFPricesMissingError   # ← catch missing‐data errors
 
 # -------------------------------
 # Script metadata & logging setup
@@ -112,6 +111,7 @@ def load_prices(table_name, symbols, cur, conn):
             if missing_dates:
                 logging.info(f"{table_name} – {orig_sym}: found {len(missing_dates)} missing dates; backfilling")
                 skip_backfill = False
+
                 for md in missing_dates:
                     if skip_backfill:
                         break
@@ -135,14 +135,15 @@ def load_prices(table_name, symbols, cur, conn):
                             df_md = yf.download(**download_kwargs)
                             break
 
-                        except YFPricesMissingError as e:
-                            logging.warning(f"{table_name} – {orig_sym}: no data for {md}, assuming delisted; stopping backfill")
-                            skip_backfill = True
-                            break
-
                         except Exception as e:
-                            logging.warning(f"{table_name} – {orig_sym}: backfill download failed ({e}); retrying…")
-                            time.sleep(RETRY_DELAY)
+                            msg = str(e)
+                            if "possibly delisted" in msg and "no price data" in msg:
+                                logging.warning(f"{table_name} – {orig_sym}: delisted or no data for {md}; stopping backfill")
+                                skip_backfill = True
+                                break
+                            else:
+                                logging.warning(f"{table_name} – {orig_sym}: backfill download failed ({e}); retrying…")
+                                time.sleep(RETRY_DELAY)
 
                     if skip_backfill:
                         break
@@ -153,7 +154,6 @@ def load_prices(table_name, symbols, cur, conn):
 
                     df_md = df_md.sort_index()
                     df_md = df_md[df_md["Open"].notna()]
-
                     rows_md = []
                     for idx, row in df_md.iterrows():
                         o  = extract_scalar(row["Open"])
