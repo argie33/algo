@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3 
 import sys
 import time
 import logging
@@ -81,7 +81,7 @@ def extract_scalar(val):
     return val
 
 # -------------------------------
-# Incremental loader (always refresh current bar)
+# Incremental loader (always refresh last two dates)
 # -------------------------------
 def load_prices(table_name, symbols, cur, conn):
     logging.info(f"Loading {table_name}: {len(symbols)} symbols")
@@ -96,26 +96,17 @@ def load_prices(table_name, symbols, cur, conn):
             f"SELECT MAX(date) AS last_date FROM {table_name} WHERE symbol = %s;",
             (orig_sym,)
         )
-        res = cur.fetchone()
+        res       = cur.fetchone()
         last_date = (res["last_date"] if isinstance(res, dict) else res[0])
         today     = datetime.now().date()
 
         if last_date:
-            # For daily data, get exactly 2 days: yesterday and today
-            yesterday = today - timedelta(days=1)
-            start_date = yesterday
-            
-            # Delete existing records for these specific dates
-            cur.execute(
-                f"DELETE FROM {table_name} WHERE symbol = %s AND date >= %s AND date <= %s;",
-                (orig_sym, start_date, today)
-            )
-            conn.commit()
-            
+            # back up one more day so we refresh the last two dates
+            start_date = last_date - timedelta(days=1)
             download_kwargs = {
                 "tickers":     yq_sym,
                 "start":       start_date.isoformat(),
-                "end":        (today + timedelta(days=1)).isoformat(),
+                "end":         (today + timedelta(days=1)).isoformat(),
                 "interval":    "1d",
                 "auto_adjust": True,
                 "actions":     True,
@@ -161,18 +152,6 @@ def load_prices(table_name, symbols, cur, conn):
 
         df = df[df["Open"].notna()]
         rows = []
-        
-        # Get the actual date range from downloaded data and delete those dates
-        dates = [idx.date() for idx in df.index]
-        if dates:
-            min_date = min(dates)
-            max_date = max(dates)
-            cur.execute(
-                f"DELETE FROM {table_name} WHERE symbol = %s AND date >= %s AND date <= %s;",
-                (orig_sym, min_date, max_date)
-            )
-            conn.commit()
-            
         for idx, row in df.iterrows():
             o  = extract_scalar(row["Open"])
             h  = extract_scalar(row["High"])

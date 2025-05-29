@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3 
 import sys
 import time
 import logging
@@ -7,10 +7,11 @@ import os
 import gc
 import resource
 import pandas as pd
+import calendar
+from datetime import datetime, timedelta, date
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
-from datetime import datetime, timedelta
 
 import boto3
 import yfinance as yf
@@ -18,7 +19,7 @@ import yfinance as yf
 # -------------------------------
 # Script metadata & logging setup
 # -------------------------------
-SCRIPT_NAME = "loadpricemonthly.py"
+SCRIPT_NAME = "loadlatestpricemonthly.py"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -80,8 +81,15 @@ def extract_scalar(val):
         return val.iloc[0]
     return val
 
+def get_month_boundaries(target_date: date) -> tuple[date, date]:
+    """Get the first and last day of the month containing target_date"""
+    first_day = target_date.replace(day=1)
+    _, last_day = calendar.monthrange(target_date.year, target_date.month)
+    last_date = target_date.replace(day=last_day)
+    return first_day, last_date
+
 # -------------------------------
-# Incremental loader (always refresh current bar)
+# Incremental loader (always refresh last month and current month)
 # -------------------------------
 def load_prices(table_name, symbols, cur, conn):
     logging.info(f"Loading {table_name}: {len(symbols)} symbols")
@@ -96,25 +104,22 @@ def load_prices(table_name, symbols, cur, conn):
             f"SELECT MAX(date) AS last_date FROM {table_name} WHERE symbol = %s;",
             (orig_sym,)
         )
-        res = cur.fetchone()
+        res       = cur.fetchone()
         last_date = (res["last_date"] if isinstance(res, dict) else res[0])
         today     = datetime.now().date()
 
         if last_date:
-            # Set start date to one day before last_date to ensure we update last two dates
-            start_date = last_date - timedelta(days=1)
+            # Get current and previous month boundaries
+            current_month_start, _ = get_month_boundaries(today)
+            last_month_start, _ = get_month_boundaries(current_month_start - timedelta(days=1))
             
-            # Delete existing records for the last two days to avoid conflicts
-            cur.execute(
-                f"DELETE FROM {table_name} WHERE symbol = %s AND date >= %s;",
-                (orig_sym, start_date)
-            )
-            conn.commit()
+            # Start from previous month start
+            start_date = last_month_start
             
             download_kwargs = {
                 "tickers":     yq_sym,
                 "start":       start_date.isoformat(),
-                "end":        (today + timedelta(days=1)).isoformat(),
+                "end":         (today + timedelta(days=1)).isoformat(),
                 "interval":    "1mo",
                 "auto_adjust": True,
                 "actions":     True,

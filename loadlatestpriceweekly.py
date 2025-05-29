@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3 
 import sys
 import time
 import logging
@@ -18,7 +18,7 @@ import yfinance as yf
 # -------------------------------
 # Script metadata & logging setup
 # -------------------------------
-SCRIPT_NAME = "loadpriceweekly.py"
+SCRIPT_NAME = "loadlatestpriceweekly.py"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -30,10 +30,13 @@ logger = logging.getLogger(__name__)
 # Memory-logging helper (RSS in MB)
 # -------------------------------
 def get_rss_mb():
-    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    if sys.platform.startswith("linux"):
+        return usage / 1024
+    return usage / (1024 * 1024)
 
 def log_mem(stage: str):
-    logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB")
+    logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
 # -------------------------------
 # Retry settings
@@ -54,32 +57,38 @@ COL_LIST = ", ".join(["symbol"] + PRICE_COLUMNS)
 # DB config loader
 # -------------------------------
 def get_db_config():
-    """Load database configuration from AWS Secrets Manager."""
-    session = boto3.session.Session()
-    client  = session.client(service_name="secretsmanager")
-    secret  = client.get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])
-    config  = json.loads(secret["SecretString"])
-    return (
-        config["username"],
-        config["password"],
-        config["host"],
-        config["port"],
-        config["dbname"]
-    )
+    secret_str = boto3.client("secretsmanager") \
+                     .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
+    sec = json.loads(secret_str)
+    return {
+        "host":   sec["host"],
+        "port":   int(sec.get("port", 5432)),
+        "user":   sec["username"],
+        "password": sec["password"],
+        "dbname": sec["dbname"]
+    }
 
 # -------------------------------
 # Helper to extract a single scalar
 # -------------------------------
 def extract_scalar(val):
-    """Convert a scalar value to the appropriate type."""
-    if pd.isna(val) or val is None:
-        return None
-    if isinstance(val, (int, float)):
-        return float(val) if not math.isnan(val) else None
+    """
+    If pandas gives us a one-element Series, pull out that element.
+    Otherwise, return val as-is.
+    """
+    if isinstance(val, pd.Series) and len(val) == 1:
+        return val.iloc[0]
     return val
 
+def get_week_boundaries(date):
+    """Get start and end of the week containing the given date"""
+    # Monday is 0 and Sunday is 6
+    start = date - timedelta(days=date.weekday())
+    end = start + timedelta(days=6)
+    return start, end
+
 # -------------------------------
-# Incremental loader (always refresh current bar)
+# Incremental loader (always refresh last week and current week)
 # -------------------------------
 def load_prices(table_name, symbols, cur, conn):
     logging.info(f"Loading {table_name}: {len(symbols)} symbols")
@@ -94,26 +103,22 @@ def load_prices(table_name, symbols, cur, conn):
             f"SELECT MAX(date) AS last_date FROM {table_name} WHERE symbol = %s;",
             (orig_sym,)
         )
-        res = cur.fetchone()
+        res       = cur.fetchone()
         last_date = (res["last_date"] if isinstance(res, dict) else res[0])
         today     = datetime.now().date()
 
         if last_date:
-            # For weekly data, get last 2 weeks
-            two_weeks_ago = today - timedelta(days=14)
-            start_date = two_weeks_ago
+            # Get current and previous week boundaries
+            current_week_start, _ = get_week_boundaries(today)
+            last_week_start = current_week_start - timedelta(days=7)
             
-            # Delete existing records for these specific dates
-            cur.execute(
-                f"DELETE FROM {table_name} WHERE symbol = %s AND date >= %s AND date <= %s;",
-                (orig_sym, start_date, today)
-            )
-            conn.commit()
+            # Start from previous week start
+            start_date = last_week_start
             
             download_kwargs = {
                 "tickers":     yq_sym,
                 "start":       start_date.isoformat(),
-                "end":        (today + timedelta(days=1)).isoformat(),
+                "end":         (today + timedelta(days=1)).isoformat(),
                 "interval":    "1wk",
                 "auto_adjust": True,
                 "actions":     True,
@@ -150,20 +155,15 @@ def load_prices(table_name, symbols, cur, conn):
             failed.append(orig_sym)
             continue
 
+        # ─── Clean and prepare rows ─────────────────────────────
+        df = df.sort_index()
+        if "Open" not in df.columns:
+            logging.warning(f"{table_name} – {orig_sym}: unexpected data format; skipping")
+            failed.append(orig_sym)
+            continue
+
         df = df[df["Open"].notna()]
         rows = []
-        
-        # Get the actual date range from downloaded data and delete those dates
-        dates = [idx.date() for idx in df.index]
-        if dates:
-            min_date = min(dates)
-            max_date = max(dates)
-            cur.execute(
-                f"DELETE FROM {table_name} WHERE symbol = %s AND date >= %s AND date <= %s;",
-                (orig_sym, min_date, max_date)
-            )
-            conn.commit()
-            
         for idx, row in df.iterrows():
             o  = extract_scalar(row["Open"])
             h  = extract_scalar(row["High"])
@@ -173,28 +173,27 @@ def load_prices(table_name, symbols, cur, conn):
             v  = extract_scalar(row["Volume"])
             d  = extract_scalar(row.get("Dividends", 0.0))
             s  = extract_scalar(row.get("Stock Splits", 0.0))
-            
-            if not any(x is not None for x in (o, h, l, c, v)):
-                continue
-                
+
             rows.append([
                 orig_sym,
                 idx.date(),
-                o, h, l, c, ac, v, d, s
+                None if pd.isna(o)  else float(o),
+                None if pd.isna(h)  else float(h),
+                None if pd.isna(l)  else float(l),
+                None if pd.isna(c)  else float(c),
+                None if pd.isna(ac) else float(ac),
+                None if pd.isna(v)  else int(v),
+                0.0  if pd.isna(d)  else float(d),
+                0.0  if pd.isna(s)  else float(s)
             ])
 
         if not rows:
-            logging.warning(f"{table_name} – {orig_sym}: no valid rows; skipping")
+            logging.warning(f"{table_name} – {orig_sym}: no valid rows after cleaning; skipping")
             failed.append(orig_sym)
             continue
 
-        # ─── Insert all rows at once ──────────────────────────────
-        sql = f"""
-        INSERT INTO {table_name} (
-            symbol, date, open, high, low, close,
-            adj_close, volume, dividends, stock_splits
-        ) VALUES %s;
-        """
+        # ─── Insert into DB ─────────────────────────────────────
+        sql = f"INSERT INTO {table_name} ({COL_LIST}) VALUES %s"
         execute_values(cur, sql, rows)
         conn.commit()
         inserted += len(rows)
@@ -214,9 +213,9 @@ if __name__ == "__main__":
     # Connect to DB
     cfg  = get_db_config()
     conn = psycopg2.connect(
-        host=cfg[2], port=cfg[3],
-        user=cfg[0], password=cfg[1],
-        dbname=cfg[4]
+        host=cfg["host"], port=cfg["port"],
+        user=cfg["user"], password=cfg["password"],
+        dbname=cfg["dbname"]
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
