@@ -14,6 +14,7 @@ env:
   AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
   AWS_ROLE_SESSION: github-deploy
   FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+  CF_TEMPLATES_BUCKET: ${{ secrets.CF_TEMPLATES_BUCKET || 'stocks-cf-templates' }}
 
 jobs:
 ################################################################################
@@ -45,7 +46,8 @@ jobs:
               RDSUsername=${{ secrets.RDS_USERNAME }} \
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
-            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+            --s3-bucket ${{ env.CF_TEMPLATES_BUCKET }}
 
 ################################################################################
 # 2) Detect changed components                                                 #
