@@ -1191,8 +1191,8 @@ Resources:
   LoadLatestPriceDailyScheduleRule:
     Type: AWS::Events::Rule
     Properties:
-      Description: "Run loadlatestpricedaily task daily at 01:00 UTC"
-      ScheduleExpression: cron(0 1 * * ? *)
+      Description: "Run loadlatestpricedaily task at 15:15 CDT (20:15 UTC) on weekdays"
+      ScheduleExpression: cron(15 20 ? * MON-FRI *)
       State: ENABLED
       Targets:
         - Id: LoadLatestPriceDaily
@@ -1216,8 +1216,8 @@ Resources:
   LoadLatestPriceWeeklyScheduleRule:
     Type: AWS::Events::Rule
     Properties:
-      Description: "Run loadlatestpriceweekly task daily at 01:00 UTC"
-      ScheduleExpression: cron(0 1 * * ? *)
+      Description: "Run loadlatestpriceweekly task at 15:15 CDT (20:15 UTC) on weekdays"
+      ScheduleExpression: cron(15 20 ? * MON-FRI *)
       State: ENABLED
       Targets:
         - Id: LoadLatestPriceWeekly
@@ -1241,8 +1241,8 @@ Resources:
   LoadLatestPriceMonthlyScheduleRule:
     Type: AWS::Events::Rule
     Properties:
-      Description: "Run loadlatestpricemonthly task daily at 01:00 UTC"
-      ScheduleExpression: cron(0 1 * * ? *)
+      Description: "Run loadlatestpricemonthly task at 15:15 CDT (20:15 UTC) on weekdays"
+      ScheduleExpression: cron(15 20 ? * MON-FRI *)
       State: ENABLED
       Targets:
         - Id: LoadLatestPriceMonthly
