@@ -128,6 +128,8 @@ def main():
     );
     """)
 
+    # Drop and recreate technical_data_monthly table
+    logging.info("Recreating technical_data_monthly table...")
     cursor.execute("DROP TABLE IF EXISTS technical_data_monthly;")
     cursor.execute("""
     CREATE TABLE technical_data_monthly (
@@ -163,6 +165,7 @@ def main():
         bbands_upper    DOUBLE PRECISION,
         pivot_high      DOUBLE PRECISION,
         pivot_low       DOUBLE PRECISION,
+        fetched_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (symbol, date)
     );
     """)
@@ -181,7 +184,8 @@ def main():
       sma_10, sma_20, sma_50, sma_150, sma_200,
       ema_4, ema_9, ema_21,
       bbands_lower, bbands_middle, bbands_upper,
-      pivot_high, pivot_low
+      pivot_high, pivot_low,
+      fetched_at
     ) VALUES (
       %s, %s,
       %s, %s, %s, %s,
@@ -190,7 +194,8 @@ def main():
       %s, %s, %s, %s, %s,
       %s, %s, %s,
       %s, %s, %s,
-      %s, %s
+      %s, %s,
+      CURRENT_TIMESTAMP
     );
     """
 
