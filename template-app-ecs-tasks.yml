@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: '2010-09-09' 
 Description: >
   ECS TaskDefinitions, CloudWatch LogGroups, and zero-scale Services
   for stock-symbols, econ-data, monthly-price, findata, pricedaily,
