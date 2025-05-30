@@ -363,6 +363,16 @@ Resources:
     DeletionPolicy: Delete
     UpdateReplacePolicy: Retain
 
+  ### 9) CloudFormation Templates Bucket ###
+  CfTemplatesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: stocks-cf-templates
+      VersioningConfiguration:
+        Status: Enabled
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+
 Outputs:
   VpcId:
     Value: !Ref StocksVPC
@@ -396,6 +406,10 @@ Outputs:
     Value: !Ref CodeBucket
     Export:
       Name: StocksCore-CodeBucketName
+  CfTemplatesBucketName:
+    Value: !Ref CfTemplatesBucket
+    Export:
+      Name: StocksCore-CfTemplatesBucketName
   BastionSecurityGroupId:
     Value: !Ref BastionSecurityGroup
     Export:
