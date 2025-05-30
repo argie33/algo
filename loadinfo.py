@@ -17,7 +17,7 @@ import pandas as pd
 
 SCRIPT_NAME = "loadinfo.py"
 
-# ─── Logging ────────────────────────────────────────────────────────────────
+# ─── Logging ──────────────────────────────────────────────────────────────── 
 logging.basicConfig(
     level=os.environ.get("LOG_LEVEL", "WARNING"),
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
