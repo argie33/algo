@@ -34,13 +34,22 @@ jobs:
         with:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}      - name: Get template bucket name from exports
+        run: |
+          CF_BUCKET=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
+            --output text)
+          echo "CF_BUCKET=$CF_BUCKET" >> $GITHUB_ENV
+
+      - name: Copy template to S3
+        run: |
+          aws s3 cp template-app-stocks.yml "s3://${{ env.CF_BUCKET }}/template-app-stocks.yml"
 
       - name: Deploy application stack
         run: |
           aws cloudformation deploy \
             --stack-name stocks-app-stack \
-            --template-file template-app-stocks.yml \
+            --template-url "https://${{ env.CF_BUCKET }}.s3.${{ env.AWS_REGION }}.amazonaws.com/template-app-stocks.yml" \
             --parameter-overrides \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
