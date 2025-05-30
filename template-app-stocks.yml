@@ -66,8 +66,8 @@ Resources:
   DBCredentialsSecret:
     Type: AWS::SecretsManager::Secret
     DeletionPolicy: Retain
-    DependsOn: StocksDBInstance
-    Properties:      Name: !Sub stocks-db-secrets-${AWS::StackName}-${AWS::Region}-${AWS::StackId#.*stack/stocks-app-stocks/}
+    DependsOn: StocksDBInstance    Properties:
+      Name: !Sub stocks-db-secrets-${AWS::StackName}-${AWS::Region}-001
       Description: JSON with username, password, host, port, dbname
       SecretString:
         Fn::Join:
