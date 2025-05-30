@@ -34,7 +34,7 @@ services:
         echo 'Running loadstocksymbols.py...' &&
         python loadstocksymbols.py &&
         echo 'Running loadinfo.py...' &&
-        python loadinfo.py"
+        python loadinfo.py &&
         echo 'Running loadpricedaily.py...' &&
         python loadpricedaily.py &&
         echo 'Running loadtechnicalsdaily.py...' &&

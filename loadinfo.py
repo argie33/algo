@@ -532,12 +532,19 @@ INSERT INTO key_metrics (
 
         # 5) analyst_estimates
         ae = info
+        # Extract numeric part from averageAnalystRating if it's a string like "3.0 - Hold"
+        avg_rating = ae.get("averageAnalystRating")
+        if isinstance(avg_rating, str) and avg_rating:
+            try:
+                avg_rating = float(avg_rating.split()[0])
+            except (ValueError, IndexError):
+                avg_rating = None
         aparams = [
             symbol,
             clean_value(ae.get("targetHighPrice")), clean_value(ae.get("targetLowPrice")),
             clean_value(ae.get("targetMeanPrice")), clean_value(ae.get("targetMedianPrice")),
             clean_value(ae.get("recommendationKey")), clean_value(ae.get("recommendationMean")),
-            clean_value(ae.get("numberOfAnalystOpinions")), clean_value(ae.get("averageAnalystRating"))
+            clean_value(ae.get("numberOfAnalystOpinions")), clean_value(avg_rating)
         ]
         cur.execute("""
 INSERT INTO analyst_estimates (

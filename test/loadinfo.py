@@ -19,7 +19,7 @@ SCRIPT_NAME = "loadinfo.py"
 
 # ─── Logging ────────────────────────────────────────────────────────────────
 logging.basicConfig(
-    level=os.environ.get("LOG_LEVEL", "WARNING"),
+    level=os.environ.get("LOG_LEVEL", "INFO"),  # Changed from WARNING to INFO
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     handlers=[logging.StreamHandler(sys.stdout)],
     force=True
@@ -296,21 +296,12 @@ def update_last_run(conn):
 def retry(max_attempts=3, initial_delay=2, backoff=2):
     def deco(fn):
         @functools.wraps(fn)
-        def wrapper(symbol, *args, **kwargs):
+        def wrapper(symbol, conn, *args, **kwargs):
             attempts, delay = 0, initial_delay
             while attempts < max_attempts:
                 attempts += 1
                 try:
-                    user,pwd,host,port,db = get_db_config()
-                    conn = psycopg2.connect(
-                        host=host, port=port,
-                        user=user, password=pwd,
-                        dbname=db, sslmode="require",
-                        cursor_factory=DictCursor
-                    )
-                    res = fn(symbol, conn, *args, **kwargs)
-                    conn.close()
-                    return res
+                    return fn(symbol, conn, *args, **kwargs)
                 except Exception as e:
                     logger.error(f"{fn.__name__}({symbol}) attempt {attempts}: {e}", exc_info=True)
                     time.sleep(delay)
@@ -325,14 +316,18 @@ def process_symbol(symbol, conn):
     yf_sym = symbol.upper().replace(".", "-")
     logger.info(f"→ {symbol} (YF={yf_sym})")
     try:
+        # Get info from yfinance without timeout
         info = yf.Ticker(yf_sym).get_info() or {}
+        logger.info(f"Retrieved info for {symbol}")
     except Exception as e:
-        logger.warning(f"yfinance.get_info() failed: {e}")
+        logger.warning(f"yfinance.get_info() failed for {symbol}: {e}")
         info = {}
 
     def jdump(v):
-        try: return json.dumps(v) if v is not None else None
-        except: return None
+        try: 
+            return json.dumps(v) if v is not None else None
+        except: 
+            return None
 
     with conn.cursor() as cur:
         # 1) company_profile
@@ -541,12 +536,19 @@ INSERT INTO key_metrics (
 
         # 5) analyst_estimates
         ae = info
+        # Extract numeric part from averageAnalystRating if it's a string like "3.0 - Hold"
+        avg_rating = ae.get("averageAnalystRating")
+        if isinstance(avg_rating, str) and avg_rating:
+            try:
+                avg_rating = float(avg_rating.split()[0])
+            except (ValueError, IndexError):
+                avg_rating = None
         aparams = [
             symbol,
             clean_value(ae.get("targetHighPrice")), clean_value(ae.get("targetLowPrice")),
             clean_value(ae.get("targetMeanPrice")), clean_value(ae.get("targetMedianPrice")),
             clean_value(ae.get("recommendationKey")), clean_value(ae.get("recommendationMean")),
-            clean_value(ae.get("numberOfAnalystOpinions")), clean_value(ae.get("averageAnalystRating"))
+            clean_value(ae.get("numberOfAnalystOpinions")), clean_value(avg_rating)
         ]
         cur.execute("""
 INSERT INTO analyst_estimates (
@@ -561,44 +563,49 @@ INSERT INTO analyst_estimates (
 
 # ─── Entrypoint ──────────────────────────────────────────────────────────────
 def main():
-    user,pwd,host,port,db = get_db_config()
+    # Step 1: Initialize DB and tables
+    user, pwd, host, port, db = get_db_config()
     logger.info("Rebuilding tables…")
-    conn = psycopg2.connect(
+    connect_kwargs = dict(
         host=host, port=port, user=user, password=pwd,
-        dbname=db, sslmode="require", cursor_factory=DictCursor
+        dbname=db, cursor_factory=DictCursor
     )
+    if DB_SECRET_ARN != "mock":
+        connect_kwargs["sslmode"] = "require"
+    else:
+        connect_kwargs["sslmode"] = "disable"
+    
+    # Create connection for table setup
+    conn = psycopg2.connect(**connect_kwargs)
     ensure_tables(conn)
     conn.close()
-
-    user,pwd,host,port,db = get_db_config()
-    conn = psycopg2.connect(
-        host=host, port=port, user=user, password=pwd,
-        dbname=db, sslmode="require", cursor_factory=DictCursor
-    )
-    cur = conn.cursor(name="symbol_cursor")
-    cur.itersize = 50
-    cur.execute("SELECT DISTINCT symbol FROM stock_symbols;")
-    log_mem("symbols-opened")
-
-    for row in cur:
-        sym = row[0]
+    
+    # Step 2: Process symbols - using regular cursor to avoid named cursor issues
+    logger.info("Processing symbols...")
+    conn = psycopg2.connect(**connect_kwargs)
+    with conn.cursor() as cur:
+        # Only process 2 symbols for testing
+        cur.execute("SELECT DISTINCT symbol FROM stock_symbols LIMIT 2;")
+        logger.info("Executing query for symbols...")
+        log_mem("symbols-opened")
+        
+        symbols = [row[0] for row in cur.fetchall()]
+        
+    # Process each symbol
+    for sym in symbols:
         log_mem(f"before-{sym}")
         try:
-            process_symbol(sym)
-        except Exception:
-            logger.exception(f"✗ failed {sym}")
+            process_symbol(sym, conn)
+        except Exception as e:
+            logger.exception(f"✗ failed {sym}: {e}")
         gc.collect()
-        time.sleep(0.05)
+        time.sleep(0.5)  # Increased delay between symbols
         log_mem(f"after-{sym}")
 
-    cur.close()
     conn.close()
 
-    user,pwd,host,port,db = get_db_config()
-    conn = psycopg2.connect(
-        host=host, port=port, user=user, password=pwd,
-        dbname=db, sslmode="require", cursor_factory=DictCursor
-    )
+    # Step 3: Update last run timestamp
+    conn = psycopg2.connect(**connect_kwargs)
     update_last_run(conn)
     conn.close()
     log_mem("complete")
