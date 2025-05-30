@@ -35,7 +35,7 @@ jobs:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}  
-              
+
       - name: Get template bucket name from exports
         run: |
           CF_BUCKET=$(aws cloudformation list-exports \
@@ -45,13 +45,14 @@ jobs:
 
       - name: Copy template to S3
         run: |
-          aws s3 cp template-app-stocks.yml "s3://${{ env.CF_BUCKET }}/template-app-stocks.yml"
-
+          aws s3 cp template-app-stocks.yml "s3://${{ env.CF_BUCKET }}/template-app-stocks.yml"      
+          
       - name: Deploy application stack
         run: |
           aws cloudformation deploy \
             --stack-name stocks-app-stack \
-            --template-url "https://${{ env.CF_BUCKET }}.s3.${{ env.AWS_REGION }}.amazonaws.com/template-app-stocks.yml" \
+            --template-file template-app-stocks.yml \
+            --s3-bucket ${{ env.CF_BUCKET }} \
             --parameter-overrides \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
