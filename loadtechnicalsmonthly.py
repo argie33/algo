@@ -245,9 +245,12 @@ def main():
         df['ad']  = ta.ad(df['high'], df['low'], df['close'], df['volume'])
         df['cmf'] = ta.cmf(df['high'], df['low'], df['close'], df['volume'], length=20)
 
-        # MFI - ensure volume is float64 to avoid dtype warning
-        volume_float = df['volume'].astype('float64')
-        mfi_vals = ta.mfi(df['high'], df['low'], df['close'], volume_float, length=14)
+        # MFI calculation with proper dtype handling
+        df['volume'] = df['volume'].astype('float64')  # Convert volume column to float64
+        df['high'] = df['high'].astype('float64')
+        df['low'] = df['low'].astype('float64')
+        df['close'] = df['close'].astype('float64')
+        mfi_vals = ta.mfi(df['high'], df['low'], df['close'], df['volume'], length=14)
         if 'mfi' in df.columns:
             df.drop(columns=['mfi'], inplace=True)
         df['mfi'] = pd.Series(mfi_vals, dtype='float64')
