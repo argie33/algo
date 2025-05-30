@@ -41,18 +41,12 @@ jobs:
           BUCKET=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-CodeBucketName'].Value" \
             --output text)
-          echo "name=$BUCKET" >> $GITHUB_OUTPUT
-
-      - name: Upload templates to S3
-        run: |
-          aws s3 cp template-app-stocks.yml s3://${{ steps.bucket.outputs.name }}/templates/
-          aws s3 cp template-app-ecs-tasks.yml s3://${{ steps.bucket.outputs.name }}/templates/
-
-      - name: Deploy application stack
+          echo "name=$BUCKET" >> $GITHUB_OUTPUT      - name: Deploy application stack
         run: |
           aws cloudformation deploy \
             --stack-name stocks-app-stack \
-            --template-url https://${{ steps.bucket.outputs.name }}.s3.amazonaws.com/templates/template-app-stocks.yml \
+            --template-file template-app-stocks.yml \
+            --s3-bucket ${{ steps.bucket.outputs.name }} \
             --parameter-overrides \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
