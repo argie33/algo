@@ -66,6 +66,15 @@ Parameters:
   LoadLatestTechnicalsMonthlyImageTag:
     Type: String
     Description: "Tag for loadlatesttechnicalsmonthly loader image"
+  LoadLatestTechnicalsDailyImageTag:
+    Type: String
+    Description: "Tag for loadlatesttechnicalsdaily loader image"
+  LoadLatestTechnicalsWeeklyImageTag:
+    Type: String
+    Description: "Tag for loadlatesttechnicalsweekly loader image"
+  LoadLatestTechnicalsMonthlyImageTag:
+    Type: String
+    Description: "Tag for loadlatesttechnicalsmonthly loader image"
 
   FREDApiKey:
     Type: String
@@ -1912,6 +1921,109 @@ Resources:
                   - !ImportValue StocksApp-EcsTasksSecurityGroupId
                 AssignPublicIp: ENABLED
 
+
+  #############################################################
+  # IAM Role for EventBridge → ECS RunTask#
+  #############################################################
+  EventsInvokeEcsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${AWS::StackName}-EventsInvokeEcsRole"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: AllowEcsRunTask
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:RunTask
+                Resource:
+                  - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/*"
+                  - !ImportValue StocksApp-ClusterArn
+
+  #############################################################
+  # Schedule: run loadlatestpricedaily every day
+  #############################################################
+  LoadLatestPriceDailyScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Run loadlatestpricedaily task at 15:15 CDT (20:15 UTC) on weekdays"
+      ScheduleExpression: cron(15 20 ? * MON-FRI *)
+      State: ENABLED
+      Targets:
+        - Id: LoadLatestPriceDaily
+          Arn: !ImportValue StocksApp-ClusterArn
+          RoleArn: !GetAtt EventsInvokeEcsRole.Arn
+          EcsParameters:
+            LaunchType: FARGATE
+            TaskDefinitionArn: !Ref LoadLatestPriceDailyTaskDefinition
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+
+  #############################################################
+  # Schedule: run loadlatestpriceweekly 
+  #############################################################
+  LoadLatestPriceWeeklyScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Run loadlatestpriceweekly task at 15:15 CDT (20:15 UTC) on weekdays"
+      ScheduleExpression: cron(15 20 ? * MON-FRI *)
+      State: ENABLED
+      Targets:
+        - Id: LoadLatestPriceWeekly
+          Arn: !ImportValue StocksApp-ClusterArn
+          RoleArn: !GetAtt EventsInvokeEcsRole.Arn
+          EcsParameters:
+            LaunchType: FARGATE
+            TaskDefinitionArn: !Ref LoadLatestPriceWeeklyTaskDefinition
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+
+  #############################################################
+  # Schedule: run loadlatestpricemonthly 
+  #############################################################
+  LoadLatestPriceMonthlyScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Run loadlatestpricemonthly task at 15:15 CDT (20:15 UTC) on weekdays"
+      ScheduleExpression: cron(15 20 ? * MON-FRI *)
+      State: ENABLED
+      Targets:
+        - Id: LoadLatestPriceMonthly
+          Arn: !ImportValue StocksApp-ClusterArn
+          RoleArn: !GetAtt EventsInvokeEcsRole.Arn
+          EcsParameters:
+            LaunchType: FARGATE
+            TaskDefinitionArn: !Ref LoadLatestPriceMonthlyTaskDefinition
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+
   #########################################
   # Outputs                               #
   #########################################
@@ -2010,6 +2122,24 @@ Outputs:
     Value: !Ref LoadLatestPriceMonthlyTaskDefinition
     Export:
       Name: LoadLatestPriceMonthlyTaskDefArn
+
+  LoadLatestTechnicalsDailyTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for loadlatesttechnicalsdaily loader
+    Value: !Ref LoadLatestTechnicalsDailyTaskDefinition
+    Export:
+      Name: LoadLatestTechnicalsDailyTaskDefArn
+
+  LoadLatestTechnicalsWeeklyTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for loadlatesttechnicalsweekly loader
+    Value: !Ref LoadLatestTechnicalsWeeklyTaskDefinition
+    Export:
+      Name: LoadLatestTechnicalsWeeklyTaskDefArn
+
+  LoadLatestTechnicalsMonthlyTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for loadlatesttechnicalsmonthly loader
+    Value: !Ref LoadLatestTechnicalsMonthlyTaskDefinition
+    Export:
+      Name: LoadLatestTechnicalsMonthlyTaskDefArn
 
   LoadLatestTechnicalsDailyTaskDefArn:
     Description: ARN of the ECS TaskDefinition for loadlatesttechnicalsdaily loader
