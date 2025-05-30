@@ -34,7 +34,9 @@ jobs:
         with:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}      - name: Get template bucket name from exports
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}  
+              
+      - name: Get template bucket name from exports
         run: |
           CF_BUCKET=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
