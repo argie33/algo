@@ -241,17 +241,19 @@ def main():
             df['adx']      = adx_df['ADX_14']
             df['plus_di']  = adx_df['DMP_14']
             df['minus_di'] = adx_df['DMN_14']
-        else:
+        else:            
             df[['adx','plus_di','minus_di']] = np.nan
 
         df['atr'] = ta.atr(df['high'], df['low'], df['close'], length=14)
         df['ad']  = ta.ad(df['high'], df['low'], df['close'], df['volume'])
         df['cmf'] = ta.cmf(df['high'], df['low'], df['close'], df['volume'], length=20)
 
-        # MFI
-        mfi_vals = ta.mfi(df['high'], df['low'], df['close'], df['volume'], length=14)
-        if 'mfi' in df.columns: df.drop(columns=['mfi'], inplace=True)
-        df['mfi'] = pd.Series(mfi_vals, index=df.index, dtype='float64')
+        # MFI - ensure volume is float64 to avoid dtype warning
+        volume_float = df['volume'].astype('float64')
+        mfi_vals = ta.mfi(df['high'], df['low'], df['close'], volume_float, length=14)
+        if 'mfi' in df.columns: 
+            df.drop(columns=['mfi'], inplace=True)
+        df['mfi'] = pd.Series(mfi_vals, dtype='float64')
 
         df['td_sequential'] = td_sequential(df['close'], lookback=4)
         df['td_combo']      = td_combo(df['close'], lookback=2)
