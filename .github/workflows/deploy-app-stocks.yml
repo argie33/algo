@@ -23,11 +23,11 @@ jobs:
     name: Deploy application stack
     needs: filter
     if: ${{ needs.filter.outputs.app == 'true' }}
-    runs-on: ubuntu-latest
-
-    steps:
+    runs-on: ubuntu-latest    steps:
       - name: Checkout code
-        uses: actions/checkout@v3      - name: Configure AWS credentials
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region:        ${{ env.AWS_REGION }}
