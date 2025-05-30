@@ -36,43 +36,21 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Create S3 bucket for templates if not exists
+      - name: Get CloudFormation templates bucket name
         run: |
-          BUCKET_NAME="stocks-cfn-templates-${{ secrets.AWS_ACCOUNT_ID }}"
-          if ! aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
-            aws s3 mb "s3://$BUCKET_NAME" --region ${{ env.AWS_REGION }}
-            
-            # Wait a few seconds for bucket creation to propagate
-            sleep 5
-            
-            # Enable versioning on the bucket for safety
-            aws s3api put-bucket-versioning \
-              --bucket "$BUCKET_NAME" \
-              --versioning-configuration Status=Enabled
-            
-            # Block public access for security
-            aws s3api put-public-access-block \
-              --bucket "$BUCKET_NAME" \
-              --public-access-block-configuration \
-                BlockPublicAcls=true,\
-                IgnorePublicAcls=true,\
-                BlockPublicPolicy=true,\
-                RestrictPublicBuckets=true
-          fi
+          BUCKET_NAME=$(aws cloudformation list-exports --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" --output text)
+          echo "CF_BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
 
       - name: Upload CloudFormation templates to S3
         run: |
-          BUCKET_NAME="stocks-cfn-templates-${{ secrets.AWS_ACCOUNT_ID }}"
-          aws s3 cp template-app-stocks.yml "s3://$BUCKET_NAME/template-app-stocks.yml"
-          aws s3 cp template-app-ecs-tasks.yml "s3://$BUCKET_NAME/template-app-ecs-tasks.yml"
+          aws s3 cp template-app-stocks.yml "s3://$CF_BUCKET_NAME/template-app-stocks.yml"
+          aws s3 cp template-app-ecs-tasks.yml "s3://$CF_BUCKET_NAME/template-app-ecs-tasks.yml"
 
       - name: Deploy application stack
         run: |
-          BUCKET_NAME="stocks-cfn-templates-${{ secrets.AWS_ACCOUNT_ID }}"
           aws cloudformation deploy \
             --stack-name stocks-app-stack \
-            --s3-bucket "$BUCKET_NAME" \
-            --template-file template-app-stocks.yml \
+            --template-url "https://$CF_BUCKET_NAME.s3.amazonaws.com/template-app-stocks.yml" \
             --parameter-overrides \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
               RDSPassword=${{ secrets.RDS_PASSWORD }} \

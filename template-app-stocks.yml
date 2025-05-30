@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: '2010-09-09' 
 Description: >
   Application stack – RDS (public), Secrets (DB creds),
   ECS cluster, and ECS task execution role. 
