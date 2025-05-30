@@ -2,39 +2,42 @@
 import sys
 import time
 import logging
+from datetime import datetime
 import json
 import os
-from datetime import datetime
+import resource
 
 import numpy as np
+import numpy
 import pandas as pd
 import pandas_ta as ta
+
+# ───────────────────────────────────────────────────────────────────
+# Monkey-patch numpy so that “from numpy import NaN” in pandas_ta will succeed
+numpy.NaN = numpy.nan
+np.NaN    = np.nan
+# ───────────────────────────────────────────────────────────────────
+
 import boto3
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-# Initialize numpy NaN values for pandas_ta compatibility
-np.NaN = np.nan
+import pandas as pd
+import pandas_ta as ta
 
-SCRIPT_NAME = "loadtechnicalsdaily.py"
+# -------------------------------
+# Script metadata & logging setup
+# -------------------------------
+SCRIPT_NAME = os.path.basename(__file__)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
     stream=sys.stdout
 )
-logger = logging.getLogger(__name__)
 
 def get_db_config():
-    client = boto3.client("secretsmanager")
-    resp = client.get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])
-    sec = json.loads(resp["SecretString"])
-    return (
-        sec["username"],
-        sec["password"],
-        sec["host"],
-        int(sec["port"]),
-        sec["dbname"]
-    )
+    """Mock DB config for testing"""
+    return ("test_user", "test_password", "db", 5432, "stocks")
 
 def sanitize_value(x):
     if isinstance(x, float) and np.isnan(x):
@@ -43,14 +46,14 @@ def sanitize_value(x):
 
 def pivot_high_vectorized(df, left_bars=3, right_bars=3):
     series = df['high']
-    roll_left = series.shift(1).rolling(window=left_bars, min_periods=left_bars).max()
+    roll_left  = series.shift(1).rolling(window=left_bars,  min_periods=left_bars).max()
     roll_right = series.shift(-1).rolling(window=right_bars, min_periods=right_bars).max()
     cond = (series > roll_left) & (series > roll_right)
     return series.where(cond, np.nan)
 
 def pivot_low_vectorized(df, left_bars=3, right_bars=3):
     series = df['low']
-    roll_left = series.shift(1).rolling(window=left_bars, min_periods=left_bars).min()
+    roll_left  = series.shift(1).rolling(window=left_bars,  min_periods=left_bars).min()
     roll_right = series.shift(-1).rolling(window=right_bars, min_periods=right_bars).min()
     cond = (series < roll_left) & (series < roll_right)
     return series.where(cond, np.nan)
@@ -79,7 +82,7 @@ def td_combo(close, lookback=2):
 
 def marketwatch_indicator(close, open_):
     signal = (close > open_).astype(int) - (close < open_).astype(int)
-    count = [0]*len(signal)
+    count  = [0]*len(signal)
     count[0] = signal.iloc[0]
     for i in range(1, len(signal)):
         if signal.iloc[i]==signal.iloc[i-1] and signal.iloc[i]!=0:
@@ -111,6 +114,7 @@ def main():
         logging.error(f"Unable to connect to Postgres: {e}")
         sys.exit(1)
 
+    # Create last_updated table if it doesn't exist
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS last_updated (
         script_name VARCHAR(255) PRIMARY KEY,
@@ -118,6 +122,8 @@ def main():
     );
     """)
 
+    # Drop and recreate technical_data_daily table
+    logging.info("Recreating technical_data_daily table...")
     cursor.execute("DROP TABLE IF EXISTS technical_data_daily;")
     cursor.execute("""
     CREATE TABLE technical_data_daily (
@@ -153,7 +159,7 @@ def main():
         bbands_upper    DOUBLE PRECISION,
         pivot_high      DOUBLE PRECISION,
         pivot_low       DOUBLE PRECISION,
-        fetched_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+        fetched_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (symbol, date)
     );
     """)
@@ -172,16 +178,18 @@ def main():
       sma_10, sma_20, sma_50, sma_150, sma_200,
       ema_4, ema_9, ema_21,
       bbands_lower, bbands_middle, bbands_upper,
-      pivot_high, pivot_low
+      pivot_high, pivot_low,
+      fetched_at
     ) VALUES (
       %s, %s,
       %s, %s, %s, %s,
       %s, %s, %s, %s, %s, %s, %s, %s, %s,
       %s, %s, %s, %s,
-      %s, %s, %s, %s, %s,
+      %s, %s, %s, %s, %s, 
       %s, %s, %s,
       %s, %s, %s,
-      %s, %s
+      %s, %s,
+      CURRENT_TIMESTAMP
     );
     """
 
@@ -198,12 +206,16 @@ def main():
         rows = cursor.fetchall()
         if not rows:
             logging.warning(f"No data for {sym}, skipping.")
-            continue
-
+            continue        # Create DataFrame and ensure proper data types
         df = pd.DataFrame(rows, columns=['date','open','high','low','close','volume'])
         df['date'] = pd.to_datetime(df['date'])
         df.set_index('date', inplace=True)
-        df = df.astype(float).ffill().bfill().dropna()
+
+        # Convert price columns to float64 and volume to int64
+        price_cols = ['open', 'high', 'low', 'close']
+        df[price_cols] = df[price_cols].astype('float64')
+        df['volume'] = df['volume'].fillna(0).astype('int64')
+        df = df.ffill().bfill()
 
         # --- INDICATORS ---
         df['rsi'] = ta.rsi(df['close'], length=14)
@@ -224,17 +236,18 @@ def main():
             df['adx']      = adx_df['ADX_14']
             df['plus_di']  = adx_df['DMP_14']
             df['minus_di'] = adx_df['DMN_14']
-        else:
-            df[['adx','plus_di','minus_di']] = np.nan
-
+        else:            
+            df[['adx','plus_di','minus_di']] = np.nan        # Calculate ATR and AD indicators
         df['atr'] = ta.atr(df['high'], df['low'], df['close'], length=14)
-        df['ad']  = ta.ad(df['high'], df['low'], df['close'], df['volume'])
-        df['cmf'] = ta.cmf(df['high'], df['low'], df['close'], df['volume'], length=20)
-
-        # MFI
-        mfi_vals = ta.mfi(df['high'], df['low'], df['close'], df['volume'], length=14)
-        if 'mfi' in df.columns: df.drop(columns=['mfi'], inplace=True)
-        df['mfi'] = pd.Series(mfi_vals, index=df.index, dtype='float64')
+        df['ad']  = ta.ad(df['high'], df['low'], df['close'], df['volume'].astype('float64'))
+        df['cmf'] = ta.cmf(df['high'], df['low'], df['close'], df['volume'].astype('float64'), length=20)        # MFI calculation
+        df['mfi'] = ta.mfi(
+            high=df['high'],
+            low=df['low'],
+            close=df['close'],
+            volume=df['volume'].astype('float64'),
+            length=14
+        )
 
         df['td_sequential'] = td_sequential(df['close'], lookback=4)
         df['td_combo']      = td_combo(df['close'], lookback=2)

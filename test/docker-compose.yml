@@ -4,14 +4,36 @@ services:
   db:
     image: postgres:15
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: stocks
+      - POSTGRES_USER=test_user
+      - POSTGRES_PASSWORD=test_password
+      - POSTGRES_DB=stocks
     ports:
       - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test_user -d stocks"]    
+      timeout: 5s
+      retries: 5
 
-volumes:
-  pgdata:
+  app:
+    build: .
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONIOENCODING=utf8
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
+      - DB_SECRET_ARN=mock
+      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=mock
+      - AWS_SECRET_ACCESS_KEY=mock
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      /bin/bash -c "
+        echo 'Running loadstocksymbols.py...' &&
+        python loadstocksymbols.py &&
+        echo 'Running loadpricedaily.py...' &&
+        python loadpricedaily.py &&
+        echo 'Running loadtechnicalsdaily.py...' &&
+        python loadtechnicalsdaily.py"

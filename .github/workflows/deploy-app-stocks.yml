@@ -27,20 +27,31 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Configure AWS credentials
+        uses: actions/checkout@v3      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
+      - name: Get code bucket name
+        id: bucket
+        run: |
+          BUCKET=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-CodeBucketName'].Value" \
+            --output text)
+          echo "name=$BUCKET" >> $GITHUB_OUTPUT
+
+      - name: Upload templates to S3
+        run: |
+          aws s3 cp template-app-stocks.yml s3://${{ steps.bucket.outputs.name }}/templates/
+          aws s3 cp template-app-ecs-tasks.yml s3://${{ steps.bucket.outputs.name }}/templates/
+
       - name: Deploy application stack
         run: |
           aws cloudformation deploy \
             --stack-name stocks-app-stack \
-            --template-file template-app-stocks.yml \
+            --template-url https://${{ steps.bucket.outputs.name }}.s3.amazonaws.com/templates/template-app-stocks.yml \
             --parameter-overrides \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
