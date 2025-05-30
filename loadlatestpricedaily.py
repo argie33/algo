@@ -9,7 +9,7 @@ import resource
 import pandas as pd
 
 import psycopg2
-from psycopg2.extras import RealDictCursor, execute_values
+from psycopg2.extras import execute_values, RealDictCursor
 from datetime import datetime, timedelta
 
 import boto3
@@ -114,6 +114,14 @@ def load_prices(table_name, symbols, cur, conn):
                 "progress":    False
             }
             logging.info(f"{table_name} – {orig_sym}: downloading from {start_date} to {today}")
+            
+            # Delete existing data for the date range we're refreshing
+            cur.execute(f"""
+                DELETE FROM {table_name} 
+                WHERE symbol = %s 
+                AND date >= %s
+            """, (orig_sym, start_date))
+            conn.commit()
         else:
             download_kwargs = {
                 "tickers":     yq_sym,

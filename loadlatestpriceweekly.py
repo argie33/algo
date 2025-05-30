@@ -126,6 +126,14 @@ def load_prices(table_name, symbols, cur, conn):
                 "progress":    False
             }
             logging.info(f"{table_name} – {orig_sym}: downloading from {start_date} to {today}")
+            
+            # Delete existing data for the date range we're refreshing
+            cur.execute(f"""
+                DELETE FROM {table_name} 
+                WHERE symbol = %s 
+                AND date >= %s
+            """, (orig_sym, start_date))
+            conn.commit()
         else:
             download_kwargs = {
                 "tickers":     yq_sym,
