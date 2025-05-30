@@ -33,15 +33,15 @@ jobs:
         with:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - name: Get code bucket name
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}      - name: Get code bucket name
         id: bucket
         run: |
           BUCKET=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-CodeBucketName'].Value" \
             --output text)
-          echo "name=$BUCKET" >> $GITHUB_OUTPUT      - name: Deploy application stack
+          echo "name=$BUCKET" >> $GITHUB_OUTPUT
+
+      - name: Deploy application stack
         run: |
           aws cloudformation deploy \
             --stack-name stocks-app-stack \
