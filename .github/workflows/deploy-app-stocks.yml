@@ -364,6 +364,9 @@ jobs:
               SwingTraderImageTag=$(grep '^SwingTraderImageTag=' tags.env | cut -d= -f2-) \
               CalendarImageTag=$(grep '^CalendarImageTag=' tags.env | cut -d= -f2-) \
               BuySellImageTag=$(grep '^BuySellImageTag=' tags.env | cut -d= -f2-) \
+              LoadLatestTechnicalsDailyImageTag="$(grep '^LoadLatestTechnicalsDailyImageTag=' tags.env | cut -d= -f2-)" \
+              LoadLatestTechnicalsWeeklyImageTag="$(grep '^LoadLatestTechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-)" \
+              LoadLatestTechnicalsMonthlyImageTag="$(grep '^LoadLatestTechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-)" \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
               IBKRUsername=${{ secrets.IBKR_USERNAME }} \
               IBKRPassword=${{ secrets.IBKR_PASSWORD }} \
