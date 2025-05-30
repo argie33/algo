@@ -37,15 +37,11 @@ jobs:
           role-session-name: ${{ env.AWS_ROLE_SESSION }}  
 
       - name: Get template bucket name from exports
-        run: |
+        run: |          
           CF_BUCKET=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
             --output text)
           echo "CF_BUCKET=$CF_BUCKET" >> $GITHUB_ENV
-
-      - name: Copy template to S3
-        run: |
-          aws s3 cp template-app-stocks.yml "s3://${{ env.CF_BUCKET }}/template-app-stocks.yml"      
           
       - name: Deploy application stack
         run: |
