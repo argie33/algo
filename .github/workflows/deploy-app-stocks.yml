@@ -17,7 +17,7 @@ env:
 
 jobs:
 ################################################################################
-# 1) Deploy core infrastructure (RDS, Secrets, ECS cluster)                    # 
+# 1) Deploy core infrastructure (RDS, Secrets, ECS cluster)                    #
 ################################################################################
   infra:
     name: Deploy application stack
@@ -36,21 +36,11 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Get CloudFormation templates bucket name
-        run: |
-          BUCKET_NAME=$(aws cloudformation list-exports --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" --output text)
-          echo "CF_BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
-
-      - name: Upload CloudFormation templates to S3
-        run: |
-          aws s3 cp template-app-stocks.yml "s3://$CF_BUCKET_NAME/template-app-stocks.yml"
-          aws s3 cp template-app-ecs-tasks.yml "s3://$CF_BUCKET_NAME/template-app-ecs-tasks.yml"
-
       - name: Deploy application stack
         run: |
           aws cloudformation deploy \
             --stack-name stocks-app-stack \
-            --template-url "https://$CF_BUCKET_NAME.s3.amazonaws.com/template-app-stocks.yml" \
+            --template-file template-app-stocks.yml \
             --parameter-overrides \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
@@ -351,10 +341,8 @@ jobs:
 
       - name: Deploy ECS-tasks CloudFormation stack
         run: |
-          BUCKET_NAME="stocks-cfn-templates-${{ secrets.AWS_ACCOUNT_ID }}"
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
-            --s3-bucket "$BUCKET_NAME" \
             --template-file template-app-ecs-tasks.yml \
             --parameter-overrides \
               StockSymbolsImageTag=$(grep '^StockSymbolsImageTag=' tags.env | cut -d= -f2-) \
@@ -694,6 +682,7 @@ jobs:
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
 
       - name: Run pricedaily Fargate task
         id: run
@@ -781,6 +770,7 @@ jobs:
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
 
       - name: Run priceweekly Fargate task
         id: run
@@ -868,6 +858,7 @@ jobs:
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
 
       - name: Run pricemonthly Fargate task
         id: run
@@ -955,6 +946,7 @@ jobs:
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
 
       - name: Run technicals-daily Fargate task
         id: run
@@ -1036,9 +1028,13 @@ jobs:
           SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
 
       - name: Run load-info Fargate task
         id: run
@@ -1120,9 +1116,13 @@ jobs:
           SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
 
       - name: Run earnings Fargate task
         id: run
@@ -1210,6 +1210,7 @@ jobs:
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
 
       - name: Run technicals-weekly Fargate task
         id: run
@@ -1297,6 +1298,7 @@ jobs:
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
 
       - name: Run technicals-monthly Fargate task
         id: run
@@ -1384,6 +1386,7 @@ jobs:
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
 
       - name: Run swing-trader Fargate task
         id: run
