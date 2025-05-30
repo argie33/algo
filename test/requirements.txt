@@ -1,6 +1,6 @@
-numpy
-pandas
-pandas-ta
+numpy==1.24.3
+pandas==2.0.2
+pandas-ta==0.3.14b
 psycopg2-binary
 boto3
 requests
