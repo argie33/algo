@@ -1,0 +1,19 @@
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the mock AWS module and test runner
+COPY mock_boto3.py /app/mock_boto3.py
+COPY test_runner.py /app/test_runner.py
+
+# Set up Python path to include our mock module first
+ENV PYTHONPATH="/app:$PYTHONPATH"
+
+WORKDIR /app

@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: stocksdb
+      POSTGRES_USER: stocksuser
+      POSTGRES_PASSWORD: stockspass
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "15432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stocksuser -d stocksdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    environment:
+      DB_SECRET_ARN: "local-test-secret"
+      AWS_DEFAULT_REGION: "us-east-1"
+      AWS_ACCESS_KEY_ID: "test"
+      AWS_SECRET_ACCESS_KEY: "test"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ../:/app/source
+      - ./logs:/app/logs
+    working_dir: /app
+    command: python test_runner.py
+
+volumes:
+  postgres_data:
