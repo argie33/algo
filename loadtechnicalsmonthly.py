@@ -440,4 +440,4 @@ if __name__ == "__main__":
         main()
     except Exception:
         logging.exception("Unhandled error in script")
-        sys.exit(1)
+        sys.exit(1) 
