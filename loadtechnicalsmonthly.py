@@ -190,7 +190,7 @@ def process_symbol(symbol, conn_pool):
         
         cursor.execute("""
             SELECT date, open, high, low, close, volume
-              FROM price_monthly # Changed from price_daily to price_monthly
+              FROM price_monthly
              WHERE symbol = %s
              ORDER BY date ASC
         """, (symbol,))
