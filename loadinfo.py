@@ -178,7 +178,15 @@ INSERT INTO company_profile (
 INSERT INTO leadership_team (
     ticker, person_name, age, title, birth_year, fiscal_year,
     total_pay, exercised_value, unexercised_value, role_source
-) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s);
+) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+ON CONFLICT (ticker, person_name, role_source) DO UPDATE SET
+    age = EXCLUDED.age,
+    title = EXCLUDED.title,
+    birth_year = EXCLUDED.birth_year,
+    fiscal_year = EXCLUDED.fiscal_year,
+    total_pay = EXCLUDED.total_pay,
+    exercised_value = EXCLUDED.exercised_value,
+    unexercised_value = EXCLUDED.unexercised_value;
 """, oparams)
 
                     # 2b) governance_scores
