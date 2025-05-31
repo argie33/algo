@@ -4,38 +4,45 @@ services:
   postgres:
     image: postgres:15
     environment:
-      POSTGRES_DB: stocksdb
-      POSTGRES_USER: stocksuser
-      POSTGRES_PASSWORD: stockspass
-      POSTGRES_HOST_AUTH_METHOD: trust
-    ports:
-      - "15432:5432"
+      POSTGRES_DB: testdb
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpass
     volumes:
-      - postgres_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U stocksuser -d stocksdb"]
+      test: ["CMD-SHELL", "pg_isready -U testuser -d testdb"]
       interval: 10s
       timeout: 5s
       retries: 5
+
 
   test-runner:
     build:
       context: .
       dockerfile: Dockerfile.test
-    environment:
-      DB_SECRET_ARN: "local-test-secret"
-      AWS_DEFAULT_REGION: "us-east-1"
-      AWS_ACCESS_KEY_ID: "test"
-      AWS_SECRET_ACCESS_KEY: "test"
     depends_on:
       postgres:
         condition: service_healthy
+    environment:
+      # Database configuration
+      DB_SECRET_ARN: "test-db-secret"
+      PYTHONPATH: "/app/test:/app"
+      PYTHONUNBUFFERED: "1"
+      # AWS Mock Configuration
+      AWS_ACCESS_KEY_ID: "test"
+      AWS_SECRET_ACCESS_KEY: "test"
+      AWS_DEFAULT_REGION: "us-east-1"
+      # No proxy for Yahoo/yfinance
     volumes:
-      - ../:/app/source
-      - ./logs:/app/logs
-    working_dir: /app
-    command: python test_runner.py
+      - ../:/app
+      - ./:/app/test
+    working_dir: /app/test
+    command: python run_direct_test.py
+    stdin_open: true
+    tty: true
 
 volumes:
   postgres_data:

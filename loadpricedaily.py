@@ -4,9 +4,22 @@ import time
 import logging
 import json
 import os
+
 import gc
-import resource
 import math
+
+# --- Windows-compatible resource import ---
+try:
+    import resource
+    def get_rss_mb():
+        usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        if sys.platform.startswith("linux"):
+            return usage / 1024
+        return usage / (1024 * 1024)
+except ImportError:
+    def get_rss_mb():
+        # Fallback for Windows: return 0 or use psutil if available
+        return 0
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
@@ -28,12 +41,6 @@ logging.basicConfig(
 # -------------------------------
 # Memory-logging helper (RSS in MB)
 # -------------------------------
-def get_rss_mb():
-    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    if sys.platform.startswith("linux"):
-        return usage / 1024
-    return usage / (1024 * 1024)
-
 def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
@@ -97,6 +104,7 @@ def load_prices(table_name, symbols, cur, conn):
                     threads=True,        # preserved
                     progress=False       # preserved
                 )
+                logging.info(f"Downloaded dataframe for {yq_batch}: {df.shape if hasattr(df, 'shape') else type(df)}")
                 break
             except Exception as e:
                 logging.warning(f"{table_name} download failed: {e}; retrying…")
@@ -152,6 +160,8 @@ def load_prices(table_name, symbols, cur, conn):
                 conn.commit()
                 inserted += len(rows)
                 logging.info(f"{table_name} — {orig_sym}: batch-inserted {len(rows)} rows")
+            if inserted == 0:
+                logging.warning(f"{table_name}: No rows inserted for batch {batch_idx+1}")
         finally:
             gc.enable()
 

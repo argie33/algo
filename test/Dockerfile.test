@@ -1,19 +1,37 @@
-FROM python:3.11-slim
+FROM python:3.9-slim
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
-    gcc \
+    postgresql-client \
+    curl \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy the mock AWS module and test runner
-COPY mock_boto3.py /app/mock_boto3.py
-COPY test_runner.py /app/test_runner.py
-
-# Set up Python path to include our mock module first
-ENV PYTHONPATH="/app:$PYTHONPATH"
-
+# Set working directory
 WORKDIR /app
+
+# Copy requirements file first for better caching
+COPY requirements.txt /app/test/requirements.txt
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r /app/test/requirements.txt
+
+# Copy test code
+COPY . /app/test/
+
+# Copy parent directory (the main application)
+COPY ../ /app/
+
+
+# Set environment variables
+ENV PYTHONPATH="/app:/app/test"
+ENV PYTHONUNBUFFERED=1
+# Set a default User-Agent for yfinance (and requests)
+ENV YFINANCE_USER_AGENT="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36"
+
+# Create a non-root user
+RUN useradd -m -u 1000 testuser && chown -R testuser:testuser /app
+USER testuser
+
+# Default command to run tests
+CMD ["python", "run_direct_test.py"]

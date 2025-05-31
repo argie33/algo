@@ -400,30 +400,26 @@ def main():
         # Prepare database and get symbols
         symbols = prepare_db()
         
-        # Create connection pool
-        conn_pool = create_connection_pool()
-        
         start = time.time()
         total_inserted = 0
         symbols_processed = 0
-        symbols_failed = 0        # Process symbols in parallel using worker pool
+        symbols_failed = 0
+        # Process symbols in parallel using worker pool
         with concurrent.futures.ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
             # Split symbols into batches
             symbol_batches = [symbols[i:i + BATCH_SIZE] for i in range(0, len(symbols), BATCH_SIZE)]
-            
             # Process each batch with a worker
             futures = []
             for batch in symbol_batches:
-                future = executor.submit(process_symbol_batch, batch, conn_pool)
+                future = executor.submit(process_symbol_batch, batch)
                 futures.append(future)
-            
             # Collect results
             for future in concurrent.futures.as_completed(futures):
                 batch_inserted, batch_success, batch_failed = future.result()
                 total_inserted += batch_inserted
                 symbols_processed += batch_success
                 symbols_failed += batch_failed
-        
+
         elapsed = time.time() - start
         logging.info(f"Summary: Processed {symbols_processed + symbols_failed} symbols in {elapsed:.2f} seconds")
         logging.info(f"Success: {symbols_processed} symbols ({total_inserted} rows inserted)")
@@ -433,6 +429,7 @@ def main():
             logging.info("✨ All symbols processed successfully")
 
         # Update last_run timestamp
+        conn_pool = create_connection_pool()
         conn = conn_pool.getconn()
         cursor = conn.cursor()
         now = datetime.now()
@@ -445,7 +442,7 @@ def main():
         conn.commit()
         cursor.close()
         conn_pool.putconn(conn)
-          # Close the connection pool
+        # Close the connection pool
         conn_pool.closeall()
     
     except Exception as e:

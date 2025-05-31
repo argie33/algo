@@ -1,135 +1,200 @@
-# Test Environment for Load Scripts
+# ECS Container Test Environment
 
-This test environment allows you to run your existing Python scripts without modification in a Docker-based environment with a local PostgreSQL database.
+This directory contains a comprehensive test environment that simulates running data loading scripts in an AWS ECS container environment.
 
-## How It Works
+## Overview
 
-The test environment uses a clever approach to avoid modifying your existing scripts:
+The test environment provides:
+- **Docker-based PostgreSQL database** that mimics the production database
+- **Mock AWS services** (Secrets Manager, S3, SNS, SQS) to avoid real AWS calls during testing
+- **Test runners** that execute scripts with proper logging and error handling
+- **Database initialization** with required tables and test data
 
-1. **Mock AWS Secrets Manager**: A custom `mock_boto3.py` module intercepts calls to AWS Secrets Manager and returns local database credentials instead
-2. **Docker Environment**: PostgreSQL runs in a Docker container with known credentials
-3. **No Script Changes**: Your existing `.py` files run unchanged - they still call `boto3.client("secretsmanager")` but get our mock implementation
+## Files Structure
+
+```
+test/
+├── docker-compose.yml      # Docker services configuration
+├── Dockerfile.test         # Container definition for test environment
+├── requirements.txt        # Python dependencies
+├── init.sql               # Database initialization script
+├── mock_boto3.py          # Mock AWS boto3 implementation
+├── wrapper.py             # Script execution wrapper
+├── run_direct_test.py     # Direct execution test runner (recommended)
+├── test_runner.py         # Subprocess-based test runner
+├── test_config.py         # Test configuration and utilities
+└── README.md             # This file
+```
 
 ## Quick Start
 
-1. **Prerequisites**: 
-   - Docker and Docker Compose installed
-   - PowerShell (for Windows users)
+### Prerequisites
+- Docker and Docker Compose installed
+- PowerShell (on Windows)
 
-2. **Run Tests (PowerShell)**:
+### Running Tests
+
+1. **Start the test environment:**
    ```powershell
    cd c:\code\deploy\loadfundamentals\test
-   .\run_tests.ps1
+   docker-compose up --build
    ```
 
-3. **Run Tests (Command Prompt)**:
-   ```cmd
-   cd c:\code\deploy\loadfundamentals\test
-   run_tests.bat
+2. **Alternative: Run specific tests manually:**
+   ```powershell
+   # Start just the database
+   docker-compose up -d postgres
+   
+   # Run tests in the container
+   docker-compose run test-runner python run_direct_test.py
    ```
 
-4. **Run Tests (Python)**:
-   ```bash
-   cd c:\code\deploy\loadfundamentals\test
-   python run_tests.py
+3. **Clean up:**
+   ```powershell
+   docker-compose down -v
    ```
 
-## Adding Your Other Two Scripts
+## Test Environment Features
 
-To add the other two scripts you want to test:
+### Mock AWS Services
 
-### Method 1: Use the helper script
+The `mock_boto3.py` module intercepts all AWS API calls and provides mock responses:
+
+- **Secrets Manager**: Returns test database credentials
+- **S3**: Mocks object storage operations
+- **SNS**: Mocks notification publishing
+- **SQS**: Mocks message queue operations
+
+### Database Setup
+
+The test database is automatically initialized with:
+- **stocks** table for stock symbols and company information
+- **earnings** table for earnings data
+- **prices** table for price data
+- Test data including AAPL, GOOGL, MSFT, TSLA, etc.
+
+### Test Runners
+
+**run_direct_test.py** (Recommended):
+- Executes scripts directly in the same process
+- Provides complete log visibility
+- Better error handling and debugging
+
+**test_runner.py** (Alternative):
+- Uses subprocess execution with the wrapper
+- Good for isolation between tests
+- More complex log capturing
+
+### Environment Variables
+
+The test environment sets these key variables:
+- `DB_SECRET_ARN=test-db-secret`
+- `PYTHONUNBUFFERED=1`
+- `PYTHONPATH=/app:/app/test`
+
+## Adding New Tests
+
+1. **Create a test version of your script:**
+   - Copy the original script (e.g., `loadstocksymbols.py`)
+   - Rename it with `_test.py` suffix (e.g., `loadstocksymbols_test.py`)
+   - Add enhanced logging and any test-specific modifications
+
+2. **Update test runners:**
+   - Add the new script to the `test_scripts` list in `run_direct_test.py`
+   - Add it to `test_runner.py` if using subprocess execution
+
+3. **Test the new script:**
+   ```powershell
+   docker-compose run test-runner python run_direct_test.py
+   ```
+
+## Debugging
+
+### View logs in real-time:
 ```powershell
-python add_test_script.py loadanalystupgradedowngrade.py
-python add_test_script.py loadbuysell.py
+docker-compose logs -f test-runner
 ```
 
-### Method 2: Manual editing
-Edit `test_runner.py` and update the `scripts_to_test` list:
-```python
-scripts_to_test = [
-    ("/app/source/loadstocksymbols_test.py", "loadstocksymbols_test.py"),
-    ("/app/source/loadanalystupgradedowngrade.py", "loadanalystupgradedowngrade.py"),
-    ("/app/source/loadbuysell.py", "loadbuysell.py"),
-]
+### Connect to the test database:
+```powershell
+docker-compose exec postgres psql -U testuser -d testdb
 ```
 
-## What Gets Tested
-
-Currently configured to test:
-- `loadstocksymbols_test.py` (your test script with 5 stocks + 5 ETFs)
-
-After adding your other scripts, it will test all three in sequence.
-
-## Test Environment Components
-
-### Files Created:
-- `docker-compose.yml` - Orchestrates PostgreSQL and test runner containers
-- `Dockerfile.test` - Builds the test runner container
-- `mock_boto3.py` - Intercepts AWS calls and provides local DB credentials
-- `test_runner.py` - Executes your scripts and captures logs
-- `run_tests.py` - Simple wrapper to run the entire test suite
-- `requirements.txt` - Python dependencies for the test environment
-- `init.sql` - PostgreSQL initialization script
-
-### Database Configuration:
-- **Host**: postgres (Docker service name)
-- **Port**: 5432
-- **Database**: stocksdb
-- **Username**: stocksuser
-- **Password**: stockspass
-
-## Log Output
-
-Logs are captured in two ways:
-1. **Real-time console output**: You'll see logs from each script as they run
-2. **Log files**: Saved in the `logs/` directory for later review
-
-## Adding More Scripts
-
-To test additional scripts:
-
-1. Edit `test_runner.py`
-2. Add entries to the `scripts_to_test` list:
-   ```python
-   scripts_to_test = [
-       ("/app/source/loadstocksymbols_test.py", "loadstocksymbols_test.py"),
-       ("/app/source/your_other_script.py", "your_other_script.py"),
-       ("/app/source/third_script.py", "third_script.py"),
-   ]
-   ```
-
-## How the Mock Works
-
-Your existing scripts contain code like:
-```python
-client = boto3.client("secretsmanager")
-secret = json.loads(client.get_secret_value(SecretId=DB_SECRET_ARN)["SecretString"])
+### Run health checks:
+```powershell
+docker-compose run test-runner python test_config.py
 ```
 
-Our mock intercepts this and returns:
-```json
-{
-  "host": "postgres",
-  "port": "5432", 
-  "username": "stocksuser",
-  "password": "stockspass",
-  "dbname": "stocksdb"
-}
+### Access the test container:
+```powershell
+docker-compose run test-runner bash
 ```
 
-The scripts work exactly as before, but connect to the local test database instead of AWS RDS.
+## Configuration
+
+### Database Configuration
+- Host: `postgres` (Docker service name)
+- Port: `5432`
+- User: `testuser`
+- Password: `testpass`
+- Database: `testdb`
+
+### Mock AWS Configuration
+- Region: `us-east-1`
+- Secret ARN: `test-db-secret`
+- All AWS credentials are mocked (no real AWS access needed)
 
 ## Troubleshooting
 
-- **PostgreSQL not ready**: The test runner waits up to 60 seconds for PostgreSQL to start
-- **Docker issues**: Make sure Docker Desktop is running and you have sufficient resources
-- **Permission issues**: On Windows, you may need to run PowerShell as Administrator
-- **Port conflicts**: If port 5432 is in use, modify the port mapping in `docker-compose.yml`
+### Common Issues:
 
-## Logs Location
+1. **Database not ready:**
+   - The test runners wait for PostgreSQL to be ready
+   - Check logs: `docker-compose logs postgres`
 
-After running tests, check these locations for detailed logs:
-- `logs/test_runner.log` - Overall test execution log
-- `logs/loadstocksymbols_test.log` - Output from the symbols test script
-- Console output - Real-time streaming of all script outputs
+2. **Import errors:**
+   - Ensure `PYTHONPATH` includes both `/app` and `/app/test`
+   - Check that all dependencies are in `requirements.txt`
+
+3. **Script execution errors:**
+   - Check that test scripts have the same dependencies as original scripts
+   - Verify mock boto3 is properly intercepting AWS calls
+
+4. **Port conflicts:**
+   - If port 5432 is in use, modify the port mapping in `docker-compose.yml`
+
+### Viewing detailed logs:
+```powershell
+# All services
+docker-compose logs
+
+# Specific service
+docker-compose logs test-runner
+docker-compose logs postgres
+```
+
+## Best Practices
+
+1. **Always test locally first** before deploying to production
+2. **Use enhanced logging** in test scripts for better debugging
+3. **Check database state** before and after tests
+4. **Clean up resources** when done testing
+5. **Document any test-specific modifications** in your test scripts
+
+## Extending the Environment
+
+The test environment can be extended to support:
+- Additional AWS services (Lambda, CloudWatch, etc.)
+- Different database configurations
+- Performance testing and load simulation
+- Integration with CI/CD pipelines
+- Custom test data sets
+
+## Production Simulation
+
+This environment closely simulates the AWS ECS production environment by:
+- Using the same Python dependencies
+- Mocking all AWS service calls
+- Providing a PostgreSQL database similar to production
+- Setting similar environment variables
+- Running scripts in a containerized environment
