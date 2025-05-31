@@ -318,6 +318,28 @@ def load_company_info(symbols, cur, conn):
                     info.get('dividendDate'), info.get('payoutRatio')
                 ))
 
+                # Prepare averageAnalystRating
+                raw_avg_rating = info.get('averageAnalystRating')
+                parsed_avg_rating = None
+                if isinstance(raw_avg_rating, (int, float)):
+                    parsed_avg_rating = raw_avg_rating
+                elif isinstance(raw_avg_rating, str):
+                    try:
+                        # Attempt to convert the first part of the string to a float
+                        # Handles cases like "2.3 - Buy" or just "2.3" if it's a string
+                        parsed_avg_rating = float(raw_avg_rating.split(' - ')[0])
+                    except (ValueError, IndexError):
+                        logging.warning(
+                            f"Could not parse averageAnalystRating '{raw_avg_rating}' for {orig_sym}. Setting to NULL."
+                        )
+                        # parsed_avg_rating remains None if parsing fails
+                elif raw_avg_rating is not None: # Catch other unexpected types
+                    logging.warning(
+                        f"Unexpected type for averageAnalystRating for {orig_sym}: {type(raw_avg_rating)}, value: '{raw_avg_rating}'. Setting to NULL."
+                    )
+                    # parsed_avg_rating remains None
+                # If raw_avg_rating is None, parsed_avg_rating is already None
+
                 # Insert analyst estimates
                 cur.execute("""
                     INSERT INTO analyst_estimates (
@@ -336,7 +358,7 @@ def load_company_info(symbols, cur, conn):
                     info.get('recommendationKey'),
                     info.get('recommendationMean'),
                     info.get('numberOfAnalystOpinions'),
-                    info.get('averageAnalystRating')
+                    parsed_avg_rating # Use the parsed value here
                 ))
 
                 conn.commit()
