@@ -1,20 +1,25 @@
 #!/usr/bin/env python3 
+import os # Moved os import earlier
+import sys # Moved sys import earlier
+import json # Moved json import earlier
+import logging # Moved logging import earlier
+import gc # For garbage collection
 from datetime import datetime
-from functools import partial
-import concurrent.futures
-import gc
-import logging
-import os
-import sys
-import time
-import json
-import boto3
-import numpy as np
+from functools import partial # Not strictly needed in main anymore
+import numpy # For monkey-patching
+import numpy as np # For monkey-patching and usage
+# ───────────────────────────────────────────────────────────────────
+# Monkey-patch numpy so that "from numpy import NaN" in pandas_ta will succeed
+numpy.NaN = numpy.nan
+np.NaN    = np.nan
+# ───────────────────────────────────────────────────────────────────
 import pandas as pd
 import pandas_ta as ta
-import psycopg2
-from psycopg2.extras import execute_values
+import boto3
+import psycopg2 # Added missing import for psycopg2
 from psycopg2 import pool
+from psycopg2.extras import execute_values
+from concurrent.futures import ProcessPoolExecutor
 
 # Configure these based on your ECS task size
 MAX_WORKERS = min(os.cpu_count() or 1, 4)  # Limit to available CPUs or 4, whichever is smaller
@@ -185,97 +190,88 @@ def process_symbol(symbol, conn_pool):
         
         cursor.execute("""
             SELECT date, open, high, low, close, volume
-              FROM price_monthly
+              FROM price_monthly # Changed from price_daily to price_monthly
              WHERE symbol = %s
              ORDER BY date ASC
         """, (symbol,))
         rows = cursor.fetchall()
         
         if not rows:
-            logging.warning(f"⚠️ {symbol}: No price data found")
+            logging.warning(f"⚠️ {symbol}: No price data found in price_monthly.") # Adjusted table name
+            cursor.close()
             conn_pool.putconn(conn)
             return 0
 
         # Initialize DataFrame
         df = pd.DataFrame(rows, columns=['date','open','high','low','close','volume'])
         df['date'] = pd.to_datetime(df['date'])
-        df.set_index('date', inplace=True)
-        
-        # Convert to float for calculations
-        for col in ['open', 'high', 'low', 'close', 'volume']:
-            df[col] = df[col].astype('float64')
-        
-        df = df.ffill().bfill().dropna()
+        df.set_index('date', inplace=True) # This was missing in the original monthly script
 
-        # --- INDICATORS ---
-        # Calculate all indicators at once to avoid redundant operations
+        # Calculate technical indicators (similar to weekly/daily)
+        # RSI
         df['rsi'] = ta.rsi(df['close'], length=14)
 
         # MACD
-        ema_fast = df['close'].ewm(span=12, adjust=False).mean()
-        ema_slow = df['close'].ewm(span=26, adjust=False).mean()
-        df['macd'] = ema_fast - ema_slow
-        df['macd_signal'] = df['macd'].ewm(span=9, adjust=False).mean()
-        df['macd_hist'] = df['macd'] - df['macd_signal']
-
+        macd_df = ta.macd(df['close'], fast=12, slow=26, signal=9)
+        if macd_df is not None and not macd_df.empty:
+            df['macd'] = macd_df.iloc[:, 0]
+            df['macd_hist'] = macd_df.iloc[:, 1]
+            df['macd_signal'] = macd_df.iloc[:, 2]
+        else:
+            df[['macd', 'macd_hist', 'macd_signal']] = np.nan
+        
+        # Momentum
         df['mom'] = ta.mom(df['close'], length=10)
+        
+        # ROC
         df['roc'] = ta.roc(df['close'], length=10)
 
         # ADX + DMI
         adx_df = ta.adx(df['high'], df['low'], df['close'], length=14)
-        if adx_df is not None:
-            df['adx'] = adx_df['ADX_14']
-            df['plus_di'] = adx_df['DMP_14']
-            df['minus_di'] = adx_df['DMN_14']
+        if adx_df is not None and not adx_df.empty:
+            df['adx'] = adx_df.iloc[:, 0]
+            df['plus_di'] = adx_df.iloc[:, 1]
+            df['minus_di'] = adx_df.iloc[:, 2]
         else:
             df[['adx', 'plus_di', 'minus_di']] = np.nan
-
-        # Calculate other indicators
+            
         df['atr'] = ta.atr(df['high'], df['low'], df['close'], length=14)
         df['ad'] = ta.ad(df['high'], df['low'], df['close'], df['volume'])
         df['cmf'] = ta.cmf(df['high'], df['low'], df['close'], df['volume'], length=20)
         df['mfi'] = ta.mfi(df['high'], df['low'], df['close'], df['volume'], length=14)
 
-        # Custom indicators
         df['td_sequential'] = td_sequential(df['close'], lookback=4)
         df['td_combo'] = td_combo(df['close'], lookback=2)
         df['marketwatch'] = marketwatch_indicator(df['close'], df['open'])
 
-        # DM calculation
         dm_plus = df['high'].diff()
         dm_minus = df['low'].shift(1) - df['low']
         dm_plus = dm_plus.where((dm_plus>dm_minus)&(dm_plus>0), 0)
         dm_minus = dm_minus.where((dm_minus>dm_plus)&(dm_minus>0), 0)
         df['dm'] = dm_plus - dm_minus
 
-        # Calculate all SMAs at once
-        for p in [10, 20, 50, 150, 200]:
-            df[f'sma_{p}'] = df['close'].rolling(window=p).mean()
+        for p in [10, 20, 50, 150, 200]: # Note: Monthly data might not have enough points for long SMAs
+            df[f'sma_{p}'] = ta.sma(df['close'], length=p)
             
-        # Calculate all EMAs at once
         for p in [4, 9, 21]:
-            df[f'ema_{p}'] = df['close'].ewm(span=p, adjust=False).mean()
+            df[f'ema_{p}'] = ta.ema(df['close'], length=p)
 
-        # Bollinger Bands
         bb = ta.bbands(df['close'], length=20, std=2)
-        if bb is not None:
-            df['bbands_lower'] = bb['BBL_20_2.0']
-            df['bbands_middle'] = bb['BBM_20_2.0']
-            df['bbands_upper'] = bb['BBU_20_2.0']
+        if bb is not None and not bb.empty:
+            df['bbands_lower'] = bb.iloc[:, 0]
+            df['bbands_middle'] = bb.iloc[:, 1]
+            df['bbands_upper'] = bb.iloc[:, 2]
         else:
             df[['bbands_lower', 'bbands_middle', 'bbands_upper']] = np.nan
 
-        # Pivots
-        reset = df.reset_index()
-        df['pivot_high'] = pivot_high_vectorized(reset, 3, 3).values
-        df['pivot_low'] = pivot_low_vectorized(reset, 3, 3).values
+        reset_df = df.reset_index()
+        df['pivot_high'] = pivot_high_vectorized(reset_df, 3, 3).values
+        df['pivot_low'] = pivot_low_vectorized(reset_df, 3, 3).values
 
-        # Clean data
         df = df.replace([np.inf, -np.inf], np.nan)
 
-        # Prepare batch data efficiently
         insert_q = """
-        INSERT INTO technical_data_monthly (
+        INSERT INTO technical_data_monthly ( # Adjusted table name
           symbol, date,
           rsi, macd, macd_signal, macd_hist,
           mom, roc, adx, plus_di, minus_di, atr, ad, cmf, mfi,
@@ -288,7 +284,6 @@ def process_symbol(symbol, conn_pool):
         ) VALUES %s;
         """
 
-        # Prepare data for bulk insertion
         data = []
         for idx, row in df.reset_index().iterrows():
             data.append((
@@ -311,14 +306,14 @@ def process_symbol(symbol, conn_pool):
                 sanitize_value(row.get('td_combo')),
                 sanitize_value(row.get('marketwatch')),
                 sanitize_value(row.get('dm')),
-                sanitize_value(row.get('sma_10')),
-                sanitize_value(row.get('sma_20')),
-                sanitize_value(row.get('sma_50')),
-                sanitize_value(row.get('sma_150')),
-                sanitize_value(row.get('sma_200')),
-                sanitize_value(row.get('ema_4')),
-                sanitize_value(row.get('ema_9')),
-                sanitize_value(row.get('ema_21')),
+                sanitize_value(row.get(f'sma_10')),
+                sanitize_value(row.get(f'sma_20')),
+                sanitize_value(row.get(f'sma_50')),
+                sanitize_value(row.get(f'sma_150')),
+                sanitize_value(row.get(f'sma_200')),
+                sanitize_value(row.get(f'ema_4')),
+                sanitize_value(row.get(f'ema_9')),
+                sanitize_value(row.get(f'ema_21')),
                 sanitize_value(row.get('bbands_lower')),
                 sanitize_value(row.get('bbands_middle')),
                 sanitize_value(row.get('bbands_upper')),
@@ -326,118 +321,114 @@ def process_symbol(symbol, conn_pool):
                 sanitize_value(row.get('pivot_low')),
                 datetime.now()
             ))
-
-        # Use execute_values for faster bulk insertion
         if data:
             execute_values(cursor, insert_q, data)
             conn.commit()
             num_inserted = len(data)
-            logging.info(f"✅ {symbol}: Inserted {num_inserted} rows")
+            logging.info(f"✅ {symbol}: Inserted {num_inserted} rows into technical_data_monthly") # Adjusted log
         else:
             num_inserted = 0
-            logging.warning(f"⚠️ {symbol}: No data to insert")
+            logging.warning(f"⚠️ {symbol}: No data to insert into technical_data_monthly") # Adjusted log
         
         cursor.close()
         conn_pool.putconn(conn)
         
-        # Free memory
-        del df, data
+        del df, data, rows, reset_df
+        if 'macd_df' in locals(): del macd_df
+        if 'adx_df' in locals(): del adx_df
+        if 'bb' in locals(): del bb
         gc.collect()
         
         return num_inserted
         
     except Exception as e:
-        logging.error(f"❌ {symbol}: Failed - {str(e)}")
+        logging.error(f"❌ {symbol}: Failed in process_symbol (monthly) - {str(e)}") # Adjusted log
         if 'conn' in locals() and conn:
             conn_pool.putconn(conn)
+        if 'df' in locals(): del df
+        if 'data' in locals(): del data
+        if 'rows' in locals(): del rows
+        if 'reset_df' in locals(): del reset_df
+        if 'macd_df' in locals(): del macd_df
+        if 'adx_df' in locals(): del adx_df
+        if 'bb' in locals(): del bb
+        gc.collect()
         return 0
 
-def process_symbol_batch(symbols, conn_pool):
-    """Process a batch of symbols and return the total rows inserted"""
+def process_symbol_batch(symbols_batch, conn_pool_outer=None): # Added default for conn_pool_outer for flexibility
+    """Process a batch of symbols and return total inserted, success and failure counts."""
+    conn_pool = create_connection_pool() # Each batch process creates its own pool
+    
     total_inserted = 0
     success_count = 0
     failed_count = 0
     
-    for symbol in symbols:
-        try:
-            inserted = process_symbol(symbol, conn_pool)
-            total_inserted += inserted
-            if inserted > 0:
-                success_count += 1
-            else:
+    try:
+        for symbol in symbols_batch:
+            try:
+                inserted = process_symbol(symbol, conn_pool)
+                total_inserted += inserted
+                if inserted > 0:
+                    success_count += 1
+                else:
+                    failed_count += 1 
+            except Exception as e:
+                logging.error(f"❌ Batch error for {symbol} (monthly): {str(e)}") # Adjusted log
                 failed_count += 1
-        except Exception as e:
-            logging.error(f"❌ Batch error for {symbol}: {str(e)}")
-            failed_count += 1
-    
+    finally:
+        if conn_pool:
+            conn_pool.closeall()
+            
     return total_inserted, success_count, failed_count
 
 def main():
     logging.info(f"Starting {SCRIPT_NAME}")
+    start_time = datetime.now()
     try:
-        # Prepare database and get symbols
         symbols = prepare_db()
-        
-        # Create connection pool
-        conn_pool = create_connection_pool()
-        
-        start = time.time()
-        total_inserted = 0
-        symbols_processed = 0
-        symbols_failed = 0
+        if not symbols:
+            logging.info("No symbols to process.")
+            return
 
-        # Process symbols in parallel using worker pool
-        with concurrent.futures.ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            # Split symbols into batches
-            symbol_batches = [symbols[i:i + BATCH_SIZE] for i in range(0, len(symbols), BATCH_SIZE)]
-            
-            # Process each batch with a worker
-            futures = []
-            for batch in symbol_batches:
-                future = executor.submit(process_symbol_batch, batch, conn_pool)
-                futures.append(future)
-            
-            # Collect results
-            for future in concurrent.futures.as_completed(futures):
-                batch_inserted, batch_success, batch_failed = future.result()
-                total_inserted += batch_inserted
-                symbols_processed += batch_success
-                symbols_failed += batch_failed
-        
-        elapsed = time.time() - start
-        logging.info(f"Summary: Processed {symbols_processed + symbols_failed} symbols in {elapsed:.2f} seconds")
-        logging.info(f"Success: {symbols_processed} symbols ({total_inserted} rows inserted)")
-        if symbols_failed > 0:
-            logging.warning(f"Failed: {symbols_failed} symbols")
-        else:
-            logging.info("✨ All symbols processed successfully")
+        total_rows_inserted = 0
+        total_success_symbols = 0
+        total_failed_symbols = 0
 
-        # Update last_run timestamp
-        conn = conn_pool.getconn()
+        symbol_batches = [symbols[i:i + BATCH_SIZE] for i in range(0, len(symbols), BATCH_SIZE)]
+        
+        with ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            # process_symbol_batch will create its own connection pool internally
+            results = list(executor.map(process_symbol_batch, symbol_batches))
+
+        for inserted, success, failed in results:
+            total_rows_inserted += inserted
+            total_success_symbols += success
+            total_failed_symbols += failed
+
+        logging.info(f"All batches processed for {SCRIPT_NAME}.")
+        logging.info(f"Total symbols processed: {len(symbols)}")
+        logging.info(f"Successfully processed symbols: {total_success_symbols}")
+        logging.info(f"Failed symbols: {total_failed_symbols}")
+        logging.info(f"Total rows inserted: {total_rows_inserted}")
+
+        user, pwd, host, port, db_name = get_db_config()
+        conn = psycopg2.connect(host=host, port=port, user=user, password=pwd, dbname=db_name)
+        conn.autocommit = True
         cursor = conn.cursor()
-        now = datetime.now()
         cursor.execute("""
-        INSERT INTO last_updated (script_name, last_run)
-        VALUES (%s, %s)
-        ON CONFLICT (script_name) DO UPDATE
-          SET last_run = EXCLUDED.last_run;
-        """, (SCRIPT_NAME, now))
-        conn.commit()
+            INSERT INTO last_updated (script_name, last_run)
+            VALUES (%s, %s)
+            ON CONFLICT (script_name) DO UPDATE SET last_run = %s;
+        """, (SCRIPT_NAME, start_time, start_time))
         cursor.close()
-        conn_pool.putconn(conn)
-        
-        # Close the connection pool
-        conn_pool.closeall()
-    
+        conn.close()
+        logging.info(f"Updated last_run time for {SCRIPT_NAME} to {start_time}")
+
     except Exception as e:
-        logging.exception(f"Unhandled error in script: {e}")
-        sys.exit(1)
+        logging.critical(f"💥 CRITICAL ERROR in main (monthly): {str(e)}", exc_info=True) # Adjusted log
     finally:
-        logging.info("Done.")
+        end_time = datetime.now()
+        logging.info(f"Finished {SCRIPT_NAME}. Total execution time: {end_time - start_time}")
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception:
-        logging.exception("Unhandled error in script")
-        sys.exit(1) 
+    main()
