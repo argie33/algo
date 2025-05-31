@@ -109,7 +109,7 @@ def prepare_db():
     """Set up the database tables"""
     user, pwd, host, port, db = get_db_config()
     conn = psycopg2.connect(
-        host=host, port=port, user=user, password=pwd, dbname=db
+        host=host, port=port, user=user, password=pwd, dbname=db, sslmode='require'
     )
     conn.autocommit = True
     cursor = conn.cursor()
@@ -179,7 +179,7 @@ def create_connection_pool():
     user, pwd, host, port, db = get_db_config()
     return pool.ThreadedConnectionPool(
         DB_POOL_MIN, DB_POOL_MAX,
-        host=host, port=port, user=user, password=pwd, dbname=db
+        host=host, port=port, user=user, password=pwd, dbname=db, sslmode='require'
     )
 
 def process_symbol(symbol, conn_pool):
@@ -412,7 +412,7 @@ def main():
         logging.info(f"Total rows inserted: {total_rows_inserted}")
 
         user, pwd, host, port, db_name = get_db_config()
-        conn = psycopg2.connect(host=host, port=port, user=user, password=pwd, dbname=db_name)
+        conn = psycopg2.connect(host=host, port=port, user=user, password=pwd, dbname=db_name, sslmode='require')
         conn.autocommit = True
         cursor = conn.cursor()
         cursor.execute("""
