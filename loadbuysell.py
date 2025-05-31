@@ -1,342 +1,376 @@
+
 #!/usr/bin/env python3
-import sys
-import time
-import logging
-import json
 import os
-import gc
-import resource
-import psycopg2
-from psycopg2.extras import DictCursor, execute_values
-from datetime import datetime, timedelta
-import calendar
+import sys
+import json
+import requests
+import pandas as pd
+import numpy as np
 import boto3
+import psycopg2
+from psycopg2.extras import RealDictCursor
+from datetime import datetime
+import logging
 
 # -------------------------------
 # Script metadata & logging setup
 # -------------------------------
-SCRIPT_NAME = "buy_sell_signals.py"
+SCRIPT_NAME = "loadbuysell.py"
 logging.basicConfig(
-    level=os.environ.get("LOG_LEVEL", "INFO"),
+    level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
     stream=sys.stdout
 )
-logger = logging.getLogger(__name__)
 
-# -------------------------------
-# Memory-logging helper (RSS in MB)
-# -------------------------------
-def get_rss_mb():
-    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    if sys.platform.startswith("linux"):
-        return usage / 1024
-    return usage / (1024 * 1024)
+###############################################################################
+# ─── Environment & Secrets ───────────────────────────────────────────────────
+###############################################################################
+FRED_API_KEY = os.environ["FRED_API_KEY"]
+SECRET_ARN   = os.environ["DB_SECRET_ARN"]
 
-def log_mem(stage: str):
-    logger.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
+sm_client   = boto3.client("secretsmanager")
+secret_resp = sm_client.get_secret_value(SecretId=SECRET_ARN)
+creds       = json.loads(secret_resp["SecretString"])
 
-# initial memory check
-log_mem("after imports")
+DB_USER     = creds["username"]
+DB_PASSWORD = creds["password"]
+DB_HOST     = creds["host"]
+DB_PORT     = int(creds.get("port", 5432))
+DB_NAME     = creds["dbname"]
 
-# -------------------------------
-# 0) FETCH DB CREDENTIALS & CONNECT
-# -------------------------------
-DB_SECRET_ARN = os.getenv("DB_SECRET_ARN")
-if not DB_SECRET_ARN:
-    logger.error("DB_SECRET_ARN environment variable is not set")
-    sys.exit(1)
+def get_db_connection():
+    # Set statement timeout to 30 seconds (30000 ms)
+    conn = psycopg2.connect(
+        host=DB_HOST,
+        port=DB_PORT,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        dbname=DB_NAME,
+        options='-c statement_timeout=30000'
+    )
+    return conn
 
-sm = boto3.client("secretsmanager", region_name=os.getenv("AWS_REGION"))
-resp = sm.get_secret_value(SecretId=DB_SECRET_ARN)
-secrets = json.loads(resp["SecretString"])
+###############################################################################
+# 1) DATABASE FUNCTIONS
+###############################################################################
+def get_symbols_from_db(limit=None):
+    conn = get_db_connection()
+    cur  = conn.cursor()
+    try:
+        q = """
+          SELECT symbol
+            FROM stock_symbols
+           WHERE exchange IN ('NASDAQ','New York Stock Exchange')
+        """
+        if limit:
+            q += " LIMIT %s"
+            cur.execute(q, (limit,))
+        else:
+            cur.execute(q)
+        return [r[0] for r in cur.fetchall()]
+    finally:
+        cur.close()
+        conn.close()
 
-pg_host     = secrets["host"]
-pg_port     = secrets.get("port", 5432)
-pg_db       = secrets["dbname"]
-pg_user     = secrets["username"]
-pg_password = secrets["password"]
-
-conn = psycopg2.connect(
-    host=pg_host,
-    port=pg_port,
-    dbname=pg_db,
-    user=pg_user,
-    password=pg_password
-)
-cursor = conn.cursor(cursor_factory=DictCursor)
-
-# after DB is ready
-log_mem("after DB connect")
-
-# -------------------------------
-# Prepare date ranges
-# -------------------------------
-today = datetime.now()
-current_month_start = today.replace(day=1)
-last_day            = calendar.monthrange(today.year, today.month)[1]
-current_month_end   = today.replace(day=last_day)
-current_week_start  = today - timedelta(days=today.weekday())
-current_week_end    = current_week_start + timedelta(days=6)
-last_4_weeks_start  = current_week_start - timedelta(weeks=3)
-last_4_weeks_end    = current_week_end
-two_weeks_start     = today - timedelta(days=13)
-two_weeks_end       = today
-
-# after date calculations
-log_mem("after date calc")
-
-# -------------------------------
-# 1) READ SYMBOLS
-# -------------------------------
-def get_symbols(limit=None):
-    q = """
-      SELECT symbol
-      FROM stock_symbols
-      WHERE exchange IN ('NASDAQ','New York Stock Exchange')
-    """
-    if limit:
-        q += " LIMIT %s"
-        cursor.execute(q, (limit,))
-    else:
-        cursor.execute(q)
-    return [r["symbol"] for r in cursor.fetchall()]
-
-# -------------------------------
-# 2) CREATE buy_sell TABLE
-# -------------------------------
-def create_buy_sell_table():
-    cursor.execute("DROP TABLE IF EXISTS buy_sell;")
-    cursor.execute("""
-    CREATE TABLE buy_sell (
-      id         SERIAL        PRIMARY KEY,
-      symbol     VARCHAR(20),
-      timeframe  VARCHAR(10),
-      date       DATE,
-      signal     VARCHAR(10),
-      buylevel   DOUBLE PRECISION,
-      stoplevel  DOUBLE PRECISION,
-      inposition BOOLEAN,
-      UNIQUE(symbol, timeframe, date)
-    );
+def create_buy_sell_table(cur):
+    cur.execute("DROP TABLE IF EXISTS buy_sell;")
+    cur.execute("""
+      CREATE TABLE buy_sell (
+        id           SERIAL PRIMARY KEY,
+        symbol       VARCHAR(20)    NOT NULL,
+        timeframe    VARCHAR(10)    NOT NULL,
+        date         DATE           NOT NULL,
+        open         REAL,
+        high         REAL,
+        low          REAL,
+        close        REAL,
+        volume       BIGINT,
+        signal       VARCHAR(10),
+        buylevel     REAL,
+        stoplevel    REAL,
+        inposition   BOOLEAN,
+        UNIQUE(symbol, timeframe, date)
+      );
     """)
-    conn.commit()
 
-# -------------------------------
-# 3) FETCH PRICE + TECH DATA
-# -------------------------------
-def fetch_data(symbol, timeframe, start_date=None, end_date=None):
-    price_table = {
-        "Daily":   "price_daily",
-        "Weekly":  "price_weekly",
-        "Monthly": "price_monthly"
-    }[timeframe]
-    tech_table = {
-        "Daily":   "technical_data_daily",
-        "Weekly":  "technical_data_weekly",
-        "Monthly": "technical_data_monthly"
-    }[timeframe]
-
-    q = f"""
-    SELECT
-      p.date, p.open, p.high, p.low, p.close, p.volume,
-      t.rsi, t.adx, t.plus_di, t.minus_di,
-      t.atr, t.pivot_high, t.pivot_low, t.sma_50
-    FROM {price_table} p
-    JOIN {tech_table} t
-      ON p.symbol = t.symbol AND p.date = t.date
-    WHERE p.symbol = %s
-      {"AND p.date >= %s" if start_date else ""}
-      {"AND p.date <= %s" if end_date else ""}
-    ORDER BY p.date;
-    """
-    params = [symbol]
-    if start_date: params.append(start_date)
-    if end_date:   params.append(end_date)
-    cursor.execute(q, params)
-    return [dict(r) for r in cursor.fetchall()]
-
-# -------------------------------
-# 4) SIGNAL LOGIC (unchanged)
-# -------------------------------
-def generate_signals(data,
-                     atrMult=1.0,
-                     useTrendMA=True,
-                     adxStrong=30, adxWeak=20):
-    n = len(data)
-    RSI       = [row["rsi"]        for row in data]
-    RSI_prev  = [None] + RSI[:-1]
-    ADX       = [row["adx"]        for row in data]
-    plusDI    = [row["plus_di"]    for row in data]
-    minusDI   = [row["minus_di"]   for row in data]
-    ATR       = [row["atr"]        for row in data]
-    PivotHigh = [row["pivot_high"] for row in data]
-    PivotLow  = [row["pivot_low"]  for row in data]
-    TrendMA   = [row["sma_50"]     for row in data]
-    highs     = [row["high"]       for row in data]
-    lows      = [row["low"]        for row in data]
-    closes    = [row["close"]      for row in data]
-
-    rsiBuy  = [
-        True
-        if (RSI[i] is not None and RSI_prev[i] is not None and RSI[i] > 50 and RSI_prev[i] <= 50)
-        else False
-        for i in range(n)
-    ]
-    rsiSell = [
-        True
-        if (RSI[i] is not None and RSI_prev[i] is not None and RSI[i] < 50 and RSI_prev[i] >= 50)
-        else False
-        for i in range(n)
-    ]
-
-    trendOK = [
-        (closes[i] > TrendMA[i]) if useTrendMA and TrendMA[i] is not None else True
-        for i in range(n)
-    ]
-
-    phConf = [None] + PivotHigh[:-1]
-    plConf = [None] + PivotLow[:-1]
-    lastPH = lastPL = None
-    buyL  = [None]*n
-    stopL = [None]*n
-    breakoutBuy  = [False]*n
-    breakoutSell = [False]*n
-
-    for i in range(n):
-        if phConf[i] is not None: lastPH = phConf[i]
-        if plConf[i] is not None: lastPL = plConf[i]
-        if lastPH is not None:
-            buyL[i] = lastPH
-            breakoutBuy[i] = highs[i] > lastPH
-        if lastPL is not None:
-            buff = ATR[i] * atrMult if ATR[i] is not None else 0
-            stopL[i] = lastPL - buff
-            breakoutSell[i] = lows[i] < stopL[i]
-
-    finalBuy  = [False]*n
-    finalSell = [False]*n
-    for i in range(n):
-        if ADX[i] is None:
-            adx_ok = True
-        else:
-            rising = (i>0 and ADX[i] > (ADX[i-1] or 0))
-            adx_ok = (ADX[i] > adxStrong) or ((ADX[i] > adxWeak) and rising)
-        dmi_ok  = (plusDI[i] or 0) > (minusDI[i] or 0)
-        exitDmi = (
-            i>0 and (plusDI[i-1] or 0) > (minusDI[i-1] or 0)
-               and (plusDI[i] or 0) < (minusDI[i] or 0)
-        )
-
-        if useTrendMA:
-            finalBuy[i]  = (rsiBuy[i] and trendOK[i] and adx_ok and dmi_ok) or breakoutBuy[i]
-            finalSell[i] = rsiSell[i] or breakoutSell[i] or exitDmi
-        else:
-            finalBuy[i]  = (rsiBuy[i] and adx_ok and dmi_ok) or breakoutBuy[i]
-            finalSell[i] = rsiSell[i] or breakoutSell[i]
-
-    in_pos = False
-    signals = []
-    inPositions = []
-    for i in range(n):
-        if in_pos and finalSell[i]:
-            sig = "Sell"; in_pos = False
-        elif not in_pos and finalBuy[i]:
-            sig = "Buy"; in_pos = True
-        else:
-            sig = "None"
-        signals.append(sig)
-        inPositions.append(in_pos)
-
-    for i, row in enumerate(data):
-        row["Signal"]     = signals[i]
-        row["inPosition"] = inPositions[i]
-        row["buyLevel"]   = buyL[i]
-        row["stopLevel"]  = stopL[i]
-
-    return data
-
-# -------------------------------
-# 5) INSERT INTO buy_sell (batched commit)
-# -------------------------------
-def insert_results(symbol, timeframe, data):
-    if not data:
-        return
-    vals = [
-        (
-            symbol,
-            timeframe,
-            row["date"],
-            row["Signal"],
-            row["buyLevel"],
-            row["stopLevel"],
-            row["inPosition"]
-        )
-        for row in data
-    ]
-    sql = """
-      INSERT INTO buy_sell(
-        symbol,
-        timeframe,
-        date,
-        signal,
-        buylevel,
-        stoplevel,
-        inposition
-      ) VALUES %s
+def insert_symbol_results(cur, symbol, timeframe, df):
+    insert_q = """
+      INSERT INTO buy_sell (
+        symbol, timeframe, date,
+        open, high, low, close, volume,
+        signal, buylevel, stoplevel, inposition
+      ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
       ON CONFLICT (symbol, timeframe, date) DO NOTHING;
     """
-    execute_values(cursor, sql, vals)
-    # commit will happen once per batch
+    inserted = 0
+    for idx, row in df.iterrows():
+        try:
+            # Check for NaNs or missing values
+            vals = [row.get('open'), row.get('high'), row.get('low'), row.get('close'), row.get('volume'),
+                    row.get('Signal'), row.get('buyLevel'), row.get('stopLevel'), row.get('inPosition')]
+            if any(pd.isnull(v) for v in vals):
+                logging.warning(f"Skipping row {idx} for {symbol} {timeframe} due to NaN: {vals}")
+                continue
+            cur.execute(insert_q, (
+                symbol,
+                timeframe,
+                row['date'].date(),
+                float(row['open']), float(row['high']), float(row['low']),
+                float(row['close']), int(row['volume']),
+                row['Signal'], float(row['buyLevel']),
+                float(row['stopLevel']), bool(row['inPosition'])
+            ))
+            inserted += 1
+        except Exception as e:
+            logging.error(f"Insert failed for {symbol} {timeframe} row {idx}: {e} | row={row}")
+    logging.info(f"Inserted {inserted} rows for {symbol} {timeframe}")
 
-# -------------------------------
-# 6) MAIN DRIVER (reduced batch size, batched commits)
-# -------------------------------
+###############################################################################
+# 2) RISK-FREE RATE (FRED)
+###############################################################################
+def get_risk_free_rate_fred(api_key):
+    url = (
+      "https://api.stlouisfed.org/fred/series/observations"
+      f"?series_id=DGS3MO&api_key={api_key}&file_type=json"
+    )
+    r = requests.get(url, timeout=10)
+    r.raise_for_status()
+    obs = [o for o in r.json().get("observations", []) if o["value"] != "."]
+    return float(obs[-1]["value"]) / 100.0 if obs else 0.0
+
+###############################################################################
+# 3) FETCH FROM DB (prices + technicals)
+###############################################################################
+def fetch_symbol_from_db(symbol, timeframe):
+    tf = timeframe.lower()
+    # Table name mapping for consistency with loader scripts
+    price_table_map = {
+        "daily": "price_daily",
+        "weekly": "price_weekly",
+        "monthly": "price_monthly"
+    }
+    tech_table_map = {
+        "daily": "technical_data_daily",
+        "weekly": "technical_data_weekly",
+        "monthly": "technical_data_monthly"
+    }
+    if tf not in price_table_map or tf not in tech_table_map:
+        raise ValueError(f"Invalid timeframe: {timeframe}")
+    price_table = price_table_map[tf]
+    tech_table  = tech_table_map[tf]
+    conn = get_db_connection()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        sql = f"""
+          SELECT
+            p.date, p.open, p.high, p.low, p.close, p.volume,
+            t.rsi, t.atr, t.adx, t.plus_di, t.minus_di,
+            t.sma_50    AS "TrendMA",
+            t.pivot_high AS "PivotHighRaw",
+            t.pivot_low  AS "PivotLowRaw"
+          FROM {price_table} p
+          JOIN {tech_table}  t
+            ON p.symbol = t.symbol AND p.date = t.date
+          WHERE p.symbol = %s
+          ORDER BY p.date ASC;
+        """
+        logging.info(f"[fetch_symbol_from_db] Executing SQL for {symbol} {timeframe}")
+        cur.execute(sql, (symbol,))
+        rows = cur.fetchall()
+        logging.info(f"[fetch_symbol_from_db] Got {len(rows)} rows for {symbol} {timeframe}")
+    except Exception as e:
+        logging.error(f"[fetch_symbol_from_db] SQL error for {symbol} {timeframe}: {e}")
+        rows = []
+    finally:
+        cur.close()
+        conn.close()
+
+    if not rows:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(rows)
+    df['date'] = pd.to_datetime(df['date'])
+    num_cols = ['open','high','low','close','volume',
+                'rsi','atr','adx','plus_di','minus_di',
+                'TrendMA','PivotHighRaw','PivotLowRaw']
+    for c in num_cols:
+        df[c] = pd.to_numeric(df[c], errors='coerce')
+    return df.reset_index(drop=True)
+
+###############################################################################
+# 4) SIGNAL GENERATION & IN-POSITION LOGIC
+###############################################################################
+def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
+    df['TrendOK']     = df['close'] > df['TrendMA']
+    df['RSI_prev']    = df['rsi'].shift(1)
+    df['rsiBuy']      = (df['rsi']>50)&(df['RSI_prev']<=50)
+    df['rsiSell']     = (df['rsi']<50)&(df['RSI_prev']>=50)
+    df['LastPH']      = df['PivotHighRaw'].shift(1).ffill()
+    df['LastPL']      = df['PivotLowRaw'].shift(1).ffill()
+    df['stopBuffer']  = df['atr'] * atrMult
+    df['stopLevel']   = df['LastPL'] - df['stopBuffer']
+    df['buyLevel']    = df['LastPH']
+    df['breakoutBuy'] = df['high'] > df['buyLevel']
+    df['breakoutSell']= df['low']  < df['stopLevel']
+
+    if useADX:
+        flt    = ((df['adx']>adxS) |
+                  ((df['adx']>adxW) & (df['adx']>df['adx'].shift(1))))
+        adxOK  = (df['plus_di']>df['minus_di']) & flt
+        exitD  = ((df['plus_di'].shift(1)>df['minus_di'].shift(1)) &
+                  (df['plus_di']<df['minus_di']))
+        df['finalBuy']  = ((df['rsiBuy'] & df['TrendOK'] & adxOK) | df['breakoutBuy'])
+        df['finalSell'] = (df['rsiSell'] | df['breakoutSell'] | exitD)
+    else:
+        df['finalBuy']  = ((df['rsiBuy'] & df['TrendOK']) | df['breakoutBuy'])
+        df['finalSell'] = (df['rsiSell'] | df['breakoutSell'])
+
+    in_pos, sigs, pos = False, [], []
+    for i in range(len(df)):
+        if in_pos and df.loc[i,'finalSell']:
+            sigs.append('Sell'); in_pos=False
+        elif not in_pos and df.loc[i,'finalBuy']:
+            sigs.append('Buy'); in_pos=True
+        else:
+            sigs.append('None')
+        pos.append(in_pos)
+
+    df['Signal']    = sigs
+    df['inPosition']= pos
+    return df
+
+###############################################################################
+# 5) BACKTEST & METRICS
+###############################################################################
+def backtest_fixed_capital(df):
+    trades = []
+    buys   = df.index[df['Signal']=='Buy'].tolist()
+    if not buys:
+        return trades, [], [], None, None
+
+    df2 = df.iloc[buys[0]:].reset_index(drop=True)
+    pos_open = False
+    for i in range(len(df2)-1):
+        sig, o, d = df2.loc[i,'Signal'], df2.loc[i+1,'open'], df2.loc[i+1,'date']
+        if sig=='Buy' and not pos_open:
+            pos_open=True; trades.append({'date':d,'action':'Buy','price':o})
+        elif sig=='Sell' and pos_open:
+            pos_open=False; trades.append({'date':d,'action':'Sell','price':o})
+
+    if pos_open:
+        last = df2.iloc[-1]
+        trades.append({'date':last['date'],'action':'Sell','price':last['close']})
+
+    rets, durs = [], []
+    i = 0
+    while i < len(trades)-1:
+        if trades[i]['action']=='Buy' and trades[i+1]['action']=='Sell':
+            e, x = trades[i]['price'], trades[i+1]['price']
+            if e >= 1.0:
+                rets.append((x-e)/e)
+                durs.append((trades[i+1]['date']-trades[i]['date']).days)
+            i += 2
+        else:
+            i += 1
+
+    return trades, rets, durs, df['date'].iloc[0], df['date'].iloc[-1]
+
+def compute_metrics_fixed_capital(rets, durs, annual_rfr=0.0):
+    n = len(rets)
+    if n == 0:
+        return {}
+    wins   = [r for r in rets if r>0]
+    losses = [r for r in rets if r<0]
+    avg    = np.mean(rets) if n else 0.0
+    std    = np.std(rets, ddof=1) if n>1 else 0.0
+    return {
+      'num_trades':     n,
+      'win_rate':       len(wins)/n,
+      'avg_return':     avg,
+      'profit_factor':  sum(wins)/abs(sum(losses)) if losses else float('inf'),
+      'sharpe_ratio':   ((avg-annual_rfr)/std*np.sqrt(n)) if std>0 else 0.0
+    }
+
+def analyze_trade_returns_fixed_capital(rets, durs, tag, annual_rfr=0.0):
+    m = compute_metrics_fixed_capital(rets, durs, annual_rfr)
+    if not m:
+        logging.info(f"{tag}: No trades.")
+        return
+    logging.info(
+      f"{tag} → Trades:{m['num_trades']} "
+      f"WinRate:{m['win_rate']:.2%} "
+      f"AvgRet:{m['avg_return']*100:.2f}% "
+      f"PF:{m['profit_factor']:.2f} "
+      f"Sharpe:{m['sharpe_ratio']:.2f}"
+    )
+
+###############################################################################
+# 6) PROCESS & MAIN
+###############################################################################
+def process_symbol(symbol, timeframe):
+    logging.info(f"  [process_symbol] Fetching {symbol} {timeframe}")
+    df = fetch_symbol_from_db(symbol, timeframe)
+    logging.info(f"  [process_symbol] Done fetching {symbol} {timeframe}, rows: {len(df)}")
+    return generate_signals(df) if not df.empty else df
+
 def main():
-    create_buy_sell_table()
 
-    symbols = get_symbols()
+    try:
+        annual_rfr = get_risk_free_rate_fred(FRED_API_KEY)
+        print(f"Annual RFR: {annual_rfr:.2%}")
+    except Exception as e:
+        logging.warning(f"Failed to get risk-free rate: {e}")
+        annual_rfr = 0.0
+
+    symbols = get_symbols_from_db(limit=3)  # Limit for debugging, remove or increase as needed
     if not symbols:
-        logger.error("No symbols, exiting")
+        print("No symbols in DB.")
         return
 
-    batch_size = 3
-    for batch_start in range(0, len(symbols), batch_size):
-        batch_num = batch_start // batch_size + 1
-        batch = symbols[batch_start:batch_start + batch_size]
-        logger.info(f"Starting batch {batch_num}: {batch}")
+    conn = get_db_connection()
+    cur  = conn.cursor()
+    create_buy_sell_table(cur)
+    conn.commit()
 
-        failures = []
-        for timeframe in ("Daily", "Weekly", "Monthly"):
-            for sym in batch:
-                logger.info(f"  Processing {sym} [{timeframe}]")
-                try:
-                    data = fetch_data(sym, timeframe)
-                    if not data:
-                        logger.info(f"    No data for {sym} {timeframe}")
-                        continue
-                    data = generate_signals(data)
-                    insert_results(sym, timeframe, data)
-                    # free up memory for next iteration
-                    del data
-                except Exception:
-                    logger.exception(f"    Error {sym} {timeframe}")
-                    failures.append(f"{sym} [{timeframe}]")
+    results = {'Daily':{'rets':[],'durs':[]},
+               'Weekly':{'rets':[],'durs':[]},
+               'Monthly':{'rets':[],'durs':[]}}
 
-        # commit all inserts for this batch at once
-        conn.commit()
-        # force garbage collection to release memory back to OS
-        gc.collect()
-        log_mem(f"after batch {batch_num}")
+    for sym in symbols:
+        logging.info(f"=== {sym} ===")
+        for tf in ['Daily','Weekly','Monthly']:
+            logging.info(f"  [main] Processing {sym} {tf}")
+            df = process_symbol(sym, tf)
+            logging.info(f"  [main] Done processing {sym} {tf}")
+            if df.empty:
+                logging.info(f"[{tf}] no data")
+                continue
+            insert_symbol_results(cur, sym, tf, df)
+            conn.commit()
+            _, rets, durs, _, _ = backtest_fixed_capital(df)
+            results[tf]['rets'].extend(rets)
+            results[tf]['durs'].extend(durs)
+            analyze_trade_returns_fixed_capital(
+                rets, durs, f"[{tf}] {sym}", annual_rfr
+            )
 
-        if not failures:
-            logger.info(f"Batch {batch_num} succeeded: {batch}")
-        else:
-            logger.error(f"Batch {batch_num} failed for: {failures}")
+    logging.info("=========================")
+    logging.info(" AGGREGATED PERFORMANCE (FIXED $10k PER TRADE) ")
+    logging.info("=========================")
+    for tf in ['Daily','Weekly','Monthly']:
+        analyze_trade_returns_fixed_capital(
+            results[tf]['rets'], results[tf]['durs'],
+            f"[{tf} (Overall)]", annual_rfr
+        )
 
-    cursor.close()
+    logging.info("=== Global (All Timeframes) ===")
+    all_rets = [r for tf in results for r in results[tf]['rets']]
+    all_durs = [d for tf in results for d in results[tf]['durs']]
+    analyze_trade_returns_fixed_capital(all_rets, all_durs, "[Global (All TFs)]", annual_rfr)
+
+    logging.info("Processing complete.")
+    cur.close()
     conn.close()
-    log_mem("end")
-    logger.info("Processing complete.")
 
 if __name__ == "__main__":
     main()
