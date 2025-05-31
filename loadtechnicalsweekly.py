@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
 import sys
 import time
 import logging
@@ -367,30 +367,23 @@ def process_symbol(symbol, conn_pool):
             conn_pool.putconn(conn)
         return 0
 
-def process_symbol_batch(symbols):
+def process_symbol_batch(symbols, conn_pool):
     """Process a batch of symbols and return the total rows inserted"""
-    # Create a connection pool within this process
-    conn_pool = create_connection_pool()
-    
     total_inserted = 0
     success_count = 0
     failed_count = 0
     
-    try:
-        for symbol in symbols:
-            try:
-                inserted = process_symbol(symbol, conn_pool)
-                total_inserted += inserted
-                if inserted > 0:
-                    success_count += 1
-                else:
-                    failed_count += 1
-            except Exception as e:
-                logging.error(f"❌ Batch error for {symbol}: {str(e)}")
+    for symbol in symbols:
+        try:
+            inserted = process_symbol(symbol, conn_pool)
+            total_inserted += inserted
+            if inserted > 0:
+                success_count += 1
+            else:
                 failed_count += 1
-    finally:
-        # Make sure to close all connections in this pool
-        conn_pool.closeall()
+        except Exception as e:
+            logging.error(f"❌ Batch error for {symbol}: {str(e)}")
+            failed_count += 1
     
     return total_inserted, success_count, failed_count
 
@@ -400,15 +393,13 @@ def main():
         # Prepare database and get symbols
         symbols = prepare_db()
         
-        # Create connection pool for main process
-        main_conn_pool = create_connection_pool()
+        # Create connection pool
+        conn_pool = create_connection_pool()
         
         start = time.time()
         total_inserted = 0
         symbols_processed = 0
-        symbols_failed = 0
-        
-        # Process symbols in parallel using worker pool
+        symbols_failed = 0        # Process symbols in parallel using worker pool
         with concurrent.futures.ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
             # Split symbols into batches
             symbol_batches = [symbols[i:i + BATCH_SIZE] for i in range(0, len(symbols), BATCH_SIZE)]
@@ -416,7 +407,7 @@ def main():
             # Process each batch with a worker
             futures = []
             for batch in symbol_batches:
-                future = executor.submit(process_symbol_batch, batch)
+                future = executor.submit(process_symbol_batch, batch, conn_pool)
                 futures.append(future)
             
             # Collect results
@@ -435,7 +426,7 @@ def main():
             logging.info("✨ All symbols processed successfully")
 
         # Update last_run timestamp
-        conn = main_conn_pool.getconn()
+        conn = conn_pool.getconn()
         cursor = conn.cursor()
         now = datetime.now()
         cursor.execute("""
@@ -446,10 +437,9 @@ def main():
         """, (SCRIPT_NAME, now))
         conn.commit()
         cursor.close()
-        main_conn_pool.putconn(conn)
-        
-        # Close the connection pool
-        main_conn_pool.closeall()
+        conn_pool.putconn(conn)
+          # Close the connection pool
+        conn_pool.closeall()
     
     except Exception as e:
         logging.exception(f"Unhandled error in script: {e}")
