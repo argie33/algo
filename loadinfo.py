@@ -158,10 +158,16 @@ INSERT INTO company_profile (
 ) VALUES ({','.join(['%s']*len(params))});
 """, params)
 
-                    # 2a) leadership_team
-                    for off in info.get("companyOfficers") or []:
+                    # 2a) leadership_team (deduplicate officers per symbol)
+                    officers = info.get("companyOfficers") or []
+                    seen_officers = set()
+                    for off in officers:
                         if not isinstance(off, dict) or not off.get("name"):
                             continue
+                        key = (symbol, off.get("name"), "companyOfficer")
+                        if key in seen_officers:
+                            continue  # skip duplicates in the same batch
+                        seen_officers.add(key)
                         oparams = [
                             symbol,
                             clean_value(off.get("name")),
