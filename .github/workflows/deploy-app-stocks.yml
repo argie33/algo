@@ -363,46 +363,6 @@ jobs:
             exit 1
           fi
 
-      - name: Ensure all required parameters exist in tags.env
-        shell: bash
-        run: |
-          # List all required parameters
-          required_params=(
-            "StockSymbolsImageTag"
-            "EconDataImageTag" 
-            "FindataImageTag"
-            "PriceImageTag"
-            "PriceWeeklyImageTag"
-            "PriceMonthlyImageTag"
-            "LatestPriceDailyImageTag"
-            "LatestPriceWeeklyImageTag"
-            "LatestPriceMonthlyImageTag"
-            "TechnicalsDailyImageTag"
-            "LoadInfoImageTag"
-            "EarningsEstimateImageTag"
-            "EarningsHistoryImageTag"
-            "RevenueEstimateImageTag"
-            "TechnicalsWeeklyImageTag"
-            "TechnicalsMonthlyImageTag"
-            "SwingTraderImageTag"
-            "CalendarImageTag"
-            "BuySellImageTag"
-            "LatestTechnicalsDailyImageTag"
-            "LatestTechnicalsWeeklyImageTag"
-            "LatestTechnicalsMonthlyImageTag"
-          )
-          
-          # Ensure each parameter exists in tags.env
-          for param in "${required_params[@]}"; do
-            if ! grep -q "^${param}=" tags.env 2>/dev/null; then
-              echo "${param}=latest" >> tags.env
-              echo "Added missing parameter: ${param}=latest"
-            fi
-          done
-          
-          echo "Final tags.env contents:"
-          cat tags.env
-
       - name: Wait for app stack to finish exporting
         run: |
           STATUS=$(aws cloudformation describe-stacks --stack-name stocks-app-stack --query 'Stacks[0].StackStatus' --output text)
