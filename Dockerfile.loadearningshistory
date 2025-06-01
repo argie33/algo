@@ -1,0 +1,13 @@
+# Dockerfile.loadearningshistory
+FROM public.ecr.aws/lambda/python:3.10
+
+WORKDIR ${LAMBDA_TASK_ROOT}
+
+# Copy requirements and script
+COPY Dockerfile.loadearningshistory requirements-loadearningshistory.txt loadearningshistory.py ./
+
+# Install the requirements
+RUN pip install --no-cache-dir -r requirements-loadearningshistory.txt
+
+# Set the entrypoint
+ENTRYPOINT ["python", "loadearningshistory.py"]

@@ -14,11 +14,12 @@ from datetime import datetime
 
 import boto3
 import yfinance as yf
+import numpy as np
 
 # -------------------------------
 # Script metadata & logging setup
 # -------------------------------
-SCRIPT_NAME = "loadrevenueestimate.py"
+SCRIPT_NAME = "loadearningshistory.py"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -59,30 +60,34 @@ def get_db_config():
     }
 
 def create_tables(cur):
-    logging.info("Recreating revenue estimates table...")
+    logging.info("Recreating earnings history table...")
     
-    # Drop and recreate revenue estimates table
-    cur.execute("DROP TABLE IF EXISTS revenue_estimates CASCADE;")
+    # Drop and recreate earnings history table
+    cur.execute("DROP TABLE IF EXISTS earnings_history CASCADE;")
     
-    # Create revenue_estimates table
+    # Create earnings_history table
     cur.execute("""
-        CREATE TABLE revenue_estimates (
+        CREATE TABLE earnings_history (
             symbol VARCHAR(20) NOT NULL,
-            period VARCHAR(3) NOT NULL,
-            avg_estimate BIGINT,
-            low_estimate BIGINT,
-            high_estimate BIGINT,
-            number_of_analysts INTEGER,
-            year_ago_revenue BIGINT,
-            growth NUMERIC,
+            quarter DATE NOT NULL,
+            eps_actual NUMERIC,
+            eps_estimate NUMERIC,
+            eps_difference NUMERIC,
+            surprise_percent NUMERIC,
             fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (symbol, period)
+            PRIMARY KEY (symbol, quarter)
         );
     """)
 
-def load_revenue_data(symbols, cur, conn):
+def pyval(val):
+    # Convert numpy types to native Python types
+    if isinstance(val, (np.generic,)):
+        return val.item()
+    return val
+
+def load_earnings_history(symbols, cur, conn):
     total = len(symbols)
-    logging.info(f"Loading revenue estimates for {total} symbols")
+    logging.info(f"Loading earnings history for {total} symbols")
     processed, failed = 0, []
     CHUNK_SIZE, PAUSE = 20, 0.1
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
@@ -99,9 +104,9 @@ def load_revenue_data(symbols, cur, conn):
             for attempt in range(1, MAX_BATCH_RETRIES+1):
                 try:
                     ticker = yf.Ticker(yq_sym)
-                    revenue_est = ticker.revenue_estimate
-                    if revenue_est is None or revenue_est.empty:
-                        raise ValueError("No revenue estimate data received")
+                    earnings_history = ticker.earnings_history
+                    if earnings_history is None or earnings_history.empty:
+                        raise ValueError("No earnings history data received")
                     break
                 except Exception as e:
                     logging.warning(f"Attempt {attempt} failed for {orig_sym}: {e}")
@@ -111,32 +116,33 @@ def load_revenue_data(symbols, cur, conn):
                     time.sleep(RETRY_DELAY)
 
             try:
-                if revenue_est is not None and not revenue_est.empty:
-                    revenue_data = []
-                    for period, row in revenue_est.iterrows():
-                        revenue_data.append((
-                            orig_sym, period,
-                            row.get('avg'), row.get('low'), row.get('high'),
-                            row.get('numberOfAnalysts'),
-                            row.get('yearAgoRevenue'), row.get('growth')
+                if earnings_history is not None and not earnings_history.empty:
+                    history_data = []
+                    for quarter, row in earnings_history.iterrows():
+                        # Parse the quarter index which is typically in the format YYYY-MM-DD
+                        quarter_date = str(quarter)
+                        
+                        history_data.append((
+                            orig_sym, quarter_date,
+                            pyval(row.get('epsActual')),
+                            pyval(row.get('epsEstimate')),
+                            pyval(row.get('epsDifference')),
+                            pyval(row.get('surprisePercent'))
                         ))
                     
-                    if revenue_data:
+                    if history_data:
                         execute_values(cur, """
-                            INSERT INTO revenue_estimates (
-                                symbol, period, avg_estimate, low_estimate,
-                                high_estimate, number_of_analysts,
-                                year_ago_revenue, growth
+                            INSERT INTO earnings_history (
+                                symbol, quarter, eps_actual, eps_estimate,
+                                eps_difference, surprise_percent
                             ) VALUES %s
-                            ON CONFLICT (symbol, period) DO UPDATE SET
-                                avg_estimate = EXCLUDED.avg_estimate,
-                                low_estimate = EXCLUDED.low_estimate,
-                                high_estimate = EXCLUDED.high_estimate,
-                                number_of_analysts = EXCLUDED.number_of_analysts,
-                                year_ago_revenue = EXCLUDED.year_ago_revenue,
-                                growth = EXCLUDED.growth,
+                            ON CONFLICT (symbol, quarter) DO UPDATE SET
+                                eps_actual = EXCLUDED.eps_actual,
+                                eps_estimate = EXCLUDED.eps_estimate,
+                                eps_difference = EXCLUDED.eps_difference,
+                                surprise_percent = EXCLUDED.surprise_percent,
                                 fetched_at = CURRENT_TIMESTAMP
-                        """, revenue_data)
+                        """, history_data)
                         processed += 1
                         conn.commit()
                         logging.info(f"Successfully processed {orig_sym}")
@@ -166,7 +172,7 @@ def lambda_handler(event, context):
 
     cur.execute("SELECT symbol FROM stock_symbols;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
-    t, p, f = load_revenue_data(stock_syms, cur, conn)
+    t, p, f = load_earnings_history(stock_syms, cur, conn)
 
     cur.execute("""
       INSERT INTO last_updated (script_name, last_run)
@@ -178,7 +184,7 @@ def lambda_handler(event, context):
 
     peak = get_rss_mb()
     logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
-    logging.info(f"Revenue Estimates — total: {t}, processed: {p}, failed: {len(f)}")
+    logging.info(f"Earnings History — total: {t}, processed: {p}, failed: {len(f)}")
 
     cur.close()
     conn.close()
