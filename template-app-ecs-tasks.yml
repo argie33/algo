@@ -2265,21 +2265,3 @@ Outputs:
     Value: !Ref LatestTechnicalsMonthlyTaskDefinition
     Export:
       Name: LatestTechnicalsMonthlyTaskDefArn
-
-  LatestTechnicalsDailyTaskDefArn:
-    Description: ARN of the ECS TaskDefinition for latesttechnicalsdaily loader
-    Value: !Ref LatestTechnicalsDailyTaskDefinition
-    Export:
-      Name: LatestTechnicalsDailyTaskDefArn
-
-  LatestTechnicalsWeeklyTaskDefArn:
-    Description: ARN of the ECS TaskDefinition for latesttechnicalsweekly loader
-    Value: !Ref LatestTechnicalsWeeklyTaskDefinition
-    Export:
-      Name: LatestTechnicalsWeeklyTaskDefArn
-
-  LatestTechnicalsMonthlyTaskDefArn:
-    Description: ARN of the ECS TaskDefinition for latesttechnicalsmonthly loader
-    Value: !Ref LatestTechnicalsMonthlyTaskDefinition
-    Export:
-      Name: LatestTechnicalsMonthlyTaskDefArn
