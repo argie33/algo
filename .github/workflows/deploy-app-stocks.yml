@@ -102,97 +102,96 @@ jobs:
         with:
           base: ${{ github.event.before != '0000000000000000000000000000000000000000' && github.event.before || github.sha }}
           filters: |
-            latesttechnicalsdaily:
-              - loadlatesttechnicalsdaily.py
-              - requirements-loadlatesttechnicalsdaily.txt
-              - Dockerfile.latesttechnicalsdaily
-            latesttechnicalsweekly:
-              - loadlatesttechnicalsweekly.py
-              - requirements-loadlatesttechnicalsweekly.txt
-              - Dockerfile.latesttechnicalsweekly
-            latesttechnicalsmonthly:
-              - loadlatesttechnicalsmonthly.py
-              - requirements-loadlatesttechnicalsmonthly.txt
-              - Dockerfile.latesttechnicalsmonthly
-            latestpricedaily:
-              - loadlatestpricedaily.py
-              - requirements-loadlatestpricedaily.txt
-              - Dockerfile.loadlatestpricedaily
-            latestpriceweekly:
-              - loadlatestpriceweekly.py
-              - requirements-loadlatestpriceweekly.txt
-              - Dockerfile.loadlatestpriceweekly
-            latestpricemonthly:
-              - loadlatestpricemonthly.py
-              - requirements-loadlatestpricemonthly.txt
-              - Dockerfile.loadlatestpricemonthly
-            symbols:
-              - loadstocksymbols.py
-              - requirements-loadstocksymbols.txt
-              - Dockerfile.stocksymbols
-            econ:
-              - loadecondata.py
-              - requirements-loadecondata.txt
-              - Dockerfile.econdata
-            buysell:
-              - loadbuysell.py
-              - requirements-loadbuysell.txt
-              - Dockerfile.buysell
-            findata:
-              - loadfinancialdata.py
-              - requirements-loadfinancialdata.txt
-              - Dockerfile.findata
-            pricedaily:
-              - loadpricedaily.py
-              - requirements-loadpricedaily.txt
-              - Dockerfile.pricedaily
-            priceweekly:
-              - loadpriceweekly.py
-              - requirements-loadpriceweekly.txt
-              - Dockerfile.priceweekly
-            pricemonthly:
-              - loadpricemonthly.py
-              - requirements-loadpricemonthly.txt
-              - Dockerfile.pricemonthly
-            technicalsdaily:
-              - loadtechnicalsdaily.py
-              - requirements-loadtechnicalsdaily.txt
-              - Dockerfile.technicalsdaily
-            loadinfo:
-              - loadinfo.py
-              - requirements-loadinfo.txt
-              - Dockerfile.loadinfo            
-            earningsestimate:
-              - loadearningsestimate.py
-              - requirements-loadearningsestimate.txt
-              - Dockerfile.loadearningsestimate
-            earningshistory:
-              - loadearningshistory.py
-              - requirements-loadearningshistory.txt
-              - Dockerfile.loadearningshistory
-            revenueestimate:
-              - loadrevenueestimate.py
-              - requirements-loadrevenueestimate.txt
-              - Dockerfile.loadrevenueestimate
-            technicalsweekly:
-              - loadtechnicalsweekly.py
-              - requirements-loadtechnicalsweekly.txt
-              - Dockerfile.technicalsweekly
-            technicalsmonthly:
-              - loadtechnicalsmonthly.py
-              - requirements-loadtechnicalsmonthly.txt
-              - Dockerfile.technicalsmonthly
-            swingtrader:
-              - loadswingtrader.py
-              - requirements-loadswingtrader.txt
-              - Dockerfile.swingtrader
-            calendar:
-              - loadcalendar.py
-              - requirements-loadcalendar.txt
-              - Dockerfile.loadcalendar
             app:
-              - template-app-stocks.yml
-              - template-app-ecs-tasks.yml
+              - 'template-app-stocks.yml'
+            symbols:
+              - 'loadstocksymbols.py'
+              - 'Dockerfile.stocksymbols'
+              - 'requirements-loadstocksymbols.txt'
+            econ:
+              - 'loadecondata.py'
+              - 'Dockerfile.econdata'
+              - 'requirements-loadecondata.txt'
+            findata:
+              - 'loadfinancialdata.py'
+              - 'Dockerfile.findata'
+              - 'requirements-loadfinancialdata.txt'
+            pricedaily:
+              - 'loadpricedaily.py'
+              - 'Dockerfile.pricedaily'
+              - 'requirements-loadpricedaily.txt'
+            priceweekly:
+              - 'loadpriceweekly.py'
+              - 'Dockerfile.priceweekly'
+              - 'requirements-loadpriceweekly.txt'
+            pricemonthly:
+              - 'loadpricemonthly.py'
+              - 'Dockerfile.pricemonthly'
+              - 'requirements-loadpricemonthly.txt'
+            latestpricedaily:
+              - 'loadlatestpricedaily.py'
+              - 'Dockerfile.latestpricedaily'
+              - 'requirements-loadlatestpricedaily.txt'
+            latestpriceweekly:
+              - 'loadlatestpriceweekly.py'
+              - 'Dockerfile.latestpriceweekly'
+              - 'requirements-loadlatestpriceweekly.txt'
+            latestpricemonthly:
+              - 'loadlatestpricemonthly.py'
+              - 'Dockerfile.latestpricemonthly'
+              - 'requirements-loadlatestpricemonthly.txt'
+            latesttechnicalsdaily:
+              - 'loadlatesttechnicalsdaily.py'
+              - 'Dockerfile.latesttechnicalsdaily'
+              - 'requirements-loadlatesttechnicalsdaily.txt'
+            latesttechnicalsweekly:
+              - 'loadlatesttechnicalsweekly.py'
+              - 'Dockerfile.latesttechnicalsweekly'
+              - 'requirements-loadlatesttechnicalsweekly.txt'
+            latesttechnicalsmonthly:
+              - 'loadlatesttechnicalsmonthly.py'
+              - 'Dockerfile.latesttechnicalsmonthly'
+              - 'requirements-loadlatesttechnicalsmonthly.txt'
+            technicalsdaily:
+              - 'loadtechnicalsdaily.py'
+              - 'Dockerfile.technicalsdaily'
+              - 'requirements-loadtechnicalsdaily.txt'
+            loadinfo:
+              - 'loadinfo.py'
+              - 'Dockerfile.loadinfo'
+              - 'requirements-loadinfo.txt'
+            earningsestimate:
+              - 'loadearningsestimate.py'
+              - 'Dockerfile.loadearningsestimate'
+              - 'requirements-loadearningsestimate.txt'
+            earningshistory:
+              - 'loadearningshistory.py'
+              - 'Dockerfile.loadearningshistory'
+              - 'requirements-loadearningshistory.txt'
+            revenueestimate:
+              - 'loadrevenueestimate.py'
+              - 'Dockerfile.loadrevenueestimate'
+              - 'requirements-loadrevenueestimate.txt'
+            technicalsweekly:
+              - 'loadtechnicalsweekly.py'
+              - 'Dockerfile.technicalsweekly'
+              - 'requirements-loadtechnicalsweekly.txt'
+            technicalsmonthly:
+              - 'loadtechnicalsmonthly.py'
+              - 'Dockerfile.technicalsmonthly'
+              - 'requirements-loadtechnicalsmonthly.txt'
+            swingtrader:
+              - 'swingtrader.py'
+              - 'Dockerfile.swingtrader'
+              - 'requirements-swingtrader.txt'
+            calendar:
+              - 'loadcalendar.py'
+              - 'Dockerfile.loadcalendar'
+              - 'requirements-loadcalendar.txt'
+            buysell:
+              - 'loadbuysell.py'
+              - 'Dockerfile.buysell'
+              - 'requirements-loadbuysell.txt'
 
       - id: any
         name: Any changes?
