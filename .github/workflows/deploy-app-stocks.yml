@@ -1395,7 +1395,6 @@ jobs:
     name: Run technicals weekly loader
     if: ${{ needs.filter.outputs.technicalsweekly == 'true' || needs.filter.outputs.app == 'true' }}
     needs: deploy-tasks
-    if: ${{ needs.filter.outputs.technicalsweekly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
