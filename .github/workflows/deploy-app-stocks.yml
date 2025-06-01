@@ -38,15 +38,22 @@ jobs:
 
       - name: Get CloudFormation templates bucket from core stack
         id: bucket
+        shell: bash
         run: |
           BUCKET=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
             --output text)
           echo "CF_BUCKET=$BUCKET" >> $GITHUB_OUTPUT
+          echo "CF_BUCKET=$BUCKET" >> $GITHUB_ENV
           echo "Using S3 bucket: $BUCKET"
 
       - name: Deploy application stack
+        shell: bash
         run: |
+          if [ -z "$CF_BUCKET" ]; then
+            echo "S3 bucket for CloudFormation templates is not set. Exiting." >&2
+            exit 1
+          fi
           aws cloudformation deploy \
             --stack-name stocks-app-stack \
             --template-file template-app-stocks.yml \
@@ -55,7 +62,7 @@ jobs:
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-            --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}
+            --s3-bucket "$CF_BUCKET"
 
 ################################################################################
 # 2) Detect changed components                                                 #
@@ -423,7 +430,7 @@ jobs:
               IBKRPassword=${{ secrets.IBKR_PASSWORD }} \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset \
-            --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}
+            --s3-bucket "$CF_BUCKET"
 
       - name: Enable ECS Container Insights
         run: |
