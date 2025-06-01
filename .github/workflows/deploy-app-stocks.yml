@@ -353,18 +353,22 @@ jobs:
         with:
           pattern: build-tags-*
           path: .
-          merge-multiple: true      - name: Generate tags.env with fallbacks
+          merge-multiple: true      
+          
+      - name: Generate tags.env
         shell: bash
         run: |
-          # Combine all build tags
           cat build_tag_*.txt > tags.env
           if [ ! -f tags.env ]; then
             echo "No build tag files found or tags.env not created" >&2
             exit 1
           fi
-          
-          # Define all expected parameters
-          declare -a params=(
+
+      - name: Generate tags.env with fallbacks
+        shell: bash
+        run: |
+          # Ensure all required parameters exist in tags.env, defaulting to 'latest' if missing
+          REQUIRED_PARAMS=(
             "StockSymbolsImageTag"
             "EconDataImageTag"
             "FindataImageTag"
@@ -388,13 +392,15 @@ jobs:
             "LatestTechnicalsWeeklyImageTag"
             "LatestTechnicalsMonthlyImageTag"
           )
-
-          # Add latest tag for any missing parameters
-          for param in "${params[@]}"; do
+          
+          for param in "${REQUIRED_PARAMS[@]}"; do
             if ! grep -q "^${param}=" tags.env; then
               echo "${param}=latest" >> tags.env
             fi
           done
+          
+          echo "Final tags.env content:"
+          cat tags.env
 
       - name: Wait for app stack to finish exporting
         run: |
@@ -423,13 +429,10 @@ jobs:
             echo "Stack status is $STATUS, not deleting."
           fi      - name: Deploy ECS-tasks CloudFormation stack
         run: |
-          # Convert env file to space-separated key=value pairs
-          PARAMS=$(cat tags.env | tr '\n' ' ')
-          
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
             --template-file template-app-ecs-tasks.yml \
-            --parameter-overrides $PARAMS\
+            --parameter-overrides $(cat tags.env | tr '\n' ' ')\
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
               IBKRUsername=${{ secrets.IBKR_USERNAME }} \
               IBKRPassword=${{ secrets.IBKR_PASSWORD }} \
