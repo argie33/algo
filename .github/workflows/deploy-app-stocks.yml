@@ -162,7 +162,7 @@ jobs:
              [ "${{ steps.paths.outputs.pricedaily }}" = "true" ] || \
              [ "${{ steps.paths.outputs.priceweekly }}" = "true" ] || \
              [ "${{ steps.paths.outputs.pricemonthly }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.technicalsdaily }}" = "true" ] || \             
+             [ "${{ steps.paths.outputs.technicalsdaily }}" = "true" ] || \
              [ "${{ steps.paths.outputs.loadinfo }}" = "true" ] || \
              [ "${{ steps.paths.outputs.earningsestimate }}" = "true" ] || \
              [ "${{ steps.paths.outputs.earningshistory }}" = "true" ] || \
@@ -266,13 +266,13 @@ jobs:
 
 ################################################################################
 # 2) Deploy infrastructure                                                     #
-################################################################################
+################################################################################  
   infra:
     name: Deploy application stack
     needs: filter
     if: ${{ needs.filter.outputs.app == 'true' }}
-    runs-on: 
-      ubuntu-latest    
+    runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -436,7 +436,7 @@ jobs:
           PRICE_TAG="${{ needs.filter.outputs.pricedaily == 'true' && github.sha || 'latest' }}"
           PRICEWEEKLY_TAG="${{ needs.filter.outputs.priceweekly == 'true' && github.sha || 'latest' }}"
           PRICEMONTHLY_TAG="${{ needs.filter.outputs.pricemonthly == 'true' && github.sha || 'latest' }}"
-          TECHNICALSDAILY_TAG="${{ needs.filter.outputs.technicalsdaily == 'true' && github.sha || 'latest' }}"          
+          TECHNICALSDAILY_TAG="${{ needs.filter.outputs.technicalsdaily == 'true' && github.sha || 'latest' }}"
           LOADINFO_TAG="${{ needs.filter.outputs.loadinfo == 'true' && github.sha || 'latest' }}"
           EARNINGS_TAG="${{ needs.filter.outputs.earningsestimate == 'true' && github.sha || 'latest' }}"
           EARNINGSHISTORY_TAG="${{ needs.filter.outputs.earningshistory == 'true' && github.sha || 'latest' }}"
@@ -482,7 +482,7 @@ jobs:
               BuySellImageTag="$BUYSELL_TAG" \
               LoadLatestPriceDailyImageTag="$LPRICEDAILY_TAG" \
               LoadLatestPriceWeeklyImageTag="$LPRICEWEEKLY_TAG" \
-              LoadLatestPriceMonthlyImageTag="$LPRICEMONTHLY_TAG" \              
+              LoadLatestPriceMonthlyImageTag="$LPRICEMONTHLY_TAG" \
               LoadLatestTechnicalsDailyImageTag="$LTECHDAILY_TAG" \
               LoadLatestTechnicalsWeeklyImageTag="$LTECHWEEKLY_TAG" \
               LoadLatestTechnicalsMonthlyImageTag="$LTECHMONTHLY_TAG" \
