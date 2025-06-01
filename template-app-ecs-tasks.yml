@@ -2216,7 +2216,7 @@ Outputs:
     Description: "ARN of the Revenue Estimate ECS Task Definition"
     Value: !Ref RevenueEstimateTaskDefinition
     Export:
-      Name: !Sub "${AWS::StackName}-RevenueEstimateTaskDefinitionArn"
+      Name: RevenueEstimateTaskDefinitionArn
 
   SwingTraderTaskDefArn:
     Description: ARN of the ECS TaskDefinition for swing-trader loader
