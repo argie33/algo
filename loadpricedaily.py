@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
 import sys
 import time
 import logging
@@ -97,6 +97,7 @@ def load_prices(table_name, symbols, cur, conn):
                     threads=True,        # preserved
                     progress=False       # preserved
                 )
+                logging.info(f"Downloaded dataframe for {yq_batch}: {df.shape if hasattr(df, 'shape') else type(df)}")
                 break
             except Exception as e:
                 logging.warning(f"{table_name} download failed: {e}; retrying…")
@@ -152,6 +153,8 @@ def load_prices(table_name, symbols, cur, conn):
                 conn.commit()
                 inserted += len(rows)
                 logging.info(f"{table_name} — {orig_sym}: batch-inserted {len(rows)} rows")
+            if inserted == 0:
+                logging.warning(f"{table_name}: No rows inserted for batch {batch_idx+1}")
         finally:
             gc.enable()
 

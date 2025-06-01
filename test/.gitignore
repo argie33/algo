@@ -1,0 +1,17 @@
+# Test environment gitignore
+
+# Log files
+logs/*.log
+logs/*.txt
+
+# Docker volumes
+postgres_data/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment files
+.env
+.env.local
