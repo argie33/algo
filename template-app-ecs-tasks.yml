@@ -65,10 +65,13 @@ Parameters:
     Description: "Tag for loadlatesttechnicalsweekly loader image"
   LoadLatestTechnicalsMonthlyImageTag:
     Type: String
-    Description: "Tag for loadlatesttechnicalsmonthly loader image"
+    Description: "Tag for loadlatesttechnicalsmonthly loader image"  
   RevenueEstimateImageTag:
     Type: String
     Description: "Tag for revenue estimate loader image"
+  EarningsHistoryImageTag:
+    Type: String
+    Description: "Tag for earnings history loader image"
   LoadLatestTechnicalsDailyImageTag:
     Type: String
     Description: "Tag for loadlatesttechnicalsdaily loader image"

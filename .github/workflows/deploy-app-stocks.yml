@@ -37,9 +37,10 @@ jobs:
       loadlatesttechnicalsdaily: ${{ steps.paths.outputs.loadlatesttechnicalsdaily }}
       loadlatesttechnicalsweekly: ${{ steps.paths.outputs.loadlatesttechnicalsweekly }}
       loadlatesttechnicalsmonthly: ${{ steps.paths.outputs.loadlatesttechnicalsmonthly }}
-      technicalsdaily:   ${{ steps.paths.outputs.technicalsdaily }}
+      technicalsdaily:   ${{ steps.paths.outputs.technicalsdaily }}      
       loadinfo:          ${{ steps.paths.outputs.loadinfo }}
       earningsestimate:  ${{ steps.paths.outputs.earningsestimate }}
+      earningshistory:   ${{ steps.paths.outputs.earningshistory }}
       revenueestimate:   ${{ steps.paths.outputs.revenueestimate }}
       technicalsweekly:  ${{ steps.paths.outputs.technicalsweekly }}
       technicalsmonthly: ${{ steps.paths.outputs.technicalsmonthly }}
@@ -120,11 +121,15 @@ jobs:
             loadinfo:
               - loadinfo.py
               - requirements-loadinfo.txt
-              - Dockerfile.loadinfo
+              - Dockerfile.loadinfo            
             earningsestimate:
               - loadearningsestimate.py
               - requirements-loadearningsestimate.txt
               - Dockerfile.loadearningsestimate
+            earningshistory:
+              - loadearningshistory.py
+              - requirements-loadearningshistory.txt
+              - Dockerfile.loadearningshistory
             revenueestimate:
               - loadrevenueestimate.py
               - requirements-loadrevenueestimate.txt
@@ -158,9 +163,10 @@ jobs:
              [ "${{ steps.paths.outputs.pricedaily }}" = "true" ] || \
              [ "${{ steps.paths.outputs.priceweekly }}" = "true" ] || \
              [ "${{ steps.paths.outputs.pricemonthly }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.technicalsdaily }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.technicalsdaily }}" = "true" ] || \             
              [ "${{ steps.paths.outputs.loadinfo }}" = "true" ] || \
              [ "${{ steps.paths.outputs.earningsestimate }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.earningshistory }}" = "true" ] || \
              [ "${{ steps.paths.outputs.revenueestimate }}" = "true" ] || \
              [ "${{ steps.paths.outputs.technicalsweekly }}" = "true" ] || \
              [ "${{ steps.paths.outputs.technicalsmonthly }}" = "true" ] || \
@@ -206,9 +212,12 @@ jobs:
           fi
           if [ "${{ steps.paths.outputs.loadinfo }}" = "true" ]; then
             MATRIX="${MATRIX}\"loadinfo\","
-          fi
+          fi          
           if [ "${{ steps.paths.outputs.earningsestimate }}" = "true" ]; then
             MATRIX="${MATRIX}\"earningsestimate\","
+          fi
+          if [ "${{ steps.paths.outputs.earningshistory }}" = "true" ]; then
+            MATRIX="${MATRIX}\"earningshistory\","
           fi
           if [ "${{ steps.paths.outputs.revenueestimate }}" = "true" ]; then
             MATRIX="${MATRIX}\"revenueestimate\","
@@ -352,9 +361,11 @@ jobs:
           elif [ "${{ matrix.component }}" = "technicalsdaily" ]; then
             DOCKERFILE="Dockerfile.technicalsdaily"
           elif [ "${{ matrix.component }}" = "loadinfo" ]; then
-            DOCKERFILE="Dockerfile.loadinfo"
+            DOCKERFILE="Dockerfile.loadinfo"          
           elif [ "${{ matrix.component }}" = "earningsestimate" ]; then
             DOCKERFILE="Dockerfile.loadearningsestimate"
+          elif [ "${{ matrix.component }}" = "earningshistory" ]; then
+            DOCKERFILE="Dockerfile.loadearningshistory"
           elif [ "${{ matrix.component }}" = "revenueestimate" ]; then
             DOCKERFILE="Dockerfile.loadrevenueestimate"
           elif [ "${{ matrix.component }}" = "technicalsweekly" ]; then
@@ -423,9 +434,9 @@ jobs:
           PRICE_TAG="${{ needs.filter.outputs.pricedaily == 'true' && github.sha || 'latest' }}"
           PRICEWEEKLY_TAG="${{ needs.filter.outputs.priceweekly == 'true' && github.sha || 'latest' }}"
           PRICEMONTHLY_TAG="${{ needs.filter.outputs.pricemonthly == 'true' && github.sha || 'latest' }}"
-          TECHNICALSDAILY_TAG="${{ needs.filter.outputs.technicalsdaily == 'true' && github.sha || 'latest' }}"
-          LOADINFO_TAG="${{ needs.filter.outputs.loadinfo == 'true' && github.sha || 'latest' }}"
+          TECHNICALSDAILY_TAG="${{ needs.filter.outputs.technicalsdaily == 'true' && github.sha || 'latest' }}"          LOADINFO_TAG="${{ needs.filter.outputs.loadinfo == 'true' && github.sha || 'latest' }}"
           EARNINGS_TAG="${{ needs.filter.outputs.earningsestimate == 'true' && github.sha || 'latest' }}"
+          EARNINGSHISTORY_TAG="${{ needs.filter.outputs.earningshistory == 'true' && github.sha || 'latest' }}"
           REVENUE_TAG="${{ needs.filter.outputs.revenueestimate == 'true' && github.sha || 'latest' }}"
           TECHWEEKLY_TAG="${{ needs.filter.outputs.technicalsweekly == 'true' && github.sha || 'latest' }}"
           TECHMONTHLY_TAG="${{ needs.filter.outputs.technicalsmonthly == 'true' && github.sha || 'latest' }}"
@@ -456,9 +467,10 @@ jobs:
               PriceImageTag="$PRICE_TAG" \
               PriceWeeklyImageTag="$PRICEWEEKLY_TAG" \
               PriceMonthlyImageTag="$PRICEMONTHLY_TAG" \
-              TechnicalsDailyImageTag="$TECHNICALSDAILY_TAG" \
+              TechnicalsDailyImageTag="$TECHNICALSDAILY_TAG" \              
               LoadInfoImageTag="$LOADINFO_TAG" \
               EarningsEstimateImageTag="$EARNINGS_TAG" \
+              EarningsHistoryImageTag="$EARNINGSHISTORY_TAG" \
               RevenueEstimateImageTag="$REVENUE_TAG" \
               TechnicalsWeeklyImageTag="$TECHWEEKLY_TAG" \
               TechnicalsMonthlyImageTag="$TECHMONTHLY_TAG" \
@@ -558,7 +570,8 @@ jobs:
             echo "Attempt $i – status=$STATUS"
             [ "$STATUS" = "STOPPED" ] && break
             sleep 20
-          done          if [ "$STATUS" != "STOPPED" ]; then
+          done          
+          if [ "$STATUS" != "STOPPED" ]; then
             echo "❌ stock-symbols task did not stop within 60m"
             exit 1
           fi
