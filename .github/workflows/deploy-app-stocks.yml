@@ -468,7 +468,7 @@ jobs:
               PriceImageTag="$PRICE_TAG" \
               PriceWeeklyImageTag="$PRICEWEEKLY_TAG" \
               PriceMonthlyImageTag="$PRICEMONTHLY_TAG" \
-              TechnicalsDailyImageTag="$TECHNICALSDAILY_TAG" \              
+              TechnicalsDailyImageTag="$TECHNICALSDAILY_TAG" \
               LoadInfoImageTag="$LOADINFO_TAG" \
               EarningsEstimateImageTag="$EARNINGS_TAG" \
               EarningsHistoryImageTag="$EARNINGSHISTORY_TAG" \
@@ -486,7 +486,7 @@ jobs:
               LoadLatestTechnicalsMonthlyImageTag="$LTECHMONTHLY_TAG" \
               FREDApiKey="${{ env.FRED_API_KEY }}" \
               IBKRUsername="${{ secrets.IBKR_USERNAME || 'default' }}" \
-              IBKRPassword="${{ secrets.IBKR_PASSWORD || 'default' }}" \
+              IBKRPassword="${{ secrets.IBKR_PASSWORD || 'default' }}" 
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --s3-bucket ${{ env.CF_TEMPLATES_BUCKET }}
 
