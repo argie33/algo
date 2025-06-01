@@ -434,8 +434,7 @@ jobs:
           PRICE_TAG="${{ needs.filter.outputs.pricedaily == 'true' && github.sha || 'latest' }}"
           PRICEWEEKLY_TAG="${{ needs.filter.outputs.priceweekly == 'true' && github.sha || 'latest' }}"
           PRICEMONTHLY_TAG="${{ needs.filter.outputs.pricemonthly == 'true' && github.sha || 'latest' }}"
-          TECHNICALSDAILY_TAG="${{ needs.filter.outputs.technicalsdaily == 'true' && github.sha || 'latest' }}"
-          LOADINFO_TAG="${{ needs.filter.outputs.loadinfo == 'true' && github.sha || 'latest' }}"
+          TECHNICALSDAILY_TAG="${{ needs.filter.outputs.technicalsdaily == 'true' && github.sha || 'latest' }}"          LOADINFO_TAG="${{ needs.filter.outputs.loadinfo == 'true' && github.sha || 'latest' }}"
           EARNINGS_TAG="${{ needs.filter.outputs.earningsestimate == 'true' && github.sha || 'latest' }}"
           EARNINGSHISTORY_TAG="${{ needs.filter.outputs.earningshistory == 'true' && github.sha || 'latest' }}"
           REVENUE_TAG="${{ needs.filter.outputs.revenueestimate == 'true' && github.sha || 'latest' }}"
@@ -468,7 +467,7 @@ jobs:
               PriceImageTag="$PRICE_TAG" \
               PriceWeeklyImageTag="$PRICEWEEKLY_TAG" \
               PriceMonthlyImageTag="$PRICEMONTHLY_TAG" \
-              TechnicalsDailyImageTag="$TECHNICALSDAILY_TAG" \
+              TechnicalsDailyImageTag="$TECHNICALSDAILY_TAG" \              
               LoadInfoImageTag="$LOADINFO_TAG" \
               EarningsEstimateImageTag="$EARNINGS_TAG" \
               EarningsHistoryImageTag="$EARNINGSHISTORY_TAG" \
@@ -1299,7 +1298,9 @@ jobs:
           if [ "$EXIT" -ne 0 ]; then
             echo "❌ earnings estimate failed with exit code $EXIT"
             exit $EXIT
-          fi  run_revenueestimate:
+          fi
+
+  run_revenueestimate:
     name: Run revenue estimate loader
     needs: deploy-tasks
     if: ${{ needs.filter.outputs.revenueestimate == 'true' }}
