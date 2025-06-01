@@ -1,4 +1,4 @@
-name: deploy-app-stocks
+name: deploy-app-stocks 
 
 on:
   push:
