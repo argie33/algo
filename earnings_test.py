@@ -7,7 +7,10 @@ def explore_earnings_data(symbol):
     print(f"\n=== Exploring earnings data for {symbol} ===")
     ticker = yf.Ticker(symbol)
 
-    
+
+    print("\n--- Earnings Calendar ---")
+    pprint(ticker.calendar)  # Historical earnings data
+
     print("\n--- Earnings Estimate ---")
     pprint(ticker.earnings_estimate)  # Historical earnings data
 
