@@ -317,9 +317,6 @@ jobs:
             latesttechnicalsedaily)   DOCKERFILE=Dockerfile.latesttechnicalsdaily;   PARAM=LatestTechnicalsDailyImageTag;;\
             latesttechnicalsweekly)  DOCKERFILE=Dockerfile.latesttechnicalsweekly;  PARAM=LatestTechnicalsWeeklyImageTag;;\
             latestpricemonthly) DOCKERFILE=Dockerfile.latesttechnicalsmonthly; PARAM=LatestTechnicalsMonthlyImageTag;;\
-
-
-
           esac
           TAG=${{ matrix.loader }}-${{ github.sha }}
           docker buildx build \
