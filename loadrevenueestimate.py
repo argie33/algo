@@ -18,7 +18,7 @@ import yfinance as yf
 # -------------------------------
 # Script metadata & logging setup
 # -------------------------------
-SCRIPT_NAME = "loadearningsestimate.py"
+SCRIPT_NAME = "loadrevenueestimate.py"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -59,30 +59,30 @@ def get_db_config():
     }
 
 def create_tables(cur):
-    logging.info("Recreating earnings estimates table...")
+    logging.info("Recreating revenue estimates table...")
     
-    # Drop and recreate earnings estimates table
-    cur.execute("DROP TABLE IF EXISTS earnings_estimates CASCADE;")
+    # Drop and recreate revenue estimates table
+    cur.execute("DROP TABLE IF EXISTS revenue_estimates CASCADE;")
     
-    # Create earnings_estimates table
+    # Create revenue_estimates table
     cur.execute("""
-        CREATE TABLE earnings_estimates (
+        CREATE TABLE revenue_estimates (
             symbol VARCHAR(20) NOT NULL,
             period VARCHAR(3) NOT NULL,
-            avg_estimate NUMERIC,
-            low_estimate NUMERIC,
-            high_estimate NUMERIC,
-            year_ago_eps NUMERIC,
+            avg_estimate BIGINT,
+            low_estimate BIGINT,
+            high_estimate BIGINT,
             number_of_analysts INTEGER,
+            year_ago_revenue BIGINT,
             growth NUMERIC,
             fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (symbol, period)
         );
     """)
 
-def load_earnings_data(symbols, cur, conn):
+def load_revenue_data(symbols, cur, conn):
     total = len(symbols)
-    logging.info(f"Loading earnings estimates for {total} symbols")
+    logging.info(f"Loading revenue estimates for {total} symbols")
     processed, failed = 0, []
     CHUNK_SIZE, PAUSE = 20, 0.1
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
@@ -99,9 +99,9 @@ def load_earnings_data(symbols, cur, conn):
             for attempt in range(1, MAX_BATCH_RETRIES+1):
                 try:
                     ticker = yf.Ticker(yq_sym)
-                    earnings_est = ticker.earnings_estimate
-                    if earnings_est is None or earnings_est.empty:
-                        raise ValueError("No earnings estimate data received")
+                    revenue_est = ticker.revenue_estimate
+                    if revenue_est is None or revenue_est.empty:
+                        raise ValueError("No revenue estimate data received")
                     break
                 except Exception as e:
                     logging.warning(f"Attempt {attempt} failed for {orig_sym}: {e}")
@@ -111,41 +111,32 @@ def load_earnings_data(symbols, cur, conn):
                     time.sleep(RETRY_DELAY)
 
             try:
-                if earnings_est is not None and not earnings_est.empty:
-                    earnings_data = []
-                    def pyval(val):
-                        # Convert numpy types to native Python types
-                        import numpy as np
-                        if isinstance(val, (np.generic,)):
-                            return val.item()
-                        return val
-                    for period, row in earnings_est.iterrows():
-                        earnings_data.append((
-                            orig_sym, str(period),
-                            pyval(row.get('avg')),
-                            pyval(row.get('low')),
-                            pyval(row.get('high')),
-                            pyval(row.get('yearAgoEps')),
-                            pyval(row.get('numberOfAnalysts')),
-                            pyval(row.get('growth'))
+                if revenue_est is not None and not revenue_est.empty:
+                    revenue_data = []
+                    for period, row in revenue_est.iterrows():
+                        revenue_data.append((
+                            orig_sym, period,
+                            row.get('avg'), row.get('low'), row.get('high'),
+                            row.get('numberOfAnalysts'),
+                            row.get('yearAgoRevenue'), row.get('growth')
                         ))
                     
-                    if earnings_data:
+                    if revenue_data:
                         execute_values(cur, """
-                            INSERT INTO earnings_estimates (
+                            INSERT INTO revenue_estimates (
                                 symbol, period, avg_estimate, low_estimate,
-                                high_estimate, year_ago_eps, number_of_analysts,
-                                growth
+                                high_estimate, number_of_analysts,
+                                year_ago_revenue, growth
                             ) VALUES %s
                             ON CONFLICT (symbol, period) DO UPDATE SET
                                 avg_estimate = EXCLUDED.avg_estimate,
                                 low_estimate = EXCLUDED.low_estimate,
                                 high_estimate = EXCLUDED.high_estimate,
-                                year_ago_eps = EXCLUDED.year_ago_eps,
                                 number_of_analysts = EXCLUDED.number_of_analysts,
+                                year_ago_revenue = EXCLUDED.year_ago_revenue,
                                 growth = EXCLUDED.growth,
                                 fetched_at = CURRENT_TIMESTAMP
-                        """, earnings_data)
+                        """, revenue_data)
                         processed += 1
                         conn.commit()
                         logging.info(f"Successfully processed {orig_sym}")
@@ -175,7 +166,7 @@ def lambda_handler(event, context):
 
     cur.execute("SELECT symbol FROM stock_symbols;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
-    t, p, f = load_earnings_data(stock_syms, cur, conn)
+    t, p, f = load_revenue_data(stock_syms, cur, conn)
 
     cur.execute("""
       INSERT INTO last_updated (script_name, last_run)
@@ -187,7 +178,7 @@ def lambda_handler(event, context):
 
     peak = get_rss_mb()
     logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
-    logging.info(f"Earnings Estimates — total: {t}, processed: {p}, failed: {len(f)}")
+    logging.info(f"Revenue Estimates — total: {t}, processed: {p}, failed: {len(f)}")
 
     cur.close()
     conn.close()
