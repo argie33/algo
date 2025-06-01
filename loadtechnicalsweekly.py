@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3 
 import sys
 import time
 import logging
@@ -131,11 +131,11 @@ def main():
     );
     """)
 
-    # Drop and recreate technical_data_daily table
-    logging.info("Recreating technical_data_daily table...")
-    cursor.execute("DROP TABLE IF EXISTS technical_data_daily;")
+    # Drop and recreate technical_data_weekly table
+    logging.info("Recreating technical_data_weekly table...")
+    cursor.execute("DROP TABLE IF EXISTS technical_data_weekly;")
     cursor.execute("""
-    CREATE TABLE technical_data_daily (
+    CREATE TABLE technical_data_weekly (
         symbol          VARCHAR(50),
         date            TIMESTAMP,
         rsi             DOUBLE PRECISION,
@@ -172,14 +172,14 @@ def main():
         PRIMARY KEY (symbol, date)
     );
     """)
-    logging.info("Table 'technical_data_daily' ready.")
+    logging.info("Table 'technical_data_weekly' ready.")
 
     cursor.execute("SELECT symbol FROM stock_symbols;")
     symbols = [r[0] for r in cursor.fetchall()]
     logging.info(f"Found {len(symbols)} symbols.")
 
     insert_q = """
-    INSERT INTO technical_data_daily (
+    INSERT INTO technical_data_weekly (
       symbol, date,
       rsi, macd, macd_signal, macd_hist,
       mom, roc, adx, plus_di, minus_di, atr, ad, cmf, mfi,
@@ -194,7 +194,7 @@ def main():
       %s, %s, %s, %s,
       %s, %s, %s, %s, %s, %s, %s, %s, %s,
       %s, %s, %s, %s,
-      %s, %s, %s, %s, %s, 
+      %s, %s, %s, %s, %s,
       %s, %s, %s,
       %s, %s, %s,
       %s, %s,
@@ -208,7 +208,7 @@ def main():
         log_mem(f"Processing {sym} ({idx+1}/{len(symbols)})")
         cursor.execute("""
             SELECT date, open, high, low, close, volume
-              FROM price_daily
+              FROM price_weekly
              WHERE symbol = %s
              ORDER BY date ASC
         """, (sym,))
@@ -241,9 +241,9 @@ def main():
             df['adx']      = adx_df['ADX_14']
             df['plus_di']  = adx_df['DMP_14']
             df['minus_di'] = adx_df['DMN_14']
-        else:            
-            df[['adx','plus_di','minus_di']] = np.nan
-
+        else:
+            df[['adx', 'plus_di', 'minus_di']] = np.nan
+            
         df['atr'] = ta.atr(df['high'], df['low'], df['close'], length=14)
         df['ad']  = ta.ad(df['high'], df['low'], df['close'], df['volume'])
         df['cmf'] = ta.cmf(df['high'], df['low'], df['close'], df['volume'], length=20)
@@ -254,7 +254,7 @@ def main():
         df['low'] = df['low'].astype('float64')
         df['close'] = df['close'].astype('float64')
         mfi_vals = ta.mfi(df['high'], df['low'], df['close'], df['volume'], length=14)
-        if 'mfi' in df.columns: 
+        if 'mfi' in df.columns:
             df.drop(columns=['mfi'], inplace=True)
         df['mfi'] = pd.Series(mfi_vals, dtype='float64')
 

@@ -1,0 +1,13 @@
+# Dockerfile.latesttechnicalsdaily
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY requirements-loadlatesttechnicalsdaily.txt .
+RUN pip install --no-cache-dir -r requirements-loadlatesttechnicalsdaily.txt
+
+# Copy script
+COPY loadlatesttechnicalsdaily.py .
+
+ENTRYPOINT ["python", "loadlatesttechnicalsdaily.py"]

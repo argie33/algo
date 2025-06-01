@@ -1,5 +1,5 @@
 boto3
 psycopg2-binary
-requests
 pandas
 yfinance
+exchange_calendars

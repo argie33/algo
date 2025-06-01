@@ -1,5 +1,5 @@
 boto3
 psycopg2-binary
+yfinance
 requests
 pandas
-yfinance

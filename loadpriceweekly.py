@@ -2,18 +2,21 @@
 import sys
 import time
 import logging
-from datetime import datetime
 import json
 import os
+import gc
+import resource
+import math
 
-import boto3
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
-import pandas as pd
+from datetime import datetime
+
+import boto3
 import yfinance as yf
 
 # -------------------------------
-# Script metadata & logging setup 
+# Script metadata & logging setup
 # -------------------------------
 SCRIPT_NAME = "loadpriceweekly.py"
 logging.basicConfig(
@@ -23,156 +26,222 @@ logging.basicConfig(
 )
 
 # -------------------------------
-# Environment-driven configuration
+# Memory-logging helper (RSS in MB)
 # -------------------------------
-DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
+def get_rss_mb():
+    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    if sys.platform.startswith("linux"):
+        return usage / 1024
+    return usage / (1024 * 1024)
 
+def log_mem(stage: str):
+    logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
+
+# -------------------------------
+# Retry settings
+# -------------------------------
+MAX_BATCH_RETRIES   = 3
+RETRY_DELAY         = 0.2   # seconds between download retries
+
+# -------------------------------
+# Price-weekly columns
+# -------------------------------
+PRICE_COLUMNS = [
+    "date","open","high","low","close",
+    "adj_close","volume","dividends","stock_splits"
+]
+COL_LIST     = ", ".join(["symbol"] + PRICE_COLUMNS)
+
+# -------------------------------
+# DB config loader
+# -------------------------------
 def get_db_config():
-    """
-    Fetch host, port, dbname, username & password from Secrets Manager.
-    SecretString must be JSON with keys: username, password, host, port, dbname.
-    """
-    client = boto3.client("secretsmanager")
-    resp = client.get_secret_value(SecretId=DB_SECRET_ARN)
-    sec = json.loads(resp["SecretString"])
-    return (
-        sec["username"],
-        sec["password"],
-        sec["host"],
-        int(sec["port"]),
-        sec["dbname"]
-    )
+    secret_str = boto3.client("secretsmanager") \
+                     .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
+    sec = json.loads(secret_str)
+    return {
+        "host":   sec["host"],
+        "port":   int(sec.get("port", 5432)),
+        "user":   sec["username"],
+        "password": sec["password"],
+        "dbname": sec["dbname"]
+    }
 
-# --- start up ---
-logging.info(f"Starting {SCRIPT_NAME}")
-DB_USER, DB_PWD, DB_HOST, DB_PORT, DB_NAME = get_db_config()
+# -------------------------------
+# Main loader with batched inserts
+# -------------------------------
+def load_prices(table_name, symbols, cur, conn):
+    total = len(symbols)
+    logging.info(f"Loading {table_name}: {total} symbols")
+    inserted, failed = 0, []
+    CHUNK_SIZE, PAUSE = 20, 0.1
+    batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
-# --- connect to Postgres ---
-try:
-    conn = psycopg2.connect(
-        host=DB_HOST,
-        port=DB_PORT,
-        user=DB_USER,
-        password=DB_PWD,
-        dbname=DB_NAME
-    )
-    conn.autocommit = True
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-    logging.info("Connected to PostgreSQL database.")
-except Exception as e:
-    logging.error(f"Unable to connect to Postgres: {e}")
-    sys.exit(1)
+    for batch_idx in range(batches):
+        batch    = symbols[batch_idx*CHUNK_SIZE:(batch_idx+1)*CHUNK_SIZE]
+        yq_batch = [s.replace('.', '-').replace('$','-').upper() for s in batch]
+        mapping  = dict(zip(yq_batch, batch))
 
-# --- ensure tables exist / fresh weekly table ---
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS last_updated (
-    script_name VARCHAR(255) PRIMARY KEY,
-    last_run   TIMESTAMP
-);
-""")
-cursor.execute("DROP TABLE IF EXISTS price_data_weekly;")
-cursor.execute("""
-CREATE TABLE price_data_weekly (
-    symbol       VARCHAR(20),
-    date         DATE,
-    open         NUMERIC(20,4),
-    high         NUMERIC(20,4),
-    low          NUMERIC(20,4),
-    close        NUMERIC(20,4),
-    volume       BIGINT,
-    dividends    NUMERIC(20,4),
-    stock_splits NUMERIC(20,4),
-    PRIMARY KEY (symbol, date)
-);
-""")
-logging.info("Table 'price_data_weekly' is ready.")
-
-# --- load the list of symbols ---
-cursor.execute("SELECT symbol FROM stock_symbols;")
-symbols = [r['symbol'] for r in cursor.fetchall()]
-logging.info(f"Found {len(symbols)} symbols.")
-
-# --- parameters for fetch retries ---
-MAX_RETRIES      = 3
-RETRY_DELAY      = 5        # seconds between retries
-RATE_LIMIT_DELAY = 1        # seconds between symbols
-
-def fetch_weekly_data(symbol):
-    """
-    Uses yfinance.download to grab the full weekly history.
-    """
-    yf_sym = symbol.replace('.', '-')
-    for attempt in range(1, MAX_RETRIES + 1):
-        try:
-            df = yf.download(
-                yf_sym,
-                period="max",
-                interval="1wk",
-                actions=True,
-                progress=False
-            )
-            if df is None or df.empty:
-                raise ValueError("No data returned")
-            # normalize & rename
-            df = df.reset_index().rename(columns={
-                'Date':          'date',
-                'Open':          'open',
-                'High':          'high',
-                'Low':           'low',
-                'Close':         'close',
-                'Volume':        'volume',
-                'Dividends':     'dividends',
-                'Stock Splits':  'stock_splits'
-            })
-            # ensure both columns exist
-            for col in ('dividends', 'stock_splits'):
-                if col not in df.columns:
-                    df[col] = 0.0
-            df['symbol'] = symbol
-            return df
-        except Exception as e:
-            logging.error(f"Error fetching {symbol} (attempt {attempt}): {e}")
-            if attempt < MAX_RETRIES:
+        # ─── Download full history ──────────────────────────────
+        for attempt in range(1, MAX_BATCH_RETRIES+1):
+            logging.info(f"{table_name} – batch {batch_idx+1}/{batches}, download attempt {attempt}")
+            log_mem(f"{table_name} batch {batch_idx+1} start")
+            try:
+                df = yf.download(
+                    tickers=yq_batch,
+                    period="max",
+                    interval="1wk",
+                    group_by="ticker",
+                    auto_adjust=True,    # preserved
+                    actions=True,        # preserved
+                    threads=True,        # preserved
+                    progress=False       # preserved
+                )
+                break
+            except Exception as e:
+                logging.warning(f"{table_name} download failed: {e}; retrying…")
                 time.sleep(RETRY_DELAY)
-    logging.error(f"Failed to fetch {symbol} after {MAX_RETRIES} attempts")
-    return None
+        else:
+            logging.error(f"{table_name} batch {batch_idx+1} failed after {MAX_BATCH_RETRIES} attempts")
+            failed += batch
+            continue
 
-# --- main loop: fetch & bulk insert ---
-for idx, sym in enumerate(symbols, start=1):
-    logging.info(f"[{idx}/{len(symbols)}] Fetching weekly data for {sym}")
-    df = fetch_weekly_data(sym)
-    if df is None:
-        continue
+        log_mem(f"{table_name} after yf.download")
+        cur.execute("SELECT 1;")   # ping DB
 
-    # prepare rows for bulk insert
-    to_ins = df[['symbol','date','open','high','low','close','volume','dividends','stock_splits']]\
-               .where(pd.notnull(df), None)
-    rows = list(to_ins.itertuples(index=False, name=None))
+        # ─── Batch-insert per symbol ─────────────────────────────
+        gc.disable()
+        try:
+            for yq_sym, orig_sym in mapping.items():
+                try:
+                    sub = df[yq_sym] if len(yq_batch) > 1 else df
+                except KeyError:
+                    logging.warning(f"No data for {orig_sym}; skipping")
+                    failed.append(orig_sym)
+                    continue
 
-    insert_sql = """
-    INSERT INTO price_data_weekly
-      (symbol, date, open, high, low, close, volume, dividends, stock_splits)
-    VALUES %s
-    ON CONFLICT (symbol, date) DO NOTHING
-    """
-    try:
-        execute_values(cursor, insert_sql, rows, page_size=500)
-        logging.info(f"Inserted {len(rows)} rows for {sym}")
-    except Exception as e:
-        logging.error(f"DB error for {sym}: {e}")
+                sub = sub.sort_index()
+                sub = sub[sub["Open"].notna()]
+                if sub.empty:
+                    logging.warning(f"No valid price rows for {orig_sym}; skipping")
+                    failed.append(orig_sym)
+                    continue
 
-    time.sleep(RATE_LIMIT_DELAY)
+                rows = []
+                for idx, row in sub.iterrows():
+                    rows.append([
+                        orig_sym,
+                        idx.date(),
+                        None if math.isnan(row["Open"])      else float(row["Open"]),
+                        None if math.isnan(row["High"])      else float(row["High"]),
+                        None if math.isnan(row["Low"])       else float(row["Low"]),
+                        None if math.isnan(row["Close"])     else float(row["Close"]),
+                        None if math.isnan(row.get("Adj Close", row["Close"])) else float(row.get("Adj Close", row["Close"])),
+                        None if math.isnan(row["Volume"])    else int(row["Volume"]),
+                        0.0  if ("Dividends" not in row or math.isnan(row["Dividends"])) else float(row["Dividends"]),
+                        0.0  if ("Stock Splits" not in row or math.isnan(row["Stock Splits"])) else float(row["Stock Splits"])
+                    ])
 
-# --- update last_updated ---
-now = datetime.now()
-cursor.execute("""
-INSERT INTO last_updated (script_name, last_run)
-VALUES (%s, %s)
-ON CONFLICT (script_name) DO UPDATE
-  SET last_run = EXCLUDED.last_run
-""", (SCRIPT_NAME, now))
-logging.info("Updated last_updated timestamp.")
+                if not rows:
+                    logging.warning(f"{orig_sym}: no rows after cleaning; skipping")
+                    failed.append(orig_sym)
+                    continue
 
-cursor.close()
-conn.close()
-logging.info("Done.")
+                sql = f"INSERT INTO {table_name} ({COL_LIST}) VALUES %s"
+                execute_values(cur, sql, rows)
+                conn.commit()
+                inserted += len(rows)
+                logging.info(f"{table_name} — {orig_sym}: batch-inserted {len(rows)} rows")
+        finally:
+            gc.enable()
+
+        del df, batch, yq_batch, mapping
+        gc.collect()
+        log_mem(f"{table_name} batch {batch_idx+1} end")
+        time.sleep(PAUSE)
+
+    return total, inserted, failed
+
+# -------------------------------
+# Entrypoint
+# -------------------------------
+if __name__ == "__main__":
+    log_mem("startup")
+
+    # Connect to DB
+    cfg  = get_db_config()
+    conn = psycopg2.connect(
+        host=cfg["host"], port=cfg["port"],
+        user=cfg["user"], password=cfg["password"],
+        dbname=cfg["dbname"]
+    )
+    conn.autocommit = False
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    # Recreate tables
+    logging.info("Recreating price_weekly table…")
+    cur.execute("DROP TABLE IF EXISTS price_weekly;")
+    cur.execute("""
+        CREATE TABLE price_weekly (
+            id           SERIAL PRIMARY KEY,
+            symbol       VARCHAR(10) NOT NULL,
+            date         DATE         NOT NULL,
+            open         DOUBLE PRECISION,
+            high         DOUBLE PRECISION,
+            low          DOUBLE PRECISION,
+            close        DOUBLE PRECISION,
+            adj_close    DOUBLE PRECISION,
+            volume       BIGINT,
+            dividends    DOUBLE PRECISION,
+            stock_splits DOUBLE PRECISION,
+            fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    logging.info("Recreating etf_price_weekly table…")
+    cur.execute("DROP TABLE IF EXISTS etf_price_weekly;")
+    cur.execute("""
+        CREATE TABLE etf_price_weekly (
+            id           SERIAL PRIMARY KEY,
+            symbol       VARCHAR(10) NOT NULL,
+            date         DATE         NOT NULL,
+            open         DOUBLE PRECISION,
+            high         DOUBLE PRECISION,
+            low          DOUBLE PRECISION,
+            close        DOUBLE PRECISION,
+            adj_close    DOUBLE PRECISION,
+            volume       BIGINT,
+            dividends    DOUBLE PRECISION,
+            stock_splits DOUBLE PRECISION,
+            fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    conn.commit()
+
+    # Load stock symbols
+    cur.execute("SELECT symbol FROM stock_symbols;")
+    stock_syms = [r["symbol"] for r in cur.fetchall()]
+    t_s, i_s, f_s = load_prices("price_weekly", stock_syms, cur, conn)
+
+    # Load ETF symbols
+    cur.execute("SELECT symbol FROM etf_symbols;")
+    etf_syms = [r["symbol"] for r in cur.fetchall()]
+    t_e, i_e, f_e = load_prices("etf_price_weekly", etf_syms, cur, conn)
+
+    # Record last run
+    cur.execute("""
+      INSERT INTO last_updated (script_name, last_run)
+      VALUES (%s, NOW())
+      ON CONFLICT (script_name) DO UPDATE
+        SET last_run = EXCLUDED.last_run;
+    """, (SCRIPT_NAME,))
+    conn.commit()
+
+    peak = get_rss_mb()
+    logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
+    logging.info(f"Stocks — total: {t_s}, inserted: {i_s}, failed: {len(f_s)}")
+    logging.info(f"ETFs   — total: {t_e}, inserted: {i_e}, failed: {len(f_e)}")
+
+    cur.close()
+    conn.close()
+    logging.info("All done.")

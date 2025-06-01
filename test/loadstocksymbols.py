@@ -25,15 +25,8 @@ if not DB_SECRET_ARN:
     sys.exit(1)
 
 def get_db_cfg():
-    client = boto3.client("secretsmanager")
-    secret = json.loads(client.get_secret_value(SecretId=DB_SECRET_ARN)["SecretString"])
-    return (
-        secret["host"],
-        secret.get("port", "5432"),
-        secret["username"],
-        secret["password"],
-        secret["dbname"]
-    )
+    """Mock DB config for testing"""
+    return ("db", "5432", "test_user", "test_password", "stocks")
 
 PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DB = get_db_cfg()
 

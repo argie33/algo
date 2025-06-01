@@ -123,7 +123,6 @@ def main():
         logging.error(f"Unable to connect to Postgres: {e}")
         sys.exit(1)
 
-    # Create last_updated table if it doesn't exist
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS last_updated (
         script_name VARCHAR(255) PRIMARY KEY,
@@ -131,8 +130,6 @@ def main():
     );
     """)
 
-    # Drop and recreate technical_data_daily table
-    logging.info("Recreating technical_data_daily table...")
     cursor.execute("DROP TABLE IF EXISTS technical_data_daily;")
     cursor.execute("""
     CREATE TABLE technical_data_daily (
@@ -168,7 +165,6 @@ def main():
         bbands_upper    DOUBLE PRECISION,
         pivot_high      DOUBLE PRECISION,
         pivot_low       DOUBLE PRECISION,
-        fetched_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (symbol, date)
     );
     """)
@@ -187,18 +183,16 @@ def main():
       sma_10, sma_20, sma_50, sma_150, sma_200,
       ema_4, ema_9, ema_21,
       bbands_lower, bbands_middle, bbands_upper,
-      pivot_high, pivot_low,
-      fetched_at
+      pivot_high, pivot_low
     ) VALUES (
       %s, %s,
       %s, %s, %s, %s,
       %s, %s, %s, %s, %s, %s, %s, %s, %s,
       %s, %s, %s, %s,
-      %s, %s, %s, %s, %s, 
+      %s, %s, %s, %s, %s,
       %s, %s, %s,
       %s, %s, %s,
-      %s, %s,
-      CURRENT_TIMESTAMP
+      %s, %s
     );
     """
 
@@ -241,22 +235,17 @@ def main():
             df['adx']      = adx_df['ADX_14']
             df['plus_di']  = adx_df['DMP_14']
             df['minus_di'] = adx_df['DMN_14']
-        else:            
+        else:
             df[['adx','plus_di','minus_di']] = np.nan
 
         df['atr'] = ta.atr(df['high'], df['low'], df['close'], length=14)
         df['ad']  = ta.ad(df['high'], df['low'], df['close'], df['volume'])
         df['cmf'] = ta.cmf(df['high'], df['low'], df['close'], df['volume'], length=20)
 
-        # MFI calculation with proper dtype handling
-        df['volume'] = df['volume'].astype('float64')  # Convert volume column to float64
-        df['high'] = df['high'].astype('float64')
-        df['low'] = df['low'].astype('float64')
-        df['close'] = df['close'].astype('float64')
+        # MFI
         mfi_vals = ta.mfi(df['high'], df['low'], df['close'], df['volume'], length=14)
-        if 'mfi' in df.columns: 
-            df.drop(columns=['mfi'], inplace=True)
-        df['mfi'] = pd.Series(mfi_vals, dtype='float64')
+        if 'mfi' in df.columns: df.drop(columns=['mfi'], inplace=True)
+        df['mfi'] = pd.Series(mfi_vals, index=df.index, dtype='float64')
 
         df['td_sequential'] = td_sequential(df['close'], lookback=4)
         df['td_combo']      = td_combo(df['close'], lookback=2)

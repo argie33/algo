@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3 
 import sys
 import time
 import logging
@@ -6,18 +6,15 @@ from datetime import datetime
 import json
 import os
 
-import numpy as np
-import numpy
-
-# ───────────────────────────────────────────────────────────────────
-# Monkey-patch numpy so that “from numpy import NaN” in pandas_ta will succeed
-numpy.NaN = numpy.nan
-np.NaN    = np.nan
-# ───────────────────────────────────────────────────────────────────
-
 import boto3
 import psycopg2
 from psycopg2.extras import RealDictCursor
+
+import numpy as np
+# ───────────────────────────────────────────────────────────────────
+# Patch for pandas_ta compatibility: ensure numpy exports NaN
+np.NaN = np.nan
+# ───────────────────────────────────────────────────────────────────
 
 import pandas as pd
 import pandas_ta as ta
@@ -102,6 +99,7 @@ def marketwatch_indicator(close, open_):
 
 def main():
     logging.info(f"Starting {SCRIPT_NAME}")
+
     def get_rss_mb():
         import resource
         usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
@@ -123,7 +121,6 @@ def main():
         logging.error(f"Unable to connect to Postgres: {e}")
         sys.exit(1)
 
-    # Create last_updated table if it doesn't exist
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS last_updated (
         script_name VARCHAR(255) PRIMARY KEY,
@@ -131,11 +128,11 @@ def main():
     );
     """)
 
-    # Drop and recreate technical_data_daily table
-    logging.info("Recreating technical_data_daily table...")
-    cursor.execute("DROP TABLE IF EXISTS technical_data_daily;")
+    # Drop and recreate technical_data_monthly table
+    logging.info("Recreating technical_data_monthly table...")
+    cursor.execute("DROP TABLE IF EXISTS technical_data_monthly;")
     cursor.execute("""
-    CREATE TABLE technical_data_daily (
+    CREATE TABLE technical_data_monthly (
         symbol          VARCHAR(50),
         date            TIMESTAMP,
         rsi             DOUBLE PRECISION,
@@ -172,14 +169,14 @@ def main():
         PRIMARY KEY (symbol, date)
     );
     """)
-    logging.info("Table 'technical_data_daily' ready.")
+    logging.info("Table 'technical_data_monthly' ready.")
 
     cursor.execute("SELECT symbol FROM stock_symbols;")
     symbols = [r[0] for r in cursor.fetchall()]
     logging.info(f"Found {len(symbols)} symbols.")
 
     insert_q = """
-    INSERT INTO technical_data_daily (
+    INSERT INTO technical_data_monthly (
       symbol, date,
       rsi, macd, macd_signal, macd_hist,
       mom, roc, adx, plus_di, minus_di, atr, ad, cmf, mfi,
@@ -194,7 +191,7 @@ def main():
       %s, %s, %s, %s,
       %s, %s, %s, %s, %s, %s, %s, %s, %s,
       %s, %s, %s, %s,
-      %s, %s, %s, %s, %s, 
+      %s, %s, %s, %s, %s,
       %s, %s, %s,
       %s, %s, %s,
       %s, %s,
@@ -208,7 +205,7 @@ def main():
         log_mem(f"Processing {sym} ({idx+1}/{len(symbols)})")
         cursor.execute("""
             SELECT date, open, high, low, close, volume
-              FROM price_daily
+              FROM price_monthly
              WHERE symbol = %s
              ORDER BY date ASC
         """, (sym,))
@@ -241,9 +238,9 @@ def main():
             df['adx']      = adx_df['ADX_14']
             df['plus_di']  = adx_df['DMP_14']
             df['minus_di'] = adx_df['DMN_14']
-        else:            
-            df[['adx','plus_di','minus_di']] = np.nan
-
+        else:
+            df[['adx', 'plus_di', 'minus_di']] = np.nan
+            
         df['atr'] = ta.atr(df['high'], df['low'], df['close'], length=14)
         df['ad']  = ta.ad(df['high'], df['low'], df['close'], df['volume'])
         df['cmf'] = ta.cmf(df['high'], df['low'], df['close'], df['volume'], length=20)
@@ -254,7 +251,7 @@ def main():
         df['low'] = df['low'].astype('float64')
         df['close'] = df['close'].astype('float64')
         mfi_vals = ta.mfi(df['high'], df['low'], df['close'], df['volume'], length=14)
-        if 'mfi' in df.columns: 
+        if 'mfi' in df.columns:
             df.drop(columns=['mfi'], inplace=True)
         df['mfi'] = pd.Series(mfi_vals, dtype='float64')
 

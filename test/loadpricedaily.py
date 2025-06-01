@@ -56,6 +56,14 @@ COL_LIST     = ", ".join(["symbol"] + PRICE_COLUMNS)
 # DB config loader
 # -------------------------------
 def get_db_config():
+    if os.environ.get("DB_SECRET_ARN") == "mock":
+        return {
+            "host": "db",
+            "port": 5432,
+            "user": "test_user",
+            "password": "test_password",
+            "dbname": "stocks"
+        }
     secret_str = boto3.client("secretsmanager") \
                      .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     sec = json.loads(secret_str)
@@ -216,15 +224,13 @@ if __name__ == "__main__":
             fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
     """)
-    conn.commit()
-
-    # Load stock symbols
-    cur.execute("SELECT symbol FROM stock_symbols;")
+    conn.commit()    # Load stock symbols (limited to 5 for testing)
+    cur.execute("SELECT symbol FROM stock_symbols LIMIT 5;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
     t_s, i_s, f_s = load_prices("price_daily", stock_syms, cur, conn)
 
-    # Load ETF symbols
-    cur.execute("SELECT symbol FROM etf_symbols;")
+    # Load ETF symbols (limited to 5 for testing)
+    cur.execute("SELECT symbol FROM etf_symbols LIMIT 5;")
     etf_syms = [r["symbol"] for r in cur.fetchall()]
     t_e, i_e, f_e = load_prices("etf_price_daily", etf_syms, cur, conn)
 

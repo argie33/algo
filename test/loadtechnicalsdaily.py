@@ -5,9 +5,12 @@ import logging
 from datetime import datetime
 import json
 import os
+import resource
 
 import numpy as np
 import numpy
+import pandas as pd
+import pandas_ta as ta
 
 # ───────────────────────────────────────────────────────────────────
 # Monkey-patch numpy so that “from numpy import NaN” in pandas_ta will succeed
@@ -33,20 +36,8 @@ logging.basicConfig(
 )
 
 def get_db_config():
-    """
-    Fetch host, port, dbname, username & password from Secrets Manager.
-    SecretString must be JSON with keys: username, password, host, port, dbname.
-    """
-    client = boto3.client("secretsmanager")
-    resp = client.get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])
-    sec = json.loads(resp["SecretString"])
-    return (
-        sec["username"],
-        sec["password"],
-        sec["host"],
-        int(sec["port"]),
-        sec["dbname"]
-    )
+    """Mock DB config for testing"""
+    return ("test_user", "test_password", "db", 5432, "stocks")
 
 def sanitize_value(x):
     if isinstance(x, float) and np.isnan(x):
@@ -215,12 +206,16 @@ def main():
         rows = cursor.fetchall()
         if not rows:
             logging.warning(f"No data for {sym}, skipping.")
-            continue
-
+            continue        # Create DataFrame and ensure proper data types
         df = pd.DataFrame(rows, columns=['date','open','high','low','close','volume'])
         df['date'] = pd.to_datetime(df['date'])
         df.set_index('date', inplace=True)
-        df = df.astype(float).ffill().bfill().dropna()
+
+        # Convert price columns to float64 and volume to int64
+        price_cols = ['open', 'high', 'low', 'close']
+        df[price_cols] = df[price_cols].astype('float64')
+        df['volume'] = df['volume'].fillna(0).astype('int64')
+        df = df.ffill().bfill()
 
         # --- INDICATORS ---
         df['rsi'] = ta.rsi(df['close'], length=14)
@@ -242,21 +237,17 @@ def main():
             df['plus_di']  = adx_df['DMP_14']
             df['minus_di'] = adx_df['DMN_14']
         else:            
-            df[['adx','plus_di','minus_di']] = np.nan
-
+            df[['adx','plus_di','minus_di']] = np.nan        # Calculate ATR and AD indicators
         df['atr'] = ta.atr(df['high'], df['low'], df['close'], length=14)
-        df['ad']  = ta.ad(df['high'], df['low'], df['close'], df['volume'])
-        df['cmf'] = ta.cmf(df['high'], df['low'], df['close'], df['volume'], length=20)
-
-        # MFI calculation with proper dtype handling
-        df['volume'] = df['volume'].astype('float64')  # Convert volume column to float64
-        df['high'] = df['high'].astype('float64')
-        df['low'] = df['low'].astype('float64')
-        df['close'] = df['close'].astype('float64')
-        mfi_vals = ta.mfi(df['high'], df['low'], df['close'], df['volume'], length=14)
-        if 'mfi' in df.columns: 
-            df.drop(columns=['mfi'], inplace=True)
-        df['mfi'] = pd.Series(mfi_vals, dtype='float64')
+        df['ad']  = ta.ad(df['high'], df['low'], df['close'], df['volume'].astype('float64'))
+        df['cmf'] = ta.cmf(df['high'], df['low'], df['close'], df['volume'].astype('float64'), length=20)        # MFI calculation
+        df['mfi'] = ta.mfi(
+            high=df['high'],
+            low=df['low'],
+            close=df['close'],
+            volume=df['volume'].astype('float64'),
+            length=14
+        )
 
         df['td_sequential'] = td_sequential(df['close'], lookback=4)
         df['td_combo']      = td_combo(df['close'], lookback=2)

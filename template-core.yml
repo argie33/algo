@@ -26,10 +26,23 @@ Parameters:
   DBSecretName:
     Type: String
     Default: "stocks-db-secrets"
+  BastionInstanceType:
+    Type: String
+    Default: "t3.micro"
+    AllowedValues:
+      - t3.nano
+      - t3.micro
+      - t3.small
+      - t3.medium
+    Description: EC2 instance type for the Bastion host
+  BastionAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-ebs
+    Description: SSM Parameter path for the latest Amazon Linux 2 AMI
 
 Resources:
 
-  ### 1) Lambda execution role ###
+  ### 1) Lambda execution role ### 
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -157,12 +170,10 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action:
-                  - cloudformation:DescribeStacks
+                Action: cloudformation:DescribeStacks
                 Resource: !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${DBStackName}/*
               - Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
+                Action: secretsmanager:GetSecretValue
                 Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${DBSecretName}*
 
   BastionInstanceProfile:
@@ -190,8 +201,8 @@ Resources:
     Properties:
       LaunchTemplateName: stocks-bastion-lt
       LaunchTemplateData:
-        InstanceType: t3.micro
-        ImageId: ami-0c94855ba95c71c99
+        InstanceType: !Ref BastionInstanceType
+        ImageId: !Ref BastionAmiId
         IamInstanceProfile:
           Name: !Ref BastionInstanceProfile
         SecurityGroupIds:
@@ -203,19 +214,22 @@ Resources:
         UserData:
           Fn::Base64: |
             #!/bin/bash
-            set -eux
+            set -euxo pipefail
+
+            # minimal bootstrap: install AWS CLI & jq
             yum update -y
-            amazon-linux-extras enable postgresql10
-            yum install -y jq postgresql
+            yum install -y awscli jq
+
+            # configure AWS region
             aws configure set region ${AWS::Region}
 
+            # fetch DB creds & .pgpass
             CREDS=$(aws secretsmanager get-secret-value \
               --secret-id "${DBSecretName}" \
               --query SecretString --output text)
             DB_USER=$(echo "$CREDS" | jq -r .username)
             DB_PASSWORD=$(echo "$CREDS" | jq -r .password)
             DB_NAME=$(echo "$CREDS" | jq -r .dbname)
-
             DB_HOST=$(aws cloudformation describe-stacks \
               --stack-name "${DBStackName}" \
               --query "Stacks[0].Outputs[?OutputKey=='DBEndpoint'].OutputValue" \
@@ -224,13 +238,27 @@ Resources:
               --stack-name "${DBStackName}" \
               --query "Stacks[0].Outputs[?OutputKey=='DBPort'].OutputValue" \
               --output text)
-
             cat <<EOF > /home/ec2-user/.pgpass
-            ${DB_HOST}:${DB_PORT}:${DB_NAME}:${DB_USER}:${DB_PASSWORD}
+            $DB_HOST:$DB_PORT:$DB_NAME:$DB_USER:$DB_PASSWORD
             EOF
             chmod 600 /home/ec2-user/.pgpass
             chown ec2-user:ec2-user /home/ec2-user/.pgpass
 
+  ### 4) SSM Association to install psql ###
+  BastionInstallPsql:
+    Type: AWS::SSM::Association
+    Properties:
+      Name: AWS-RunShellScript
+      Targets:
+        - Key: tag:Name
+          Values:
+            - stocks-bastion
+      Parameters:
+        commands:
+          - amazon-linux-extras install -y postgresql10
+          - yum install -y postgresql jq awscli
+
+  ### 5) Auto-scaling group ###
   BastionAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
@@ -249,7 +277,7 @@ Resources:
           Value: stocks-bastion
           PropagateAtLaunch: true
 
-  ### 4) Auto-shutdown Lambda ###
+  ### 6) Auto-shutdown Lambda ###
   BastionStopRole:
     Type: AWS::IAM::Role
     Properties:
@@ -266,8 +294,7 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action:
-                  - autoscaling:UpdateAutoScalingGroup
+                Action: autoscaling:UpdateAutoScalingGroup
                 Resource: '*'
 
   BastionStopFunction:
@@ -294,7 +321,7 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Description: Scale bastion down at 6 PM CT daily
-      ScheduleExpression: cron(0 23 * * ? *)
+      ScheduleExpression: cron(59 4 * * ? *)
       State: ENABLED
       Targets:
         - Arn: !GetAtt BastionStopFunction.Arn
@@ -308,7 +335,7 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn: !GetAtt BastionStopRule.Arn
 
-  ### 5) ECR Registry ###
+  ### 7) ECR Registry ###
   ContainerRepository:
     Type: AWS::ECR::Repository
     DeletionPolicy: Delete
@@ -326,7 +353,7 @@ Resources:
             ]
           }
 
-  ### 6) S3 Code Bucket ###
+  ### 8) S3 Code Bucket ###
   CodeBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -341,42 +368,34 @@ Outputs:
     Value: !Ref StocksVPC
     Export:
       Name: StocksCore-VpcId
-
   PublicSubnet1Id:
     Value: !Ref PublicSubnet1
     Export:
       Name: StocksCore-PublicSubnet1Id
-
   PublicSubnet2Id:
     Value: !Ref PublicSubnet2
     Export:
       Name: StocksCore-PublicSubnet2Id
-
   PrivateSubnet1Id:
     Value: !Ref PrivateSubnet1
     Export:
       Name: StocksCore-PrivateSubnet1Id
-
   PrivateSubnet2Id:
     Value: !Ref PrivateSubnet2
     Export:
       Name: StocksCore-PrivateSubnet2Id
-
   LambdaExecutionRoleArn:
     Value: !GetAtt LambdaExecutionRole.Arn
     Export:
       Name: StocksCore-LambdaExecutionRoleArn
-
   ContainerRepositoryUri:
     Value: !GetAtt ContainerRepository.RepositoryUri
     Export:
       Name: StocksCore-ContainerRepositoryUri
-
   CodeBucketName:
     Value: !Ref CodeBucket
     Export:
       Name: StocksCore-CodeBucketName
-
   BastionSecurityGroupId:
     Value: !Ref BastionSecurityGroup
     Export:

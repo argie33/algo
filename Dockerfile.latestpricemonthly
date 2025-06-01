@@ -1,0 +1,12 @@
+# Dockerfile.pricemonthly
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# install Python dependencies for loadpricemonthly.py
+COPY requirements-loadlatestpricemonthly.txt .
+RUN pip install --no-cache-dir -r requirements-loadlatestpricemonthly.txt
+
+# copy and run the price-monthly loader script
+COPY loadlatestpricemonthly.py .
+ENTRYPOINT ["python", "loadlatestpricemonthly.py"]
