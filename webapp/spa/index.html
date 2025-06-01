@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Stocks Dashboard</title>
+  <style>
+    table { border-collapse: collapse; width: 100%; }
+    th, td { padding: 8px; border: 1px solid #ccc; }
+  </style>
+</head>
+<body>
+  <h1>Stocks Data</h1>
+  <button id="load">Load Data</button>
+  <div id="table"></div>
+
+  <script>
+    const API = 'https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/';  // ← replace
+
+    document.getElementById('load').onclick = async () => {
+      const res = await fetch(API, { mode: 'cors' });
+      const data = await res.json();
+      if (!data.length) return;
+      const cols = Object.keys(data[0]);
+      let html = '<table><thead><tr>' +
+        cols.map(c => `<th>${c}</th>`).join('') +
+        '</tr></thead><tbody>';
+      data.forEach(row => {
+        html += '<tr>' + cols.map(c => `<td>${row[c]}</td>`).join('') + '</tr>';
+      });
+      html += '</tbody></table>';
+      document.getElementById('table').innerHTML = html;
+    };
+  </script>
+</body>
+</html>

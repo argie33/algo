@@ -1,0 +1,13 @@
+# Dockerfile.technicalsmonthly
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY requirements-loadtechnicalsmonthly.txt .
+RUN pip install --no-cache-dir -r requirements-loadtechnicalsmonthly.txt
+
+# Copy script
+COPY loadtechnicalsmonthly.py .
+
+ENTRYPOINT ["python", "loadtechnicalsmonthly.py"]

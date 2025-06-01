@@ -1,0 +1,4 @@
+boto3
+pandas
+fredapi
+psycopg2-binary

@@ -1,0 +1,171 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Application stack – RDS (public), Secrets (DB creds),
+  ECS cluster, and ECS task execution role.
+
+Parameters:
+  RDSUsername:
+    Type: String
+    Description: RDS master username
+  RDSPassword:
+    Type: String
+    NoEcho: true
+    Description: RDS master password
+  FREDApiKey:
+    Type: String
+    NoEcho: true
+    Description: FRED API key for econ-data loader
+
+Resources:
+
+  ### 1) RDS Subnet Group (public) ### 
+  StocksDBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      DBSubnetGroupDescription: Public subnet group for RDS
+      SubnetIds:
+        - !ImportValue StocksCore-PublicSubnet1Id
+        - !ImportValue StocksCore-PublicSubnet2Id
+  ### 2) RDS Security Group ###
+  StocksDBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow Postgres access
+      VpcId: !ImportValue StocksCore-VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: "0.0.0.0/0"
+          Description: "Allow Postgres traffic from anywhere"
+
+  ### 3) RDS Instance ###
+  StocksDBInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Retain
+    DependsOn:
+      - StocksDBSubnetGroup
+      - StocksDBSecurityGroup
+    Properties:
+      DBInstanceIdentifier: stocks
+      DBName: stocks
+      Engine: postgres
+      DBInstanceClass: db.t3.micro
+      AllocatedStorage: 20
+      MasterUsername: !Ref RDSUsername
+      MasterUserPassword: !Ref RDSPassword
+      VPCSecurityGroups:
+        - !Ref StocksDBSecurityGroup
+      DBSubnetGroupName: !Ref StocksDBSubnetGroup
+      PubliclyAccessible: true
+      MultiAZ: false
+      DeletionProtection: false
+  ### 4) Secrets Manager: DB creds ###
+  DBCredentialsSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    DependsOn: StocksDBInstance
+    Properties:
+      Name: !Sub stocks-db-secrets-${AWS::StackName}-${AWS::Region}-001
+      Description: JSON with username, password, host, port, dbname
+      SecretString:
+        Fn::Join:
+          - ""
+          - - '{"username":"'
+            - !Ref RDSUsername
+            - '","password":"'
+            - !Ref RDSPassword
+            - '","host":"'
+            - !GetAtt StocksDBInstance.Endpoint.Address
+            - '","port":"'
+            - !GetAtt StocksDBInstance.Endpoint.Port
+            - '","dbname":"stocks"}'
+  ### 5) ECS Cluster ###
+  StocksEcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: stocks-cluster
+
+  ### 5.1) ECS Tasks Security Group ###
+  EcsTasksSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for ECS tasks
+      VpcId: !ImportValue StocksCore-VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: "Allow all outbound traffic"
+
+  ### 6) ECS Task Execution Role ###
+  EcsTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ecs-task-execution-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: AllowGetSecretValue
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref DBCredentialsSecret
+
+Outputs:
+  DBEndpoint:
+    Description: RDS endpoint address
+    Value: !GetAtt StocksDBInstance.Endpoint.Address
+    Export:
+      Name: StocksApp-DBEndpoint
+
+  DBPort:
+    Description: RDS endpoint port
+    Value: !GetAtt StocksDBInstance.Endpoint.Port
+    Export:
+      Name: StocksApp-DBPort
+
+  DBName:
+    Description: Database name
+    Value: stocks
+    Export:
+      Name: StocksApp-DBName
+
+  DBUsername:
+    Description: Master username
+    Value: !Ref RDSUsername
+    Export:
+      Name: StocksApp-DBUsername
+
+  SecretArn:
+    Description: ARN of DB credentials secret
+    Value: !Ref DBCredentialsSecret
+    Export:
+      Name: StocksApp-SecretArn
+
+  ClusterArn:
+    Description: ARN of ECS cluster
+    Value: !GetAtt StocksEcsCluster.Arn
+    Export:
+      Name: StocksApp-ClusterArn
+  EcsTaskExecutionRoleArn:
+    Description: ARN of ECS Task Execution Role
+    Value: !GetAtt EcsTaskExecutionRole.Arn
+    Export:
+      Name: StocksApp-EcsTaskExecutionRoleArn
+      
+  EcsTasksSecurityGroupId:
+    Description: ID of Security Group for ECS Tasks
+    Value: !GetAtt EcsTasksSecurityGroup.GroupId
+    Export:
+      Name: StocksApp-EcsTasksSecurityGroupId
