@@ -353,8 +353,8 @@ jobs:
         with:
           pattern: build-tags-*
           path: .
-          merge-multiple: true
-
+          merge-multiple: true      
+      
       - name: Generate tags.env
         shell: bash
         run: |
@@ -363,6 +363,46 @@ jobs:
             echo "No build tag files found or tags.env not created" >&2
             exit 1
           fi
+
+      - name: Ensure all required parameters exist in tags.env
+        shell: bash
+        run: |
+          # List all required parameters
+          required_params=(
+            "StockSymbolsImageTag"
+            "EconDataImageTag" 
+            "FindataImageTag"
+            "PriceImageTag"
+            "PriceWeeklyImageTag"
+            "PriceMonthlyImageTag"
+            "LatestPriceDailyImageTag"
+            "LatestPriceWeeklyImageTag"
+            "LatestPriceMonthlyImageTag"
+            "TechnicalsDailyImageTag"
+            "LoadInfoImageTag"
+            "EarningsEstimateImageTag"
+            "EarningsHistoryImageTag"
+            "RevenueEstimateImageTag"
+            "TechnicalsWeeklyImageTag"
+            "TechnicalsMonthlyImageTag"
+            "SwingTraderImageTag"
+            "CalendarImageTag"
+            "BuySellImageTag"
+            "LatestTechnicalsDailyImageTag"
+            "LatestTechnicalsWeeklyImageTag"
+            "LatestTechnicalsMonthlyImageTag"
+          )
+          
+          # Ensure each parameter exists in tags.env
+          for param in "${required_params[@]}"; do
+            if ! grep -q "^${param}=" tags.env 2>/dev/null; then
+              echo "${param}=latest" >> tags.env
+              echo "Added missing parameter: ${param}=latest"
+            fi
+          done
+          
+          echo "Final tags.env contents:"
+          cat tags.env
 
       - name: Wait for app stack to finish exporting
         run: |
@@ -397,28 +437,28 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --template-file template-app-ecs-tasks.yml \
             --parameter-overrides \
-              StockSymbolsImageTag=$(grep '^StockSymbolsImageTag=' tags.env | cut -d= -f2- || echo "latest") \
-              EconDataImageTag=$(grep '^EconDataImageTag=' tags.env    | cut -d= -f2- || echo "latest") \
-              FindataImageTag=$(grep '^FindataImageTag=' tags.env     | cut -d= -f2- || echo "latest") \
-              PriceImageTag=$(grep '^PriceImageTag=' tags.env         | cut -d= -f2- || echo "latest") \
-              PriceWeeklyImageTag=$(grep '^PriceWeeklyImageTag=' tags.env | cut -d= -f2- || echo "latest") \
-              PriceMonthlyImageTag=$(grep '^PriceMonthlyImageTag=' tags.env | cut -d= -f2- || echo "latest") \
-              LatestPriceDailyImageTag=$(grep '^LatestPriceDailyImageTag=' tags.env | cut -d= -f2- || echo "latest") \
-              LatestPriceWeeklyImageTag=$(grep '^LatestPriceWeeklyImageTag=' tags.env | cut -d= -f2- || echo "latest") \
-              LatestPriceMonthlyImageTag=$(grep '^LatestPriceMonthlyImageTag=' tags.env | cut -d= -f2- || echo "latest") \
-              TechnicalsDailyImageTag=$(grep '^TechnicalsDailyImageTag=' tags.env | cut -d= -f2- || echo "latest") \
-              LoadInfoImageTag=$(grep '^LoadInfoImageTag=' tags.env  | cut -d= -f2- || echo "latest") \
-              EarningsEstimateImageTag=$(grep '^EarningsEstimateImageTag=' tags.env  | cut -d= -f2- || echo "latest") \
-              EarningsHistoryImageTag=$(grep '^EarningsHistoryImageTag=' tags.env  | cut -d= -f2- || echo "latest") \
-              RevenueEstimateImageTag=$(grep '^RevenueEstimateImageTag=' tags.env  | cut -d= -f2- || echo "latest") \
-              TechnicalsWeeklyImageTag=$(grep '^TechnicalsWeeklyImageTag=' tags.env | cut -d= -f2- || echo "latest") \
-              TechnicalsMonthlyImageTag=$(grep '^TechnicalsMonthlyImageTag=' tags.env | cut -d= -f2- || echo "latest") \
-              SwingTraderImageTag=$(grep '^SwingTraderImageTag=' tags.env | cut -d= -f2- || echo "latest") \
-              CalendarImageTag=$(grep '^CalendarImageTag=' tags.env | cut -d= -f2- || echo "latest") \
-              BuySellImageTag=$(grep '^BuySellImageTag=' tags.env | cut -d= -f2- || echo "latest") \
-              LatestTechnicalsDailyImageTag=$(grep '^LatestTechnicalsDailyImageTag=' tags.env | cut -d= -f2- || echo "latest") \
-              LatestTechnicalsWeeklyImageTag=$(grep '^LatestTechnicalsWeeklyImageTag=' tags.env | cut -d= -f2- || echo "latest") \
-              LatestTechnicalsMonthlyImageTag=$(grep '^LatestTechnicalsMonthlyImageTag=' tags.env | cut -d= -f2- || echo "latest") \
+              StockSymbolsImageTag=$(grep '^StockSymbolsImageTag=' tags.env | cut -d= -f2-) \
+              EconDataImageTag=$(grep '^EconDataImageTag=' tags.env | cut -d= -f2-) \
+              FindataImageTag=$(grep '^FindataImageTag=' tags.env | cut -d= -f2-) \
+              PriceImageTag=$(grep '^PriceImageTag=' tags.env | cut -d= -f2-) \
+              PriceWeeklyImageTag=$(grep '^PriceWeeklyImageTag=' tags.env | cut -d= -f2-) \
+              PriceMonthlyImageTag=$(grep '^PriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
+              LatestPriceDailyImageTag=$(grep '^LatestPriceDailyImageTag=' tags.env | cut -d= -f2-) \
+              LatestPriceWeeklyImageTag=$(grep '^LatestPriceWeeklyImageTag=' tags.env | cut -d= -f2-) \
+              LatestPriceMonthlyImageTag=$(grep '^LatestPriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
+              TechnicalsDailyImageTag=$(grep '^TechnicalsDailyImageTag=' tags.env | cut -d= -f2-) \
+              LoadInfoImageTag=$(grep '^LoadInfoImageTag=' tags.env | cut -d= -f2-) \
+              EarningsEstimateImageTag=$(grep '^EarningsEstimateImageTag=' tags.env | cut -d= -f2-) \
+              EarningsHistoryImageTag=$(grep '^EarningsHistoryImageTag=' tags.env | cut -d= -f2-) \
+              RevenueEstimateImageTag=$(grep '^RevenueEstimateImageTag=' tags.env | cut -d= -f2-) \
+              TechnicalsWeeklyImageTag=$(grep '^TechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-) \
+              TechnicalsMonthlyImageTag=$(grep '^TechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-) \
+              SwingTraderImageTag=$(grep '^SwingTraderImageTag=' tags.env | cut -d= -f2-) \
+              CalendarImageTag=$(grep '^CalendarImageTag=' tags.env | cut -d= -f2-) \
+              BuySellImageTag=$(grep '^BuySellImageTag=' tags.env | cut -d= -f2-) \
+              LatestTechnicalsDailyImageTag=$(grep '^LatestTechnicalsDailyImageTag=' tags.env | cut -d= -f2-) \
+              LatestTechnicalsWeeklyImageTag=$(grep '^LatestTechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-) \
+              LatestTechnicalsMonthlyImageTag=$(grep '^LatestTechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-) \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
               IBKRUsername=${{ secrets.IBKR_USERNAME }} \
               IBKRPassword=${{ secrets.IBKR_PASSWORD }} \
