@@ -1299,9 +1299,7 @@ jobs:
           if [ "$EXIT" -ne 0 ]; then
             echo "❌ earnings estimate failed with exit code $EXIT"
             exit $EXIT
-          fi
-
-  run_revenueestimate:
+          fi  run_revenueestimate:
     name: Run revenue estimate loader
     needs: deploy-tasks
     if: ${{ needs.filter.outputs.revenueestimate == 'true' }}
