@@ -62,22 +62,12 @@ Parameters:
     Description: "Tag for loadlatesttechnicalsdaily loader image"
   LoadLatestTechnicalsWeeklyImageTag:
     Type: String
-    Description: "Tag for loadlatesttechnicalsweekly loader image"
-  LoadLatestTechnicalsMonthlyImageTag:
+    Description: "Tag for loadlatesttechnicalsweekly loader image"  LoadLatestTechnicalsMonthlyImageTag:
     Type: String
     Description: "Tag for loadlatesttechnicalsmonthly loader image"
   RevenueEstimateImageTag:
     Type: String
     Description: "Tag for revenue estimate loader image"
-  LoadLatestTechnicalsDailyImageTag:
-    Type: String
-    Description: "Tag for loadlatesttechnicalsdaily loader image"
-  LoadLatestTechnicalsWeeklyImageTag:
-    Type: String
-    Description: "Tag for loadlatesttechnicalsweekly loader image"
-  LoadLatestTechnicalsMonthlyImageTag:
-    Type: String
-    Description: "Tag for loadlatesttechnicalsmonthly loader image"
 
   FREDApiKey:
     Type: String
