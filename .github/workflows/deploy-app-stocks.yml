@@ -507,7 +507,7 @@ jobs:
   run_symbols:
     name: Run stock-symbols loader
     needs: deploy-tasks
-    if: ${{ needs.filter.outputs.symbols == 'true' || needs.filter.outputs.app == 'true' }}
+    if: ${{ needs.filter.outputs.symbols == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -595,7 +595,7 @@ jobs:
   run_econ:
     name: Run econ-data loader
     needs: deploy-tasks
-    if: ${{ needs.filter.outputs.econ == 'true' || needs.filter.outputs.app == 'true' }}
+    if: ${{ needs.filter.outputs.econ == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -683,7 +683,7 @@ jobs:
   run_findata:
     name: Run findata loader
     needs: deploy-tasks
-    if: ${{ needs.filter.outputs.findata == 'true' || needs.filter.outputs.app == 'true' }}
+    if: ${{ needs.filter.outputs.findata == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -771,7 +771,7 @@ jobs:
   run_pricedaily:
     name: Run pricedaily loader
     needs: deploy-tasks
-    if: ${{ needs.filter.outputs.pricedaily == 'true' || needs.filter.outputs.app == 'true' }}
+    if: ${{ needs.filter.outputs.pricedaily == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -859,7 +859,7 @@ jobs:
   run_priceweekly:
     name: Run priceweekly loader
     needs: deploy-tasks
-    if: ${{ needs.filter.outputs.priceweekly == 'true' || needs.filter.outputs.app == 'true' }}
+    if: ${{ needs.filter.outputs.priceweekly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -947,7 +947,7 @@ jobs:
   run_pricemonthly:
     name: Run pricemonthly loader
     needs: deploy-tasks
-    if: ${{ needs.filter.outputs.pricemonthly == 'true' || needs.filter.outputs.app == 'true' }}
+    if: ${{ needs.filter.outputs.pricemonthly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -1035,7 +1035,7 @@ jobs:
   run_technicalsdaily:
     name: Run technicals-daily loader
     needs: deploy-tasks
-    if: ${{ needs.filter.outputs.technicalsdaily == 'true' || needs.filter.outputs.app == 'true' }}
+    if: ${{ needs.filter.outputs.technicalsdaily == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -1126,7 +1126,7 @@ jobs:
   run_loadinfo:
     name: Run loadinfo loader
     needs: deploy-tasks
-    if: ${{ needs.filter.outputs.loadinfo == 'true' || needs.filter.outputs.app == 'true' }}
+    if: ${{ needs.filter.outputs.loadinfo == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -1214,7 +1214,7 @@ jobs:
   run_earningsestimate:
     name: Run earnings estimate loader
     needs: deploy-tasks
-    if: ${{ needs.filter.outputs.earningsestimate == 'true' || needs.filter.outputs.app == 'true' }}
+    if: ${{ needs.filter.outputs.earningsestimate == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -1302,7 +1302,7 @@ jobs:
   run_revenueestimate:
     name: Run revenue estimate loader
     needs: deploy-tasks
-    if: ${{ needs.filter.outputs.revenueestimate == 'true' || needs.filter.outputs.app == 'true' }}
+    if: ${{ needs.filter.outputs.revenueestimate == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -1390,7 +1390,7 @@ jobs:
   run_technicalsweekly:
     name: Run technicals weekly loader
     needs: deploy-tasks
-    if: ${{ needs.filter.outputs.technicalsweekly == 'true' || needs.filter.outputs.app == 'true' }}
+    if: ${{ needs.filter.outputs.technicalsweekly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -1478,7 +1478,7 @@ jobs:
   run_technicalsmonthly:
     name: Run technicals monthly loader
     needs: deploy-tasks
-    if: ${{ needs.filter.outputs.technicalsmonthly == 'true' || needs.filter.outputs.app == 'true' }}
+    if: ${{ needs.filter.outputs.technicalsmonthly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -1566,7 +1566,7 @@ jobs:
   run_swingtrader:
     name: Run swing trader loader
     needs: deploy-tasks
-    if: ${{ needs.filter.outputs.swingtrader == 'true' || needs.filter.outputs.app == 'true' }}
+    if: ${{ needs.filter.outputs.swingtrader == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -1654,7 +1654,7 @@ jobs:
   run_buysell:
     name: Run buy/sell loader
     needs: deploy-tasks
-    if: ${{ needs.filter.outputs.buysell == 'true' || needs.filter.outputs.app == 'true' }}
+    if: ${{ needs.filter.outputs.buysell == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -1742,7 +1742,7 @@ jobs:
   run_loadlatestpricedaily:
     name: Run load-latest-price-daily loader
     needs: deploy-tasks
-    if: ${{ needs.filter.outputs.loadlatestpricedaily == 'true' || needs.filter.outputs.app == 'true' }}
+    if: ${{ needs.filter.outputs.loadlatestpricedaily == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -1830,7 +1830,7 @@ jobs:
   run_loadlatestpriceweekly:
     name: Run load-latest-price-weekly loader
     needs: deploy-tasks
-    if: ${{ needs.filter.outputs.loadlatestpriceweekly == 'true' || needs.filter.outputs.app == 'true' }}
+    if: ${{ needs.filter.outputs.loadlatestpriceweekly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -1918,7 +1918,7 @@ jobs:
   run_loadlatestpricemonthly:
     name: Run load-latest-price-monthly loader
     needs: deploy-tasks
-    if: ${{ needs.filter.outputs.loadlatestpricemonthly == 'true' || needs.filter.outputs.app == 'true' }}
+    if: ${{ needs.filter.outputs.loadlatestpricemonthly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -2006,7 +2006,7 @@ jobs:
   run_loadlatesttechnicalsdaily:
     name: Run load-latest-technicals-daily loader
     needs: deploy-tasks
-    if: ${{ needs.filter.outputs.loadlatesttechnicalsdaily == 'true' || needs.filter.outputs.app == 'true' }}
+    if: ${{ needs.filter.outputs.loadlatesttechnicalsdaily == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -2094,7 +2094,7 @@ jobs:
   run_loadlatesttechnicalsweekly:
     name: Run load-latest-technicals-weekly loader
     needs: deploy-tasks
-    if: ${{ needs.filter.outputs.loadlatesttechnicalsweekly == 'true' || needs.filter.outputs.app == 'true' }}
+    if: ${{ needs.filter.outputs.loadlatesttechnicalsweekly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -2182,7 +2182,7 @@ jobs:
   run_loadlatesttechnicalsmonthly:
     name: Run load-latest-technicals-monthly loader
     needs: deploy-tasks
-    if: ${{ needs.filter.outputs.loadlatesttechnicalsmonthly == 'true' || needs.filter.outputs.app == 'true' }}
+    if: ${{ needs.filter.outputs.loadlatesttechnicalsmonthly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
