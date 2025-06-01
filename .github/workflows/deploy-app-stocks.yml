@@ -237,24 +237,20 @@ jobs:
           [ "${{ steps.paths.outputs.pricemonthly }}" = "true" ]    && arr="$arr,\"pricemonthly\""
           [ "${{ steps.paths.outputs.technicalsdaily }}" = "true" ] && arr="$arr,\"technicalsdaily\""
           [ "${{ steps.paths.outputs.loadinfo }}" = "true" ]        && arr="$arr,\"loadinfo\""
-          [ "${{ steps.paths.outputs.earningsestimate }}" = "true" ]        && arr="$arr,\"earningsestimate\""
-          [ "${{ steps.paths.outputs.earningshistory }}" = "true" ]&& arr="$arr,\"earningshistory\""
-          [ "${{ steps.paths.outputs.revenueestimate }}" = "true" ]        && arr="$arr,\"revenueestimate\""
-          [ "${{ steps.paths.outputs.technicalsdaily }}" = "true" ] && arr="$arr,\"technicalsdaily\""
-          [ "${{ steps.paths.outputs.technicalsweekly }}" = "true" ]&& arr="$arr,\"technicalsweekly\""
-          [ "${{ steps.paths.outputs.technicalsmonthly }}" = "true" ]&& arr="$arr,\"technicalsmonthly\""
+          [ "${{ steps.paths.outputs.earningsestimate }}" = "true" ] && arr="$arr,\"earningsestimate\""
+          [ "${{ steps.paths.outputs.earningshistory }}" = "true" ] && arr="$arr,\"earningshistory\""
+          [ "${{ steps.paths.outputs.revenueestimate }}" = "true" ] && arr="$arr,\"revenueestimate\""
+          [ "${{ steps.paths.outputs.technicalsweekly }}" = "true" ] && arr="$arr,\"technicalsweekly\""
+          [ "${{ steps.paths.outputs.technicalsmonthly }}" = "true" ] && arr="$arr,\"technicalsmonthly\""
           [ "${{ steps.paths.outputs.swingtrader }}" = "true" ]     && arr="$arr,\"swingtrader\""
           [ "${{ steps.paths.outputs.calendar }}" = "true" ]        && arr="$arr,\"calendar\""
           [ "${{ steps.paths.outputs.buysell }}" = "true" ]         && arr="$arr,\"buysell\""
           [ "${{ steps.paths.outputs.latestpricedaily }}" = "true" ]  && arr="$arr,\"latestpricedaily\""
           [ "${{ steps.paths.outputs.latestpriceweekly }}" = "true" ] && arr="$arr,\"latestpriceweekly\""
-          [ "${{ steps.paths.outputs.latestpricemonthly }}" = "true" ]&& arr="$arr,\"latestpricemonthly\""
+          [ "${{ steps.paths.outputs.latestpricemonthly }}" = "true" ] && arr="$arr,\"latestpricemonthly\""
           [ "${{ steps.paths.outputs.latesttechnicalsdaily }}" = "true" ]  && arr="$arr,\"latesttechnicalsdaily\""
           [ "${{ steps.paths.outputs.latesttechnicalsweekly }}" = "true" ] && arr="$arr,\"latesttechnicalsweekly\""
-          [ "${{ steps.paths.outputs.latesttechnicalsmonthly }}" = "true" ]&& arr="$arr,\"latesttechnicalsmonthly\""
-
-          !!!!!update this here!!!!!
-          
+          [ "${{ steps.paths.outputs.latesttechnicalsmonthly }}" = "true" ] && arr="$arr,\"latesttechnicalsmonthly\""
           
           echo "matrix=[${arr#,}]" >> $GITHUB_OUTPUT
 
@@ -305,18 +301,18 @@ jobs:
             latestpriceweekly)  DOCKERFILE=Dockerfile.latestpriceweekly;  PARAM=LatestPriceWeeklyImageTag;;\
             latestpricemonthly) DOCKERFILE=Dockerfile.latestpricemonthly; PARAM=LatestPriceMonthlyImageTag;;\
             loadinfo)         DOCKERFILE=Dockerfile.loadinfo;       PARAM=LoadInfoImageTag;;\
-            earningsestimate)         DOCKERFILE=Dockerfile.loadearningsestimate;   PARAM=EarningsEstimateImageTag;;\
-            earningshistory)         DOCKERFILE=Dockerfile.loadearningshistory;   PARAM=EarningsHistoryImageTag;;\
-            revenueestimate)         DOCKERFILE=Dockerfile.loadrevenueestimate;   PARAM=RevenueEstimateImageTag;;\      
+            earningsestimate) DOCKERFILE=Dockerfile.loadearningsestimate;   PARAM=EarningsEstimateImageTag;;\
+            earningshistory)  DOCKERFILE=Dockerfile.loadearningshistory;   PARAM=EarningsHistoryImageTag;;\
+            revenueestimate)  DOCKERFILE=Dockerfile.loadrevenueestimate;   PARAM=RevenueEstimateImageTag;;\
             technicalsdaily)  DOCKERFILE=Dockerfile.technicalsdaily; PARAM=TechnicalsDailyImageTag;;\
             technicalsweekly) DOCKERFILE=Dockerfile.technicalsweekly;PARAM=TechnicalsWeeklyImageTag;;\
             technicalsmonthly)DOCKERFILE=Dockerfile.technicalsmonthly;PARAM=TechnicalsMonthlyImageTag;;\
             swingtrader)      DOCKERFILE=Dockerfile.swingtrader;    PARAM=SwingTraderImageTag;;\
             calendar)         DOCKERFILE=Dockerfile.loadcalendar;   PARAM=CalendarImageTag;;\
             buysell)          DOCKERFILE=Dockerfile.buysell;        PARAM=BuySellImageTag;;\
-            latesttechnicalsedaily)   DOCKERFILE=Dockerfile.latesttechnicalsdaily;   PARAM=LatestTechnicalsDailyImageTag;;\
+            latesttechnicalsdaily)   DOCKERFILE=Dockerfile.latesttechnicalsdaily;   PARAM=LatestTechnicalsDailyImageTag;;\
             latesttechnicalsweekly)  DOCKERFILE=Dockerfile.latesttechnicalsweekly;  PARAM=LatestTechnicalsWeeklyImageTag;;\
-            latestpricemonthly) DOCKERFILE=Dockerfile.latesttechnicalsmonthly; PARAM=LatestTechnicalsMonthlyImageTag;;\
+            latesttechnicalsmonthly) DOCKERFILE=Dockerfile.latesttechnicalsmonthly; PARAM=LatestTechnicalsMonthlyImageTag;;\
           esac
           TAG=${{ matrix.loader }}-${{ github.sha }}
           docker buildx build \
@@ -401,31 +397,31 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --template-file template-app-ecs-tasks.yml \
             --parameter-overrides \
-              StockSymbolsImageTag="$SYMBOLS_TAG" \
-              EconDataImageTag="$ECON_TAG" \
-              FindataImageTag="$FINDATA_TAG" \
-              PriceImageTag="$PRICE_TAG" \
-              PriceWeeklyImageTag="$PRICEWEEKLY_TAG" \
-              PriceMonthlyImageTag="$PRICEMONTHLY_TAG" \
-              TechnicalsDailyImageTag="$TECHNICALSDAILY_TAG" \
-              LoadInfoImageTag="$LOADINFO_TAG" \
-              EarningsEstimateImageTag="$EARNINGS_TAG" \
-              EarningsHistoryImageTag="$EARNINGSHISTORY_TAG" \
-              RevenueEstimateImageTag="$REVENUE_TAG" \
-              TechnicalsWeeklyImageTag="$TECHWEEKLY_TAG" \
-              TechnicalsMonthlyImageTag="$TECHMONTHLY_TAG" \
-              SwingTraderImageTag="$SWING_TAG" \
-              CalendarImageTag="$CALENDAR_TAG" \
-              BuySellImageTag="$BUYSELL_TAG" \
-              LatestPriceDailyImageTag="$LPRICEDAILY_TAG" \
-              LatestPriceWeeklyImageTag="$LPRICEWEEKLY_TAG" \
-              LatestPriceMonthlyImageTag="$LPRICEMONTHLY_TAG" \
-              LatestTechnicalsDailyImageTag="$LTECHDAILY_TAG" \
-              LatestTechnicalsWeeklyImageTag="$LTECHWEEKLY_TAG" \
-              LatestTechnicalsMonthlyImageTag="$LTECHMONTHLY_TAG" \
-              FREDApiKey="${{ env.FRED_API_KEY }}" \
-              IBKRUsername="${{ secrets.IBKR_USERNAME || 'default' }}" \
-              IBKRPassword="${{ secrets.IBKR_PASSWORD || 'default' }}" \
+              StockSymbolsImageTag=$(grep '^StockSymbolsImageTag=' tags.env | cut -d= -f2-) \
+              EconDataImageTag=$(grep '^EconDataImageTag=' tags.env    | cut -d= -f2-) \
+              FindataImageTag=$(grep '^FindataImageTag=' tags.env     | cut -d= -f2-) \
+              PriceImageTag=$(grep '^PriceImageTag=' tags.env         | cut -d= -f2-) \
+              PriceWeeklyImageTag=$(grep '^PriceWeeklyImageTag=' tags.env | cut -d= -f2-) \
+              PriceMonthlyImageTag=$(grep '^PriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
+              LatestPriceDailyImageTag=$(grep '^LatestPriceDailyImageTag=' tags.env | cut -d= -f2-) \
+              LatestPriceWeeklyImageTag=$(grep '^LatestPriceWeeklyImageTag=' tags.env | cut -d= -f2-) \
+              LatestPriceMonthlyImageTag=$(grep '^LatestPriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
+              TechnicalsDailyImageTag=$(grep '^TechnicalsDailyImageTag=' tags.env | cut -d= -f2-) \
+              LoadInfoImageTag=$(grep '^LoadInfoImageTag=' tags.env  | cut -d= -f2-) \
+              EarningsEstimateImageTag=$(grep '^EarningsEstimateImageTag=' tags.env  | cut -d= -f2-) \
+              EarningsHistoryImageTag=$(grep '^EarningsHistoryImageTag=' tags.env  | cut -d= -f2-) \
+              RevenueEstimateImageTag=$(grep '^RevenueEstimateImageTag=' tags.env  | cut -d= -f2-) \
+              TechnicalsWeeklyImageTag=$(grep '^TechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-) \
+              TechnicalsMonthlyImageTag=$(grep '^TechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-) \
+              SwingTraderImageTag=$(grep '^SwingTraderImageTag=' tags.env | cut -d= -f2-) \
+              CalendarImageTag=$(grep '^CalendarImageTag=' tags.env | cut -d= -f2-) \
+              BuySellImageTag=$(grep '^BuySellImageTag=' tags.env | cut -d= -f2-) \
+              LatestTechnicalsDailyImageTag=$(grep '^LatestTechnicalsDailyImageTag=' tags.env | cut -d= -f2-) \
+              LatestTechnicalsWeeklyImageTag=$(grep '^LatestTechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-) \
+              LatestTechnicalsMonthlyImageTag=$(grep '^LatestTechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-) \
+              FREDApiKey=${{ secrets.FRED_API_KEY }} \
+              IBKRUsername=${{ secrets.IBKR_USERNAME }} \
+              IBKRPassword=${{ secrets.IBKR_PASSWORD }} \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
             --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}
