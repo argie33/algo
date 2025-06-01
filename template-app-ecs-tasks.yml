@@ -66,6 +66,9 @@ Parameters:
   LoadLatestTechnicalsMonthlyImageTag:
     Type: String
     Description: "Tag for loadlatesttechnicalsmonthly loader image"
+  RevenueEstimateImageTag:
+    Type: String
+    Description: "Tag for revenue estimate loader image"
   LoadLatestTechnicalsDailyImageTag:
     Type: String
     Description: "Tag for loadlatesttechnicalsdaily loader image"
@@ -253,6 +256,13 @@ Resources:
     Properties:
       LogGroupName: /ecs/loadlatesttechnicalsmonthly-loader
       RetentionInDays: 14
+
+  RevenueEstimateLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/revenueestimate-loader
+      RetentionInDays: 14
+
 
 
   ########################################
@@ -1265,6 +1275,120 @@ Resources:
           SecurityGroups:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
+          
+  ########################################
+  # Earnings History loader              #
+  ########################################
+  EarningsHistoryTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: earningshistory-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: earningshistory-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref EarningsHistoryImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/earningshistory-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  EarningsHistoryLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: earningshistory-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref EarningsHistoryTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ########################################
+  # L) revenueestimate loader           #
+  ########################################
+  RevenueEstimateTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: revenueestimate-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: revenueestimate-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref RevenueEstimateImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/revenueestimate-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  RevenueEstimateLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: revenueestimate-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref RevenueEstimateTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
 
   ########################################
   # M) technicalsweekly loader           #
@@ -2093,6 +2217,13 @@ Outputs:
     Value: !Ref TechnicalsMonthlyTaskDefinition
     Export:
       Name: TechnicalsMonthlyTaskDefArn
+
+  RevenueEstimateTaskDefinitionArn:
+    Description: "ARN of the Revenue Estimate ECS Task Definition"
+    Value: !Ref RevenueEstimateTaskDefinition
+    Export:
+      Name: !Sub "${AWS::StackName}-RevenueEstimateTaskDefinitionArn"
+
   SwingTraderTaskDefArn:
     Description: ARN of the ECS TaskDefinition for swing-trader loader
     Value: !Ref SwingTraderTaskDefinition
