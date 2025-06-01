@@ -25,7 +25,8 @@ def setup_mock_environment():
     test_dir = os.path.dirname(os.path.abspath(__file__))
     if test_dir not in sys.path:
         sys.path.insert(0, test_dir)
-      # Import our mock module
+    
+    # Import our mock module
     try:
         import mock_boto3
         
@@ -40,6 +41,11 @@ def setup_mock_environment():
         
     except Exception as e:
         logger.error(f"Failed to set up mock boto3: {e}")
+        raise
+        sys.modules['boto3'] = mock_boto3
+        logger.info("Successfully replaced boto3 with mock_boto3")
+    except ImportError as e:
+        logger.error(f"Failed to import mock_boto3: {e}")
         raise
 
 def run_script(script_path):

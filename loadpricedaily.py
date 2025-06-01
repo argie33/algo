@@ -4,22 +4,9 @@ import time
 import logging
 import json
 import os
-
 import gc
+import resource
 import math
-
-# --- Windows-compatible resource import ---
-try:
-    import resource
-    def get_rss_mb():
-        usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-        if sys.platform.startswith("linux"):
-            return usage / 1024
-        return usage / (1024 * 1024)
-except ImportError:
-    def get_rss_mb():
-        # Fallback for Windows: return 0 or use psutil if available
-        return 0
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
@@ -41,6 +28,12 @@ logging.basicConfig(
 # -------------------------------
 # Memory-logging helper (RSS in MB)
 # -------------------------------
+def get_rss_mb():
+    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    if sys.platform.startswith("linux"):
+        return usage / 1024
+    return usage / (1024 * 1024)
+
 def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 

@@ -1,196 +1,177 @@
 #!/usr/bin/env python3
 """
-Test configuration and health check utilities.
+Test configuration and utilities for the ECS container test environment.
 """
 import os
-import sys
 import logging
-import time
 import psycopg2
-import json
+import time
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    stream=sys.stdout,
-    format='[%(asctime)s] %(levelname)s %(name)s: %(message)s'
-)
 logger = logging.getLogger("test_config")
 
-def check_environment():
-    """Check that all required environment variables are set"""
-    logger.info("=== Environment Check ===")
-    
-    required_vars = [
-        'DB_SECRET_ARN',
-        'PYTHONPATH',
-        'PYTHONUNBUFFERED'
+# Test environment configuration
+TEST_CONFIG = {
+    "database": {
+        "host": "postgres",
+        "port": "5432", 
+        "user": "testuser",
+        "password": "testpass",
+        "database": "testdb"
+    },
+    "aws": {
+        "region": "us-east-1",
+        "secret_arn": "test-db-secret"
+    },
+    "scripts_to_test": [
+        "loadstocksymbols_test.py",
+        # Add more scripts as they are created
     ]
-    
-    missing_vars = []
-    for var in required_vars:
-        value = os.environ.get(var)
-        if value:
-            logger.info(f"✓ {var}: {value}")
-        else:
-            logger.error(f"✗ {var}: NOT SET")
-            missing_vars.append(var)
-    
-    if missing_vars:
-        logger.error(f"Missing environment variables: {missing_vars}")
-        return False
-    
-    logger.info("All required environment variables are set")
-    return True
+}
 
-def check_database():
-    """Check database connectivity"""
-    logger.info("=== Database Check ===")
-    
+def verify_database_connection():
+    """Verify that we can connect to the test database"""
     try:
-        # Import mock boto3 to get credentials
-        sys.path.insert(0, os.path.dirname(__file__))
-        import mock_boto3
-        sys.modules['boto3'] = mock_boto3
-        
-        import boto3
-        client = boto3.client('secretsmanager')
-        response = client.get_secret_value(SecretId='test-db-secret')
-        credentials = json.loads(response['SecretString'])
-        
-        # Test database connection
-        conn = psycopg2.connect(
-            host=credentials['host'],
-            port=credentials['port'],
-            user=credentials['username'],
-            password=credentials['password'],
-            database=credentials['dbname']
-        )
-        
-        # Test basic query
+        conn = psycopg2.connect(**TEST_CONFIG["database"])
         cursor = conn.cursor()
         cursor.execute("SELECT version();")
         version = cursor.fetchone()[0]
-        logger.info(f"✓ Database connected: {version}")
+        logger.info(f"Database connection successful. PostgreSQL version: {version}")
+        cursor.close()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Database connection failed: {str(e)}")
+        return False
+
+def verify_tables_exist():
+    """Verify that required tables exist in the database"""
+    try:
+        conn = psycopg2.connect(**TEST_CONFIG["database"])
+        cursor = conn.cursor()
         
-        # Check tables
+        # Check for stocks table
         cursor.execute("""
             SELECT table_name 
             FROM information_schema.tables 
-            WHERE table_schema = 'public'
-            ORDER BY table_name;
+            WHERE table_schema = 'public' 
+            AND table_name IN ('stocks', 'earnings', 'prices');
         """)
         tables = [row[0] for row in cursor.fetchall()]
-        logger.info(f"✓ Available tables: {', '.join(tables)}")
+        
+        expected_tables = ['stocks', 'earnings', 'prices']
+        missing_tables = [table for table in expected_tables if table not in tables]
+        
+        if missing_tables:
+            logger.warning(f"Missing tables: {missing_tables}")
+        else:
+            logger.info("All required tables exist")
         
         cursor.close()
         conn.close()
-        
-        return True
+        return len(missing_tables) == 0
         
     except Exception as e:
-        logger.error(f"✗ Database check failed: {str(e)}")
+        logger.error(f"Error checking tables: {str(e)}")
         return False
 
-def check_mock_services():
-    """Check that mock AWS services are working"""
-    logger.info("=== Mock Services Check ===")
+def get_table_counts():
+    """Get row counts for main tables"""
+    try:
+        conn = psycopg2.connect(**TEST_CONFIG["database"])
+        cursor = conn.cursor()
+        
+        counts = {}
+        tables = ['stocks', 'earnings', 'prices']
+        
+        for table in tables:
+            cursor.execute(f"SELECT COUNT(*) FROM {table};")
+            count = cursor.fetchone()[0]
+            counts[table] = count
+            logger.info(f"Table '{table}' has {count} rows")
+        
+        cursor.close()
+        conn.close()
+        return counts
+        
+    except Exception as e:
+        logger.error(f"Error getting table counts: {str(e)}")
+        return {}
+
+def setup_test_data():
+    """Set up additional test data if needed"""
+    logger.info("Setting up test data...")
     
     try:
-        # Import mock boto3
-        sys.path.insert(0, os.path.dirname(__file__))
-        import mock_boto3
-        sys.modules['boto3'] = mock_boto3
+        conn = psycopg2.connect(**TEST_CONFIG["database"])
+        cursor = conn.cursor()
         
-        import boto3
+        # Add some additional test stocks if they don't exist
+        test_stocks = [
+            ('TSLA', 'Tesla, Inc.', 'NASDAQ'),
+            ('AMZN', 'Amazon.com, Inc.', 'NASDAQ'),
+            ('META', 'Meta Platforms, Inc.', 'NASDAQ'),
+            ('NVDA', 'NVIDIA Corporation', 'NASDAQ'),
+            ('NFLX', 'Netflix, Inc.', 'NASDAQ')
+        ]
         
-        # Test Secrets Manager
-        sm_client = boto3.client('secretsmanager')
-        secret = sm_client.get_secret_value(SecretId='test-db-secret')
-        logger.info("✓ Secrets Manager mock working")
+        for symbol, name, market in test_stocks:
+            cursor.execute("""
+                INSERT INTO stocks (symbol, name, market) 
+                VALUES (%s, %s, %s) 
+                ON CONFLICT (symbol) DO NOTHING;
+            """, (symbol, name, market))
         
-        # Test S3
-        s3_client = boto3.client('s3')
-        response = s3_client.put_object(Bucket='test-bucket', Key='test-key', Body=b'test')
-        logger.info("✓ S3 mock working")
+        conn.commit()
+        logger.info("Test data setup completed")
         
-        # Test SNS
-        sns_client = boto3.client('sns')
-        response = sns_client.publish(TopicArn='test-topic', Message='test message')
-        logger.info("✓ SNS mock working")
-        
-        # Test SQS
-        sqs_client = boto3.client('sqs')
-        response = sqs_client.send_message(QueueUrl='test-queue', MessageBody='test message')
-        logger.info("✓ SQS mock working")
-        
+        cursor.close()
+        conn.close()
         return True
         
     except Exception as e:
-        logger.error(f"✗ Mock services check failed: {str(e)}")
+        logger.error(f"Error setting up test data: {str(e)}")
         return False
 
-def wait_for_database(max_retries=30, retry_interval=2):
-    """Wait for database to be ready"""
-    logger.info("=== Waiting for Database ===")
-    
-    for attempt in range(max_retries):
-        try:
-            # Import mock boto3 to get credentials
-            sys.path.insert(0, os.path.dirname(__file__))
-            import mock_boto3
-            sys.modules['boto3'] = mock_boto3
-            
-            import boto3
-            client = boto3.client('secretsmanager')
-            response = client.get_secret_value(SecretId='test-db-secret')
-            credentials = json.loads(response['SecretString'])
-            
-            conn = psycopg2.connect(
-                host=credentials['host'],
-                port=credentials['port'],
-                user=credentials['username'],
-                password=credentials['password'],
-                database=credentials['dbname']
-            )
-            conn.close()
-            
-            logger.info("✓ Database is ready!")
-            return True
-            
-        except psycopg2.OperationalError:
-            logger.info(f"Database not ready (attempt {attempt + 1}/{max_retries}), waiting...")
-            time.sleep(retry_interval)
-        except Exception as e:
-            logger.error(f"Unexpected error: {str(e)}")
-            time.sleep(retry_interval)
-    
-    logger.error("✗ Database failed to become ready")
-    return False
+def cleanup_test_data():
+    """Clean up test data (optional)"""
+    logger.info("Cleaning up test data...")
+    # This could be used to reset the database state between tests
+    # For now, we'll leave the data in place
+    pass
 
-def main():
-    """Run all health checks"""
-    logger.info("=== Test Environment Health Check ===")
+def health_check():
+    """Perform a comprehensive health check of the test environment"""
+    logger.info("=== Performing Health Check ===")
     
-    checks = [
-        ("Environment Variables", check_environment),
-        ("Database Connection", check_database),
-        ("Mock AWS Services", check_mock_services)
-    ]
+    checks = {
+        "database_connection": verify_database_connection(),
+        "tables_exist": verify_tables_exist(),
+        "test_data_setup": setup_test_data()
+    }
     
-    all_passed = True
-    for check_name, check_func in checks:
-        logger.info(f"\n--- {check_name} ---")
-        if not check_func():
-            all_passed = False
+    # Log table counts
+    get_table_counts()
     
-    logger.info(f"\n=== Summary ===")
+    all_passed = all(checks.values())
+    
+    logger.info("=== Health Check Summary ===")
+    for check, passed in checks.items():
+        status = "✅ PASS" if passed else "❌ FAIL"
+        logger.info(f"{status}: {check}")
+    
     if all_passed:
         logger.info("🎉 All health checks passed!")
-        return 0
     else:
-        logger.error("❌ Some health checks failed!")
-        return 1
+        logger.error("❌ Some health checks failed")
+    
+    return all_passed
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # Run health check if this script is executed directly
+    logging.basicConfig(
+        level=logging.INFO,
+        format='[%(asctime)s] %(levelname)s %(name)s: %(message)s'
+    )
+    
+    success = health_check()
+    exit(0 if success else 1)

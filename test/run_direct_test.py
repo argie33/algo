@@ -1,61 +1,74 @@
-
-# Patch yfinance for all test scripts
-import sys
-sys.path.insert(0, "./test")
-import yfinance_mock  # Patch yfinance for all scripts
-
 #!/usr/bin/env python3
 """
-Test runner that executes each script as a separate subprocess.
-This ensures each script's logging configuration works correctly.
+Direct test runner that executes scripts in the same process for better log visibility.
+This approach avoids subprocess overhead and provides complete log capture.
 """
+import sys
 import os
-import time
-import subprocess
-import psycopg2
+import logging
+import importlib.util
+import traceback
+
+# Set up comprehensive logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    stream=sys.stdout,
+    format='[%(asctime)s] %(levelname)s %(name)s: %(message)s',
+    force=True
+)
+logger = logging.getLogger("run_direct_test")
 
 def setup_test_environment():
-    """Set up the test environment"""
-    print("=== Setting up test environment ===")
+    """Set up the test environment with mocked AWS services"""
+    logger.info("=== Setting up test environment ===")
     
-    # Add test directory to Python path first
+    # Add test directory to Python path
     test_dir = os.path.dirname(os.path.abspath(__file__))
     parent_dir = os.path.dirname(test_dir)
     
-    if test_dir not in sys.path:
-        sys.path.insert(0, test_dir)
-        print(f"Added to Python path: {test_dir}")
-    
-    if parent_dir not in sys.path:
-        sys.path.insert(0, parent_dir)
-        print(f"Added to Python path: {parent_dir}")
-    
-    # Set up mock boto3 before setting environment variables
-    try:
-        import mock_boto3
-        sys.modules['boto3'] = mock_boto3
-        print("Successfully replaced boto3 with mock implementation")
-    except ImportError as e:
-        print(f"Warning: Could not import mock_boto3: {e}")
+    for path in [test_dir, parent_dir]:
+        if path not in sys.path:
+            sys.path.insert(0, path)
+            logger.debug(f"Added to Python path: {path}")
     
     # Set required environment variables
     os.environ["DB_SECRET_ARN"] = "test-db-secret"
     os.environ["PYTHONUNBUFFERED"] = "1"
     
-    print(f"Environment variables set:")
-    print(f"  DB_SECRET_ARN: {os.environ.get('DB_SECRET_ARN')}")
-    print(f"  PYTHONUNBUFFERED: {os.environ.get('PYTHONUNBUFFERED')}")
+    logger.info(f"Environment variables set:")
+    logger.info(f"  DB_SECRET_ARN: {os.environ.get('DB_SECRET_ARN')}")
+    logger.info(f"  PYTHONPATH: {':'.join(sys.path[:3])}")
+    
+    # Import and replace boto3 with mock
+    try:
+        import mock_boto3
+        sys.modules['boto3'] = mock_boto3
+        logger.info("Successfully replaced boto3 with mock implementation")
+        
+        # Test the mock
+        import boto3
+        client = boto3.client('secretsmanager')
+        secret = client.get_secret_value(SecretId='test-db-secret')
+        logger.info(f"Mock test successful - got secret: {secret['SecretId']}")
+        
+    except Exception as e:
+        logger.error(f"Failed to set up mock boto3: {str(e)}")
+        logger.exception("Full traceback:")
+        raise
 
 def wait_for_database():
     """Wait for the PostgreSQL database to be ready"""
-    print("=== Waiting for database to be ready ===")
+    logger.info("=== Waiting for database to be ready ===")
+    
+    import time
+    import psycopg2
     
     max_retries = 30
     retry_interval = 2
     
     for attempt in range(max_retries):
         try:
-            # Use the credentials that match our docker-compose setup
+            # Use the mock credentials that match our docker-compose setup
             conn = psycopg2.connect(
                 host="postgres",
                 port="5432", 
@@ -64,64 +77,67 @@ def wait_for_database():
                 database="testdb"
             )
             conn.close()
-            print("Database is ready!")
+            logger.info("Database is ready!")
             return True
             
         except psycopg2.OperationalError as e:
-            print(f"Database not ready (attempt {attempt + 1}/{max_retries}): {str(e)}")
+            logger.debug(f"Database not ready (attempt {attempt + 1}/{max_retries}): {str(e)}")
             time.sleep(retry_interval)
         except Exception as e:
-            print(f"Unexpected error connecting to database: {str(e)}")
+            logger.error(f"Unexpected error connecting to database: {str(e)}")
             time.sleep(retry_interval)
     
-    print("Database failed to become ready within timeout period")
+    logger.error("Database failed to become ready within timeout period")
     return False
 
 def run_test_script(script_name):
-    """Run a specific test script as a subprocess"""
-    print(f"\n{'='*80}")
-    print(f"STARTING: {script_name}")
-    print(f"{'='*80}")
+    """Run a specific test script"""
+    logger.info(f"=== Running test script: {script_name} ===")
     
-    # Find the script in the parent directory
-    test_dir = os.path.dirname(os.path.abspath(__file__))
-    parent_dir = os.path.dirname(test_dir)
+    # Look for the script in the parent directory
+    parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     script_path = os.path.join(parent_dir, script_name)
     
     if not os.path.exists(script_path):
-        print(f"ERROR: Script not found: {script_path}")
+        logger.error(f"Script not found: {script_path}")
         return False
     
-    try:        # Create environment with test directory in PYTHONPATH
-        env = os.environ.copy()
-        # Use platform-appropriate path separator
-        if os.name == 'nt':  # Windows
-            env["PYTHONPATH"] = f"{test_dir};{parent_dir};{env.get('PYTHONPATH', '')}"
-        else:  # Unix/Linux
-            env["PYTHONPATH"] = f"{test_dir}:{parent_dir}:{env.get('PYTHONPATH', '')}"
-          # Run the script as a subprocess using the test wrapper
-        result = subprocess.run(
-            [sys.executable, '/app/test/test_wrapper.py', script_name],
-            cwd=parent_dir,
-            env=env,
-            text=True,
-            bufsize=0,  # Unbuffered
-            universal_newlines=True
-        )
+    try:
+        logger.info(f"Loading script from: {script_path}")
         
-        print(f"{'='*80}")
-        print(f"COMPLETED: {script_name} (exit code: {result.returncode})")
-        print(f"{'='*80}\n")
+        # Create a module spec for the script
+        spec = importlib.util.spec_from_file_location("test_script", script_path)
+        if spec is None:
+            logger.error(f"Could not create module spec for {script_path}")
+            return False
+            
+        module = importlib.util.module_from_spec(spec)
         
-        return result.returncode == 0
+        # Execute the script
+        logger.info("Executing script...")
+        sys.stdout.flush()
+        spec.loader.exec_module(module)
         
+        logger.info(f"Script {script_name} completed successfully")
+        return True
+        
+    except SystemExit as e:
+        if e.code == 0:
+            logger.info(f"Script {script_name} exited normally")
+            return True
+        else:
+            logger.error(f"Script {script_name} exited with code: {e.code}")
+            return False
+            
     except Exception as e:
-        print(f"ERROR executing {script_name}: {str(e)}")
+        logger.error(f"Error running script {script_name}: {str(e)}")
+        logger.error("Full traceback:")
+        logger.error(traceback.format_exc())
         return False
 
 def main():
     """Main test execution"""
-    print("=== Starting Test Runner ===")
+    logger.info("=== Starting Direct Test Runner ===")
     
     try:
         # Set up the test environment
@@ -129,55 +145,51 @@ def main():
         
         # Wait for database
         if not wait_for_database():
-            print("Database setup failed")
-            sys.exit(1)        # List of test scripts to run
+            logger.error("Database setup failed")
+            sys.exit(1)
+        
+        # List of test scripts to run
         test_scripts = [
-            "loadstocksymbols_test.py",
-            "loadpricedaily.py",
-            "loadpriceweekly.py", 
-            "loadpricemonthly.py",
-            "loadtechnicalsdaily.py",
-            "loadtechnicalsweekly.py",
-            "loadtechnicalsmonthly.py"
+            "loadstocksymbols_test.py"
+            # Add more test scripts here as needed
         ]
         
         success_count = 0
         total_count = len(test_scripts)
         
         # Run each test script
-        for i, script_name in enumerate(test_scripts, 1):
-            print(f"\n{'#'*90}")
-            print(f"TEST {i}/{total_count}: {script_name}")
-            print(f"{'#'*90}")
+        for script_name in test_scripts:
+            logger.info(f"\n{'='*60}")
+            logger.info(f"Running test {success_count + 1}/{total_count}: {script_name}")
+            logger.info(f"{'='*60}")
             
             if run_test_script(script_name):
                 success_count += 1
-                print(f"✓ {script_name} PASSED")
+                logger.info(f"✓ {script_name} PASSED")
             else:
-                print(f"✗ {script_name} FAILED")
+                logger.error(f"✗ {script_name} FAILED")
         
         # Summary
-        print(f"\n{'#'*90}")
-        print(f"TEST SUMMARY")
-        print(f"{'#'*90}")
-        print(f"Total tests: {total_count}")
-        print(f"Passed: {success_count}")
-        print(f"Failed: {total_count - success_count}")
+        logger.info(f"\n{'='*60}")
+        logger.info(f"TEST SUMMARY")
+        logger.info(f"{'='*60}")
+        logger.info(f"Total tests: {total_count}")
+        logger.info(f"Passed: {success_count}")
+        logger.info(f"Failed: {total_count - success_count}")
         
         if success_count == total_count:
-            print("🎉 All tests passed!")
+            logger.info("🎉 All tests passed!")
             sys.exit(0)
         else:
-            print(f"❌ {total_count - success_count} test(s) failed")
+            logger.error(f"❌ {total_count - success_count} test(s) failed")
             sys.exit(1)
             
     except KeyboardInterrupt:
-        print("Test execution interrupted by user")
+        logger.info("Test execution interrupted by user")
         sys.exit(1)
     except Exception as e:
-        print(f"Test runner failed: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Test runner failed: {str(e)}")
+        logger.exception("Full traceback:")
         sys.exit(1)
 
 if __name__ == "__main__":

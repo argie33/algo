@@ -10,14 +10,14 @@ from unittest.mock import MagicMock
 logger = logging.getLogger("mock_boto3")
 
 # Mock database credentials for testing
-# Use 'postgres' for Docker Compose network, 'localhost' for local
-DB_HOST = os.environ.get("TEST_DB_HOST", "postgres")  # Default to 'postgres' for Docker Compose
+# Use localhost for local testing, postgres for Docker
+DB_HOST = os.environ.get("TEST_DB_HOST", "localhost")  # Allow override via environment
 MOCK_DB_SECRET = {
     "host": DB_HOST,
     "port": "5432",
-    "username": "testuser",  # Match docker-compose.yml
+    "username": "postgres",  # Default postgres user
     "password": "testpass",
-    "dbname": "testdb"       # Match docker-compose.yml
+    "dbname": "postgres"     # Default postgres database
 }
 
 class MockSecretsManagerClient:

@@ -18,7 +18,6 @@ services:
       timeout: 5s
       retries: 5
 
-
   test-runner:
     build:
       context: .
@@ -29,18 +28,17 @@ services:
     environment:
       # Database configuration
       DB_SECRET_ARN: "test-db-secret"
-      PYTHONPATH: "/app/test:/app"
+      PYTHONPATH: "/app:/app/test"
       PYTHONUNBUFFERED: "1"
-      # AWS Mock Configuration
+        # AWS Mock Configuration
       AWS_ACCESS_KEY_ID: "test"
       AWS_SECRET_ACCESS_KEY: "test"
       AWS_DEFAULT_REGION: "us-east-1"
-      # No proxy for Yahoo/yfinance
     volumes:
       - ../:/app
       - ./:/app/test
     working_dir: /app/test
-    command: python run_direct_test.py
+    command: python sequential_test_runner.py
     stdin_open: true
     tty: true
 
