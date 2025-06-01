@@ -14,6 +14,7 @@ env:
   AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
   AWS_ROLE_SESSION: github-deploy
   FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+  CF_TEMPLATES_BUCKET: ${{ secrets.CF_TEMPLATES_BUCKET || 'stocks-cf-templates' }}
 
 jobs:
 ################################################################################
@@ -27,22 +28,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Configure AWS credentials
+        uses: actions/checkout@v3      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - name: Fetch CF templates bucket name
-        id: cfbucket
-        run: |
-          BUCKET=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
-            --output text)
-          echo "CF_TEMPLATES_BUCKET=$BUCKET" >> $GITHUB_ENV
 
       - name: Ensure CloudFormation templates S3 bucket exists
         run: |
@@ -50,6 +41,7 @@ jobs:
           if ! aws s3api head-bucket --bucket ${{ env.CF_TEMPLATES_BUCKET }} 2>/dev/null; then
             echo "Creating S3 bucket: ${{ env.CF_TEMPLATES_BUCKET }}"
             aws s3 mb s3://${{ env.CF_TEMPLATES_BUCKET }}
+            
             # Enable versioning for better template management
             aws s3api put-bucket-versioning \
               --bucket ${{ env.CF_TEMPLATES_BUCKET }} \
@@ -343,22 +335,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Configure AWS credentials
+        uses: actions/checkout@v3      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - name: Fetch CF templates bucket name
-        id: cfbucket
-        run: |
-          BUCKET=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
-            --output text)
-          echo "CF_TEMPLATES_BUCKET=$BUCKET" >> $GITHUB_ENV
 
       - name: Ensure CloudFormation templates S3 bucket exists
         run: |
@@ -366,6 +348,7 @@ jobs:
           if ! aws s3api head-bucket --bucket ${{ env.CF_TEMPLATES_BUCKET }} 2>/dev/null; then
             echo "Creating S3 bucket: ${{ env.CF_TEMPLATES_BUCKET }}"
             aws s3 mb s3://${{ env.CF_TEMPLATES_BUCKET }}
+            
             # Enable versioning for better template management
             aws s3api put-bucket-versioning \
               --bucket ${{ env.CF_TEMPLATES_BUCKET }} \
