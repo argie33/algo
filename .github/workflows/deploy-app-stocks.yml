@@ -54,7 +54,7 @@ jobs:
               RDSUsername=${{ secrets.RDS_USERNAME }} \
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
-            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}
 
 ################################################################################
@@ -353,8 +353,8 @@ jobs:
         with:
           pattern: build-tags-*
           path: .
-          merge-multiple: true      
-          
+          merge-multiple: true
+
       - name: Generate tags.env
         shell: bash
         run: |
@@ -363,44 +363,6 @@ jobs:
             echo "No build tag files found or tags.env not created" >&2
             exit 1
           fi
-
-      - name: Generate tags.env with fallbacks
-        shell: bash
-        run: |
-          # Ensure all required parameters exist in tags.env, defaulting to 'latest' if missing
-          REQUIRED_PARAMS=(
-            "StockSymbolsImageTag"
-            "EconDataImageTag"
-            "FindataImageTag"
-            "PriceImageTag"
-            "PriceWeeklyImageTag"
-            "PriceMonthlyImageTag"
-            "LatestPriceDailyImageTag"
-            "LatestPriceWeeklyImageTag"
-            "LatestPriceMonthlyImageTag"
-            "TechnicalsDailyImageTag"
-            "LoadInfoImageTag"
-            "EarningsEstimateImageTag"
-            "EarningsHistoryImageTag"
-            "RevenueEstimateImageTag"
-            "TechnicalsWeeklyImageTag"
-            "TechnicalsMonthlyImageTag"
-            "SwingTraderImageTag"
-            "CalendarImageTag"
-            "BuySellImageTag"
-            "LatestTechnicalsDailyImageTag"
-            "LatestTechnicalsWeeklyImageTag"
-            "LatestTechnicalsMonthlyImageTag"
-          )
-          
-          for param in "${REQUIRED_PARAMS[@]}"; do
-            if ! grep -q "^${param}=" tags.env; then
-              echo "${param}=latest" >> tags.env
-            fi
-          done
-          
-          echo "Final tags.env content:"
-          cat tags.env
 
       - name: Wait for app stack to finish exporting
         run: |
@@ -427,17 +389,41 @@ jobs:
             echo "Stack does not exist, nothing to delete."
           else
             echo "Stack status is $STATUS, not deleting."
-          fi      - name: Deploy ECS-tasks CloudFormation stack
+          fi
+
+      - name: Deploy ECS-tasks CloudFormation stack
         run: |
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
             --template-file template-app-ecs-tasks.yml \
-            --parameter-overrides $(cat tags.env | tr '\n' ' ')\
+            --parameter-overrides \
+              StockSymbolsImageTag=$(grep '^StockSymbolsImageTag=' tags.env | cut -d= -f2- || echo "latest") \
+              EconDataImageTag=$(grep '^EconDataImageTag=' tags.env    | cut -d= -f2- || echo "latest") \
+              FindataImageTag=$(grep '^FindataImageTag=' tags.env     | cut -d= -f2- || echo "latest") \
+              PriceImageTag=$(grep '^PriceImageTag=' tags.env         | cut -d= -f2- || echo "latest") \
+              PriceWeeklyImageTag=$(grep '^PriceWeeklyImageTag=' tags.env | cut -d= -f2- || echo "latest") \
+              PriceMonthlyImageTag=$(grep '^PriceMonthlyImageTag=' tags.env | cut -d= -f2- || echo "latest") \
+              LatestPriceDailyImageTag=$(grep '^LatestPriceDailyImageTag=' tags.env | cut -d= -f2- || echo "latest") \
+              LatestPriceWeeklyImageTag=$(grep '^LatestPriceWeeklyImageTag=' tags.env | cut -d= -f2- || echo "latest") \
+              LatestPriceMonthlyImageTag=$(grep '^LatestPriceMonthlyImageTag=' tags.env | cut -d= -f2- || echo "latest") \
+              TechnicalsDailyImageTag=$(grep '^TechnicalsDailyImageTag=' tags.env | cut -d= -f2- || echo "latest") \
+              LoadInfoImageTag=$(grep '^LoadInfoImageTag=' tags.env  | cut -d= -f2- || echo "latest") \
+              EarningsEstimateImageTag=$(grep '^EarningsEstimateImageTag=' tags.env  | cut -d= -f2- || echo "latest") \
+              EarningsHistoryImageTag=$(grep '^EarningsHistoryImageTag=' tags.env  | cut -d= -f2- || echo "latest") \
+              RevenueEstimateImageTag=$(grep '^RevenueEstimateImageTag=' tags.env  | cut -d= -f2- || echo "latest") \
+              TechnicalsWeeklyImageTag=$(grep '^TechnicalsWeeklyImageTag=' tags.env | cut -d= -f2- || echo "latest") \
+              TechnicalsMonthlyImageTag=$(grep '^TechnicalsMonthlyImageTag=' tags.env | cut -d= -f2- || echo "latest") \
+              SwingTraderImageTag=$(grep '^SwingTraderImageTag=' tags.env | cut -d= -f2- || echo "latest") \
+              CalendarImageTag=$(grep '^CalendarImageTag=' tags.env | cut -d= -f2- || echo "latest") \
+              BuySellImageTag=$(grep '^BuySellImageTag=' tags.env | cut -d= -f2- || echo "latest") \
+              LatestTechnicalsDailyImageTag=$(grep '^LatestTechnicalsDailyImageTag=' tags.env | cut -d= -f2- || echo "latest") \
+              LatestTechnicalsWeeklyImageTag=$(grep '^LatestTechnicalsWeeklyImageTag=' tags.env | cut -d= -f2- || echo "latest") \
+              LatestTechnicalsMonthlyImageTag=$(grep '^LatestTechnicalsMonthlyImageTag=' tags.env | cut -d= -f2- || echo "latest") \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
               IBKRUsername=${{ secrets.IBKR_USERNAME }} \
               IBKRPassword=${{ secrets.IBKR_PASSWORD }} \
             --capabilities CAPABILITY_NAMED_IAM \
-            --no-fail-on-empty-changeset
+            --no-fail-on-empty-changeset \
             --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}
 
       - name: Enable ECS Container Insights
