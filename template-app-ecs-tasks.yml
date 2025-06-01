@@ -72,15 +72,6 @@ Parameters:
   EarningsHistoryImageTag:
     Type: String
     Description: "Tag for earnings history loader image"
-  LatestTechnicalsDailyImageTag:
-    Type: String
-    Description: "Tag for latesttechnicalsdaily loader image"
-  LatestTechnicalsWeeklyImageTag:
-    Type: String
-    Description: "Tag for latesttechnicalsweekly loader image"
-  LatestTechnicalsMonthlyImageTag:
-    Type: String
-    Description: "Tag for latesttechnicalsmonthly loader image"
 
   FREDApiKey:
     Type: String
