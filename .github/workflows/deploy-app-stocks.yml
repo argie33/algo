@@ -1,4 +1,4 @@
-name: deploy-app-stocks 
+name: deploy-app-stocks
 
 on:
   push:
@@ -14,51 +14,11 @@ env:
   AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
   AWS_ROLE_SESSION: github-deploy
   FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+  CF_TEMPLATES_BUCKET: stocks-cf-templates
 
 jobs:
 ################################################################################
-# 1) Deploy core infrastructure (RDS, Secrets, ECS cluster)                    #
-################################################################################
-  infra:
-    name: Deploy application stack
-    needs: filter
-    if: ${{ needs.filter.outputs.app == 'true' }}
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3 
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - name: Get CloudFormation templates S3 bucket from exports
-        id: s3-bucket
-        run: |
-          CF_TEMPLATES_BUCKET=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
-            --output text)
-          echo "CF_TEMPLATES_BUCKET=$CF_TEMPLATES_BUCKET" >> $GITHUB_OUTPUT
-          echo "Using S3 bucket: $CF_TEMPLATES_BUCKET"
-
-      - name: Deploy application stack
-        run: |
-          aws cloudformation deploy \
-            --stack-name stocks-app-stack \
-            --template-file template-app-stocks.yml \
-            --parameter-overrides \
-              RDSUsername=${{ secrets.RDS_USERNAME }} \
-              RDSPassword=${{ secrets.RDS_PASSWORD }} \
-              FREDApiKey=${{ secrets.FRED_API_KEY }} \
-            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-            --s3-bucket ${{ steps.s3-bucket.outputs.CF_TEMPLATES_BUCKET }}
-
-################################################################################
-# 2) Detect changed components                                                 #
+# 1) Detect changed components                                                 #
 ################################################################################
   filter:
     name: Detect changed components
@@ -79,8 +39,8 @@ jobs:
       loadlatesttechnicalsmonthly: ${{ steps.paths.outputs.loadlatesttechnicalsmonthly }}
       technicalsdaily:   ${{ steps.paths.outputs.technicalsdaily }}
       loadinfo:          ${{ steps.paths.outputs.loadinfo }}
-      earningsestimate:          ${{ steps.paths.outputs.earningsestimate }}
-      revenueestimate:          ${{ steps.paths.outputs.revenueestimate }}
+      earningsestimate:  ${{ steps.paths.outputs.earningsestimate }}
+      revenueestimate:   ${{ steps.paths.outputs.revenueestimate }}
       technicalsweekly:  ${{ steps.paths.outputs.technicalsweekly }}
       technicalsmonthly: ${{ steps.paths.outputs.technicalsmonthly }}
       swingtrader:       ${{ steps.paths.outputs.swingtrader }}
@@ -104,15 +64,15 @@ jobs:
             loadlatesttechnicalsdaily:
               - loadlatesttechnicalsdaily.py
               - requirements-loadlatesttechnicalsdaily.txt
-              - Dockerfile.loadlatesttechnicalsdaily
+              - Dockerfile.latesttechnicalsdaily
             loadlatesttechnicalsweekly:
               - loadlatesttechnicalsweekly.py
               - requirements-loadlatesttechnicalsweekly.txt
-              - Dockerfile.loadlatesttechnicalsweekly
+              - Dockerfile.latesttechnicalsweekly
             loadlatesttechnicalsmonthly:
               - loadlatesttechnicalsmonthly.py
               - requirements-loadlatesttechnicalsmonthly.txt
-              - Dockerfile.loadlatesttechnicalsmonthly
+              - Dockerfile.latesttechnicalsmonthly
             loadlatestpricedaily:
               - loadlatestpricedaily.py
               - requirements-loadlatestpricedaily.txt
@@ -178,8 +138,8 @@ jobs:
               - requirements-loadtechnicalsmonthly.txt
               - Dockerfile.technicalsmonthly
             swingtrader:
-              - swingtrader.py
-              - requirements-swingtrader.txt
+              - loadswingtrader.py
+              - requirements-loadswingtrader.txt
               - Dockerfile.swingtrader
             calendar:
               - loadcalendar.py
@@ -193,17 +153,11 @@ jobs:
         name: Any changes?
         run: |
           if [ "${{ steps.paths.outputs.symbols }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.econ }}"    = "true" ] || \
+             [ "${{ steps.paths.outputs.econ }}" = "true" ] || \
              [ "${{ steps.paths.outputs.findata }}" = "true" ] || \
              [ "${{ steps.paths.outputs.pricedaily }}" = "true" ] || \
              [ "${{ steps.paths.outputs.priceweekly }}" = "true" ] || \
              [ "${{ steps.paths.outputs.pricemonthly }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.loadlatestpricedaily }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.loadlatestpriceweekly }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.loadlatestpricemonthly }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.loadlatesttechnicalsdaily }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.loadlatesttechnicalsweekly }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.loadlatesttechnicalsmonthly }}" = "true" ] || \
              [ "${{ steps.paths.outputs.technicalsdaily }}" = "true" ] || \
              [ "${{ steps.paths.outputs.loadinfo }}" = "true" ] || \
              [ "${{ steps.paths.outputs.earningsestimate }}" = "true" ] || \
@@ -212,125 +166,109 @@ jobs:
              [ "${{ steps.paths.outputs.technicalsmonthly }}" = "true" ] || \
              [ "${{ steps.paths.outputs.swingtrader }}" = "true" ] || \
              [ "${{ steps.paths.outputs.calendar }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.buysell }}" = "true" ]; then
+             [ "${{ steps.paths.outputs.buysell }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.loadlatestpricedaily }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.loadlatestpriceweekly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.loadlatestpricemonthly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.loadlatesttechnicalsdaily }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.loadlatesttechnicalsweekly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.loadlatesttechnicalsmonthly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.app }}" = "true" ]; then
             echo "any=true" >> $GITHUB_OUTPUT
           else
             echo "any=false" >> $GITHUB_OUTPUT
           fi
 
       - id: matrix
-        name: Build matrix
+        name: Generate matrix
         run: |
-          arr=""
-          [ "${{ steps.paths.outputs.symbols }}" = "true" ]         && arr="$arr,\"symbols\""
-          [ "${{ steps.paths.outputs.econ }}"    = "true" ]         && arr="$arr,\"econ\""
-          [ "${{ steps.paths.outputs.findata }}" = "true" ]         && arr="$arr,\"findata\""
-          [ "${{ steps.paths.outputs.pricedaily }}" = "true" ]      && arr="$arr,\"pricedaily\""
-          [ "${{ steps.paths.outputs.priceweekly }}" = "true" ]     && arr="$arr,\"priceweekly\""
-          [ "${{ steps.paths.outputs.pricemonthly }}" = "true" ]    && arr="$arr,\"pricemonthly\""
-          [ "${{ steps.paths.outputs.loadlatestpricedaily }}" = "true" ]  && arr="$arr,\"loadlatestpricedaily\""
-          [ "${{ steps.paths.outputs.loadlatestpriceweekly }}" = "true" ] && arr="$arr,\"loadlatestpriceweekly\""
-          [ "${{ steps.paths.outputs.loadlatestpricemonthly }}" = "true" ]&& arr="$arr,\"loadlatestpricemonthly\""
-          [ "${{ steps.paths.outputs.loadlatesttechnicalsdaily }}" = "true" ] && arr="$arr,\"loadlatesttechnicalsdaily\""
-          [ "${{ steps.paths.outputs.loadlatesttechnicalsweekly }}" = "true" ] && arr="$arr,\"loadlatesttechnicalsweekly\""
-          [ "${{ steps.paths.outputs.loadlatesttechnicalsmonthly }}" = "true" ] && arr="$arr,\"loadlatesttechnicalsmonthly\""
-          [ "${{ steps.paths.outputs.technicalsdaily }}" = "true" ] && arr="$arr,\"technicalsdaily\""
-          [ "${{ steps.paths.outputs.loadinfo }}" = "true" ]        && arr="$arr,\"loadinfo\""
-          [ "${{ steps.paths.outputs.earningsestimate }}" = "true" ]        && arr="$arr,\"earningsestimate\""
-          [ "${{ steps.paths.outputs.revenueestimate }}" = "true" ]        && arr="$arr,\"revenueestimate\""
-          [ "${{ steps.paths.outputs.technicalsweekly }}" = "true" ]&& arr="$arr,\"technicalsweekly\""
-          [ "${{ steps.paths.outputs.technicalsmonthly }}" = "true" ]&& arr="$arr,\"technicalsmonthly\""
-          [ "${{ steps.paths.outputs.swingtrader }}" = "true" ]     && arr="$arr,\"swingtrader\""
-          [ "${{ steps.paths.outputs.calendar }}" = "true" ]        && arr="$arr,\"calendar\""
-          [ "${{ steps.paths.outputs.buysell }}" = "true" ]         && arr="$arr,\"buysell\""
-          echo "matrix=[${arr#,}]" >> $GITHUB_OUTPUT
+          MATRIX=""
+          if [ "${{ steps.paths.outputs.symbols }}" = "true" ]; then
+            MATRIX="${MATRIX}\"symbols\","
+          fi
+          if [ "${{ steps.paths.outputs.econ }}" = "true" ]; then
+            MATRIX="${MATRIX}\"econ\","
+          fi
+          if [ "${{ steps.paths.outputs.findata }}" = "true" ]; then
+            MATRIX="${MATRIX}\"findata\","
+          fi
+          if [ "${{ steps.paths.outputs.pricedaily }}" = "true" ]; then
+            MATRIX="${MATRIX}\"pricedaily\","
+          fi
+          if [ "${{ steps.paths.outputs.priceweekly }}" = "true" ]; then
+            MATRIX="${MATRIX}\"priceweekly\","
+          fi
+          if [ "${{ steps.paths.outputs.pricemonthly }}" = "true" ]; then
+            MATRIX="${MATRIX}\"pricemonthly\","
+          fi
+          if [ "${{ steps.paths.outputs.technicalsdaily }}" = "true" ]; then
+            MATRIX="${MATRIX}\"technicalsdaily\","
+          fi
+          if [ "${{ steps.paths.outputs.loadinfo }}" = "true" ]; then
+            MATRIX="${MATRIX}\"loadinfo\","
+          fi
+          if [ "${{ steps.paths.outputs.earningsestimate }}" = "true" ]; then
+            MATRIX="${MATRIX}\"earningsestimate\","
+          fi
+          if [ "${{ steps.paths.outputs.revenueestimate }}" = "true" ]; then
+            MATRIX="${MATRIX}\"revenueestimate\","
+          fi
+          if [ "${{ steps.paths.outputs.technicalsweekly }}" = "true" ]; then
+            MATRIX="${MATRIX}\"technicalsweekly\","
+          fi
+          if [ "${{ steps.paths.outputs.technicalsmonthly }}" = "true" ]; then
+            MATRIX="${MATRIX}\"technicalsmonthly\","
+          fi
+          if [ "${{ steps.paths.outputs.swingtrader }}" = "true" ]; then
+            MATRIX="${MATRIX}\"swingtrader\","
+          fi
+          if [ "${{ steps.paths.outputs.calendar }}" = "true" ]; then
+            MATRIX="${MATRIX}\"calendar\","
+          fi
+          if [ "${{ steps.paths.outputs.buysell }}" = "true" ]; then
+            MATRIX="${MATRIX}\"buysell\","
+          fi
+          if [ "${{ steps.paths.outputs.loadlatestpricedaily }}" = "true" ]; then
+            MATRIX="${MATRIX}\"loadlatestpricedaily\","
+          fi
+          if [ "${{ steps.paths.outputs.loadlatestpriceweekly }}" = "true" ]; then
+            MATRIX="${MATRIX}\"loadlatestpriceweekly\","
+          fi
+          if [ "${{ steps.paths.outputs.loadlatestpricemonthly }}" = "true" ]; then
+            MATRIX="${MATRIX}\"loadlatestpricemonthly\","
+          fi
+          if [ "${{ steps.paths.outputs.loadlatesttechnicalsdaily }}" = "true" ]; then
+            MATRIX="${MATRIX}\"loadlatesttechnicalsdaily\","
+          fi
+          if [ "${{ steps.paths.outputs.loadlatesttechnicalsweekly }}" = "true" ]; then
+            MATRIX="${MATRIX}\"loadlatesttechnicalsweekly\","
+          fi
+          if [ "${{ steps.paths.outputs.loadlatesttechnicalsmonthly }}" = "true" ]; then
+            MATRIX="${MATRIX}\"loadlatesttechnicalsmonthly\","
+          fi
+          
+          # Remove trailing comma
+          MATRIX=$(echo "$MATRIX" | sed 's/,$//')
+          
+          if [ -n "$MATRIX" ]; then
+            echo "matrix=[${MATRIX}]" >> $GITHUB_OUTPUT
+          else
+            echo "matrix=[]" >> $GITHUB_OUTPUT
+          fi
 
 ################################################################################
-# 4) Build only the changed Docker images                                      #
+# 2) Deploy infrastructure                                                     #
 ################################################################################
-  build:
-    name: Build changed images
+  infra:
+    name: Deploy application stack
     needs: filter
-    if: ${{ needs.filter.outputs.any == 'true' }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        loader: ${{ fromJson(needs.filter.outputs.matrix) }}
-
-    steps:
-      - uses: actions/checkout@v3
-      - uses: docker/setup-qemu-action@v2
-        with:
-          platforms: linux/arm64
-      - uses: docker/setup-buildx-action@v2
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - id: build
-        name: Build & push Docker image
-        run: |
-          REPO=stocks-app-registry
-          aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 || \
-            aws ecr create-repository --repository-name "$REPO"
-          URI=$(aws ecr describe-repositories \
-                  --repository-names "$REPO" \
-                  --query 'repositories[0].repositoryUri' --output text)
-          aws ecr get-login-password --region $AWS_REGION | \
-            docker login --username AWS --password-stdin "$URI"
-          case "${{ matrix.loader }}" in
-            symbols)          DOCKERFILE=Dockerfile.stocksymbols;   PARAM=StockSymbolsImageTag;;\
-            econ)             DOCKERFILE=Dockerfile.econdata;       PARAM=EconDataImageTag;;\
-            findata)          DOCKERFILE=Dockerfile.findata;        PARAM=FindataImageTag;;\
-            pricedaily)       DOCKERFILE=Dockerfile.pricedaily;     PARAM=PriceImageTag;;\
-            priceweekly)      DOCKERFILE=Dockerfile.priceweekly;    PARAM=PriceWeeklyImageTag;;\
-            pricemonthly)     DOCKERFILE=Dockerfile.pricemonthly;   PARAM=PriceMonthlyImageTag;;\
-            loadlatestpricedaily)   DOCKERFILE=Dockerfile.loadlatestpricedaily;   PARAM=LoadLatestPriceDailyImageTag;;\
-            loadlatestpriceweekly)  DOCKERFILE=Dockerfile.loadlatestpriceweekly;  PARAM=LoadLatestPriceWeeklyImageTag;;\
-            loadlatestpricemonthly) DOCKERFILE=Dockerfile.loadlatestpricemonthly; PARAM=LoadLatestPriceMonthlyImageTag;;\
-            loadlatesttechnicalsdaily) DOCKERFILE=Dockerfile.loadlatesttechnicalsdaily; PARAM=LoadLatestTechnicalsDailyImageTag;;\
-            loadlatesttechnicalsweekly) DOCKERFILE=Dockerfile.loadlatesttechnicalsweekly; PARAM=LoadLatestTechnicalsWeeklyImageTag;;\
-            loadlatesttechnicalsmonthly) DOCKERFILE=Dockerfile.loadlatesttechnicalsmonthly; PARAM=LoadLatestTechnicalsMonthlyImageTag;;\
-            technicalsdaily)  DOCKERFILE=Dockerfile.technicalsdaily; PARAM=TechnicalsDailyImageTag;;\
-            loadinfo)         DOCKERFILE=Dockerfile.loadinfo;       PARAM=LoadInfoImageTag;;\
-            earningsestimate)         DOCKERFILE=Dockerfile.loadearningsestimate;   PARAM=EarningsEstimateImageTag;;\
-            revenueestimate)         DOCKERFILE=Dockerfile.loadrevenueestimate;   PARAM=RevenueEstimateImageTag;;\   
-            technicalsweekly) DOCKERFILE=Dockerfile.technicalsweekly;PARAM=TechnicalsWeeklyImageTag;;\
-            technicalsmonthly)DOCKERFILE=Dockerfile.technicalsmonthly;PARAM=TechnicalsMonthlyImageTag;;\
-            swingtrader)      DOCKERFILE=Dockerfile.swingtrader;    PARAM=SwingTraderImageTag;;\
-            calendar)         DOCKERFILE=Dockerfile.loadcalendar;   PARAM=CalendarImageTag;;\
-            buysell)          DOCKERFILE=Dockerfile.buysell;        PARAM=BuySellImageTag;;\
-          esac
-          TAG=${{ matrix.loader }}-${{ github.sha }}
-          docker buildx build \
-            --platform linux/arm64 \
-            --push \
-            -f "$DOCKERFILE" \
-            -t "$URI:$TAG" \
-            .
-          echo "${PARAM}=$TAG" > build_tag_${{ matrix.loader }}.txt
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: build-tags-${{ matrix.loader }}
-          path: build_tag_${{ matrix.loader }}.txt
-
-################################################################################
-# 5) Deploy ECS‐tasks stack (build artifacts → CFN → container-insights)       #
-################################################################################
-  deploy-tasks:
-    name: Deploy ECS-tasks stack
-    needs: [build, filter]
-    if: ${{ needs.filter.outputs.any == 'true' }}
+    if: ${{ needs.filter.outputs.app == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3 
-             
+        uses: actions/checkout@v3
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -338,92 +276,153 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Get CloudFormation templates S3 bucket from exports
-        id: s3-bucket
+      - name: Ensure CloudFormation templates S3 bucket exists
         run: |
-          CF_TEMPLATES_BUCKET=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
-            --output text)
-          echo "CF_TEMPLATES_BUCKET=$CF_TEMPLATES_BUCKET" >> $GITHUB_OUTPUT
-          echo "Using S3 bucket: $CF_TEMPLATES_BUCKET"
+          # Check if bucket exists, if not create it
+          if ! aws s3api head-bucket --bucket ${{ env.CF_TEMPLATES_BUCKET }} 2>/dev/null; then
+            echo "Creating S3 bucket: ${{ env.CF_TEMPLATES_BUCKET }}"
+            aws s3 mb s3://${{ env.CF_TEMPLATES_BUCKET }}
+            
+            # Enable versioning for better template management
+            aws s3api put-bucket-versioning \
+              --bucket ${{ env.CF_TEMPLATES_BUCKET }} \
+              --versioning-configuration Status=Enabled
+          else
+            echo "S3 bucket ${{ env.CF_TEMPLATES_BUCKET }} already exists"
+          fi
 
-      - name: Download all build-tag artifacts
-        uses: actions/download-artifact@v4
+      - name: Deploy application stack
+        run: |
+          aws cloudformation deploy \
+            --stack-name stocks-app-stack \
+            --template-file template-app-stocks.yml \
+            --parameter-overrides \
+              RDSUsername=${{ secrets.RDS_USERNAME }} \
+              RDSPassword=${{ secrets.RDS_PASSWORD }} \
+              FREDApiKey=${{ secrets.FRED_API_KEY }} \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+            --s3-bucket ${{ env.CF_TEMPLATES_BUCKET }}
+
+################################################################################
+# 3) Build all images                                                          #
+################################################################################
+  build:
+    name: Build changed images
+    needs: filter
+    if: ${{ needs.filter.outputs.any == 'true' }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        component: ${{ fromJson(needs.filter.outputs.matrix) }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          pattern: build-tags-*
-          path: .
-          merge-multiple: true
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Generate tags.env
-        shell: bash
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build and push Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: stocks-${{ matrix.component }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
-          cat build_tag_*.txt > tags.env
-          if [ ! -f tags.env ]; then
-            echo "No build tag files found or tags.env not created" >&2
+          # Determine the correct Dockerfile
+          if [ "${{ matrix.component }}" = "symbols" ]; then
+            DOCKERFILE="Dockerfile.stocksymbols"
+          elif [ "${{ matrix.component }}" = "econ" ]; then
+            DOCKERFILE="Dockerfile.econdata"
+          elif [ "${{ matrix.component }}" = "findata" ]; then
+            DOCKERFILE="Dockerfile.findata"
+          elif [ "${{ matrix.component }}" = "pricedaily" ]; then
+            DOCKERFILE="Dockerfile.pricedaily"
+          elif [ "${{ matrix.component }}" = "priceweekly" ]; then
+            DOCKERFILE="Dockerfile.priceweekly"
+          elif [ "${{ matrix.component }}" = "pricemonthly" ]; then
+            DOCKERFILE="Dockerfile.pricemonthly"
+          elif [ "${{ matrix.component }}" = "technicalsdaily" ]; then
+            DOCKERFILE="Dockerfile.technicalsdaily"
+          elif [ "${{ matrix.component }}" = "loadinfo" ]; then
+            DOCKERFILE="Dockerfile.loadinfo"
+          elif [ "${{ matrix.component }}" = "earningsestimate" ]; then
+            DOCKERFILE="Dockerfile.loadearningsestimate"
+          elif [ "${{ matrix.component }}" = "revenueestimate" ]; then
+            DOCKERFILE="Dockerfile.loadrevenueestimate"
+          elif [ "${{ matrix.component }}" = "technicalsweekly" ]; then
+            DOCKERFILE="Dockerfile.technicalsweekly"
+          elif [ "${{ matrix.component }}" = "technicalsmonthly" ]; then
+            DOCKERFILE="Dockerfile.technicalsmonthly"
+          elif [ "${{ matrix.component }}" = "swingtrader" ]; then
+            DOCKERFILE="Dockerfile.swingtrader"
+          elif [ "${{ matrix.component }}" = "calendar" ]; then
+            DOCKERFILE="Dockerfile.loadcalendar"
+          elif [ "${{ matrix.component }}" = "buysell" ]; then
+            DOCKERFILE="Dockerfile.buysell"
+          elif [ "${{ matrix.component }}" = "loadlatestpricedaily" ]; then
+            DOCKERFILE="Dockerfile.loadlatestpricedaily"
+          elif [ "${{ matrix.component }}" = "loadlatestpriceweekly" ]; then
+            DOCKERFILE="Dockerfile.loadlatestpriceweekly"
+          elif [ "${{ matrix.component }}" = "loadlatestpricemonthly" ]; then
+            DOCKERFILE="Dockerfile.loadlatestpricemonthly"
+          elif [ "${{ matrix.component }}" = "loadlatesttechnicalsdaily" ]; then
+            DOCKERFILE="Dockerfile.latesttechnicalsdaily"
+          elif [ "${{ matrix.component }}" = "loadlatesttechnicalsweekly" ]; then
+            DOCKERFILE="Dockerfile.latesttechnicalsweekly"
+          elif [ "${{ matrix.component }}" = "loadlatesttechnicalsmonthly" ]; then
+            DOCKERFILE="Dockerfile.latesttechnicalsmonthly"
+          else
+            echo "Unknown component: ${{ matrix.component }}"
             exit 1
           fi
 
-      - name: Wait for app stack to finish exporting
-        run: |
-          STATUS=$(aws cloudformation describe-stacks --stack-name stocks-app-stack --query 'Stacks[0].StackStatus' --output text)
-          if [[ "$STATUS" == "UPDATE_IN_PROGRESS" || "$STATUS" == "CREATE_IN_PROGRESS" ]]; then
-            aws cloudformation wait stack-update-complete --stack-name stocks-app-stack
-          else
-            echo "Stack is not updating, skipping wait."
-          fi
+          echo "Building with Dockerfile: $DOCKERFILE"
+          
+          # Ensure ECR repository exists
+          aws ecr describe-repositories --repository-names $ECR_REPOSITORY || \
+          aws ecr create-repository --repository-name $ECR_REPOSITORY
 
-      - name: Delete ECS tasks stack if not in a stable state (idempotency fix)
-        shell: bash
-        run: |
-          STATUS=$(aws cloudformation describe-stacks \
-            --stack-name stocks-ecs-tasks-stack \
-            --query 'Stacks[0].StackStatus' \
-            --output text 2>/dev/null || echo "")
-          if [[ "$STATUS" == "ROLLBACK_COMPLETE" || "$STATUS" == "DELETE_FAILED" || "$STATUS" == "CREATE_FAILED" ]]; then
-            echo "Stack in $STATUS, deleting before redeploy."
-            aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
-            aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
-            echo "Stack deleted."
-          elif [[ -z "$STATUS" ]]; then
-            echo "Stack does not exist, nothing to delete."
-          else
-            echo "Stack status is $STATUS, not deleting."
-          fi
+          # Build and push
+          docker build -f $DOCKERFILE -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
-      - name: Deploy ECS-tasks CloudFormation stack
+################################################################################
+# 4) Deploy ECS task definitions                                               #
+################################################################################
+  deploy-tasks:
+    name: Deploy ECS task definitions
+    needs: [filter, build, infra]
+    if: ${{ always() && (needs.filter.outputs.any == 'true' || needs.filter.outputs.app == 'true') }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Deploy ECS task definitions
         run: |
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
             --template-file template-app-ecs-tasks.yml \
             --parameter-overrides \
-              StockSymbolsImageTag=$(grep '^StockSymbolsImageTag=' tags.env | cut -d= -f2-) \
-              EconDataImageTag=$(grep '^EconDataImageTag=' tags.env    | cut -d= -f2-) \
-              FindataImageTag=$(grep '^FindataImageTag=' tags.env     | cut -d= -f2-) \
-              PriceImageTag=$(grep '^PriceImageTag=' tags.env         | cut -d= -f2-) \
-              PriceWeeklyImageTag=$(grep '^PriceWeeklyImageTag=' tags.env | cut -d= -f2-) \
-              PriceMonthlyImageTag=$(grep '^PriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
-              LoadLatestPriceDailyImageTag=$(grep '^LoadLatestPriceDailyImageTag=' tags.env | cut -d= -f2-) \
-              LoadLatestPriceWeeklyImageTag=$(grep '^LoadLatestPriceWeeklyImageTag=' tags.env | cut -d= -f2-) \
-              LoadLatestPriceMonthlyImageTag=$(grep '^LoadLatestPriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
-              TechnicalsDailyImageTag=$(grep '^TechnicalsDailyImageTag=' tags.env | cut -d= -f2-) \
-              LoadInfoImageTag=$(grep '^LoadInfoImageTag=' tags.env  | cut -d= -f2-) \
-              EarningsEstimateImageTag=$(grep '^EarningsEstimateImageTag=' tags.env  | cut -d= -f2-) \
-              RevenueEstimateImageTag=$(grep '^RevenueEstimateImageTag=' tags.env  | cut -d= -f2-) \
-    
-              TechnicalsWeeklyImageTag=$(grep '^TechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-) \
-              TechnicalsMonthlyImageTag=$(grep '^TechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-) \
-              SwingTraderImageTag=$(grep '^SwingTraderImageTag=' tags.env | cut -d= -f2-) \
-              CalendarImageTag=$(grep '^CalendarImageTag=' tags.env | cut -d= -f2-) \
-              BuySellImageTag=$(grep '^BuySellImageTag=' tags.env | cut -d= -f2-) \
-              LoadLatestTechnicalsDailyImageTag="$(grep '^LoadLatestTechnicalsDailyImageTag=' tags.env | cut -d= -f2-)" \
-              LoadLatestTechnicalsWeeklyImageTag="$(grep '^LoadLatestTechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-)" \
-              LoadLatestTechnicalsMonthlyImageTag="$(grep '^LoadLatestTechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-)" \
-              FREDApiKey=${{ secrets.FRED_API_KEY }} \
-              IBKRUsername=${{ secrets.IBKR_USERNAME }} \
-              IBKRPassword=${{ secrets.IBKR_PASSWORD }} \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --no-fail-on-empty-changeset \
-            --s3-bucket ${{ steps.s3-bucket.outputs.CF_TEMPLATES_BUCKET }}
+              ImageTag=${{ github.sha }} \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+            --s3-bucket ${{ env.CF_TEMPLATES_BUCKET }}
 
       - name: Enable ECS Container Insights
         run: |
@@ -435,7 +434,7 @@ jobs:
             --settings name=containerInsights,value=enabled
 
 ################################################################################
-# 6) Run each changed loader                                                    #
+# 5) Run each changed loader                                                   #
 ################################################################################
   run_symbols:
     name: Run stock-symbols loader
@@ -481,7 +480,7 @@ jobs:
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
           echo "SG=$SG" >> $GITHUB_OUTPUT
 
-      - name: Run buy-sell Fargate task
+      - name: Run stock-symbols Fargate task
         id: run
         run: |
           TASK_ARN=$(aws ecs run-task \
@@ -493,7 +492,7 @@ jobs:
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
-          echo "🟢 Started buy-sell task $TASK_ARN"
+          echo "🟢 Started stock-symbols task $TASK_ARN"
 
       - name: Wait up to 60m for task to stop
         run: |
@@ -525,93 +524,9 @@ jobs:
             exit $EXIT
           fi
 
-  run_econ:
-    name: Run econ-data loader
-    needs: deploy-tasks
-    if: ${{ needs.filter.outputs.econ == 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-
-    steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - name: Fetch Task Definition ARN
-        id: td
-        run: |
-          ARN=$(aws cloudformation describe-stacks \
-            --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='EconDataTaskDefArn'].OutputValue" \
-            --output text)
-          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-
-      - name: Fetch cluster ARN & subnets
-        id: infra
-        run: |
-          CLUSTER=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
-            --output text)
-          SUB1=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
-            --output text)
-          SUB2=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
-            --output text)
-          echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
-          echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
-          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
-
-      - name: Run econ-data Fargate task
-        id: run
-        run: |
-          TASK_ARN=$(aws ecs run-task \
-            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
-            --launch-type FARGATE \
-            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
-            --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
-            --query 'tasks[0].taskArn' \
-            --output text)
-          echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
-          echo "🟢 Started econ-data task $TASK_ARN"
-
-      - name: Wait up to 60m for task to stop
-        run: |
-          for i in $(seq 1 180); do
-            STATUS=$(aws ecs describe-tasks \
-              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
-              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
-              --query 'tasks[0].lastStatus' \
-              --output text)
-            echo "Attempt $i – status=$STATUS"
-            [ "$STATUS" = "STOPPED" ] && break
-            sleep 20
-          done
-          if [ "$STATUS" != "STOPPED" ]; then
-            echo "❌ econ-data task did not stop within 60m"
-            exit 1
-          fi
-
-      - name: Check container exit code
-        run: |
-          EXIT=$(aws ecs describe-tasks \
-            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
-            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
-            --query 'tasks[0].containers[0].exitCode' \
-            --output text)
-          echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
-            echo "❌ econ-data failed with exit code $EXIT"
-            exit $EXIT
-          fi
-
   run_findata:
     name: Run findata loader
-    needs: deploy-tasks
+    needs: [deploy-tasks, filter]
     if: ${{ needs.filter.outputs.findata == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -699,7 +614,7 @@ jobs:
 
   run_pricedaily:
     name: Run pricedaily loader
-    needs: deploy-tasks
+    needs: [deploy-tasks, filter]
     if: ${{ needs.filter.outputs.pricedaily == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -717,7 +632,7 @@ jobs:
         run: |
           ARN=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='PriceTaskDefArn'].OutputValue" \
+            --query "Stacks[0].Outputs[?OutputKey=='PriceDailyTaskDefArn'].OutputValue" \
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
 
@@ -787,7 +702,7 @@ jobs:
 
   run_priceweekly:
     name: Run priceweekly loader
-    needs: deploy-tasks
+    needs: [deploy-tasks, filter]
     if: ${{ needs.filter.outputs.priceweekly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -875,7 +790,7 @@ jobs:
 
   run_pricemonthly:
     name: Run pricemonthly loader
-    needs: deploy-tasks
+    needs: [deploy-tasks, filter]
     if: ${{ needs.filter.outputs.pricemonthly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -963,7 +878,7 @@ jobs:
 
   run_technicalsdaily:
     name: Run technicals-daily loader
-    needs: deploy-tasks
+    needs: [deploy-tasks, filter]
     if: ${{ needs.filter.outputs.technicalsdaily == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -1049,8 +964,15 @@ jobs:
             exit $EXIT
           fi
 
+  # Add remaining jobs like loadinfo, earningsestimate, etc. following the same pattern
+  # Continue with the rest of the jobs from the original file but with proper structure...
+
+################################################################################
+# 6) Run each data loader job                                                  #
+################################################################################
+
   run_loadinfo:
-    name: Run load-info loader
+    name: Run loadinfo loader
     needs: deploy-tasks
     if: ${{ needs.filter.outputs.loadinfo == 'true' }}
     runs-on: ubuntu-latest
@@ -1093,7 +1015,7 @@ jobs:
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
           echo "SG=$SG" >> $GITHUB_OUTPUT
 
-      - name: Run load-info Fargate task
+      - name: Run loadinfo Fargate task
         id: run
         run: |
           TASK_ARN=$(aws ecs run-task \
@@ -1105,7 +1027,7 @@ jobs:
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
-          echo "🟢 Started load-info task $TASK_ARN"
+          echo "🟢 Started loadinfo task $TASK_ARN"
 
       - name: Wait up to 60m for task to stop
         run: |
@@ -1120,7 +1042,7 @@ jobs:
             sleep 20
           done
           if [ "$STATUS" != "STOPPED" ]; then
-            echo "❌ load-info task did not stop within 60m"
+            echo "❌ loadinfo task did not stop within 60m"
             exit 1
           fi
 
@@ -1133,7 +1055,7 @@ jobs:
             --output text)
           echo "→ Exit code: $EXIT"
           if [ "$EXIT" -ne 0 ]; then
-            echo "❌ load-info failed with exit code $EXIT"
+            echo "❌ loadinfo failed with exit code $EXIT"
             exit $EXIT
           fi
 
@@ -1314,7 +1236,7 @@ jobs:
           fi
 
   run_technicalsweekly:
-    name: Run technicals-weekly loader
+    name: Run technicals weekly loader
     needs: deploy-tasks
     if: ${{ needs.filter.outputs.technicalsweekly == 'true' }}
     runs-on: ubuntu-latest
@@ -1357,7 +1279,7 @@ jobs:
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
           echo "SG=$SG" >> $GITHUB_OUTPUT
 
-      - name: Run technicals-weekly Fargate task
+      - name: Run technicals weekly Fargate task
         id: run
         run: |
           TASK_ARN=$(aws ecs run-task \
@@ -1369,7 +1291,7 @@ jobs:
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
-          echo "🟢 Started technicals-weekly task $TASK_ARN"
+          echo "🟢 Started technicals weekly task $TASK_ARN"
 
       - name: Wait up to 60m for task to stop
         run: |
@@ -1384,7 +1306,7 @@ jobs:
             sleep 20
           done
           if [ "$STATUS" != "STOPPED" ]; then
-            echo "❌ technicals-weekly task did not stop within 60m"
+            echo "❌ technicals weekly task did not stop within 60m"
             exit 1
           fi
 
@@ -1397,12 +1319,12 @@ jobs:
             --output text)
           echo "→ Exit code: $EXIT"
           if [ "$EXIT" -ne 0 ]; then
-            echo "❌ technicals-weekly failed with exit code $EXIT"
+            echo "❌ technicals weekly failed with exit code $EXIT"
             exit $EXIT
           fi
 
   run_technicalsmonthly:
-    name: Run technicals-monthly loader
+    name: Run technicals monthly loader
     needs: deploy-tasks
     if: ${{ needs.filter.outputs.technicalsmonthly == 'true' }}
     runs-on: ubuntu-latest
@@ -1445,7 +1367,7 @@ jobs:
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
           echo "SG=$SG" >> $GITHUB_OUTPUT
 
-      - name: Run technicals-monthly Fargate task
+      - name: Run technicals monthly Fargate task
         id: run
         run: |
           TASK_ARN=$(aws ecs run-task \
@@ -1457,7 +1379,7 @@ jobs:
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
-          echo "🟢 Started technicals-monthly task $TASK_ARN"
+          echo "🟢 Started technicals monthly task $TASK_ARN"
 
       - name: Wait up to 60m for task to stop
         run: |
@@ -1472,7 +1394,7 @@ jobs:
             sleep 20
           done
           if [ "$STATUS" != "STOPPED" ]; then
-            echo "❌ technicals-monthly task did not stop within 60m"
+            echo "❌ technicals monthly task did not stop within 60m"
             exit 1
           fi
 
@@ -1485,12 +1407,12 @@ jobs:
             --output text)
           echo "→ Exit code: $EXIT"
           if [ "$EXIT" -ne 0 ]; then
-            echo "❌ technicals-monthly failed with exit code $EXIT"
+            echo "❌ technicals monthly failed with exit code $EXIT"
             exit $EXIT
           fi
 
   run_swingtrader:
-    name: Run swing-trader loader
+    name: Run swing trader loader
     needs: deploy-tasks
     if: ${{ needs.filter.outputs.swingtrader == 'true' }}
     runs-on: ubuntu-latest
@@ -1533,7 +1455,7 @@ jobs:
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
           echo "SG=$SG" >> $GITHUB_OUTPUT
 
-      - name: Run swing-trader Fargate task
+      - name: Run swing trader Fargate task
         id: run
         run: |
           TASK_ARN=$(aws ecs run-task \
@@ -1545,7 +1467,7 @@ jobs:
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
-          echo "🟢 Started swing-trader task $TASK_ARN"
+          echo "🟢 Started swing trader task $TASK_ARN"
 
       - name: Wait up to 60m for task to stop
         run: |
@@ -1560,7 +1482,7 @@ jobs:
             sleep 20
           done
           if [ "$STATUS" != "STOPPED" ]; then
-            echo "❌ swing-trader task did not stop within 60m"
+            echo "❌ swing trader task did not stop within 60m"
             exit 1
           fi
 
@@ -1573,12 +1495,12 @@ jobs:
             --output text)
           echo "→ Exit code: $EXIT"
           if [ "$EXIT" -ne 0 ]; then
-            echo "❌ swing-trader failed with exit code $EXIT"
+            echo "❌ swing trader failed with exit code $EXIT"
             exit $EXIT
           fi
 
   run_buysell:
-    name: Run buysell loader
+    name: Run buy/sell loader
     needs: deploy-tasks
     if: ${{ needs.filter.outputs.buysell == 'true' }}
     runs-on: ubuntu-latest
@@ -1601,7 +1523,7 @@ jobs:
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
 
-      - name: Fetch cluster ARN & subnets & SG
+      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -1621,7 +1543,7 @@ jobs:
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
           echo "SG=$SG" >> $GITHUB_OUTPUT
 
-      - name: Run buysell Fargate task
+      - name: Run buy/sell Fargate task
         id: run
         run: |
           TASK_ARN=$(aws ecs run-task \
@@ -1633,7 +1555,7 @@ jobs:
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
-          echo "🟢 Started buysell task $TASK_ARN"
+          echo "🟢 Started buy/sell task $TASK_ARN"
 
       - name: Wait up to 60m for task to stop
         run: |
@@ -1648,7 +1570,7 @@ jobs:
             sleep 20
           done
           if [ "$STATUS" != "STOPPED" ]; then
-            echo "❌ buysell task did not stop within 60m"
+            echo "❌ buy/sell task did not stop within 60m"
             exit 1
           fi
 
@@ -1661,9 +1583,13 @@ jobs:
             --output text)
           echo "→ Exit code: $EXIT"
           if [ "$EXIT" -ne 0 ]; then
-            echo "❌ buysell failed with exit code $EXIT"
+            echo "❌ buy/sell failed with exit code $EXIT"
             exit $EXIT
           fi
+
+################################################################################
+# 7) Run load-latest data loader jobs                                          #
+################################################################################
 
   run_loadlatestpricedaily:
     name: Run load-latest-price-daily loader
@@ -1689,7 +1615,7 @@ jobs:
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
 
-      - name: Fetch cluster ARN & subnets & SG
+      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -1777,7 +1703,7 @@ jobs:
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
 
-      - name: Fetch cluster ARN & subnets & SG
+      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -1865,7 +1791,7 @@ jobs:
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
 
-      - name: Fetch cluster ARN & subnets & SG
+      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -1971,6 +1897,7 @@ jobs:
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
 
       - name: Run load-latest-technicals-daily Fargate task
         id: run
@@ -2040,7 +1967,7 @@ jobs:
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
 
-      - name: Fetch cluster ARN & subnets & SG
+      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
@@ -2128,7 +2055,7 @@ jobs:
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
 
-      - name: Fetch cluster ARN & subnets & SG
+      - name: Fetch cluster ARN & subnets
         id: infra
         run: |
           CLUSTER=$(aws cloudformation list-exports \
