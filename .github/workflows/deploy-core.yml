@@ -1,4 +1,4 @@
-  # .github/workflows/deploy-core.yml
+# .github/workflows/deploy-core.yml
   name: Deploy core infrastructure
 
   on:
@@ -44,6 +44,7 @@
             aws cloudformation deploy \
               --stack-name stocks-core-stack \
               --template-file template-core.yml \
+              --s3-bucket stocks-cf-templates \
               --capabilities CAPABILITY_NAMED_IAM \
               --no-fail-on-empty-changeset
 

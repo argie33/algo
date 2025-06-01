@@ -27,36 +27,21 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Configure AWS credentials
+        uses: actions/checkout@v3      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Fetch CF templates bucket name
-        id: cfbucket
+      - name: Get CloudFormation templates S3 bucket from exports
+        id: s3-bucket
         run: |
-          BUCKET=$(aws cloudformation list-exports \
+          CF_TEMPLATES_BUCKET=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
             --output text)
-          echo "CF_TEMPLATES_BUCKET=$BUCKET" >> $GITHUB_ENV
-
-      - name: Ensure CloudFormation templates S3 bucket exists
-        run: |
-          # Check if bucket exists, if not create it
-          if ! aws s3api head-bucket --bucket ${{ env.CF_TEMPLATES_BUCKET }} 2>/dev/null; then
-            echo "Creating S3 bucket: ${{ env.CF_TEMPLATES_BUCKET }}"
-            aws s3 mb s3://${{ env.CF_TEMPLATES_BUCKET }}
-            # Enable versioning for better template management
-            aws s3api put-bucket-versioning \
-              --bucket ${{ env.CF_TEMPLATES_BUCKET }} \
-              --versioning-configuration Status=Enabled
-          else
-            echo "S3 bucket ${{ env.CF_TEMPLATES_BUCKET }} already exists"
-          fi
+          echo "CF_TEMPLATES_BUCKET=$CF_TEMPLATES_BUCKET" >> $GITHUB_OUTPUT
+          echo "Using S3 bucket: $CF_TEMPLATES_BUCKET"
 
       - name: Deploy application stack
         run: |
@@ -68,7 +53,7 @@ jobs:
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-            --s3-bucket ${{ env.CF_TEMPLATES_BUCKET }}
+            --s3-bucket ${{ steps.s3-bucket.outputs.CF_TEMPLATES_BUCKET }}
 
 ################################################################################
 # 2) Detect changed components                                                 #
@@ -343,36 +328,21 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Configure AWS credentials
+        uses: actions/checkout@v3      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Fetch CF templates bucket name
-        id: cfbucket
+      - name: Get CloudFormation templates S3 bucket from exports
+        id: s3-bucket
         run: |
-          BUCKET=$(aws cloudformation list-exports \
+          CF_TEMPLATES_BUCKET=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
             --output text)
-          echo "CF_TEMPLATES_BUCKET=$BUCKET" >> $GITHUB_ENV
-
-      - name: Ensure CloudFormation templates S3 bucket exists
-        run: |
-          # Check if bucket exists, if not create it
-          if ! aws s3api head-bucket --bucket ${{ env.CF_TEMPLATES_BUCKET }} 2>/dev/null; then
-            echo "Creating S3 bucket: ${{ env.CF_TEMPLATES_BUCKET }}"
-            aws s3 mb s3://${{ env.CF_TEMPLATES_BUCKET }}
-            # Enable versioning for better template management
-            aws s3api put-bucket-versioning \
-              --bucket ${{ env.CF_TEMPLATES_BUCKET }} \
-              --versioning-configuration Status=Enabled
-          else
-            echo "S3 bucket ${{ env.CF_TEMPLATES_BUCKET }} already exists"
-          fi
+          echo "CF_TEMPLATES_BUCKET=$CF_TEMPLATES_BUCKET" >> $GITHUB_OUTPUT
+          echo "Using S3 bucket: $CF_TEMPLATES_BUCKET"
 
       - name: Download all build-tag artifacts
         uses: actions/download-artifact@v4
@@ -450,7 +420,7 @@ jobs:
               IBKRPassword=${{ secrets.IBKR_PASSWORD }} \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset \
-            --s3-bucket ${{ env.CF_TEMPLATES_BUCKET }}
+            --s3-bucket ${{ steps.s3-bucket.outputs.CF_TEMPLATES_BUCKET }}
 
       - name: Enable ECS Container Insights
         run: |
