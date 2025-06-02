@@ -17,7 +17,7 @@ env:
 
 jobs:
 ################################################################################
-# 1) Deploy core infrastructure (RDS, Secrets, ECS cluster)                    #
+# 1) Deploy core infrastructure (RDS, Secrets, ECS cluster)                    # 
 ################################################################################
   infra:
     name: Deploy application stack
@@ -54,7 +54,7 @@ jobs:
               RDSUsername=${{ secrets.RDS_USERNAME }} \
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
-            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM 
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}
 
 ################################################################################
@@ -673,8 +673,8 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='EconDataTaskDefArn'].OutputValue" \
             --output text)
-          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT 
+             
       - name: Fetch cluster ARN & subnets
         id: infra
         run: |
@@ -687,9 +687,13 @@ jobs:
           SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
 
       - name: Run econ-data Fargate task
         id: run
