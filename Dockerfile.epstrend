@@ -1,0 +1,12 @@
+FROM python:3.9-slim
+
+WORKDIR /app
+
+COPY requirements-loadepstrend.txt .
+RUN pip install --no-cache-dir -r requirements-loadepstrend.txt
+
+COPY loadepstrend.py .
+
+ENV PYTHONUNBUFFERED=1
+
+CMD ["python", "loadepstrend.py"]

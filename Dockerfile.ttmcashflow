@@ -1,0 +1,12 @@
+FROM python:3.9-slim
+
+WORKDIR /app
+
+COPY requirements-loadttmcashflow.txt .
+RUN pip install --no-cache-dir -r requirements-loadttmcashflow.txt
+
+COPY loadttmcashflow.py .
+
+ENV PYTHONUNBUFFERED=1
+
+CMD ["python", "loadttmcashflow.py"]

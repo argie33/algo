@@ -1,0 +1,12 @@
+FROM python:3.9-slim
+
+WORKDIR /app
+
+COPY requirements-loadttmincomestmt.txt .
+RUN pip install --no-cache-dir -r requirements-loadttmincomestmt.txt
+
+COPY loadttmincomestmt.py .
+
+ENV PYTHONUNBUFFERED=1
+
+CMD ["python", "loadttmincomestmt.py"]

@@ -1,0 +1,12 @@
+FROM python:3.9-slim
+
+WORKDIR /app
+
+COPY requirements-loadgrowthestimates.txt .
+RUN pip install --no-cache-dir -r requirements-loadgrowthestimates.txt
+
+COPY loadgrowthestimates.py .
+
+ENV PYTHONUNBUFFERED=1
+
+CMD ["python", "loadgrowthestimates.py"]
