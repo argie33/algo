@@ -536,8 +536,8 @@ jobs:
               RecommendationsImageTag=$(grep '^RecommendationsImageTag=' tags.env | cut -d= -f2-) \
               BalanceSheetImageTag=$(grep '^BalanceSheetImageTag=' tags.env | cut -d= -f2-) \
               CashFlowImageTag=$(grep '^CashFlowImageTag=' tags.env | cut -d= -f2-) \
-              EPSRevisionsImageTag=$(grep '^EPSRevisionsImageTag=' tags.env | cut -d= -f2-) \
-              EPSTrendImageTag=$(grep '^EPSTrendImageTag=' tags.env | cut -d= -f2-) \
+              EpsRevisionsImageTag=$(grep '^EPSRevisionsImageTag=' tags.env | cut -d= -f2-) \
+              EpsTrendImageTag=$(grep '^EPSTrendImageTag=' tags.env | cut -d= -f2-) \
               GrowthEstimatesImageTag=$(grep '^GrowthEstimatesImageTag=' tags.env | cut -d= -f2-) \
               IncomeStmtImageTag=$(grep '^IncomeStmtImageTag=' tags.env | cut -d= -f2-) \
               QuarterlyBalanceSheetImageTag=$(grep '^QuarterlyBalanceSheetImageTag=' tags.env | cut -d= -f2-) \
