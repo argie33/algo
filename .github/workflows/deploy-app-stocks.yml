@@ -2395,7 +2395,9 @@ jobs:
           if [ "$STATUS" != "STOPPED" ]; then
             echo "❌ Recommendations task did not stop within 60m"
             exit 1
-          fi      - name: Check container exit code
+          fi
+          
+      - name: Check container exit code
         run: |
           EXIT=$(aws ecs describe-tasks \
             --cluster "${{ steps.infra.outputs.CLUSTER }}" \

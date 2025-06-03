@@ -1,0 +1,47 @@
+[33mcommit a07734717b0400907186b4aa728d7138d4722a70[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mloadfundamentals[m[33m)[m
+Author: E A <ea@example.com>
+Date:   Mon Jun 2 17:39:17 2025 -0500
+
+    data load
+
+M	.github/workflows/deploy-app-stocks.yml
+A	.github/workflows/new-loaders-part1.yml
+A	.github/workflows/new-loaders-part2.yml
+A	Dockerfile.balancesheet
+A	Dockerfile.cashflow
+A	Dockerfile.epsrevisions
+A	Dockerfile.epstrend
+A	Dockerfile.growthestimates
+A	Dockerfile.incomestmt
+A	Dockerfile.quarterlybalancesheet
+A	Dockerfile.quarterlycashflow
+A	Dockerfile.quarterlyincomestmt
+A	Dockerfile.recommendations
+A	Dockerfile.ttmcashflow
+A	Dockerfile.ttmincomestmt
+M	earnings_test.py
+A	loadbalancesheet.py
+A	loadcashflow.py
+A	loadepsrevisions.py
+A	loadepstrend.py
+A	loadgrowthestimates.py
+A	loadincomestmt.py
+A	loadquarterlybalancesheet.py
+A	loadquarterlycashflow.py
+A	loadquarterlyincomestmt.py
+A	loadrecommendations.py
+A	loadttmcashflow.py
+A	loadttmincomestmt.py
+A	requirements-loadbalancesheet.txt
+A	requirements-loadcashflow.txt
+A	requirements-loadepsrevisions.txt
+A	requirements-loadepstrend.txt
+A	requirements-loadgrowthestimates.txt
+A	requirements-loadincomestmt.txt
+A	requirements-loadquarterlybalancesheet.txt
+A	requirements-loadquarterlycashflow.txt
+A	requirements-loadquarterlyincomestmt.txt
+A	requirements-loadrecommendations.txt
+A	requirements-loadttmcashflow.txt
+A	requirements-loadttmincomestmt.txt
+M	template-app-ecs-tasks.yml
