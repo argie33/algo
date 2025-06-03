@@ -380,6 +380,7 @@ jobs:
                   --query 'repositories[0].repositoryUri' --output text)
           aws ecr get-login-password --region $AWS_REGION | \
             docker login --username AWS --password-stdin "$URI"
+          
           case "${{ matrix.loader }}" in
             symbols)          DOCKERFILE=Dockerfile.stocksymbols;   PARAM=StockSymbolsImageTag;;\
             econ)             DOCKERFILE=Dockerfile.econdata;       PARAM=EconDataImageTag;;\
