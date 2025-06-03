@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3 
 """
 Load TTM Income Statement data from Yahoo Finance API and store in database.
 """
