@@ -1465,11 +1465,9 @@ Resources:
           SecurityGroups:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
-
   ########################################
   # L) revenueestimate loader           #
-  ########################################
-  RevenueEstimateTaskDefinition:
+  ########################################  RevenueEstimateTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: revenueestimate-loader
@@ -1504,8 +1502,7 @@ Resources:
               awslogs-group: /ecs/revenueestimate-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
-              awslogs-create-group: 'true'
-  RevenueEstimateLoaderService:
+              awslogs-create-group: 'true'  RevenueEstimateLoaderService:
     Type: AWS::ECS::Service
     Properties:
       ServiceName: revenueestimate-loader-service
@@ -1517,6 +1514,10 @@ Resources:
         AwsvpcConfiguration:
           Subnets:
             - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
             - !ImportValue StocksCore-PublicSubnet2Id
           SecurityGroups:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
@@ -3023,12 +3024,12 @@ Outputs:
     Value: !Ref TechnicalsWeeklyTaskDefinition
     Export:
       Name: TechnicalsWeeklyTaskDefArn
-
   TechnicalsMonthlyTaskDefArn:
     Description: ARN of the ECS TaskDefinition for technicals-monthly loader
     Value: !Ref TechnicalsMonthlyTaskDefinition
     Export:
       Name: TechnicalsMonthlyTaskDefArn
+      
   RevenueEstimateTaskDefArn:
     Description: "ARN of the Revenue Estimate ECS Task Definition"
     Value: !Ref RevenueEstimateTaskDefinition

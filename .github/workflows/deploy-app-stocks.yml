@@ -2600,13 +2600,13 @@ jobs:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
+    
       - name: Fetch Task Definition ARN
         id: td
         run: |
           ARN=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='EPSRevisionsTaskDefArn'].OutputValue" \
+            --query "Stacks[0].Outputs[?OutputKey=='EpsRevisionsTaskDefArn'].OutputValue" \
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
 
@@ -2681,20 +2681,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
-    steps:
+    steps:      
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
+          
       - name: Fetch Task Definition ARN
         id: td
         run: |
           ARN=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='EPSTrendTaskDefArn'].OutputValue" \
+            --query "Stacks[0].Outputs[?OutputKey=='EpsTrendTaskDefArn'].OutputValue" \
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
 
