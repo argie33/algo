@@ -71,8 +71,8 @@ def get_stock_symbols():
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Get active symbols
-        cur.execute("SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol")
+        # Get all symbols
+        cur.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
         symbols = [row[0] for row in cur.fetchall()]
         
         cur.close()

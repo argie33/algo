@@ -1467,7 +1467,8 @@ Resources:
           AssignPublicIp: ENABLED
   ########################################
   # L) revenueestimate loader           #
-  ########################################  RevenueEstimateTaskDefinition:
+  ########################################  
+  RevenueEstimateTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: revenueestimate-loader
@@ -1502,7 +1503,9 @@ Resources:
               awslogs-group: /ecs/revenueestimate-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
-              awslogs-create-group: 'true'  RevenueEstimateLoaderService:
+              awslogs-create-group: 'true'
+              
+  RevenueEstimateLoaderService:
     Type: AWS::ECS::Service
     Properties:
       ServiceName: revenueestimate-loader-service
@@ -1514,10 +1517,6 @@ Resources:
         AwsvpcConfiguration:
           Subnets:
             - !ImportValue StocksCore-PublicSubnet1Id
-            - !ImportValue StocksCore-PublicSubnet2Id
-          SecurityGroups:
-            - !ImportValue StocksApp-EcsTasksSecurityGroupId
-          AssignPublicIp: ENABLED
             - !ImportValue StocksCore-PublicSubnet2Id
           SecurityGroups:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
