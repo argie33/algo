@@ -1507,6 +1507,20 @@ Resources:
               awslogs-create-group: 'true'
   RevenueEstimateLoaderService:
     Type: AWS::ECS::Service
+    Properties:
+      ServiceName: revenueestimate-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref RevenueEstimateTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
 
   ########################################
   # EPS Revisions loader                 #
