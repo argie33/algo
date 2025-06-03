@@ -2031,20 +2031,6 @@ Resources:
           SecurityGroups:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
-    Properties:
-      ServiceName: revenueestimate-loader-service
-      Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
-      DesiredCount: 0
-      TaskDefinition: !Ref RevenueEstimateTaskDefinition
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          Subnets:
-            - !ImportValue StocksCore-PublicSubnet1Id
-            - !ImportValue StocksCore-PublicSubnet2Id
-          SecurityGroups:
-            - !ImportValue StocksApp-EcsTasksSecurityGroupId
-          AssignPublicIp: ENABLED
 
   ########################################
   # M) technicalsweekly loader           #
