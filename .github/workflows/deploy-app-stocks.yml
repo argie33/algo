@@ -212,7 +212,7 @@ jobs:
             ttmincomestmt:
               - 'loadttmincomestmt.py'
               - 'Dockerfile.ttmincomestmt'
-              - 'requirements-loadttmincomestmt.txt'            
+              - 'requirements-loadttmincomestmt.txt'
             recommendations:
               - 'loadrecommendations.py'
               - 'Dockerfile.recommendations'
@@ -402,7 +402,7 @@ jobs:
             calendar)         DOCKERFILE=Dockerfile.loadcalendar;   PARAM=CalendarImageTag;;\
             buysell)          DOCKERFILE=Dockerfile.buysell;        PARAM=BuySellImageTag;;\
             latesttechnicalsdaily)   DOCKERFILE=Dockerfile.latesttechnicalsdaily;   PARAM=LatestTechnicalsDailyImageTag;;\
-            latesttechnicalsweekly)  DOCKERFILE=Dockerfile.latesttechnicalsweekly;  PARAM=LatestTechnicalsWeeklyImageTag;;\            
+            latesttechnicalsweekly)  DOCKERFILE=Dockerfile.latesttechnicalsweekly;  PARAM=LatestTechnicalsWeeklyImageTag;;\
             latesttechnicalsmonthly) DOCKERFILE=Dockerfile.latesttechnicalsmonthly; PARAM=LatestTechnicalsMonthlyImageTag;;\
             ttmcashflow)       DOCKERFILE=Dockerfile.ttmcashflow;   PARAM=TTMCashFlowImageTag;;\
             ttmincomestmt)     DOCKERFILE=Dockerfile.ttmincomestmt; PARAM=TTMIncomeStmtImageTag;;\
@@ -527,9 +527,9 @@ jobs:
               TechnicalsMonthlyImageTag=$(grep '^TechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-) \
               SwingTraderImageTag=$(grep '^SwingTraderImageTag=' tags.env | cut -d= -f2-) \
               CalendarImageTag=$(grep '^CalendarImageTag=' tags.env | cut -d= -f2-) \
-              BuySellImageTag=$(grep '^BuySellImageTag=' tags.env | cut -d= -f2-) \              
+              BuySellImageTag=$(grep '^BuySellImageTag=' tags.env | cut -d= -f2-) \
               LatestTechnicalsDailyImageTag=$(grep '^LatestTechnicalsDailyImageTag=' tags.env | cut -d= -f2-) \
-              LatestTechnicalsWeeklyImageTag=$(grep '^LatestTechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-) \              
+              LatestTechnicalsWeeklyImageTag=$(grep '^LatestTechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-) \
               LatestTechnicalsMonthlyImageTag=$(grep '^LatestTechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-) \
               TTMCashFlowImageTag=$(grep '^TTMCashFlowImageTag=' tags.env | cut -d= -f2-) \
               TTMIncomeStmtImageTag=$(grep '^TTMIncomeStmtImageTag=' tags.env | cut -d= -f2-) \
