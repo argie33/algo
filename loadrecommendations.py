@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3   
 """
 Load analyst recommendations data from Yahoo Finance API and store in database.
 """
