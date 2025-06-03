@@ -37,8 +37,8 @@ logging.basicConfig(
 )
 
 # Configure these based on your ECS task size
-MAX_WORKERS = min(os.cpu_count() or 1, 4)  # Limit to available CPUs or 4, whichever is smaller
-BATCH_SIZE = 100  # Number of symbols to process in each batch
+MAX_WORKERS = min(os.cpu_count() or 1, 3)  # Limit to available CPUs or 4, whichever is smaller
+BATCH_SIZE = 10  # Number of symbols to process in each batch
 DB_POOL_MIN = 2
 DB_POOL_MAX = 10
 
