@@ -380,42 +380,42 @@ jobs:
                   --query 'repositories[0].repositoryUri' --output text)
           aws ecr get-login-password --region $AWS_REGION | \
             docker login --username AWS --password-stdin "$URI"
+          
           case "${{ matrix.loader }}" in
-            symbols)          DOCKERFILE=Dockerfile.stocksymbols;   PARAM=StockSymbolsImageTag;;
-            econ)             DOCKERFILE=Dockerfile.econdata;       PARAM=EconDataImageTag;;
-            findata)          DOCKERFILE=Dockerfile.findata;        PARAM=FindataImageTag;;
-            pricedaily)       DOCKERFILE=Dockerfile.pricedaily;     PARAM=PriceImageTag;;
-            priceweekly)      DOCKERFILE=Dockerfile.priceweekly;    PARAM=PriceWeeklyImageTag;;
-            pricemonthly)     DOCKERFILE=Dockerfile.pricemonthly;   PARAM=PriceMonthlyImageTag;;
-            latestpricedaily)   DOCKERFILE=Dockerfile.latestpricedaily;   PARAM=LatestPriceDailyImageTag;;
-            latestpriceweekly)  DOCKERFILE=Dockerfile.latestpriceweekly;  PARAM=LatestPriceWeeklyImageTag;;
-            latestpricemonthly) DOCKERFILE=Dockerfile.latestpricemonthly; PARAM=LatestPriceMonthlyImageTag;;
-            loadinfo)         DOCKERFILE=Dockerfile.loadinfo;       PARAM=LoadInfoImageTag;;
-            earningsestimate) DOCKERFILE=Dockerfile.loadearningsestimate;   PARAM=EarningsEstimateImageTag;;
-            earningshistory)  DOCKERFILE=Dockerfile.loadearningshistory;   PARAM=EarningsHistoryImageTag;;
-            revenueestimate)  DOCKERFILE=Dockerfile.loadrevenueestimate;   PARAM=RevenueEstimateImageTag;;
-            technicalsdaily)  DOCKERFILE=Dockerfile.technicalsdaily; PARAM=TechnicalsDailyImageTag;;
-            technicalsweekly) DOCKERFILE=Dockerfile.technicalsweekly;PARAM=TechnicalsWeeklyImageTag;;
-            technicalsmonthly)DOCKERFILE=Dockerfile.technicalsmonthly;PARAM=TechnicalsMonthlyImageTag;;
-            swingtrader)      DOCKERFILE=Dockerfile.swingtrader;    PARAM=SwingTraderImageTag;;
-            calendar)         DOCKERFILE=Dockerfile.loadcalendar;   PARAM=CalendarImageTag;;
-            buysell)          DOCKERFILE=Dockerfile.buysell;        PARAM=BuySellImageTag;;            
-            latesttechnicalsdaily)   DOCKERFILE=Dockerfile.latesttechnicalsdaily;   PARAM=LatestTechnicalsDailyImageTag;;
-            latesttechnicalsweekly)  DOCKERFILE=Dockerfile.latesttechnicalsweekly;  PARAM=LatestTechnicalsWeeklyImageTag;;            
-            latesttechnicalsmonthly) DOCKERFILE=Dockerfile.latesttechnicalsmonthly; PARAM=LatestTechnicalsMonthlyImageTag;;
-            ttmcashflow)       DOCKERFILE=Dockerfile.ttmcashflow;   PARAM=TTMCashFlowImageTag;;
-            ttmincomestmt)     DOCKERFILE=Dockerfile.ttmincomestmt; PARAM=TTMIncomeStmtImageTag;;
-            recommendations)   DOCKERFILE=Dockerfile.recommendations; PARAM=RecommendationsImageTag;;
-            balancesheet)      DOCKERFILE=Dockerfile.balancesheet;  PARAM=BalanceSheetImageTag;;
-            cashflow)          DOCKERFILE=Dockerfile.cashflow;      PARAM=CashFlowImageTag;;
-            epsrevisions)      DOCKERFILE=Dockerfile.epsrevisions;  PARAM=EPSRevisionsImageTag;;
-            epstrend)          DOCKERFILE=Dockerfile.epstrend;      PARAM=EPSTrendImageTag;;
-            growthestimates)   DOCKERFILE=Dockerfile.growthestimates; PARAM=GrowthEstimatesImageTag;;
-            incomestmt)        DOCKERFILE=Dockerfile.incomestmt;    PARAM=IncomeStmtImageTag;;
-            quarterlybalancesheet) DOCKERFILE=Dockerfile.quarterlybalancesheet; PARAM=QuarterlyBalanceSheetImageTag;;
-            quarterlycashflow) DOCKERFILE=Dockerfile.quarterlycashflow; PARAM=QuarterlyCashFlowImageTag;;
-            quarterlyincomestmt) DOCKERFILE=Dockerfile.quarterlyincomestmt; PARAM=QuarterlyIncomeStmtImageTag;;
-            analystgrade)      DOCKERFILE=dockerfile.analystgrade;  PARAM=AnalystGradeImageTag;;
+            symbols)          DOCKERFILE=Dockerfile.stocksymbols;   PARAM=StockSymbolsImageTag;;\
+            econ)             DOCKERFILE=Dockerfile.econdata;       PARAM=EconDataImageTag;;\
+            findata)          DOCKERFILE=Dockerfile.findata;        PARAM=FindataImageTag;;\
+            pricedaily)       DOCKERFILE=Dockerfile.pricedaily;     PARAM=PriceImageTag;;\
+            priceweekly)      DOCKERFILE=Dockerfile.priceweekly;    PARAM=PriceWeeklyImageTag;;\
+            pricemonthly)     DOCKERFILE=Dockerfile.pricemonthly;   PARAM=PriceMonthlyImageTag;;\
+            latestpricedaily)   DOCKERFILE=Dockerfile.latestpricedaily;   PARAM=LatestPriceDailyImageTag;;\
+            latestpriceweekly)  DOCKERFILE=Dockerfile.latestpriceweekly;  PARAM=LatestPriceWeeklyImageTag;;\
+            latestpricemonthly) DOCKERFILE=Dockerfile.latestpricemonthly; PARAM=LatestPriceMonthlyImageTag;;\
+            loadinfo)         DOCKERFILE=Dockerfile.loadinfo;       PARAM=LoadInfoImageTag;;\
+            earningsestimate) DOCKERFILE=Dockerfile.loadearningsestimate;   PARAM=EarningsEstimateImageTag;;\
+            earningshistory)  DOCKERFILE=Dockerfile.loadearningshistory;   PARAM=EarningsHistoryImageTag;;\
+            revenueestimate)  DOCKERFILE=Dockerfile.loadrevenueestimate;   PARAM=RevenueEstimateImageTag;;\
+            technicalsdaily)  DOCKERFILE=Dockerfile.technicalsdaily; PARAM=TechnicalsDailyImageTag;;\
+            technicalsweekly) DOCKERFILE=Dockerfile.technicalsweekly;PARAM=TechnicalsWeeklyImageTag;;\
+            technicalsmonthly)DOCKERFILE=Dockerfile.technicalsmonthly;PARAM=TechnicalsMonthlyImageTag;;\
+            swingtrader)      DOCKERFILE=Dockerfile.swingtrader;    PARAM=SwingTraderImageTag;;\
+            calendar)         DOCKERFILE=Dockerfile.loadcalendar;   PARAM=CalendarImageTag;;\
+            buysell)          DOCKERFILE=Dockerfile.buysell;        PARAM=BuySellImageTag;;\
+            latesttechnicalsdaily)   DOCKERFILE=Dockerfile.latesttechnicalsdaily;   PARAM=LatestTechnicalsDailyImageTag;;\
+            latesttechnicalsweekly)  DOCKERFILE=Dockerfile.latesttechnicalsweekly;  PARAM=LatestTechnicalsWeeklyImageTag;;\            
+            latesttechnicalsmonthly) DOCKERFILE=Dockerfile.latesttechnicalsmonthly; PARAM=LatestTechnicalsMonthlyImageTag;;\
+            ttmcashflow)       DOCKERFILE=Dockerfile.ttmcashflow;   PARAM=TTMCashFlowImageTag;;\
+            ttmincomestmt)     DOCKERFILE=Dockerfile.ttmincomestmt; PARAM=TTMIncomeStmtImageTag;;\
+            recommendations)   DOCKERFILE=Dockerfile.recommendations; PARAM=RecommendationsImageTag;;\
+            balancesheet)      DOCKERFILE=Dockerfile.balancesheet;  PARAM=BalanceSheetImageTag;;\
+            cashflow)          DOCKERFILE=Dockerfile.cashflow;      PARAM=CashFlowImageTag;;\
+            epsrevisions)      DOCKERFILE=Dockerfile.epsrevisions;  PARAM=EPSRevisionsImageTag;;\
+            epstrend)          DOCKERFILE=Dockerfile.epstrend;      PARAM=EPSTrendImageTag;;\
+            growthestimates)   DOCKERFILE=Dockerfile.growthestimates; PARAM=GrowthEstimatesImageTag;;\
+            incomestmt)        DOCKERFILE=Dockerfile.incomestmt;    PARAM=IncomeStmtImageTag;;\
+            quarterlybalancesheet) DOCKERFILE=Dockerfile.quarterlybalancesheet; PARAM=QuarterlyBalanceSheetImageTag;;\
+            quarterlyincomestmt) DOCKERFILE=Dockerfile.quarterlyincomestmt; PARAM=QuarterlyIncomeStmtImageTag;;\
+            analystgrade)      DOCKERFILE=dockerfile.analystgrade;  PARAM=AnalystGradeImageTag;;\
           esac
           TAG=${{ matrix.loader }}-${{ github.sha }}
           docker buildx build \
