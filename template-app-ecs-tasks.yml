@@ -1228,6 +1228,7 @@ Resources:
           SecurityGroups:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
+          
   ########################################
   # I) pricemonthly loader               #
   ########################################
@@ -3050,6 +3051,31 @@ Resources:
                   - !ImportValue StocksApp-EcsTasksSecurityGroupId
                 AssignPublicIp: ENABLED
 
+  #############################################################
+  # Schedule: run loadinfo every weekday at 5:00 AM CT
+  #############################################################
+  LoadInfoScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Run loadinfo task at 5:00 AM CT (10:00 UTC) on weekdays"
+      ScheduleExpression: cron(0 10 ? * MON-FRI *)
+      State: ENABLED
+      Targets:
+        - Id: LoadInfo
+          Arn: !ImportValue StocksApp-ClusterArn
+          RoleArn: !GetAtt EventsInvokeEcsRole.Arn
+          EcsParameters:
+            LaunchType: FARGATE
+            TaskDefinitionArn: !Ref LoadInfoTaskDefinition
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+                
   #########################################
   # Outputs                               #
   #########################################
