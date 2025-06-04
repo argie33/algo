@@ -1,4 +1,7 @@
 #!/usr/bin/env python3 
+"""
+Load growth estimates data from Yahoo Finance API and store in database.
+"""
 import sys
 import time
 import logging
@@ -178,6 +181,7 @@ def update_last_run(conn):
     conn.commit()
 
 def main():
+    """Main function to load growth estimates data for all stocks."""
     conn = None
     try:
         user, pwd, host, port, dbname = get_db_config()
@@ -195,14 +199,14 @@ def main():
         conn.set_session(autocommit=False)
         
         ensure_tables(conn)
-
+        
         log_mem("Before fetching symbols")
         with conn.cursor() as cur:
             # Only get active symbols to reduce processing
             cur.execute("""
                 SELECT DISTINCT symbol 
                 FROM stock_symbols 
-                WHERE is_active = true
+                WHERE active = true
                 ORDER BY symbol;
             """)
             symbols = [r["symbol"] for r in cur.fetchall()]
