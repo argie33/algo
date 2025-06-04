@@ -72,7 +72,7 @@ def create_tables(cur):
             avg_estimate NUMERIC,
             low_estimate NUMERIC,
             high_estimate NUMERIC,
-            year_ago_sales NUMERIC,
+            year_ago_revenue NUMERIC,
             number_of_analysts INTEGER,
             growth NUMERIC,
             fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -125,7 +125,7 @@ def load_revenue_data(symbols, cur, conn):
                             pyval(row.get('avg')),
                             pyval(row.get('low')),
                             pyval(row.get('high')),
-                            pyval(row.get('yearAgoSales')),
+                            pyval(row.get('yearAgoRevenue')),
                             pyval(row.get('numberOfAnalysts')),
                             pyval(row.get('growth'))
                         ))
@@ -134,14 +134,14 @@ def load_revenue_data(symbols, cur, conn):
                         execute_values(cur, """
                             INSERT INTO revenue_estimates (
                                 symbol, period, avg_estimate, low_estimate,
-                                high_estimate, year_ago_sales, number_of_analysts,
+                                high_estimate, year_ago_revenue, number_of_analysts,
                                 growth
                             ) VALUES %s
                             ON CONFLICT (symbol, period) DO UPDATE SET
                                 avg_estimate = EXCLUDED.avg_estimate,
                                 low_estimate = EXCLUDED.low_estimate,
                                 high_estimate = EXCLUDED.high_estimate,
-                                year_ago_sales = EXCLUDED.year_ago_sales,
+                                year_ago_revenue = EXCLUDED.year_ago_revenue,
                                 number_of_analysts = EXCLUDED.number_of_analysts,
                                 growth = EXCLUDED.growth,
                                 fetched_at = CURRENT_TIMESTAMP

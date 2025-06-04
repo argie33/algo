@@ -401,8 +401,11 @@ Resources:
   ########################################
   # C) stock-symbols loader              #
   ########################################
+  
   StockSymbolsTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain    
     Properties:
       Family: stocksymbols-loader
       Cpu: "256"
@@ -460,6 +463,8 @@ Resources:
   ########################################
   EconDataTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: econdata-loader
       Cpu: "256"
@@ -521,6 +526,8 @@ Resources:
   ########################################
   PriceMonthlyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: pricemonthly-loader
       Cpu: "256"
@@ -578,6 +585,8 @@ Resources:
   ########################################
   FindataTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: findata-loader
       Cpu: "256"
@@ -635,6 +644,8 @@ Resources:
   ########################################
   PriceTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: pricedaily-loader
       Cpu: "256"
@@ -691,6 +702,8 @@ Resources:
   # H) priceweekly loader                #
   ########################################
   PriceWeeklyTaskDefinition:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: priceweekly-loader
@@ -747,233 +760,8 @@ Resources:
   # I) pricemonthly loader               #
   ########################################
   PriceMonthlyTaskDefinition:
-    Type: AWS::ECS::TaskDefinition
-    Properties:
-      Family: pricemonthly-loader
-      Cpu: "256"
-      Memory: "512"
-      NetworkMode: awsvpc
-      RequiresCompatibilities:
-        - FARGATE
-      RuntimePlatform:
-        CpuArchitecture: ARM64
-        OperatingSystemFamily: LINUX
-      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
-      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
-      ContainerDefinitions:
-        - Name: pricemonthly-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref PriceMonthlyImageTag]]
-          Essential: true
-          Environment:
-            - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksApp-SecretArn
-            - Name: DB_HOST
-              Value: !ImportValue StocksApp-DBEndpoint
-            - Name: DB_PORT
-              Value: !ImportValue StocksApp-DBPort
-            - Name: DB_NAME
-              Value: !ImportValue StocksApp-DBName
-            - Name: DB_USER
-              Value: !ImportValue StocksApp-DBUsername
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: /ecs/pricemonthly-loader
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: ecs
-              awslogs-create-group: 'true'
-
-  PriceMonthlyService:
-    Type: AWS::ECS::Service
-    Properties:
-      ServiceName: pricemonthly-loader-service
-      Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
-      DesiredCount: 0
-      TaskDefinition: !Ref PriceMonthlyTaskDefinition
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          Subnets:
-            - !ImportValue StocksCore-PublicSubnet1Id
-            - !ImportValue StocksCore-PublicSubnet2Id
-          SecurityGroups:
-            - !ImportValue StocksApp-EcsTasksSecurityGroupId
-          AssignPublicIp: ENABLED
-
-  ########################################
-  # F) findata loader                    #
-  ########################################
-  FindataTaskDefinition:
-    Type: AWS::ECS::TaskDefinition
-    Properties:
-      Family: findata-loader
-      Cpu: "256"
-      Memory: "512"
-      NetworkMode: awsvpc
-      RequiresCompatibilities:
-        - FARGATE
-      RuntimePlatform:
-        CpuArchitecture: ARM64
-        OperatingSystemFamily: LINUX
-      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
-      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
-      ContainerDefinitions:
-        - Name: findata-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref FindataImageTag]]
-          Essential: true
-          Environment:
-            - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksApp-SecretArn
-            - Name: DB_HOST
-              Value: !ImportValue StocksApp-DBEndpoint
-            - Name: DB_PORT
-              Value: !ImportValue StocksApp-DBPort
-            - Name: DB_NAME
-              Value: !ImportValue StocksApp-DBName
-            - Name: DB_USER
-              Value: !ImportValue StocksApp-DBUsername
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: /ecs/findata-loader
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: ecs
-              awslogs-create-group: 'true'
-
-  FindataLoaderService:
-    Type: AWS::ECS::Service
-    Properties:
-      ServiceName: findata-loader-service
-      Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
-      DesiredCount: 0
-      TaskDefinition: !Ref FindataTaskDefinition
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          Subnets:
-            - !ImportValue StocksCore-PublicSubnet1Id
-            - !ImportValue StocksCore-PublicSubnet2Id
-          SecurityGroups:
-            - !ImportValue StocksApp-EcsTasksSecurityGroupId
-          AssignPublicIp: ENABLED
-
-  ########################################
-  # G) pricedaily loader                 #
-  ########################################
-  PriceTaskDefinition:
-    Type: AWS::ECS::TaskDefinition
-    Properties:
-      Family: pricedaily-loader
-      Cpu: "256"
-      Memory: "512"
-      NetworkMode: awsvpc
-      RequiresCompatibilities:
-        - FARGATE
-      RuntimePlatform:
-        CpuArchitecture: ARM64
-        OperatingSystemFamily: LINUX
-      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
-      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
-      ContainerDefinitions:
-        - Name: pricedaily-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref PriceImageTag]]
-          Essential: true
-          Environment:
-            - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksApp-SecretArn
-            - Name: DB_HOST
-              Value: !ImportValue StocksApp-DBEndpoint
-            - Name: DB_PORT
-              Value: !ImportValue StocksApp-DBPort
-            - Name: DB_NAME
-              Value: !ImportValue StocksApp-DBName
-            - Name: DB_USER
-              Value: !ImportValue StocksApp-DBUsername
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: /ecs/pricedaily-loader
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: ecs
-              awslogs-create-group: 'true'
-
-  PriceLoaderService:
-    Type: AWS::ECS::Service
-    Properties:
-      ServiceName: pricedaily-loader-service
-      Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
-      DesiredCount: 0
-      TaskDefinition: !Ref PriceTaskDefinition
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          Subnets:
-            - !ImportValue StocksCore-PublicSubnet1Id
-            - !ImportValue StocksCore-PublicSubnet2Id
-          SecurityGroups:
-            - !ImportValue StocksApp-EcsTasksSecurityGroupId
-          AssignPublicIp: ENABLED
-
-  ########################################
-  # H) priceweekly loader                #
-  ########################################
-  PriceWeeklyTaskDefinition:
-    Type: AWS::ECS::TaskDefinition
-    Properties:
-      Family: priceweekly-loader
-      Cpu: "256"
-      Memory: "512"
-      NetworkMode: awsvpc
-      RequiresCompatibilities:
-        - FARGATE
-      RuntimePlatform:
-        CpuArchitecture: ARM64
-        OperatingSystemFamily: LINUX
-      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
-      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
-      ContainerDefinitions:
-        - Name: priceweekly-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref PriceWeeklyImageTag]]
-          Essential: true
-          Environment:
-            - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksApp-SecretArn
-            - Name: DB_HOST
-              Value: !ImportValue StocksApp-DBEndpoint
-            - Name: DB_PORT
-              Value: !ImportValue StocksApp-DBPort
-            - Name: DB_NAME
-              Value: !ImportValue StocksApp-DBName
-            - Name: DB_USER
-              Value: !ImportValue StocksApp-DBUsername
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: /ecs/priceweekly-loader
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: ecs
-              awslogs-create-group: 'true'
-
-  PriceWeeklyLoaderService:
-    Type: AWS::ECS::Service
-    Properties:
-      ServiceName: priceweekly-loader-service
-      Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
-      DesiredCount: 0
-      TaskDefinition: !Ref PriceWeeklyTaskDefinition
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          Subnets:
-            - !ImportValue StocksCore-PublicSubnet1Id
-            - !ImportValue StocksCore-PublicSubnet2Id
-          SecurityGroups:
-            - !ImportValue StocksApp-EcsTasksSecurityGroupId
-          AssignPublicIp: ENABLED
-  ########################################
-  # I) pricemonthly loader               #
-  ########################################
-  PriceMonthlyTaskDefinition:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: pricemonthly-loader
@@ -1032,6 +820,8 @@ Resources:
   ########################################
   FindataTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: findata-loader
       Cpu: "256"
@@ -1089,6 +879,8 @@ Resources:
   ########################################
   PriceTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: pricedaily-loader
       Cpu: "256"
@@ -1146,6 +938,8 @@ Resources:
   ########################################
   PriceWeeklyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: priceweekly-loader
       Cpu: "256"
@@ -1202,6 +996,245 @@ Resources:
   ########################################
   PriceMonthlyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Family: pricemonthly-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: pricemonthly-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref PriceMonthlyImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/pricemonthly-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  PriceMonthlyService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: pricemonthly-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref PriceMonthlyTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ########################################
+  # F) findata loader                    #
+  ########################################
+  FindataTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Family: findata-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: findata-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref FindataImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/findata-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  FindataLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: findata-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref FindataTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ########################################
+  # G) pricedaily loader                 #
+  ########################################
+  PriceTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Family: pricedaily-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: pricedaily-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref PriceImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/pricedaily-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  PriceLoaderService:
+    Type: AWS::ECS::Service
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      ServiceName: pricedaily-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref PriceTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ########################################
+  # H) priceweekly loader                #
+  ########################################
+  PriceWeeklyTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Family: priceweekly-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: priceweekly-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref PriceWeeklyImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/priceweekly-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  PriceWeeklyLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: priceweekly-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref PriceWeeklyTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+  ########################################
+  # I) pricemonthly loader               #
+  ########################################
+  PriceMonthlyTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: pricemonthly-loader
       Cpu: "256"
@@ -1259,6 +1292,8 @@ Resources:
   ########################################
   TechnicalsDailyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: technicalsdaily-loader
       Cpu: "256"
@@ -1316,6 +1351,8 @@ Resources:
   ########################################
   LoadInfoTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: loadinfo-loader
       Cpu: "256"
@@ -1360,11 +1397,15 @@ Resources:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
 
+
+
   ########################################
   # L) earnings estimate loader                   #
   ########################################
   EarningsEstimateTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: earningsestimate-loader
       Cpu: "256"
@@ -1414,6 +1455,8 @@ Resources:
   ########################################
   EarningsHistoryTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: earningshistory-loader
       Cpu: "256"
@@ -1470,6 +1513,8 @@ Resources:
   ########################################  
   RevenueEstimateTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: revenueestimate-loader
       Cpu: "256"
@@ -1527,6 +1572,8 @@ Resources:
   ########################################
   EpsRevisionsTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: epsrevisions-loader
       Cpu: "256"
@@ -1584,6 +1631,8 @@ Resources:
   ########################################
   EpsTrendTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: epstrend-loader
       Cpu: "256"
@@ -1641,6 +1690,8 @@ Resources:
   ########################################
   GrowthEstimatesTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: growthestimates-loader
       Cpu: "256"
@@ -1697,6 +1748,8 @@ Resources:
   ########################################
   QuarterlyIncomeStmtTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: quarterlyincomestmt-loader
       Cpu: "256"
@@ -1754,6 +1807,8 @@ Resources:
   ########################################
   IncomeStmtTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: incomestmt-loader
       Cpu: "256"
@@ -1810,6 +1865,8 @@ Resources:
   ########################################
   QuarterlyBalanceSheetTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: quarterlybalancesheet-loader
       Cpu: "256"
@@ -1867,6 +1924,8 @@ Resources:
   ########################################
   BalanceSheetTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: balancesheet-loader
       Cpu: "256"
@@ -1901,6 +1960,7 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
+
   BalanceSheetLoaderService:
     Type: AWS::ECS::Service
     Properties:
@@ -1923,6 +1983,8 @@ Resources:
   ########################################
   QuarterlyCashFlowTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: quarterlycashflow-loader
       Cpu: "256"
@@ -1980,6 +2042,8 @@ Resources:
   ########################################
   CashFlowTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: cashflow-loader
       Cpu: "256"
@@ -2037,6 +2101,8 @@ Resources:
   ########################################
   TechnicalsWeeklyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: technicalsweekly-loader
       Cpu: "256"
@@ -2086,6 +2152,8 @@ Resources:
   ########################################
   TechnicalsMonthlyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: technicalsmonthly-loader
       Cpu: "256"
@@ -2147,6 +2215,8 @@ Resources:
 
   SwingTraderTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: swingtrader-loader
       Cpu: "256"
@@ -2197,6 +2267,8 @@ Resources:
   ########################################
   BuySellTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: buysell-loader
       Cpu: "256"
@@ -2248,6 +2320,8 @@ Resources:
   ########################################
   LatestPriceDailyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: latestpricedaily-loader
       Cpu: "256"
@@ -2305,6 +2379,8 @@ Resources:
   ########################################
   LatestPriceWeeklyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: latestpriceweekly-loader
       Cpu: "256"
@@ -2362,6 +2438,8 @@ Resources:
   ########################################
   LatestPriceMonthlyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: latestpricemonthly-loader
       Cpu: "256"
@@ -2419,6 +2497,8 @@ Resources:
   ########################################
   LatestTechnicalsDailyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: latesttechnicalsdaily-loader
       Cpu: "256"
@@ -2476,6 +2556,8 @@ Resources:
   ########################################
   LatestTechnicalsWeeklyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: latesttechnicalsweekly-loader
       Cpu: "256"
@@ -2533,6 +2615,8 @@ Resources:
   ########################################
   LatestTechnicalsMonthlyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: latesttechnicalsmonthly-loader
       Cpu: "256"
@@ -2590,6 +2674,8 @@ Resources:
   ########################################
   TTMCashFlowTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: ttmcashflow-loader
       Cpu: "256"
@@ -2647,6 +2733,8 @@ Resources:
   ########################################
   TTMIncomeStmtTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: ttmincomestmt-loader
       Cpu: "256"
@@ -2704,6 +2792,8 @@ Resources:
   ########################################
   RecommendationsTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: recommendations-loader
       Cpu: "256"
