@@ -169,9 +169,22 @@ def process_symbol(symbol, conn):
         estimates_to_insert = []
         
         for period, row in growth_estimates.iterrows():
-            # Get the values and ensure they're properly converted to Python types
-            stock_trend = clean_value(row.get('stockTrend'))
-            index_trend = clean_value(row.get('indexTrend'))
+            # Explicitly convert NumPy types to Python native types
+            # Convert values directly to Python float or None to avoid NumPy types entirely
+            stock_trend = None
+            index_trend = None
+            
+            if 'stockTrend' in row and not pd.isna(row['stockTrend']):
+                try:
+                    stock_trend = float(row['stockTrend'])
+                except (TypeError, ValueError):
+                    stock_trend = None
+                    
+            if 'indexTrend' in row and not pd.isna(row['indexTrend']):
+                try:
+                    index_trend = float(row['indexTrend'])
+                except (TypeError, ValueError):
+                    index_trend = None
             
             estimates_to_insert.append((
                 symbol,
@@ -183,17 +196,31 @@ def process_symbol(symbol, conn):
         if not estimates_to_insert:
             logger.info(f"No growth estimates data found for {symbol}")
             return
-            
-        # Batch insert all growth estimates data
+              # Batch insert all growth estimates data
         with conn.cursor() as cur:
-            cur.executemany(
-                """
-                INSERT INTO growth_estimates 
-                (symbol, period, stock_trend, index_trend)
-                VALUES (%s, %s, %s, %s)
-                """,
-                estimates_to_insert
-            )
+            # Debug the actual values being sent to SQL to help diagnose any issues
+            logger.debug(f"Inserting records for {symbol}: {estimates_to_insert}")
+            
+            # Use a safer approach: insert one record at a time with better error handling
+            for record in estimates_to_insert:
+                try:
+                    # Verify types explicitly before insertion
+                    symbol_val = str(record[0])
+                    period_val = str(record[1])
+                    stock_trend_val = float(record[2]) if record[2] is not None else None
+                    index_trend_val = float(record[3]) if record[3] is not None else None
+                    
+                    # Use parameterized query with known Python types
+                    cur.execute("""
+                    INSERT INTO growth_estimates 
+                    (symbol, period, stock_trend, index_trend)
+                    VALUES (%s, %s, %s, %s)
+                    """, (symbol_val, period_val, stock_trend_val, index_trend_val))
+                except Exception as e:
+                    logger.error(f"Error inserting record {record} for {symbol}: {e}")
+                    # Continue with other records even if one fails
+                    continue
+        
         # Commit only if everything went well
         conn.commit()
 
