@@ -1,4 +1,6 @@
+# requirements for loadbalancesheet.py
 boto3
 pandas
-psycopg2
+psycopg2-binary
 yfinance
+numpy

@@ -1,12 +1,16 @@
+# Base Dockerfile for the fundamental loaders
 FROM python:3.9-slim
 
 WORKDIR /app
 
+# Copy requirements and install dependencies
 COPY requirements-loadquarterlycashflow.txt .
 RUN pip install --no-cache-dir -r requirements-loadquarterlycashflow.txt
 
+# Copy the application code
 COPY loadquarterlycashflow.py .
 
 ENV PYTHONUNBUFFERED=1
 
+# Run the script
 CMD ["python", "loadquarterlycashflow.py"]
