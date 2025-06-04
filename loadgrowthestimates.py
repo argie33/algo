@@ -201,12 +201,10 @@ def main():
         ensure_tables(conn)
         
         log_mem("Before fetching symbols")
-        with conn.cursor() as cur:
-            # Only get active symbols to reduce processing
+        with conn.cursor() as cur:            # Get all symbols
             cur.execute("""
                 SELECT DISTINCT symbol 
                 FROM stock_symbols 
-                WHERE active = true
                 ORDER BY symbol;
             """)
             symbols = [r["symbol"] for r in cur.fetchall()]
