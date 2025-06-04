@@ -13,6 +13,7 @@ from psycopg2.extras import DictCursor
 import yfinance as yf
 import pandas as pd
 import math
+import numpy as np
 
 # -------------------------------
 # Script metadata & logging setup
@@ -76,11 +77,26 @@ def retry(max_attempts=3, initial_delay=2, backoff=2):
     return decorator
 
 def clean_value(value):
-    """Convert NaN or pandas NAs to None."""
+    """Convert NaN or pandas NAs to None and NumPy types to Python types."""
     if isinstance(value, float) and math.isnan(value):
         return None
     if pd.isna(value):
         return None
+    
+    # Convert NumPy data types to native Python types
+    try:
+        # Handle numpy numeric types (convert to Python int/float)
+        if hasattr(value, 'dtype'):
+            if np.issubdtype(value.dtype, np.integer):
+                return int(value)
+            elif np.issubdtype(value.dtype, np.floating):
+                return float(value)
+        # Handle other potential numpy types
+        if hasattr(value, 'item'):
+            return value.item()
+    except (AttributeError, TypeError):
+        pass
+    
     return value
 
 def ensure_tables(conn):

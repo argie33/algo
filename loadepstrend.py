@@ -13,6 +13,7 @@ from psycopg2.extras import DictCursor
 import yfinance as yf
 import pandas as pd
 import math
+import numpy as np
 
 # -------------------------------
 # Script metadata & logging setup
@@ -76,11 +77,26 @@ def retry(max_attempts=3, initial_delay=2, backoff=2):
     return decorator
 
 def clean_value(value):
-    """Convert NaN or pandas NAs to None."""
+    """Convert NaN or pandas NAs to None and NumPy types to Python types."""
     if isinstance(value, float) and math.isnan(value):
         return None
     if pd.isna(value):
         return None
+    
+    # Convert NumPy data types to native Python types
+    try:
+        # Handle numpy numeric types (convert to Python int/float)
+        if hasattr(value, 'dtype'):
+            if np.issubdtype(value.dtype, np.integer):
+                return int(value)
+            elif np.issubdtype(value.dtype, np.floating):
+                return float(value)
+        # Handle other potential numpy types
+        if hasattr(value, 'item'):
+            return value.item()
+    except (AttributeError, TypeError):
+        pass
+    
     return value
 
 def ensure_tables(conn):
@@ -157,20 +173,25 @@ def process_symbol(symbol, conn):
     if not trend_to_insert:
         logger.info(f"No EPS trend data found for {symbol}")
         return
-        
-    # Batch insert all trend data
-    with conn.cursor() as cur:
-        cur.executemany(
-            """
-            INSERT INTO eps_trend 
-            (symbol, period, current, days7ago, days30ago, days60ago, days90ago)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """,
-            trend_to_insert
-        )
-    conn.commit()
-
-    logger.info(f"Successfully processed {len(trend_to_insert)} EPS trend records for {symbol}")
+    
+    # Use a separate connection for each symbol to isolate transactions
+    try:    
+        # Batch insert all trend data
+        with conn.cursor() as cur:
+            cur.executemany(
+                """
+                INSERT INTO eps_trend 
+                (symbol, period, current, days7ago, days30ago, days60ago, days90ago)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """,
+                trend_to_insert
+            )
+        conn.commit()
+        logger.info(f"Successfully processed {len(trend_to_insert)} EPS trend records for {symbol}")
+    except Exception as e:
+        conn.rollback()  # Explicitly rollback on error
+        logger.error(f"Database error for {symbol}: {e}")
+        raise
 
 def update_last_run(conn):
     """Stamp the last run time in last_updated."""
@@ -212,11 +233,11 @@ def main():
             """)
             symbols = [r["symbol"] for r in cur.fetchall()]
         log_mem("After fetching symbols")
-
+        
         total_symbols = len(symbols)
         processed = 0
         failed = 0
-
+        
         for sym in symbols:
             try:
                 log_mem(f"Processing {sym} ({processed + 1}/{total_symbols})")
@@ -227,8 +248,14 @@ def main():
                     time.sleep(0.5)
                 else:
                     time.sleep(0.1)
-            except Exception:
+            except Exception as e:
                 logger.exception(f"Failed to process {sym}")
+                # Make sure any aborted transaction is rolled back
+                try:
+                    conn.rollback()
+                except Exception:
+                    logger.exception("Error rolling back transaction")
+                    
                 failed += 1
                 if failed > total_symbols * 0.2:  # If more than 20% failed
                     logger.error("Too many failures, stopping process")

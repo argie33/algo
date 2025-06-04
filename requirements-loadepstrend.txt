@@ -1,4 +1,6 @@
+# filepath: c:\code\deploy\loadfundamentals\requirements-loadepstrend.txt
 boto3
 pandas
 psycopg2-binary
 yfinance
+numpy
