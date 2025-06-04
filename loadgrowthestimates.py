@@ -127,47 +127,70 @@ def log_mem(stage: str):
 @retry(max_attempts=3, initial_delay=2, backoff=2)
 def process_symbol(symbol, conn):
     """Fetch growth estimates via yfinance and insert into PostgreSQL."""
-    yf_symbol = symbol.upper().replace(".", "-")
-    ticker = yf.Ticker(yf_symbol)
-
-    # Try to get growth estimates data
+    # Create a savepoint at the beginning of processing this symbol
+    # This allows us to rollback just to this point if needed
     try:
-        growth_estimates = ticker.growth_estimates
-        if growth_estimates is None or growth_estimates.empty:
-            logger.warning(f"No growth estimates data for {symbol}")
-            return
+        with conn.cursor() as cur:
+            cur.execute("SAVEPOINT symbol_process")
     except Exception as e:
-        logger.error(f"Error fetching growth estimates data for {symbol}: {e}")
+        # If we can't create a savepoint, the transaction is likely already broken
+        conn.rollback()
+        logger.error(f"Error creating savepoint for {symbol}: {e}")
         raise
-
-    # Process each row in the growth estimates dataframe
-    estimates_to_insert = []
-    
-    for period, row in growth_estimates.iterrows():
-        estimates_to_insert.append((
-            symbol,
-            str(period),
-            clean_value(row.get('stockTrend')),
-            clean_value(row.get('indexTrend'))
-        ))
-    
-    if not estimates_to_insert:
-        logger.info(f"No growth estimates data found for {symbol}")
-        return
         
-    # Batch insert all growth estimates data
-    with conn.cursor() as cur:
-        cur.executemany(
-            """
-            INSERT INTO growth_estimates 
-            (symbol, period, stock_trend, index_trend)
-            VALUES (%s, %s, %s, %s)
-            """,
-            estimates_to_insert
-        )
-    conn.commit()
+    try:
+        yf_symbol = symbol.upper().replace(".", "-")
+        ticker = yf.Ticker(yf_symbol)
 
-    logger.info(f"Successfully processed {len(estimates_to_insert)} growth estimates records for {symbol}")
+        # Try to get growth estimates data
+        try:
+            growth_estimates = ticker.growth_estimates
+            if growth_estimates is None or growth_estimates.empty:
+                logger.warning(f"No growth estimates data for {symbol}")
+                return
+        except Exception as e:
+            logger.error(f"Error fetching growth estimates data for {symbol}: {e}")
+            conn.rollback()  # Rollback to clean state
+            raise
+
+        # Process each row in the growth estimates dataframe
+        estimates_to_insert = []
+        
+        for period, row in growth_estimates.iterrows():
+            estimates_to_insert.append((
+                symbol,
+                str(period),
+                clean_value(row.get('stockTrend')),
+                clean_value(row.get('indexTrend'))
+            ))
+        
+        if not estimates_to_insert:
+            logger.info(f"No growth estimates data found for {symbol}")
+            return
+            
+        # Batch insert all growth estimates data
+        with conn.cursor() as cur:
+            cur.executemany(
+                """
+                INSERT INTO growth_estimates 
+                (symbol, period, stock_trend, index_trend)
+                VALUES (%s, %s, %s, %s)
+                """,
+                estimates_to_insert
+            )
+        # Commit only if everything went well
+        conn.commit()
+
+        logger.info(f"Successfully processed {len(estimates_to_insert)} growth estimates records for {symbol}")
+    except Exception as e:
+        # Rollback to the savepoint or completely if that fails
+        try:
+            with conn.cursor() as cur:
+                cur.execute("ROLLBACK TO SAVEPOINT symbol_process")
+        except:
+            conn.rollback()  # Full rollback if savepoint rollback fails
+        logger.error(f"Error processing {symbol}, transaction rolled back: {e}")
+        raise
 
 def update_last_run(conn):
     """Stamp the last run time in last_updated."""

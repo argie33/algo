@@ -67,7 +67,8 @@ def get_db_connection():
 def get_stock_symbols():
     """Get the list of stock symbols from the database."""
     conn = None
-    try:        conn = get_db_connection()
+    try:        
+        conn = get_db_connection()
         cur = conn.cursor()
         
         # Get all symbols
