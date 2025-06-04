@@ -1,4 +1,5 @@
+# filepath: c:\code\deploy\loadfundamentals\requirements-loadrecommendations.txt
 boto3
 pandas
-psycopg2
+psycopg2-binary
 yfinance
