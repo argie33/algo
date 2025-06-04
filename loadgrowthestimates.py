@@ -15,6 +15,7 @@ import psycopg2
 from psycopg2.extras import DictCursor
 import yfinance as yf
 import pandas as pd
+import numpy as np
 import math
 
 # -------------------------------
@@ -79,11 +80,24 @@ def retry(max_attempts=3, initial_delay=2, backoff=2):
     return decorator
 
 def clean_value(value):
-    """Convert NaN or pandas NAs to None."""
+    """Convert NaN or pandas NAs to None and NumPy types to Python types."""
     if isinstance(value, float) and math.isnan(value):
         return None
     if pd.isna(value):
         return None
+    
+    # Convert NumPy data types to native Python types
+    # This prevents psycopg2 from trying to directly use NumPy types in SQL
+    try:
+        # Handle numpy numeric types (convert to Python float)
+        if hasattr(value, 'dtype') and np.issubdtype(value.dtype, np.number):
+            return float(value)
+        # Handle other potential numpy types
+        if hasattr(value, 'item'):
+            return value.item()
+    except (AttributeError, TypeError):
+        pass
+    
     return value
 
 def ensure_tables(conn):
@@ -151,17 +165,19 @@ def process_symbol(symbol, conn):
         except Exception as e:
             logger.error(f"Error fetching growth estimates data for {symbol}: {e}")
             conn.rollback()  # Rollback to clean state
-            raise
-
-        # Process each row in the growth estimates dataframe
+            raise        # Process each row in the growth estimates dataframe
         estimates_to_insert = []
         
         for period, row in growth_estimates.iterrows():
+            # Get the values and ensure they're properly converted to Python types
+            stock_trend = clean_value(row.get('stockTrend'))
+            index_trend = clean_value(row.get('indexTrend'))
+            
             estimates_to_insert.append((
                 symbol,
                 str(period),
-                clean_value(row.get('stockTrend')),
-                clean_value(row.get('indexTrend'))
+                stock_trend,
+                index_trend
             ))
         
         if not estimates_to_insert:
