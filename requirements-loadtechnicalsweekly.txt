@@ -3,5 +3,4 @@ psycopg2-binary
 numpy
 pandas
 TA-Lib
-numba
 yfinance

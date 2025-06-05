@@ -3,5 +3,4 @@ psycopg2-binary==2.9.10
 numpy==1.26.4
 pandas==2.2.3
 TA-Lib==0.4.32
-numba==0.60.0
 yfinance==0.2.40
