@@ -3268,7 +3268,7 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Description: "Run financial data processing workflow at 5:00 AM CT (10:00 UTC) on weekdays"
-      ScheduleExpression: "cron(0 10 ? * MON-FRI *)"
+      ScheduleExpression: "cron(0 23 ? * MON-FRI *)"
       # This will start at 5:00 AM CT, allowing time for the whole workflow to complete
       State: ENABLED
       Targets:
