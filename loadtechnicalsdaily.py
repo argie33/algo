@@ -18,6 +18,9 @@ numpy.NaN = numpy.nan
 np.NaN    = np.nan
 # ───────────────────────────────────────────────────────────────────
 
+# Import numba for JIT compilation
+from numba import njit
+
 import boto3
 import psycopg2
 from psycopg2 import pool
@@ -123,6 +126,22 @@ def marketwatch_indicator(close, open_):
             count[i] = signal_values[i]
     
     return pd.Series(count, index=close.index)
+
+@njit(cache=True, fastmath=True)
+def ema_numba(prices, length):
+    """Ultra-fast EMA calculation using Numba JIT compilation"""
+    n = len(prices)
+    if n == 0:
+        return np.array([], dtype=np.float64)
+    
+    alpha = 2.0 / (length + 1.0)
+    ema = np.full(n, np.nan)
+    if n > 0:
+        ema[0] = prices[0]
+        for i in range(1, n):
+            ema[i] = alpha * prices[i] + (1.0 - alpha) * ema[i-1]
+    
+    return ema
 
 def prepare_db():
     """Set up the database tables"""

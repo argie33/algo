@@ -143,7 +143,7 @@ def ema_numba(prices, length):
     """Ultra-fast EMA calculation using Numba JIT compilation"""
     n = len(prices)
     if n == 0:
-        return np.array([])
+        return np.array([], dtype=np.float64)
     
     alpha = 2.0 / (length + 1.0)
     ema = np.full(n, np.nan)
