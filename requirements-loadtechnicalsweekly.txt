@@ -2,6 +2,6 @@ boto3
 psycopg2-binary
 numpy
 pandas
-pandas-ta
-yfinance
+TA-Lib
 numba
+yfinance

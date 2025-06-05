@@ -31,7 +31,7 @@ from psycopg2 import pool
 from psycopg2.extras import execute_values
 
 import pandas as pd
-import pandas_ta as ta
+import talib
 
 # -------------------------------
 # Script metadata & logging setup
@@ -43,11 +43,11 @@ logging.basicConfig(
     stream=sys.stdout
 )
 
-# Configure these based on your ECS task size
-MAX_WORKERS = min(os.cpu_count() or 1, 4)  # Optimized worker count
-BATCH_SIZE = 25  # Increased batch size for better throughput
-DB_POOL_MIN = 3
-DB_POOL_MAX = 12
+# Configure these based on your ECS task size - optimized for small tasks
+MAX_WORKERS = min(os.cpu_count() or 1, 2)  # Reduced for memory efficiency
+BATCH_SIZE = 20  # Smaller batches for better memory management
+DB_POOL_MIN = 1
+DB_POOL_MAX = 4  # Reduced pool size for small ECS tasks
 
 def get_db_config():
     """
@@ -378,84 +378,84 @@ def process_symbol(symbol, conn_pool):
         if not rows:
             logging.warning(f"No data for {symbol}, skipping.")
             conn_pool.putconn(conn)
-            return 0
-
-        # Initialize DataFrame
+            return 0        # Initialize DataFrame with optimized data types
         df = pd.DataFrame(rows, columns=['date','open','high','low','close','volume'])
         df['date'] = pd.to_datetime(df['date'])
         df.set_index('date', inplace=True)
         
-        # Convert to float once for all calculations
-        for col in ['open', 'high', 'low', 'close', 'volume']:
-            df[col] = df[col].astype('float64')
+        # Convert to float64 with memory optimization
+        price_cols = ['open', 'high', 'low', 'close']
+        for col in price_cols:
+            df[col] = pd.to_numeric(df[col], errors='coerce').astype('float64')
+        df['volume'] = pd.to_numeric(df['volume'], errors='coerce').astype('float64')
         
-        df = df.ffill().bfill().dropna()
+        # Clean and prepare data
+        df = df.dropna().copy()
+        
+        if len(df) < 50:  # Need minimum data for indicators
+            logging.warning(f"{symbol}: Insufficient data ({len(df)} rows), skipping.")
+            conn_pool.putconn(conn)
+            return 0
 
-        # --- ULTRA-FAST INDICATORS USING JIT COMPILATION ---
-        close_values = df['close'].values
-        high_values = df['high'].values
-        low_values = df['low'].values
-        open_values = df['open'].values
-        volume_values = df['volume'].values
+        # Convert to numpy arrays for talib (more efficient than JIT in this case)
+        high_np = df['high'].values
+        low_np = df['low'].values
+        close_np = df['close'].values
+        open_np = df['open'].values
+        volume_np = df['volume'].values.astype(np.float64)
 
-        # RSI - 10x faster with JIT
-        df['rsi'] = rsi_numba(close_values, 14)
+        # --- ULTRA-FAST INDICATORS USING TALIB ---
+        # RSI
+        df['rsi'] = talib.RSI(close_np, timeperiod=14)
 
-        # MACD - optimized with JIT EMAs
-        ema_fast = ema_numba(close_values, 12)
-        ema_slow = ema_numba(close_values, 26)
-        df['macd'] = ema_fast - ema_slow
-        df['macd_signal'] = ema_numba(df['macd'].values, 9)
-        df['macd_hist'] = df['macd'] - df['macd_signal']
+        # MACD
+        macd, macd_signal, macd_hist = talib.MACD(close_np, fastperiod=12, slowperiod=26, signalperiod=9)
+        df['macd'] = macd
+        df['macd_signal'] = macd_signal
+        df['macd_hist'] = macd_hist
 
-        # Other momentum indicators - still using pandas_ta for now
-        df['mom'] = ta.mom(df['close'], length=10)
-        df['roc'] = ta.roc(df['close'], length=10)
+        # Momentum indicators
+        df['mom'] = talib.MOM(close_np, timeperiod=10)
+        df['roc'] = talib.ROC(close_np, timeperiod=10)
 
-        # ADX + DMI - keep pandas_ta for complex calculation
-        adx_df = ta.adx(df['high'], df['low'], df['close'], length=14)
-        if adx_df is not None:
-            df['adx'] = adx_df['ADX_14']
-            df['plus_di'] = adx_df['DMP_14']
-            df['minus_di'] = adx_df['DMN_14']
-        else:
-            df[['adx', 'plus_di', 'minus_di']] = np.nan
+        # ADX + DMI
+        df['adx'] = talib.ADX(high_np, low_np, close_np, timeperiod=14)
+        df['plus_di'] = talib.PLUS_DI(high_np, low_np, close_np, timeperiod=14)
+        df['minus_di'] = talib.MINUS_DI(high_np, low_np, close_np, timeperiod=14)
             
-        # ATR - ultra-fast with JIT
-        df['atr'] = atr_numba(high_values, low_values, close_values, 14)
+        # ATR
+        df['atr'] = talib.ATR(high_np, low_np, close_np, timeperiod=14)
         
-        # Volume indicators - keep pandas_ta
-        df['ad'] = ta.ad(df['high'], df['low'], df['close'], df['volume'])
-        df['cmf'] = ta.cmf(df['high'], df['low'], df['close'], df['volume'], length=20)
-        df['mfi'] = ta.mfi(df['high'], df['low'], df['close'], df['volume'], length=14)
+        # Volume indicators
+        df['ad'] = talib.AD(high_np, low_np, close_np, volume_np)
+        df['mfi'] = talib.MFI(high_np, low_np, close_np, volume_np, timeperiod=14)
+        
+        # CMF calculation (optimized pandas)
+        money_flow_volume = ((close_np - low_np) - (high_np - close_np)) / (high_np - low_np) * volume_np
+        money_flow_volume = np.where(high_np == low_np, 0, money_flow_volume)
+        df['cmf'] = pd.Series(money_flow_volume).rolling(window=20).sum() / pd.Series(volume_np).rolling(window=20).sum()
 
-        # Custom indicators - ultra-fast with JIT
-        df['td_sequential'] = td_sequential_numba(close_values, 4)
-        df['td_combo'] = td_combo_numba(close_values, 2)
-        df['marketwatch'] = marketwatch_numba(close_values, open_values)
+        # Custom indicators using JIT functions
+        df['td_sequential'] = td_sequential_numba(close_np, 4)
+        df['td_combo'] = td_combo_numba(close_np, 2)
+        df['marketwatch'] = marketwatch_numba(close_np, open_np)
 
-        # DM calculation - vectorized
-        dm_plus = np.diff(high_values, prepend=high_values[0])
-        dm_minus = np.roll(low_values, 1) - low_values
-        dm_minus[0] = 0  # Fix first value
-        dm_plus = np.where((dm_plus > dm_minus) & (dm_plus > 0), dm_plus, 0)
-        dm_minus = np.where((dm_minus > dm_plus) & (dm_minus > 0), dm_minus, 0)
-        df['dm'] = dm_plus - dm_minus
+        # DM calculation using talib
+        df['dm'] = talib.PLUS_DM(high_np, low_np, timeperiod=14) - talib.MINUS_DM(high_np, low_np, timeperiod=14)
 
-        # SMAs - ultra-fast with JIT
+        # SMAs using talib
         for p in [10, 20, 50, 150, 200]:
-            df[f'sma_{p}'] = sma_numba(close_values, p)
+            df[f'sma_{p}'] = talib.SMA(close_np, timeperiod=p)
             
-        # EMAs - ultra-fast with JIT
+        # EMAs using talib
         for p in [4, 9, 21]:
-            df[f'ema_{p}'] = ema_numba(close_values, p)
+            df[f'ema_{p}'] = talib.EMA(close_np, timeperiod=p)
 
-        # Bollinger Bands - vectorized calculation
-        sma_20 = sma_numba(close_values, 20)
-        std_20 = pd.Series(close_values).rolling(20).std().values
-        df['bbands_middle'] = sma_20
-        df['bbands_upper'] = sma_20 + (std_20 * 2)
-        df['bbands_lower'] = sma_20 - (std_20 * 2)
+        # Bollinger Bands using talib
+        bb_upper, bb_middle, bb_lower = talib.BBANDS(close_np, timeperiod=20, nbdevup=2, nbdevdn=2)
+        df['bbands_upper'] = bb_upper
+        df['bbands_middle'] = bb_middle
+        df['bbands_lower'] = bb_lower
 
         # Pivots
         reset = df.reset_index()
