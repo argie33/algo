@@ -1,0 +1,233 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Step Functions Workflow for Financial Data Processing Pipeline'
+
+Resources:
+  #############################################################
+  # IAM Role for Step Functions
+  #############################################################
+  StepFunctionsExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${AWS::StackName}-StepFunctionsExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: StepFunctionsECSAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'ecs:RunTask'
+                  - 'ecs:StopTask'
+                  - 'ecs:DescribeTasks'
+                  - 'iam:PassRole'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'events:PutTargets'
+                  - 'events:PutRule'
+                  - 'events:DescribeRule'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'sns:Publish'
+                Resource: '*'
+
+  #############################################################
+  # SNS Topic for Notifications on Failure
+  #############################################################
+  NotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: 'Financial Data Processing Alerts'
+      TopicName: 'financial-data-alerts'
+
+  #############################################################
+  # Step Functions State Machine
+  #############################################################
+  FinancialDataStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: 'FinancialDataProcessingWorkflow'
+      RoleArn: !GetAtt StepFunctionsExecutionRole.Arn
+      DefinitionString: !Sub |
+        {
+          "Comment": "Financial Data Processing Workflow with Retries",
+          "StartAt": "ProcessInitialData",
+          "States": {
+            "ProcessInitialData": {
+              "Type": "Parallel",
+              "Branches": [
+                {
+                  "StartAt": "RunLoadInfo",
+                  "States": {
+                    "RunLoadInfo": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "LaunchType": "FARGATE",
+                        "Cluster": "${StocksApp-ClusterArn}",
+                        "TaskDefinition": "${LoadInfoTaskDefinition}",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": ["${StocksCore-PublicSubnet1Id}", "${StocksCore-PublicSubnet2Id}"],
+                            "SecurityGroups": ["${StocksApp-EcsTasksSecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        }
+                      },
+                      "Retry": [
+                        {
+                          "ErrorEquals": ["States.ALL"],
+                          "IntervalSeconds": 60,
+                          "MaxAttempts": 1,
+                          "BackoffRate": 2
+                        }
+                      ],
+                      "End": true
+                    }
+                  }
+                },
+                {
+                  "StartAt": "RunEpsTrend",
+                  "States": {
+                    "RunEpsTrend": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "LaunchType": "FARGATE",
+                        "Cluster": "${StocksApp-ClusterArn}",
+                        "TaskDefinition": "${EpsTrendTaskDefinition}",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": ["${StocksCore-PublicSubnet1Id}", "${StocksCore-PublicSubnet2Id}"],
+                            "SecurityGroups": ["${StocksApp-EcsTasksSecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        }
+                      },
+                      "Retry": [
+                        {
+                          "ErrorEquals": ["States.ALL"],
+                          "IntervalSeconds": 60,
+                          "MaxAttempts": 1,
+                          "BackoffRate": 2
+                        }
+                      ],
+                      "End": true
+                    }
+                  }
+                }
+              ],
+              "Next": "RunStockScreener",
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "Next": "NotifyError"
+                }
+              ]
+            },
+            "RunStockScreener": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::ecs:runTask.sync",
+              "Parameters": {
+                "LaunchType": "FARGATE",
+                "Cluster": "${StocksApp-ClusterArn}",
+                "TaskDefinition": "${StockScreenerTaskDefinition}",
+                "NetworkConfiguration": {
+                  "AwsvpcConfiguration": {
+                    "Subnets": ["${StocksCore-PublicSubnet1Id}", "${StocksCore-PublicSubnet2Id}"],
+                    "SecurityGroups": ["${StocksApp-EcsTasksSecurityGroupId}"],
+                    "AssignPublicIp": "ENABLED"
+                  }
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "IntervalSeconds": 60,
+                  "MaxAttempts": 1,
+                  "BackoffRate": 2
+                }
+              ],
+              "Next": "WorkflowSuccess",
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "Next": "NotifyError"
+                }
+              ]
+            },
+            "WorkflowSuccess": {
+              "Type": "Succeed"
+            },
+            "NotifyError": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::sns:publish",
+              "Parameters": {
+                "TopicArn": "${NotificationTopic}",
+                "Message": "Financial data processing workflow failed. Please check CloudWatch logs for details."
+              },
+              "Next": "WorkflowFailed"
+            },
+            "WorkflowFailed": {
+              "Type": "Fail",
+              "Error": "FinancialDataProcessingFailed",
+              "Cause": "One or more jobs failed after retry attempts"
+            }
+          }
+        }
+
+  #############################################################
+  # EventBridge Schedule to Trigger the Step Function
+  #############################################################
+  FinancialDataProcessingSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Run financial data processing workflow at 5:00 AM CT (10:00 UTC) on weekdays"
+      ScheduleExpression: "cron(0 10 ? * MON-FRI *)"
+      State: ENABLED
+      Targets:
+        - Id: FinancialDataProcessingTarget
+          Arn: !Ref FinancialDataStateMachine
+          RoleArn: !GetAtt EventsStepFunctionsRole.Arn
+
+  #############################################################
+  # IAM Role for EventBridge to Invoke Step Functions
+  #############################################################
+  EventsStepFunctionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${AWS::StackName}-EventsStepFunctionsRole"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: StepFunctionsInvoke
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'states:StartExecution'
+                Resource: !Ref FinancialDataStateMachine
+
+Outputs:
+  StateMachineArn:
+    Description: "ARN of the Financial Data Processing State Machine"
+    Value: !Ref FinancialDataStateMachine
+  
+  NotificationTopicArn:
+    Description: "ARN of the SNS Topic for error notifications"
+    Value: !Ref NotificationTopic

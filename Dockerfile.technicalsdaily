@@ -9,14 +9,22 @@ RUN apt-get update && \
     g++ \
     wget \
     python3-dev \
+    ca-certificates \
+    pkg-config \
+    make \
+    automake \
+    libtool \
+    perl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install TA-Lib from source
-RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
+# Install TA-Lib from source with better error handling
+RUN wget --no-check-certificate http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
     tar -xzf ta-lib-0.4.0-src.tar.gz && \
     cd ta-lib/ && \
+    sed -i.bak "s|#undef TA_REAL_MAX|#define TA_REAL_MAX DBL_MAX|" src/ta_common/ta_global.h && \
+    sed -i.bak "s|#undef TA_REAL_MIN|#define TA_REAL_MIN DBL_MIN|" src/ta_common/ta_global.h && \
     ./configure --prefix=/usr && \
-    make && \
+    make -j$(nproc) && \
     make install && \
     cd .. && \
     rm -rf ta-lib-0.4.0-src.tar.gz ta-lib/
