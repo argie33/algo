@@ -9,11 +9,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
-COPY requirements-loadtechnicalsweeklyfast.txt .
-RUN pip install --no-cache-dir -r requirements-loadtechnicalsweeklyfast.txt
+COPY requirements-loadtechnicalsweekly.txt .
+RUN pip install --no-cache-dir -r requirements-loadtechnicalsweekly.txt
 
 # Copy the script
-COPY loadtechnicalsweeklyfast.py .
+COPY loadtechnicalsweekly.py .
 
 # Run the script
-CMD ["python", "loadtechnicalsweeklyfast.py"]
+CMD ["python", "loadtechnicalsweekly.py"]
