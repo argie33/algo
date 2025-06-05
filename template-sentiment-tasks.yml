@@ -1,0 +1,230 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  ECS TaskDefinitions and CloudWatch LogGroups for sentiment data loaders:
+  AAII Sentiment, Fear & Greed Index, and NAAIM Exposure Index.
+
+Parameters:
+  AaiiSentimentImageTag:
+    Type: String
+    Description: "Tag for AAII sentiment loader image"
+  FearGreedImageTag:
+    Type: String
+    Description: "Tag for Fear & Greed index loader image"
+  NaaimImageTag:
+    Type: String
+    Description: "Tag for NAAIM exposure index loader image"
+
+Resources:
+  ########################################
+  # CloudWatch Log Groups                #
+  ########################################
+  AaiiSentimentLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/aaiisentiment-loader
+      RetentionInDays: 14
+      
+  FearGreedLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/feargreed-loader
+      RetentionInDays: 14
+      
+  NaaimLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/naaim-loader
+      RetentionInDays: 14
+
+  ########################################
+  # ECS Task Definitions                 #
+  ########################################
+  AaiiSentimentTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Family: aaiisentiment-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !ImportValue StocksApp-EcsExecutionRoleArn
+      TaskRoleArn: !ImportValue StocksApp-EcsExecutionRoleArn
+      ContainerDefinitions:
+        - Name: aaiisentiment-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref AaiiSentimentImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: "5432"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref AaiiSentimentLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  FearGreedTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Family: feargreed-loader
+      Cpu: "512"  # More CPU for browser automation
+      Memory: "1024"  # More memory for browser automation
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !ImportValue StocksApp-EcsExecutionRoleArn
+      TaskRoleArn: !ImportValue StocksApp-EcsExecutionRoleArn
+      ContainerDefinitions:
+        - Name: feargreed-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref FearGreedImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: "5432"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref FearGreedLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  NaaimTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Family: naaim-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !ImportValue StocksApp-EcsExecutionRoleArn
+      TaskRoleArn: !ImportValue StocksApp-EcsExecutionRoleArn
+      ContainerDefinitions:
+        - Name: naaim-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref NaaimImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: "5432"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref NaaimLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  #############################################################
+  # EventBridge Rules to Schedule Tasks
+  #############################################################
+  AaiiSentimentSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Run AAII sentiment loader at 9:00 AM CT (14:00 UTC) on weekdays"
+      ScheduleExpression: "cron(0 14 ? * MON-FRI *)"
+      State: ENABLED
+      Targets:
+        - Id: AaiiSentiment
+          Arn: !ImportValue StocksApp-ClusterArn
+          RoleArn: !ImportValue StocksApp-EventsInvokeEcsRoleArn
+          EcsParameters:
+            LaunchType: FARGATE
+            TaskDefinitionArn: !Ref AaiiSentimentTaskDefinition
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+
+  FearGreedSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Run Fear & Greed loader at 9:15 AM CT (14:15 UTC) on weekdays"
+      ScheduleExpression: "cron(15 14 ? * MON-FRI *)"
+      State: ENABLED
+      Targets:
+        - Id: FearGreed
+          Arn: !ImportValue StocksApp-ClusterArn
+          RoleArn: !ImportValue StocksApp-EventsInvokeEcsRoleArn
+          EcsParameters:
+            LaunchType: FARGATE
+            TaskDefinitionArn: !Ref FearGreedTaskDefinition
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+
+  NaaimSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Run NAAIM exposure loader at 9:30 AM CT (14:30 UTC) on weekdays"
+      ScheduleExpression: "cron(30 14 ? * MON-FRI *)"
+      State: ENABLED
+      Targets:
+        - Id: Naaim
+          Arn: !ImportValue StocksApp-ClusterArn
+          RoleArn: !ImportValue StocksApp-EventsInvokeEcsRoleArn
+          EcsParameters:
+            LaunchType: FARGATE
+            TaskDefinitionArn: !Ref NaaimTaskDefinition
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+
+Outputs:
+  AaiiSentimentTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for AAII sentiment loader
+    Value: !Ref AaiiSentimentTaskDefinition
+    Export:
+      Name: AaiiSentimentTaskDefArn
+
+  FearGreedTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for Fear & Greed loader
+    Value: !Ref FearGreedTaskDefinition
+    Export:
+      Name: FearGreedTaskDefArn
+
+  NaaimTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for NAAIM exposure loader
+    Value: !Ref NaaimTaskDefinition
+    Export:
+      Name: NaaimTaskDefArn

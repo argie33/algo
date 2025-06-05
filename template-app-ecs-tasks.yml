@@ -3298,7 +3298,7 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: 'states:StartExecution'
-                Resource: !Ref FinancialDataStateMachine
+                Resource: !Sub arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:FinancialDataProcessingWorkflow
 
   #########################################
   # Outputs                               #
