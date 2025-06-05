@@ -4,3 +4,4 @@ numpy
 pandas
 pandas-ta
 yfinance
+numba
