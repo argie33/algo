@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3 
 """
 Stock Screener - Simple P/E ratio screener
 Runs after loadinfo and epstrend to find stocks with lowest P/E ratios

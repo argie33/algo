@@ -424,7 +424,7 @@ jobs:
             quarterlycashflow) DOCKERFILE=Dockerfile.quarterlycashflow; PARAM=QuarterlyCashFlowImageTag;;\
             quarterlyincomestmt) DOCKERFILE=Dockerfile.quarterlyincomestmt; PARAM=QuarterlyIncomeStmtImageTag;;\
             analystgrade)      DOCKERFILE=dockerfile.analystgrade;  PARAM=AnalystGradeImageTag;;\
-            stockscreener)      DOCKERFILE=dockerfile.stockscreener;  PARAM=StockScreenerImageTag;;\
+            stockscreener)      DOCKERFILE=Dockerfile.stockscreener;  PARAM=StockScreenerImageTag;;\
           esac
           TAG=${{ matrix.loader }}-${{ github.sha }}
           docker buildx build \
