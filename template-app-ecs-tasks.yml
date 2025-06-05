@@ -3277,7 +3277,7 @@ Resources:
           RoleArn: !GetAtt EventsStepFunctionsRole.Arn
 
   #############################################################
-  # IAM Role for EventBridge to Invoke Step Functions
+  # IAM Role for EventBridge to Invoke Step Functions 
   #############################################################
   EventsStepFunctionsRole:
     Type: AWS::IAM::Role
