@@ -1,6 +1,5 @@
-boto3
-psycopg2-binary
-numpy
-pandas
-TA-Lib
-yfinance
+boto3>=1.26.137
+psycopg2-binary>=2.9.6
+pandas>=2.0.0
+numpy>=1.24.0
+pandas-ta>=0.3.14b0
