@@ -135,6 +135,10 @@ Parameters:
   RecommendationsImageTag:
     Type: String
     Description: "Tag for recommendations loader image"
+  StockScreenerImageTag:
+    Type: String
+    Description: "Tag for stock screener loader image"
+
 
   FREDApiKey:
     Type: String
@@ -396,7 +400,11 @@ Resources:
       LogGroupName: /ecs/recommendations-loader
       RetentionInDays: 14
 
-
+  StockScreenerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/stockscreener-loader
+      RetentionInDays: 14
 
   ########################################
   # C) stock-symbols loader              #
@@ -937,6 +945,241 @@ Resources:
   # H) priceweekly loader                #
   ########################################
   PriceWeeklyTaskDefinition:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: priceweekly-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: priceweekly-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref PriceWeeklyImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/priceweekly-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  PriceWeeklyLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: priceweekly-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref PriceWeeklyTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+  ########################################
+  # I) pricemonthly loader               #
+  ########################################
+  PriceMonthlyTaskDefinition:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: pricemonthly-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: pricemonthly-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref PriceMonthlyImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/pricemonthly-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  PriceMonthlyService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: pricemonthly-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref PriceMonthlyTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ########################################
+  # F) findata loader                    #
+  ########################################
+  FindataTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Family: findata-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: findata-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref FindataImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/findata-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  FindataLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: findata-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref FindataTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ########################################
+  # G) pricedaily loader                 #
+  ########################################
+  PriceTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Family: pricedaily-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: pricedaily-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref PriceImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/pricedaily-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  PriceLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: pricedaily-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref PriceTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ########################################
+  # H) priceweekly loader                #
+  ########################################
+  PriceWeeklyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
@@ -1153,8 +1396,6 @@ Resources:
 
   PriceLoaderService:
     Type: AWS::ECS::Service
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
     Properties:
       ServiceName: pricedaily-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
@@ -1228,7 +1469,241 @@ Resources:
           SecurityGroups:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
-          
+  ########################################
+  # I) pricemonthly loader               #
+  ########################################
+  PriceMonthlyTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Family: pricemonthly-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: pricemonthly-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref PriceMonthlyImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/pricemonthly-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  PriceMonthlyService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: pricemonthly-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref PriceMonthlyTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ########################################
+  # F) findata loader                    #
+  ########################################
+  FindataTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Family: findata-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: findata-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref FindataImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/findata-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  FindataLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: findata-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref FindataTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ########################################
+  # G) pricedaily loader                 #
+  ########################################
+  PriceTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Family: pricedaily-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: pricedaily-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref PriceImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/pricedaily-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  PriceLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: pricedaily-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref PriceTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ########################################
+  # H) priceweekly loader                #
+  ########################################
+  PriceWeeklyTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Family: priceweekly-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: priceweekly-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref PriceWeeklyImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/priceweekly-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  PriceWeeklyLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: priceweekly-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref PriceWeeklyTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
   ########################################
   # I) pricemonthly loader               #
   ########################################
@@ -2846,6 +3321,66 @@ Resources:
           SecurityGroups:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
+
+  ########################################
+  # Stock Screener loader                #
+  ########################################
+  StockScreenerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Family: stockscreener-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: stockscreener-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref StockScreenerImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/stockscreener-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  StockScreenerLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: stockscreener-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref StockScreenerTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
   #############################################################
   # IAM Role for EventBridge → ECS RunTask#
   #############################################################
@@ -3058,8 +3593,9 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Description: "Run loadinfo task at 5:00 AM CT (10:00 UTC) on weekdays"
-      ScheduleExpression: cron(0 10 ? * MON-FRI *)
+      ScheduleExpression: "cron(0 10 ? * MON-FRI *)"
       State: ENABLED
+      RoleArn: !GetAtt EventsInvokeEcsRole.Arn
       Targets:
         - Id: LoadInfo
           Arn: !ImportValue StocksApp-ClusterArn
@@ -3067,6 +3603,32 @@ Resources:
           EcsParameters:
             LaunchType: FARGATE
             TaskDefinitionArn: !Ref LoadInfoTaskDefinition
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+
+  #############################################################
+  # Schedule: run epstrend every weekday at 5:00 AM CT
+  #############################################################
+  EpsTrendScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Run epstrend task at 5:00 AM CT (10:00 UTC) on weekdays"
+      ScheduleExpression: "cron(0 10 ? * MON-FRI *)"
+      State: ENABLED
+      RoleArn: !GetAtt EventsInvokeEcsRole.Arn
+      Targets:
+        - Id: EpsTrend
+          Arn: !ImportValue StocksApp-ClusterArn
+          RoleArn: !GetAtt EventsInvokeEcsRole.Arn
+          EcsParameters:
+            LaunchType: FARGATE
+            TaskDefinitionArn: !Ref EpsTrendTaskDefinition
             NetworkConfiguration:
               AwsVpcConfiguration:
                 Subnets:

@@ -1,0 +1,118 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: EventBridge scheduled tasks for financial data loaders
+
+Resources:
+  #############################################################
+  # IAM Role for EventBridge → ECS RunTask                     #
+  #############################################################
+  EventsInvokeEcsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${AWS::StackName}-EventsInvokeEcsRole"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: AllowEcsRunTask
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:RunTask
+                Resource:
+                  - !ImportValue LoadInfoTaskDefArn
+                  - !ImportValue EpsTrendTaskDefArn
+                  - !ImportValue StockScreenerTaskDefArn
+                  # Add other task definition ARNs as needed
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: "*"
+
+  #############################################################
+  # Schedule: run loadinfo every weekday at 5:00 AM CT         #
+  #############################################################
+  LoadInfoScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Run loadinfo task at 5:00 AM CT (10:00 UTC) on weekdays"
+      ScheduleExpression: cron(0 10 ? * MON-FRI *)
+      State: ENABLED
+      Targets:
+        - Id: LoadInfo
+          Arn: !ImportValue StocksApp-ClusterArn
+          RoleArn: !GetAtt EventsInvokeEcsRole.Arn
+          EcsParameters:
+            LaunchType: FARGATE
+            TaskDefinitionArn: !ImportValue LoadInfoTaskDefArn
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+
+  #############################################################
+  # Schedule: run epstrend every weekday at 6:00 AM CT         #
+  #############################################################
+  EpsTrendScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Run epstrend task at 6:00 AM CT (11:00 UTC) on weekdays"
+      ScheduleExpression: cron(0 11 ? * MON-FRI *)
+      State: ENABLED
+      Targets:
+        - Id: EpsTrend
+          Arn: !ImportValue StocksApp-ClusterArn
+          RoleArn: !GetAtt EventsInvokeEcsRole.Arn
+          EcsParameters:
+            LaunchType: FARGATE
+            TaskDefinitionArn: !ImportValue EpsTrendTaskDefArn
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+
+  #############################################################
+  # Schedule: run stockscreener every weekday at 7:00 AM CT    #
+  #############################################################
+  StockScreenerScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Run stockscreener task at 7:00 AM CT (12:00 UTC) on weekdays"
+      ScheduleExpression: cron(0 12 ? * MON-FRI *)
+      State: ENABLED
+      Targets:
+        - Id: StockScreener
+          Arn: !ImportValue StocksApp-ClusterArn
+          RoleArn: !GetAtt EventsInvokeEcsRole.Arn
+          EcsParameters:
+            LaunchType: FARGATE
+            TaskDefinitionArn: !ImportValue StockScreenerTaskDefArn
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+
+Outputs:
+  EventsInvokeEcsRoleArn:
+    Description: ARN of the IAM role for EventBridge to invoke ECS tasks
+    Value: !GetAtt EventsInvokeEcsRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-EventsInvokeEcsRoleArn"

@@ -86,8 +86,7 @@ Resources:
                       "Retry": [
                         {
                           "ErrorEquals": ["States.ALL"],
-                          "IntervalSeconds": 60,
-                          "MaxAttempts": 1,
+                          "IntervalSeconds": 60,                "MaxAttempts": 2,
                           "BackoffRate": 2
                         }
                       ],
@@ -117,7 +116,7 @@ Resources:
                         {
                           "ErrorEquals": ["States.ALL"],
                           "IntervalSeconds": 60,
-                          "MaxAttempts": 1,
+                          "MaxAttempts": 2,
                           "BackoffRate": 2
                         }
                       ],
@@ -126,13 +125,29 @@ Resources:
                   }
                 }
               ],
-              "Next": "RunStockScreener",
+              "ResultPath": "$.InitialDataResults",
+              "Next": "CheckInitialDataSuccess",
               "Catch": [
                 {
                   "ErrorEquals": ["States.ALL"],
                   "Next": "NotifyError"
                 }
               ]
+            },            "CheckInitialDataSuccess": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.InitialDataResults[0].TaskResult.StopCode",
+                  "NumericEquals": 0,
+                  "Next": "RunStockScreener"
+                },
+                {
+                  "Variable": "$.InitialDataResults[1].TaskResult.StopCode",
+                  "NumericEquals": 0,
+                  "Next": "RunStockScreener"
+                }
+              ],
+              "Default": "NotifyError"
             },
             "RunStockScreener": {
               "Type": "Task",
@@ -153,7 +168,7 @@ Resources:
                 {
                   "ErrorEquals": ["States.ALL"],
                   "IntervalSeconds": 60,
-                  "MaxAttempts": 1,
+                  "MaxAttempts": 2,
                   "BackoffRate": 2
                 }
               ],
@@ -187,12 +202,12 @@ Resources:
 
   #############################################################
   # EventBridge Schedule to Trigger the Step Function
-  #############################################################
-  FinancialDataProcessingSchedule:
+  #############################################################  FinancialDataProcessingSchedule:
     Type: AWS::Events::Rule
     Properties:
       Description: "Run financial data processing workflow at 5:00 AM CT (10:00 UTC) on weekdays"
       ScheduleExpression: "cron(0 10 ? * MON-FRI *)"
+      # This will start at 5:00 AM CT, allowing time for the whole workflow to complete
       State: ENABLED
       Targets:
         - Id: FinancialDataProcessingTarget
