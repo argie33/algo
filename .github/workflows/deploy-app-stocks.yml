@@ -100,6 +100,7 @@ jobs:
       quarterlycashflow: ${{ steps.paths.outputs.quarterlycashflow }}
       quarterlyincomestmt: ${{ steps.paths.outputs.quarterlyincomestmt }}
       analystgrade:      ${{ steps.paths.outputs.analystgrade }}
+      stockscreener:     ${{ steps.paths.outputs.stockscreener }}
       any:               ${{ steps.any.outputs.any }}
       matrix:            ${{ steps.matrix.outputs.matrix }}
 
@@ -257,6 +258,10 @@ jobs:
               - 'loadanalystupgradedowngrade.py'
               - 'dockerfile.analystgrade'
               - 'requirements-loadanalystupgradedowngrade.txt'
+            stockscreener:
+              - 'stock_screener.py'
+              - 'dockerfile-screener'
+              - 'requirements-stockscreener.txt'
 
       - id: any
         name: Any changes?
@@ -296,6 +301,7 @@ jobs:
              [ "${{ steps.paths.outputs.quarterlycashflow }}" = "true" ] || \
              [ "${{ steps.paths.outputs.quarterlyincomestmt }}" = "true" ] || \
              [ "${{ steps.paths.outputs.analystgrade }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.stockscreener }}" = "true" ] || \
              [ "${{ steps.paths.outputs.app }}" = "true" ]; then
             echo "any=true" >> $GITHUB_OUTPUT
           else
@@ -341,6 +347,7 @@ jobs:
           [ "${{ steps.paths.outputs.quarterlycashflow }}" = "true" ] && arr="$arr,\"quarterlycashflow\""
           [ "${{ steps.paths.outputs.quarterlyincomestmt }}" = "true" ] && arr="$arr,\"quarterlyincomestmt\""
           [ "${{ steps.paths.outputs.analystgrade }}" = "true" ] && arr="$arr,\"analystgrade\""
+          [ "${{ steps.paths.outputs.stockscreener }}" = "true" ] && arr="$arr,\"stockscreener\""
           
           echo "matrix=[${arr#,}]" >> $GITHUB_OUTPUT
 
@@ -417,6 +424,7 @@ jobs:
             quarterlycashflow) DOCKERFILE=Dockerfile.quarterlycashflow; PARAM=QuarterlyCashFlowImageTag;;\
             quarterlyincomestmt) DOCKERFILE=Dockerfile.quarterlyincomestmt; PARAM=QuarterlyIncomeStmtImageTag;;\
             analystgrade)      DOCKERFILE=dockerfile.analystgrade;  PARAM=AnalystGradeImageTag;;\
+            stockscreener)      DOCKERFILE=dockerfile.stockscreener;  PARAM=StockScreenerImageTag;;\
           esac
           TAG=${{ matrix.loader }}-${{ github.sha }}
           docker buildx build \
@@ -545,6 +553,7 @@ jobs:
               QuarterlyCashFlowImageTag=$(grep '^QuarterlyCashFlowImageTag=' tags.env | cut -d= -f2-) \
               QuarterlyIncomeStmtImageTag=$(grep '^QuarterlyIncomeStmtImageTag=' tags.env | cut -d= -f2-) \
               AnalystGradeImageTag=$(grep '^AnalystGradeImageTag=' tags.env | cut -d= -f2-) \
+              StockScreenerImageTag=$(grep '^StockScreenerImageTag=' tags.env | cut -d= -f2-) \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
               IBKRUsername=${{ secrets.IBKR_USERNAME }} \
               IBKRPassword=${{ secrets.IBKR_PASSWORD }} \
@@ -1785,15 +1794,15 @@ jobs:
 
       - name: Check container exit code
         run: |
-          EXIT=$(aws ecs.describe-tasks \
+          EXIT=$(aws ecs describe-tasks \
             --cluster "${{ steps.infra.outputs.CLUSTER }}" \
             --tasks "${{ steps.run.outputs.TASK_ARN }}" \
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
           if [ "$EXIT" -ne 0 ]; then
-            echo "❌ swing-trader failed with exit code $EXIT"
-            exit $EXIT
+            echo "❌ swing-trader task failed with exit code $EXIT"
+            exit 1
           fi
 
   run_buysell:
@@ -2141,7 +2150,8 @@ jobs:
             --cluster "${{ steps.infra.outputs.CLUSTER }}" \
             --tasks "${{ steps.run.outputs.TASK_ARN }}" \
             --query 'tasks[0].containers[0].exitCode' \
-            --output text)          echo "→ Exit code: $EXIT"
+            --output text)
+          echo "→ Exit code: $EXIT"
           if [ "$EXIT" -ne 0 ]; then
             echo "❌ load-latest-price-monthly failed with exit code $EXIT"
             exit $EXIT
@@ -3286,7 +3296,94 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
-            echo "❌ Analyst Grade failed with exit code $EXIT"
-            exit $EXIT
+          if [ "$EXIT" != "0" ]; then
+            echo "❌ Analyst Grade task failed with exit code $EXIT"
+            exit 1
+          fi
+
+  run_stockscreener:
+    name: Run Stock Screener
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.stockscreener == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+          
+      - name: Fetch Task Definition ARN
+        id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='StockScreenerTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+          
+      - name: Fetch cluster ARN & subnets
+        id: infra
+        run: |
+          CLUSTER=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+          SUB1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUB2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+          echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
+          echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
+          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
+
+      - name: Run Stock Screener Fargate task
+        id: run
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --launch-type FARGATE \
+            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
+            --count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
+          
+      - name: Wait for task to complete
+        run: |
+          for i in {1..180}; do
+            STATUS=$(aws ecs describe-tasks \
+              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+              --query 'tasks[0].lastStatus' \
+              --output text)
+            echo "Attempt $i – status=$STATUS"
+            [ "$STATUS" = "STOPPED" ] && break
+            sleep 20
+          done
+          if [ "$STATUS" != "STOPPED" ]; then
+            echo "❌ Stock Screener task did not stop within 60m"
+            exit 1
+          fi
+
+      - name: Check container exit code
+        run: |
+          EXIT=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          echo "→ Exit code: $EXIT"
+          if [ "$EXIT" != "0" ]; then
+            echo "❌ Stock Screener task failed with exit code $EXIT"
+            exit 1
           fi
