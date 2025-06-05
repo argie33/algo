@@ -19,11 +19,12 @@ RUN apt-get update && \
 
 # Install TA-Lib from source with better error handling
 RUN set -e && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends curl && \
     mkdir -p /tmp/ta-lib && \
     cd /tmp/ta-lib && \
-    wget --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --tries=5 \
-        --no-check-certificate \
-        "https://downloads.sourceforge.net/project/ta-lib/ta-lib/0.4.0/ta-lib-0.4.0-src.tar.gz" && \
+    # Use curl with GitHub mirror instead of SourceForge
+    curl -sSL https://github.com/TA-Lib/ta-lib-archive/raw/master/ta-lib-0.4.0-src.tar.gz -o ta-lib-0.4.0-src.tar.gz && \
     tar -xzf ta-lib-0.4.0-src.tar.gz && \
     cd ta-lib/ && \
     # Apply patches for floating point definitions
@@ -31,11 +32,12 @@ RUN set -e && \
     sed -i.bak "s|#undef TA_REAL_MIN|#define TA_REAL_MIN DBL_MIN|" src/ta_common/ta_global.h && \
     # Configure and build
     ./configure --prefix=/usr && \
-    make -j$(nproc) CFLAGS="-O2" && \
+    make -j$(nproc) && \
     make install && \
     # Cleanup
     cd / && \
-    rm -rf /tmp/ta-lib
+    rm -rf /tmp/ta-lib && \
+    apt-get purge -y --auto-remove curl
 
 WORKDIR /app
 

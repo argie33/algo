@@ -137,13 +137,16 @@ Resources:
               "Type": "Choice",
               "Choices": [
                 {
-                  "Variable": "$.InitialDataResults[0].TaskResult.StopCode",
-                  "NumericEquals": 0,
-                  "Next": "RunStockScreener"
-                },
-                {
-                  "Variable": "$.InitialDataResults[1].TaskResult.StopCode",
-                  "NumericEquals": 0,
+                  "And": [
+                    {
+                      "Variable": "$.InitialDataResults[0].TaskResult.StopCode",
+                      "NumericEquals": 0
+                    },
+                    {
+                      "Variable": "$.InitialDataResults[1].TaskResult.StopCode",
+                      "NumericEquals": 0
+                    }
+                  ],
                   "Next": "RunStockScreener"
                 }
               ],
