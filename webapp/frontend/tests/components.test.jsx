@@ -148,12 +148,11 @@ describe('Utility Functions', () => {
     expect(formatCurrency(null)).toBe('N/A')
   })
 
-  it('formats percentage correctly', async () => {
-    const { formatPercent } = await import('../src/utils/formatters')
+  it('formats percentage correctly', async () => {    const { formatPercentage } = await import('../src/utils/formatters')
     
-    expect(formatPercent(0.15)).toBe('15.00%')
-    expect(formatPercent(-0.05)).toBe('-5.00%')
-    expect(formatPercent(null)).toBe('N/A')
+    expect(formatPercentage(0.15)).toBe('15.00%')
+    expect(formatPercentage(-0.05)).toBe('-5.00%')
+    expect(formatPercentage(null)).toBe('N/A')
   })
 
   it('formats numbers correctly', async () => {

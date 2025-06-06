@@ -45,7 +45,7 @@ import {
   Cell
 } from 'recharts'
 import api from '../services/api'
-import { formatCurrency, formatPercent, formatNumber } from '../utils/formatters'
+import { formatCurrency, formatPercentage as formatPercent, formatNumber } from '../utils/formatters'
 
 function TabPanel({ children, value, index, ...other }) {
   return (
