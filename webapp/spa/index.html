@@ -14,7 +14,7 @@
   <button id="load">Load Data</button>
   <div id="table"></div>
   <script>
-    // Get API Gateway URL from meta tag (injected during deployment) 
+    // Get API Gateway URL from meta tag (injected during deployment)
     function getApiUrl() {
       const apiMeta = document.querySelector('meta[name="api-gateway-url"]');
       if (apiMeta && apiMeta.content && !apiMeta.content.includes('PLACEHOLDER')) {
