@@ -68,7 +68,8 @@ Parameters:
     Description: "Tag for latesttechnicalsmonthly loader image"
   RevenueEstimateImageTag:
     Type: String
-    Description: "Tag for revenue estimate loader image"  EarningsHistoryImageTag:
+    Description: "Tag for revenue estimate loader image"  
+  EarningsHistoryImageTag:
     Type: String
     Description: "Tag for earnings history loader image"
   EpsRevisionsImageTag:
