@@ -68,8 +68,7 @@ Parameters:
     Description: "Tag for latesttechnicalsmonthly loader image"
   RevenueEstimateImageTag:
     Type: String
-    Description: "Tag for revenue estimate loader image"
-  EarningsHistoryImageTag:
+    Description: "Tag for revenue estimate loader image"  EarningsHistoryImageTag:
     Type: String
     Description: "Tag for earnings history loader image"
   EpsRevisionsImageTag:
@@ -99,33 +98,6 @@ Parameters:
   CashFlowImageTag:
     Type: String
     Description: "Tag for annual cash flow loader image"
-  EpsRevisionsImageTag:
-    Type: String
-    Description: "Tag for eps revisions loader image"
-  EpsTrendImageTag:
-    Type: String
-    Description: "Tag for eps trend loader image"
-  GrowthEstimatesImageTag:
-    Type: String
-    Description: "Tag for growth estimates loader image"
-  QuarterlyIncomeStmtImageTag:
-    Type: String
-    Description: "Tag for quarterly income stmt loader image"
-  IncomeStmtImageTag:
-    Type: String
-    Description: "Tag for income stmt loader image"
-  QuarterlyBalanceSheetImageTag:
-    Type: String
-    Description: "Tag for quarterly balance sheet loader image"
-  BalanceSheetImageTag:
-    Type: String
-    Description: "Tag for balance sheet loader image"
-  QuarterlyCashFlowImageTag:
-    Type: String
-    Description: "Tag for quarterly cash flow loader image"  
-  CashFlowImageTag:
-    Type: String
-    Description: "Tag for cash flow loader image"
   TTMCashFlowImageTag:
     Type: String
     Description: "Tag for TTM cash flow loader image"
@@ -3445,7 +3417,8 @@ Resources:
               - Effect: Allow
                 Action:
                   - 'sns:Publish'
-                Resource: !Ref NotificationTopic
+                Resource: 
+                  - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:financial-data-alerts"
 
   #############################################################
   # Schedule: run latestpricedaily every day
@@ -3524,7 +3497,7 @@ Resources:
 
   #############################################################
   # SNS Topic for Notifications on Failure
-  #############################################################
+  #############################################################  
   NotificationTopic:
     Type: AWS::SNS::Topic
     Properties:
@@ -3545,167 +3518,180 @@ Resources:
     Properties:
       Protocol: email
       TopicArn: !Ref NotificationTopic
-      Endpoint: 'argeropolos@accenture.com'
+      Endpoint: 'argeropolos@accenture.com' 
+
   #############################################################
   # Step Functions State Machine
-  #############################################################    
+  #############################################################  
   FinancialDataStateMachine:
     Type: AWS::StepFunctions::StateMachine
-    DependsOn: StepFunctionsExecutionRole
+    DependsOn: 
+      - StepFunctionsExecutionRole
+      - NotificationTopic
     Properties:
       StateMachineName: 'FinancialDataProcessingWorkflow'
       RoleArn: !GetAtt StepFunctionsExecutionRole.Arn
-      RoleArn: !GetAtt StepFunctionsExecutionRole.Arn
-      DefinitionString: !Sub |
-        {
-          "Comment": "Financial Data Processing Workflow with Retries",
-          "StartAt": "ProcessInitialData",
-          "States": {
-            "ProcessInitialData": {
-              "Type": "Parallel",
-              "Branches": [
-                {
-                  "StartAt": "RunLoadInfo",
-                  "States": {
-                    "RunLoadInfo": {
-                      "Type": "Task",
-                      "Resource": "arn:aws:states:::ecs:runTask.sync",
-                      "Parameters": {
-                        "LaunchType": "FARGATE",
-                        "Cluster": "${StocksApp-ClusterArn}",
-                        "TaskDefinition": "${LoadInfoTaskDefinition}",
-                        "NetworkConfiguration": {
-                          "AwsvpcConfiguration": {
-                            "Subnets": ["${StocksCore-PublicSubnet1Id}", "${StocksCore-PublicSubnet2Id}"],
-                            "SecurityGroups": ["${StocksApp-EcsTasksSecurityGroupId}"],
-                            "AssignPublicIp": "ENABLED"
+      DefinitionString: !Sub 
+        - |
+          {
+            "Comment": "Financial Data Processing Workflow with Retries",
+            "StartAt": "ProcessInitialData",
+            "States": {
+              "ProcessInitialData": {
+                "Type": "Parallel",
+                "Branches": [
+                  {
+                    "StartAt": "RunLoadInfo",
+                    "States": {
+                      "RunLoadInfo": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::ecs:runTask.sync",
+                        "Parameters": {
+                          "LaunchType": "FARGATE",
+                          "Cluster": "${ClusterArn}",
+                          "TaskDefinition": "${LoadInfoTaskDefArn}",
+                          "NetworkConfiguration": {
+                            "AwsvpcConfiguration": {
+                              "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                              "SecurityGroups": ["${SecurityGroupId}"],
+                              "AssignPublicIp": "ENABLED"
+                            }
                           }
-                        }
+                        },
+                        "Retry": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "IntervalSeconds": 60,
+                            "MaxAttempts": 2,
+                            "BackoffRate": 2
+                          }
+                        ],
+                        "End": true
+                      }
+                    }
+                  },
+                  {
+                    "StartAt": "RunEpsTrend",
+                    "States": {
+                      "RunEpsTrend": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::ecs:runTask.sync",
+                        "Parameters": {
+                          "LaunchType": "FARGATE",
+                          "Cluster": "${ClusterArn}",
+                          "TaskDefinition": "${EpsTrendTaskDefArn}",
+                          "NetworkConfiguration": {
+                            "AwsvpcConfiguration": {
+                              "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                              "SecurityGroups": ["${SecurityGroupId}"],
+                              "AssignPublicIp": "ENABLED"
+                            }
+                          }
+                        },
+                        "Retry": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "IntervalSeconds": 60,
+                            "MaxAttempts": 2,
+                            "BackoffRate": 2
+                          }
+                        ],
+                        "End": true
+                      }
+                    }
+                  }
+                ],
+                "ResultPath": "$.InitialDataResults",
+                "Next": "CheckInitialDataSuccess",
+                "Catch": [
+                  {
+                    "ErrorEquals": ["States.ALL"],
+                    "Next": "NotifyError"
+                  }
+                ]
+              },
+              "CheckInitialDataSuccess": {
+                "Type": "Choice",
+                "Choices": [
+                  {
+                    "And": [
+                      {
+                        "Variable": "$.InitialDataResults[0].TaskResult.StopCode",
+                        "NumericEquals": 0
                       },
-                      "Retry": [
-                        {
-                          "ErrorEquals": ["States.ALL"],
-                          "IntervalSeconds": 60,
-                          "MaxAttempts": 2,
-                          "BackoffRate": 2
-                        }
-                      ],
-                      "End": true
+                      {
+                        "Variable": "$.InitialDataResults[1].TaskResult.StopCode",
+                        "NumericEquals": 0
+                      }
+                    ],
+                    "Next": "RunStockScreener"
+                  }
+                ],
+                "Default": "NotifyError"
+              },
+              "RunStockScreener": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::ecs:runTask.sync",
+                "Parameters": {
+                  "LaunchType": "FARGATE",
+                  "Cluster": "${ClusterArn}",
+                  "TaskDefinition": "${StockScreenerTaskDefArn}",
+                  "NetworkConfiguration": {
+                    "AwsvpcConfiguration": {
+                      "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                      "SecurityGroups": ["${SecurityGroupId}"],
+                      "AssignPublicIp": "ENABLED"
                     }
                   }
                 },
-                {
-                  "StartAt": "RunEpsTrend",
-                  "States": {
-                    "RunEpsTrend": {
-                      "Type": "Task",
-                      "Resource": "arn:aws:states:::ecs:runTask.sync",
-                      "Parameters": {
-                        "LaunchType": "FARGATE",
-                        "Cluster": "${StocksApp-ClusterArn}",
-                        "TaskDefinition": "${EpsTrendTaskDefinition}",
-                        "NetworkConfiguration": {
-                          "AwsvpcConfiguration": {
-                            "Subnets": ["${StocksCore-PublicSubnet1Id}", "${StocksCore-PublicSubnet2Id}"],
-                            "SecurityGroups": ["${StocksApp-EcsTasksSecurityGroupId}"],
-                            "AssignPublicIp": "ENABLED"
-                          }
-                        }
-                      },
-                      "Retry": [
-                        {
-                          "ErrorEquals": ["States.ALL"],
-                          "IntervalSeconds": 60,
-                          "MaxAttempts": 2,
-                          "BackoffRate": 2
-                        }
-                      ],
-                      "End": true
-                    }
+                "Retry": [
+                  {
+                    "ErrorEquals": ["States.ALL"],
+                    "IntervalSeconds": 60,
+                    "MaxAttempts": 2,
+                    "BackoffRate": 2
                   }
-                }
-              ],
-              "ResultPath": "$.InitialDataResults",
-              "Next": "CheckInitialDataSuccess",
-              "Catch": [
-                {
-                  "ErrorEquals": ["States.ALL"],
-                  "Next": "NotifyError"
-                }
-              ]
-            },            "CheckInitialDataSuccess": {
-              "Type": "Choice",
-              "Choices": [
-                {
-                  "And": [
-                    {
-                      "Variable": "$.InitialDataResults[0].TaskResult.StopCode",
-                      "NumericEquals": 0
-                    },
-                    {
-                      "Variable": "$.InitialDataResults[1].TaskResult.StopCode",
-                      "NumericEquals": 0
-                    }
-                  ],
-                  "Next": "RunStockScreener"
-                }
-              ],
-              "Default": "NotifyError"
-            },
-            "RunStockScreener": {
-              "Type": "Task",
-              "Resource": "arn:aws:states:::ecs:runTask.sync",
-              "Parameters": {
-                "LaunchType": "FARGATE",
-                "Cluster": "${StocksApp-ClusterArn}",
-                "TaskDefinition": "${StockScreenerTaskDefinition}",
-                "NetworkConfiguration": {
-                  "AwsvpcConfiguration": {
-                    "Subnets": ["${StocksCore-PublicSubnet1Id}", "${StocksCore-PublicSubnet2Id}"],
-                    "SecurityGroups": ["${StocksApp-EcsTasksSecurityGroupId}"],
-                    "AssignPublicIp": "ENABLED"
+                ],
+                "Next": "WorkflowSuccess",
+                "Catch": [
+                  {
+                    "ErrorEquals": ["States.ALL"],
+                    "Next": "NotifyError"
                   }
-                }
+                ]
               },
-              "Retry": [
-                {
-                  "ErrorEquals": ["States.ALL"],
-                  "IntervalSeconds": 60,
-                  "MaxAttempts": 2,
-                  "BackoffRate": 2
-                }
-              ],
-              "Next": "WorkflowSuccess",
-              "Catch": [
-                {
-                  "ErrorEquals": ["States.ALL"],
-                  "Next": "NotifyError"
-                }
-              ]
-            },
-            "WorkflowSuccess": {
-              "Type": "Succeed"
-            },
-            "NotifyError": {
-              "Type": "Task", 
-              "Resource": "arn:aws:states:::sns:publish",
-              "Parameters": {
-                "TopicArn": "${NotificationTopic}",
-                "Message": "Financial data processing workflow failed. Please check CloudWatch logs for details."
+              "WorkflowSuccess": {
+                "Type": "Succeed"
               },
-              "Next": "WorkflowFailed"
-            },
-            "WorkflowFailed": {
-              "Type": "Fail",
-              "Error": "FinancialDataProcessingFailed",
-              "Cause": "One or more jobs failed after retry attempts"
+              "NotifyError": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::sns:publish",
+                "Parameters": {
+                  "TopicArn": "${NotificationTopicArn}",
+                  "Message": "Financial data processing workflow failed. Please check CloudWatch logs for details."
+                },
+                "Next": "WorkflowFailed"
+              },
+              "WorkflowFailed": {
+                "Type": "Fail",
+                "Error": "FinancialDataProcessingFailed",
+                "Cause": "One or more jobs failed after retry attempts"
+              }
             }
           }
-        }
+        - ClusterArn: !ImportValue StocksApp-ClusterArn
+          LoadInfoTaskDefArn: !Ref LoadInfoTaskDefinition
+          EpsTrendTaskDefArn: !Ref EpsTrendTaskDefinition
+          StockScreenerTaskDefArn: !Ref StockScreenerTaskDefinition
+          Subnet1Id: !ImportValue StocksCore-PublicSubnet1Id
+          Subnet2Id: !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroupId: !ImportValue StocksApp-EcsTasksSecurityGroupId
+          NotificationTopicArn: !Ref NotificationTopic
 
   #############################################################
   # EventBridge Schedule to Trigger the Step Function
-  #############################################################  FinancialDataProcessingSchedule:
+  #############################################################
+  FinancialDataProcessingSchedule:
     Type: AWS::Events::Rule
     Properties:
       Description: "Run financial data processing workflow at 5:00 AM CT (10:00 UTC) on weekdays"
