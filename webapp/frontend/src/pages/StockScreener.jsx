@@ -46,7 +46,7 @@ import {
   Bookmark
 } from '@mui/icons-material'
 import { useNavigate } from 'react-router-dom'
-import { api } from '../services/api'
+import api from '../services/api'
 import { formatCurrency, formatPercent, formatNumber } from '../utils/formatters'
 
 const INITIAL_FILTERS = {

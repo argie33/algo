@@ -73,8 +73,11 @@ def get_symbols_from_db(limit=None):
         conn.close()
 
 def create_buy_sell_table(cur):
-    # Drop and recreate table with only essential columns
-    cur.execute("DROP TABLE IF EXISTS buy_sell;")
+    # Disable triggers and drop the old table if it exists
+    cur.execute("DROP TABLE IF EXISTS buy_sell CASCADE;")
+    cur.connection.commit()  # Commit the drop immediately
+    
+    # Create new table with minimal structure
     cur.execute("""
       CREATE TABLE buy_sell (
         id           SERIAL PRIMARY KEY,
