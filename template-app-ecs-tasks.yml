@@ -3520,34 +3520,6 @@ Resources:
                   - !ImportValue StocksApp-EcsTasksSecurityGroupId
                 AssignPublicIp: ENABLED
 
-
-  #############################################################
-  # IAM Role for EventBridge → ECS RunTask#
-  #############################################################
-  EventsInvokeEcsRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub "${AWS::StackName}-EventsInvokeEcsRole"
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: events.amazonaws.com
-            Action: sts:AssumeRole
-      Path: "/"
-      Policies:
-        - PolicyName: AllowEcsRunTask
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ecs:RunTask
-                Resource:
-                  - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/*"
-                  - !ImportValue StocksApp-ClusterArn
-
   #############################################################
   # SNS Topic for Notifications on Failure
   #############################################################

@@ -1,0 +1,227 @@
+name: Deploy Web Application
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'webapp/**'
+      - 'template-webapp.yml'
+      - '.github/workflows/deploy-webapp.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'webapp/**'
+      - 'template-webapp.yml'
+
+env:
+  AWS_REGION: us-east-1
+  STACK_NAME: loadfundamentals-webapp
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+  ECR_REPOSITORY: fundamentals-webapp-backend
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: Test Application
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: |
+          webapp/frontend/package-lock.json
+          webapp/backend/package-lock.json
+
+    - name: Install backend dependencies
+      run: |
+        cd webapp/backend
+        npm ci
+
+    - name: Install frontend dependencies
+      run: |
+        cd webapp/frontend
+        npm ci
+
+    - name: Run backend tests
+      run: |
+        cd webapp/backend
+        npm test
+      env:
+        NODE_ENV: test
+
+    - name: Run frontend tests
+      run: |
+        cd webapp/frontend
+        npm test -- --run
+
+    - name: Build frontend
+      run: |
+        cd webapp/frontend
+        npm run build
+
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    name: Build and Deploy
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Build frontend
+      run: |
+        cd webapp/frontend
+        npm ci
+        npm run build
+
+    - name: Build and push backend Docker image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        cd webapp/backend
+        
+        # Build Docker image
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+        
+        # Push Docker image
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+    - name: Upload frontend to S3
+      run: |
+        # Get S3 bucket name from CloudFormation stack
+        BUCKET_NAME=$(aws cloudformation describe-stacks \
+          --stack-name $STACK_NAME \
+          --query 'Stacks[0].Outputs[?OutputKey==`S3BucketName`].OutputValue' \
+          --output text 2>/dev/null || echo "")
+        
+        if [ -z "$BUCKET_NAME" ]; then
+          echo "S3 bucket not found. Stack may not exist yet."
+          exit 1
+        fi
+        
+        # Sync frontend build to S3
+        aws s3 sync webapp/frontend/dist s3://$BUCKET_NAME --delete
+        
+        # Invalidate CloudFront cache
+        DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+          --stack-name $STACK_NAME \
+          --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' \
+          --output text)
+        
+        if [ ! -z "$DISTRIBUTION_ID" ]; then
+          aws cloudfront create-invalidation \
+            --distribution-id $DISTRIBUTION_ID \
+            --paths "/*"
+        fi
+
+    - name: Deploy infrastructure
+      env:
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        # Deploy or update CloudFormation stack
+        aws cloudformation deploy \
+          --template-file template-webapp.yml \
+          --stack-name $STACK_NAME \
+          --parameter-overrides \
+            ImageTag=$IMAGE_TAG \
+            CoreStackName=loadfundamentals-core \
+            AppStackName=loadfundamentals-app-stocks \
+          --capabilities CAPABILITY_IAM \
+          --region $AWS_REGION
+
+    - name: Update ECS service
+      run: |
+        # Force ECS service to use new image
+        CLUSTER_NAME=$(aws cloudformation describe-stacks \
+          --stack-name $STACK_NAME \
+          --query 'Stacks[0].Outputs[?OutputKey==`ECSClusterName`].OutputValue' \
+          --output text)
+        
+        SERVICE_NAME=$(aws cloudformation describe-stacks \
+          --stack-name $STACK_NAME \
+          --query 'Stacks[0].Outputs[?OutputKey==`ECSServiceName`].OutputValue' \
+          --output text)
+        
+        if [ ! -z "$CLUSTER_NAME" ] && [ ! -z "$SERVICE_NAME" ]; then
+          aws ecs update-service \
+            --cluster $CLUSTER_NAME \
+            --service $SERVICE_NAME \
+            --force-new-deployment
+        fi
+
+    - name: Wait for deployment
+      run: |
+        echo "Waiting for ECS service to stabilize..."
+        
+        CLUSTER_NAME=$(aws cloudformation describe-stacks \
+          --stack-name $STACK_NAME \
+          --query 'Stacks[0].Outputs[?OutputKey==`ECSClusterName`].OutputValue' \
+          --output text)
+        
+        SERVICE_NAME=$(aws cloudformation describe-stacks \
+          --stack-name $STACK_NAME \
+          --query 'Stacks[0].Outputs[?OutputKey==`ECSServiceName`].OutputValue' \
+          --output text)
+        
+        if [ ! -z "$CLUSTER_NAME" ] && [ ! -z "$SERVICE_NAME" ]; then
+          aws ecs wait services-stable \
+            --cluster $CLUSTER_NAME \
+            --services $SERVICE_NAME
+        fi
+
+    - name: Get application URL
+      run: |
+        APP_URL=$(aws cloudformation describe-stacks \
+          --stack-name $STACK_NAME \
+          --query 'Stacks[0].Outputs[?OutputKey==`ApplicationURL`].OutputValue' \
+          --output text)
+        
+        if [ ! -z "$APP_URL" ]; then
+          echo "🚀 Application deployed successfully!"
+          echo "URL: $APP_URL"
+          echo "API Health Check: $APP_URL/api/health"
+        fi
+
+  cleanup:
+    runs-on: ubuntu-latest
+    if: failure()
+    needs: [build-and-deploy]
+    name: Cleanup on Failure
+    
+    steps:
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Clean up failed deployment
+      run: |
+        echo "Deployment failed. Check logs for details."
+        # Add any cleanup logic here if needed
