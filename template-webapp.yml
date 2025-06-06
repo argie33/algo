@@ -64,6 +64,7 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub "financial-dashboard-alb-sg-${Environment}"
+
   ### 2) Target Group for Backend API ###
   BackendTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -139,25 +140,25 @@ Resources:
               Value: "3001"
           Secrets:
             - Name: DB_HOST
-              ValueFrom: !Sub 
-                - "${SecretArn}:host::"
-                - SecretArn: !ImportValue StocksApp-SecretArn
+              ValueFrom: !Sub
+                  - "${SecretArn}:host::"
+                  - SecretArn: !ImportValue StocksApp-SecretArn
             - Name: DB_PORT
-              ValueFrom: !Sub 
-                - "${SecretArn}:port::"
-                - SecretArn: !ImportValue StocksApp-SecretArn
+              ValueFrom: !Sub
+                  - "${SecretArn}:port::"
+                  - SecretArn: !ImportValue StocksApp-SecretArn
             - Name: DB_NAME
-              ValueFrom: !Sub 
-                - "${SecretArn}:dbname::"
-                - SecretArn: !ImportValue StocksApp-SecretArn
+              ValueFrom: !Sub
+                  - "${SecretArn}:dbname::"
+                  - SecretArn: !ImportValue StocksApp-SecretArn
             - Name: DB_USER
-              ValueFrom: !Sub 
-                - "${SecretArn}:username::"
-                - SecretArn: !ImportValue StocksApp-SecretArn
+              ValueFrom: !Sub
+                  - "${SecretArn}:username::"
+                  - SecretArn: !ImportValue StocksApp-SecretArn
             - Name: DB_PASSWORD
-              ValueFrom: !Sub 
-                - "${SecretArn}:password::"
-                - SecretArn: !ImportValue StocksApp-SecretArn
+              ValueFrom: !Sub
+                  - "${SecretArn}:password::"
+                  - SecretArn: !ImportValue StocksApp-SecretArn
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -315,6 +316,7 @@ Outputs:
     Value: !GetAtt WebAppALB.DNSName
     Export:
       Name: !Sub "FinancialDashboard-ALBDNSName-${Environment}"
+
   BackendAPIUrl:
     Description: Backend API URL (via ALB)
     Value: !Sub "http://${WebAppALB.DNSName}/api"
