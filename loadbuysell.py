@@ -51,39 +51,64 @@ def get_db_connection(max_retries=3, retry_delay=5):
         psycopg2.Error: If connection fails after all retries
     """
     import time
+    import socket
     last_exception = None
+    
+    # Log connection attempt details
+    try:
+        client_ip = socket.gethostbyname(socket.gethostname())
+        logging.info(f"Attempting database connection from {client_ip} to {DB_HOST}")
+    except Exception as e:
+        logging.warning(f"Could not determine client IP: {e}")
     
     for attempt in range(max_retries):
         try:
-            # Configure connection with robust SSL and timeout settings
-            conn = psycopg2.connect(
-                host=DB_HOST,
-                port=DB_PORT,
-                user=DB_USER,
-                password=DB_PASSWORD,
-                dbname=DB_NAME,
-                # SSL configuration 
-                sslmode='require',
-                sslcert=None,  # Use default system cert store
-                # Connection timeout and keepalive settings
-                connect_timeout=10,
-                keepalives=1,
-                keepalives_idle=30,
-                keepalives_interval=10,
-                keepalives_count=5,
-                # Query timeout
-                options='-c statement_timeout=30000'
-            )
+            # Try different SSL modes in order of security preference
+            ssl_modes = ['verify-full', 'verify-ca', 'require', 'prefer'] if attempt == 0 else ['require', 'prefer']
             
-            # Set session parameters
-            with conn.cursor() as cur:
-                cur.execute("SET application_name = 'loadbuysell';")
-                cur.execute("SET tcp_keepalives_idle = 30;")
-                cur.execute("SET tcp_keepalives_interval = 10;")
-                cur.execute("SET tcp_keepalives_count = 5;")
-                conn.commit()
+            for ssl_mode in ssl_modes:
+                try:
+                    logging.info(f"Attempting connection with sslmode={ssl_mode}")
+                    conn = psycopg2.connect(
+                        host=DB_HOST,
+                        port=DB_PORT,
+                        user=DB_USER,
+                        password=DB_PASSWORD,
+                        dbname=DB_NAME,
+                        # SSL configuration 
+                        sslmode=ssl_mode,
+                        sslcert=None,  # Use default system cert store
+                        sslcompression=0,  # Disable SSL compression to reduce issues
+                        # Connection timeout and keepalive settings
+                        connect_timeout=20,  # Increased timeout
+                        keepalives=1,
+                        keepalives_idle=30,
+                        keepalives_interval=10,
+                        keepalives_count=5,
+                        # Query timeout
+                        options='-c statement_timeout=30000'
+                    )
+                    
+                    # Set session parameters
+                    with conn.cursor() as cur:
+                        cur.execute("SET application_name = 'loadbuysell';")
+                        cur.execute("SET tcp_keepalives_idle = 30;")
+                        cur.execute("SET tcp_keepalives_interval = 10;")
+                        cur.execute("SET tcp_keepalives_count = 5;")
+                        # Test the connection with a simple query
+                        cur.execute("SELECT 1;")
+                        conn.commit()
+                    
+                    logging.info(f"Successfully connected to database with sslmode={ssl_mode}")
+                    return conn
+                except psycopg2.Error as e:
+                    if "ssl" not in str(e).lower():
+                        raise  # Re-raise if not SSL-related
+                    logging.warning(f"SSL connection failed with mode {ssl_mode}: {e}")
+                    continue  # Try next SSL mode
             
-            return conn
+            # If we get here, all SSL modes failed
+            raise last_exception
             
         except psycopg2.OperationalError as e:
             last_exception = e
@@ -91,20 +116,24 @@ def get_db_connection(max_retries=3, retry_delay=5):
             
             # Handle specific error cases
             if "no pg_hba.conf entry" in error_msg:
-                logging.error(f"Authentication error - check RDS security group and pg_hba.conf: {e}")
+                logging.error(f"Authentication error for user {DB_USER} from {client_ip} to {DB_HOST}:")
+                logging.error(f"1. Verify the security group for your RDS instance allows inbound traffic from {client_ip}")
+                logging.error(f"2. Check pg_hba.conf includes an entry for this connection")
+                logging.error(f"3. Verify the AWS Secrets Manager credentials are correct")
+                logging.error(f"Full error: {e}")
                 raise  # Authentication issues won't be resolved by retry
             
             if "ssl" in error_msg:
                 logging.error(f"SSL connection error: {e}")
-                # Could try falling back to sslmode='prefer' here if needed
-                
+                # Continue to retry with different SSL modes
+            
             if attempt < max_retries - 1:
                 wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
                 logging.warning(f"Database connection attempt {attempt + 1} failed: {e}")
                 logging.info(f"Retrying in {wait_time} seconds...")
                 time.sleep(wait_time)
             else:
-                logging.error(f"Failed to connect to database after {max_retries} attempts: {e}")
+                logging.error(f"Failed to connect to database after {max_retries} attempts. Last error: {e}")
                 raise last_exception
                 
         except Exception as e:
