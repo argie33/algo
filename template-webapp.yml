@@ -334,10 +334,8 @@ Resources:
     Type: AWS::ECS::Service
     Condition: HasBackendImage
     DependsOn: ALBListener
-    Properties:
-      ServiceName: !Sub "financial-dashboard-backend-${Environment}"
-      Cluster: !ImportValue 
-        Fn::Sub: "${AppStackName}-EcsClusterName"
+    Properties:      ServiceName: !Sub "financial-dashboard-backend-${Environment}"
+      Cluster: !ImportValue StocksApp-ClusterArn
       TaskDefinition: !Ref ECSTaskDefinition
       DesiredCount: 1
       LaunchType: FARGATE
@@ -376,11 +374,9 @@ Resources:
     Condition: HasBackendImage
     Properties:
       MaxCapacity: 3
-      MinCapacity: 1
-      ResourceId: !Sub 
+      MinCapacity: 1      ResourceId: !Sub 
         - "service/${ClusterName}/${ServiceName}"
-        - ClusterName: !ImportValue 
-            Fn::Sub: "${AppStackName}-EcsClusterName"
+        - ClusterName: !Select [1, !Split [":", !ImportValue StocksApp-ClusterArn]]
           ServiceName: !Sub "financial-dashboard-backend-${Environment}"
       RoleARN: !Sub "arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService"
       ScalableDimension: ecs:service:DesiredCount
