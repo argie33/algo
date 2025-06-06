@@ -73,6 +73,7 @@ def get_symbols_from_db(limit=None):
         conn.close()
 
 def create_buy_sell_table(cur):
+    # Drop and recreate table with only essential columns
     cur.execute("DROP TABLE IF EXISTS buy_sell;")
     cur.execute("""
       CREATE TABLE buy_sell (
@@ -80,11 +81,6 @@ def create_buy_sell_table(cur):
         symbol       VARCHAR(20)    NOT NULL,
         timeframe    VARCHAR(10)    NOT NULL,
         date         DATE           NOT NULL,
-        open         REAL,
-        high         REAL,
-        low          REAL,
-        close        REAL,
-        volume       BIGINT,
         signal       VARCHAR(10),
         buylevel     REAL,
         stoplevel    REAL,
@@ -97,17 +93,16 @@ def insert_symbol_results(cur, symbol, timeframe, df):
     insert_q = """
       INSERT INTO buy_sell (
         symbol, timeframe, date,
-        open, high, low, close, volume,
         signal, buylevel, stoplevel, inposition
-      ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+      ) VALUES (%s,%s,%s,%s,%s,%s,%s)
       ON CONFLICT (symbol, timeframe, date) DO NOTHING;
     """
     inserted = 0
     for idx, row in df.iterrows():
         try:
             # Check for NaNs or missing values
-            vals = [row.get('open'), row.get('high'), row.get('low'), row.get('close'), row.get('volume'),
-                    row.get('Signal'), row.get('buyLevel'), row.get('stopLevel'), row.get('inPosition')]
+            vals = [row.get('Signal'), row.get('buyLevel'), 
+                   row.get('stopLevel'), row.get('inPosition')]
             if any(pd.isnull(v) for v in vals):
                 logging.warning(f"Skipping row {idx} for {symbol} {timeframe} due to NaN: {vals}")
                 continue
@@ -115,10 +110,10 @@ def insert_symbol_results(cur, symbol, timeframe, df):
                 symbol,
                 timeframe,
                 row['date'].date(),
-                float(row['open']), float(row['high']), float(row['low']),
-                float(row['close']), int(row['volume']),
-                row['Signal'], float(row['buyLevel']),
-                float(row['stopLevel']), bool(row['inPosition'])
+                row['Signal'],
+                float(row['buyLevel']),
+                float(row['stopLevel']),
+                bool(row['inPosition'])
             ))
             inserted += 1
         except Exception as e:
