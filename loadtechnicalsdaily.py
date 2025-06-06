@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3 
 import sys
 import time
 import logging
@@ -52,7 +52,8 @@ TECHNICALS_COLUMNS = [
     "sma_10", "sma_20", "sma_50", "sma_150", "sma_200",
     "ema_4", "ema_9", "ema_21",
     "bbands_lower", "bbands_middle", "bbands_upper",
-    "pivot_high", "pivot_low"
+    "pivot_high", "pivot_low",
+    "fetched_at"
 ]
 
 # -------------------------------
@@ -274,7 +275,8 @@ def load_technicals(symbols, cur, conn):
                     
                     # Prepare data for insertion
                     insert_data = []
-                    for idx, row in df_tech.reset_index().iterrows():                        insert_data.append((
+                    for idx, row in df_tech.reset_index().iterrows():
+                        insert_data.append((
                             symbol,
                             row['date'].to_pydatetime(),
                             sanitize_value(row.get('rsi')),
@@ -304,10 +306,11 @@ def load_technicals(symbols, cur, conn):
                             sanitize_value(row.get('bbands_middle')),
                             sanitize_value(row.get('bbands_upper')),
                             sanitize_value(row.get('pivot_high')),
-                            sanitize_value(row.get('pivot_low'))
+                            sanitize_value(row.get('pivot_low')),
+                            datetime.now()
                         ))
                     
-                    # Bulk insert using execute_values (optimized for ECS)
+                    # Bulk insert using execute_values
                     if insert_data:
                         insert_query = """
                         INSERT INTO technical_data_daily (
@@ -318,7 +321,8 @@ def load_technicals(symbols, cur, conn):
                             sma_10, sma_20, sma_50, sma_150, sma_200,
                             ema_4, ema_9, ema_21,
                             bbands_lower, bbands_middle, bbands_upper,
-                            pivot_high, pivot_low
+                            pivot_high, pivot_low,
+                            fetched_at
                         ) VALUES %s
                         """
                         execute_values(cur, insert_query, insert_data, page_size=1000)
@@ -358,7 +362,9 @@ if __name__ == "__main__":
         dbname=cfg["dbname"]
     )
     conn.autocommit = False
-    cur = conn.cursor(cursor_factory=RealDictCursor)    # Recreate technical_data_daily table (optimized structure)
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    # Recreate technical_data_daily table
     logging.info("Recreating technical_data_daily table…")
     cur.execute("DROP TABLE IF EXISTS technical_data_daily CASCADE;")
     cur.execute("""
@@ -393,10 +399,12 @@ if __name__ == "__main__":
             bbands_upper    DOUBLE PRECISION,
             pivot_high      DOUBLE PRECISION,
             pivot_low       DOUBLE PRECISION,
-            PRIMARY KEY (symbol, date)
+            fetched_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(symbol, date)
         );
     """)
-      # Create optimized indexes for performance
+    
+    # Create indexes for performance
     cur.execute("""
         CREATE INDEX idx_technical_daily_symbol ON technical_data_daily(symbol);
         CREATE INDEX idx_technical_daily_date ON technical_data_daily(date);
