@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
-import os
 import sys
+import time
+import logging
 import json
+import os
+import gc
+import resource
+import math
+
+import psycopg2
+from psycopg2.extras import RealDictCursor, execute_values
+from datetime import datetime
+
+import boto3
 import requests
 import pandas as pd
 import numpy as np
-import boto3
-import psycopg2
-from psycopg2.extras import RealDictCursor
-from datetime import datetime
-import logging
 
 # -------------------------------
 # Script metadata & logging setup
@@ -21,131 +27,49 @@ logging.basicConfig(
     stream=sys.stdout
 )
 
-###############################################################################
-# ─── Environment & Secrets ───────────────────────────────────────────────────
-###############################################################################
+# -------------------------------
+# Memory-logging helper (RSS in MB)
+# -------------------------------
+def get_rss_mb():
+    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    if sys.platform.startswith("linux"):
+        return usage / 1024
+    return usage / (1024 * 1024)
+
+def log_mem(stage: str):
+    logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
+
+# -------------------------------
+# DB config loader (matches loadpricedaily.py pattern)
+# -------------------------------
+def get_db_config():
+    secret_str = boto3.client("secretsmanager") \
+                     .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
+    sec = json.loads(secret_str)
+    return {
+        "host":   sec["host"],
+        "port":   int(sec.get("port", 5432)),
+        "user":   sec["username"],
+        "password": sec["password"],
+        "dbname": sec["dbname"]
+    }
+
+# -------------------------------
+# FRED API Key
+# -------------------------------
 FRED_API_KEY = os.environ["FRED_API_KEY"]
-SECRET_ARN   = os.environ["DB_SECRET_ARN"]
-
-sm_client   = boto3.client("secretsmanager")
-secret_resp = sm_client.get_secret_value(SecretId=SECRET_ARN)
-creds       = json.loads(secret_resp["SecretString"])
-
-DB_USER     = creds["username"]
-DB_PASSWORD = creds["password"]
-DB_HOST     = creds["host"]
-DB_PORT     = int(creds.get("port", 5432))
-DB_NAME     = creds["dbname"]
-
-def get_db_connection(max_retries=3, retry_delay=5):
-    """Get a database connection with retry logic and proper SSL configuration.
-    
-    Args:
-        max_retries (int): Maximum number of connection attempts
-        retry_delay (int): Initial delay between retries in seconds (doubles after each retry)
-        
-    Returns:
-        psycopg2.extensions.connection: Database connection object
-    
-    Raises:
-        psycopg2.Error: If connection fails after all retries
-    """
-    import time
-    import socket
-    last_exception = None
-    
-    # Log connection attempt details
-    try:
-        client_ip = socket.gethostbyname(socket.gethostname())
-        logging.info(f"Attempting database connection from {client_ip} to {DB_HOST}")
-    except Exception as e:
-        logging.warning(f"Could not determine client IP: {e}")
-    
-    for attempt in range(max_retries):
-        try:
-            # Try different SSL modes in order of security preference
-            ssl_modes = ['verify-full', 'verify-ca', 'require', 'prefer'] if attempt == 0 else ['require', 'prefer']
-            
-            for ssl_mode in ssl_modes:
-                try:
-                    logging.info(f"Attempting connection with sslmode={ssl_mode}")
-                    conn = psycopg2.connect(
-                        host=DB_HOST,
-                        port=DB_PORT,
-                        user=DB_USER,
-                        password=DB_PASSWORD,
-                        dbname=DB_NAME,
-                        # SSL configuration 
-                        sslmode=ssl_mode,
-                        sslcert=None,  # Use default system cert store
-                        sslcompression=0,  # Disable SSL compression to reduce issues
-                        # Connection timeout and keepalive settings
-                        connect_timeout=20,  # Increased timeout
-                        keepalives=1,
-                        keepalives_idle=30,
-                        keepalives_interval=10,
-                        keepalives_count=5,
-                        # Query timeout
-                        options='-c statement_timeout=30000'
-                    )
-                    
-                    # Set session parameters
-                    with conn.cursor() as cur:
-                        cur.execute("SET application_name = 'loadbuysell';")
-                        cur.execute("SET tcp_keepalives_idle = 30;")
-                        cur.execute("SET tcp_keepalives_interval = 10;")
-                        cur.execute("SET tcp_keepalives_count = 5;")
-                        # Test the connection with a simple query
-                        cur.execute("SELECT 1;")
-                        conn.commit()
-                    
-                    logging.info(f"Successfully connected to database with sslmode={ssl_mode}")
-                    return conn
-                except psycopg2.Error as e:
-                    if "ssl" not in str(e).lower():
-                        raise  # Re-raise if not SSL-related
-                    logging.warning(f"SSL connection failed with mode {ssl_mode}: {e}")
-                    continue  # Try next SSL mode
-            
-            # If we get here, all SSL modes failed
-            raise last_exception
-            
-        except psycopg2.OperationalError as e:
-            last_exception = e
-            error_msg = str(e).lower()
-            
-            # Handle specific error cases
-            if "no pg_hba.conf entry" in error_msg:
-                logging.error(f"Authentication error for user {DB_USER} from {client_ip} to {DB_HOST}:")
-                logging.error(f"1. Verify the security group for your RDS instance allows inbound traffic from {client_ip}")
-                logging.error(f"2. Check pg_hba.conf includes an entry for this connection")
-                logging.error(f"3. Verify the AWS Secrets Manager credentials are correct")
-                logging.error(f"Full error: {e}")
-                raise  # Authentication issues won't be resolved by retry
-            
-            if "ssl" in error_msg:
-                logging.error(f"SSL connection error: {e}")
-                # Continue to retry with different SSL modes
-            
-            if attempt < max_retries - 1:
-                wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
-                logging.warning(f"Database connection attempt {attempt + 1} failed: {e}")
-                logging.info(f"Retrying in {wait_time} seconds...")
-                time.sleep(wait_time)
-            else:
-                logging.error(f"Failed to connect to database after {max_retries} attempts. Last error: {e}")
-                raise last_exception
-                
-        except Exception as e:
-            logging.error(f"Unexpected error during database connection: {e}")
-            raise
 
 ###############################################################################
 # 1) DATABASE FUNCTIONS 
 ###############################################################################
 def get_symbols_from_db(limit=None):
-    conn = get_db_connection()
-    cur  = conn.cursor()
+    cfg = get_db_config()
+    conn = psycopg2.connect(
+        host=cfg["host"], port=cfg["port"],
+        user=cfg["user"], password=cfg["password"],
+        dbname=cfg["dbname"]
+    )
+    cur = conn.cursor()
     try:
         q = """
           SELECT symbol
@@ -244,15 +168,24 @@ def fetch_symbol_from_db(symbol, timeframe):
     }
     if tf not in price_table_map or tf not in tech_table_map:
         raise ValueError(f"Invalid timeframe: {timeframe}")
+    
     price_table = price_table_map[tf]
-    tech_table  = tech_table_map[tf]
-    conn = get_db_connection()
-    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    tech_table = tech_table_map[tf]
+    
+    cfg = get_db_config()
+    conn = psycopg2.connect(
+        host=cfg["host"], port=cfg["port"],
+        user=cfg["user"], password=cfg["password"],
+        dbname=cfg["dbname"]
+    )
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    
     try:
+        # Updated SQL to work with actual database schema (no plus_di/minus_di)
         sql = f"""
           SELECT
             p.date, p.open, p.high, p.low, p.close, p.volume,
-            t.rsi, t.atr, t.adx, t.plus_di, t.minus_di,
+            t.rsi, t.atr, t.adx,
             t.sma_50    AS "TrendMA",
             t.pivot_high AS "PivotHighRaw",
             t.pivot_low  AS "PivotLowRaw"
@@ -279,84 +212,100 @@ def fetch_symbol_from_db(symbol, timeframe):
     df = pd.DataFrame(rows)
     df['date'] = pd.to_datetime(df['date'])
     num_cols = ['open','high','low','close','volume',
-                'rsi','atr','adx','plus_di','minus_di',
+                'rsi','atr','adx',
                 'TrendMA','PivotHighRaw','PivotLowRaw']
     for c in num_cols:
         df[c] = pd.to_numeric(df[c], errors='coerce')
     return df.reset_index(drop=True)
 
 ###############################################################################
-# 4) SIGNAL GENERATION & IN-POSITION LOGIC
+# 4) SIGNAL GENERATION & IN-POSITION LOGIC (Simplified without ADX DI)
 ###############################################################################
-def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
-    df['TrendOK']     = df['close'] > df['TrendMA']
-    df['RSI_prev']    = df['rsi'].shift(1)
-    df['rsiBuy']      = (df['rsi']>50)&(df['RSI_prev']<=50)
-    df['rsiSell']     = (df['rsi']<50)&(df['RSI_prev']>=50)
-    df['LastPH']      = df['PivotHighRaw'].shift(1).ffill()
-    df['LastPL']      = df['PivotLowRaw'].shift(1).ffill()
-    df['stopBuffer']  = df['atr'] * atrMult
-    df['stopLevel']   = df['LastPL'] - df['stopBuffer']
-    df['buyLevel']    = df['LastPH']
+def generate_signals(df, atrMult=1.0, useADX=True, adxThreshold=25):
+    if df.empty:
+        return df
+    
+    # Basic trend and RSI signals
+    df['TrendOK'] = df['close'] > df['TrendMA']
+    df['RSI_prev'] = df['rsi'].shift(1)
+    df['rsiBuy'] = (df['rsi'] > 50) & (df['RSI_prev'] <= 50)
+    df['rsiSell'] = (df['rsi'] < 50) & (df['RSI_prev'] >= 50)
+    
+    # Pivot levels
+    df['LastPH'] = df['PivotHighRaw'].shift(1).ffill()
+    df['LastPL'] = df['PivotLowRaw'].shift(1).ffill()
+    
+    # Stop and buy levels
+    df['stopBuffer'] = df['atr'] * atrMult
+    df['stopLevel'] = df['LastPL'] - df['stopBuffer']
+    df['buyLevel'] = df['LastPH']
+    
+    # Breakout signals
     df['breakoutBuy'] = df['high'] > df['buyLevel']
-    df['breakoutSell']= df['low']  < df['stopLevel']
-
+    df['breakoutSell'] = df['low'] < df['stopLevel']
+    
+    # Simplified ADX logic (without plus_di/minus_di)
     if useADX:
-        flt    = ((df['adx']>adxS) |
-                  ((df['adx']>adxW) & (df['adx']>df['adx'].shift(1))))
-        adxOK  = (df['plus_di']>df['minus_di']) & flt
-        exitD  = ((df['plus_di'].shift(1)>df['minus_di'].shift(1)) &
-                  (df['plus_di']<df['minus_di']))
-        df['finalBuy']  = ((df['rsiBuy'] & df['TrendOK'] & adxOK) | df['breakoutBuy'])
-        df['finalSell'] = (df['rsiSell'] | df['breakoutSell'] | exitD)
+        df['adxStrong'] = df['adx'] > adxThreshold
+        df['finalBuy'] = ((df['rsiBuy'] & df['TrendOK'] & df['adxStrong']) | df['breakoutBuy'])
+        df['finalSell'] = (df['rsiSell'] | df['breakoutSell'])
     else:
-        df['finalBuy']  = ((df['rsiBuy'] & df['TrendOK']) | df['breakoutBuy'])
+        df['finalBuy'] = ((df['rsiBuy'] & df['TrendOK']) | df['breakoutBuy'])
         df['finalSell'] = (df['rsiSell'] | df['breakoutSell'])
 
+    # Generate position tracking
     in_pos, sigs, pos = False, [], []
     for i in range(len(df)):
-        if in_pos and df.loc[i,'finalSell']:
-            sigs.append('Sell'); in_pos=False
-        elif not in_pos and df.loc[i,'finalBuy']:
-            sigs.append('Buy'); in_pos=True
+        if in_pos and df.loc[i, 'finalSell']:
+            sigs.append('Sell')
+            in_pos = False
+        elif not in_pos and df.loc[i, 'finalBuy']:
+            sigs.append('Buy')
+            in_pos = True
         else:
             sigs.append('None')
         pos.append(in_pos)
 
-    df['Signal']    = sigs
-    df['inPosition']= pos
+    df['Signal'] = sigs
+    df['inPosition'] = pos
     return df
 
 ###############################################################################
 # 5) BACKTEST & METRICS
 ###############################################################################
 def backtest_fixed_capital(df):
+    if df.empty:
+        return [], [], [], None, None
+        
     trades = []
-    buys   = df.index[df['Signal']=='Buy'].tolist()
+    buys = df.index[df['Signal'] == 'Buy'].tolist()
     if not buys:
         return trades, [], [], None, None
 
     df2 = df.iloc[buys[0]:].reset_index(drop=True)
     pos_open = False
-    for i in range(len(df2)-1):
-        sig, o, d = df2.loc[i,'Signal'], df2.loc[i+1,'open'], df2.loc[i+1,'date']
-        if sig=='Buy' and not pos_open:
-            pos_open=True; trades.append({'date':d,'action':'Buy','price':o})
-        elif sig=='Sell' and pos_open:
-            pos_open=False; trades.append({'date':d,'action':'Sell','price':o})
+    
+    for i in range(len(df2) - 1):
+        sig, o, d = df2.loc[i, 'Signal'], df2.loc[i + 1, 'open'], df2.loc[i + 1, 'date']
+        if sig == 'Buy' and not pos_open:
+            pos_open = True
+            trades.append({'date': d, 'action': 'Buy', 'price': o})
+        elif sig == 'Sell' and pos_open:
+            pos_open = False
+            trades.append({'date': d, 'action': 'Sell', 'price': o})
 
     if pos_open:
         last = df2.iloc[-1]
-        trades.append({'date':last['date'],'action':'Sell','price':last['close']})
+        trades.append({'date': last['date'], 'action': 'Sell', 'price': last['close']})
 
     rets, durs = [], []
     i = 0
-    while i < len(trades)-1:
-        if trades[i]['action']=='Buy' and trades[i+1]['action']=='Sell':
-            e, x = trades[i]['price'], trades[i+1]['price']
+    while i < len(trades) - 1:
+        if trades[i]['action'] == 'Buy' and trades[i + 1]['action'] == 'Sell':
+            e, x = trades[i]['price'], trades[i + 1]['price']
             if e >= 1.0:
-                rets.append((x-e)/e)
-                durs.append((trades[i+1]['date']-trades[i]['date']).days)
+                rets.append((x - e) / e)
+                durs.append((trades[i + 1]['date'] - trades[i]['date']).days)
             i += 2
         else:
             i += 1
@@ -367,16 +316,16 @@ def compute_metrics_fixed_capital(rets, durs, annual_rfr=0.0):
     n = len(rets)
     if n == 0:
         return {}
-    wins   = [r for r in rets if r>0]
-    losses = [r for r in rets if r<0]
-    avg    = np.mean(rets) if n else 0.0
-    std    = np.std(rets, ddof=1) if n>1 else 0.0
+    wins = [r for r in rets if r > 0]
+    losses = [r for r in rets if r < 0]
+    avg = np.mean(rets) if n else 0.0
+    std = np.std(rets, ddof=1) if n > 1 else 0.0
     return {
-      'num_trades':     n,
-      'win_rate':       len(wins)/n,
-      'avg_return':     avg,
-      'profit_factor':  sum(wins)/abs(sum(losses)) if losses else float('inf'),
-      'sharpe_ratio':   ((avg-annual_rfr)/std*np.sqrt(n)) if std>0 else 0.0
+        'num_trades': n,
+        'win_rate': len(wins) / n,
+        'avg_return': avg,
+        'profit_factor': sum(wins) / abs(sum(losses)) if losses else float('inf'),
+        'sharpe_ratio': ((avg - annual_rfr) / std * np.sqrt(n)) if std > 0 else 0.0
     }
 
 def analyze_trade_returns_fixed_capital(rets, durs, tag, annual_rfr=0.0):
@@ -385,11 +334,11 @@ def analyze_trade_returns_fixed_capital(rets, durs, tag, annual_rfr=0.0):
         logging.info(f"{tag}: No trades.")
         return
     logging.info(
-      f"{tag} → Trades:{m['num_trades']} "
-      f"WinRate:{m['win_rate']:.2%} "
-      f"AvgRet:{m['avg_return']*100:.2f}% "
-      f"PF:{m['profit_factor']:.2f} "
-      f"Sharpe:{m['sharpe_ratio']:.2f}"
+        f"{tag} → Trades:{m['num_trades']} "
+        f"WinRate:{m['win_rate']:.2%} "
+        f"AvgRet:{m['avg_return'] * 100:.2f}% "
+        f"PF:{m['profit_factor']:.2f} "
+        f"Sharpe:{m['sharpe_ratio']:.2f}"
     )
 
 ###############################################################################
@@ -402,31 +351,40 @@ def process_symbol(symbol, timeframe):
     return generate_signals(df) if not df.empty else df
 
 def main():
+    log_mem("startup")
 
     try:
         annual_rfr = get_risk_free_rate_fred(FRED_API_KEY)
-        print(f"Annual RFR: {annual_rfr:.2%}")
+        logging.info(f"Annual RFR: {annual_rfr:.2%}")
     except Exception as e:
         logging.warning(f"Failed to get risk-free rate: {e}")
         annual_rfr = 0.0
 
     symbols = get_symbols_from_db(limit=3)  # Limit for debugging, remove or increase as needed
     if not symbols:
-        print("No symbols in DB.")
+        logging.info("No symbols in DB.")
         return
 
-    conn = get_db_connection()
-    cur  = conn.cursor()
+    # Connect to DB using proven pattern
+    cfg = get_db_config()
+    conn = psycopg2.connect(
+        host=cfg["host"], port=cfg["port"],
+        user=cfg["user"], password=cfg["password"],
+        dbname=cfg["dbname"]
+    )
+    conn.autocommit = False
+    cur = conn.cursor()
+
     create_buy_sell_table(cur)
     conn.commit()
 
-    results = {'Daily':{'rets':[],'durs':[]},
-               'Weekly':{'rets':[],'durs':[]},
-               'Monthly':{'rets':[],'durs':[]}}
+    results = {'Daily': {'rets': [], 'durs': []},
+               'Weekly': {'rets': [], 'durs': []},
+               'Monthly': {'rets': [], 'durs': []}}
 
     for sym in symbols:
         logging.info(f"=== {sym} ===")
-        for tf in ['Daily','Weekly','Monthly']:
+        for tf in ['Daily', 'Weekly', 'Monthly']:
             logging.info(f"  [main] Processing {sym} {tf}")
             df = process_symbol(sym, tf)
             logging.info(f"  [main] Done processing {sym} {tf}")
@@ -445,7 +403,7 @@ def main():
     logging.info("=========================")
     logging.info(" AGGREGATED PERFORMANCE (FIXED $10k PER TRADE) ")
     logging.info("=========================")
-    for tf in ['Daily','Weekly','Monthly']:
+    for tf in ['Daily', 'Weekly', 'Monthly']:
         analyze_trade_returns_fixed_capital(
             results[tf]['rets'], results[tf]['durs'],
             f"[{tf} (Overall)]", annual_rfr
@@ -456,9 +414,22 @@ def main():
     all_durs = [d for tf in results for d in results[tf]['durs']]
     analyze_trade_returns_fixed_capital(all_rets, all_durs, "[Global (All TFs)]", annual_rfr)
 
+    # Record last run
+    cur.execute("""
+      INSERT INTO last_updated (script_name, last_run)
+      VALUES (%s, NOW())
+      ON CONFLICT (script_name) DO UPDATE
+        SET last_run = EXCLUDED.last_run;
+    """, (SCRIPT_NAME,))
+    conn.commit()
+
+    peak = get_rss_mb()
+    logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
     logging.info("Processing complete.")
+    
     cur.close()
     conn.close()
+    log_mem("shutdown")
 
 if __name__ == "__main__":
     main()
