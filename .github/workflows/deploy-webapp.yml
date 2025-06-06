@@ -89,10 +89,13 @@ jobs:
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
+      if: hashFiles('webapp/frontend/package.json') != ''
       with:
         node-version: '18'
-        cache: 'npm'
-        cache-dependency-path: 'webapp/frontend/package-lock.json'
+        cache: npm
+        cache-dependency-path: |
+          webapp/frontend/package-lock.json
+          webapp/frontend/package.json
       
     - name: Debug Node and npm versions
       run: |
