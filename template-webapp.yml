@@ -209,9 +209,11 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub "${FrontendBucketName}-${Environment}-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Enabled
       WebsiteConfiguration:
         IndexDocument: index.html
-        ErrorDocument: error.html
+        ErrorDocument: index.html  # Use index.html for SPA routing
       PublicAccessBlockConfiguration:
         BlockPublicAcls: false
         BlockPublicPolicy: false
@@ -234,12 +236,14 @@ Resources:
     Properties:
       Bucket: !Ref FrontendBucket
       PolicyDocument:
+        Version: '2012-10-17'
         Statement:
           - Sid: PublicReadGetObject
             Effect: Allow
             Principal: "*"
-            Action: s3:GetObject
-            Resource: !Sub "${FrontendBucket}/*"
+            Action: 
+              - s3:GetObject
+            Resource: !Sub "arn:aws:s3:::${FrontendBucket.Arn}/*"
 
   ### 11) CloudFront Distribution ###
   CloudFrontDistribution:

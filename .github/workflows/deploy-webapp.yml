@@ -116,8 +116,8 @@ jobs:
         # Get S3 bucket name from CloudFormation stack
         BUCKET_NAME=$(aws cloudformation describe-stacks \
           --stack-name $STACK_NAME \
-          --query 'Stacks[0].Outputs[?OutputKey==`S3BucketName`].OutputValue' \
-          --output text 2>/dev/null || echo "")
+          --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' \
+          --output text)
         
         if [ -z "$BUCKET_NAME" ]; then
           echo "S3 bucket not found. Stack may not exist yet."
@@ -125,19 +125,15 @@ jobs:
         fi
         
         # Sync frontend build to S3
-        aws s3 sync webapp/frontend/dist s3://$BUCKET_NAME --delete
+        aws s3 sync webapp/frontend/dist s3://$BUCKET_NAME \
+          --delete \
+          --cache-control "max-age=31536000,public" \
+          --exclude "index.html" 
         
-        # Invalidate CloudFront cache
-        DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
-          --stack-name $STACK_NAME \
-          --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' \
-          --output text)
-        
-        if [ ! -z "$DISTRIBUTION_ID" ]; then
-          aws cloudfront create-invalidation \
-            --distribution-id $DISTRIBUTION_ID \
-            --paths "/*"
-        fi
+        # Upload index.html with no-cache headers
+        aws s3 cp webapp/frontend/dist/index.html s3://$BUCKET_NAME/index.html \
+          --cache-control "no-cache,no-store,must-revalidate" \
+          --content-type "text/html; charset=utf-8"
 
     - name: Deploy infrastructure
       env:
