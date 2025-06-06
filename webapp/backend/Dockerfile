@@ -4,11 +4,12 @@ FROM node:18-alpine
 # Set the working directory in the container
 WORKDIR /app
 
-# Copy package.json and package-lock.json (if available)
+# Copy package files first
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install production dependencies with fallback options
+RUN npm ci --only=production || \
+    (npm install --only=production && npm cache clean --force)
 
 # Copy the source code
 COPY src ./src
