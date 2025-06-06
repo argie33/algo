@@ -75,20 +75,34 @@ jobs:
         else
           # Use a placeholder image URI if no backend
           echo "BACKEND_IMAGE_URI=${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:latest" >> $GITHUB_ENV
-        fi
-
+        fi    
+    
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '18'
         cache: 'npm'
         cache-dependency-path: 'webapp/frontend/package-lock.json'
-
+      
+    - name: Debug Node and npm versions
+      run: |
+        node --version
+        npm --version
+        echo "NPM config list:"
+        npm config list
+        echo "Directory contents:"
+        ls -la webapp/frontend/
+        
     - name: Install frontend dependencies
       run: |
         if [ -f "webapp/frontend/package.json" ]; then
           cd webapp/frontend
-          npm ci
+          # Clean install with retry logic
+          npm ci --prefer-offline || npm ci || (rm -rf node_modules && npm install)
+          if [ $? -ne 0 ]; then
+            echo "Failed to install dependencies after retries"
+            exit 1
+          fi
         else
           echo "Frontend package.json not found, creating basic React app structure"
           mkdir -p webapp/frontend/build
