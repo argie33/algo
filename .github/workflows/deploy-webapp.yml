@@ -16,7 +16,8 @@ on:
         type: choice
         options:
           - dev
-          - staging          - prod
+          - staging
+          - prod
 
 env:
   AWS_REGION: us-east-1
@@ -128,13 +129,14 @@ jobs:
           --stack-name $STACK_NAME \
           --query 'Stacks[0].Outputs[?OutputKey==`WebsiteURL`].OutputValue' \
           --output text \
-          --region ${{ env.AWS_REGION }})       API_URL=$(aws cloudformation describe-stacks \
+          --region ${{ env.AWS_REGION }})
+          
+         API_URL=$(aws cloudformation describe-stacks \
           --stack-name $STACK_NAME \
           --query 'Stacks[0].Outputs[?OutputKey==`ApiGatewayUrl`].OutputValue' \
           --output text \
           --region ${{ env.AWS_REGION }})
-        
-        echo "FRONTEND_BUCKET=$FRONTEND_BUCKET" >> $GITHUB_ENV
+          echo "FRONTEND_BUCKET=$FRONTEND_BUCKET" >> $GITHUB_ENV
         echo "WEBSITE_URL=$WEBSITE_URL" >> $GITHUB_ENV
         echo "API_URL=$API_URL" >> $GITHUB_ENV
         
@@ -142,7 +144,8 @@ jobs:
         echo "website-url=$WEBSITE_URL" >> $GITHUB_OUTPUT
         echo "api-url=$API_URL" >> $GITHUB_OUTPUT
 
-    - name: Update frontend config with real API URL      run: |
+    - name: Update frontend config with real API URL
+      run: |
         # Replace placeholder in SPA files with proper config injection
         if [ -f "webapp/spa/index.html" ]; then
           echo "Updating SPA index.html with API URL: $API_URL"
@@ -158,9 +161,7 @@ jobs:
             echo "Updating: $file"
             sed -i "s|placeholder-will-be-replaced-after-deployment|$API_URL|g" "$file"
           done
-        fi
-
-    - name: Sync frontend to S3
+        fi- name: Sync frontend to S3
       run: |
         # Upload SPA files if they exist
         if [ -f "webapp/spa/index.html" ]; then
