@@ -1,20 +1,18 @@
 #!/usr/bin/env python3
+import os
 import sys
+import json
 import time
 import logging
-import json
-import os
-import gc
 import resource
 import warnings
-from datetime import datetime
-
-import psycopg2
-from psycopg2.extras import RealDictCursor, execute_values
-import boto3
 import numpy as np
 import pandas as pd
+import psycopg2
+import boto3
 import pandas_ta as ta
+from datetime import datetime
+from psycopg2.extras import RealDictCursor, execute_values
 
 # Suppress FutureWarnings for performance
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -40,6 +38,21 @@ def get_rss_mb():
 
 def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
+
+# -------------------------------
+# Technical indicators columns (optimized for ECS)
+# -------------------------------
+TECHNICALS_COLUMNS = [
+    "symbol", "date",
+    "rsi", "macd", "macd_signal", "macd_hist",
+    "mom", "roc", "adx", "atr", "ad", "cmf", "mfi",
+    "td_sequential", "td_combo", "marketwatch", "dm",
+    "sma_10", "sma_20", "sma_50", "sma_150", "sma_200",
+    "ema_4", "ema_9", "ema_21",
+    "bbands_lower", "bbands_middle", "bbands_upper",
+    "pivot_high", "pivot_low",
+    "fetched_at"
+]
 
 # -------------------------------
 # DB config loader
@@ -147,7 +160,7 @@ def calculate_technicals(df):
     # Fill any gaps and drop NaN rows
     df = df.ffill().bfill().dropna()
     
-    if len(df) < 20:  # Monthly data needs even less minimum data
+    if len(df) < 20:  # Need minimum data for indicators
         logging.warning(f"Insufficient data: {len(df)} rows")
         return pd.DataFrame()
     
@@ -200,15 +213,19 @@ def calculate_technicals(df):
     # --- Bollinger Bands ---
     bb = ta.bbands(df['close'], length=20, std=2)
     if bb is not None and not bb.empty:
-        df['bbands_lower'] = bb.iloc[:, 0]
-        df['bbands_middle'] = bb.iloc[:, 1]
-        df['bbands_upper'] = bb.iloc[:, 2]
+        df['bbands_lower'] = bb.iloc[:, 0]   # BBL
+        df['bbands_middle'] = bb.iloc[:, 1]  # BBM
+        df['bbands_upper'] = bb.iloc[:, 2]   # BBU
     else:
         df[['bbands_lower', 'bbands_middle', 'bbands_upper']] = np.nan
     
     # --- Pivot points ---
-    df['pivot_high'] = pivot_high_vectorized(df)
-    df['pivot_low'] = pivot_low_vectorized(df)
+    df_reset = df.reset_index()
+    df['pivot_high'] = pivot_high_vectorized(df_reset, 3, 3).values
+    df['pivot_low'] = pivot_low_vectorized(df_reset, 3, 3).values
+    
+    # Clean infinite values
+    df = df.replace([np.inf, -np.inf], np.nan)
     
     return df
 
@@ -216,104 +233,78 @@ def calculate_technicals(df):
 # Main processing function
 # -------------------------------
 def load_technicals(symbols, cur, conn):
-    """Load technical indicators for all symbols"""
     total = len(symbols)
-    inserted = 0
-    failed = []
-    
-    for i, symbol in enumerate(symbols, 1):
-        if i % 100 == 0:
-            log_mem(f"Processed {i}/{total} symbols")
-            gc.collect()
+    logging.info(f"Loading technical indicators for {total} symbols")
+    inserted, failed = 0, []
+    CHUNK_SIZE, PAUSE = 50, 0.1  # Process 50 symbols at a time
+    batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
+
+    for batch_idx in range(batches):
+        batch = symbols[batch_idx*CHUNK_SIZE:(batch_idx+1)*CHUNK_SIZE]
         
-        try:
-            # Query monthly price data
-            cur.execute("""
-                SELECT date, open, high, low, close, volume
-                FROM price_monthly
-                WHERE symbol = %s
-                ORDER BY date ASC
-            """, (symbol,))
-            rows = cur.fetchall()
-            
-            if not rows:
-                logging.warning(f"No monthly price data for {symbol}")
-                failed.append(symbol)
-                continue
+        logging.info(f"Technical indicators – batch {batch_idx+1}/{batches}")
+        batch_start = time.time()
+        
+        for symbol in batch:
+            try:
+                # Get price data from DB
+                cur.execute("""
+                    SELECT date, open, high, low, close, volume
+                    FROM price_monthly
+                    WHERE symbol = %s
+                    ORDER BY date
+                """, (symbol,))
+                rows = cur.fetchall()
                 
-            # Convert to DataFrame
-            df = pd.DataFrame(rows, columns=['date', 'open', 'high', 'low', 'close', 'volume'])
-            df['date'] = pd.to_datetime(df['date'])
-            df.set_index('date', inplace=True)
-            
-            # Calculate technical indicators
-            df_tech = calculate_technicals(df.copy())
-            
-            if df_tech.empty:
-                logging.warning(f"Failed to calculate technicals for {symbol}")
-                failed.append(symbol)
-                continue
-            
-            # Prepare data for insertion
-            insert_data = []
-            for idx, row in df_tech.reset_index().iterrows():
-                insert_data.append((
-                    symbol,
-                    row['date'].to_pydatetime(),
-                    sanitize_value(row.get('rsi')),
-                    sanitize_value(row.get('macd')),
-                    sanitize_value(row.get('macd_signal')),
-                    sanitize_value(row.get('macd_hist')),
-                    sanitize_value(row.get('mom')),
-                    sanitize_value(row.get('roc')),
-                    sanitize_value(row.get('adx')),
-                    sanitize_value(row.get('atr')),
-                    sanitize_value(row.get('ad')),
-                    sanitize_value(row.get('cmf')),
-                    sanitize_value(row.get('mfi')),
-                    sanitize_value(row.get('td_sequential')),
-                    sanitize_value(row.get('td_combo')),
-                    sanitize_value(row.get('marketwatch')),
-                    sanitize_value(row.get('dm')),
-                    sanitize_value(row.get('sma_10')),
-                    sanitize_value(row.get('sma_20')),
-                    sanitize_value(row.get('sma_50')),
-                    sanitize_value(row.get('sma_150')),
-                    sanitize_value(row.get('sma_200')),
-                    sanitize_value(row.get('ema_4')),
-                    sanitize_value(row.get('ema_9')),
-                    sanitize_value(row.get('ema_21')),
-                    sanitize_value(row.get('bbands_lower')),
-                    sanitize_value(row.get('bbands_middle')),
-                    sanitize_value(row.get('bbands_upper')),
-                    sanitize_value(row.get('pivot_high')),
-                    sanitize_value(row.get('pivot_low')),
-                    datetime.now()
-                ))
-            
-            # Bulk insert using execute_values (optimized for ECS)
-            if insert_data:
-                insert_query = """
-                INSERT INTO technical_data_monthly (
-                    symbol, date,
-                    rsi, macd, macd_signal, macd_hist,
-                    mom, roc, adx, atr, ad, cmf, mfi,
-                    td_sequential, td_combo, marketwatch, dm,
-                    sma_10, sma_20, sma_50, sma_150, sma_200,
-                    ema_4, ema_9, ema_21,
-                    bbands_lower, bbands_middle, bbands_upper,
-                    pivot_high, pivot_low
-                ) VALUES %s
-                ON CONFLICT (symbol, date) DO NOTHING
-                """
-                execute_values(cur, insert_query, insert_data, page_size=1000)
+                if not rows:
+                    logging.warning(f"No price data for {symbol}, skipping")
+                    continue
+                
+                # Create dataframe and calculate indicators
+                df = pd.DataFrame(rows)
+                df.set_index('date', inplace=True)
+                
+                # Calculate all technical indicators
+                df = calculate_technicals(df)
+                
+                if df.empty:
+                    logging.warning(f"Failed to calculate technicals for {symbol}")
+                    failed.append(symbol)
+                    continue
+                
+                # Prepare data for insertion (only most recent data needed)
+                df = df.tail(60)  # Keep last 60 months of data
+                
+                # Add fetched_at timestamp and symbol
+                df['fetched_at'] = datetime.now()
+                df['symbol'] = symbol
+                
+                # Prepare data for bulk insert
+                tuples = [tuple(sanitize_value(x) for x in row) for row in df[TECHNICALS_COLUMNS].itertuples(index=False)]
+                
+                # Delete existing data for this symbol
+                cur.execute("DELETE FROM technical_data_monthly WHERE symbol = %s", (symbol,))
+                
+                # Bulk insert new data
+                execute_values(cur, """
+                    INSERT INTO technical_data_monthly 
+                    (symbol, date, rsi, macd, macd_signal, macd_hist, mom, roc, adx, atr, ad, cmf, mfi, 
+                     td_sequential, td_combo, marketwatch, dm, sma_10, sma_20, sma_50, sma_150, sma_200, 
+                     ema_4, ema_9, ema_21, bbands_lower, bbands_middle, bbands_upper, pivot_high, pivot_low, fetched_at)
+                    VALUES %s
+                """, tuples)
+                
                 conn.commit()
                 inserted += 1
                 
-        except Exception as e:
-            logging.error(f"Error processing {symbol}: {e}")
-            failed.append(symbol)
-            conn.rollback()
+            except Exception as e:
+                conn.rollback()
+                logging.error(f"Error processing {symbol}: {str(e)}")
+                failed.append(symbol)
+        
+        batch_elapsed = time.time() - batch_start
+        logging.info(f"Batch {batch_idx+1}/{batches} processed in {batch_elapsed:.2f} seconds")
+        time.sleep(PAUSE)  # Small pause between batches
     
     return total, inserted, failed
 
@@ -390,6 +381,8 @@ if __name__ == "__main__":
     
     if not symbols:
         logging.error("No symbols found in price_monthly table")
+        cur.close()
+        conn.close()
         sys.exit(1)
     
     # Process technical indicators
@@ -413,7 +406,7 @@ if __name__ == "__main__":
     logging.info(f"Total symbols: {total}, Successfully processed: {inserted}, Failed: {len(failed)}")
     
     if failed:
-        logging.warning(f"Failed symbols: {failed[:10]}...")  # Show first 10
+        logging.warning(f"Failed symbols: {', '.join(failed[:20])}" + ("..." if len(failed) > 20 else ""))
 
     cur.close()
     conn.close()

@@ -64,7 +64,6 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub "financial-dashboard-alb-sg-${Environment}"
-
   ### 2) Target Group for Backend API ###
   BackendTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -107,6 +106,8 @@ Resources:
           Description: "HTTP traffic from ALB"
       SecurityGroupEgress:
         - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
           CidrIp: "0.0.0.0/0"
           Description: "All outbound traffic"
       Tags:
@@ -127,7 +128,8 @@ Resources:
       TaskRoleArn: !Ref BackendTaskRole
       ContainerDefinitions:
         - Name: backend
-          Image: !Ref BackendImageUri          PortMappings:
+          Image: !Ref BackendImageUri
+          PortMappings:
             - ContainerPort: 3001
               Protocol: tcp
           Environment:
@@ -262,7 +264,7 @@ Resources:
               Service: cloudfront.amazonaws.com
             Action: 
               - s3:GetObject
-            Resource: !Sub "${FrontendBucket}/*"
+            Resource: !Sub "arn:aws:s3:::${FrontendBucket}/*"
             Condition:
               StringEquals:
                 AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}"

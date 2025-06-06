@@ -85,17 +85,14 @@ jobs:
         else
           # Use a placeholder image URI if no backend
           echo "BACKEND_IMAGE_URI=${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:latest" >> $GITHUB_ENV
-        fi    
-
-    - name: Setup Node.js
+        fi        - name: Setup Node.js
       uses: actions/setup-node@v4
       if: hashFiles('webapp/frontend/package.json') != ''
       with:
         node-version: '18'
-        cache: npm
+        cache: 'npm'
         cache-dependency-path: |
-          webapp/frontend/package-lock.json
-          webapp/frontend/package.json
+          webapp/frontend/package*.json
       
     - name: Debug Node and npm versions
       run: |
@@ -104,14 +101,21 @@ jobs:
         echo "NPM config list:"
         npm config list
         echo "Directory contents:"
-        ls -la webapp/frontend/
-
-    - name: Install frontend dependencies
+        ls -la webapp/frontend/    - name: Install frontend dependencies
       run: |
         if [ -f "webapp/frontend/package.json" ]; then
           cd webapp/frontend
           # Clean install with retry logic
+          echo "Installing npm dependencies..."
           npm ci --prefer-offline || npm ci || (rm -rf node_modules && npm install)
+          
+          # Check if react-query is in package.json and update to @tanstack/react-query if needed
+          if grep -q "\"react-query\":" package.json; then
+            echo "Updating react-query to @tanstack/react-query..."
+            npm uninstall react-query
+            npm install @tanstack/react-query@^4.35.3
+          fi
+          
           if [ $? -ne 0 ]; then
             echo "Failed to install dependencies after retries"
             exit 1
