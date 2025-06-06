@@ -181,19 +181,26 @@ def fetch_symbol_from_db(symbol, timeframe):
     cur = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
-        # Updated SQL to work with actual database schema (no plus_di/minus_di)
+        # Set a query timeout
+        cur.execute("SET statement_timeout = '30s';")
+        
+        # Updated SQL to work with actual database schema
         sql = f"""
           SELECT
             p.date, p.open, p.high, p.low, p.close, p.volume,
-            t.rsi, t.atr, t.adx,
-            t.sma_50    AS "TrendMA",
-            t.pivot_high AS "PivotHighRaw",
-            t.pivot_low  AS "PivotLowRaw"
+            COALESCE(t.rsi, 50) as rsi, 
+            COALESCE(t.atr, 1) as atr, 
+            COALESCE(t.adx, 25) as adx,
+            COALESCE(t.sma_50, p.close) AS "TrendMA",
+            COALESCE(t.pivot_high, p.high) AS "PivotHighRaw",
+            COALESCE(t.pivot_low, p.low) AS "PivotLowRaw"
           FROM {price_table} p
-          JOIN {tech_table}  t
+          LEFT JOIN {tech_table} t
             ON p.symbol = t.symbol AND p.date = t.date
           WHERE p.symbol = %s
-          ORDER BY p.date ASC;
+            AND p.date >= CURRENT_DATE - INTERVAL '2 years'
+          ORDER BY p.date ASC
+          LIMIT 1000;
         """
         logging.info(f"[fetch_symbol_from_db] Executing SQL for {symbol} {timeframe}")
         cur.execute(sql, (symbol,))
