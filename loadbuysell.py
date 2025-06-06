@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 import os
 import sys
@@ -38,17 +37,79 @@ DB_HOST     = creds["host"]
 DB_PORT     = int(creds.get("port", 5432))
 DB_NAME     = creds["dbname"]
 
-def get_db_connection():
-    # Set statement timeout to 30 seconds (30000 ms)
-    conn = psycopg2.connect(
-        host=DB_HOST,
-        port=DB_PORT,
-        user=DB_USER,
-        password=DB_PASSWORD,
-        dbname=DB_NAME,
-        options='-c statement_timeout=30000'
-    )
-    return conn
+def get_db_connection(max_retries=3, retry_delay=5):
+    """Get a database connection with retry logic and proper SSL configuration.
+    
+    Args:
+        max_retries (int): Maximum number of connection attempts
+        retry_delay (int): Initial delay between retries in seconds (doubles after each retry)
+        
+    Returns:
+        psycopg2.extensions.connection: Database connection object
+    
+    Raises:
+        psycopg2.Error: If connection fails after all retries
+    """
+    import time
+    last_exception = None
+    
+    for attempt in range(max_retries):
+        try:
+            # Configure connection with robust SSL and timeout settings
+            conn = psycopg2.connect(
+                host=DB_HOST,
+                port=DB_PORT,
+                user=DB_USER,
+                password=DB_PASSWORD,
+                dbname=DB_NAME,
+                # SSL configuration 
+                sslmode='require',
+                sslcert=None,  # Use default system cert store
+                # Connection timeout and keepalive settings
+                connect_timeout=10,
+                keepalives=1,
+                keepalives_idle=30,
+                keepalives_interval=10,
+                keepalives_count=5,
+                # Query timeout
+                options='-c statement_timeout=30000'
+            )
+            
+            # Set session parameters
+            with conn.cursor() as cur:
+                cur.execute("SET application_name = 'loadbuysell';")
+                cur.execute("SET tcp_keepalives_idle = 30;")
+                cur.execute("SET tcp_keepalives_interval = 10;")
+                cur.execute("SET tcp_keepalives_count = 5;")
+                conn.commit()
+            
+            return conn
+            
+        except psycopg2.OperationalError as e:
+            last_exception = e
+            error_msg = str(e).lower()
+            
+            # Handle specific error cases
+            if "no pg_hba.conf entry" in error_msg:
+                logging.error(f"Authentication error - check RDS security group and pg_hba.conf: {e}")
+                raise  # Authentication issues won't be resolved by retry
+            
+            if "ssl" in error_msg:
+                logging.error(f"SSL connection error: {e}")
+                # Could try falling back to sslmode='prefer' here if needed
+                
+            if attempt < max_retries - 1:
+                wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
+                logging.warning(f"Database connection attempt {attempt + 1} failed: {e}")
+                logging.info(f"Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+            else:
+                logging.error(f"Failed to connect to database after {max_retries} attempts: {e}")
+                raise last_exception
+                
+        except Exception as e:
+            logging.error(f"Unexpected error during database connection: {e}")
+            raise
 
 ###############################################################################
 # 1) DATABASE FUNCTIONS 
