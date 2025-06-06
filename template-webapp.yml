@@ -29,7 +29,7 @@ Parameters:
 
 Resources:
 
-  ### 1) Application Load Balancer ###
+  ### 1) Application Load Balancer ### 
   WebAppALB:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
