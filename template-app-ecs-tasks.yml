@@ -3410,7 +3410,8 @@ Resources:
 
   #############################################################
   # IAM Role for Step Functions
-  #############################################################  StepFunctionsExecutionRole:
+  #############################################################  
+  StepFunctionsExecutionRole:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub "${AWS::StackName}-StepFunctionsExecutionRole"
@@ -3546,7 +3547,8 @@ Resources:
       Endpoint: 'argeropolos@accenture.com'
   #############################################################
   # Step Functions State Machine
-  #############################################################  FinancialDataStateMachine:
+  #############################################################  
+  FinancialDataStateMachine:
     Type: AWS::StepFunctions::StateMachine
     DependsOn: 
       - StepFunctionsExecutionRole

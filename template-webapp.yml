@@ -17,6 +17,10 @@ Parameters:
     Type: String
     Description: URI of the backend Docker image in ECR
     Default: "your-account-id.dkr.ecr.us-east-1.amazonaws.com/financial-dashboard-backend:latest"
+    
+  AppStackName:
+    Type: String
+    Description: Name of the Financial Data App Stack that exports StateMachineArn and StepFunctionsRoleArn
   
   FrontendBucketName:
     Type: String
@@ -309,15 +313,14 @@ Outputs:
     Value: !Sub "https://${CloudFrontDistribution.DomainName}"
     Export:
       Name: !Sub "FinancialDashboard-WebsiteURL-${Environment}"
-
   FinancialDataStateMachine:
     Description: "Reference to the Financial Data Processing State Machine"
-    Value: !ImportValue StocksApp-StateMachineArn
+    Value: !Sub "${AppStackName}-StateMachineArn"
     Export:
       Name: !Sub "FinancialDashboard-StateMachineArn-${Environment}"
 
   StepFunctionsExecutionRole:
     Description: "Reference to the Step Functions Execution Role"
-    Value: !ImportValue StocksApp-StepFunctionsRoleArn
+    Value: !Sub "${AppStackName}-StepFunctionsRoleArn"
     Export:
       Name: !Sub "FinancialDashboard-StepFunctionsRoleArn-${Environment}"
