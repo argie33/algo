@@ -1,0 +1,364 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Web Application stack for Financial Data Dashboard - 
+  Creates ECS service, ALB, and S3 bucket for React frontend
+
+Parameters:
+  Environment:
+    Type: String
+    Default: "dev"
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Environment name
+    
+  BackendImageUri:
+    Type: String
+    Description: URI of the backend Docker image in ECR
+    # No default - this should be provided during deployment
+    
+  AppStackName:
+    Type: String
+    Description: Name of the Financial Data App Stack that exports StateMachineArn and StepFunctionsRoleArn
+  
+  FrontendBucketName:
+    Type: String
+    Description: Name for the S3 bucket to host the React frontend
+    Default: "financial-dashboard-frontend"
+
+Resources:
+
+  ### 1) Application Load Balancer ### 
+  WebAppALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub "financial-dashboard-alb-${Environment}"
+      Type: application
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+      Subnets:
+        - !ImportValue StocksCore-PublicSubnet1Id
+        - !ImportValue StocksCore-PublicSubnet2Id
+      Tags:
+        - Key: Name
+          Value: !Sub "financial-dashboard-alb-${Environment}"
+
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Application Load Balancer
+      VpcId: !ImportValue StocksCore-VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: "0.0.0.0/0"
+          Description: "HTTP traffic from anywhere"
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: "0.0.0.0/0"
+          Description: "HTTPS traffic from anywhere"
+      Tags:
+        - Key: Name
+          Value: !Sub "financial-dashboard-alb-sg-${Environment}"
+
+  ### 2) Target Group for Backend API ###
+  BackendTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "financial-dashboard-backend-tg-${Environment}"
+      Port: 3001
+      Protocol: HTTP
+      VpcId: !ImportValue StocksCore-VpcId
+      TargetType: ip
+      HealthCheckEnabled: true
+      HealthCheckPath: /api/health
+      HealthCheckProtocol: HTTP
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+
+  ### 3) ALB Listener ###
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref BackendTargetGroup
+      LoadBalancerArn: !Ref WebAppALB
+      Port: 80
+      Protocol: HTTP
+
+  ### 4) Backend API Security Group ###
+  BackendSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for backend API containers
+      VpcId: !ImportValue StocksCore-VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3001
+          ToPort: 3001
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+          Description: "HTTP traffic from ALB"
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: "0.0.0.0/0"
+          Description: "All outbound traffic"
+      Tags:
+        - Key: Name
+          Value: !Sub "financial-dashboard-backend-sg-${Environment}"
+
+  ### 5) ECS Task Definition for Backend ###
+  BackendTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "financial-dashboard-backend-${Environment}"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 512
+      Memory: 1024
+      ExecutionRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      TaskRoleArn: !Ref BackendTaskRole
+      ContainerDefinitions:
+        - Name: backend
+          Image: !Ref BackendImageUri          PortMappings:
+            - ContainerPort: 3001
+              Protocol: tcp
+          Environment:
+            - Name: NODE_ENV
+              Value: !Ref Environment
+            - Name: PORT
+              Value: "3001"
+          Secrets:
+            - Name: DB_HOST
+              ValueFrom: !Sub 
+                - "${SecretArn}:host::"
+                - SecretArn: !ImportValue StocksApp-SecretArn
+            - Name: DB_PORT
+              ValueFrom: !Sub 
+                - "${SecretArn}:port::"
+                - SecretArn: !ImportValue StocksApp-SecretArn
+            - Name: DB_NAME
+              ValueFrom: !Sub 
+                - "${SecretArn}:dbname::"
+                - SecretArn: !ImportValue StocksApp-SecretArn
+            - Name: DB_USER
+              ValueFrom: !Sub 
+                - "${SecretArn}:username::"
+                - SecretArn: !ImportValue StocksApp-SecretArn
+            - Name: DB_PASSWORD
+              ValueFrom: !Sub 
+                - "${SecretArn}:password::"
+                - SecretArn: !ImportValue StocksApp-SecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref BackendLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: backend
+
+  ### 6) Backend Task Role ###
+  BackendTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "financial-dashboard-backend-task-role-${Environment}"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AccessSecrets
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !ImportValue StocksApp-SecretArn
+
+  ### 7) CloudWatch Log Group ###
+  BackendLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/ecs/financial-dashboard-backend-${Environment}"
+      RetentionInDays: 7
+
+  ### 8) ECS Service ###
+  BackendService:
+    Type: AWS::ECS::Service
+    DependsOn: ALBListener
+    Properties:
+      ServiceName: !Sub "financial-dashboard-backend-${Environment}"
+      Cluster: !ImportValue StocksApp-EcsClusterArn
+      TaskDefinition: !Ref BackendTaskDefinition
+      LaunchType: FARGATE
+      DesiredCount: 1
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - !Ref BackendSecurityGroup
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          AssignPublicIp: ENABLED
+      LoadBalancers:
+        - ContainerName: backend
+          ContainerPort: 3001
+          TargetGroupArn: !Ref BackendTargetGroup
+
+  ### 9) CloudFront Origin Access Control ###
+  OriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "OAC-${FrontendBucketName}-${Environment}"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  ### 10) S3 Bucket for Frontend ###
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${FrontendBucketName}-${Environment}-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - "*"
+            AllowedMethods:
+              - GET
+              - HEAD
+            AllowedOrigins:
+              - "*"
+            MaxAge: 3000
+
+  ### 11) S3 Bucket Policy ###
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontServicePrincipal
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: 
+              - s3:GetObject
+            Resource: !Sub "${FrontendBucket}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}"
+
+  ### 12) CloudFront Distribution ###
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+            OriginAccessControlId: !Ref OriginAccessControl
+          - Id: ALBOrigin
+            DomainName: !GetAtt WebAppALB.DNSName
+            CustomOriginConfig:
+              HTTPPort: 80
+              HTTPSPort: 443
+              OriginProtocolPolicy: http-only
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # Managed-CachingOptimized
+          Compress: true
+        CacheBehaviors:
+          - PathPattern: "/api/*"
+            TargetOriginId: ALBOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad  # Managed-CachingDisabled
+            OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf  # Managed-CORS-S3Origin
+            Compress: true
+        CustomErrorResponses:
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+        Comment: !Sub "CloudFront distribution for financial dashboard ${Environment}"
+
+Outputs:
+  ALBDNSName:
+    Description: DNS name of the Application Load Balancer
+    Value: !GetAtt WebAppALB.DNSName
+    Export:
+      Name: !Sub "FinancialDashboard-ALBDNSName-${Environment}"
+  BackendAPIUrl:
+    Description: Backend API URL (via ALB)
+    Value: !Sub "http://${WebAppALB.DNSName}/api"
+    Export:
+      Name: !Sub "FinancialDashboard-BackendAPIUrl-${Environment}"
+
+  ApiGatewayUrl:
+    Description: API URL (via CloudFront)
+    Value: !Sub "https://${CloudFrontDistribution.DomainName}/api"
+    Export:
+      Name: !Sub "FinancialDashboard-ApiGatewayUrl-${Environment}"
+
+  FrontendBucketName:
+    Description: S3 bucket name for frontend assets
+    Value: !Ref FrontendBucket
+    Export:
+      Name: !Sub "FinancialDashboard-FrontendBucket-${Environment}"
+
+  CloudFrontDomainName:
+    Description: CloudFront distribution domain name
+    Value: !GetAtt CloudFrontDistribution.DomainName
+    Export:
+      Name: !Sub "FinancialDashboard-CloudFrontDomain-${Environment}"
+
+  CloudFrontDistributionId:
+    Description: CloudFront distribution ID
+    Value: !Ref CloudFrontDistribution
+    Export:
+      Name: !Sub "FinancialDashboard-CloudFrontDistributionId-${Environment}"
+
+  WebsiteURL:
+    Description: Complete website URL
+    Value: !Sub "https://${CloudFrontDistribution.DomainName}"
+    Export:
+      Name: !Sub "FinancialDashboard-WebsiteURL-${Environment}"
+
+  FinancialDataStateMachineArn:
+    Description: "Reference to the Financial Data Processing State Machine"
+    Value: !ImportValue
+      Fn::Sub: "${AppStackName}-StateMachineArn"
+    Export:
+      Name: !Sub "FinancialDashboard-StateMachineArn-${Environment}"
+
+  StepFunctionsExecutionRoleArn:
+    Description: "Reference to the Step Functions Execution Role"
+    Value: !ImportValue
+      Fn::Sub: "${AppStackName}-StepFunctionsRoleArn"
+    Export:
+      Name: !Sub "FinancialDashboard-StepFunctionsRoleArn-${Environment}"

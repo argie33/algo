@@ -6,7 +6,7 @@ import json
 import os
 import gc
 import resource
-import math
+import warnings
 from datetime import datetime
 
 import psycopg2
@@ -15,6 +15,9 @@ import boto3
 import numpy as np
 import pandas as pd
 import pandas_ta as ta
+
+# Suppress FutureWarnings for performance
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 # -------------------------------
 # Script metadata & logging setup 
@@ -39,18 +42,17 @@ def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
 # -------------------------------
-# Technical indicators columns
+# Technical indicators columns (optimized for ECS)
 # -------------------------------
 TECHNICALS_COLUMNS = [
     "symbol", "date",
     "rsi", "macd", "macd_signal", "macd_hist",
-    "mom", "roc", "adx", "plus_di", "minus_di", "atr", "ad", "cmf", "mfi",
+    "mom", "roc", "adx", "atr", "ad", "cmf", "mfi",
     "td_sequential", "td_combo", "marketwatch", "dm",
     "sma_10", "sma_20", "sma_50", "sma_150", "sma_200",
     "ema_4", "ema_9", "ema_21",
     "bbands_lower", "bbands_middle", "bbands_upper",
-    "pivot_high", "pivot_low",
-    "fetched_at"
+    "pivot_high", "pivot_low"
 ]
 
 # -------------------------------
@@ -70,9 +72,9 @@ def get_db_config():
 
 def sanitize_value(x):
     """Convert NaN/inf values to None for database insertion"""
-    if pd.isna(x) or np.isinf(x):
+    if isinstance(x, float) and (np.isnan(x) or np.isinf(x)):
         return None
-    return float(x)
+    return x
 
 # -------------------------------
 # Custom technical indicators
@@ -94,44 +96,54 @@ def pivot_low_vectorized(df, left_bars=3, right_bars=3):
     return series.where(cond, np.nan)
 
 def td_sequential(close, lookback=4):
-    """TD Sequential indicator"""
-    count = np.zeros(len(close), dtype=np.float64)
-    close_values = close.values
-    
+    """Simplified TD Sequential indicator"""
+    count = [0] * len(close)
     for i in range(lookback, len(close)):
-        if close_values[i] < close_values[i-lookback]:
-            count[i] = count[i-1]+1 if count[i-1]>0 else 1
-        elif close_values[i] > close_values[i-lookback]:
-            count[i] = count[i-1]-1 if count[i-1]<0 else -1
-    
+        if close.iloc[i] < close.iloc[i - lookback]:
+            if count[i-1] > 0:
+                count[i] = count[i-1] + 1
+            else:
+                count[i] = 1
+        elif close.iloc[i] > close.iloc[i - lookback]:
+            if count[i-1] < 0:
+                count[i] = count[i-1] - 1
+            else:
+                count[i] = -1
+        else:
+            count[i] = 0
     return pd.Series(count, index=close.index)
 
 def td_combo(close, lookback=2):
-    """TD Combo indicator"""
-    count = np.zeros(len(close), dtype=np.float64)
-    close_values = close.values
-    
+    """Simplified TD Combo indicator using a 2-bar lookback"""
+    count = [0] * len(close)
     for i in range(lookback, len(close)):
-        if close_values[i] < close_values[i-lookback]:
-            count[i] = count[i-1]+1 if count[i-1]>0 else 1
-        elif close_values[i] > close_values[i-lookback]:
-            count[i] = count[i-1]-1 if count[i-1]<0 else -1
-    
+        if close.iloc[i] < close.iloc[i - lookback]:
+            if count[i-1] > 0:
+                count[i] = count[i-1] + 1
+            else:
+                count[i] = 1
+        elif close.iloc[i] > close.iloc[i - lookback]:
+            if count[i-1] < 0:
+                count[i] = count[i-1] - 1
+            else:
+                count[i] = -1
+        else:
+            count[i] = 0
     return pd.Series(count, index=close.index)
 
 def marketwatch_indicator(close, open_):
-    """MarketWatch momentum indicator"""
+    """
+    Very simple MarketWatch indicator:
+    +1 if close > open, -1 if close < open, then count consecutive occurrences.
+    """
     signal = (close > open_).astype(int) - (close < open_).astype(int)
-    count = np.zeros(len(signal), dtype=np.float64)
-    signal_values = signal.values
-    
-    count[0] = signal_values[0]
+    count = [0] * len(signal)
+    count[0] = signal.iloc[0]
     for i in range(1, len(signal)):
-        if signal_values[i] == signal_values[i-1] and signal_values[i] != 0:
-            count[i] = count[i-1] + signal_values[i]
+        if signal.iloc[i] == signal.iloc[i-1] and signal.iloc[i] != 0:
+            count[i] = count[i-1] + signal.iloc[i]
         else:
-            count[i] = signal_values[i]
-    
+            count[i] = signal.iloc[i]
     return pd.Series(count, index=close.index)
 
 # -------------------------------
@@ -163,15 +175,12 @@ def calculate_technicals(df):
     # --- Momentum indicators ---
     df['mom'] = ta.mom(df['close'], length=10)
     df['roc'] = ta.roc(df['close'], length=10)
-    
-    # --- ADX + DMI ---
+      # --- ADX (simplified for performance) ---
     adx_df = ta.adx(df['high'], df['low'], df['close'], length=14)
     if adx_df is not None and not adx_df.empty:
-        df['adx'] = adx_df.iloc[:, 0]      # ADX
-        df['plus_di'] = adx_df.iloc[:, 1]  # DMP
-        df['minus_di'] = adx_df.iloc[:, 2] # DMN
+        df['adx'] = adx_df.iloc[:, 0]      # ADX only
     else:
-        df[['adx', 'plus_di', 'minus_di']] = np.nan
+        df['adx'] = np.nan
     
     # --- Volume indicators ---
     df['atr'] = ta.atr(df['high'], df['low'], df['close'], length=14)
@@ -265,8 +274,7 @@ def load_technicals(symbols, cur, conn):
                     
                     # Prepare data for insertion
                     insert_data = []
-                    for idx, row in df_tech.reset_index().iterrows():
-                        insert_data.append((
+                    for idx, row in df_tech.reset_index().iterrows():                        insert_data.append((
                             symbol,
                             row['date'].to_pydatetime(),
                             sanitize_value(row.get('rsi')),
@@ -276,8 +284,6 @@ def load_technicals(symbols, cur, conn):
                             sanitize_value(row.get('mom')),
                             sanitize_value(row.get('roc')),
                             sanitize_value(row.get('adx')),
-                            sanitize_value(row.get('plus_di')),
-                            sanitize_value(row.get('minus_di')),
                             sanitize_value(row.get('atr')),
                             sanitize_value(row.get('ad')),
                             sanitize_value(row.get('cmf')),
@@ -298,23 +304,21 @@ def load_technicals(symbols, cur, conn):
                             sanitize_value(row.get('bbands_middle')),
                             sanitize_value(row.get('bbands_upper')),
                             sanitize_value(row.get('pivot_high')),
-                            sanitize_value(row.get('pivot_low')),
-                            datetime.now()
+                            sanitize_value(row.get('pivot_low'))
                         ))
                     
-                    # Bulk insert using execute_values
+                    # Bulk insert using execute_values (optimized for ECS)
                     if insert_data:
                         insert_query = """
                         INSERT INTO technical_data_daily (
                             symbol, date,
                             rsi, macd, macd_signal, macd_hist,
-                            mom, roc, adx, plus_di, minus_di, atr, ad, cmf, mfi,
+                            mom, roc, adx, atr, ad, cmf, mfi,
                             td_sequential, td_combo, marketwatch, dm,
                             sma_10, sma_20, sma_50, sma_150, sma_200,
                             ema_4, ema_9, ema_21,
                             bbands_lower, bbands_middle, bbands_upper,
-                            pivot_high, pivot_low,
-                            fetched_at
+                            pivot_high, pivot_low
                         ) VALUES %s
                         """
                         execute_values(cur, insert_query, insert_data, page_size=1000)
@@ -354,15 +358,12 @@ if __name__ == "__main__":
         dbname=cfg["dbname"]
     )
     conn.autocommit = False
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-
-    # Recreate technical_data_daily table
+    cur = conn.cursor(cursor_factory=RealDictCursor)    # Recreate technical_data_daily table (optimized structure)
     logging.info("Recreating technical_data_daily table…")
     cur.execute("DROP TABLE IF EXISTS technical_data_daily CASCADE;")
     cur.execute("""
         CREATE TABLE technical_data_daily (
-            id              SERIAL PRIMARY KEY,
-            symbol          VARCHAR(10) NOT NULL,
+            symbol          VARCHAR(50) NOT NULL,
             date            DATE        NOT NULL,
             rsi             DOUBLE PRECISION,
             macd            DOUBLE PRECISION,
@@ -371,8 +372,6 @@ if __name__ == "__main__":
             mom             DOUBLE PRECISION,
             roc             DOUBLE PRECISION,
             adx             DOUBLE PRECISION,
-            plus_di         DOUBLE PRECISION,
-            minus_di        DOUBLE PRECISION,
             atr             DOUBLE PRECISION,
             ad              DOUBLE PRECISION,
             cmf             DOUBLE PRECISION,
@@ -394,16 +393,13 @@ if __name__ == "__main__":
             bbands_upper    DOUBLE PRECISION,
             pivot_high      DOUBLE PRECISION,
             pivot_low       DOUBLE PRECISION,
-            fetched_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(symbol, date)
+            PRIMARY KEY (symbol, date)
         );
     """)
-    
-    # Create indexes for performance
+      # Create optimized indexes for performance
     cur.execute("""
         CREATE INDEX idx_technical_daily_symbol ON technical_data_daily(symbol);
         CREATE INDEX idx_technical_daily_date ON technical_data_daily(date);
-        CREATE INDEX idx_technical_daily_symbol_date ON technical_data_daily(symbol, date);
     """)
     
     conn.commit()
