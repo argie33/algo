@@ -287,7 +287,8 @@ def load_technicals(symbols, cur, conn):
                     sanitize_value(row.get('bbands_middle')),
                     sanitize_value(row.get('bbands_upper')),
                     sanitize_value(row.get('pivot_high')),
-                    sanitize_value(row.get('pivot_low'))
+                    sanitize_value(row.get('pivot_low')),
+                    datetime.now()
                 ))
             
             # Bulk insert using execute_values (optimized for ECS)
@@ -366,6 +367,7 @@ if __name__ == "__main__":
             bbands_upper    DOUBLE PRECISION,
             pivot_high      DOUBLE PRECISION,
             pivot_low       DOUBLE PRECISION,
+            fetched_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (symbol, date)
         );
     """)
