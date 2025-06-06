@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <title>Stocks Dashboard</title>
+  <meta name="api-gateway-url" content="PLACEHOLDER_API_GATEWAY_URL">
   <style>
     table { border-collapse: collapse; width: 100%; }
     th, td { padding: 8px; border: 1px solid #ccc; }
@@ -12,9 +13,25 @@
   <h1>Stocks Data</h1>
   <button id="load">Load Data</button>
   <div id="table"></div>
-
   <script>
-    const API = 'https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/';  // ← replace
+    // Get API Gateway URL from meta tag (injected during deployment)
+    function getApiUrl() {
+      const apiMeta = document.querySelector('meta[name="api-gateway-url"]');
+      if (apiMeta && apiMeta.content && !apiMeta.content.includes('PLACEHOLDER')) {
+        return apiMeta.content + '/stocks';
+      }
+      
+      // Fallback: try window global variable
+      if (window.APP_CONFIG && window.APP_CONFIG.API_URL) {
+        return window.APP_CONFIG.API_URL + '/stocks';
+      }
+      
+      // Error case - no API URL configured
+      console.error('API Gateway URL not configured. Check deployment.');
+      return null;
+    }
+
+    const API = getApiUrl();
 
     document.getElementById('load').onclick = async () => {
       const res = await fetch(API, { mode: 'cors' });

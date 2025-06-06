@@ -41,7 +41,15 @@ app.use(limiter);
 // CORS configuration
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? ['https://your-frontend-domain.com'] 
+    ? (req, callback) => {
+        // Allow requests from CloudFront distributions
+        const origin = req.header('Origin');
+        if (!origin || origin.includes('.cloudfront.net') || origin === process.env.FRONTEND_URL) {
+          callback(null, true);
+        } else {
+          callback(new Error('Not allowed by CORS'));
+        }
+      }
     : ['http://localhost:3000', 'http://localhost:3001'],
   credentials: true,
 }));
