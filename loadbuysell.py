@@ -51,7 +51,7 @@ def get_db_connection():
     return conn
 
 ###############################################################################
-# 1) DATABASE FUNCTIONS
+# 1) DATABASE FUNCTIONS 
 ###############################################################################
 def get_symbols_from_db(limit=None):
     conn = get_db_connection()
