@@ -1,0 +1,258 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  High-Frequency Trading System Infrastructure (Development Environment)
+  Using existing VPC and minimal infrastructure for development/testing
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: "hft-dev"
+    Description: "Environment name for resource naming"
+    
+  KafkaInstanceType:
+    Type: String
+    Default: "kafka.t3.small"
+    Description: "MSK instance type for development Kafka cluster"
+    
+  RedisInstanceType:
+    Type: String
+    Default: "cache.t4g.medium"
+    Description: "ElastiCache Redis instance type for development"
+    
+  EKSNodeInstanceType:
+    Type: String
+    Default: "t3.large"
+    Description: "EKS worker node instance type for development"
+
+Resources:
+  #############################################################
+  # Security Groups (Using existing VPC)
+  #############################################################
+  EKSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for EKS cluster
+      VpcId: !ImportValue StocksCore-VpcId
+      SecurityGroupIngress:
+        - IpProtocol: -1
+          SourceSecurityGroupId: !Ref EKSSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-eks-sg"
+
+  KafkaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Kafka cluster
+      VpcId: !ImportValue StocksCore-VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 9092
+          ToPort: 9098
+          SourceSecurityGroupId: !Ref EKSSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-kafka-sg"
+
+  RedisSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Redis cluster
+      VpcId: !ImportValue StocksCore-VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          SourceSecurityGroupId: !Ref EKSSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-redis-sg"
+
+  #############################################################
+  # Amazon MSK (Managed Kafka) - Development Config
+  #############################################################
+  KafkaConfiguration:
+    Type: AWS::MSK::Configuration
+    Properties:
+      Name: !Sub "${EnvironmentName}-kafka-config"
+      Description: "Development Kafka configuration for HFT testing"
+      KafkaVersionsList:
+        - "2.8.1"
+      ServerProperties: |
+        num.network.threads=3
+        num.io.threads=8
+        socket.send.buffer.bytes=102400
+        socket.receive.buffer.bytes=102400
+        socket.request.max.bytes=104857600
+        num.partitions=3
+        num.recovery.threads.per.data.dir=1
+        offsets.topic.replication.factor=2
+        transaction.state.log.replication.factor=2
+        transaction.state.log.min.isr=1
+        log.retention.hours=24
+        log.segment.bytes=1073741824
+        log.retention.check.interval.ms=300000
+        zookeeper.connection.timeout.ms=18000
+        group.initial.rebalance.delay.ms=0
+
+  KafkaCluster:
+    Type: AWS::MSK::Cluster
+    Properties:
+      BrokerNodeGroupInfo:
+        InstanceType: !Ref KafkaInstanceType
+        ClientSubnets:
+          - !ImportValue StocksCore-PrivateSubnet1Id
+          - !ImportValue StocksCore-PrivateSubnet2Id
+        StorageInfo:
+          EBSStorageInfo:
+            VolumeSize: 50
+        SecurityGroups:
+          - !Ref KafkaSecurityGroup
+      ClusterName: !Sub "${EnvironmentName}-kafka"
+      KafkaVersion: "2.8.1"
+      NumberOfBrokerNodes: 2
+      ConfigurationInfo:
+        Arn: !Ref KafkaConfiguration
+        Revision: 1
+      EncryptionInfo:
+        EncryptionInTransit:
+          ClientBroker: PLAINTEXT
+          InCluster: false
+      EnhancedMonitoring: PER_BROKER
+
+  #############################################################
+  # ElastiCache Redis Cluster (Development Config)
+  #############################################################
+  RedisSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: "Subnet group for Redis development cluster"
+      SubnetIds:
+        - !ImportValue StocksCore-PrivateSubnet1Id
+        - !ImportValue StocksCore-PrivateSubnet2Id
+
+  RedisCluster:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      ReplicationGroupId: !Sub "${EnvironmentName}-redis"
+      Description: "Redis cluster for HFT development"
+      NodeType: !Ref RedisInstanceType
+      Engine: redis
+      EngineVersion: "7.0"
+      NumCacheClusters: 2
+      PreferredCacheClusterAZs:
+        - !Select [0, !GetAZs '']
+        - !Select [1, !GetAZs '']
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      SecurityGroupIds:
+        - !Ref RedisSecurityGroup
+      Port: 6379
+      AutomaticFailoverEnabled: true
+
+  #############################################################
+  # EKS Cluster (Development Config)
+  #############################################################
+  EKSClusterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: eks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+
+  EKSCluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      Name: !Sub "${EnvironmentName}-eks"
+      Version: "1.28"
+      RoleArn: !GetAtt EKSClusterRole.Arn
+      ResourcesVpcConfig:
+        SecurityGroupIds:
+          - !Ref EKSSecurityGroup
+        SubnetIds:
+          - !ImportValue StocksCore-PrivateSubnet1Id
+          - !ImportValue StocksCore-PrivateSubnet2Id
+      Logging:
+        ClusterLogging:
+          EnabledTypes:
+            - Type: api
+            - Type: audit
+
+  EKSNodeGroupRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+
+  EKSNodeGroup:
+    Type: AWS::EKS::Nodegroup
+    DependsOn: EKSCluster
+    Properties:
+      ClusterName: !Ref EKSCluster
+      NodegroupName: !Sub "${EnvironmentName}-nodegroup"
+      NodeRole: !GetAtt EKSNodeGroupRole.Arn
+      InstanceTypes:
+        - !Ref EKSNodeInstanceType
+      Subnets:
+        - !ImportValue StocksCore-PrivateSubnet1Id
+        - !ImportValue StocksCore-PrivateSubnet2Id
+      ScalingConfig:
+        MinSize: 1
+        MaxSize: 3
+        DesiredSize: 2
+      UpdateConfig:
+        MaxUnavailable: 1
+
+  #############################################################
+  # Secrets for API Keys
+  #############################################################
+  AlpacaCredentialsSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "${EnvironmentName}/alpaca-credentials"
+      Description: "Alpaca API credentials for HFT system"
+      SecretString: !Sub |
+        {
+          "api_key": "",
+          "secret_key": "",
+          "base_url": "https://paper-api.alpaca.markets"
+        }
+
+Outputs:
+  EKSClusterName:
+    Description: Name of the EKS cluster
+    Value: !Ref EKSCluster
+    Export:
+      Name: !Sub "${EnvironmentName}-EKS-Cluster"
+
+  KafkaClusterArn:
+    Description: ARN of the MSK Kafka cluster
+    Value: !Ref KafkaCluster
+    Export:
+      Name: !Sub "${EnvironmentName}-Kafka-Cluster-ARN"
+
+  RedisEndpoint:
+    Description: Redis cluster endpoint for development
+    Value: !GetAtt RedisCluster.PrimaryEndPoint.Address
+    Export:
+      Name: !Sub "${EnvironmentName}-Redis-Endpoint"
+
+  AlpacaSecretsArn:
+    Description: ARN of Alpaca credentials secret
+    Value: !Ref AlpacaCredentialsSecret
+    Export:
+      Name: !Sub "${EnvironmentName}-Alpaca-Secrets-ARN"

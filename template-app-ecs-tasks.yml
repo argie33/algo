@@ -3106,12 +3106,12 @@ Resources:
       Protocol: email
       TopicArn: !Ref NotificationTopic
       Endpoint: 'argeropolos@accenture.com'
-
   #############################################################
   # Step Functions State Machine
   #############################################################
   FinancialDataStateMachine:
     Type: AWS::StepFunctions::StateMachine
+    DependsOn: EventsStepFunctionsRole
     Properties:
       StateMachineName: 'FinancialDataProcessingWorkflow'
       RoleArn: !GetAtt StepFunctionsExecutionRole.Arn
@@ -3297,8 +3297,11 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action: 'states:StartExecution'
-                Resource: !Sub arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:FinancialDataProcessingWorkflow
+                Action: states:StartExecution
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    "aws:ResourceAccount": !Ref "AWS::AccountId"
 
   #########################################
   # Outputs                               #
