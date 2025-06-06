@@ -2738,6 +2738,7 @@ Resources:
           SecurityGroups:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
+          
   ########################################
   # P) buysell loader                    #
   ########################################
@@ -3547,14 +3548,13 @@ Resources:
       Endpoint: 'argeropolos@accenture.com'
   #############################################################
   # Step Functions State Machine
-  #############################################################  
+  #############################################################    
   FinancialDataStateMachine:
     Type: AWS::StepFunctions::StateMachine
-    DependsOn: 
-      - StepFunctionsExecutionRole
-      - EventsStepFunctionsRole
+    DependsOn: StepFunctionsExecutionRole
     Properties:
       StateMachineName: 'FinancialDataProcessingWorkflow'
+      RoleArn: !GetAtt StepFunctionsExecutionRole.Arn
       RoleArn: !GetAtt StepFunctionsExecutionRole.Arn
       DefinitionString: !Sub |
         {

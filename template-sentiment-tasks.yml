@@ -73,6 +73,23 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
+  AaiiSentimentLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: aaiisentiment-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref AaiiSentimentTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
   FearGreedTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     DeletionPolicy: Retain
@@ -107,6 +124,23 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
+  FearGreedLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: feargreed-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref FearGreedTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
   NaaimTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     DeletionPolicy: Retain
@@ -140,6 +174,23 @@ Resources:
               awslogs-group: !Ref NaaimLogGroup
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
+
+  NaaimLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: naaim-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref NaaimTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
 
   #############################################################
   # EventBridge Rules to Schedule Tasks
