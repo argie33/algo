@@ -151,6 +151,32 @@ def get_symbols_batch(batch_size=1000):
     finally:
         conn.close()
 
+def create_buy_sell_table_optimized(cur):
+    """Create optimized buy_sell table with proper indexing"""
+    # Drop existing table and constraints
+    cur.execute("DROP TABLE IF EXISTS buy_sell CASCADE;")
+    cur.connection.commit()
+    
+    # Create new table with optimized structure
+    cur.execute("""
+        CREATE TABLE buy_sell (
+            id           SERIAL PRIMARY KEY,
+            symbol       VARCHAR(20)    NOT NULL,
+            timeframe    VARCHAR(10)    NOT NULL, 
+            date         DATE           NOT NULL,
+            signal       VARCHAR(10),
+            buylevel     REAL,
+            stoplevel    REAL,
+            inposition   BOOLEAN,
+            UNIQUE(symbol, timeframe, date)
+        );
+    """)
+    
+    # Create optimized indexes
+    cur.execute("CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy_sell_symbol_tf_date ON buy_sell(symbol, timeframe, date);")
+    cur.execute("CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy_sell_signal ON buy_sell(signal) WHERE signal IS NOT NULL;")
+    cur.execute("CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy_sell_timeframe ON buy_sell(timeframe);")
+
 def bulk_insert_results(cur, symbol_results):
     """Ultra-fast bulk insert using execute_values"""
     if not symbol_results:
@@ -260,7 +286,7 @@ def fetch_symbol_data_vectorized(symbols_batch):
                 LEFT JOIN {TECH_TABLE} t
                     ON p.symbol = t.symbol AND p.date = t.date
                 WHERE p.symbol = ANY(%s)
-                    AND p.date >= CURRENT_DATE - INTERVAL '3 years'
+                    AND p.date >= CURRENT_DATE - INTERVAL '2 years'
                 ORDER BY p.symbol, p.date ASC
             """
             
@@ -295,8 +321,8 @@ def fetch_symbol_data_vectorized(symbols_batch):
 ###############################################################################
 # 4) ULTRA-FAST SIGNAL GENERATION (Pure NumPy/Pandas vectorized)
 ###############################################################################
-def generate_signals_vectorized(df, atrMult=1.5, useADX=True, adxThreshold=20):
-    """Ultra-fast signal generation for weekly timeframe with adjusted parameters"""
+def generate_signals_vectorized(df, atrMult=1.0, useADX=True, adxThreshold=25):
+    """Ultra-fast signal generation using pure NumPy vectorization"""
     if df.empty:
         return df
     
@@ -313,14 +339,13 @@ def generate_signals_vectorized(df, atrMult=1.5, useADX=True, adxThreshold=20):
     
     n = len(df)
     
-    # Weekly-specific adjustments: more conservative RSI thresholds
+    # Vectorized calculations
     trend_ok = close > trend_ma
     rsi_prev = np.roll(rsi, 1)
     rsi_prev[0] = rsi[0]  # Handle first element
     
-    # More conservative RSI for weekly
-    rsi_buy = (rsi > 55) & (rsi_prev <= 55)
-    rsi_sell = (rsi < 45) & (rsi_prev >= 45)
+    rsi_buy = (rsi > 50) & (rsi_prev <= 50)
+    rsi_sell = (rsi < 50) & (rsi_prev >= 50)
     
     # Pivot levels using forward fill
     last_ph = np.roll(pivot_high, 1)
@@ -328,14 +353,14 @@ def generate_signals_vectorized(df, atrMult=1.5, useADX=True, adxThreshold=20):
     last_ph[0] = pivot_high[0]
     last_pl[0] = pivot_low[0]
     
-    # Forward fill using numba-style loop
+    # Forward fill using numba-style loop (faster than pandas ffill)
     for i in range(1, n):
         if np.isnan(last_ph[i]):
             last_ph[i] = last_ph[i-1]
         if np.isnan(last_pl[i]):
             last_pl[i] = last_pl[i-1]
     
-    # Stop and buy levels - wider stops for weekly
+    # Stop and buy levels
     stop_buffer = atr * atrMult
     stop_level = last_pl - stop_buffer
     buy_level = last_ph
@@ -463,6 +488,11 @@ def main():
     conn = get_optimized_connection()
     try:
         with conn.cursor() as cur:
+            # Create table with optimizations
+            create_buy_sell_table_optimized(cur)
+            conn.commit()
+            log_performance("Database setup complete")
+            
             # Process symbols in parallel batches
             all_results = parallel_process_symbols(symbols)
             log_performance(f"Generated signals for {len(all_results)} symbols")

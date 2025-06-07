@@ -6,6 +6,7 @@ on:
     paths:
       - 'webapp/**'
       - '.github/workflows/deploy-webapp.yml'
+      - 'template-webapp-lambda.yml'
   workflow_dispatch:
     inputs:
       environment:
