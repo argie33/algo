@@ -104,7 +104,9 @@ jobs:
           echo "DB_SECRET_ARN=$DB_SECRET_ARN" >> $GITHUB_OUTPUT
           echo "DB_ENDPOINT=$DB_ENDPOINT" >> $GITHUB_OUTPUT
           echo "Using database secret: $DB_SECRET_ARN"
-          echo "Using database endpoint: $DB_ENDPOINT"      - name: Get CloudFormation templates bucket from core stack
+          echo "Using database endpoint: $DB_ENDPOINT"
+      
+      - name: Get CloudFormation templates bucket from core stack
         id: bucket
         run: |
           BUCKET=$(aws cloudformation list-exports \
@@ -315,7 +317,7 @@ jobs:
 
 ################################################################################
 # 6) Cleanup on failure                                                        #
-################################################################################  
+################################################################################
   cleanup_on_failure:
     name: Cleanup failed deployment
     needs: [deploy_infrastructure, deploy_frontend]
