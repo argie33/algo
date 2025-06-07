@@ -104,9 +104,7 @@ jobs:
           echo "DB_SECRET_ARN=$DB_SECRET_ARN" >> $GITHUB_OUTPUT
           echo "DB_ENDPOINT=$DB_ENDPOINT" >> $GITHUB_OUTPUT
           echo "Using database secret: $DB_SECRET_ARN"
-          echo "Using database endpoint: $DB_ENDPOINT"
-
-      - name: Get CloudFormation templates bucket from core stack
+          echo "Using database endpoint: $DB_ENDPOINT"      - name: Get CloudFormation templates bucket from core stack
         id: bucket
         run: |
           BUCKET=$(aws cloudformation list-exports \
@@ -115,17 +113,27 @@ jobs:
           echo "CF_BUCKET=$BUCKET" >> $GITHUB_OUTPUT
           echo "Using S3 bucket: $BUCKET"
 
+      - name: Install SAM CLI
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - name: Build SAM application
+        run: |
+          sam build --template template-webapp-lambda.yml
+
       - name: Deploy webapp CloudFormation stack
         run: |
-          aws cloudformation deploy \
+          sam deploy \
             --stack-name stocks-webapp-stack \
-            --template-file template-webapp-lambda.yml \
+            --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }} \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --parameter-overrides \
               EnvironmentName=${{ env.ENVIRONMENT_NAME }} \
               DatabaseSecretArn=${{ steps.db_info.outputs.DB_SECRET_ARN }} \
               DatabaseEndpoint=${{ steps.db_info.outputs.DB_ENDPOINT }} \
-            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-            --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset
 
       - name: Get stack outputs
         id: stack_outputs
@@ -154,77 +162,10 @@ jobs:
           
           echo "Frontend bucket: $FRONTEND_BUCKET"
           echo "CloudFront ID: $CLOUDFRONT_ID"
-          echo "API URL: $API_URL"
-          echo "Website URL: $WEBSITE_URL"
+          echo "API URL: $API_URL"          echo "Website URL: $WEBSITE_URL"
 
 ################################################################################
-# 3) Build and deploy Lambda function                                          #
-################################################################################
-  deploy_lambda:
-    name: Deploy Lambda function
-    needs: [filter, deploy_infrastructure]
-    if: ${{ needs.filter.outputs.lambda == 'true' || needs.filter.outputs.template == 'true' }}
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: webapp/lambda/package-lock.json
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - name: Install Lambda dependencies
-        working-directory: webapp/lambda
-        run: |
-          npm ci --production
-          echo "Lambda dependencies installed"
-
-      - name: Test Lambda function
-        working-directory: webapp/lambda
-        run: |
-          # Basic syntax check
-          node -c index.js
-          echo "Lambda function syntax check passed"
-
-      - name: Package Lambda function
-        working-directory: webapp/lambda
-        run: |
-          zip -r ../lambda-deployment.zip . -x "*.git*" "node_modules/.cache/*" "*.md"
-          echo "Lambda function packaged"
-
-      - name: Deploy Lambda function
-        working-directory: webapp
-        run: |
-          FUNCTION_NAME=$(aws cloudformation describe-stacks \
-            --stack-name stocks-webapp-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='LambdaFunctionName'].OutputValue" \
-            --output text)
-          
-          aws lambda update-function-code \
-            --function-name "$FUNCTION_NAME" \
-            --zip-file fileb://lambda-deployment.zip
-          
-          echo "Lambda function deployed: $FUNCTION_NAME"
-          
-          # Wait for update to complete
-          aws lambda wait function-updated \
-            --function-name "$FUNCTION_NAME"
-          
-          echo "Lambda function update completed"
-
-################################################################################
-# 4) Build and deploy Frontend                                                 #
+# 3) Build and deploy Frontend                                                 #
 ################################################################################
   deploy_frontend:
     name: Deploy Frontend to S3
@@ -319,10 +260,9 @@ jobs:
 
 ################################################################################
 # 5) Post-deployment verification                                              #
-################################################################################
-  verify_deployment:
+################################################################################  verify_deployment:
     name: Verify deployment
-    needs: [deploy_infrastructure, deploy_lambda, deploy_frontend]
+    needs: [deploy_infrastructure, deploy_frontend]
     if: ${{ always() && needs.deploy_infrastructure.result == 'success' }}
     runs-on: ubuntu-latest
 
@@ -374,10 +314,9 @@ jobs:
 
 ################################################################################
 # 6) Cleanup on failure                                                        #
-################################################################################
-  cleanup_on_failure:
+################################################################################  cleanup_on_failure:
     name: Cleanup failed deployment
-    needs: [deploy_infrastructure, deploy_lambda, deploy_frontend]
+    needs: [deploy_infrastructure, deploy_frontend]
     if: ${{ failure() && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
 
