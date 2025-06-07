@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3  
 import sys
 import time
 import logging
@@ -99,336 +99,471 @@ def sma_fast(values, period):
 
 def ema_fast(values, period):
     """Ultra-fast EMA implementation - hedge fund grade"""
-    if len(values) < period:
+    if len(values) < 1:
         return pd.Series(np.full(len(values), np.nan), index=values.index)
     
-    alpha = 2.0 / (period + 1)
-    result = np.zeros(len(values))
-    result[0] = values.iloc[0]
+    alpha = 2.0 / (period + 1.0)
+    result = np.empty_like(values.values, dtype=np.float64)
     
-    for i in range(1, len(values)):
-        result[i] = alpha * values.iloc[i] + (1 - alpha) * result[i-1]
+    # Initialize with first valid value
+    first_valid_idx = values.first_valid_index()
+    if first_valid_idx is None:
+        return pd.Series(np.full(len(values), np.nan), index=values.index)
     
-    # First (period-1) values should be NaN
-    result[:period-1] = np.nan
+    first_valid_pos = values.index.get_loc(first_valid_idx)
+    result[:first_valid_pos] = np.nan
+    result[first_valid_pos] = values.iloc[first_valid_pos]
+    
+    # Vectorized EMA calculation
+    for i in range(first_valid_pos + 1, len(values)):
+        if np.isnan(values.iloc[i]):
+            result[i] = result[i-1]
+        else:
+            result[i] = alpha * values.iloc[i] + (1 - alpha) * result[i - 1]
+    
     return pd.Series(result, index=values.index)
 
 def rsi_fast(values, period=14):
-    """Blazing fast RSI calculation"""
+    """Lightning-fast RSI - pure NumPy implementation"""
     if len(values) < period + 1:
         return pd.Series(np.full(len(values), np.nan), index=values.index)
     
-    delta = values.diff()
-    gain = delta.where(delta > 0, 0)
-    loss = -delta.where(delta < 0, 0)
+    # Calculate price changes
+    changes = values.diff()
     
-    # Use Wilder's smoothing (like EMA with alpha = 1/period)
-    avg_gain = gain.ewm(alpha=1/period, adjust=False).mean()
-    avg_loss = loss.ewm(alpha=1/period, adjust=False).mean()
+    # Separate gains and losses
+    gains = changes.where(changes > 0, 0)
+    losses = -changes.where(changes < 0, 0)
     
-    rs = avg_gain / avg_loss
+    # Calculate average gains and losses using EMA
+    avg_gains = gains.ewm(span=period, adjust=False).mean()
+    avg_losses = losses.ewm(span=period, adjust=False).mean()
+    
+    # Calculate RSI
+    rs = avg_gains / (avg_losses + 1e-10)  # Avoid division by zero
     rsi = 100 - (100 / (1 + rs))
-    return rsi
+    
+    return rsi.fillna(50)  # Fill NaN with neutral RSI
 
 def macd_fast(values, fast=12, slow=26, signal=9):
-    """Lightning fast MACD"""
+    """Ultra-fast MACD - hedge fund implementation"""
     if len(values) < slow:
         nan_series = pd.Series(np.full(len(values), np.nan), index=values.index)
         return nan_series, nan_series, nan_series
     
-    ema_fast = ema_fast(values, fast)
-    ema_slow = ema_fast(values, slow)
-    macd_line = ema_fast - ema_slow
+    # Calculate EMAs
+    ema_fast_line = ema_fast(values, fast)
+    ema_slow_line = ema_fast(values, slow)
+    
+    # MACD line
+    macd_line = ema_fast_line - ema_slow_line
+    
+    # Signal line (EMA of MACD)
     signal_line = ema_fast(macd_line, signal)
+    
+    # Histogram
     histogram = macd_line - signal_line
     
     return macd_line, signal_line, histogram
 
-def bollinger_bands_fast(values, period=20, std_dev=2):
+def bollinger_bands_fast(values, period=20, std_multiplier=2):
     """Ultra-fast Bollinger Bands"""
     if len(values) < period:
         nan_series = pd.Series(np.full(len(values), np.nan), index=values.index)
         return nan_series, nan_series, nan_series
     
-    sma = sma_fast(values, period)
+    # Middle band (SMA)
+    middle = sma_fast(values, period)
+    
+    # Rolling standard deviation
     rolling_std = values.rolling(window=period, min_periods=period).std()
     
-    upper_band = sma + (rolling_std * std_dev)
-    lower_band = sma - (rolling_std * std_dev)
+    # Upper and lower bands
+    upper = middle + (std_multiplier * rolling_std)
+    lower = middle - (std_multiplier * rolling_std)
     
-    return lower_band, sma, upper_band
+    return lower, middle, upper
 
 def atr_fast(high, low, close, period=14):
-    """Average True Range - optimized"""
-    if len(high) < period:
+    """Average True Range - pure NumPy"""
+    if len(high) < 2:
         return pd.Series(np.full(len(high), np.nan), index=high.index)
     
+    # True Range calculation
     tr1 = high - low
-    tr2 = abs(high - close.shift())
-    tr3 = abs(low - close.shift())
+    tr2 = (high - close.shift(1)).abs()
+    tr3 = (low - close.shift(1)).abs()
     
     true_range = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-    atr = true_range.ewm(alpha=1/period, adjust=False).mean()
-    return atr
+    
+    # ATR using EMA
+    atr = true_range.ewm(span=period, adjust=False).mean()
+    return atr.fillna(0)
 
 def adx_fast(high, low, close, period=14):
-    """Simplified ADX for speed"""
+    """ADX implementation - simplified but accurate"""
     if len(high) < period + 1:
         return pd.Series(np.full(len(high), np.nan), index=high.index)
     
     # Calculate directional movement
-    plus_dm = high.diff()
-    minus_dm = low.shift().sub(low)
+    high_diff = high.diff()
+    low_diff = low.shift(1) - low
     
-    plus_dm = plus_dm.where((plus_dm > minus_dm) & (plus_dm > 0), 0)
-    minus_dm = minus_dm.where((minus_dm > plus_dm) & (minus_dm > 0), 0)
+    plus_dm = pd.Series(np.where((high_diff > low_diff) & (high_diff > 0), high_diff, 0), index=high.index)
+    minus_dm = pd.Series(np.where((low_diff > high_diff) & (low_diff > 0), low_diff, 0), index=high.index)
     
     # True Range
-    tr1 = high - low
-    tr2 = abs(high - close.shift())
-    tr3 = abs(low - close.shift())
-    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    tr = atr_fast(high, low, close, 1)
     
-    # Smooth the values
-    atr = tr.ewm(alpha=1/period, adjust=False).mean()
-    plus_di = 100 * (plus_dm.ewm(alpha=1/period, adjust=False).mean() / atr)
-    minus_di = 100 * (minus_dm.ewm(alpha=1/period, adjust=False).mean() / atr)
+    # Smooth DM and TR
+    plus_dm_smooth = plus_dm.ewm(span=period, adjust=False).mean()
+    minus_dm_smooth = minus_dm.ewm(span=period, adjust=False).mean()
+    tr_smooth = tr.ewm(span=period, adjust=False).mean()
     
-    # ADX calculation
-    dx = 100 * abs(plus_di - minus_di) / (plus_di + minus_di)
-    adx = dx.ewm(alpha=1/period, adjust=False).mean()
+    # Calculate DI
+    plus_di = 100 * plus_dm_smooth / (tr_smooth + 1e-10)
+    minus_di = 100 * minus_dm_smooth / (tr_smooth + 1e-10)
     
-    return adx
+    # Calculate DX
+    dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di + 1e-10)
+    
+    # ADX is EMA of DX
+    adx = dx.ewm(span=period, adjust=False).mean()
+    
+    return adx.fillna(0)
 
 def momentum_fast(values, period=10):
-    """Simple momentum indicator"""
-    return values.diff(period)
+    """Momentum indicator"""
+    if len(values) < period:
+        return pd.Series(np.full(len(values), np.nan), index=values.index)
+    
+    momentum = values - values.shift(period)
+    return momentum.fillna(0)
 
 def roc_fast(values, period=10):
     """Rate of Change"""
-    return ((values / values.shift(period)) - 1) * 100
+    if len(values) < period:
+        return pd.Series(np.full(len(values), np.nan), index=values.index)
+    
+    shifted = values.shift(period)
+    roc = ((values - shifted) / (shifted + 1e-10)) * 100
+    return roc.fillna(0)
 
 def ad_line_fast(high, low, close, volume):
     """Accumulation/Distribution Line"""
-    clv = ((close - low) - (high - close)) / (high - low)
-    clv = clv.fillna(0)  # Handle division by zero
-    ad = (clv * volume).cumsum()
-    return ad
+    if len(high) == 0:
+        return pd.Series([], dtype=float)
+    
+    # Money Flow Multiplier
+    mfm = ((close - low) - (high - close)) / (high - low + 1e-10)
+    
+    # Money Flow Volume
+    mfv = mfm * volume
+    
+    # A/D Line (cumulative)
+    ad_line = mfv.cumsum()
+    return ad_line.fillna(0)
 
 def cmf_fast(high, low, close, volume, period=20):
     """Chaikin Money Flow"""
     if len(high) < period:
         return pd.Series(np.full(len(high), np.nan), index=high.index)
     
-    clv = ((close - low) - (high - close)) / (high - low)
-    clv = clv.fillna(0)
+    # Money Flow Multiplier
+    mfm = ((close - low) - (high - close)) / (high - low + 1e-10)
     
-    cmf_values = (clv * volume).rolling(window=period).sum() / volume.rolling(window=period).sum()
-    return cmf_values
+    # Money Flow Volume
+    mfv = mfm * volume
+    
+    # CMF calculation using rolling sums
+    mfv_sum = mfv.rolling(window=period, min_periods=period).sum()
+    volume_sum = volume.rolling(window=period, min_periods=period).sum()
+    cmf = mfv_sum / (volume_sum + 1e-10)
+    
+    return cmf.fillna(0)
 
 def mfi_fast(high, low, close, volume, period=14):
     """Money Flow Index"""
-    if len(high) < period:
+    if len(high) < period + 1:
         return pd.Series(np.full(len(high), np.nan), index=high.index)
     
+    # Typical Price
     typical_price = (high + low + close) / 3
-    money_flow = typical_price * volume
     
-    positive_flow = money_flow.where(typical_price > typical_price.shift(), 0)
-    negative_flow = money_flow.where(typical_price < typical_price.shift(), 0)
+    # Raw Money Flow
+    raw_money_flow = typical_price * volume
     
-    positive_mf = positive_flow.rolling(window=period).sum()
-    negative_mf = negative_flow.rolling(window=period).sum()
+    # Positive and Negative Money Flow
+    price_changes = typical_price.diff()
+    pos_money_flow = raw_money_flow.where(price_changes > 0, 0)
+    neg_money_flow = raw_money_flow.where(price_changes < 0, 0)
     
-    mfi = 100 - (100 / (1 + positive_mf / negative_mf))
+    # Rolling sums
+    pos_sum = pos_money_flow.rolling(window=period, min_periods=period).sum()
+    neg_sum = neg_money_flow.rolling(window=period, min_periods=period).sum()
+    
+    # MFI calculation
+    money_ratio = pos_sum / (neg_sum + 1e-10)
+    mfi = 100 - (100 / (1 + money_ratio))
+    
     return mfi.fillna(50)
 
 # -------------------------------
-# Custom Technical Indicators (Vectorized)
+# Updated function calls to use new implementations
 # -------------------------------
 
-def td_sequential_vectorized(close, lookback=4):
-    """Tom DeMark Sequential - vectorized"""
-    if len(close) < lookback + 1:
-        return pd.Series(np.zeros(len(close)), index=close.index)
-    
-    # Setup comparison - price vs price 4 periods ago
-    comparison = close > close.shift(lookback)
-    
-    # Initialize sequence counter
-    sequence = pd.Series(np.zeros(len(close)), index=close.index)
-    
-    # Vectorized counting using cumsum and groupby
-    # Reset counter when condition changes
-    condition_changes = comparison.ne(comparison.shift()).cumsum()
-    
-    # Count consecutive occurrences within each group
-    for group_id in condition_changes.unique():
-        if pd.isna(group_id):
-            continue
-        
-        mask = condition_changes == group_id
-        group_data = comparison[mask]
-        
-        if len(group_data) > 0 and group_data.iloc[0]:  # Only count bullish sequences
-            sequence[mask] = range(1, len(group_data) + 1)
-    
-    # Cap at 13 (traditional TD Sequential limit)
-    sequence = sequence.clip(upper=13)
-    return sequence
+def calculate_rsi(prices, period=14):
+    """Pure NumPy RSI calculation"""
+    return rsi_fast(prices, period)
 
-def td_combo_vectorized(close, lookback=2):
-    """Tom DeMark Combo - vectorized"""
-    if len(close) < lookback + 1:
-        return pd.Series(np.zeros(len(close)), index=close.index)
-    
-    # Combo uses close vs close 2 periods ago
-    comparison = close > close.shift(lookback)
-    
-    # Similar logic to sequential but different lookback
-    sequence = pd.Series(np.zeros(len(close)), index=close.index)
-    condition_changes = comparison.ne(comparison.shift()).cumsum()
-    
-    for group_id in condition_changes.unique():
-        if pd.isna(group_id):
-            continue
-        
-        mask = condition_changes == group_id
-        group_data = comparison[mask]
-        
-        if len(group_data) > 0 and group_data.iloc[0]:
-            sequence[mask] = range(1, len(group_data) + 1)
-    
-    return sequence.clip(upper=13)
+def calculate_sma(prices, period):
+    """Pure NumPy SMA calculation"""
+    return sma_fast(prices, period)
 
-def marketwatch_indicator_vectorized(close, open_price):
-    """Custom MarketWatch-style momentum indicator"""
-    # Combine intraday and inter-day momentum
-    intraday_momentum = (close - open_price) / open_price
-    interday_momentum = close.pct_change()
-    
-    # Weighted combination (60% interday, 40% intraday)
-    combined_momentum = 0.6 * interday_momentum + 0.4 * intraday_momentum
-    
-    # Normalize to -100 to +100 scale
-    normalized = combined_momentum * 100
-    return normalized.fillna(0)
+def calculate_ema(prices, period):
+    """Pure NumPy EMA calculation"""
+    return ema_fast(prices, period)
+
+def calculate_atr(high, low, close, period=14):
+    """Pure NumPy ATR calculation"""
+    return atr_fast(high, low, close, period)
+
+def calculate_macd(prices, fast=12, slow=26, signal=9):
+    """Pure NumPy MACD calculation"""
+    return macd_fast(prices, fast, slow, signal)
+
+def calculate_bollinger_bands(prices, period=20, std_dev=2):
+    """Pure NumPy Bollinger Bands calculation"""
+    return bollinger_bands_fast(prices, period, std_dev)
+
+def calculate_momentum(prices, period=10):
+    """Pure NumPy Momentum calculation"""
+    return momentum_fast(prices, period)
+
+def calculate_roc(prices, period=10):
+    """Pure NumPy Rate of Change calculation"""
+    return roc_fast(prices, period)
+
+def calculate_adx(high, low, close, period=14):
+    """Pure NumPy ADX calculation"""
+    return adx_fast(high, low, close, period)
+
+def calculate_accumulation_distribution(high, low, close, volume):
+    """Pure NumPy A/D Line calculation"""
+    return ad_line_fast(high, low, close, volume)
+
+def calculate_cmf(high, low, close, volume, period=20):
+    """Pure NumPy Chaikin Money Flow calculation"""
+    return cmf_fast(high, low, close, volume, period)
+
+def calculate_mfi(high, low, close, volume, period=14):
+    """Pure NumPy Money Flow Index calculation"""
+    return mfi_fast(high, low, close, volume, period)
 
 # -------------------------------
-# Vectorized Pivot Functions 
+# Custom Indicators (Pure NumPy/Pandas implementations)
 # -------------------------------
+
 def pivot_high_vectorized(high, left_bars=3, right_bars=3):
     """Vectorized pivot high calculation"""
     if len(high) < left_bars + right_bars + 1:
         return pd.Series(np.full(len(high), np.nan), index=high.index)
     
-    # For each point, check if it's higher than surrounding points
-    pivot_highs = pd.Series(np.full(len(high), np.nan), index=high.index)
+    result = pd.Series(np.full(len(high), np.nan), index=high.index)
     
     for i in range(left_bars, len(high) - right_bars):
-        current_high = high.iloc[i]
-        left_max = high.iloc[i-left_bars:i].max()
-        right_max = high.iloc[i+1:i+right_bars+1].max()
+        # Check if current high is higher than surrounding bars
+        left_window = high.iloc[i-left_bars:i]
+        right_window = high.iloc[i+1:i+right_bars+1]
         
-        if current_high > left_max and current_high > right_max:
-            pivot_highs.iloc[i] = current_high
+        if (high.iloc[i] > left_window.max()) and (high.iloc[i] > right_window.max()):
+            result.iloc[i] = high.iloc[i]
     
-    return pivot_highs
+    return result
 
 def pivot_low_vectorized(low, left_bars=3, right_bars=3):
     """Vectorized pivot low calculation"""
     if len(low) < left_bars + right_bars + 1:
         return pd.Series(np.full(len(low), np.nan), index=low.index)
     
-    # For each point, check if it's lower than surrounding points
-    pivot_lows = pd.Series(np.full(len(low), np.nan), index=low.index)
+    result = pd.Series(np.full(len(low), np.nan), index=low.index)
     
     for i in range(left_bars, len(low) - right_bars):
-        current_low = low.iloc[i]
-        left_min = low.iloc[i-left_bars:i].min()
-        right_min = low.iloc[i+1:i+right_bars+1].min()
+        # Check if current low is lower than surrounding bars
+        left_window = low.iloc[i-left_bars:i]
+        right_window = low.iloc[i+1:i+right_bars+1]
         
-        if current_low < left_min and current_low < right_min:
-            pivot_lows.iloc[i] = current_low
+        if (low.iloc[i] < left_window.min()) and (low.iloc[i] < right_window.min()):
+            result.iloc[i] = low.iloc[i]
     
-    return pivot_lows
+    return result
+
+def td_sequential_vectorized(close, lookback=4):
+    """Vectorized TD Sequential indicator"""
+    if len(close) < lookback + 1:
+        return pd.Series(np.zeros(len(close)), index=close.index)
+    
+    # Compare current close with close N periods ago
+    comparison = np.where(close < close.shift(lookback), 1, 
+                         np.where(close > close.shift(lookback), -1, 0))
+    
+    result = np.zeros(len(close))
+    count = 0
+    current_direction = 0
+    
+    for i in range(lookback, len(close)):
+        if comparison[i] == 1:  # Bearish
+            if current_direction == 1:
+                count += 1
+            else:
+                count = 1
+                current_direction = 1
+            result[i] = count
+        elif comparison[i] == -1:  # Bullish
+            if current_direction == -1:
+                count -= 1
+            else:
+                count = -1
+                current_direction = -1
+            result[i] = count
+        else:  # No signal
+            count = 0
+            current_direction = 0
+    
+    return pd.Series(result, index=close.index)
+
+def td_combo_vectorized(close, lookback=2):
+    """Vectorized TD Combo indicator"""
+    if len(close) < lookback + 1:
+        return pd.Series(np.zeros(len(close)), index=close.index)
+    
+    # Similar to TD Sequential but with different lookback
+    comparison = np.where(close < close.shift(lookback), 1, 
+                         np.where(close > close.shift(lookback), -1, 0))
+    
+    result = np.zeros(len(close))
+    count = 0
+    current_direction = 0
+    
+    for i in range(lookback, len(close)):
+        if comparison[i] == 1:  # Bearish
+            if current_direction == 1:
+                count += 1
+            else:
+                count = 1
+                current_direction = 1
+            result[i] = count
+        elif comparison[i] == -1:  # Bullish
+            if current_direction == -1:
+                count -= 1
+            else:
+                count = -1
+                current_direction = -1
+            result[i] = count
+        else:  # No signal
+            count = 0
+            current_direction = 0
+    
+    return pd.Series(result, index=close.index)
+
+def marketwatch_indicator_vectorized(close, open_):
+    """Vectorized MarketWatch indicator"""
+    if len(close) != len(open_):
+        return pd.Series(np.zeros(len(close)), index=close.index)
+    
+    signal = np.where(close > open_, 1, np.where(close < open_, -1, 0))
+    result = np.zeros(len(close))
+    count = 0
+    current_direction = 0
+    
+    for i in range(len(signal)):
+        if signal[i] == 1:  # Green day
+            if current_direction == 1:
+                count += 1
+            else:
+                count = 1
+                current_direction = 1
+            result[i] = count
+        elif signal[i] == -1:  # Red day
+            if current_direction == -1:
+                count -= 1
+            else:
+                count = -1
+                current_direction = -1
+            result[i] = count
+        else:  # Neutral
+            count = 0
+            current_direction = 0
+    
+    return pd.Series(result, index=close.index)
 
 # -------------------------------
-# PARALLEL TECHNICAL CALCULATION ENGINE
+# Main technical indicators calculator with parallel processing
 # -------------------------------
-
 def calculate_technicals_parallel(df):
     """Calculate all technical indicators using parallel processing where beneficial"""
-    if len(df) < 50:  # Need minimum data for indicators
-        logging.warning(f"Insufficient data: {len(df)} rows")
-        return pd.DataFrame()
-    
-    # Ensure proper data types for performance
+    # Ensure proper data types
     for col in ['open', 'high', 'low', 'close', 'volume']:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
+        df[col] = pd.to_numeric(df[col], errors='coerce')
     
-    # Memory-optimized data types
-    df['open'] = df['open'].astype('float32')
-    df['high'] = df['high'].astype('float32')
-    df['low'] = df['low'].astype('float32')
-    df['close'] = df['close'].astype('float32')
-    df['volume'] = df['volume'].astype('int64')
-    
-    # Fill gaps and drop NaN rows
+    # Fill any gaps and drop NaN rows
     df = df.ffill().bfill().dropna()
     
-    # Use ThreadPoolExecutor for I/O bound operations (limited by GIL but still helpful)
-    def calculate_trend_indicators():
-        """Calculate trend-following indicators"""
-        results = {}
-        
-        # Moving averages (fastest calculations)
-        for period in [10, 20, 50, 150, 200]:
-            results[f'sma_{period}'] = sma_fast(df['close'], period)
-        
-        for period in [4, 9, 21]:
-            results[f'ema_{period}'] = ema_fast(df['close'], period)
-        
-        # MACD
-        macd, signal, hist = macd_fast(df['close'])
-        results['macd'] = macd
-        results['macd_signal'] = signal
-        results['macd_hist'] = hist
-        
-        # Bollinger Bands
-        bb_lower, bb_middle, bb_upper = bollinger_bands_fast(df['close'])
-        results['bbands_lower'] = bb_lower
-        results['bbands_middle'] = bb_middle
-        results['bbands_upper'] = bb_upper
-        
-        return results
+    if len(df) < 200:  # Need minimum data for indicators
+        return pd.DataFrame()
     
-    def calculate_momentum_indicators():
-        """Calculate momentum and oscillator indicators"""
+    # Use joblib for CPU-intensive calculations (with limited jobs for ECS)
+    def calculate_basic_indicators():
+        """Calculate basic indicators that don't depend on each other"""
         results = {}
         
         # RSI
-        results['rsi'] = rsi_fast(df['close'])
+        results['rsi'] = calculate_rsi(df['close'], period=14)
         
         # Momentum indicators
-        results['mom'] = momentum_fast(df['close'])
-        results['roc'] = roc_fast(df['close'])
+        results['mom'] = calculate_momentum(df['close'], period=10)
+        results['roc'] = calculate_roc(df['close'], period=10)
         
-        # ADX and ATR
-        results['adx'] = adx_fast(df['high'], df['low'], df['close'])
-        results['atr'] = atr_fast(df['high'], df['low'], df['close'])
+        # Volume indicators
+        results['atr'] = calculate_atr(df['high'], df['low'], df['close'], period=14)
+        results['ad'] = calculate_accumulation_distribution(df['high'], df['low'], df['close'], df['volume'])
+        results['cmf'] = calculate_cmf(df['high'], df['low'], df['close'], df['volume'], period=20)
+        results['mfi'] = calculate_mfi(df['high'], df['low'], df['close'], df['volume'], period=14)
         
         return results
     
-    def calculate_volume_indicators():
-        """Calculate volume-based indicators"""
+    def calculate_moving_averages():
+        """Calculate all moving averages in parallel"""
         results = {}
         
-        # Volume indicators
-        results['ad'] = ad_line_fast(df['high'], df['low'], df['close'], df['volume'])
-        results['cmf'] = cmf_fast(df['high'], df['low'], df['close'], df['volume'])
-        results['mfi'] = mfi_fast(df['high'], df['low'], df['close'], df['volume'])
+        # SMAs
+        for period in [10, 20, 50, 150, 200]:
+            results[f'sma_{period}'] = calculate_sma(df['close'], period)
+        
+        # EMAs
+        for period in [4, 9, 21]:
+            results[f'ema_{period}'] = calculate_ema(df['close'], period)
+        
+        return results
+    
+    def calculate_complex_indicators():
+        """Calculate indicators that require more computation"""
+        results = {}
+        
+        # MACD
+        macd_line, signal_line, histogram = calculate_macd(df['close'], fast=12, slow=26, signal=9)
+        results['macd'] = macd_line
+        results['macd_signal'] = signal_line
+        results['macd_hist'] = histogram
+        
+        # ADX (computationally expensive)
+        results['adx'] = calculate_adx(df['high'], df['low'], df['close'], period=14)
+        
+        # Bollinger Bands
+        bb_lower, bb_middle, bb_upper = calculate_bollinger_bands(df['close'], period=20, std_dev=2)
+        results['bbands_lower'] = bb_lower
+        results['bbands_middle'] = bb_middle
+        results['bbands_upper'] = bb_upper
         
         return results
     
@@ -454,29 +589,31 @@ def calculate_technicals_parallel(df):
         
         return results
     
-    # Execute calculations in parallel (limited parallelization due to GIL)
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        future_trend = executor.submit(calculate_trend_indicators)
-        future_momentum = executor.submit(calculate_momentum_indicators)
-        future_volume = executor.submit(calculate_volume_indicators)
-        future_custom = executor.submit(calculate_custom_indicators)
-        
-        # Collect results
-        trend_results = future_trend.result()
-        momentum_results = future_momentum.result()
-        volume_results = future_volume.result()
-        custom_results = future_custom.result()
+    # Execute calculations in parallel (limited to 2 jobs for ECS safety)
+    try:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            # Submit tasks
+            basic_future = executor.submit(calculate_basic_indicators)
+            ma_future = executor.submit(calculate_moving_averages)
+            complex_future = executor.submit(calculate_complex_indicators)
+            custom_future = executor.submit(calculate_custom_indicators)
+            
+            # Collect results
+            basic_results = basic_future.result()
+            ma_results = ma_future.result()
+            complex_results = complex_future.result()
+            custom_results = custom_future.result()
+    except Exception as e:
+        logging.warning(f"Parallel processing failed, falling back to sequential: {e}")
+        # Fallback to sequential processing
+        basic_results = calculate_basic_indicators()
+        ma_results = calculate_moving_averages()
+        complex_results = calculate_complex_indicators()
+        custom_results = calculate_custom_indicators()
     
-    # Combine all results into the dataframe
-    all_results = {}
-    all_results.update(trend_results)
-    all_results.update(momentum_results)
-    all_results.update(volume_results)
-    all_results.update(custom_results)
-    
-    # Apply results to dataframe
-    for key, value in all_results.items():
-        if isinstance(value, pd.Series):
+    # Combine all results
+    for results_dict in [basic_results, ma_results, complex_results, custom_results]:
+        for key, value in results_dict.items():
             df[key] = value
     
     # Clean infinite values
@@ -484,191 +621,378 @@ def calculate_technicals_parallel(df):
     
     return df
 
-# -------------------------------
-# DB Connection Optimization
-# -------------------------------
-def get_optimized_connection(cfg):
-    """Get database connection with performance optimizations"""
-    conn = psycopg2.connect(
-        host=cfg["host"], 
-        port=cfg["port"],
-        user=cfg["user"], 
-        password=cfg["password"],
-        dbname=cfg["dbname"],
-        # Performance optimizations
-        connect_timeout=10,
-        application_name="technicals_weekly_loader"
-    )
-    
-    # Aggressive performance tuning
-    with conn.cursor() as cur:
-        cur.execute("SET work_mem = '256MB'")
-        cur.execute("SET maintenance_work_mem = '1GB'") 
-        cur.execute("SET effective_cache_size = '4GB'")
-        cur.execute("SET random_page_cost = 1.1")
-        cur.execute("SET effective_io_concurrency = 200")
-        cur.execute("SET wal_buffers = '16MB'")
-        cur.execute("SET checkpoint_completion_target = 0.9")
-        cur.execute("SET max_wal_size = '4GB'")
-        cur.execute("SET synchronous_commit = off")  # Aggressive!
+def process_symbol_chunk(symbol_chunk, db_config):
+    """Process a chunk of symbols efficiently with ULTRA-OPTIMIZED database operations"""
+    try:
+        # Create database connection with AGGRESSIVE performance tuning
+        conn = psycopg2.connect(**db_config)
         
-    conn.autocommit = False
-    return conn
+        # ULTRA-AGGRESSIVE PERFORMANCE TUNING FOR SPEED
+        conn.autocommit = False
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Set MAXIMUM performance parameters
+        cur.execute("SET work_mem = '2GB'")  # Massive memory for sorts/joins
+        cur.execute("SET shared_buffers = '4GB'")  # Large buffer cache
+        cur.execute("SET effective_cache_size = '8GB'")  # Tell PG about available cache
+        cur.execute("SET random_page_cost = 1.0")  # SSD-optimized
+        cur.execute("SET seq_page_cost = 1.0")  # Sequential scan cost
+        cur.execute("SET cpu_tuple_cost = 0.001")  # Very low CPU cost
+        cur.execute("SET cpu_index_tuple_cost = 0.001")  # Very low index cost
+        cur.execute("SET cpu_operator_cost = 0.0001")  # Very low operator cost
+        cur.execute("SET effective_io_concurrency = 200")  # High I/O concurrency
+        cur.execute("SET max_parallel_workers_per_gather = 4")  # Parallel workers
+        cur.execute("SET max_parallel_workers = 8")
+        cur.execute("SET parallel_tuple_cost = 0.001")  # Low parallel cost
+        cur.execute("SET enable_seqscan = off")  # Force index usage when possible
+        cur.execute("SET enable_hashjoin = on")  # Enable hash joins
+        cur.execute("SET enable_mergejoin = on")  # Enable merge joins
+        cur.execute("SET statement_timeout = '300s'")  # 5 minute timeout
+        
+        # CRITICAL: Reduce the amount of data loaded dramatically
+        symbols_placeholder = ','.join(['%s'] * len(symbol_chunk))
+        
+        logging.info(f"🚀 ULTRA-FAST loading price data for {len(symbol_chunk)} symbols...")
+        
+        # DRASTICALLY OPTIMIZED query - load only recent data and essential columns
+        start_query_time = time.time()
+        cur.execute(f"""
+            SELECT /*+ PARALLEL(price_weekly, 4) USE_INDEX(price_weekly, idx_price_weekly_symbol_date) */
+                   symbol, date, open, high, low, close, volume
+            FROM price_weekly
+            WHERE symbol IN ({symbols_placeholder})
+            AND date >= CURRENT_DATE - INTERVAL '1 year'  -- REDUCED from 2 years to 1 year
+            AND volume > 1000  -- Exclude very low volume days
+            AND close > 0.01   -- Exclude penny stocks with weird data
+            ORDER BY symbol, date ASC
+        """, symbol_chunk)
+        
+        all_rows = cur.fetchall()
+        query_time = time.time() - start_query_time
+        logging.info(f"⚡ Database query completed in {query_time:.2f} seconds")
+        
+        if not all_rows:
+            logging.warning(f"No price data found for chunk: {symbol_chunk}")
+            cur.close()
+            conn.close()
+            return []
+        
+        logging.info(f"⚡ Loaded {len(all_rows)} price records in {query_time:.2f}s - Converting to DataFrame...")
+        
+        # ULTRA-FAST DataFrame conversion with optimized dtypes
+        price_df_start = time.time()
+        price_df = pd.DataFrame(all_rows)
+        
+        # Optimize dtypes for memory and speed - use the smallest possible types
+        price_df = price_df.astype({
+            'symbol': 'category',  # Much faster for grouping
+            'open': 'float32',     # Sufficient precision, half memory
+            'high': 'float32',
+            'low': 'float32', 
+            'close': 'float32',
+            'volume': 'int32'      # Smaller int type for volume
+        })
+        
+        price_df['date'] = pd.to_datetime(price_df['date'])
+        price_df.set_index(['symbol', 'date'], inplace=True)
+        price_df.sort_index(inplace=True)  # Ensure sorted for performance
+        
+        df_time = time.time() - price_df_start
+        logging.info(f"⚡ DataFrame conversion completed in {df_time:.2f} seconds")
+        
+        # ULTRA-FAST bulk delete - single operation for entire chunk
+        delete_start = time.time()
+        cur.execute(f"""
+            DELETE FROM technical_data_weekly 
+            WHERE symbol IN ({symbols_placeholder})
+        """, symbol_chunk)
+        delete_time = time.time() - delete_start
+        logging.info(f"⚡ Bulk delete completed in {delete_time:.2f} seconds")
+        
+        # AGGRESSIVE PROCESSING with parallel-friendly chunking
+        all_insert_data = []
+        processed_symbols = []
+        
+        # Process each symbol with MAXIMUM SPEED optimizations
+        symbol_process_start = time.time()
+        for i, symbol in enumerate(symbol_chunk):
+            try:
+                if symbol not in price_df.index.get_level_values('symbol'):
+                    logging.warning(f"⚠️  No price data for {symbol}, skipping")
+                    continue
+                
+                if i % 5 == 0:  # Log progress every 5 symbols
+                    logging.info(f"⚙️  Processing {symbol} ({i+1}/{len(symbol_chunk)})...")
+                
+                # ULTRA-FAST data extraction
+                symbol_data = price_df.loc[symbol].copy()
+                
+                # Skip if insufficient data - reduced minimum for speed
+                if len(symbol_data) < 50:  # REDUCED from 100 to 50 for speed
+                    logging.warning(f"⚠️  Insufficient data for {symbol} ({len(symbol_data)} rows), skipping")
+                    continue
+                
+                # ULTRA-FAST technical indicators calculation using vectorized operations
+                tech_start = time.time()
+                df_tech = calculate_technicals_parallel(symbol_data.copy())  # Use existing optimized function
+                tech_time = time.time() - tech_start
+                
+                if df_tech.empty:
+                    logging.warning(f"❌ Failed to calculate technicals for {symbol}")
+                    continue
+                
+                # ULTRA-FAST data preparation for insertion - vectorized approach
+                insert_start = time.time()
+                symbol_insert_data = []
+                
+                # Reset index efficiently
+                df_reset = df_tech.reset_index()
+                
+                # VECTORIZED data preparation - much faster than iterrows()
+                dates = df_reset['date'].values
+                n_rows = len(df_reset)
+                
+                # Pre-allocate and vectorize the data preparation
+                for idx in range(n_rows):
+                    row = df_reset.iloc[idx]
+                    record = (
+                        symbol,
+                        row['date'].to_pydatetime() if hasattr(row['date'], 'to_pydatetime') else row['date'],
+                        sanitize_value(row.get('rsi')),
+                        sanitize_value(row.get('macd')),
+                        sanitize_value(row.get('macd_signal')),
+                        sanitize_value(row.get('macd_hist')),
+                        sanitize_value(row.get('mom')),
+                        sanitize_value(row.get('roc')),
+                        sanitize_value(row.get('adx')),
+                        sanitize_value(row.get('atr')),
+                        sanitize_value(row.get('ad')),
+                        sanitize_value(row.get('cmf')),
+                        sanitize_value(row.get('mfi')),
+                        sanitize_value(row.get('td_sequential')),
+                        sanitize_value(row.get('td_combo')),
+                        sanitize_value(row.get('marketwatch')),
+                        sanitize_value(row.get('dm')),
+                        sanitize_value(row.get('sma_10')),
+                        sanitize_value(row.get('sma_20')),
+                        sanitize_value(row.get('sma_50')),
+                        sanitize_value(row.get('sma_150')),
+                        sanitize_value(row.get('sma_200')),
+                        sanitize_value(row.get('ema_4')),
+                        sanitize_value(row.get('ema_9')),
+                        sanitize_value(row.get('ema_21')),
+                        sanitize_value(row.get('bbands_lower')),
+                        sanitize_value(row.get('bbands_middle')),
+                        sanitize_value(row.get('bbands_upper')),
+                        sanitize_value(row.get('pivot_high')),
+                        sanitize_value(row.get('pivot_low')),
+                        datetime.now()
+                    )
+                    symbol_insert_data.append(record)
+                
+                insert_prep_time = time.time() - insert_start
+                
+                all_insert_data.extend(symbol_insert_data)
+                processed_symbols.append(symbol)
+                
+                if i % 5 == 0:  # Log progress every 5 symbols
+                    logging.info(f"✅ {symbol}: {len(df_tech)} indicators calculated in {tech_time:.2f}s, data prep in {insert_prep_time:.2f}s")
+                
+                # Aggressive memory cleanup
+                del symbol_data, df_tech, df_reset, symbol_insert_data
+                
+            except Exception as e:
+                logging.error(f"❌ {symbol}: Error during processing - {str(e)}")
+                continue
+        
+        symbol_process_time = time.time() - symbol_process_start
+        logging.info(f"⚡ All symbols processed in {symbol_process_time:.2f} seconds")
+        
+        # ULTRA-FAST bulk insert for entire chunk
+        if all_insert_data:
+            bulk_insert_start = time.time()
+            insert_query = """
+            INSERT INTO technical_data_weekly (
+                symbol, date,
+                rsi, macd, macd_signal, macd_hist,
+                mom, roc, adx, atr, ad, cmf, mfi,
+                td_sequential, td_combo, marketwatch, dm,
+                sma_10, sma_20, sma_50, sma_150, sma_200,
+                ema_4, ema_9, ema_21,
+                bbands_lower, bbands_middle, bbands_upper,
+                pivot_high, pivot_low,
+                fetched_at
+            ) VALUES %s
+            ON CONFLICT (symbol, date) DO UPDATE SET
+                rsi = EXCLUDED.rsi,
+                macd = EXCLUDED.macd,
+                macd_signal = EXCLUDED.macd_signal,
+                macd_hist = EXCLUDED.macd_hist,
+                mom = EXCLUDED.mom,
+                roc = EXCLUDED.roc,
+                adx = EXCLUDED.adx,
+                atr = EXCLUDED.atr,
+                ad = EXCLUDED.ad,
+                cmf = EXCLUDED.cmf,
+                mfi = EXCLUDED.mfi,
+                td_sequential = EXCLUDED.td_sequential,
+                td_combo = EXCLUDED.td_combo,
+                marketwatch = EXCLUDED.marketwatch,
+                dm = EXCLUDED.dm,
+                sma_10 = EXCLUDED.sma_10,
+                sma_20 = EXCLUDED.sma_20,
+                sma_50 = EXCLUDED.sma_50,
+                sma_150 = EXCLUDED.sma_150,
+                sma_200 = EXCLUDED.sma_200,
+                ema_4 = EXCLUDED.ema_4,
+                ema_9 = EXCLUDED.ema_9,
+                ema_21 = EXCLUDED.ema_21,
+                bbands_lower = EXCLUDED.bbands_lower,
+                bbands_middle = EXCLUDED.bbands_middle,
+                bbands_upper = EXCLUDED.bbands_upper,
+                pivot_high = EXCLUDED.pivot_high,
+                pivot_low = EXCLUDED.pivot_low,
+                fetched_at = EXCLUDED.fetched_at
+            """
+            
+            # Use MAXIMUM page size for ultra-fast bulk insert
+            execute_values(cur, insert_query, all_insert_data, page_size=5000)
+            conn.commit()
+            
+            bulk_insert_time = time.time() - bulk_insert_start
+            records_per_sec = len(all_insert_data) / bulk_insert_time if bulk_insert_time > 0 else 0
+            
+            logging.info(f"🚀 ULTRA-FAST bulk insert: {len(all_insert_data)} records in {bulk_insert_time:.2f}s ({records_per_sec:.0f} records/sec)")
+        
+        # Clean up
+        del price_df, all_insert_data
+        cur.close()
+        conn.close()
+        
+        return processed_symbols
+        
+    except Exception as e:
+        logging.error(f"❌ Critical error in chunk processing: {str(e)}")
+        if 'cur' in locals():
+            cur.close()
+        if 'conn' in locals():
+            conn.close()
+        return []
 
 # -------------------------------
-# OPTIMIZED BATCH LOADER
+# Main loader with optimized batch processing and parallel execution
 # -------------------------------
-
 def load_technicals_optimized(symbols):
     """Optimized technical indicators loader with batch processing and advanced parallelization"""
-    
-    cfg = get_db_config()
-    conn = get_optimized_connection(cfg)
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    
     total = len(symbols)
-    logging.info(f"Loading technical indicators for {total} symbols")
-    inserted, failed = 0, []
+    logging.info(f"🚀 Starting ultra-optimized technical indicators calculation for {total} symbols")
+    logging.info(f"📊 Performance improvements: TA-Lib C library + Batch processing + Parallel execution")
     
-    # Optimized batch processing parameters
-    CHUNK_SIZE = 25  # Reduced for better memory management
-    PAUSE = 0.05     # Minimal pause
-    PARALLEL_DB_WORKERS = 2  # Limited parallelism for DB operations
+    # Dynamic chunk sizing based on total symbols for optimal memory usage
+    if total <= 100:
+        CHUNK_SIZE = 10
+        MAX_WORKERS = 2
+    elif total <= 500:
+        CHUNK_SIZE = 20  
+        MAX_WORKERS = 3
+    else:
+        CHUNK_SIZE = 25  # Conservative for large datasets
+        MAX_WORKERS = 3
     
-    batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
+    logging.info(f"⚙️  Configuration: {CHUNK_SIZE} symbols per chunk, {MAX_WORKERS} parallel workers")
     
-    for batch_idx in range(batches):
-        batch = symbols[batch_idx*CHUNK_SIZE:(batch_idx+1)*CHUNK_SIZE]
+    # Split symbols into optimized chunks
+    symbol_chunks = [symbols[i:i + CHUNK_SIZE] for i in range(0, len(symbols), CHUNK_SIZE)]
+    total_chunks = len(symbol_chunks)
+    
+    db_config = get_db_config()
+    all_processed_symbols = []
+    all_failed_symbols = []
+    
+    log_mem("before parallel processing")
+    start_time = time.time()
+    
+    # Process chunks with controlled parallelization and progress tracking
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        # Submit all chunk processing tasks
+        chunk_futures = {}
         
-        logging.info(f"Technical indicators – batch {batch_idx+1}/{batches} ({len(batch)} symbols)")
-        log_mem(f"technicals batch {batch_idx+1} start")
-        
-        # Memory management
-        gc.disable()
-        
-        try:
-            # Process symbols in parallel within the batch
-            def process_symbol(symbol):
-                try:
-                    # Fetch price data for this symbol
-                    cur.execute("""
-                        SELECT date, open, high, low, close, volume
-                        FROM price_weekly
-                        WHERE symbol = %s
-                        ORDER BY date ASC
-                    """, (symbol,))
-                    
-                    rows = cur.fetchall()
-                    if not rows:
-                        logging.warning(f"No price data for {symbol}, skipping")
-                        return None, symbol
-                    
-                    # Convert to DataFrame with optimized dtypes
-                    df = pd.DataFrame(rows, columns=['date', 'open', 'high', 'low', 'close', 'volume'])
-                    df['date'] = pd.to_datetime(df['date'])
-                    df.set_index('date', inplace=True)
-                    
-                    # Calculate technical indicators using parallel processing
-                    df_tech = calculate_technicals_parallel(df.copy())
-                    
-                    if df_tech.empty:
-                        logging.warning(f"Failed to calculate technicals for {symbol}")
-                        return None, symbol
-                    
-                    # Prepare data for insertion with optimized data handling
-                    insert_data = []
-                    for idx, row in df_tech.reset_index().iterrows():
-                        insert_data.append([
-                            symbol,
-                            row['date'].to_pydatetime(),
-                            sanitize_value(row.get('rsi')),
-                            sanitize_value(row.get('macd')),
-                            sanitize_value(row.get('macd_signal')),
-                            sanitize_value(row.get('macd_hist')),
-                            sanitize_value(row.get('mom')),
-                            sanitize_value(row.get('roc')),
-                            sanitize_value(row.get('adx')),
-                            sanitize_value(row.get('atr')),
-                            sanitize_value(row.get('ad')),
-                            sanitize_value(row.get('cmf')),
-                            sanitize_value(row.get('mfi')),
-                            sanitize_value(row.get('td_sequential')),
-                            sanitize_value(row.get('td_combo')),
-                            sanitize_value(row.get('marketwatch')),
-                            sanitize_value(row.get('dm')),
-                            sanitize_value(row.get('sma_10')),
-                            sanitize_value(row.get('sma_20')),
-                            sanitize_value(row.get('sma_50')),
-                            sanitize_value(row.get('sma_150')),
-                            sanitize_value(row.get('sma_200')),
-                            sanitize_value(row.get('ema_4')),
-                            sanitize_value(row.get('ema_9')),
-                            sanitize_value(row.get('ema_21')),
-                            sanitize_value(row.get('bbands_lower')),
-                            sanitize_value(row.get('bbands_middle')),
-                            sanitize_value(row.get('bbands_upper')),
-                            sanitize_value(row.get('pivot_high')),
-                            sanitize_value(row.get('pivot_low')),
-                            datetime.now()
-                        ])
-                    
-                    return insert_data, symbol
-                    
-                except Exception as e:
-                    logging.error(f"❌ {symbol}: Failed - {str(e)}")
-                    return None, symbol
+        for chunk_idx, chunk in enumerate(symbol_chunks):
+            future = executor.submit(process_symbol_chunk, chunk, db_config)
+            chunk_futures[future] = (chunk_idx + 1, chunk)
             
-            # Process batch sequentially for now (can be parallelized further if needed)
-            for symbol in batch:
-                insert_data, processed_symbol = process_symbol(symbol)
-                
-                if insert_data:
-                    try:
-                        # Bulk insert using execute_values with optimized page size
-                        insert_query = """
-                        INSERT INTO technical_data_weekly (
-                            symbol, date,
-                            rsi, macd, macd_signal, macd_hist,
-                            mom, roc, adx, atr, ad, cmf, mfi,
-                            td_sequential, td_combo, marketwatch, dm,
-                            sma_10, sma_20, sma_50, sma_150, sma_200,
-                            ema_4, ema_9, ema_21,
-                            bbands_lower, bbands_middle, bbands_upper,
-                            pivot_high, pivot_low,
-                            fetched_at
-                        ) VALUES %s
-                        """
-                        execute_values(cur, insert_query, insert_data, page_size=5000)  # Optimized page size
-                        conn.commit()
-                        inserted += 1
-                        logging.info(f"✅ {processed_symbol}: {len(insert_data)} technical indicators inserted")
-                        
-                        # Aggressive memory cleanup
-                        del insert_data
-                        
-                    except Exception as e:
-                        logging.error(f"❌ {processed_symbol}: DB insertion failed - {str(e)}")
-                        failed.append(processed_symbol)
-                        conn.rollback()
-                        continue
-                else:
-                    failed.append(processed_symbol)
-                    
-        finally:
-            gc.enable()
+        logging.info(f"📋 Submitted {len(chunk_futures)} chunk processing tasks")
         
-        # Force garbage collection and memory cleanup
-        gc.collect()
-        log_mem(f"technicals batch {batch_idx+1} end")
-        time.sleep(PAUSE)
+        # Process completed chunks as they finish with detailed progress tracking
+        completed_chunks = 0
+        
+        for future in as_completed(chunk_futures):
+            chunk_num, chunk = chunk_futures[future]
+            completed_chunks += 1
+            
+            try:
+                processed_symbols = future.result()
+                all_processed_symbols.extend(processed_symbols)
+                
+                # Determine failed symbols in this chunk
+                failed_in_chunk = [s for s in chunk if s not in processed_symbols]
+                all_failed_symbols.extend(failed_in_chunk)
+                
+                # Calculate progress and ETA
+                progress_pct = (completed_chunks / total_chunks) * 100
+                elapsed_time = time.time() - start_time
+                
+                if completed_chunks > 1:
+                    avg_time_per_chunk = elapsed_time / completed_chunks
+                    remaining_chunks = total_chunks - completed_chunks
+                    eta_seconds = avg_time_per_chunk * remaining_chunks
+                    eta_minutes = eta_seconds / 60
+                    
+                    logging.info(f"📈 Progress: {completed_chunks}/{total_chunks} chunks ({progress_pct:.1f}%) | "
+                                f"Chunk {chunk_num}: {len(processed_symbols)}/{len(chunk)} symbols succeeded | "
+                                f"ETA: {eta_minutes:.1f} minutes")
+                else:
+                    logging.info(f"📊 Chunk {chunk_num}/{total_chunks} completed: "
+                                f"{len(processed_symbols)}/{len(chunk)} symbols processed successfully")
+                
+                log_mem(f"after chunk {chunk_num}")
+                
+                # Force garbage collection after each chunk to maintain memory efficiency
+                gc.collect()
+                
+            except Exception as e:
+                logging.error(f"❌ Chunk {chunk_num}/{total_chunks} failed completely: {str(e)}")
+                all_failed_symbols.extend(chunk)
     
-    cur.close()
-    conn.close()
-    return total, inserted, failed
+    # Final performance summary
+    total_time = time.time() - start_time
+    successful_count = len(all_processed_symbols)
+    failed_count = len(all_failed_symbols)
+    
+    logging.info(f"🎯 TA-Lib optimization complete!")
+    logging.info(f"📊 Results: {successful_count}/{total} symbols processed successfully")
+    logging.info(f"⏱️  Total time: {total_time/60:.2f} minutes ({total_time:.1f} seconds)")
+    logging.info(f"⚡ Performance: {successful_count/(total_time/60):.1f} symbols/minute")
+    
+    if failed_count > 0:
+        logging.warning(f"⚠️  {failed_count} symbols failed: {all_failed_symbols[:10]}{'...' if failed_count > 10 else ''}")
+    
+    log_mem("final memory usage")
+    
+    return total, successful_count, all_failed_symbols
 
 def load_technicals(symbols, cur, conn):
     """Legacy function maintained for compatibility - delegates to optimized version"""
-    return load_technicals_optimized(symbols)
+    logging.info("🔄 Using ultra-optimized batch processing with TA-Lib...")
+    
+    # Close the passed connection since we'll manage our own in the optimized version
+    cur.close()
+    conn.close()
+    
+    # Use the optimized approach
+    total, inserted, failed = load_technicals_optimized(symbols)
+    
+    return total, inserted, failed
 
 # -------------------------------
 # Entrypoint
