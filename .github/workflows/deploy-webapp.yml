@@ -47,11 +47,12 @@ jobs:
             webapp/frontend/package-lock.json
             
       - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v2
         with:
-          aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-deploy
+          aws-region: us-east-1
+          audience: sts.amazonaws.com
 
       # Debug OIDC authentication
       - name: Verify OIDC Bootstrap Stack
@@ -388,16 +389,16 @@ jobs:
 
   # Cleanup on failure 
   cleanup-on-failure:
-    runs-on: ubuntu-latest
-    needs: build-and-deploy
+    runs-on: ubuntu-latest    needs: build-and-deploy
     if: failure()
     steps:
       - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v2
         with:
-          aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-deploy
+          aws-region: us-east-1
+          audience: sts.amazonaws.com
           
       - name: Cleanup failed deployment
         run: |
