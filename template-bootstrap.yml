@@ -12,7 +12,6 @@ Resources:
         - sts.amazonaws.com
       ThumbprintList:
         - 6938fd4d98bab03faadb97b34396831e3780aea1
-
   GitHubActionsDeployRole:
     Type: AWS::IAM::Role
     Properties:
@@ -28,7 +27,9 @@ Resources:
               StringEquals:
                 "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
               StringLike:
-                "token.actions.githubusercontent.com:sub": "repo:*/*:ref:refs/heads/*"
+                "token.actions.githubusercontent.com:sub": 
+                  - "repo:YOUR_GITHUB_USERNAME/YOUR_REPO_NAME:*"
+                  - "repo:*:ref:refs/heads/*"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
 

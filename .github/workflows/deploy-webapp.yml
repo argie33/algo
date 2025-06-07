@@ -24,6 +24,8 @@ permissions:
 
 env:
   AWS_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+  AWS_ROLE_SESSION: github-deploy-webapp
   NODE_VERSION: '18'
 
 jobs:
@@ -43,14 +45,12 @@ jobs:
           cache-dependency-path: |
             webapp/lambda/package-lock.json
             webapp/frontend/package-lock.json
-            
-      - name: Configure AWS credentials via OIDC
+              - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
-          role-session-name: github-deploy-webapp
-          aws-region: ${{ env.AWS_REGION }}
-          audience: sts.amazonaws.com
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
       # Debug OIDC authentication
       - name: Verify OIDC Bootstrap Stack
