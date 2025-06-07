@@ -1,4 +1,4 @@
-# Financial Dashboard - Serverless Deployment Script (PowerShell)
+# Financial Dashboard - Serverless Deployment Script (PowerShell) 
 # This script deploys the webapp to AWS Lambda + API Gateway + CloudFront
 
 param(
