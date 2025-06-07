@@ -1,4 +1,4 @@
-# Financial Dashboard - Serverless Web Application 
+# Financial Dashboard - Serverless Web Application
 
 This directory contains the serverless web application built with Lambda + API Gateway + CloudFront architecture, providing **85-95% cost savings** compared to the previous ECS + ALB setup.
 

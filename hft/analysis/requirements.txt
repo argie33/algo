@@ -1,9 +1,0 @@
-pandas==1.5.3
-numpy==1.24.3
-aiokafka==0.8.1
-redis==4.6.0
-pydantic==1.10.9
-prometheus_client==0.17.1
-TA-Lib==0.4.28
-python-json-logger==2.0.7
-pythonjsonlogger==0.1.0
