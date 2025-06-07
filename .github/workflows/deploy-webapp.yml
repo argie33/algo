@@ -260,7 +260,8 @@ jobs:
 
 ################################################################################
 # 5) Post-deployment verification                                              #
-################################################################################  verify_deployment:
+################################################################################
+  verify_deployment:
     name: Verify deployment
     needs: [deploy_infrastructure, deploy_frontend]
     if: ${{ always() && needs.deploy_infrastructure.result == 'success' }}
