@@ -256,7 +256,7 @@ Resources:
     Properties:
       LogGroupName: /ecs/technicalsmonthly-loader
       RetentionInDays: 14
-      
+
   BuySellDailyLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -2096,7 +2096,7 @@ Resources:
       ContainerDefinitions:
         - Name: pricedaily-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref PriceImageTag]]
-                   Essential: true
+          Essential: true
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
