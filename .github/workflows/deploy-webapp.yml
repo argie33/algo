@@ -101,6 +101,18 @@ jobs:
           DB_ENDPOINT=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-DatabaseEndpoint'].Value" \
             --output text)
+          
+          # Validate that we got the values
+          if [[ -z "$DB_SECRET_ARN" || "$DB_SECRET_ARN" == "None" ]]; then
+            echo "❌ Failed to get database secret ARN from core stack exports"
+            exit 1
+          fi
+          
+          if [[ -z "$DB_ENDPOINT" || "$DB_ENDPOINT" == "None" ]]; then
+            echo "❌ Failed to get database endpoint from core stack exports"
+            exit 1
+          fi
+          
           echo "DB_SECRET_ARN=$DB_SECRET_ARN" >> $GITHUB_OUTPUT
           echo "DB_ENDPOINT=$DB_ENDPOINT" >> $GITHUB_OUTPUT
           echo "Using database secret: $DB_SECRET_ARN"
@@ -112,6 +124,13 @@ jobs:
           BUCKET=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
             --output text)
+          
+          # Validate bucket name
+          if [[ -z "$BUCKET" || "$BUCKET" == "None" ]]; then
+            echo "❌ Failed to get CloudFormation templates bucket from core stack exports"
+            exit 1
+          fi
+          
           echo "CF_BUCKET=$BUCKET" >> $GITHUB_OUTPUT
           echo "Using S3 bucket: $BUCKET"
 
@@ -126,14 +145,31 @@ jobs:
 
       - name: Deploy webapp CloudFormation stack
         run: |
+          # Validate parameters before deployment
+          if [[ -z "${{ steps.db_info.outputs.DB_SECRET_ARN }}" ]]; then
+            echo "❌ Database secret ARN is empty"
+            exit 1
+          fi
+          
+          if [[ -z "${{ steps.db_info.outputs.DB_ENDPOINT }}" ]]; then
+            echo "❌ Database endpoint is empty"
+            exit 1
+          fi
+          
+          if [[ -z "${{ steps.bucket.outputs.CF_BUCKET }}" ]]; then
+            echo "❌ S3 bucket is empty"
+            exit 1
+          fi
+          
+          # Deploy with validated parameters
           sam deploy \
             --stack-name stocks-webapp-stack \
-            --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }} \
+            --s3-bucket "${{ steps.bucket.outputs.CF_BUCKET }}" \
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --parameter-overrides \
-              EnvironmentName=${{ env.ENVIRONMENT_NAME }} \
-              DatabaseSecretArn=${{ steps.db_info.outputs.DB_SECRET_ARN }} \
-              DatabaseEndpoint=${{ steps.db_info.outputs.DB_ENDPOINT }} \
+              "EnvironmentName=${{ env.ENVIRONMENT_NAME }}" \
+              "DatabaseSecretArn=${{ steps.db_info.outputs.DB_SECRET_ARN }}" \
+              "DatabaseEndpoint=${{ steps.db_info.outputs.DB_ENDPOINT }}" \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset
 
