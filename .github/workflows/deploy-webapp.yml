@@ -45,11 +45,12 @@ jobs:
             webapp/frontend/package-lock.json
             
       - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
-          role-session-name: github-deploy-webapp
+          role-session-name: github-deploy
           aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
 
       - name: Setup SAM CLI
         uses: aws-actions/setup-sam@v2
