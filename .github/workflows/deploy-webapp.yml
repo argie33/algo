@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - 'webapp/**'
-      - '.github/workflows/deploy-webapp-lambda.yml'
+      - '.github/workflows/deploy-webapp.yml'
   workflow_dispatch:
     inputs:
       environment:
