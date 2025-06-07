@@ -169,8 +169,6 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource: !Ref DatabaseSecretArn
-
-  # API Gateway Lambda Function
   ApiFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -181,16 +179,13 @@ Resources:
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DatabaseSecretArn
-      ReservedConcurrencyLimit: 10
       Events:
         ApiGatewayAny:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /{proxy+}
-            Method: ANY
-
-  # API Gateway
+            Method: ANY# API Gateway
   ApiGateway:
     Type: AWS::Serverless::Api
     Properties:
@@ -201,8 +196,6 @@ Resources:
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         AllowOrigin: !Sub 'https://${CloudFrontDistribution.DomainName}'
         AllowCredentials: true
-      TracingConfig:
-        TracingEnabled: true
       AccessLogSetting:
         DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
         Format: >
@@ -211,7 +204,7 @@ Resources:
             "ip": "$context.identity.sourceIp",
             "requestTime": "$context.requestTime",
             "httpMethod": "$context.httpMethod",
-            "routeKey": "$context.routeKey",
+            "resourcePath": "$context.resourcePath",
             "status": "$context.status",
             "protocol": "$context.protocol",
             "responseLength": "$context.responseLength",
