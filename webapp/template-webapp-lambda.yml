@@ -169,6 +169,8 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource: !Ref DatabaseSecretArn
+
+  # Lambda Function
   ApiFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -185,7 +187,9 @@ Resources:
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /{proxy+}
-            Method: ANY# API Gateway
+            Method: ANY
+
+  # API Gateway
   ApiGateway:
     Type: AWS::Serverless::Api
     Properties:
