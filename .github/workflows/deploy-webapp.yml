@@ -315,7 +315,8 @@ jobs:
 
 ################################################################################
 # 6) Cleanup on failure                                                        #
-################################################################################  cleanup_on_failure:
+################################################################################  
+  cleanup_on_failure:
     name: Cleanup failed deployment
     needs: [deploy_infrastructure, deploy_frontend]
     if: ${{ failure() && github.ref == 'refs/heads/main' }}
