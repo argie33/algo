@@ -1,4 +1,4 @@
-name: Deploy Financial Dashboard - Serverless
+name: Deploy Financial Dashboard - Serverless 
 
 on:
   push:
