@@ -164,7 +164,8 @@ jobs:
           
           echo "Frontend bucket: $FRONTEND_BUCKET"
           echo "CloudFront ID: $CLOUDFRONT_ID"
-          echo "API URL: $API_URL"          echo "Website URL: $WEBSITE_URL"
+          echo "API URL: $API_URL"
+          echo "Website URL: $WEBSITE_URL"
 
 ################################################################################
 # 3) Build and deploy Frontend                                                 #
