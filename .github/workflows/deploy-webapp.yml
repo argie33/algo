@@ -23,7 +23,7 @@ env:
 
 jobs:
 ################################################################################
-# 1) Detect changed components                                                 #
+# 1) Detect changed components                                                 # 
 ################################################################################
   filter:
     name: Detect changed components
@@ -122,13 +122,18 @@ jobs:
 
       - name: Build SAM application
         run: |
-          sam build --template template-webapp-lambda.yml      - name: Deploy webapp CloudFormation stack
+          sam build --template template-webapp-lambda.yml
+
+      - name: Deploy webapp CloudFormation stack
         run: |
           sam deploy \
             --stack-name stocks-webapp-stack \
             --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }} \
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-            --parameter-overrides "EnvironmentName=${{ env.ENVIRONMENT_NAME }}" "DatabaseSecretArn=${{ steps.db_info.outputs.DB_SECRET_ARN }}" "DatabaseEndpoint=${{ steps.db_info.outputs.DB_ENDPOINT }}" \
+            --parameter-overrides \
+              EnvironmentName=${{ env.ENVIRONMENT_NAME }} \
+              DatabaseSecretArn=${{ steps.db_info.outputs.DB_SECRET_ARN }} \
+              DatabaseEndpoint=${{ steps.db_info.outputs.DB_ENDPOINT }} \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset
 
