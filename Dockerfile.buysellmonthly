@@ -1,0 +1,23 @@
+# Dockerfile.buysellmonthly
+
+# 1) Base image
+FROM python:3.10-slim
+
+# 2) Where we'll live inside the container
+WORKDIR /app
+
+# 3) Install OS-level build tools for psutil and performance packages
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends build-essential && \
+    rm -rf /var/lib/apt/lists/*
+
+# 4) Copy & install Python deps
+COPY requirements-loadbuysellmonthly.txt .
+RUN pip install --upgrade pip \
+ && pip install --no-cache-dir -r requirements-loadbuysellmonthly.txt
+
+# 5) Copy your loader
+COPY loadbuysellmonthly.py .
+
+# 6) Command
+CMD ["python", "loadbuysellmonthly.py"]
