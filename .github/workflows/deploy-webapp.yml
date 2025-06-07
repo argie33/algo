@@ -18,6 +18,10 @@ on:
           - staging
           - prod
 
+permissions:
+  id-token: write
+  contents: read
+
 env:
   AWS_REGION: us-east-1
   NODE_VERSION: '18'
@@ -39,12 +43,12 @@ jobs:
           cache-dependency-path: |
             webapp/lambda/package-lock.json
             webapp/frontend/package-lock.json
-
-      - name: Configure AWS credentials
+            
+      - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-deploy-webapp
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup SAM CLI
@@ -72,7 +76,9 @@ jobs:
           # Copy all necessary files
           cp -r . ../deploy/lambda/
           
-          echo "Lambda package prepared"      # Build Frontend
+          echo "Lambda package prepared"
+          
+      # Build Frontend
       - name: Install Frontend dependencies
         working-directory: webapp/frontend
         run: npm ci
@@ -101,7 +107,7 @@ jobs:
           
           npm run build
           echo "Frontend built successfully"
-
+          
       # Deploy Infrastructure
       - name: Deploy CloudFormation Stack
         id: deploy-stack
@@ -109,17 +115,31 @@ jobs:
           STACK_NAME="financial-dashboard-${{ github.event.inputs.environment || 'prod' }}"
           TEMPLATE_FILE="webapp/template-webapp-lambda.yml"
           
-          # Get database details from existing infrastructure
-          DB_SECRET_ARN=$(aws secretsmanager list-secrets \
-            --query "SecretList[?contains(Name, 'rds-db-credentials')].ARN | [0]" \
+          # Get database secret ARN from exports (same way as your other workflows)
+          DB_SECRET_ARN=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-SecretArn'].Value" \
             --output text)
           
           if [ "$DB_SECRET_ARN" = "None" ] || [ -z "$DB_SECRET_ARN" ]; then
-            echo "ERROR: Database secret not found"
+            echo "ERROR: Database secret not found in CloudFormation exports"
+            echo "Expected export name: StocksApp-SecretArn"
             exit 1
           fi
           
           echo "Using database secret: $DB_SECRET_ARN"
+          
+          # Get database endpoint from exports
+          DB_ENDPOINT=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-DBEndpoint'].Value" \
+            --output text)
+          
+          if [ "$DB_ENDPOINT" = "None" ] || [ -z "$DB_ENDPOINT" ]; then
+            echo "ERROR: Database endpoint not found in CloudFormation exports"
+            echo "Expected export name: StocksApp-DBEndpoint"
+            exit 1
+          fi
+          
+          echo "Using database endpoint: $DB_ENDPOINT"
           
           # Deploy with SAM
           sam deploy \
@@ -129,6 +149,7 @@ jobs:
             --parameter-overrides \
               EnvironmentName=${{ github.event.inputs.environment || 'prod' }} \
               DatabaseSecretArn=$DB_SECRET_ARN \
+              DatabaseEndpoint=$DB_ENDPOINT \
             --no-fail-on-empty-changeset \
             --region ${{ env.AWS_REGION }}
           
@@ -157,7 +178,8 @@ jobs:
           echo "bucket_name=$BUCKET_NAME" >> $GITHUB_OUTPUT
           echo "cloudfront_id=$CLOUDFRONT_ID" >> $GITHUB_OUTPUT
           echo "website_url=$WEBSITE_URL" >> $GITHUB_OUTPUT
-            echo "Infrastructure deployed successfully"
+          
+          echo "Infrastructure deployed successfully"
 
       # Rebuild Frontend with correct API URL
       - name: Rebuild Frontend with API Gateway URL
