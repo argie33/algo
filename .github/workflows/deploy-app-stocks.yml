@@ -572,6 +572,9 @@ jobs:
               QuarterlyIncomeStmtImageTag=$(grep '^QuarterlyIncomeStmtImageTag=' tags.env | cut -d= -f2-) \
               AnalystGradeImageTag=$(grep '^AnalystGradeImageTag=' tags.env | cut -d= -f2-) \
               StockScreenerImageTag=$(grep '^StockScreenerImageTag=' tags.env | cut -d= -f2-) \
+              AaiiSentimentImageTag=$(grep '^AaiiSentimentImageTag=' tags.env | cut -d= -f2- || echo "latest") \
+              FearGreedImageTag=$(grep '^FearGreedImageTag=' tags.env | cut -d= -f2- || echo "latest") \
+              NaaimImageTag=$(grep '^NaaimImageTag=' tags.env | cut -d= -f2- || echo "latest") \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
               IBKRUsername=${{ secrets.IBKR_USERNAME }} \
               IBKRPassword=${{ secrets.IBKR_PASSWORD }} \
