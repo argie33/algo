@@ -2,7 +2,7 @@ name: Deploy Financial Dashboard - Serverless
 
 on:
   push:
-    branches: [main]
+    branches: ["**"]
     paths:
       - 'webapp/**'
       - '.github/workflows/deploy-webapp.yml'
