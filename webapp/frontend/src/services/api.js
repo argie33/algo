@@ -1,19 +1,53 @@
 import axios from 'axios'
 
+// API Gateway/Lambda configuration
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
+const IS_SERVERLESS = import.meta.env.VITE_SERVERLESS === 'true'
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000,
+  timeout: IS_SERVERLESS ? 45000 : 30000, // Longer timeout for Lambda cold starts
   headers: {
     'Content-Type': 'application/json',
   },
 })
 
-// Request interceptor for logging
+// Retry configuration for Lambda cold starts
+const retryRequest = async (error) => {
+  const { config } = error
+  
+  if (!config || config.retryCount >= 3) {
+    return Promise.reject(error)
+  }
+  
+  config.retryCount = config.retryCount || 0
+  config.retryCount += 1
+  
+  // Only retry on timeout or 5xx errors (common with Lambda cold starts)
+  if (error.code === 'ECONNABORTED' || 
+      (error.response && error.response.status >= 500)) {
+    
+    const delay = Math.pow(2, config.retryCount) * 1000 // Exponential backoff
+    console.log(`Retrying request (attempt ${config.retryCount}) after ${delay}ms...`)
+    
+    await new Promise(resolve => setTimeout(resolve, delay))
+    return api(config)
+  }
+  
+  return Promise.reject(error)
+}
+
+// Request interceptor for logging and Lambda optimization
 api.interceptors.request.use(
   (config) => {
     console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`)
+    
+    // Add headers for Lambda optimization
+    if (IS_SERVERLESS) {
+      config.headers['X-Lambda-Request'] = 'true'
+      config.headers['X-Request-Time'] = new Date().toISOString()
+    }
+    
     return config
   },
   (error) => {
@@ -22,20 +56,35 @@ api.interceptors.request.use(
   }
 )
 
-// Response interceptor for error handling
+// Response interceptor for error handling and retries
 api.interceptors.response.use(
   (response) => {
+    // Log Lambda execution details if available
+    if (response.headers['x-amzn-requestid']) {
+      console.log(`Lambda Request ID: ${response.headers['x-amzn-requestid']}`)
+    }
     return response
   },
-  (error) => {
+  async (error) => {
     console.error('API Response Error:', error.response?.data || error.message)
     
+    // Handle specific error cases
     if (error.response?.status === 401) {
-      // Handle unauthorized access
       console.warn('Unauthorized access detected')
-    } else if (error.response?.status >= 500) {
-      // Handle server errors
-      console.error('Server error detected')
+    } else if (error.response?.status === 429) {
+      console.warn('Rate limit exceeded')
+    } else if (error.response?.status >= 500 || error.code === 'ECONNABORTED') {
+      console.error('Server error or timeout detected')
+      
+      // Attempt retry for serverless environments
+      if (IS_SERVERLESS) {
+        try {
+          return await retryRequest(error)
+        } catch (retryError) {
+          console.error('All retry attempts failed')
+          return Promise.reject(retryError)
+        }
+      }
     }
     
     return Promise.reject(error)

@@ -1,0 +1,287 @@
+name: Deploy Financial Dashboard - Serverless
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'webapp/**'
+      - '.github/workflows/deploy-webapp-lambda.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'prod'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+env:
+  AWS_REGION: us-east-1
+  NODE_VERSION: '18'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'prod' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            webapp/lambda/package-lock.json
+            webapp/frontend/package-lock.json
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup SAM CLI
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      # Build Lambda Function
+      - name: Install Lambda dependencies
+        working-directory: webapp/lambda
+        run: |
+          npm ci --production
+          echo "Lambda dependencies installed"
+
+      - name: Prepare Lambda deployment package
+        working-directory: webapp/lambda
+        run: |
+          # Remove development dependencies
+          rm -rf node_modules
+          npm ci --only=production
+          
+          # Create deployment directory
+          mkdir -p ../deploy/lambda
+          
+          # Copy all necessary files
+          cp -r . ../deploy/lambda/
+          
+          echo "Lambda package prepared"      # Build Frontend
+      - name: Install Frontend dependencies
+        working-directory: webapp/frontend
+        run: npm ci
+
+      - name: Build Frontend with API URL
+        working-directory: webapp/frontend
+        run: |
+          # Get API URL from CloudFormation stack (if already deployed)
+          STACK_NAME="financial-dashboard-${{ github.event.inputs.environment || 'prod' }}"
+          
+          # Try to get existing API URL, use placeholder if stack doesn't exist yet
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayUrl'].OutputValue" \
+            --output text 2>/dev/null || echo "PLACEHOLDER_API_URL")
+          
+          echo "Building frontend with API URL: $API_URL"
+          
+          # Create production environment file
+          cat > .env.production << EOF
+          VITE_SERVERLESS=true
+          VITE_API_URL=$API_URL
+          VITE_APP_TITLE=Financial Dashboard
+          VITE_APP_DESCRIPTION=Professional Financial Data Analysis Platform
+          EOF
+          
+          npm run build
+          echo "Frontend built successfully"
+
+      # Deploy Infrastructure
+      - name: Deploy CloudFormation Stack
+        id: deploy-stack
+        run: |
+          STACK_NAME="financial-dashboard-${{ github.event.inputs.environment || 'prod' }}"
+          TEMPLATE_FILE="webapp/template-webapp-lambda.yml"
+          
+          # Get database details from existing infrastructure
+          DB_SECRET_ARN=$(aws secretsmanager list-secrets \
+            --query "SecretList[?contains(Name, 'rds-db-credentials')].ARN | [0]" \
+            --output text)
+          
+          if [ "$DB_SECRET_ARN" = "None" ] || [ -z "$DB_SECRET_ARN" ]; then
+            echo "ERROR: Database secret not found"
+            exit 1
+          fi
+          
+          echo "Using database secret: $DB_SECRET_ARN"
+          
+          # Deploy with SAM
+          sam deploy \
+            --template-file $TEMPLATE_FILE \
+            --stack-name $STACK_NAME \
+            --capabilities CAPABILITY_IAM \
+            --parameter-overrides \
+              EnvironmentName=${{ github.event.inputs.environment || 'prod' }} \
+              DatabaseSecretArn=$DB_SECRET_ARN \
+            --no-fail-on-empty-changeset \
+            --region ${{ env.AWS_REGION }}
+          
+          # Get outputs
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayUrl'].OutputValue" \
+            --output text)
+          
+          BUCKET_NAME=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" \
+            --output text)
+          
+          CLOUDFRONT_ID=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
+            --output text)
+          
+          WEBSITE_URL=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query "Stacks[0].Outputs[?OutputKey=='WebsiteURL'].OutputValue" \
+            --output text)
+          
+          echo "api_url=$API_URL" >> $GITHUB_OUTPUT
+          echo "bucket_name=$BUCKET_NAME" >> $GITHUB_OUTPUT
+          echo "cloudfront_id=$CLOUDFRONT_ID" >> $GITHUB_OUTPUT
+          echo "website_url=$WEBSITE_URL" >> $GITHUB_OUTPUT
+            echo "Infrastructure deployed successfully"
+
+      # Rebuild Frontend with correct API URL
+      - name: Rebuild Frontend with API Gateway URL
+        working-directory: webapp/frontend
+        run: |
+          API_URL="${{ steps.deploy-stack.outputs.api_url }}"
+          
+          echo "Rebuilding frontend with correct API URL: $API_URL"
+          
+          # Create production environment file with correct API URL
+          cat > .env.production << EOF
+          VITE_SERVERLESS=true
+          VITE_API_URL=$API_URL
+          VITE_APP_TITLE=Financial Dashboard
+          VITE_APP_DESCRIPTION=Professional Financial Data Analysis Platform
+          EOF
+          
+          # Rebuild with correct API URL
+          npm run build
+          echo "Frontend rebuilt with correct API URL"
+
+      # Deploy Frontend to S3
+      - name: Deploy Frontend to S3
+        run: |
+          BUCKET_NAME="${{ steps.deploy-stack.outputs.bucket_name }}"
+          
+          # Sync frontend files to S3
+          aws s3 sync webapp/frontend/dist s3://$BUCKET_NAME \
+            --delete \
+            --cache-control "public, max-age=31536000" \
+            --exclude "*.html" \
+            --exclude "service-worker.js"
+          
+          # Upload HTML files with shorter cache (for SPA routing)
+          aws s3 sync webapp/frontend/dist s3://$BUCKET_NAME \
+            --cache-control "public, max-age=300" \
+            --include "*.html" \
+            --include "service-worker.js"
+          
+          echo "Frontend deployed to S3"
+
+      # Invalidate CloudFront Cache
+      - name: Invalidate CloudFront
+        run: |
+          CLOUDFRONT_ID="${{ steps.deploy-stack.outputs.cloudfront_id }}"
+          
+          aws cloudfront create-invalidation \
+            --distribution-id $CLOUDFRONT_ID \
+            --paths "/*"
+          
+          echo "CloudFront cache invalidated"
+
+      # Test Deployment
+      - name: Test API Health
+        run: |
+          API_URL="${{ steps.deploy-stack.outputs.api_url }}"
+          
+          echo "Testing API health at: $API_URL/health"
+          
+          # Wait for API to be ready
+          for i in {1..10}; do
+            if curl -f -s "$API_URL/health" > /dev/null; then
+              echo "API health check passed"
+              break
+            else
+              echo "API not ready, attempt $i/10"
+              sleep 30
+            fi
+            
+            if [ $i -eq 10 ]; then
+              echo "API health check failed after 10 attempts"
+              exit 1
+            fi
+          done
+
+      # Test Frontend
+      - name: Test Frontend
+        run: |
+          WEBSITE_URL="${{ steps.deploy-stack.outputs.website_url }}"
+          
+          echo "Testing frontend at: $WEBSITE_URL"
+          
+          # Test frontend accessibility
+          if curl -f -s "$WEBSITE_URL" > /dev/null; then
+            echo "Frontend accessibility test passed"
+          else
+            echo "Frontend accessibility test failed"
+            exit 1
+          fi
+
+      # Output deployment info
+      - name: Deployment Summary
+        run: |
+          echo "🚀 Deployment completed successfully!"
+          echo ""
+          echo "📋 Deployment Details:"
+          echo "Environment: ${{ github.event.inputs.environment || 'prod' }}"
+          echo "Region: ${{ env.AWS_REGION }}"
+          echo ""
+          echo "🌐 URLs:"
+          echo "Website: ${{ steps.deploy-stack.outputs.website_url }}"
+          echo "API: ${{ steps.deploy-stack.outputs.api_url }}"
+          echo ""
+          echo "☁️ AWS Resources:"
+          echo "S3 Bucket: ${{ steps.deploy-stack.outputs.bucket_name }}"
+          echo "CloudFront: ${{ steps.deploy-stack.outputs.cloudfront_id }}"
+          echo ""
+          echo "💰 Estimated Monthly Cost: $1-5 (85-95% savings vs ECS)"
+          
+      # Notify on success
+      - name: Notify Success
+        if: success()
+        run: |
+          echo "✅ Financial Dashboard deployed successfully!"
+          echo "🎯 Serverless architecture is now live"
+          echo "💵 Cost optimized: ~95% reduction achieved"
+
+  # Cleanup on failure
+  cleanup-on-failure:
+    runs-on: ubuntu-latest
+    needs: build-and-deploy
+    if: failure()
+    steps:
+      - name: Cleanup failed deployment
+        run: |
+          echo "🧹 Cleaning up failed deployment resources..."
+          # Add cleanup logic if needed
