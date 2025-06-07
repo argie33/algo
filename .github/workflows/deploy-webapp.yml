@@ -389,7 +389,8 @@ jobs:
 
   # Cleanup on failure 
   cleanup-on-failure:
-    runs-on: ubuntu-latest    needs: build-and-deploy
+    runs-on: ubuntu-latest
+    needs: build-and-deploy
     if: failure()
     steps:
       - name: Configure AWS credentials via OIDC
