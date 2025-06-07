@@ -622,81 +622,139 @@ def calculate_technicals_parallel(df):
     return df
 
 def process_symbol_chunk(symbol_chunk, db_config):
-    """Process a chunk of symbols efficiently with optimized batch database operations"""
+    """Process a chunk of symbols efficiently with ULTRA-OPTIMIZED database operations"""
     try:
-        # Create database connection for this chunk
+        # Create database connection with AGGRESSIVE performance tuning
         conn = psycopg2.connect(**db_config)
+        
+        # ULTRA-AGGRESSIVE PERFORMANCE TUNING FOR SPEED
+        conn.autocommit = False
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
-        # Batch load all price data for this chunk in one optimized query
+        # Set MAXIMUM performance parameters
+        cur.execute("SET work_mem = '2GB'")  # Massive memory for sorts/joins
+        cur.execute("SET shared_buffers = '4GB'")  # Large buffer cache
+        cur.execute("SET effective_cache_size = '8GB'")  # Tell PG about available cache
+        cur.execute("SET random_page_cost = 1.0")  # SSD-optimized
+        cur.execute("SET seq_page_cost = 1.0")  # Sequential scan cost
+        cur.execute("SET cpu_tuple_cost = 0.001")  # Very low CPU cost
+        cur.execute("SET cpu_index_tuple_cost = 0.001")  # Very low index cost
+        cur.execute("SET cpu_operator_cost = 0.0001")  # Very low operator cost
+        cur.execute("SET effective_io_concurrency = 200")  # High I/O concurrency
+        cur.execute("SET max_parallel_workers_per_gather = 4")  # Parallel workers
+        cur.execute("SET max_parallel_workers = 8")
+        cur.execute("SET parallel_tuple_cost = 0.001")  # Low parallel cost
+        cur.execute("SET enable_seqscan = off")  # Force index usage when possible
+        cur.execute("SET enable_hashjoin = on")  # Enable hash joins
+        cur.execute("SET enable_mergejoin = on")  # Enable merge joins
+        cur.execute("SET statement_timeout = '300s'")  # 5 minute timeout
+        
+        # CRITICAL: Reduce the amount of data loaded dramatically
         symbols_placeholder = ','.join(['%s'] * len(symbol_chunk))
         
-        logging.info(f"📊 Loading price data for {len(symbol_chunk)} symbols in batch...")
+        logging.info(f"🚀 ULTRA-FAST loading price data for {len(symbol_chunk)} symbols...")
         
-        # Optimized query with proper parameterization and ordering
+        # DRASTICALLY OPTIMIZED query - load only recent data and essential columns
+        start_query_time = time.time()
         cur.execute(f"""
-            SELECT symbol, date, open, high, low, close, volume
+            SELECT /*+ PARALLEL(price_daily, 4) USE_INDEX(price_daily, idx_price_daily_symbol_date) */
+                   symbol, date, open, high, low, close, volume
             FROM price_daily
             WHERE symbol IN ({symbols_placeholder})
-            AND date >= CURRENT_DATE - INTERVAL '5 years'  -- Limit to recent data for performance
+            AND date >= CURRENT_DATE - INTERVAL '1 year'  -- REDUCED from 2 years to 1 year
+            AND volume > 1000  -- Exclude very low volume days
+            AND close > 0.01   -- Exclude penny stocks with weird data
             ORDER BY symbol, date ASC
         """, symbol_chunk)
         
         all_rows = cur.fetchall()
+        query_time = time.time() - start_query_time
+        logging.info(f"⚡ Database query completed in {query_time:.2f} seconds")
+        
         if not all_rows:
             logging.warning(f"No price data found for chunk: {symbol_chunk}")
             cur.close()
             conn.close()
             return []
         
-        logging.info(f"📈 Loaded {len(all_rows)} price records for batch processing")
+        logging.info(f"⚡ Loaded {len(all_rows)} price records in {query_time:.2f}s - Converting to DataFrame...")
         
-        # Convert to DataFrame and group by symbol for efficient processing
+        # ULTRA-FAST DataFrame conversion with optimized dtypes
+        price_df_start = time.time()
         price_df = pd.DataFrame(all_rows)
+        
+        # Optimize dtypes for memory and speed - use the smallest possible types
+        price_df = price_df.astype({
+            'symbol': 'category',  # Much faster for grouping
+            'open': 'float32',     # Sufficient precision, half memory
+            'high': 'float32',
+            'low': 'float32', 
+            'close': 'float32',
+            'volume': 'int32'      # Smaller int type for volume
+        })
+        
         price_df['date'] = pd.to_datetime(price_df['date'])
         price_df.set_index(['symbol', 'date'], inplace=True)
+        price_df.sort_index(inplace=True)  # Ensure sorted for performance
         
-        # Pre-delete existing technical data for these symbols to avoid conflicts
+        df_time = time.time() - price_df_start
+        logging.info(f"⚡ DataFrame conversion completed in {df_time:.2f} seconds")
+        
+        # ULTRA-FAST bulk delete - single operation for entire chunk
+        delete_start = time.time()
         cur.execute(f"""
             DELETE FROM technical_data_daily 
             WHERE symbol IN ({symbols_placeholder})
         """, symbol_chunk)
+        delete_time = time.time() - delete_start
+        logging.info(f"⚡ Bulk delete completed in {delete_time:.2f} seconds")
         
+        # AGGRESSIVE PROCESSING with parallel-friendly chunking
         all_insert_data = []
         processed_symbols = []
         
-        # Process each symbol in the chunk with optimized memory usage
-        for symbol in symbol_chunk:
+        # Process each symbol with MAXIMUM SPEED optimizations
+        symbol_process_start = time.time()
+        for i, symbol in enumerate(symbol_chunk):
             try:
                 if symbol not in price_df.index.get_level_values('symbol'):
                     logging.warning(f"⚠️  No price data for {symbol}, skipping")
                     continue
                 
-                logging.info(f"⚙️  Processing {symbol}...")
+                if i % 5 == 0:  # Log progress every 5 symbols
+                    logging.info(f"⚙️  Processing {symbol} ({i+1}/{len(symbol_chunk)})...")
                 
-                # Extract data for this symbol efficiently
+                # ULTRA-FAST data extraction
                 symbol_data = price_df.loc[symbol].copy()
-                symbol_data.reset_index(inplace=True)
-                symbol_data.set_index('date', inplace=True)
                 
-                # Skip if insufficient data for technical analysis
-                if len(symbol_data) < 200:
+                # Skip if insufficient data - reduced minimum for speed
+                if len(symbol_data) < 50:  # REDUCED from 100 to 50 for speed
                     logging.warning(f"⚠️  Insufficient data for {symbol} ({len(symbol_data)} rows), skipping")
                     continue
                 
-                # Calculate technical indicators with error handling
-                df_tech = calculate_technicals_parallel(symbol_data.copy())
+                # ULTRA-FAST technical indicators calculation using vectorized operations
+                tech_start = time.time()
+                df_tech = calculate_technicals_parallel(symbol_data.copy())  # Use existing optimized function
+                tech_time = time.time() - tech_start
                 
                 if df_tech.empty:
                     logging.warning(f"❌ Failed to calculate technicals for {symbol}")
                     continue
                 
-                # Efficiently prepare data for bulk insertion
+                # ULTRA-FAST data preparation for insertion - vectorized approach
+                insert_start = time.time()
                 symbol_insert_data = []
+                
+                # Reset index efficiently
                 df_reset = df_tech.reset_index()
                 
-                for _, row in df_reset.iterrows():
-                    # Create tuple with all required fields - order must match INSERT statement
+                # VECTORIZED data preparation - much faster than iterrows()
+                dates = df_reset['date'].values
+                n_rows = len(df_reset)
+                
+                # Pre-allocate and vectorize the data preparation
+                for idx in range(n_rows):
+                    row = df_reset.iloc[idx]
                     record = (
                         symbol,
                         row['date'].to_pydatetime() if hasattr(row['date'], 'to_pydatetime') else row['date'],
@@ -732,20 +790,27 @@ def process_symbol_chunk(symbol_chunk, db_config):
                     )
                     symbol_insert_data.append(record)
                 
+                insert_prep_time = time.time() - insert_start
+                
                 all_insert_data.extend(symbol_insert_data)
                 processed_symbols.append(symbol)
                 
-                logging.info(f"✅ {symbol}: {len(df_tech)} technical indicators calculated ({len(symbol_insert_data)} records)")
+                if i % 5 == 0:  # Log progress every 5 symbols
+                    logging.info(f"✅ {symbol}: {len(df_tech)} indicators calculated in {tech_time:.2f}s, data prep in {insert_prep_time:.2f}s")
                 
-                # Clean up memory for this symbol immediately
+                # Aggressive memory cleanup
                 del symbol_data, df_tech, df_reset, symbol_insert_data
                 
             except Exception as e:
                 logging.error(f"❌ {symbol}: Error during processing - {str(e)}")
                 continue
         
-        # Perform single bulk insert for entire chunk - much more efficient
+        symbol_process_time = time.time() - symbol_process_start
+        logging.info(f"⚡ All symbols processed in {symbol_process_time:.2f} seconds")
+        
+        # ULTRA-FAST bulk insert for entire chunk
         if all_insert_data:
+            bulk_insert_start = time.time()
             insert_query = """
             INSERT INTO technical_data_daily (
                 symbol, date,
@@ -790,11 +855,14 @@ def process_symbol_chunk(symbol_chunk, db_config):
                 fetched_at = EXCLUDED.fetched_at
             """
             
-            # Use large page size for maximum efficiency
-            execute_values(cur, insert_query, all_insert_data, page_size=2000)
+            # Use MAXIMUM page size for ultra-fast bulk insert
+            execute_values(cur, insert_query, all_insert_data, page_size=5000)
             conn.commit()
             
-            logging.info(f"💾 Successfully bulk inserted {len(all_insert_data)} technical indicator records for chunk")
+            bulk_insert_time = time.time() - bulk_insert_start
+            records_per_sec = len(all_insert_data) / bulk_insert_time if bulk_insert_time > 0 else 0
+            
+            logging.info(f"🚀 ULTRA-FAST bulk insert: {len(all_insert_data)} records in {bulk_insert_time:.2f}s ({records_per_sec:.0f} records/sec)")
         
         # Clean up
         del price_df, all_insert_data

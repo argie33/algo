@@ -111,7 +111,15 @@ Parameters:
   StockScreenerImageTag:
     Type: String
     Description: "Tag for stock screener loader image"
-
+  AaiiSentimentImageTag:
+    Type: String
+    Description: "Tag for AAII sentiment loader image"
+  FearGreedImageTag:
+    Type: String
+    Description: "Tag for Fear & Greed index loader image"
+  NaaimImageTag:
+    Type: String
+    Description: "Tag for NAAIM exposure index loader image"
 
   FREDApiKey:
     Type: String
@@ -377,6 +385,24 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/stockscreener-loader
+      RetentionInDays: 14
+
+  AaiiSentimentLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/aaiisentiment-loader
+      RetentionInDays: 14
+      
+  FearGreedLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/feargreed-loader
+      RetentionInDays: 14
+      
+  NaaimLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/naaim-loader
       RetentionInDays: 14
 
   ########################################
@@ -1738,15 +1764,14 @@ Resources:
 
   ########################################
   # J) TechnicalsDaily loader             #
-  ########################################
-  TechnicalsDailyTaskDefinition:
+  ########################################  TechnicalsDailyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
       Family: technicalsdaily-loader
-      Cpu: "256"
-      Memory: "512"
+      Cpu: "2048"
+      Memory: "4096"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
@@ -3355,6 +3380,159 @@ Resources:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
 
+  AaiiSentimentTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Family: aaiisentiment-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !ImportValue StocksApp-EcsExecutionRoleArn
+      TaskRoleArn: !ImportValue StocksApp-EcsExecutionRoleArn
+      ContainerDefinitions:
+        - Name: aaiisentiment-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref AaiiSentimentImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: "5432"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref AaiiSentimentLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  AaiiSentimentLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: aaiisentiment-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref AaiiSentimentTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  FearGreedTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Family: feargreed-loader
+      Cpu: "512"  # More CPU for browser automation
+      Memory: "1024"  # More memory for browser automation
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !ImportValue StocksApp-EcsExecutionRoleArn
+      TaskRoleArn: !ImportValue StocksApp-EcsExecutionRoleArn
+      ContainerDefinitions:
+        - Name: feargreed-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref FearGreedImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: "5432"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref FearGreedLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  FearGreedLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: feargreed-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref FearGreedTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  NaaimTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Family: naaim-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !ImportValue StocksApp-EcsExecutionRoleArn
+      TaskRoleArn: !ImportValue StocksApp-EcsExecutionRoleArn
+      ContainerDefinitions:
+        - Name: naaim-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref NaaimImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: "5432"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref NaaimLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  NaaimLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: naaim-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref NaaimTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
   #############################################################
   # IAM Role for EventBridge → ECS RunTask#
   #############################################################
@@ -3938,3 +4116,21 @@ Outputs:
   NotificationTopicArn:
     Description: "ARN of the SNS Topic for error notifications"
     Value: !Ref NotificationTopic
+
+  AaiiSentimentTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for AAII sentiment loader
+    Value: !Ref AaiiSentimentTaskDefinition
+    Export:
+      Name: AaiiSentimentTaskDefArn
+
+  FearGreedTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for Fear & Greed loader
+    Value: !Ref FearGreedTaskDefinition
+    Export:
+      Name: FearGreedTaskDefArn
+
+  NaaimTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for NAAIM exposure loader
+    Value: !Ref NaaimTaskDefinition
+    Export:
+      Name: NaaimTaskDefArn
