@@ -386,7 +386,7 @@ jobs:
           echo "🎯 SUCCESS: Financial Dashboard deployed successfully!"
           echo "🌐 Access your dashboard at: ${{ steps.deploy-stack.outputs.website_url }}"
 
-  # Cleanup on failure
+  # Cleanup on failure 
   cleanup-on-failure:
     runs-on: ubuntu-latest
     needs: build-and-deploy
