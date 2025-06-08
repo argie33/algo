@@ -71,13 +71,10 @@ Resources:
         Enabled: true
         HttpVersion: http2
         PriceClass: PriceClass_100
-        
-        # S3 Origin for Frontend
+          # S3 Origin for Frontend
         Origins:
           - Id: S3Origin
             DomainName: !GetAtt FrontendBucket.RegionalDomainName
-            S3OriginConfig:
-              OriginAccessIdentity: ''
             OriginAccessControlId: !Ref OriginAccessControl
           
           # API Gateway Origin
@@ -127,7 +124,6 @@ Resources:
           - ErrorCode: 403
             ResponseCode: 200
             ResponsePagePath: /index.html
-
   # S3 Bucket Policy for CloudFront
   FrontendBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -141,7 +137,7 @@ Resources:
             Principal:
               Service: cloudfront.amazonaws.com
             Action: s3:GetObject
-            Resource: !Sub '${FrontendBucket}/*'
+            Resource: !Sub '${FrontendBucket.Arn}/*'
             Condition:
               StringEquals:
                 'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'

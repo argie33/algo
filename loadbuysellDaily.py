@@ -33,7 +33,7 @@ import psutil
 # -------------------------------
 # Script metadata & logging setup  
 # -------------------------------
-SCRIPT_NAME = "loadbuysellDaily.py"
+SCRIPT_NAME = "loadbuyselldaily.py"
 TIMEFRAME = "daily"
 PRICE_TABLE = "price_daily"
 TECH_TABLE = "technical_data_daily"
@@ -205,15 +205,18 @@ def get_symbols_batch(batch_size=1000):
         conn.close()
 
 def create_buy_sell_table_optimized(cur):
-    """Create optimized buy_sell table with proper indexing"""
+    """Create optimized buy_sell_daily table with proper indexing"""
+    table_name = f"buy_sell_{TIMEFRAME}"
+    sequence_name = f"{table_name}_id_seq"
+    
     # Explicitly drop sequence and table to avoid conflicts
-    cur.execute("DROP SEQUENCE IF EXISTS buy_sell_id_seq CASCADE;")
-    cur.execute("DROP TABLE IF EXISTS buy_sell CASCADE;")
+    cur.execute(f"DROP SEQUENCE IF EXISTS {sequence_name} CASCADE;")
+    cur.execute(f"DROP TABLE IF EXISTS {table_name} CASCADE;")
     cur.connection.commit()  # Commit the drops immediately
     
     # Create new table
-    cur.execute("""
-        CREATE TABLE buy_sell (
+    cur.execute(f"""
+        CREATE TABLE {table_name} (
             id           SERIAL PRIMARY KEY,
             symbol       VARCHAR(20)    NOT NULL,
             timeframe    VARCHAR(10)    NOT NULL, 
@@ -231,9 +234,9 @@ def create_buy_sell_table_optimized(cur):
     old_autocommit = cur.connection.autocommit
     try:
         cur.connection.autocommit = True
-        cur.execute("CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy_sell_symbol_tf_date ON buy_sell(symbol, timeframe, date);")
-        cur.execute("CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy_sell_signal ON buy_sell(signal) WHERE signal IS NOT NULL;")
-        cur.execute("CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy_sell_timeframe ON buy_sell(timeframe);")
+        cur.execute(f"CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_{table_name}_symbol_tf_date ON {table_name}(symbol, timeframe, date);")
+        cur.execute(f"CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_{table_name}_signal ON {table_name}(signal) WHERE signal IS NOT NULL;")
+        cur.execute(f"CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_{table_name}_timeframe ON {table_name}(timeframe);")
     finally:
         cur.connection.autocommit = old_autocommit
 
@@ -267,10 +270,10 @@ def bulk_insert_results(cur, symbol_results):
     
     if not insert_data:
         return 0
-    
-    # Bulk insert with ON CONFLICT handling
-    insert_query = """
-        INSERT INTO buy_sell (
+      # Bulk insert with ON CONFLICT handling
+    table_name = f"buy_sell_{TIMEFRAME}"
+    insert_query = f"""
+        INSERT INTO {table_name} (
             symbol, timeframe, date, signal, buylevel, stoplevel, inposition
         ) VALUES %s
         ON CONFLICT (symbol, timeframe, date) DO NOTHING
