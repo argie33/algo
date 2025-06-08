@@ -206,8 +206,7 @@ Resources:
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /{proxy+}
-            Method: ANY
-  # API Gateway
+            Method: ANY  # API Gateway
   ApiGateway:
     Type: AWS::Serverless::Api
     Properties:
@@ -218,7 +217,7 @@ Resources:
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         AllowOrigin: "'*'"
         AllowCredentials: false
-        AccessLogSetting:
+      AccessLogSetting:
         DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
         Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength","responseLatency":"$context.responseLatency","integrationLatency":"$context.integrationLatency"}'
 
