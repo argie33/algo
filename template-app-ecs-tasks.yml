@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09' 
 Description: >
   ECS TaskDefinitions, CloudWatch LogGroups, and zero-scale Services
-  for stock-symbols, econ-data, monthly-price, findata, pricedaily,
+  for stock-symbols, econ-data, monthly-price, pricedaily,
   priceweekly, pricemonthly, TechnicalsDaily, loadinfo, earningsestimate,
   technicalsweekly & technicalsmonthly.
 
@@ -12,9 +12,6 @@ Parameters:
   EconDataImageTag:
     Type: String
     Description: "Tag for econ-data loader image"
-  FindataImageTag:
-    Type: String
-    Description: "Tag for findata loader image"
   PriceImageTag:  
     Type: String
     Description: "Tag for pricedaily loader image"
@@ -201,12 +198,6 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/econdata-loader
-      RetentionInDays: 14
-
-  FindataLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /ecs/findata-loader
       RetentionInDays: 14
 
   PriceLogGroup:
@@ -2992,12 +2983,6 @@ Outputs:
     Value: !Ref EconDataTaskDefinition
     Export:
       Name: EconDataTaskDefArn
-
-  FindataTaskDefArn:
-    Description: ARN of the ECS TaskDefinition for findata loader
-    Value: !Ref FindataTaskDefinition
-    Export:
-      Name: FindataTaskDefArn
 
   PriceTaskDefArn:
     Description: ARN of the ECS TaskDefinition for pricedaily loader
