@@ -292,6 +292,7 @@ jobs:
           
           echo "✅ SAM deployment completed successfully"
           echo "STACK_NAME=$STACK_NAME" >> $GITHUB_OUTPUT
+
       - name: Get stack outputs
         id: stack_outputs
         run: |
@@ -306,8 +307,7 @@ jobs:
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" \
             --output text)
-          
-          # Try alternative output key names if the first attempt returns empty
+            # Try alternative output key names if the first attempt returns empty
           if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
             echo "⚠️ FrontendBucketName not found, trying alternative names..."
             FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
@@ -315,7 +315,8 @@ jobs:
               --query "Stacks[0].Outputs[?OutputKey=='FrontendBucket'].OutputValue" \
               --output text)
           fi
-            if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
+          
+          if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
             FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
               --stack-name ${{ env.STACK_NAME }} \
               --query "Stacks[0].Outputs[?OutputKey=='S3BucketName'].OutputValue" \
@@ -333,8 +334,7 @@ jobs:
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
             --output text)
-          
-          # Try alternative CloudFront output key names
+            # Try alternative CloudFront output key names
           if [[ -z "$CLOUDFRONT_ID" || "$CLOUDFRONT_ID" == "None" ]]; then
             echo "⚠️ CloudFrontDistributionId not found, trying alternative names..."
             CLOUDFRONT_ID=$(aws cloudformation describe-stacks \
@@ -342,7 +342,8 @@ jobs:
               --query "Stacks[0].Outputs[?OutputKey=='DistributionId'].OutputValue" \
               --output text)
           fi
-            if [[ -z "$CLOUDFRONT_ID" || "$CLOUDFRONT_ID" == "None" ]]; then
+          
+          if [[ -z "$CLOUDFRONT_ID" || "$CLOUDFRONT_ID" == "None" ]]; then
             CLOUDFRONT_ID=$(aws cloudformation describe-stacks \
               --stack-name ${{ env.STACK_NAME }} \
               --query "Stacks[0].Outputs[?OutputKey=='CloudFrontId'].OutputValue" \
@@ -539,17 +540,25 @@ jobs:
         with:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - name: Test API endpoint
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}      - name: Test API endpoint
         run: |
           API_URL="${{ needs.deploy_infrastructure.outputs.api_url }}"
           
           echo "Testing API health endpoint..."
+          echo "Full API URL: $API_URL"
+          
+          # Test the health endpoint with proper path
           if curl -f -s "$API_URL/health" > /dev/null; then
             echo "✅ API health check passed"
           else
-            echo "⚠️  API health check failed, but deployment will continue"
+            echo "⚠️  API health check failed"
+            echo "Trying alternative health endpoint..."
+            # Try root path
+            if curl -f -s "$API_URL/" > /dev/null; then
+              echo "✅ API root endpoint accessible"
+            else
+              echo "❌ Both health and root endpoints failed"
+            fi
           fi
 
       - name: Test website

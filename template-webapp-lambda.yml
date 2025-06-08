@@ -197,14 +197,20 @@ Resources:
       Role: !GetAtt LambdaExecutionRole.Arn
       Environment:
         Variables:
-          DB_SECRET_ARN: !Ref DatabaseSecretArn
+          DB_SECRET_ARN: !Ref DatabaseSecretArn      
       Events:
         ApiGatewayAny:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /{proxy+}
-            Method: ANY  # API Gateway
+            Method: ANY
+        ApiGatewayRoot:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /
+            Method: ANY# API Gateway
   ApiGateway:
     Type: AWS::Serverless::Api
     Properties:
