@@ -210,11 +210,18 @@ jobs:
             --output text 2>/dev/null || echo "STACK_NOT_FOUND")
           
           echo "Final stack status before deployment: $FINAL_STATUS"
-          
-          # Ensure we're in a deployable state
+            # Ensure we're in a deployable state
           case "$FINAL_STATUS" in
             "STACK_NOT_FOUND"|"CREATE_COMPLETE"|"UPDATE_COMPLETE"|"UPDATE_ROLLBACK_COMPLETE")
               echo "✅ Stack is in deployable state: $FINAL_STATUS"
+              ;;
+            "REVIEW_IN_PROGRESS")
+              echo "⚠️ Stack is in REVIEW_IN_PROGRESS state due to failed changeset"
+              echo "   Deleting the stack to clean up the failed changeset..."
+              aws cloudformation delete-stack --stack-name stocks-webapp-stack
+              echo "⏳ Waiting for stack deletion to complete..."
+              aws cloudformation wait stack-delete-complete --stack-name stocks-webapp-stack
+              echo "✅ Stack cleanup completed, proceeding with fresh deployment"
               ;;
             "ROLLBACK_COMPLETE"|"CREATE_FAILED"|"ROLLBACK_IN_PROGRESS"|*"_IN_PROGRESS")
               echo "❌ Stack is in non-deployable state: $FINAL_STATUS"
