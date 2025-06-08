@@ -47,6 +47,38 @@ logging.basicConfig(
 # -------------------------------
 # Performance monitoring
 # -------------------------------
+def retry_with_timeout_reduction(func, *args, max_retries=3, **kwargs):
+    """Retry wrapper with progressive timeout reduction for database operations"""
+    for retry_count in range(max_retries):
+        try:
+            if 'retry_count' in func.__code__.co_varnames:
+                return func(*args, retry_count=retry_count, **kwargs)
+            else:
+                return func(*args, **kwargs)
+        except psycopg2.OperationalError as e:
+            error_msg = str(e).lower()
+            if 'canceling statement due to statement timeout' in error_msg:
+                if retry_count < max_retries - 1:
+                    timeout_val = max(300, 900 - (retry_count * 200))
+                    next_timeout = max(300, 900 - ((retry_count + 1) * 200))
+                    logging.warning(f"Database timeout after {timeout_val}s, retrying with {next_timeout}s timeout (attempt {retry_count + 2}/{max_retries})")
+                    time.sleep(2)  # Brief pause before retry
+                    continue
+                else:
+                    logging.error(f"Database timeout after {max_retries} attempts, skipping batch")
+                    raise
+            else:
+                # Non-timeout operational error, don't retry
+                logging.error(f"Database operational error: {e}")
+                raise
+        except Exception as e:
+            # Non-database errors, don't retry
+            logging.error(f"Non-database error: {e}")
+            raise
+    
+    # If all retries exhausted
+    raise Exception(f"All {max_retries} retry attempts failed")
+
 def get_rss_mb():
     """Get RSS memory in MB"""
     return psutil.Process().memory_info().rss / 1024 / 1024
@@ -96,8 +128,8 @@ def get_db_config():
         "dbname": sec["dbname"]
     }
 
-def get_optimized_connection():
-    """Get database connection with performance optimizations"""
+def get_optimized_connection(retry_count=0):
+    """Get database connection with performance optimizations and dynamic timeouts"""
     cfg = get_db_config()
     conn = psycopg2.connect(
         host=cfg["host"], port=cfg["port"],
@@ -107,13 +139,16 @@ def get_optimized_connection():
         connect_timeout=30,
         application_name=f"{SCRIPT_NAME}_weekly"
     )
-      # Set performance parameters
+      # Set performance parameters with dynamic timeout based on retry count
     with conn.cursor() as cur:
         cur.execute("SET work_mem = '256MB'")
         # cur.execute("SET shared_buffers = '1GB'")  # Cannot be changed at runtime
         cur.execute("SET effective_cache_size = '4GB'")
         cur.execute("SET random_page_cost = 1.1")
-        cur.execute("SET statement_timeout = '300s'")
+        
+        # Dynamic timeout: 900s initially, reduced by 200s per retry (900s -> 700s -> 500s)
+        timeout_seconds = max(300, 900 - (retry_count * 200))
+        cur.execute(f"SET statement_timeout = '{timeout_seconds}s'")
         cur.execute("SET lock_timeout = '60s'")
     
     conn.commit()
@@ -267,12 +302,12 @@ def get_risk_free_rate_fred(api_key):
 ###############################################################################
 # 3) ULTRA-FAST DATA FETCHING with vectorized operations
 ###############################################################################
-def fetch_symbol_data_vectorized(symbols_batch):
+def fetch_symbol_data_vectorized(symbols_batch, retry_count=0):
     """Fetch multiple symbols with single query for maximum efficiency"""
     if not symbols_batch:
         return {}
     
-    conn = get_optimized_connection()
+    conn = get_optimized_connection(retry_count)
     symbol_data = {}
     
     try:
@@ -411,11 +446,15 @@ def generate_signals_vectorized(df, atrMult=1.0, useADX=True, adxThreshold=25):
 # 5) PARALLEL PROCESSING ENGINE
 ###############################################################################
 def process_symbol_batch(symbols_batch):
-    """Process a batch of symbols in parallel"""
+    """Process a batch of symbols in parallel with timeout retry logic"""
     log_performance(f"Processing batch of {len(symbols_batch)} symbols")
     
-    # Fetch all data for batch in single query
-    symbol_data = fetch_symbol_data_vectorized(symbols_batch)
+    # Fetch all data for batch in single query with retry logic
+    try:
+        symbol_data = retry_with_timeout_reduction(fetch_symbol_data_vectorized, symbols_batch)
+    except Exception as e:
+        logging.error(f"Failed to fetch data for batch after retries: {e}")
+        return []  # Return empty results for this batch
     
     # Process signals for each symbol
     results = []
@@ -437,8 +476,8 @@ def process_symbol_batch(symbols_batch):
     
     return results
 
-def parallel_process_symbols(symbols, batch_size=50, max_workers=4):
-    """Process symbols in parallel batches for maximum throughput"""
+def parallel_process_symbols(symbols, batch_size=40, max_workers=2):
+    """Process symbols in parallel batches for maximum throughput - optimized for reduced database load"""
     log_performance("Starting parallel processing")
     
     # Split into batches
