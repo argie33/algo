@@ -295,13 +295,14 @@ jobs:
       - name: Get stack outputs
         id: stack_outputs
         run: |
-          # First, let's see what outputs are available
+          # First, let's see what outputs are available          
           echo "Available stack outputs:"
           aws cloudformation describe-stacks \
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[].[OutputKey,OutputValue]" \
             --output table
-            FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
+          
+          FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" \
             --output text)
@@ -314,14 +315,14 @@ jobs:
               --query "Stacks[0].Outputs[?OutputKey=='FrontendBucket'].OutputValue" \
               --output text)
           fi
-          
-          if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
+            if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
             FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
               --stack-name ${{ env.STACK_NAME }} \
               --query "Stacks[0].Outputs[?OutputKey=='S3BucketName'].OutputValue" \
               --output text)
           fi
-            if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
+          
+          if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
             FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
               --stack-name ${{ env.STACK_NAME }} \
               --query "Stacks[0].Outputs[?OutputKey=='WebsiteBucket'].OutputValue" \
