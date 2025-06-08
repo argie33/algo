@@ -289,8 +289,7 @@ jobs:
             
             exit 1
           fi
-          
-          echo "✅ SAM deployment completed successfully"
+            echo "✅ SAM deployment completed successfully"
           echo "STACK_NAME=$STACK_NAME" >> $GITHUB_OUTPUT
 
       - name: Get stack outputs
@@ -307,14 +306,14 @@ jobs:
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" \
             --output text)
-            # Try alternative output key names if the first attempt returns empty
+          
+          # Try alternative output key names if the first attempt returns empty
           if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
             echo "⚠️ FrontendBucketName not found, trying alternative names..."
             FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
               --stack-name ${{ env.STACK_NAME }} \
               --query "Stacks[0].Outputs[?OutputKey=='FrontendBucket'].OutputValue" \
-              --output text)
-          fi
+              --output text)          fi
           
           if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
             FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
@@ -334,7 +333,8 @@ jobs:
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
             --output text)
-            # Try alternative CloudFront output key names
+          
+          # Try alternative CloudFront output key names
           if [[ -z "$CLOUDFRONT_ID" || "$CLOUDFRONT_ID" == "None" ]]; then
             echo "⚠️ CloudFrontDistributionId not found, trying alternative names..."
             CLOUDFRONT_ID=$(aws cloudformation describe-stacks \
@@ -541,7 +541,7 @@ jobs:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-          
+
       - name: Test API endpoint
         run: |
           API_URL="${{ needs.deploy_infrastructure.outputs.api_url }}"
