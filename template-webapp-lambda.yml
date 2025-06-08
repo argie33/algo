@@ -127,9 +127,7 @@ Resources:
             ResponsePagePath: /index.html
           - ErrorCode: 403
             ResponseCode: 200
-            ResponsePagePath: /index.html
-
-  # S3 Bucket Policy for CloudFront
+            ResponsePagePath: /index.html  # S3 Bucket Policy for CloudFront
   FrontendBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -144,7 +142,7 @@ Resources:
             Resource: !Sub '${FrontendBucket}/*'
             Condition:
               StringEquals:                
-                'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
+                'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution.Id}'
 
   # API Gateway CloudWatch Logs Role
   ApiGatewayCloudWatchLogsRole:
