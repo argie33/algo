@@ -119,17 +119,19 @@ Resources:
             MaxTTL: 86400
             MinTTL: 0
             Compress: true
-        
-        # Custom error pages
+          # Custom error pages
         CustomErrorResponses:
           - ErrorCode: 404
             ResponseCode: 200
             ResponsePagePath: /index.html
           - ErrorCode: 403
             ResponseCode: 200
-            ResponsePagePath: /index.html  # S3 Bucket Policy for CloudFront
+            ResponsePagePath: /index.html
+
+  # S3 Bucket Policy for CloudFront
   FrontendBucketPolicy:
     Type: AWS::S3::BucketPolicy
+    DependsOn: CloudFrontDistribution
     Properties:
       Bucket: !Ref FrontendBucket
       PolicyDocument:
