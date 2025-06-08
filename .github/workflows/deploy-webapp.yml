@@ -100,7 +100,8 @@ jobs:
           DB_ENDPOINT=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksApp-DBEndpoint'].Value" \
             --output text)
-            # Validate that we got the values
+          
+          # Validate that we got the values
           if [[ -z "$DB_SECRET_ARN" || "$DB_SECRET_ARN" == "None" ]]; then
             echo "❌ Failed to get database secret ARN from app stack exports"
             exit 1
@@ -220,9 +221,9 @@ jobs:
             --stack-name "$STACK_NAME" \
             --query "Stacks[0].StackStatus" \
             --output text 2>/dev/null || echo "STACK_NOT_FOUND")
+            echo "Final stack status before deployment: $FINAL_STATUS"
           
-          echo "Final stack status before deployment: $FINAL_STATUS"
-            # Ensure we're in a deployable state
+          # Ensure we're in a deployable state
           case "$FINAL_STATUS" in
             "STACK_NOT_FOUND"|"CREATE_COMPLETE"|"UPDATE_COMPLETE"|"UPDATE_ROLLBACK_COMPLETE")
               echo "✅ Stack is in deployable state: $FINAL_STATUS"
@@ -286,30 +287,30 @@ jobs:
               echo "🧹 Cleaning up failed deployment for next attempt..."
               aws cloudformation delete-stack --stack-name "$STACK_NAME"
             fi
-              exit 1
+            
+            exit 1
           fi
           
           echo "✅ SAM deployment completed successfully"
           echo "STACK_NAME=$STACK_NAME" >> $GITHUB_OUTPUT
-
       - name: Get stack outputs
         id: stack_outputs
         run: |
-          # First, let's see what outputs are available          
+          # First, let's see what outputs are available
           echo "Available stack outputs:"
           aws cloudformation describe-stacks \
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[].[OutputKey,OutputValue]" \
             --output table
-          
-          FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
+            FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" \
             --output text)
           
           # Try alternative output key names if the first attempt returns empty
           if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
-            echo "⚠️ FrontendBucketName not found, trying alternative names..."            FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
+            echo "⚠️ FrontendBucketName not found, trying alternative names..."
+            FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
               --stack-name ${{ env.STACK_NAME }} \
               --query "Stacks[0].Outputs[?OutputKey=='FrontendBucket'].OutputValue" \
               --output text)
@@ -580,7 +581,8 @@ jobs:
           echo ""
           echo "📊 Deployment Summary:"
           echo "  • Website URL: ${{ needs.deploy_infrastructure.outputs.website_url }}"
-          echo "  • API URL: ${{ needs.deploy_infrastructure.outputs.api_url }}"          echo "  • Frontend Bucket: ${{ needs.deploy_infrastructure.outputs.frontend_bucket }}"
+          echo "  • API URL: ${{ needs.deploy_infrastructure.outputs.api_url }}"
+          echo "  • Frontend Bucket: ${{ needs.deploy_infrastructure.outputs.frontend_bucket }}"
           echo "  • CloudFront ID: ${{ needs.deploy_infrastructure.outputs.cloudfront_id }}"
           echo ""
           echo "🔧 Stack Status:"
