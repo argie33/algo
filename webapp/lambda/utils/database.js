@@ -14,10 +14,9 @@ async function getDbCredentials() {
       password: process.env.DB_PASSWORD || 'password'
     };
   }
-
   // For production, get credentials from AWS Secrets Manager
   const client = new SecretsManagerClient({ 
-    region: process.env.AWS_REGION || 'us-east-1' 
+    region: process.env.WEBAPP_AWS_REGION || 'us-east-1' 
   });
   
   try {
