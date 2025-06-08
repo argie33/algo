@@ -133,7 +133,7 @@ jobs:
           
           echo "CF_BUCKET=$BUCKET" >> $GITHUB_OUTPUT
           echo "Using S3 bucket: $BUCKET"
-          
+
       - name: Install SAM CLI
         uses: aws-actions/setup-sam@v2
         with:
@@ -209,7 +209,9 @@ jobs:
               echo "   Manual intervention may be required."
               exit 1
               ;;
-          esac      - name: Deploy webapp CloudFormation stack
+          esac
+             
+      - name: Deploy webapp CloudFormation stack
         run: |
           # Use the environment variable for stack name
           STACK_NAME="${{ env.STACK_NAME }}"
