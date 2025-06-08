@@ -43,9 +43,7 @@ jobs:
             --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
             --output text)
           echo "CF_BUCKET=$BUCKET" >> $GITHUB_OUTPUT
-          echo "Using S3 bucket: $BUCKET"
-
-      - name: Deploy application stack
+          echo "Using S3 bucket: $BUCKET"      - name: Deploy application stack
         run: |
           aws cloudformation deploy \
             --stack-name stocks-app-stack \
@@ -1729,7 +1727,7 @@ jobs:
             echo "❌ swing-trader task failed with exit code $EXIT"
             exit 1
           fi
-          
+
   run_buyselldaily:
     name: Run buysell daily loader
     needs: [deploy-tasks, filter]
