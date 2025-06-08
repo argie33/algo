@@ -302,7 +302,8 @@ jobs:
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[].[OutputKey,OutputValue]" \
             --output table
-            FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
+          
+          FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" \
             --output text)
