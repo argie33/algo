@@ -131,15 +131,33 @@ def get_db_config():
 def get_optimized_connection(retry_count=0):
     """Get database connection with performance optimizations and dynamic timeouts"""
     cfg = get_db_config()
-    conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
-        dbname=cfg["dbname"],
-        # Performance optimizations
-        connect_timeout=30,
-        application_name=f"{SCRIPT_NAME}_daily"
-    )
-      # Set performance parameters with dynamic timeout based on retry count
+    
+    # Progressive connection timeout: 60s initially, increase by 30s per retry
+    connection_timeout = 60 + (retry_count * 30)
+    
+    try:
+        conn = psycopg2.connect(
+            host=cfg["host"], port=cfg["port"],
+            user=cfg["user"], password=cfg["password"],
+            dbname=cfg["dbname"],
+            # Extended timeout for connection establishment
+            connect_timeout=connection_timeout,
+            application_name=f"{SCRIPT_NAME}_daily",
+            # Additional connection parameters for reliability
+            keepalives_idle=600,
+            keepalives_interval=30,
+            keepalives_count=3
+        )
+    except psycopg2.OperationalError as e:
+        if "timeout expired" in str(e) and retry_count < 2:
+            logging.warning(f"Connection timeout (attempt {retry_count + 1}), retrying with longer timeout...")
+            time.sleep(10 * (retry_count + 1))  # Exponential backoff
+            return get_optimized_connection(retry_count + 1)
+        else:
+            logging.error(f"Failed to connect to database after {retry_count + 1} attempts: {e}")
+            raise
+    
+    # Set performance parameters with dynamic timeout based on retry count
     with conn.cursor() as cur:
         cur.execute("SET work_mem = '256MB'")
         # cur.execute("SET shared_buffers = '1GB'")  # Cannot be changed at runtime
@@ -152,6 +170,7 @@ def get_optimized_connection(retry_count=0):
         cur.execute("SET lock_timeout = '60s'")
     
     conn.commit()
+    logging.info(f"✅ Database connection established (timeout: {connection_timeout}s, statement_timeout: {timeout_seconds}s)")
     return conn
 
 # -------------------------------
