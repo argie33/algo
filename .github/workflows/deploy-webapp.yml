@@ -91,7 +91,8 @@ jobs:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-            - name: Get database connection info from stacks
+          
+      - name: Get database connection info from stacks
         id: db_info
         run: |
           DB_SECRET_ARN=$(aws cloudformation list-exports \
