@@ -187,7 +187,6 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /{proxy+}
             Method: ANY
-
   # API Gateway
   ApiGateway:
     Type: AWS::Serverless::Api
@@ -197,8 +196,8 @@ Resources:
       Cors:
         AllowMethods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-        AllowOrigin: !Sub 'https://${CloudFrontDistribution.DomainName}'
-        AllowCredentials: true
+        AllowOrigin: "'*'"
+        AllowCredentials: false
       AccessLogSetting:
         DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
         Format: >
