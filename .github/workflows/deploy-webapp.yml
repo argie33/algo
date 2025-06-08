@@ -23,7 +23,7 @@ env:
 
 jobs:
 ################################################################################
-# 1) Detect changed components                                                 # 
+# 1) Detect changed components                                                 #  
 ################################################################################
   filter:
     name: Detect changed components
@@ -137,7 +137,7 @@ jobs:
         uses: aws-actions/setup-sam@v2
         with:
           use-installer: true
-          
+
       - name: Build SAM application
         run: |
           sam build --template template-webapp-lambda.yml
