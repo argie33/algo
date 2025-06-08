@@ -1729,10 +1729,10 @@ jobs:
             echo "❌ swing-trader task failed with exit code $EXIT"
             exit 1
           fi
-
+          
   run_buyselldaily:
     name: Run buysell daily loader
-    needs: deploy-tasks
+    needs: [deploy-tasks, filter]
     if: ${{ needs.filter.outputs.buyselldaily == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
