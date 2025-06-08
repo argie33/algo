@@ -927,18 +927,21 @@ def process_symbol_chunk(symbol_chunk, db_config):
 def load_technicals_optimized(symbols):
     """Optimized technical indicators loader with batch processing and advanced parallelization"""
     total = len(symbols)
-    logging.info(f"🚀 Starting ultra-optimized technical indicators calculation for {total} symbols")
-    logging.info(f"📊 Performance improvements: TA-Lib C library + Batch processing + Parallel execution")
-      # Dynamic chunk sizing based on total symbols for optimal memory usage AND timeout prevention
+    logging.info(f"🚀 Starting ultra-optimized technical indicators calculation for {total} symbols")    logging.info(f"📊 Performance improvements: TA-Lib C library + Batch processing + Parallel execution")
+    
+    # Optimized chunk sizing for large-scale processing (5K+ symbols)
     if total <= 100:
-        CHUNK_SIZE = 8   # Reduced for faster queries
+        CHUNK_SIZE = 10
         MAX_WORKERS = 2
-    elif total <= 500:
-        CHUNK_SIZE = 12  # Reduced to prevent timeouts
-        MAX_WORKERS = 2  # Reduced to avoid database overload
+    elif total <= 1000:
+        CHUNK_SIZE = 25   # Larger chunks for better throughput
+        MAX_WORKERS = 3
+    elif total <= 3000:
+        CHUNK_SIZE = 50   # Even larger chunks for 1K-3K symbols
+        MAX_WORKERS = 4
     else:
-        CHUNK_SIZE = 15  # Significantly reduced for large datasets to prevent timeouts
-        MAX_WORKERS = 2  # Conservative for database stability
+        CHUNK_SIZE = 100  # Maximum efficiency for 5K+ symbols
+        MAX_WORKERS = 6   # More workers with increased resources
     
     logging.info(f"⚙️  Configuration: {CHUNK_SIZE} symbols per chunk, {MAX_WORKERS} parallel workers")
     

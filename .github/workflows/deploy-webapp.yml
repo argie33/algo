@@ -20,6 +20,7 @@ env:
   AWS_ROLE_SESSION: github-deploy
   NODE_VERSION: '18.x'
   ENVIRONMENT_NAME: 'prod'
+  STACK_NAME: 'stocks-webapp-stack'
 
 jobs:
 ################################################################################
@@ -141,12 +142,11 @@ jobs:
       - name: Build SAM application
         run: |
           sam build --template template-webapp-lambda.yml
-      
-      - name: Check and handle failed stack state
+        - name: Check and handle failed stack state
         run: |
           # Check if stack exists and its status
           STACK_STATUS=$(aws cloudformation describe-stacks \
-            --stack-name stocks-webapp-stack \
+            --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].StackStatus" \
             --output text 2>/dev/null || echo "STACK_NOT_FOUND")
           
@@ -162,9 +162,9 @@ jobs:
               ;;
             "ROLLBACK_COMPLETE"|"CREATE_FAILED")
               echo "⚠️ Stack is in failed state: $STACK_STATUS. Deleting stack to allow re-creation..."
-              aws cloudformation delete-stack --stack-name stocks-webapp-stack
+              aws cloudformation delete-stack --stack-name ${{ env.STACK_NAME }}
               echo "⏳ Waiting for stack deletion to complete..."
-              aws cloudformation wait stack-delete-complete --stack-name stocks-webapp-stack
+              aws cloudformation wait stack-delete-complete --stack-name ${{ env.STACK_NAME }}
               echo "✅ Stack deletion completed"
               ;;
             "ROLLBACK_IN_PROGRESS"|"CREATE_IN_PROGRESS"|"UPDATE_IN_PROGRESS"|"DELETE_IN_PROGRESS")
@@ -172,18 +172,18 @@ jobs:
               # Wait for the current operation to complete
               if [[ "$STACK_STATUS" == "ROLLBACK_IN_PROGRESS" ]]; then
                 echo "⏳ Waiting for rollback to complete..."
-                aws cloudformation wait stack-rollback-complete --stack-name stocks-webapp-stack
+                aws cloudformation wait stack-rollback-complete --stack-name ${{ env.STACK_NAME }}
                 # After rollback completes, delete the stack
                 echo "🧹 Rollback completed. Deleting failed stack..."
-                aws cloudformation delete-stack --stack-name stocks-webapp-stack
-                aws cloudformation wait stack-delete-complete --stack-name stocks-webapp-stack
+                aws cloudformation delete-stack --stack-name ${{ env.STACK_NAME }}
+                aws cloudformation wait stack-delete-complete --stack-name ${{ env.STACK_NAME }}
                 echo "✅ Failed stack cleanup completed"
               elif [[ "$STACK_STATUS" == "CREATE_IN_PROGRESS" ]]; then
-                aws cloudformation wait stack-create-complete --stack-name stocks-webapp-stack
+                aws cloudformation wait stack-create-complete --stack-name ${{ env.STACK_NAME }}
               elif [[ "$STACK_STATUS" == "UPDATE_IN_PROGRESS" ]]; then
-                aws cloudformation wait stack-update-complete --stack-name stocks-webapp-stack
+                aws cloudformation wait stack-update-complete --stack-name ${{ env.STACK_NAME }}
               elif [[ "$STACK_STATUS" == "DELETE_IN_PROGRESS" ]]; then
-                aws cloudformation wait stack-delete-complete --stack-name stocks-webapp-stack
+                aws cloudformation wait stack-delete-complete --stack-name ${{ env.STACK_NAME }}
               fi
               ;;
             "UPDATE_ROLLBACK_COMPLETE")
@@ -198,9 +198,9 @@ jobs:
             "REVIEW_IN_PROGRESS")
               echo "⚠️ Stack is in REVIEW_IN_PROGRESS state due to failed changeset"
               echo "   Deleting the stack to clean up the failed changeset..."
-              aws cloudformation delete-stack --stack-name stocks-webapp-stack
+              aws cloudformation delete-stack --stack-name ${{ env.STACK_NAME }}
               echo "⏳ Waiting for stack deletion to complete..."
-              aws cloudformation wait stack-delete-complete --stack-name stocks-webapp-stack
+              aws cloudformation wait stack-delete-complete --stack-name ${{ env.STACK_NAME }}
               echo "✅ Stack cleanup completed"
               ;;
             *)
@@ -208,12 +208,15 @@ jobs:
               echo "   Manual intervention may be required."
               exit 1
               ;;
-          esac
-      - name: Deploy webapp CloudFormation stack
+          esac      - name: Deploy webapp CloudFormation stack
         run: |
+          # Use the environment variable for stack name
+          STACK_NAME="${{ env.STACK_NAME }}"
+          echo "Using stack name: $STACK_NAME"
+          
           # Final check that stack is in a deployable state
           FINAL_STATUS=$(aws cloudformation describe-stacks \
-            --stack-name stocks-webapp-stack \
+            --stack-name "$STACK_NAME" \
             --query "Stacks[0].StackStatus" \
             --output text 2>/dev/null || echo "STACK_NOT_FOUND")
           
@@ -226,9 +229,9 @@ jobs:
             "REVIEW_IN_PROGRESS")
               echo "⚠️ Stack is in REVIEW_IN_PROGRESS state due to failed changeset"
               echo "   Deleting the stack to clean up the failed changeset..."
-              aws cloudformation delete-stack --stack-name stocks-webapp-stack
+              aws cloudformation delete-stack --stack-name "$STACK_NAME"
               echo "⏳ Waiting for stack deletion to complete..."
-              aws cloudformation wait stack-delete-complete --stack-name stocks-webapp-stack
+              aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME"
               echo "✅ Stack cleanup completed, proceeding with fresh deployment"
               ;;
             "ROLLBACK_COMPLETE"|"CREATE_FAILED"|"ROLLBACK_IN_PROGRESS"|*"_IN_PROGRESS")
@@ -260,7 +263,7 @@ jobs:
           # Deploy with validated parameters and enhanced error handling
           echo "🚀 Starting SAM deployment..."
           if ! sam deploy \
-            --stack-name stocks-webapp-stack \
+            --stack-name "$STACK_NAME" \
             --s3-bucket "${{ steps.bucket.outputs.CF_BUCKET }}" \
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --parameter-overrides \
@@ -272,7 +275,7 @@ jobs:
             
             echo "❌ SAM deployment failed. Checking stack status..."
             DEPLOY_STATUS=$(aws cloudformation describe-stacks \
-              --stack-name stocks-webapp-stack \
+              --stack-name "$STACK_NAME" \
               --query "Stacks[0].StackStatus" \
               --output text 2>/dev/null || echo "STACK_NOT_FOUND")
             echo "Stack status after failed deployment: $DEPLOY_STATUS"
@@ -280,31 +283,30 @@ jobs:
             # If deployment failed and stack is in rollback state, clean it up for next attempt
             if [[ "$DEPLOY_STATUS" == "ROLLBACK_COMPLETE" || "$DEPLOY_STATUS" == "CREATE_FAILED" ]]; then
               echo "🧹 Cleaning up failed deployment for next attempt..."
-              aws cloudformation delete-stack --stack-name stocks-webapp-stack
+              aws cloudformation delete-stack --stack-name "$STACK_NAME"
             fi
             
             exit 1
           fi
           
           echo "✅ SAM deployment completed successfully"
-
-      - name: Get stack outputs
+          echo "STACK_NAME=$STACK_NAME" >> $GITHUB_OUTPUT      - name: Get stack outputs
         id: stack_outputs
         run: |
           FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
-            --stack-name stocks-webapp-stack \
+            --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" \
             --output text)
           CLOUDFRONT_ID=$(aws cloudformation describe-stacks \
-            --stack-name stocks-webapp-stack \
+            --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
             --output text)
           API_URL=$(aws cloudformation describe-stacks \
-            --stack-name stocks-webapp-stack \
+            --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayUrl'].OutputValue" \
             --output text)
           WEBSITE_URL=$(aws cloudformation describe-stacks \
-            --stack-name stocks-webapp-stack \
+            --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='WebsiteURL'].OutputValue" \
             --output text)
           
@@ -460,10 +462,9 @@ jobs:
           echo "  • API URL: ${{ needs.deploy_infrastructure.outputs.api_url }}"
           echo "  • Frontend Bucket: ${{ needs.deploy_infrastructure.outputs.frontend_bucket }}"
           echo "  • CloudFront ID: ${{ needs.deploy_infrastructure.outputs.cloudfront_id }}"
-          echo ""
-          echo "🔧 Stack Status:"
+          echo ""          echo "🔧 Stack Status:"
           aws cloudformation describe-stacks \
-            --stack-name stocks-webapp-stack \
+            --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].StackStatus" \
             --output text
 
@@ -482,12 +483,10 @@ jobs:
         with:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - name: Check stack status and cleanup if needed
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}      - name: Check stack status and cleanup if needed
         run: |
           STATUS=$(aws cloudformation describe-stacks \
-            --stack-name stocks-webapp-stack \
+            --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].StackStatus" \
             --output text 2>/dev/null || echo NOT_FOUND)
           
@@ -495,7 +494,7 @@ jobs:
           
           if [[ "$STATUS" == "ROLLBACK_COMPLETE" || "$STATUS" == "CREATE_FAILED" ]]; then
             echo "Cleaning up failed stack..."
-            aws cloudformation delete-stack --stack-name stocks-webapp-stack
+            aws cloudformation delete-stack --stack-name ${{ env.STACK_NAME }}
             echo "Stack deletion initiated"
           else
             echo "Stack is in a stable state, no cleanup needed"

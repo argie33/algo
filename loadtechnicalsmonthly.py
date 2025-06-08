@@ -1100,20 +1100,47 @@ if __name__ == "__main__":
         CREATE INDEX idx_technical_monthly_symbol ON technical_data_monthly(symbol);
         CREATE INDEX idx_technical_monthly_date ON technical_data_monthly(date);
     """)
-    
-    conn.commit()
+      conn.commit()
 
-    # Get symbols that have price data
+    # Get symbols that need technical data (only missing or very outdated data)
     cur.execute("""
-        SELECT DISTINCT symbol 
-        FROM price_monthly 
-        ORDER BY symbol
+        SELECT DISTINCT p.symbol 
+        FROM price_monthly p
+        WHERE p.volume > 100 
+        AND p.close > 0.01
+        AND (
+            -- Symbol has no technical data at all
+            NOT EXISTS (
+                SELECT 1 FROM technical_data_monthly t 
+                WHERE t.symbol = p.symbol
+            )
+            OR
+            -- Symbol has very outdated technical data (more than 6 months old)
+            (
+                SELECT MAX(t.date) 
+                FROM technical_data_monthly t 
+                WHERE t.symbol = p.symbol
+            ) < CURRENT_DATE - INTERVAL '6 months'
+        )
+        ORDER BY p.symbol
+        LIMIT 200  -- Process max 200 symbols per run to prevent timeouts
     """)
     symbols = [r["symbol"] for r in cur.fetchall()]
     
     if not symbols:
-        logging.error("No symbols found in price_monthly table")
-        sys.exit(1)
+        logging.info("No symbols need technical data processing (all up to date)")
+        # Record last run anyway
+        cur.execute("""
+            INSERT INTO last_updated (script_name, last_run)
+            VALUES (%s, NOW())
+            ON CONFLICT (script_name) DO UPDATE
+            SET last_run = EXCLUDED.last_run;
+        """, (SCRIPT_NAME,))
+        conn.commit()
+        cur.close()
+        conn.close()
+        logging.info("✅ All technical data is up to date")
+        sys.exit(0)
       # Process technical indicators
     total, inserted, failed = load_technicals(symbols, cur, conn)
 

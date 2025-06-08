@@ -935,16 +935,20 @@ def load_technicals_optimized(symbols):
     total = len(symbols)
     logging.info(f"🚀 Starting ultra-optimized technical indicators calculation for {total} symbols")
     logging.info(f"📊 Performance improvements: TA-Lib C library + Batch processing + Parallel execution")
-      # Dynamic chunk sizing based on total symbols for optimal memory usage and timeout prevention
+    
+    # Optimized chunk sizing for large-scale processing (5K+ symbols)
     if total <= 100:
-        CHUNK_SIZE = 8   # Reduced from 10 to prevent timeouts
+        CHUNK_SIZE = 10
         MAX_WORKERS = 2
-    elif total <= 500:
-        CHUNK_SIZE = 12  # Reduced from 20 to prevent timeouts
-        MAX_WORKERS = 2  # Reduced from 3 to prevent database overload
+    elif total <= 1000:
+        CHUNK_SIZE = 25   # Larger chunks for better throughput
+        MAX_WORKERS = 3
+    elif total <= 3000:
+        CHUNK_SIZE = 50   # Even larger chunks for 1K-3K symbols
+        MAX_WORKERS = 4
     else:
-        CHUNK_SIZE = 15  # Reduced from 25 to prevent timeouts on large datasets
-        MAX_WORKERS = 2  # Reduced from 3 to prevent database overload
+        CHUNK_SIZE = 100  # Maximum efficiency for 5K+ symbols
+        MAX_WORKERS = 6   # More workers with increased resources
     
     logging.info(f"⚙️  Configuration: {CHUNK_SIZE} symbols per chunk, {MAX_WORKERS} parallel workers")
     
@@ -1103,9 +1107,7 @@ if __name__ == "__main__":
         CREATE INDEX idx_technical_daily_date ON technical_data_daily(date);
     """)
     
-    conn.commit()
-
-    # Get symbols that have price data
+    conn.commit()    # Get symbols that have price data
     cur.execute("""
         SELECT DISTINCT symbol 
         FROM price_daily 
@@ -1116,6 +1118,8 @@ if __name__ == "__main__":
     if not symbols:
         logging.error("No symbols found in price_daily table")
         sys.exit(1)
+    
+    logging.info(f"Processing {len(symbols)} symbols with optimized chunking for large datasets")
       # Process technical indicators
     total, inserted, failed = load_technicals(symbols, cur, conn)
 

@@ -229,16 +229,11 @@ def create_buy_sell_table_optimized(cur):
         );
     """)
     cur.connection.commit()
-    
-    # Create optimized indexes using autocommit mode for CONCURRENTLY
-    old_autocommit = cur.connection.autocommit
-    try:
-        cur.connection.autocommit = True
-        cur.execute(f"CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_{table_name}_symbol_tf_date ON {table_name}(symbol, timeframe, date);")
-        cur.execute(f"CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_{table_name}_signal ON {table_name}(signal) WHERE signal IS NOT NULL;")
-        cur.execute(f"CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_{table_name}_timeframe ON {table_name}(timeframe);")
-    finally:
-        cur.connection.autocommit = old_autocommit
+      # Create optimized indexes 
+    cur.execute(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_symbol_tf_date ON {table_name}(symbol, timeframe, date);")
+    cur.execute(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_signal ON {table_name}(signal) WHERE signal IS NOT NULL;")
+    cur.execute(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_timeframe ON {table_name}(timeframe);")
+    cur.connection.commit()
 
 def bulk_insert_results(cur, symbol_results):
     """Ultra-fast bulk insert using execute_values"""

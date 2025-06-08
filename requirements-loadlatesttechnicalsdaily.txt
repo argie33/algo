@@ -2,3 +2,5 @@ boto3
 psycopg2-binary
 numpy
 pandas
+psutil
+requests
