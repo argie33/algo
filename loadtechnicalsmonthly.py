@@ -1042,116 +1042,18 @@ def load_technicals(symbols, cur, conn):
 # -------------------------------
 # Entrypoint
 # -------------------------------
-if __name__ == "__main__":
-    log_mem("startup")
-
-    # Connect to DB
-    cfg = get_db_config()
-    conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
-        dbname=cfg["dbname"]
-    )
-    conn.autocommit = False
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-
-    # Recreate technical_data_monthly table
-    logging.info("Recreating technical_data_monthly table…")
-    cur.execute("DROP TABLE IF EXISTS technical_data_monthly CASCADE;")
-    cur.execute("""
-        CREATE TABLE technical_data_monthly (
-            symbol          VARCHAR(50) NOT NULL,
-            date            DATE        NOT NULL,
-            rsi             DOUBLE PRECISION,
-            macd            DOUBLE PRECISION,
-            macd_signal     DOUBLE PRECISION,
-            macd_hist       DOUBLE PRECISION,
-            mom             DOUBLE PRECISION,
-            roc             DOUBLE PRECISION,
-            adx             DOUBLE PRECISION,
-            atr             DOUBLE PRECISION,
-            ad              DOUBLE PRECISION,
-            cmf             DOUBLE PRECISION,
-            mfi             DOUBLE PRECISION,
-            td_sequential   DOUBLE PRECISION,
-            td_combo        DOUBLE PRECISION,
-            marketwatch     DOUBLE PRECISION,
-            dm              DOUBLE PRECISION,
-            sma_10          DOUBLE PRECISION,
-            sma_20          DOUBLE PRECISION,
-            sma_50          DOUBLE PRECISION,
-            sma_150         DOUBLE PRECISION,
-            sma_200         DOUBLE PRECISION,
-            ema_4           DOUBLE PRECISION,
-            ema_9           DOUBLE PRECISION,
-            ema_21          DOUBLE PRECISION,
-            bbands_lower    DOUBLE PRECISION,
-            bbands_middle   DOUBLE PRECISION,
-            bbands_upper    DOUBLE PRECISION,
-            pivot_high      DOUBLE PRECISION,
-            pivot_low       DOUBLE PRECISION,
-            fetched_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(symbol, date)
-        );
-    """)
+def main():
+    """Main function with proper error handling for ECS task completion"""
+    exit_code = 0
+    conn = None
+    cur = None
     
-    # Create indexes for performance
-    cur.execute("""
-        CREATE INDEX idx_technical_monthly_symbol ON technical_data_monthly(symbol);
-        CREATE INDEX idx_technical_monthly_date ON technical_data_monthly(date);
-    """)
-      conn.commit()
-
-    # Get symbols that need technical data (only missing or very outdated data)
-    cur.execute("""
-        SELECT DISTINCT p.symbol 
-        FROM price_monthly p
-        WHERE p.volume > 100 
-        AND p.close > 0.01
-        AND (
-            -- Symbol has no technical data at all
-            NOT EXISTS (
-                SELECT 1 FROM technical_data_monthly t 
-                WHERE t.symbol = p.symbol
-            )
-            OR
-            -- Symbol has very outdated technical data (more than 6 months old)
-            (
-                SELECT MAX(t.date) 
-                FROM technical_data_monthly t 
-                WHERE t.symbol = p.symbol
-            ) < CURRENT_DATE - INTERVAL '6 months'
-        )
-        ORDER BY p.symbol
-        LIMIT 200  -- Process max 200 symbols per run to prevent timeouts
-    """)
-    symbols = [r["symbol"] for r in cur.fetchall()]
-    
-    if not symbols:
-        logging.info("No symbols need technical data processing (all up to date)")
-        # Record last run anyway
-        cur.execute("""
-            INSERT INTO last_updated (script_name, last_run)
-            VALUES (%s, NOW())
-            ON CONFLICT (script_name) DO UPDATE
-            SET last_run = EXCLUDED.last_run;
-        """, (SCRIPT_NAME,))
-        conn.commit()
-        cur.close()
-        conn.close()
-        logging.info("✅ All technical data is up to date")
-        sys.exit(0)
-      # Process technical indicators
-    total, inserted, failed = load_technicals(symbols, cur, conn)
-
-    # Ensure cursor is still valid after the optimized processing
-    # (the optimized function creates its own connections internally)
     try:
-        cur.execute("SELECT 1")
-    except (psycopg2.InterfaceError, psycopg2.OperationalError):
-        logging.info("Reconnecting to database after technical indicators processing...")
-        cur.close()
-        conn.close()
+        log_mem("startup")
+        logging.info(f"🚀 Starting {SCRIPT_NAME}")
+
+        # Connect to DB
+        cfg = get_db_config()
         conn = psycopg2.connect(
             host=cfg["host"], port=cfg["port"],
             user=cfg["user"], password=cfg["password"],
@@ -1160,22 +1062,133 @@ if __name__ == "__main__":
         conn.autocommit = False
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Record last run
-    cur.execute("""
-      INSERT INTO last_updated (script_name, last_run)
-      VALUES (%s, NOW())
-      ON CONFLICT (script_name) DO UPDATE
-        SET last_run = EXCLUDED.last_run;
-    """, (SCRIPT_NAME,))
-    conn.commit()
+        # Recreate technical_data_monthly table
+        logging.info("Recreating technical_data_monthly table…")
+        cur.execute("DROP TABLE IF EXISTS technical_data_monthly CASCADE;")
+        cur.execute("""
+            CREATE TABLE technical_data_monthly (
+                symbol          VARCHAR(50) NOT NULL,
+                date            DATE        NOT NULL,
+                rsi             DOUBLE PRECISION,
+                macd            DOUBLE PRECISION,
+                macd_signal     DOUBLE PRECISION,
+                macd_hist       DOUBLE PRECISION,
+                mom             DOUBLE PRECISION,
+                roc             DOUBLE PRECISION,
+                adx             DOUBLE PRECISION,
+                atr             DOUBLE PRECISION,
+                ad              DOUBLE PRECISION,
+                cmf             DOUBLE PRECISION,
+                mfi             DOUBLE PRECISION,
+                td_sequential   DOUBLE PRECISION,
+                td_combo        DOUBLE PRECISION,
+                marketwatch     DOUBLE PRECISION,
+                dm              DOUBLE PRECISION,
+                sma_10          DOUBLE PRECISION,
+                sma_20          DOUBLE PRECISION,
+                sma_50          DOUBLE PRECISION,
+                sma_150         DOUBLE PRECISION,
+                sma_200         DOUBLE PRECISION,
+                ema_4           DOUBLE PRECISION,
+                ema_9           DOUBLE PRECISION,
+                ema_21          DOUBLE PRECISION,
+                bbands_lower    DOUBLE PRECISION,
+                bbands_middle   DOUBLE PRECISION,
+                bbands_upper    DOUBLE PRECISION,
+                pivot_high      DOUBLE PRECISION,
+                pivot_low       DOUBLE PRECISION,
+                fetched_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(symbol, date)
+            );
+        """)
+        
+        # Create indexes for performance
+        cur.execute("""
+            CREATE INDEX idx_technical_monthly_symbol ON technical_data_monthly(symbol);
+            CREATE INDEX idx_technical_monthly_date ON technical_data_monthly(date);
+        """)
+        
+        conn.commit()
 
-    peak = get_rss_mb()
-    logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
-    logging.info(f"Total symbols: {total}, Successfully processed: {inserted}, Failed: {len(failed)}")
-    
-    if failed:
-        logging.warning(f"Failed symbols: {failed[:10]}...")  # Show first 10
+        # Get symbols that have price data
+        cur.execute("""
+            SELECT DISTINCT symbol 
+            FROM price_monthly 
+            ORDER BY symbol
+        """)
+        symbols = [r["symbol"] for r in cur.fetchall()]
+        
+        if not symbols:
+            logging.error("❌ No symbols found in price_monthly table")
+            exit_code = 1
+            return exit_code
+        
+        logging.info(f"📊 Found {len(symbols)} symbols to process")
 
-    cur.close()
-    conn.close()
-    logging.info("All done.")
+        # Process technical indicators
+        total, inserted, failed = load_technicals(symbols, cur, conn)
+
+        # Ensure cursor is still valid after the optimized processing
+        try:
+            cur.execute("SELECT 1")
+        except (psycopg2.InterfaceError, psycopg2.OperationalError):
+            logging.info("Reconnecting to database after technical indicators processing...")
+            cur.close()
+            conn.close()
+            conn = psycopg2.connect(
+                host=cfg["host"], port=cfg["port"],
+                user=cfg["user"], password=cfg["password"],
+                dbname=cfg["dbname"]
+            )
+            conn.autocommit = False
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Record last run
+        cur.execute("""
+          INSERT INTO last_updated (script_name, last_run)
+          VALUES (%s, NOW())
+          ON CONFLICT (script_name) DO UPDATE
+            SET last_run = EXCLUDED.last_run;
+        """, (SCRIPT_NAME,))
+        conn.commit()
+
+        peak = get_rss_mb()
+        logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
+        logging.info(f"📈 Total symbols: {total}, Successfully processed: {inserted}, Failed: {len(failed)}")
+        
+        if failed:
+            logging.warning(f"⚠️ Failed symbols ({len(failed)}): {failed[:10]}...")
+            if len(failed) > len(symbols) * 0.5:  # More than 50% failed
+                logging.error(f"❌ Too many failures ({len(failed)}/{total}), marking as failed")
+                exit_code = 1
+            else:
+                logging.info(f"✅ Acceptable failure rate ({len(failed)}/{total})")
+
+        logging.info("✅ Technical indicators processing completed successfully")
+        
+    except KeyboardInterrupt:
+        logging.warning("⚠️ Received interrupt signal, shutting down gracefully...")
+        exit_code = 130
+    except Exception as e:
+        logging.error(f"❌ Critical error in {SCRIPT_NAME}: {str(e)}", exc_info=True)
+        exit_code = 1
+    finally:
+        # Clean up database connections
+        if cur:
+            try:
+                cur.close()
+            except:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+        
+        logging.info(f"🏁 {SCRIPT_NAME} finished with exit code {exit_code}")
+        
+    return exit_code
+
+if __name__ == "__main__":
+    exit_code = main()
+    sys.exit(exit_code)
