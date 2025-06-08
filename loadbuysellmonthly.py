@@ -206,9 +206,10 @@ def get_symbols_batch(batch_size=1000):
 
 def create_buy_sell_table_optimized(cur):
     """Create optimized buy_sell table with proper indexing"""
-    # Drop and recreate table for consistency (like other scripts)
+    # Explicitly drop sequence and table to avoid conflicts
+    cur.execute("DROP SEQUENCE IF EXISTS buy_sell_id_seq CASCADE;")
     cur.execute("DROP TABLE IF EXISTS buy_sell CASCADE;")
-    cur.connection.commit()  # Commit the drop immediately
+    cur.connection.commit()  # Commit the drops immediately
     
     # Create new table
     cur.execute("""
