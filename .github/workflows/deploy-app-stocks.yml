@@ -43,7 +43,9 @@ jobs:
             --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
             --output text)
           echo "CF_BUCKET=$BUCKET" >> $GITHUB_OUTPUT
-          echo "Using S3 bucket: $BUCKET"      - name: Deploy application stack
+          echo "Using S3 bucket: $BUCKET"      
+      
+      - name: Deploy application stack
         run: |
           aws cloudformation deploy \
             --stack-name stocks-app-stack \
