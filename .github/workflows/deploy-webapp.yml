@@ -100,13 +100,13 @@ jobs:
           DB_ENDPOINT=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksApp-DBEndpoint'].Value" \
             --output text)
-          
-          # Validate that we got the values
+            # Validate that we got the values
           if [[ -z "$DB_SECRET_ARN" || "$DB_SECRET_ARN" == "None" ]]; then
             echo "❌ Failed to get database secret ARN from app stack exports"
             exit 1
           fi
-            if [[ -z "$DB_ENDPOINT" || "$DB_ENDPOINT" == "None" ]]; then
+          
+          if [[ -z "$DB_ENDPOINT" || "$DB_ENDPOINT" == "None" ]]; then
             echo "❌ Failed to get database endpoint from app stack exports"
             exit 1
           fi
@@ -286,10 +286,10 @@ jobs:
               echo "🧹 Cleaning up failed deployment for next attempt..."
               aws cloudformation delete-stack --stack-name "$STACK_NAME"
             fi
-            
-            exit 1
+              exit 1
           fi
-            echo "✅ SAM deployment completed successfully"
+          
+          echo "✅ SAM deployment completed successfully"
           echo "STACK_NAME=$STACK_NAME" >> $GITHUB_OUTPUT
 
       - name: Get stack outputs
@@ -309,11 +309,11 @@ jobs:
           
           # Try alternative output key names if the first attempt returns empty
           if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
-            echo "⚠️ FrontendBucketName not found, trying alternative names..."
-            FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
+            echo "⚠️ FrontendBucketName not found, trying alternative names..."            FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
               --stack-name ${{ env.STACK_NAME }} \
               --query "Stacks[0].Outputs[?OutputKey=='FrontendBucket'].OutputValue" \
-              --output text)          fi
+              --output text)
+          fi
           
           if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
             FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
@@ -580,10 +580,10 @@ jobs:
           echo ""
           echo "📊 Deployment Summary:"
           echo "  • Website URL: ${{ needs.deploy_infrastructure.outputs.website_url }}"
-          echo "  • API URL: ${{ needs.deploy_infrastructure.outputs.api_url }}"
-          echo "  • Frontend Bucket: ${{ needs.deploy_infrastructure.outputs.frontend_bucket }}"
+          echo "  • API URL: ${{ needs.deploy_infrastructure.outputs.api_url }}"          echo "  • Frontend Bucket: ${{ needs.deploy_infrastructure.outputs.frontend_bucket }}"
           echo "  • CloudFront ID: ${{ needs.deploy_infrastructure.outputs.cloudfront_id }}"
-          echo ""          echo "🔧 Stack Status:"
+          echo ""
+          echo "🔧 Stack Status:"
           aws cloudformation describe-stacks \
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].StackStatus" \
@@ -598,13 +598,13 @@ jobs:
     if: ${{ failure() && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
 
-    steps:
-      - name: Configure AWS credentials
+    steps:      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
+      
       - name: Check stack status and cleanup if needed
         run: |
           STATUS=$(aws cloudformation describe-stacks \
