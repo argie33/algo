@@ -132,8 +132,7 @@ jobs:
           fi
           
           echo "CF_BUCKET=$BUCKET" >> $GITHUB_OUTPUT
-          echo "Using S3 bucket: $BUCKET"
-
+          echo "Using S3 bucket: $BUCKET"      
       - name: Install SAM CLI
         uses: aws-actions/setup-sam@v2
         with:
@@ -142,7 +141,8 @@ jobs:
       - name: Build SAM application
         run: |
           sam build --template template-webapp-lambda.yml
-        - name: Check and handle failed stack state
+
+      - name: Check and handle failed stack state
         run: |
           # Check if stack exists and its status
           STACK_STATUS=$(aws cloudformation describe-stacks \
