@@ -341,13 +341,14 @@ jobs:
               --query "Stacks[0].Outputs[?OutputKey=='DistributionId'].OutputValue" \
               --output text)
           fi
-          
-          if [[ -z "$CLOUDFRONT_ID" || "$CLOUDFRONT_ID" == "None" ]]; then
+            if [[ -z "$CLOUDFRONT_ID" || "$CLOUDFRONT_ID" == "None" ]]; then
             CLOUDFRONT_ID=$(aws cloudformation describe-stacks \
               --stack-name ${{ env.STACK_NAME }} \
               --query "Stacks[0].Outputs[?OutputKey=='CloudFrontId'].OutputValue" \
               --output text)
-          fi          API_URL=$(aws cloudformation describe-stacks \
+          fi
+          
+          API_URL=$(aws cloudformation describe-stacks \
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayUrl'].OutputValue" \
             --output text)
@@ -366,7 +367,9 @@ jobs:
               --stack-name ${{ env.STACK_NAME }} \
               --query "Stacks[0].Outputs[?OutputKey=='RestApiUrl'].OutputValue" \
               --output text)
-          fi          WEBSITE_URL=$(aws cloudformation describe-stacks \
+          fi
+          
+          WEBSITE_URL=$(aws cloudformation describe-stacks \
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='WebsiteURL'].OutputValue" \
             --output text)
