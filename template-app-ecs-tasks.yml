@@ -714,15 +714,16 @@ Resources:
           AssignPublicIp: ENABLED
 
   ########################################
-  # J) TechnicalsDaily loader             #
-  ########################################  TechnicalsDailyTaskDefinition:
+  # J) TechnicalsDaily loader            #
+  ########################################
+  TechnicalsDailyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
       Family: technicalsdaily-loader
-      Cpu: "4096"
-      Memory: "16384"
+      Cpu: "2048"
+      Memory: "4096"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
@@ -1523,14 +1524,15 @@ Resources:
 
   ########################################
   # M) technicalsweekly loader           #
-  ########################################  TechnicalsWeeklyTaskDefinition:
+  ########################################
+  TechnicalsWeeklyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
       Family: technicalsweekly-loader
-      Cpu: "4096"
-      Memory: "16384"
+      Cpu: "2048"
+      Memory: "4096"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
@@ -1573,14 +1575,15 @@ Resources:
 
   ########################################
   # N) technicalsmonthly loader          #
-  ########################################  TechnicalsMonthlyTaskDefinition:
+  ########################################
+  TechnicalsMonthlyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
       Family: technicalsmonthly-loader
-      Cpu: "4096"
-      Memory: "16384"
+      Cpu: "2048"
+      Memory: "4096"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
