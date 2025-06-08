@@ -91,7 +91,7 @@ jobs:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-          
+
       - name: Get database connection info from stacks
         id: db_info
         run: |
@@ -137,10 +137,38 @@ jobs:
         uses: aws-actions/setup-sam@v2
         with:
           use-installer: true
-
+          
       - name: Build SAM application
         run: |
           sam build --template template-webapp-lambda.yml
+
+      - name: Check and handle failed stack state
+        run: |
+          # Check if stack exists and its status
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-webapp-stack \
+            --query "Stacks[0].StackStatus" \
+            --output text 2>/dev/null || echo "STACK_NOT_FOUND")
+          
+          echo "Current stack status: $STACK_STATUS"
+          
+          # If stack is in ROLLBACK_COMPLETE state, delete it
+          if [[ "$STACK_STATUS" == "ROLLBACK_COMPLETE" ]]; then
+            echo "⚠️ Stack is in ROLLBACK_COMPLETE state. Deleting stack to allow re-creation..."
+            aws cloudformation delete-stack --stack-name stocks-webapp-stack
+            
+            # Wait for deletion to complete
+            echo "⏳ Waiting for stack deletion to complete..."
+            aws cloudformation wait stack-delete-complete --stack-name stocks-webapp-stack
+            echo "✅ Stack deletion completed"
+          elif [[ "$STACK_STATUS" == "DELETE_FAILED" ]]; then
+            echo "❌ Stack is in DELETE_FAILED state. Manual intervention required."
+            exit 1
+          elif [[ "$STACK_STATUS" == "STACK_NOT_FOUND" ]]; then
+            echo "ℹ️ Stack does not exist. Will create new stack."
+          else
+            echo "ℹ️ Stack is in $STACK_STATUS state. Proceeding with deployment."
+          fi
 
       - name: Deploy webapp CloudFormation stack
         run: |
