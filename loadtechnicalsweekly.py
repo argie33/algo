@@ -658,27 +658,64 @@ def process_symbol_chunk(symbol_chunk, db_config):
         cur.execute("SET parallel_tuple_cost = 0.001")  # Low parallel cost
         cur.execute("SET enable_seqscan = off")  # Force index usage when possible
         cur.execute("SET enable_hashjoin = on")  # Enable hash joins
-        cur.execute("SET enable_mergejoin = on")  # Enable merge joins
-        cur.execute("SET statement_timeout = '300s'")  # 5 minute timeout
+        cur.execute("SET enable_mergejoin = on")  # Enable merge joins        cur.execute("SET statement_timeout = '900s'")  # 15 minute timeout for large datasets
+        cur.execute("SET lock_timeout = '60s'")      # 1 minute lock timeout
         
         # CRITICAL: Reduce the amount of data loaded dramatically
         symbols_placeholder = ','.join(['%s'] * len(symbol_chunk))
         
-        logging.info(f"🚀 ULTRA-FAST loading price data for {len(symbol_chunk)} symbols...")        # OPTIMIZED query - load ALL available historical data for maximum comprehensive analysis
-        start_query_time = time.time()
-        cur.execute(f"""
-            SELECT /*+ PARALLEL(price_weekly, 4) USE_INDEX(price_weekly, idx_price_weekly_symbol_date) */
-                   symbol, date, open, high, low, close, volume
-            FROM price_weekly
-            WHERE symbol IN ({symbols_placeholder})
-            AND volume > 100  -- Minimal volume filter to include maximum data
-            AND close > 0.01   -- Exclude penny stocks with weird data
-            ORDER BY symbol, date ASC
-        """, symbol_chunk)
+        logging.info(f"🚀 ULTRA-FAST loading price data for {len(symbol_chunk)} symbols...")
         
-        all_rows = cur.fetchall()
-        query_time = time.time() - start_query_time
-        logging.info(f"⚡ Database query completed in {query_time:.2f} seconds")
+        # OPTIMIZED query with retry logic for timeout handling
+        max_retries = 3
+        retry_count = 0
+        all_rows = None
+        
+        while retry_count < max_retries:
+            try:
+                start_query_time = time.time()
+                cur.execute(f"""
+                    SELECT /*+ PARALLEL(price_weekly, 4) USE_INDEX(price_weekly, idx_price_weekly_symbol_date) */
+                           symbol, date, open, high, low, close, volume
+                    FROM price_weekly
+                    WHERE symbol IN ({symbols_placeholder})
+                    AND volume > 100  -- Minimal volume filter to include maximum data
+                    AND close > 0.01   -- Exclude penny stocks with weird data
+                    ORDER BY symbol, date ASC
+                """, symbol_chunk)
+                
+                all_rows = cur.fetchall()
+                query_time = time.time() - start_query_time
+                logging.info(f"⚡ Database query completed in {query_time:.2f} seconds")
+                break  # Success, exit retry loop
+                
+            except psycopg2.OperationalError as e:
+                retry_count += 1
+                if 'canceling statement due to statement timeout' in str(e).lower():
+                    logging.warning(f"⚠️  Query timeout on attempt {retry_count}/{max_retries}. Retrying with smaller timeout...")
+                    if retry_count < max_retries:
+                        # Progressive timeout reduction for retries
+                        timeout_seconds = max(300, 900 - (retry_count * 200))  # 900s -> 700s -> 500s
+                        cur.execute(f"SET statement_timeout = '{timeout_seconds}s'")
+                        time.sleep(5)  # Brief pause before retry
+                        continue
+                    else:
+                        logging.error(f"❌ Query failed after {max_retries} timeout attempts. Skipping chunk: {symbol_chunk}")
+                        cur.close()
+                        conn.close()
+                        return []
+                else:
+                    logging.error(f"❌ Database error on attempt {retry_count}: {str(e)}")
+                    if retry_count >= max_retries:
+                        cur.close()
+                        conn.close()
+                        return []
+        
+        if all_rows is None:
+            logging.error(f"❌ Failed to load data after {max_retries} attempts")
+            cur.close()
+            conn.close()
+            return []
         
         if not all_rows:
             logging.warning(f"No price data found for chunk: {symbol_chunk}")
@@ -892,17 +929,16 @@ def load_technicals_optimized(symbols):
     total = len(symbols)
     logging.info(f"🚀 Starting ultra-optimized technical indicators calculation for {total} symbols")
     logging.info(f"📊 Performance improvements: TA-Lib C library + Batch processing + Parallel execution")
-    
-    # Dynamic chunk sizing based on total symbols for optimal memory usage
+      # Dynamic chunk sizing based on total symbols for optimal memory usage AND timeout prevention
     if total <= 100:
-        CHUNK_SIZE = 10
+        CHUNK_SIZE = 8   # Reduced for faster queries
         MAX_WORKERS = 2
     elif total <= 500:
-        CHUNK_SIZE = 20  
-        MAX_WORKERS = 3
+        CHUNK_SIZE = 12  # Reduced to prevent timeouts
+        MAX_WORKERS = 2  # Reduced to avoid database overload
     else:
-        CHUNK_SIZE = 25  # Conservative for large datasets
-        MAX_WORKERS = 3
+        CHUNK_SIZE = 15  # Significantly reduced for large datasets to prevent timeouts
+        MAX_WORKERS = 2  # Conservative for database stability
     
     logging.info(f"⚙️  Configuration: {CHUNK_SIZE} symbols per chunk, {MAX_WORKERS} parallel workers")
     

@@ -637,7 +637,37 @@ def calculate_technicals_parallel(df):
     return df
 
 def process_symbol_chunk(symbol_chunk, db_config):
-    """Process a chunk of symbols efficiently with ULTRA-OPTIMIZED database operations"""
+    """Process a chunk of symbols efficiently with ULTRA-OPTIMIZED database operations and retry logic"""
+    max_retries = 3
+    retry_count = 0
+    
+    while retry_count < max_retries:
+        try:
+            return _process_symbol_chunk_internal(symbol_chunk, db_config, retry_count)
+        except psycopg2.OperationalError as e:
+            error_msg = str(e).lower()
+            if 'canceling statement due to statement timeout' in error_msg:
+                retry_count += 1
+                if retry_count < max_retries:
+                    logging.warning(f"⚠️ Statement timeout on attempt {retry_count}/{max_retries}, retrying with reduced timeout...")
+                    time.sleep(5)  # Brief pause before retry
+                    continue
+                else:
+                    logging.error(f"❌ Statement timeout after {max_retries} attempts for chunk: {symbol_chunk}")
+                    return []
+            else:
+                logging.error(f"❌ Database error in chunk processing: {error_msg}")
+                return []
+        except Exception as e:
+            logging.error(f"❌ Critical error in chunk processing: {str(e)}")
+            return []
+    
+    # If we get here, all retries failed
+    logging.error(f"❌ All {max_retries} attempts failed for chunk: {symbol_chunk}")
+    return []
+
+def _process_symbol_chunk_internal(symbol_chunk, db_config, retry_count=0):
+    """Internal function for processing symbol chunk with progressive timeout"""
     try:
         # Create database connection with AGGRESSIVE performance tuning
         conn = psycopg2.connect(**db_config)
@@ -661,7 +691,14 @@ def process_symbol_chunk(symbol_chunk, db_config):
         cur.execute("SET enable_seqscan = off")  # Force index usage when possible
         cur.execute("SET enable_hashjoin = on")  # Enable hash joins
         cur.execute("SET enable_mergejoin = on")  # Enable merge joins
-        cur.execute("SET statement_timeout = '300s'")  # 5 minute timeout
+        
+        # Progressive timeout reduction for retries: 900s -> 700s -> 500s
+        timeout_seconds = max(300, 900 - (retry_count * 200))
+        cur.execute(f"SET statement_timeout = '{timeout_seconds}s'")  # Dynamic timeout based on retry
+        cur.execute("SET lock_timeout = '60s'")        # Lock timeout for better resource management
+        
+        if retry_count > 0:
+            logging.info(f"🔄 Retry attempt {retry_count + 1}/3 for chunk with {timeout_seconds}s timeout")
         
         # CRITICAL: Reduce the amount of data loaded dramatically
         symbols_placeholder = ','.join(['%s'] * len(symbol_chunk))
@@ -896,17 +933,16 @@ def load_technicals_optimized(symbols):
     total = len(symbols)
     logging.info(f"🚀 Starting ultra-optimized technical indicators calculation for {total} symbols")
     logging.info(f"📊 Performance improvements: TA-Lib C library + Batch processing + Parallel execution")
-    
-    # Dynamic chunk sizing based on total symbols for optimal memory usage
+      # Dynamic chunk sizing based on total symbols for optimal memory usage and timeout prevention
     if total <= 100:
-        CHUNK_SIZE = 10
+        CHUNK_SIZE = 8   # Reduced from 10 to prevent timeouts
         MAX_WORKERS = 2
     elif total <= 500:
-        CHUNK_SIZE = 20  
-        MAX_WORKERS = 3
+        CHUNK_SIZE = 12  # Reduced from 20 to prevent timeouts
+        MAX_WORKERS = 2  # Reduced from 3 to prevent database overload
     else:
-        CHUNK_SIZE = 25  # Conservative for large datasets
-        MAX_WORKERS = 3
+        CHUNK_SIZE = 15  # Reduced from 25 to prevent timeouts on large datasets
+        MAX_WORKERS = 2  # Reduced from 3 to prevent database overload
     
     logging.info(f"⚙️  Configuration: {CHUNK_SIZE} symbols per chunk, {MAX_WORKERS} parallel workers")
     
