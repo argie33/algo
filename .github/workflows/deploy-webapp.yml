@@ -35,8 +35,7 @@ jobs:
       frontend:   ${{ steps.paths.outputs.frontend }}
       template:   ${{ steps.paths.outputs.template }}
       any:        ${{ steps.any.outputs.any }}
-
-    steps:
+      steps:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
@@ -50,19 +49,18 @@ jobs:
           filters: |
             webapp:
               - 'webapp/**'
-              - 'template-webapp-lambda.yml'
-              - '.github/workflows/deploy-webapp.yml'
             lambda:
-              - 'webapp/lambda/**'
+              - 'webapp/backend/**'
             frontend:
               - 'webapp/frontend/**'
             template:
               - 'template-webapp-lambda.yml'
+              - '.github/workflows/deploy-webapp.yml'
 
       - id: any
         name: Any relevant changes?
         run: |
-          if [[ "${{ steps.paths.outputs.webapp }}" == "true" ]]; then
+          if [[ "${{ steps.paths.outputs.webapp }}" == "true" || "${{ steps.paths.outputs.lambda }}" == "true" || "${{ steps.paths.outputs.frontend }}" == "true" || "${{ steps.paths.outputs.template }}" == "true" ]]; then
             echo "any=true" >> $GITHUB_OUTPUT
           else
             echo "any=false" >> $GITHUB_OUTPUT
@@ -210,7 +208,7 @@ jobs:
               exit 1
               ;;
           esac
-             
+
       - name: Deploy webapp CloudFormation stack
         run: |
           # Use the environment variable for stack name
@@ -330,7 +328,7 @@ jobs:
   deploy_frontend:
     name: Deploy Frontend to S3
     needs: [filter, deploy_infrastructure]
-    if: ${{ needs.filter.outputs.frontend == 'true' || needs.filter.outputs.template == 'true' }}
+    if: ${{ needs.filter.outputs.any == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
