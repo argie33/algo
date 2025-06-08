@@ -25,8 +25,7 @@ env:
 jobs:
 ################################################################################
 # 1) Detect changed components                                                 #
-################################################################################
-  filter:
+################################################################################  filter:
     name: Detect changed components
     runs-on: ubuntu-latest
     outputs:
@@ -35,7 +34,8 @@ jobs:
       frontend:   ${{ steps.paths.outputs.frontend }}
       template:   ${{ steps.paths.outputs.template }}
       any:        ${{ steps.any.outputs.any }}
-      steps:
+
+    steps:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
