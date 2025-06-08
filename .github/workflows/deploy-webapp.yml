@@ -321,13 +321,14 @@ jobs:
               --query "Stacks[0].Outputs[?OutputKey=='S3BucketName'].OutputValue" \
               --output text)
           fi
-          
-          if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
+            if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
             FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
               --stack-name ${{ env.STACK_NAME }} \
               --query "Stacks[0].Outputs[?OutputKey=='WebsiteBucket'].OutputValue" \
               --output text)
-          fi          CLOUDFRONT_ID=$(aws cloudformation describe-stacks \
+          fi
+          
+          CLOUDFRONT_ID=$(aws cloudformation describe-stacks \
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
             --output text)
