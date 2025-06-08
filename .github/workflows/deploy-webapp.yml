@@ -91,15 +91,14 @@ jobs:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
-          
-      - name: Get database connection info from stacks
+            - name: Get database connection info from stacks
         id: db_info
         run: |
           DB_SECRET_ARN=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksApp-SecretArn'].Value" \
             --output text)
           DB_ENDPOINT=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksCore-DatabaseEndpoint'].Value" \
+            --query "Exports[?Name=='StocksApp-DBEndpoint'].Value" \
             --output text)
           
           # Validate that we got the values
@@ -107,9 +106,8 @@ jobs:
             echo "❌ Failed to get database secret ARN from app stack exports"
             exit 1
           fi
-          
-          if [[ -z "$DB_ENDPOINT" || "$DB_ENDPOINT" == "None" ]]; then
-            echo "❌ Failed to get database endpoint from core stack exports"
+            if [[ -z "$DB_ENDPOINT" || "$DB_ENDPOINT" == "None" ]]; then
+            echo "❌ Failed to get database endpoint from app stack exports"
             exit 1
           fi
           
