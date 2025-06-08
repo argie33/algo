@@ -141,6 +141,7 @@ jobs:
       - name: Build SAM application
         run: |
           sam build --template template-webapp-lambda.yml
+      
       - name: Check and handle failed stack state
         run: |
           # Check if stack exists and its status
@@ -151,32 +152,55 @@ jobs:
           
           echo "Current stack status: $STACK_STATUS"
           
-          # If stack is in ROLLBACK_COMPLETE state, delete it
-          if [[ "$STACK_STATUS" == "ROLLBACK_COMPLETE" ]]; then
-            echo "⚠️ Stack is in ROLLBACK_COMPLETE state. Deleting stack to allow re-creation..."
-            aws cloudformation delete-stack --stack-name stocks-webapp-stack
-            
-            # Wait for deletion to complete
-            echo "⏳ Waiting for stack deletion to complete..."
-            aws cloudformation wait stack-delete-complete --stack-name stocks-webapp-stack
-            echo "✅ Stack deletion completed"
-          elif [[ "$STACK_STATUS" == "CREATE_FAILED" ]]; then
-            echo "⚠️ Stack is in CREATE_FAILED state. Deleting stack to allow re-creation..."
-            aws cloudformation delete-stack --stack-name stocks-webapp-stack
-            
-            # Wait for deletion to complete
-            echo "⏳ Waiting for stack deletion to complete..."
-            aws cloudformation wait stack-delete-complete --stack-name stocks-webapp-stack
-            echo "✅ Stack deletion completed"
-          elif [[ "$STACK_STATUS" == "DELETE_FAILED" ]]; then
-            echo "❌ Stack is in DELETE_FAILED state. Manual intervention required."
-            exit 1
-          elif [[ "$STACK_STATUS" == "STACK_NOT_FOUND" ]]; then
-            echo "ℹ️ Stack does not exist. Will create new stack."
-          else
-            echo "ℹ️ Stack is in $STACK_STATUS state. Proceeding with deployment."
-          fi
-
+          # Handle different stack states
+          case "$STACK_STATUS" in
+            "STACK_NOT_FOUND")
+              echo "ℹ️ Stack does not exist. Will create new stack."
+              ;;
+            "CREATE_COMPLETE"|"UPDATE_COMPLETE")
+              echo "ℹ️ Stack is in healthy state: $STACK_STATUS. Proceeding with deployment."
+              ;;
+            "ROLLBACK_COMPLETE"|"CREATE_FAILED")
+              echo "⚠️ Stack is in failed state: $STACK_STATUS. Deleting stack to allow re-creation..."
+              aws cloudformation delete-stack --stack-name stocks-webapp-stack
+              echo "⏳ Waiting for stack deletion to complete..."
+              aws cloudformation wait stack-delete-complete --stack-name stocks-webapp-stack
+              echo "✅ Stack deletion completed"
+              ;;
+            "ROLLBACK_IN_PROGRESS"|"CREATE_IN_PROGRESS"|"UPDATE_IN_PROGRESS"|"DELETE_IN_PROGRESS")
+              echo "⏳ Stack is in progress state: $STACK_STATUS. Waiting for operation to complete..."
+              # Wait for the current operation to complete
+              if [[ "$STACK_STATUS" == "ROLLBACK_IN_PROGRESS" ]]; then
+                echo "⏳ Waiting for rollback to complete..."
+                aws cloudformation wait stack-rollback-complete --stack-name stocks-webapp-stack
+                # After rollback completes, delete the stack
+                echo "🧹 Rollback completed. Deleting failed stack..."
+                aws cloudformation delete-stack --stack-name stocks-webapp-stack
+                aws cloudformation wait stack-delete-complete --stack-name stocks-webapp-stack
+                echo "✅ Failed stack cleanup completed"
+              elif [[ "$STACK_STATUS" == "CREATE_IN_PROGRESS" ]]; then
+                aws cloudformation wait stack-create-complete --stack-name stocks-webapp-stack
+              elif [[ "$STACK_STATUS" == "UPDATE_IN_PROGRESS" ]]; then
+                aws cloudformation wait stack-update-complete --stack-name stocks-webapp-stack
+              elif [[ "$STACK_STATUS" == "DELETE_IN_PROGRESS" ]]; then
+                aws cloudformation wait stack-delete-complete --stack-name stocks-webapp-stack
+              fi
+              ;;
+            "UPDATE_ROLLBACK_COMPLETE")
+              echo "⚠️ Stack is in UPDATE_ROLLBACK_COMPLETE state. This indicates a failed update that was rolled back."
+              echo "ℹ️ Stack is still functional but last update failed. Proceeding with new deployment."
+              ;;
+            "DELETE_FAILED")
+              echo "❌ Stack is in DELETE_FAILED state. Manual intervention required."
+              echo "   Please manually delete the stack or resolve the deletion issues."
+              exit 1
+              ;;
+            *)
+              echo "❌ Stack is in unexpected state: $STACK_STATUS"
+              echo "   Manual intervention may be required."
+              exit 1
+              ;;
+          esac
       - name: Deploy webapp CloudFormation stack
         run: |
           # Final check that stack is in a deployable state
@@ -187,12 +211,20 @@ jobs:
           
           echo "Final stack status before deployment: $FINAL_STATUS"
           
-          # Ensure we're not trying to deploy to a failed stack
-          if [[ "$FINAL_STATUS" == "ROLLBACK_COMPLETE" || "$FINAL_STATUS" == "CREATE_FAILED" ]]; then
-            echo "❌ Stack is still in failed state: $FINAL_STATUS"
-            echo "This should not happen after our cleanup step. Manual intervention required."
-            exit 1
-          fi
+          # Ensure we're in a deployable state
+          case "$FINAL_STATUS" in
+            "STACK_NOT_FOUND"|"CREATE_COMPLETE"|"UPDATE_COMPLETE"|"UPDATE_ROLLBACK_COMPLETE")
+              echo "✅ Stack is in deployable state: $FINAL_STATUS"
+              ;;
+            "ROLLBACK_COMPLETE"|"CREATE_FAILED"|"ROLLBACK_IN_PROGRESS"|*"_IN_PROGRESS")
+              echo "❌ Stack is in non-deployable state: $FINAL_STATUS"
+              echo "   This should not happen after our cleanup step. The previous step may have failed."
+              exit 1
+              ;;
+            *)
+              echo "⚠️ Stack is in unexpected state: $FINAL_STATUS. Attempting deployment anyway..."
+              ;;
+          esac
           
           # Validate parameters before deployment
           if [[ -z "${{ steps.db_info.outputs.DB_SECRET_ARN }}" ]]; then
