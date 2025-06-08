@@ -71,10 +71,12 @@ Resources:
         Enabled: true
         HttpVersion: http2
         PriceClass: PriceClass_100
-          # S3 Origin for Frontend
+          # S3 Origin for Frontend        
         Origins:
           - Id: S3Origin
             DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            S3OriginConfig:
+              OriginAccessIdentity: ''
             OriginAccessControlId: !Ref OriginAccessControl
           
           # API Gateway Origin
