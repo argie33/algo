@@ -218,21 +218,9 @@ Resources:
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         AllowOrigin: "'*'"
         AllowCredentials: false
-      AccessLogSetting:
+        AccessLogSetting:
         DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
-        Format: >
-          {
-            "requestId": "$context.requestId",
-            "ip": "$context.identity.sourceIp",
-            "requestTime": "$context.requestTime",
-            "httpMethod": "$context.httpMethod",
-            "resourcePath": "$context.resourcePath",
-            "status": "$context.status",
-            "protocol": "$context.protocol",
-            "responseLength": "$context.responseLength",
-            "responseLatency": "$context.responseLatency",
-            "integrationLatency": "$context.integrationLatency"
-          }
+        Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength","responseLatency":"$context.responseLatency","integrationLatency":"$context.integrationLatency"}'
 
   # CloudWatch Log Group for API Gateway
   ApiGatewayLogGroup:
