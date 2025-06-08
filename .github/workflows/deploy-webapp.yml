@@ -540,7 +540,9 @@ jobs:
         with:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}      - name: Test API endpoint
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+          
+      - name: Test API endpoint
         run: |
           API_URL="${{ needs.deploy_infrastructure.outputs.api_url }}"
           
