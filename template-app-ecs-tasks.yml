@@ -1689,7 +1689,8 @@ Resources:
           SecurityGroups:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
-            ########################################
+
+  ########################################
   # P) buyselldaily loader               #
   ########################################
   BuySellDailyTaskDefinition:
@@ -3091,7 +3092,7 @@ Outputs:
     Value: !Ref LatestTechnicalsWeeklyTaskDefinition
     Export:
       Name: LatestTechnicalsWeeklyTaskDefArn
-      
+
   LatestTechnicalsMonthlyTaskDefArn:
     Description: ARN of the ECS TaskDefinition for latesttechnicalsmonthly loader
     Value: !Ref LatestTechnicalsMonthlyTaskDefinition
