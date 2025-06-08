@@ -3025,7 +3025,7 @@ Outputs:
     Value: !Ref TechnicalsWeeklyTaskDefinition
     Export:
       Name: TechnicalsWeeklyTaskDefArn
-      
+
   TechnicalsMonthlyTaskDefArn:
     Description: ARN of the ECS TaskDefinition for technicals-monthly loader
     Value: !Ref TechnicalsMonthlyTaskDefinition
@@ -3091,6 +3091,7 @@ Outputs:
     Value: !Ref LatestTechnicalsWeeklyTaskDefinition
     Export:
       Name: LatestTechnicalsWeeklyTaskDefArn
+      
   LatestTechnicalsMonthlyTaskDefArn:
     Description: ARN of the ECS TaskDefinition for latesttechnicalsmonthly loader
     Value: !Ref LatestTechnicalsMonthlyTaskDefinition
