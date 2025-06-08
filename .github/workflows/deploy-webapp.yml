@@ -293,127 +293,52 @@ jobs:
           
           echo "✅ SAM deployment completed successfully"
           echo "STACK_NAME=$STACK_NAME" >> $GITHUB_OUTPUT
+
       - name: Get stack outputs
         id: stack_outputs
         run: |
-          # First, let's see what outputs are available
-          echo "Available stack outputs:"
-          aws cloudformation describe-stacks \
-            --stack-name ${{ env.STACK_NAME }} \
-            --query "Stacks[0].Outputs[].[OutputKey,OutputValue]" \
-            --output table
-          
+          # Get CloudFormation stack outputs
           FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" \
             --output text)
-          
-          # Try alternative output key names if the first attempt returns empty
-          if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
-            echo "⚠️ FrontendBucketName not found, trying alternative names..."
-            FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
-              --stack-name ${{ env.STACK_NAME }} \
-              --query "Stacks[0].Outputs[?OutputKey=='FrontendBucket'].OutputValue" \
-              --output text)
-          fi
-          
-          if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
-            FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
-              --stack-name ${{ env.STACK_NAME }} \
-              --query "Stacks[0].Outputs[?OutputKey=='S3BucketName'].OutputValue" \
-              --output text)
-          fi
-          
-          if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
-            FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
-              --stack-name ${{ env.STACK_NAME }} \
-              --query "Stacks[0].Outputs[?OutputKey=='WebsiteBucket'].OutputValue" \
-              --output text)
-          fi
           
           CLOUDFRONT_ID=$(aws cloudformation describe-stacks \
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
             --output text)
           
-          # Try alternative CloudFront output key names
-          if [[ -z "$CLOUDFRONT_ID" || "$CLOUDFRONT_ID" == "None" ]]; then
-            echo "⚠️ CloudFrontDistributionId not found, trying alternative names..."
-            CLOUDFRONT_ID=$(aws cloudformation describe-stacks \
-              --stack-name ${{ env.STACK_NAME }} \
-              --query "Stacks[0].Outputs[?OutputKey=='DistributionId'].OutputValue" \
-              --output text)
-          fi
-          
-          if [[ -z "$CLOUDFRONT_ID" || "$CLOUDFRONT_ID" == "None" ]]; then
-            CLOUDFRONT_ID=$(aws cloudformation describe-stacks \
-              --stack-name ${{ env.STACK_NAME }} \
-              --query "Stacks[0].Outputs[?OutputKey=='CloudFrontId'].OutputValue" \
-              --output text)
-          fi
-          
           API_URL=$(aws cloudformation describe-stacks \
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayUrl'].OutputValue" \
             --output text)
-          
-          # Try alternative API URL output key names
-          if [[ -z "$API_URL" || "$API_URL" == "None" ]]; then
-            echo "⚠️ ApiGatewayUrl not found, trying alternative names..."
-            API_URL=$(aws cloudformation describe-stacks \
-              --stack-name ${{ env.STACK_NAME }} \
-              --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" \
-              --output text)
-          fi
-          
-          if [[ -z "$API_URL" || "$API_URL" == "None" ]]; then
-            API_URL=$(aws cloudformation describe-stacks \
-              --stack-name ${{ env.STACK_NAME }} \
-              --query "Stacks[0].Outputs[?OutputKey=='RestApiUrl'].OutputValue" \
-              --output text)
-          fi
           
           WEBSITE_URL=$(aws cloudformation describe-stacks \
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='WebsiteURL'].OutputValue" \
             --output text)
           
-          # Try alternative website URL output key names
-          if [[ -z "$WEBSITE_URL" || "$WEBSITE_URL" == "None" ]]; then
-            echo "⚠️ WebsiteURL not found, trying alternative names..."
-            WEBSITE_URL=$(aws cloudformation describe-stacks \
-              --stack-name ${{ env.STACK_NAME }} \
-              --query "Stacks[0].Outputs[?OutputKey=='WebsiteUrl'].OutputValue" \
-              --output text)
-          fi
-          
-          if [[ -z "$WEBSITE_URL" || "$WEBSITE_URL" == "None" ]]; then
-            WEBSITE_URL=$(aws cloudformation describe-stacks \
-              --stack-name ${{ env.STACK_NAME }} \
-              --query "Stacks[0].Outputs[?OutputKey=='CloudFrontURL'].OutputValue" \
-              --output text)
-          fi
-          
-          # Validate outputs
+          # Validate required outputs
           if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
-            echo "❌ Frontend bucket name is empty or None"
-            echo "Available outputs:"
+            echo "❌ Failed to get FrontendBucketName from stack outputs"
             aws cloudformation describe-stacks \
               --stack-name ${{ env.STACK_NAME }} \
               --query "Stacks[0].Outputs[].[OutputKey,OutputValue]" \
               --output table
-            exit 1
-          fi
+            exit 1          
+            fi
           
+          # Set outputs
           echo "frontend_bucket=$FRONTEND_BUCKET" >> $GITHUB_OUTPUT
           echo "cloudfront_id=$CLOUDFRONT_ID" >> $GITHUB_OUTPUT
           echo "api_url=$API_URL" >> $GITHUB_OUTPUT
           echo "website_url=$WEBSITE_URL" >> $GITHUB_OUTPUT
           
-          echo "Frontend bucket: $FRONTEND_BUCKET"
-          echo "CloudFront ID: $CLOUDFRONT_ID"
-          echo "API URL: $API_URL"
-          echo "Website URL: $WEBSITE_URL"
+          echo "✅ Stack outputs retrieved successfully:"
+          echo "  Frontend bucket: $FRONTEND_BUCKET"
+          echo "  CloudFront ID: $CLOUDFRONT_ID"
+          echo "  API URL: $API_URL"
+          echo "  Website URL: $WEBSITE_URL"
 
 ################################################################################
 # 3) Build and deploy Frontend                                                 #
