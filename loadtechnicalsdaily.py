@@ -74,9 +74,26 @@ def get_db_config():
     }
 
 def sanitize_value(x):
-    """Convert NaN/inf values to None for database insertion"""
-    if isinstance(x, float) and (np.isnan(x) or np.isinf(x)):
+    """Convert NaN/inf values to None for database insertion and handle numpy types"""
+    if x is None:
         return None
+    
+    # Handle numpy scalar types (float32, float64, int32, etc.)
+    if hasattr(x, 'item'):
+        x = x.item()  # Convert numpy scalar to Python native type
+    
+    # Handle NaN/inf values for float types
+    if isinstance(x, (float, np.floating)) and (np.isnan(x) or np.isinf(x)):
+        return None
+    
+    # Convert numpy types to native Python types
+    if isinstance(x, np.integer):
+        return int(x)
+    elif isinstance(x, np.floating):
+        return float(x)
+    elif isinstance(x, np.bool_):
+        return bool(x)
+    
     return x
 
 # -------------------------------
@@ -505,12 +522,10 @@ def calculate_technicals_parallel(df):
     # Ensure proper data types
     for col in ['open', 'high', 'low', 'close', 'volume']:
         df[col] = pd.to_numeric(df[col], errors='coerce')
-    
-    # Fill any gaps and drop NaN rows
+      # Fill any gaps and drop NaN rows
     df = df.ffill().bfill().dropna()
     
-    if len(df) < 200:  # Need minimum data for indicators
-        return pd.DataFrame()
+    # Process ALL available data regardless of size - maximum data for backtesting
     
     # Use joblib for CPU-intensive calculations (with limited jobs for ECS)
     def calculate_basic_indicators():
@@ -652,16 +667,14 @@ def process_symbol_chunk(symbol_chunk, db_config):
         symbols_placeholder = ','.join(['%s'] * len(symbol_chunk))
         
         logging.info(f"🚀 ULTRA-FAST loading price data for {len(symbol_chunk)} symbols...")
-        
-        # DRASTICALLY OPTIMIZED query - load only recent data and essential columns
+          # OPTIMIZED query - load ALL available historical data for maximum comprehensive analysis
         start_query_time = time.time()
         cur.execute(f"""
             SELECT /*+ PARALLEL(price_daily, 4) USE_INDEX(price_daily, idx_price_daily_symbol_date) */
                    symbol, date, open, high, low, close, volume
             FROM price_daily
             WHERE symbol IN ({symbols_placeholder})
-            AND date >= CURRENT_DATE - INTERVAL '1 year'  -- REDUCED from 2 years to 1 year
-            AND volume > 1000  -- Exclude very low volume days
+            AND volume > 100  -- Minimal volume filter to include maximum data
             AND close > 0.01   -- Exclude penny stocks with weird data
             ORDER BY symbol, date ASC
         """, symbol_chunk)
@@ -725,10 +738,9 @@ def process_symbol_chunk(symbol_chunk, db_config):
                 
                 # ULTRA-FAST data extraction
                 symbol_data = price_df.loc[symbol].copy()
-                
-                # Skip if insufficient data - reduced minimum for speed
-                if len(symbol_data) < 50:  # REDUCED from 100 to 50 for speed
-                    logging.warning(f"⚠️  Insufficient data for {symbol} ({len(symbol_data)} rows), skipping")
+                  # Skip if insufficient data - reduced minimum for speed
+                if len(symbol_data) < 1:  # Process ALL available data - even single data points for maximum backtesting data
+                    logging.warning(f"⚠️  No data available for {symbol}, skipping")
                     continue
                 
                 # ULTRA-FAST technical indicators calculation using vectorized operations
