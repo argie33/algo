@@ -75,7 +75,7 @@ jobs:
     if: ${{ needs.filter.outputs.template == 'true' || needs.filter.outputs.any == 'true' }}
     runs-on: ubuntu-latest
     outputs:
-      frontend_bucket: ${{ steps.stack_outputs.outputs.frontend_bucket }}
+      bucket_prefix: ${{ steps.stack_outputs.outputs.bucket_prefix }}
       cloudfront_id: ${{ steps.stack_outputs.outputs.cloudfront_id }}
       api_url: ${{ steps.stack_outputs.outputs.api_url }}
       website_url: ${{ steps.stack_outputs.outputs.website_url }}
@@ -316,7 +316,7 @@ jobs:
           WEBSITE_URL=$(aws cloudformation describe-stacks \
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='WebsiteURL'].OutputValue" \
-            --output text)
+            --output text)          
           
           # Validate required outputs
           if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
@@ -325,17 +325,21 @@ jobs:
               --stack-name ${{ env.STACK_NAME }} \
               --query "Stacks[0].Outputs[].[OutputKey,OutputValue]" \
               --output table
-            exit 1          
-            fi
+            exit 1
+          fi
           
-          # Set outputs
-          echo "frontend_bucket=$FRONTEND_BUCKET" >> $GITHUB_OUTPUT
+          # Extract bucket prefix to avoid secret masking (bucket name contains AWS Account ID)
+          # Bucket format: financial-dashboard-frontend-prod-ACCOUNTID
+          BUCKET_PREFIX=$(echo "$FRONTEND_BUCKET" | cut -d'-' -f1-4)  # Gets "financial-dashboard-frontend-prod"
+          
+          # Set outputs (avoiding the full bucket name that contains account ID)
+          echo "bucket_prefix=$BUCKET_PREFIX" >> $GITHUB_OUTPUT
           echo "cloudfront_id=$CLOUDFRONT_ID" >> $GITHUB_OUTPUT
           echo "api_url=$API_URL" >> $GITHUB_OUTPUT
           echo "website_url=$WEBSITE_URL" >> $GITHUB_OUTPUT
           
           echo "✅ Stack outputs retrieved successfully:"
-          echo "  Frontend bucket: $FRONTEND_BUCKET"
+          echo "  Bucket prefix: $BUCKET_PREFIX"
           echo "  CloudFront ID: $CLOUDFRONT_ID"
           echo "  API URL: $API_URL"
           echo "  Website URL: $WEBSITE_URL"
@@ -403,16 +407,24 @@ jobs:
       - name: Deploy Frontend to S3
         working-directory: webapp/frontend
         run: |
-          BUCKET_NAME="${{ needs.deploy_infrastructure.outputs.frontend_bucket }}"
+          # Reconstruct bucket name from prefix and AWS Account ID
+          BUCKET_PREFIX="${{ needs.deploy_infrastructure.outputs.bucket_prefix }}"
+          AWS_ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
+          BUCKET_NAME="${BUCKET_PREFIX}-${AWS_ACCOUNT_ID}"
           
-          # Validate bucket name before attempting to use it
-          if [[ -z "$BUCKET_NAME" ]]; then
-            echo "❌ Frontend bucket name is empty!"
+          # Validate bucket components
+          if [[ -z "$BUCKET_PREFIX" ]]; then
+            echo "❌ Bucket prefix is empty!"
             echo "Available outputs from deploy_infrastructure job:"
-            echo "  frontend_bucket: '${{ needs.deploy_infrastructure.outputs.frontend_bucket }}'"
+            echo "  bucket_prefix: '${{ needs.deploy_infrastructure.outputs.bucket_prefix }}'"
             echo "  cloudfront_id: '${{ needs.deploy_infrastructure.outputs.cloudfront_id }}'"
             echo "  api_url: '${{ needs.deploy_infrastructure.outputs.api_url }}'"
             echo "  website_url: '${{ needs.deploy_infrastructure.outputs.website_url }}'"
+            exit 1
+          fi
+          
+          if [[ -z "$AWS_ACCOUNT_ID" ]]; then
+            echo "❌ AWS Account ID is not set!"
             exit 1
           fi
           
@@ -508,7 +520,7 @@ jobs:
           echo "📊 Deployment Summary:"
           echo "  • Website URL: ${{ needs.deploy_infrastructure.outputs.website_url }}"
           echo "  • API URL: ${{ needs.deploy_infrastructure.outputs.api_url }}"
-          echo "  • Frontend Bucket: ${{ needs.deploy_infrastructure.outputs.frontend_bucket }}"
+          echo "  • Bucket Prefix: ${{ needs.deploy_infrastructure.outputs.bucket_prefix }}"
           echo "  • CloudFront ID: ${{ needs.deploy_infrastructure.outputs.cloudfront_id }}"
           echo ""
           echo "🔧 Stack Status:"
