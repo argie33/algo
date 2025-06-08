@@ -107,11 +107,10 @@ def get_optimized_connection():
         connect_timeout=30,
         application_name=f"{SCRIPT_NAME}_monthly"
     )
-    
-    # Set performance parameters
+      # Set performance parameters
     with conn.cursor() as cur:
         cur.execute("SET work_mem = '256MB'")
-        cur.execute("SET shared_buffers = '1GB'") 
+        # cur.execute("SET shared_buffers = '1GB'")  # Cannot be changed at runtime
         cur.execute("SET effective_cache_size = '4GB'")
         cur.execute("SET random_page_cost = 1.1")
         cur.execute("SET statement_timeout = '300s'")

@@ -630,10 +630,9 @@ def process_symbol_chunk(symbol_chunk, db_config):
         # ULTRA-AGGRESSIVE PERFORMANCE TUNING FOR SPEED
         conn.autocommit = False
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        # Set MAXIMUM performance parameters
+          # Set MAXIMUM performance parameters
         cur.execute("SET work_mem = '2GB'")  # Massive memory for sorts/joins
-        cur.execute("SET shared_buffers = '4GB'")  # Large buffer cache
+        # Note: shared_buffers cannot be changed at runtime, skipping
         cur.execute("SET effective_cache_size = '8GB'")  # Tell PG about available cache
         cur.execute("SET random_page_cost = 1.0")  # SSD-optimized
         cur.execute("SET seq_page_cost = 1.0")  # Sequential scan cost
@@ -985,9 +984,8 @@ def load_technicals(symbols, cur, conn):
     """Legacy function maintained for compatibility - delegates to optimized version"""
     logging.info("🔄 Using ultra-optimized batch processing with TA-Lib...")
     
-    # Close the passed connection since we'll manage our own in the optimized version
-    cur.close()
-    conn.close()
+    # NOTE: Keep cursor and connection open for main script to use later
+    # The optimized version will create its own connections internally
     
     # Use the optimized approach
     total, inserted, failed = load_technicals_optimized(symbols)
@@ -1069,9 +1067,24 @@ if __name__ == "__main__":
     if not symbols:
         logging.error("No symbols found in price_weekly table")
         sys.exit(1)
-    
-    # Process technical indicators
+      # Process technical indicators
     total, inserted, failed = load_technicals(symbols, cur, conn)
+
+    # Ensure cursor is still valid after the optimized processing
+    # (the optimized function creates its own connections internally)
+    try:
+        cur.execute("SELECT 1")
+    except (psycopg2.InterfaceError, psycopg2.OperationalError):
+        logging.info("Reconnecting to database after technical indicators processing...")
+        cur.close()
+        conn.close()
+        conn = psycopg2.connect(
+            host=cfg["host"], port=cfg["port"],
+            user=cfg["user"], password=cfg["password"],
+            dbname=cfg["dbname"]
+        )
+        conn.autocommit = False
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
     # Record last run
     cur.execute("""
