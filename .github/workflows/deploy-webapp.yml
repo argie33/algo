@@ -195,6 +195,14 @@ jobs:
               echo "   Please manually delete the stack or resolve the deletion issues."
               exit 1
               ;;
+            "REVIEW_IN_PROGRESS")
+              echo "⚠️ Stack is in REVIEW_IN_PROGRESS state due to failed changeset"
+              echo "   Deleting the stack to clean up the failed changeset..."
+              aws cloudformation delete-stack --stack-name stocks-webapp-stack
+              echo "⏳ Waiting for stack deletion to complete..."
+              aws cloudformation wait stack-delete-complete --stack-name stocks-webapp-stack
+              echo "✅ Stack cleanup completed"
+              ;;
             *)
               echo "❌ Stack is in unexpected state: $STACK_STATUS"
               echo "   Manual intervention may be required."
