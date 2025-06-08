@@ -132,7 +132,8 @@ jobs:
           fi
           
           echo "CF_BUCKET=$BUCKET" >> $GITHUB_OUTPUT
-          echo "Using S3 bucket: $BUCKET"      
+          echo "Using S3 bucket: $BUCKET"
+          
       - name: Install SAM CLI
         uses: aws-actions/setup-sam@v2
         with:
@@ -290,7 +291,8 @@ jobs:
           fi
           
           echo "✅ SAM deployment completed successfully"
-          echo "STACK_NAME=$STACK_NAME" >> $GITHUB_OUTPUT      - name: Get stack outputs
+          echo "STACK_NAME=$STACK_NAME" >> $GITHUB_OUTPUT
+      - name: Get stack outputs
         id: stack_outputs
         run: |
           FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
@@ -483,7 +485,8 @@ jobs:
         with:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}      - name: Check stack status and cleanup if needed
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+      - name: Check stack status and cleanup if needed
         run: |
           STATUS=$(aws cloudformation describe-stacks \
             --stack-name ${{ env.STACK_NAME }} \
