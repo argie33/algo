@@ -35,7 +35,6 @@ jobs:
       frontend:   ${{ steps.paths.outputs.frontend }}
       template:   ${{ steps.paths.outputs.template }}
       any:        ${{ steps.any.outputs.any }}
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -296,6 +295,13 @@ jobs:
       - name: Get stack outputs
         id: stack_outputs
         run: |
+          # First, let's see what outputs are available
+          echo "Available stack outputs:"
+          aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query "Stacks[0].Outputs[].[OutputKey,OutputValue]" \
+            --output table
+          
           FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" \
@@ -312,6 +318,17 @@ jobs:
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='WebsiteURL'].OutputValue" \
             --output text)
+          
+          # Validate outputs
+          if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
+            echo "❌ Frontend bucket name is empty or None"
+            echo "Available outputs:"
+            aws cloudformation describe-stacks \
+              --stack-name ${{ env.STACK_NAME }} \
+              --query "Stacks[0].Outputs[].[OutputKey,OutputValue]" \
+              --output table
+            exit 1
+          fi
           
           echo "frontend_bucket=$FRONTEND_BUCKET" >> $GITHUB_OUTPUT
           echo "cloudfront_id=$CLOUDFRONT_ID" >> $GITHUB_OUTPUT
