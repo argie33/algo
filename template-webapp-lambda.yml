@@ -143,8 +143,8 @@ Resources:
             Action: s3:GetObject
             Resource: !Sub '${FrontendBucket}/*'
             Condition:
-              StringEquals:                
-                'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution.Id}'
+              StringEquals:
+                'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
 
   # API Gateway CloudWatch Logs Role
   ApiGatewayCloudWatchLogsRole:
