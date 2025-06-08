@@ -301,23 +301,90 @@ jobs:
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[].[OutputKey,OutputValue]" \
             --output table
-          
-          FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
+            FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" \
             --output text)
-          CLOUDFRONT_ID=$(aws cloudformation describe-stacks \
+          
+          # Try alternative output key names if the first attempt returns empty
+          if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
+            echo "⚠️ FrontendBucketName not found, trying alternative names..."
+            FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
+              --stack-name ${{ env.STACK_NAME }} \
+              --query "Stacks[0].Outputs[?OutputKey=='FrontendBucket'].OutputValue" \
+              --output text)
+          fi
+          
+          if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
+            FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
+              --stack-name ${{ env.STACK_NAME }} \
+              --query "Stacks[0].Outputs[?OutputKey=='S3BucketName'].OutputValue" \
+              --output text)
+          fi
+          
+          if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
+            FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
+              --stack-name ${{ env.STACK_NAME }} \
+              --query "Stacks[0].Outputs[?OutputKey=='WebsiteBucket'].OutputValue" \
+              --output text)
+          fi          CLOUDFRONT_ID=$(aws cloudformation describe-stacks \
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
             --output text)
-          API_URL=$(aws cloudformation describe-stacks \
+          
+          # Try alternative CloudFront output key names
+          if [[ -z "$CLOUDFRONT_ID" || "$CLOUDFRONT_ID" == "None" ]]; then
+            echo "⚠️ CloudFrontDistributionId not found, trying alternative names..."
+            CLOUDFRONT_ID=$(aws cloudformation describe-stacks \
+              --stack-name ${{ env.STACK_NAME }} \
+              --query "Stacks[0].Outputs[?OutputKey=='DistributionId'].OutputValue" \
+              --output text)
+          fi
+          
+          if [[ -z "$CLOUDFRONT_ID" || "$CLOUDFRONT_ID" == "None" ]]; then
+            CLOUDFRONT_ID=$(aws cloudformation describe-stacks \
+              --stack-name ${{ env.STACK_NAME }} \
+              --query "Stacks[0].Outputs[?OutputKey=='CloudFrontId'].OutputValue" \
+              --output text)
+          fi          API_URL=$(aws cloudformation describe-stacks \
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayUrl'].OutputValue" \
             --output text)
-          WEBSITE_URL=$(aws cloudformation describe-stacks \
+          
+          # Try alternative API URL output key names
+          if [[ -z "$API_URL" || "$API_URL" == "None" ]]; then
+            echo "⚠️ ApiGatewayUrl not found, trying alternative names..."
+            API_URL=$(aws cloudformation describe-stacks \
+              --stack-name ${{ env.STACK_NAME }} \
+              --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" \
+              --output text)
+          fi
+          
+          if [[ -z "$API_URL" || "$API_URL" == "None" ]]; then
+            API_URL=$(aws cloudformation describe-stacks \
+              --stack-name ${{ env.STACK_NAME }} \
+              --query "Stacks[0].Outputs[?OutputKey=='RestApiUrl'].OutputValue" \
+              --output text)
+          fi          WEBSITE_URL=$(aws cloudformation describe-stacks \
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='WebsiteURL'].OutputValue" \
             --output text)
+          
+          # Try alternative website URL output key names
+          if [[ -z "$WEBSITE_URL" || "$WEBSITE_URL" == "None" ]]; then
+            echo "⚠️ WebsiteURL not found, trying alternative names..."
+            WEBSITE_URL=$(aws cloudformation describe-stacks \
+              --stack-name ${{ env.STACK_NAME }} \
+              --query "Stacks[0].Outputs[?OutputKey=='WebsiteUrl'].OutputValue" \
+              --output text)
+          fi
+          
+          if [[ -z "$WEBSITE_URL" || "$WEBSITE_URL" == "None" ]]; then
+            WEBSITE_URL=$(aws cloudformation describe-stacks \
+              --stack-name ${{ env.STACK_NAME }} \
+              --query "Stacks[0].Outputs[?OutputKey=='CloudFrontURL'].OutputValue" \
+              --output text)
+          fi
           
           # Validate outputs
           if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
@@ -400,11 +467,29 @@ jobs:
         run: |
           npm run build
           echo "Frontend build completed"
-
       - name: Deploy Frontend to S3
         working-directory: webapp/frontend
         run: |
           BUCKET_NAME="${{ needs.deploy_infrastructure.outputs.frontend_bucket }}"
+          
+          # Validate bucket name before attempting to use it
+          if [[ -z "$BUCKET_NAME" ]]; then
+            echo "❌ Frontend bucket name is empty!"
+            echo "Available outputs from deploy_infrastructure job:"
+            echo "  frontend_bucket: '${{ needs.deploy_infrastructure.outputs.frontend_bucket }}'"
+            echo "  cloudfront_id: '${{ needs.deploy_infrastructure.outputs.cloudfront_id }}'"
+            echo "  api_url: '${{ needs.deploy_infrastructure.outputs.api_url }}'"
+            echo "  website_url: '${{ needs.deploy_infrastructure.outputs.website_url }}'"
+            exit 1
+          fi
+          
+          echo "Using bucket: $BUCKET_NAME"
+          
+          # Verify bucket exists
+          if ! aws s3 ls "s3://$BUCKET_NAME" >/dev/null 2>&1; then
+            echo "❌ S3 bucket '$BUCKET_NAME' does not exist or is not accessible"
+            exit 1
+          fi
           
           # Sync frontend files to S3
           aws s3 sync dist/ s3://"$BUCKET_NAME"/ \
