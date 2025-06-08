@@ -4221,12 +4221,11 @@ Resources:
       Memory: "512"
       NetworkMode: awsvpc
       RequiresCompatibilities:
-        - FARGATE
-      RuntimePlatform:
+        - FARGATE      RuntimePlatform:
         CpuArchitecture: ARM64
         OperatingSystemFamily: LINUX
-      ExecutionRoleArn: !ImportValue StocksApp-EcsExecutionRoleArn
-      TaskRoleArn: !ImportValue StocksApp-EcsExecutionRoleArn
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: aaiisentiment-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref AaiiSentimentImageTag]]
@@ -4272,12 +4271,11 @@ Resources:
       Memory: "1024"  # More memory for browser automation
       NetworkMode: awsvpc
       RequiresCompatibilities:
-        - FARGATE
-      RuntimePlatform:
+        - FARGATE      RuntimePlatform:
         CpuArchitecture: ARM64
         OperatingSystemFamily: LINUX
-      ExecutionRoleArn: !ImportValue StocksApp-EcsExecutionRoleArn
-      TaskRoleArn: !ImportValue StocksApp-EcsExecutionRoleArn
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: feargreed-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref FearGreedImageTag]]
@@ -4323,12 +4321,11 @@ Resources:
       Memory: "512"
       NetworkMode: awsvpc
       RequiresCompatibilities:
-        - FARGATE
-      RuntimePlatform:
+        - FARGATE      RuntimePlatform:
         CpuArchitecture: ARM64
         OperatingSystemFamily: LINUX
-      ExecutionRoleArn: !ImportValue StocksApp-EcsExecutionRoleArn
-      TaskRoleArn: !ImportValue StocksApp-EcsExecutionRoleArn
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: naaim-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref NaaimImageTag]]
