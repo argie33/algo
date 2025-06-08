@@ -2502,7 +2502,8 @@ Resources:
       RequiresCompatibilities:
         - FARGATE
       RuntimePlatform:
-        CpuArchitecture: ARM64        OperatingSystemFamily: LINUX
+        CpuArchitecture: ARM64        
+        OperatingSystemFamily: LINUX
       ExecutionRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
       TaskRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
       ContainerDefinitions:
