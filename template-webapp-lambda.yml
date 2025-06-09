@@ -34,7 +34,7 @@ Globals:
         WEBAPP_AWS_REGION: !Ref AWS::Region
 
 Resources:
-  # S3 Bucket for Frontend Static Files 
+  # S3 Bucket for Frontend Static Files
   FrontendBucket:
     Type: AWS::S3::Bucket
     Properties:
