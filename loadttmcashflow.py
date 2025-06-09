@@ -14,7 +14,6 @@ from datetime import datetime
 import numpy as np
 import sys
 import gc
-import resource  # Add this for memory monitoring
 
 # Set up logging
 logging.basicConfig(
@@ -24,16 +23,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Function to log memory usage
-def log_memory_usage(point=""):
-    """Log current memory usage"""
-    try:
-        usage = resource.getrusage(resource.RUSAGE_SELF)
-        max_rss_mb = usage.ru_maxrss / 1024  # Convert KB to MB
-        logger.info(f"Memory usage {point}: {max_rss_mb:.2f} MB")
-    except Exception as e:
-        logger.warning(f"Could not log memory usage: {e}")
-        
 # Function to get DB connection
 def get_db_connection():
     """Create a connection to the PostgreSQL database."""
@@ -278,16 +267,12 @@ def load_ttm_cash_flow_for_symbol(symbol):
 def main():
     """Main function to load TTM cash flow data for all stocks."""
     try:
-        # Log initial memory usage
-        log_memory_usage("at start")
-        
         # Create table if it doesn't exist
         create_ttm_cash_flow_table()
         
         # Get the list of stock symbols
         symbols = get_stock_symbols()
         logger.info(f"Found {len(symbols)} stock symbols")
-        log_memory_usage("after loading symbols")
         
         # Process each symbol
         successful_loads = 0
@@ -314,17 +299,15 @@ def main():
                         time.sleep(2)  # Wait before retrying
                     else:
                         logger.error(f"Failed to load TTM cash flow data for {symbol} after {max_retries} attempts")
-              # Sleep to avoid rate limiting
+            
+            # Sleep to avoid rate limiting
             if i % 5 == 0 and i > 0:
                 logger.info(f"Processed {i} symbols. Taking a short break...")
-                log_memory_usage(f"after processing {i} symbols")
                 time.sleep(1)
-                gc.collect()  # Force garbage collection
-                log_memory_usage(f"after GC at {i} symbols")
-          end_time = time.time()
+        
+        end_time = time.time()
         elapsed_time = end_time - start_time
         
-        log_memory_usage("at completion")
         logger.info(f"TTM cash flow data loading completed. Successfully loaded data for {successful_loads}/{len(symbols)} symbols in {elapsed_time:.2f} seconds")
         
     except Exception as e:
