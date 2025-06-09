@@ -189,18 +189,19 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource: !Ref DatabaseSecretArn
-
   # Security Group for Lambda Function
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group for Lambda function to access RDS database
-      VpcId: !Sub '{{resolve:cloudformation:stocks-core-stack:StocksCore-VpcId}}'
+      VpcId: 
+        Fn::ImportValue: StocksCore-VpcId
       SecurityGroupEgress:
         - IpProtocol: tcp
           FromPort: 5432
           ToPort: 5432
-          DestinationSecurityGroupId: !Sub '{{resolve:cloudformation:stocks-app-stack:StocksApp-EcsTasksSecurityGroupId}}'
+          DestinationSecurityGroupId: 
+            Fn::ImportValue: StocksApp-EcsTasksSecurityGroupId
         - IpProtocol: tcp
           FromPort: 443
           ToPort: 443
@@ -225,8 +226,8 @@ Resources:
         SecurityGroupIds:
           - !Ref LambdaSecurityGroup
         SubnetIds:
-          - !Sub '{{resolve:cloudformation:stocks-core-stack:StocksCore-PrivateSubnet1Id}}'
-          - !Sub '{{resolve:cloudformation:stocks-core-stack:StocksCore-PrivateSubnet2Id}}'
+          - Fn::ImportValue: StocksCore-PrivateSubnet1Id
+          - Fn::ImportValue: StocksCore-PrivateSubnet2Id
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DatabaseSecretArn      
