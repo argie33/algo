@@ -187,7 +187,8 @@ Resources:
               - Effect: Allow
                 Action:
                   - secretsmanager:GetSecretValue
-                Resource: !Ref DatabaseSecretArn        - PolicyName: RDSConnect
+                Resource: !Ref DatabaseSecretArn
+        - PolicyName: RDSConnect
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
