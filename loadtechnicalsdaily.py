@@ -761,24 +761,26 @@ def _process_symbol_chunk_internal(symbol_chunk, db_config, retry_count=0):
         # AGGRESSIVE PROCESSING with parallel-friendly chunking
         all_insert_data = []
         processed_symbols = []
-        
-        # Process each symbol with MAXIMUM SPEED optimizations
+          # Process each symbol with MAXIMUM SPEED optimizations
         symbol_process_start = time.time()
         for i, symbol in enumerate(symbol_chunk):
+            symbol_start_time = time.time()
             try:
                 if symbol not in price_df.index.get_level_values('symbol'):
                     logging.warning(f"⚠️  No price data for {symbol}, skipping")
                     continue
                 
-                if i % 5 == 0:  # Log progress every 5 symbols
-                    logging.info(f"⚙️  Processing {symbol} ({i+1}/{len(symbol_chunk)})...")
+                # Log every symbol for enhanced visibility
+                logging.info(f"🔄 Processing {symbol} ({i+1}/{len(symbol_chunk)}) - daily technicals...")
                 
                 # ULTRA-FAST data extraction
                 symbol_data = price_df.loc[symbol].copy()
-                  # Skip if insufficient data - reduced minimum for speed
+                # Skip if insufficient data - reduced minimum for speed
                 if len(symbol_data) < 1:  # Process ALL available data - even single data points for maximum backtesting data
                     logging.warning(f"⚠️  No data available for {symbol}, skipping")
                     continue
+                
+                logging.info(f"📊 {symbol}: Found {len(symbol_data)} price records for technical analysis")
                 
                 # ULTRA-FAST technical indicators calculation using vectorized operations
                 tech_start = time.time()
@@ -786,8 +788,10 @@ def _process_symbol_chunk_internal(symbol_chunk, db_config, retry_count=0):
                 tech_time = time.time() - tech_start
                 
                 if df_tech.empty:
-                    logging.warning(f"❌ Failed to calculate technicals for {symbol}")
+                    logging.warning(f"❌ {symbol}: Failed to calculate technicals - empty result")
                     continue
+                
+                logging.info(f"⚡ {symbol}: Calculated {len(df_tech)} technical indicator rows in {tech_time:.2f}s")
                 
                 # ULTRA-FAST data preparation for insertion - vectorized approach
                 insert_start = time.time()
@@ -831,26 +835,25 @@ def _process_symbol_chunk_internal(symbol_chunk, db_config, retry_count=0):
                         sanitize_value(row.get('ema_21')),
                         sanitize_value(row.get('bbands_lower')),
                         sanitize_value(row.get('bbands_middle')),
-                        sanitize_value(row.get('bbands_upper')),
-                        sanitize_value(row.get('pivot_high')),
+                        sanitize_value(row.get('bbands_upper')),                        sanitize_value(row.get('pivot_high')),
                         sanitize_value(row.get('pivot_low')),
                         datetime.now()
                     )
                     symbol_insert_data.append(record)
                 
                 insert_prep_time = time.time() - insert_start
-                
                 all_insert_data.extend(symbol_insert_data)
                 processed_symbols.append(symbol)
                 
-                if i % 5 == 0:  # Log progress every 5 symbols
-                    logging.info(f"✅ {symbol}: {len(df_tech)} indicators calculated in {tech_time:.2f}s, data prep in {insert_prep_time:.2f}s")
+                symbol_total_time = time.time() - symbol_start_time
+                logging.info(f"✅ {symbol}: Successfully processed {len(df_tech)} indicators in {symbol_total_time:.2f}s (tech: {tech_time:.2f}s, prep: {insert_prep_time:.2f}s)")
                 
                 # Aggressive memory cleanup
                 del symbol_data, df_tech, df_reset, symbol_insert_data
                 
             except Exception as e:
-                logging.error(f"❌ {symbol}: Error during processing - {str(e)}")
+                symbol_total_time = time.time() - symbol_start_time
+                logging.error(f"❌ {symbol}: Error during processing after {symbol_total_time:.2f}s - {str(e)}")
                 continue
         
         symbol_process_time = time.time() - symbol_process_start
@@ -980,10 +983,13 @@ def load_technicals_optimized(symbols):
             try:
                 processed_symbols = future.result()
                 all_processed_symbols.extend(processed_symbols)
-                
-                # Determine failed symbols in this chunk
+                  # Determine failed symbols in this chunk
                 failed_in_chunk = [s for s in chunk if s not in processed_symbols]
                 all_failed_symbols.extend(failed_in_chunk)
+                
+                # Enhanced chunk completion logging with symbol details
+                success_count = len(processed_symbols)
+                fail_count = len(failed_in_chunk)
                 
                 # Calculate progress and ETA
                 progress_pct = (completed_chunks / total_chunks) * 100
@@ -996,11 +1002,16 @@ def load_technicals_optimized(symbols):
                     eta_minutes = eta_seconds / 60
                     
                     logging.info(f"📈 Progress: {completed_chunks}/{total_chunks} chunks ({progress_pct:.1f}%) | "
-                                f"Chunk {chunk_num}: {len(processed_symbols)}/{len(chunk)} symbols succeeded | "
+                                f"Chunk {chunk_num}: {success_count}/{len(chunk)} symbols succeeded | "
                                 f"ETA: {eta_minutes:.1f} minutes")
                 else:
                     logging.info(f"📊 Chunk {chunk_num}/{total_chunks} completed: "
-                                f"{len(processed_symbols)}/{len(chunk)} symbols processed successfully")
+                                f"{success_count}/{len(chunk)} symbols processed successfully")
+                
+                # Log failed symbols if any
+                if fail_count > 0:
+                    failed_symbols_str = ', '.join(failed_in_chunk[:5]) + ('...' if fail_count > 5 else '')
+                    logging.warning(f"⚠️  Chunk {chunk_num}: {fail_count} symbols failed: {failed_symbols_str}")
                 
                 log_mem(f"after chunk {chunk_num}")
                 
@@ -1010,19 +1021,24 @@ def load_technicals_optimized(symbols):
             except Exception as e:
                 logging.error(f"❌ Chunk {chunk_num}/{total_chunks} failed completely: {str(e)}")
                 all_failed_symbols.extend(chunk)
-    
-    # Final performance summary
+      # Final performance summary
     total_time = time.time() - start_time
     successful_count = len(all_processed_symbols)
     failed_count = len(all_failed_symbols)
-    
     logging.info(f"🎯 TA-Lib optimization complete!")
     logging.info(f"📊 Results: {successful_count}/{total} symbols processed successfully")
     logging.info(f"⏱️  Total time: {total_time/60:.2f} minutes ({total_time:.1f} seconds)")
     logging.info(f"⚡ Performance: {successful_count/(total_time/60):.1f} symbols/minute")
     
     if failed_count > 0:
-        logging.warning(f"⚠️  {failed_count} symbols failed: {all_failed_symbols[:10]}{'...' if failed_count > 10 else ''}")
+        logging.warning(f"⚠️  {failed_count} symbols failed processing:")
+        # Show first 20 failed symbols with more detail
+        for i, symbol in enumerate(all_failed_symbols[:20]):
+            logging.warning(f"  - {symbol}")
+        if failed_count > 20:
+            logging.warning(f"  ... and {failed_count - 20} more symbols failed")
+    else:
+        logging.info("✅ All symbols processed successfully!")
     
     log_mem("final memory usage")
     
