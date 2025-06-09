@@ -180,8 +180,7 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
-      Policies:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole      Policies:
         - PolicyName: SecretsManagerAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -190,6 +189,14 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource: !Ref DatabaseSecretArn
+        - PolicyName: RDSConnect
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - rds-db:connect
+                Resource: !Sub 'arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:stocks/*'
   # Security Group for Lambda Function
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -231,7 +238,12 @@ Resources:
           - Fn::ImportValue: StocksCore-PrivateSubnet2Id
       Environment:
         Variables:
-          DB_SECRET_ARN: !Ref DatabaseSecretArn      
+          DB_SECRET_ARN: !Ref DatabaseSecretArn
+          DB_ENDPOINT: !Ref DatabaseEndpoint
+          NODE_ENV: !Ref EnvironmentName
+          WEBAPP_AWS_REGION: !Ref AWS::Region
+          USE_IAM_DB_AUTH: 'false'  # Set to 'true' for IAM auth
+          IAM_DB_USER: 'lambda_user'  # Database user for IAM auth
       Events:
         ApiGatewayAny:
           Type: Api
@@ -307,13 +319,18 @@ Outputs:
     Value: !Ref ApiGateway
     Export:
       Name: !Sub '${AWS::StackName}-ApiGatewayId'
-
   # Lambda
   LambdaFunctionName:
     Description: 'Lambda function name'
     Value: !Ref ApiFunction
     Export:
       Name: !Sub '${AWS::StackName}-LambdaFunction'
+
+  LambdaSecurityGroupId:
+    Description: 'Lambda Security Group ID'
+    Value: !Ref LambdaSecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaSecurityGroup'
 
   LambdaFunctionArn:
     Description: 'Lambda function ARN'

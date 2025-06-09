@@ -1,5 +1,6 @@
 const { Pool } = require('pg');
 const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
+const { Signer } = require('@aws-sdk/rds-signer');
 
 let pool = null;
 
@@ -11,10 +12,34 @@ async function getDbCredentials() {
       port: parseInt(process.env.DB_PORT) || 5432,
       database: process.env.DB_NAME || 'stocks',
       user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || 'password'
+      password: process.env.DB_PASSWORD || 'password',
+      useIAM: false
     };
   }
-  // For production, get credentials from AWS Secrets Manager
+  
+  // For production, check if we should use IAM auth or secrets
+  if (process.env.USE_IAM_DB_AUTH === 'true') {
+    // Use IAM database authentication
+    const signer = new Signer({
+      region: process.env.WEBAPP_AWS_REGION || 'us-east-1',
+      hostname: process.env.DB_ENDPOINT,
+      port: 5432,
+      username: process.env.IAM_DB_USER || 'lambda_user'
+    });
+    
+    const token = await signer.getAuthToken();
+    
+    return {
+      host: process.env.DB_ENDPOINT,
+      port: 5432,
+      database: 'stocks',
+      user: process.env.IAM_DB_USER || 'lambda_user',
+      password: token,
+      useIAM: true
+    };
+  }
+  
+  // Fall back to Secrets Manager
   const client = new SecretsManagerClient({ 
     region: process.env.WEBAPP_AWS_REGION || 'us-east-1' 
   });
@@ -28,11 +53,12 @@ async function getDbCredentials() {
     const secret = JSON.parse(response.SecretString);
     
     return {
-      host: secret.host,
-      port: parseInt(secret.port),
-      database: secret.dbname,
+      host: secret.host || process.env.DB_ENDPOINT,
+      port: parseInt(secret.port) || 5432,
+      database: secret.dbname || 'stocks',
       user: secret.username,
-      password: secret.password
+      password: secret.password,
+      useIAM: false
     };
   } catch (error) {
     console.error('Error retrieving database credentials:', error);
@@ -50,8 +76,7 @@ async function initializeDatabase() {
       database: credentials.database,
       user: credentials.user
       // Don't log password
-    });
-      pool = new Pool({
+    });    pool = new Pool({
       ...credentials,
       max: 3, // Reduced for Lambda
       idleTimeoutMillis: 20000,
@@ -59,10 +84,15 @@ async function initializeDatabase() {
       statement_timeout: 15000, // Query timeout
       query_timeout: 15000,
       acquireTimeoutMillis: 5000, // How long to wait for a connection
-      ssl: process.env.NODE_ENV === 'production' ? { 
+      ssl: credentials.useIAM || process.env.NODE_ENV === 'production' ? { 
         rejectUnauthorized: false,
         sslmode: 'require'
-      } : false
+      } : false,
+      // For IAM auth, connection needs to be renewed frequently
+      ...(credentials.useIAM && {
+        idleTimeoutMillis: 300000, // 5 minutes for IAM tokens
+        allowExitOnIdle: true
+      })
     });
 
     console.log('Database pool created, testing connection...');

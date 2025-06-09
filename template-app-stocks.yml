@@ -18,28 +18,32 @@ Parameters:
 
 Resources:
 
-  ### 1) RDS Subnet Group (public) ### 
+  ### 1) RDS Subnet Group (private) ### 
   StocksDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      DBSubnetGroupDescription: Public subnet group for RDS
+      DBSubnetGroupDescription: Private subnet group for RDS (same as Lambda)
       SubnetIds:
-        - !ImportValue StocksCore-PublicSubnet1Id
-        - !ImportValue StocksCore-PublicSubnet2Id
+        - !ImportValue StocksCore-PrivateSubnet1Id
+        - !ImportValue StocksCore-PrivateSubnet2Id
   ### 2) RDS Security Group ###
   StocksDBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow Postgres access
+      GroupDescription: Allow Postgres access from Lambda and ECS
       VpcId: !ImportValue StocksCore-VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 5432
           ToPort: 5432
-          CidrIp: "0.0.0.0/0"
-          Description: "Allow Postgres traffic from anywhere"
+          SourceSecurityGroupId: !ImportValue StocksApp-EcsTasksSecurityGroupId
+          Description: "Allow Postgres from ECS tasks"
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: 10.0.0.0/16          Description: "Allow Postgres from VPC (includes Lambda)"
 
   ### 3) RDS Instance ###
   StocksDBInstance:
@@ -59,9 +63,10 @@ Resources:
       VPCSecurityGroups:
         - !Ref StocksDBSecurityGroup
       DBSubnetGroupName: !Ref StocksDBSubnetGroup
-      PubliclyAccessible: true
+      PubliclyAccessible: false
       MultiAZ: false
       DeletionProtection: false
+      EnableIAMDatabaseAuthentication: true
   ### 4) Secrets Manager: DB creds ###
   DBCredentialsSecret:
     Type: AWS::SecretsManager::Secret

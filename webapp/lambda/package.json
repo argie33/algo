@@ -16,7 +16,8 @@
     "helmet": "^7.1.0",
     "morgan": "^1.10.0",
     "dotenv": "^16.3.1",
-    "@aws-sdk/client-secrets-manager": "^3.454.0"
+    "@aws-sdk/client-secrets-manager": "^3.454.0",
+    "@aws-sdk/rds-signer": "^3.454.0"
   },
   "devDependencies": {
     "jest": "^29.7.0",
