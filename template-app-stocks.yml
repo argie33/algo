@@ -18,16 +18,16 @@ Parameters:
 
 Resources:
 
-  ### 1) RDS Subnet Group (private) ### 
+  ### 1) RDS Subnet Group (public) ### 
   StocksDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      DBSubnetGroupDescription: Private subnet group for RDS (same as Lambda)
+      DBSubnetGroupDescription: Public subnet group for RDS
       SubnetIds:
-        - !ImportValue StocksCore-PrivateSubnet1Id
-        - !ImportValue StocksCore-PrivateSubnet2Id
+        - !ImportValue StocksCore-PublicSubnet1Id
+        - !ImportValue StocksCore-PublicSubnet2Id
   ### 2) RDS Security Group ###
   StocksDBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -43,8 +43,13 @@ Resources:
         - IpProtocol: tcp
           FromPort: 5432
           ToPort: 5432
-          CidrIp: 10.0.0.0/16          Description: "Allow Postgres from VPC (includes Lambda)"
-
+          CidrIp: "10.0.0.0/16"
+          Description: "Allow Postgres from VPC (includes Lambda)"
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: 10.0.0.0/16
+          Description: "Allow Postgres from VPC (includes Lambda)"
   ### 3) RDS Instance ###
   StocksDBInstance:
     Type: AWS::RDS::DBInstance
@@ -63,7 +68,7 @@ Resources:
       VPCSecurityGroups:
         - !Ref StocksDBSecurityGroup
       DBSubnetGroupName: !Ref StocksDBSubnetGroup
-      PubliclyAccessible: false
+      PubliclyAccessible: true
       MultiAZ: false
       DeletionProtection: false
       EnableIAMDatabaseAuthentication: true

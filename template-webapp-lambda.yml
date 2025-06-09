@@ -196,8 +196,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - rds-db:connect
-                Resource: !Sub 'arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:stocks/*'
-  # Security Group for Lambda Function
+                Resource: !Sub 'arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:stocks/*'  # Security Group for Lambda Function
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -208,16 +207,18 @@ Resources:
         - IpProtocol: tcp
           FromPort: 5432
           ToPort: 5432
-          DestinationSecurityGroupId: 
-            Fn::ImportValue: StocksApp-EcsTasksSecurityGroupId
+          CidrIp: "10.0.0.0/16"
+          Description: "Allow Postgres to VPC"
         - IpProtocol: tcp
           FromPort: 443
           ToPort: 443
           CidrIp: 0.0.0.0/0
+          Description: "Allow HTTPS outbound"
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
           CidrIp: 0.0.0.0/0
+          Description: "Allow HTTP outbound"
       Tags:
         - Key: Name
           Value: !Sub 'lambda-sg-${EnvironmentName}'
@@ -229,13 +230,12 @@ Resources:
       FunctionName: !Sub 'financial-dashboard-api-${EnvironmentName}'
       CodeUri: webapp/lambda/
       Handler: index.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
-      VpcConfig:
+      Role: !GetAtt LambdaExecutionRole.Arn      VpcConfig:
         SecurityGroupIds:
           - !Ref LambdaSecurityGroup
         SubnetIds:
-          - Fn::ImportValue: StocksCore-PrivateSubnet1Id
-          - Fn::ImportValue: StocksCore-PrivateSubnet2Id
+          - Fn::ImportValue: StocksCore-PublicSubnet1Id
+          - Fn::ImportValue: StocksCore-PublicSubnet2Id
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DatabaseSecretArn
