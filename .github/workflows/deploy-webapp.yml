@@ -50,13 +50,6 @@ jobs:
               - 'webapp/**'
             lambda:
               - 'webapp/lambda/**'
-            frontend:
-              - 'webapp/frontend/**'
-            template:
-              - 'template-webapp-lambda.yml'
-              - '.github/workflows/deploy-webapp.yml'
-              - 'webapp/**'
-            lambda:
               - 'webapp/backend/**'
             frontend:
               - 'webapp/frontend/**'
