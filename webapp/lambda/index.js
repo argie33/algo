@@ -15,6 +15,9 @@ const healthRoutes = require('./routes/health');
 
 const app = express();
 
+// Trust proxy when running behind API Gateway/CloudFront
+app.set('trust proxy', true);
+
 // Security middleware (adjusted for Lambda)
 app.use(helmet({
   contentSecurityPolicy: {
