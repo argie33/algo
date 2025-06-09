@@ -99,21 +99,36 @@ async function initializeDatabase() {
       // Simplified SSL - match Python defaults
       ssl: process.env.NODE_ENV === 'production' ? true : false
     });    console.log('Database pool created, testing connection...');
-    
-    // Test the connection with shorter timeout and better error details
+      // Test the connection with detailed error logging
     let client;
     try {
+      console.log('Attempting to connect to database with config:', {
+        host: credentials.host,
+        port: credentials.port,
+        database: credentials.database,
+        user: credentials.user,
+        ssl: process.env.NODE_ENV === 'production' ? true : false
+      });
+      
+      console.log('Starting database connection attempt...');
+      const connectStart = Date.now();
+      
       client = await Promise.race([
         pool.connect(),
         new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Database connection timeout after 4 seconds')), 4000)
+          setTimeout(() => reject(new Error('Database connection timeout after 8 seconds')), 8000)
         )
       ]);
-      console.log('Database client connected successfully, testing query...');
+      
+      const connectTime = Date.now() - connectStart;
+      console.log(`Database client connected successfully in ${connectTime}ms`);
       
       // Simple test query like Python code
+      console.log('Testing database query...');
+      const queryStart = Date.now();
       const result = await client.query('SELECT 1 as test');
-      console.log('Database test query successful:', result.rows[0]);
+      const queryTime = Date.now() - queryStart;
+      console.log(`Database test query successful in ${queryTime}ms:`, result.rows[0]);
       client.release();
       
     } catch (connectionError) {
@@ -124,8 +139,17 @@ async function initializeDatabase() {
         syscall: connectionError.syscall,
         address: connectionError.address,
         port: connectionError.port,
+        host: connectionError.host,
         stack: connectionError.stack
       });
+      
+      // Also log pool status
+      console.error('Pool status:', {
+        totalCount: pool.totalCount,
+        idleCount: pool.idleCount,
+        waitingCount: pool.waitingCount
+      });
+      
       throw connectionError;
     }
     
