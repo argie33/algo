@@ -8,8 +8,7 @@
     "test": "jest",
     "package": "npm prune --production && zip -r function.zip . -x '*.git*' 'node_modules/.cache/*' 'tests/*' 'coverage/*'",
     "deploy-package": "npm run package && aws lambda update-function-code --function-name financial-dashboard-api --zip-file fileb://function.zip"
-  },
-  "dependencies": {
+  },  "dependencies": {
     "serverless-http": "^3.2.0",
     "express": "^4.18.2",
     "pg": "^8.11.3",
@@ -17,7 +16,6 @@
     "helmet": "^7.1.0",
     "morgan": "^1.10.0",
     "dotenv": "^16.3.1",
-    "express-rate-limit": "^7.1.5",
     "@aws-sdk/client-secrets-manager": "^3.454.0"
   },
   "devDependencies": {

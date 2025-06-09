@@ -3,8 +3,6 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
-const rateLimit = require('express-rate-limit');
-
 const { initializeDatabase } = require('./utils/database');
 const errorHandler = require('./middleware/errorHandler');
 
@@ -32,17 +30,7 @@ app.use(helmet({
   },
 }));
 
-// Rate limiting (reduced for Lambda cold starts)
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // Higher limit for Lambda since it's per container
-  message: 'Too many requests from this IP, please try again later.',
-  skip: (req) => {
-    // Skip rate limiting for health checks
-    return req.path === '/health';
-  }
-});
-app.use(limiter);
+// Note: Rate limiting removed - API Gateway handles this
 
 // CORS configuration (allow API Gateway origins)
 app.use(cors({
@@ -88,10 +76,18 @@ const ensureDatabase = async () => {
 // Middleware to ensure database is ready
 app.use(async (req, res, next) => {
   try {
+    console.log(`Processing request: ${req.method} ${req.path}`);
     await ensureDatabase();
+    console.log('Database connection verified');
     next();
   } catch (error) {
     console.error('Database initialization failed:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
+    
     if (req.path === '/health') {
       // Allow health checks even if DB is down
       next();
