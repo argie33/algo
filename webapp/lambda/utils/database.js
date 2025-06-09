@@ -16,9 +16,9 @@ async function getDbCredentials() {
       useIAM: false
     };
   }
-  
-  // For production, check if we should use IAM auth or secrets
+    // For production, check if we should use IAM auth or secrets
   if (process.env.USE_IAM_DB_AUTH === 'true') {
+    console.log('Using IAM database authentication...');
     // Use IAM database authentication
     const signer = new Signer({
       region: process.env.WEBAPP_AWS_REGION || 'us-east-1',
@@ -39,22 +39,39 @@ async function getDbCredentials() {
     };
   }
   
-  // Fall back to Secrets Manager
+  // Fall back to Secrets Manager with timeout
+  console.log('Using AWS Secrets Manager for database credentials...');
   const client = new SecretsManagerClient({ 
-    region: process.env.WEBAPP_AWS_REGION || 'us-east-1' 
+    region: process.env.WEBAPP_AWS_REGION || 'us-east-1',
+    maxAttempts: 3,
+    requestHandler: {
+      requestTimeout: 5000 // 5 second timeout for secrets
+    }
   });
   
   try {
+    console.log('Retrieving secret from:', process.env.DB_SECRET_ARN);
+    
     const command = new GetSecretValueCommand({
       SecretId: process.env.DB_SECRET_ARN
     });
     
-    const response = await client.send(command);
+    // Add timeout to secrets retrieval
+    const response = await Promise.race([
+      client.send(command),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Secrets Manager timeout after 8 seconds')), 8000)
+      )
+    ]);
+    
+    console.log('Secret retrieved successfully, parsing...');
     const secret = JSON.parse(response.SecretString);
-      return {
+    
+    console.log('Secret parsed, extracting database config...');
+    return {
       host: secret.host || process.env.DB_ENDPOINT,
       port: parseInt(secret.port) || 5432,
-      database: secret.dbname || 'stocks', // Match Python code: uses 'dbname' field
+      database: secret.dbname || 'stocks',
       user: secret.username,
       password: secret.password,
       useIAM: false
@@ -86,19 +103,24 @@ async function initializeDatabase() {
       useIAM: credentials.useIAM
       // Don't log password
     });
-      // Match the working Python psycopg2 connection pattern
+    
+    // Create pool with minimal, Python-like configuration
+    console.log('Creating database pool...');
     pool = new Pool({
       host: credentials.host,
       port: credentials.port,
       database: credentials.database,
       user: credentials.user,
       password: credentials.password,
-      max: 3, // Reduced for Lambda
+      max: 3, // Small pool for Lambda
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000, // Match working timeout
-      // Simplified SSL - match Python defaults
-      ssl: process.env.NODE_ENV === 'production' ? true : false
-    });    console.log('Database pool created, testing connection...');
+      connectionTimeoutMillis: 5000, // Shorter timeout to fail fast
+      // Simple SSL configuration - match Python defaults
+      ssl: false  // Start with no SSL to test basic connectivity
+    });
+    
+    console.log('Database pool created successfully');
+    console.log('Testing database connection...');
       // Test the connection with detailed error logging
     let client;
     try {
