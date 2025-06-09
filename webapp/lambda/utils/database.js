@@ -76,7 +76,9 @@ async function initializeDatabase() {
       database: credentials.database,
       user: credentials.user
       // Don't log password
-    });    pool = new Pool({
+    });
+    
+    pool = new Pool({
       ...credentials,
       max: 3, // Reduced for Lambda
       idleTimeoutMillis: 20000,
