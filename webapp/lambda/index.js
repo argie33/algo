@@ -60,43 +60,65 @@ if (process.env.NODE_ENV !== 'production') {
 
 // Global database initialization promise
 let dbInitPromise = null;
+let dbAvailable = false;
 
-// Initialize database connection on cold start
+// Initialize database connection with shorter timeout
 const ensureDatabase = async () => {
   if (!dbInitPromise) {
-    dbInitPromise = initializeDatabase().catch(err => {
+    console.log('Initializing database connection...');
+    dbInitPromise = Promise.race([
+      initializeDatabase(),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Database initialization timeout after 15 seconds')), 15000)
+      )
+    ]).then(pool => {
+      dbAvailable = true;
+      console.log('Database connection established successfully');
+      return pool;
+    }).catch(err => {
       console.error('Failed to initialize database:', err);
       dbInitPromise = null; // Reset to allow retry
+      dbAvailable = false;
       throw err;
     });
   }
   return dbInitPromise;
 };
 
-// Middleware to ensure database is ready
+// Middleware to check database requirement based on endpoint
 app.use(async (req, res, next) => {
+  console.log(`Processing request: ${req.method} ${req.path}`);
+  
+  // Endpoints that don't require database
+  const nonDbEndpoints = ['/', '/health'];
+  const isHealthQuick = req.path === '/health' && req.query.quick === 'true';
+  
+  if (nonDbEndpoints.includes(req.path) || isHealthQuick) {
+    console.log('Endpoint does not require database connection');
+    return next();
+  }
+  
+  // For endpoints that need database, try to ensure connection
   try {
-    console.log(`Processing request: ${req.method} ${req.path}`);
     await ensureDatabase();
-    console.log('Database connection verified');
+    console.log('Database connection verified for database-dependent endpoint');
     next();
   } catch (error) {
-    console.error('Database initialization failed:', error);
-    console.error('Error details:', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack
-    });
+    console.error('Database initialization failed for database-dependent endpoint:', error);
     
+    // For health endpoint (non-quick), still allow it to proceed with DB error info
     if (req.path === '/health') {
-      // Allow health checks even if DB is down
-      next();
-    } else {
-      res.status(503).json({ 
-        error: 'Service temporarily unavailable - database connection failed',
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
+      req.dbError = error;
+      return next();
     }
+    
+    // For other endpoints, return service unavailable
+    res.status(503).json({ 
+      error: 'Service temporarily unavailable - database connection failed',
+      message: 'The database is currently unavailable. Please try again later.',
+      timestamp: new Date().toISOString(),
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
@@ -112,7 +134,19 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     status: 'operational',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    endpoints: {
+      health: {
+        quick: '/health?quick=true',
+        full: '/health'
+      },
+      api: {
+        stocks: '/stocks',
+        screen: '/stocks/screen',
+        metrics: '/metrics'
+      }
+    },
+    notes: 'Use /health?quick=true for fast status check without database dependency'
   });
 });
 

@@ -24,7 +24,7 @@ Parameters:
 
 Globals:
   Function:
-    Timeout: 30
+    Timeout: 60
     MemorySize: 512
     Runtime: nodejs18.x
     Environment:
@@ -32,6 +32,7 @@ Globals:
         NODE_ENV: !Ref EnvironmentName
         DB_SECRET_ARN: !Ref DatabaseSecretArn
         WEBAPP_AWS_REGION: !Ref AWS::Region
+        DB_ENDPOINT: !Ref DatabaseEndpoint
 
 Resources:
   # S3 Bucket for Frontend Static Files

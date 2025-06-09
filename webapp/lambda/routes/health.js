@@ -5,16 +5,62 @@ const router = express.Router();
 
 router.get('/', async (req, res) => {
   try {
-    // Test database connection
-    const result = await query('SELECT NOW() as timestamp, version() as db_version');
+    // Basic health check without database (for quick status)
+    if (req.query.quick === 'true') {
+      return res.json({
+        status: 'healthy',
+        service: 'Financial Dashboard API',
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development',
+        memory: process.memoryUsage(),
+        uptime: process.uptime()
+      });
+    }
+
+    // Full health check with database
+    console.log('Starting health check with database...');
     
-    // Get basic table counts
-    const tableChecks = await Promise.all([
-      query('SELECT COUNT(*) as count FROM company_profile'),
-      query('SELECT COUNT(*) as count FROM key_metrics'),
-      query('SELECT COUNT(*) as count FROM market_data'),
-      query('SELECT COUNT(*) as count FROM ttm_income_stmt'),
-      query('SELECT COUNT(*) as count FROM ttm_cash_flow')
+    // Check if database error was passed from middleware
+    if (req.dbError) {
+      return res.status(503).json({
+        status: 'degraded',
+        service: 'Financial Dashboard API',
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development',
+        database: {
+          status: 'unavailable',
+          error: req.dbError.message,
+          lastAttempt: new Date().toISOString()
+        },
+        memory: process.memoryUsage(),
+        uptime: process.uptime()
+      });
+    }
+    
+    // Test database connection with timeout
+    const dbStart = Date.now();
+    const result = await Promise.race([
+      query('SELECT NOW() as timestamp, version() as db_version'),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Database health check timeout')), 5000)
+      )
+    ]);
+    const dbTime = Date.now() - dbStart;
+    
+    console.log(`Database connection test completed in ${dbTime}ms`);
+    
+    // Get basic table counts (with shorter timeout)
+    const tableChecks = await Promise.race([
+      Promise.all([
+        query('SELECT COUNT(*) as count FROM company_profile'),
+        query('SELECT COUNT(*) as count FROM key_metrics'), 
+        query('SELECT COUNT(*) as count FROM market_data'),
+        query('SELECT COUNT(*) as count FROM ttm_income_stmt'),
+        query('SELECT COUNT(*) as count FROM ttm_cash_flow')
+      ]),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Table count timeout')), 3000)
+      )
     ]);
 
     const health = {
