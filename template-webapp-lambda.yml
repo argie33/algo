@@ -165,8 +165,7 @@ Resources:
   ApiGatewayAccount:
     Type: AWS::ApiGateway::Account
     Properties:
-      CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
-  # Lambda Function IAM Role
+      CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchLogsRole.Arn  # Lambda Function IAM Role
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -179,7 +178,7 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        # Removed VPC access policy since Lambda is no longer in VPC
       Policies:
         - PolicyName: SecretsManagerAccess
           PolicyDocument:
@@ -195,33 +194,7 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - rds-db:connect
-                Resource: !Sub 'arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:stocks/*'  # Security Group for Lambda Function
-  LambdaSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Security group for Lambda function to access RDS database
-      VpcId: 
-        Fn::ImportValue: StocksCore-VpcId
-      SecurityGroupEgress:
-        - IpProtocol: tcp
-          FromPort: 5432
-          ToPort: 5432
-          CidrIp: "10.0.0.0/16"
-          Description: "Allow Postgres to VPC"
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          CidrIp: 0.0.0.0/0
-          Description: "Allow HTTPS outbound"
-        - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-          CidrIp: 0.0.0.0/0
-          Description: "Allow HTTP outbound"
-      Tags:
-        - Key: Name
-          Value: !Sub 'lambda-sg-${EnvironmentName}'
+                  - rds-db:connect                Resource: !Sub 'arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:stocks/*'
 
   # Lambda Function
   ApiFunction:
@@ -231,12 +204,8 @@ Resources:
       CodeUri: webapp/lambda/
       Handler: index.handler
       Role: !GetAtt LambdaExecutionRole.Arn
-      VpcConfig:
-        SecurityGroupIds:
-          - !Ref LambdaSecurityGroup
-        SubnetIds:
-          - Fn::ImportValue: StocksCore-PublicSubnet1Id
-          - Fn::ImportValue: StocksCore-PublicSubnet2Id
+      # Removed VPC configuration - Lambda doesn't need to be in VPC
+      # to access Secrets Manager and publicly accessible RDS
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DatabaseSecretArn
@@ -319,19 +288,12 @@ Outputs:
     Description: 'API Gateway ID'
     Value: !Ref ApiGateway
     Export:
-      Name: !Sub '${AWS::StackName}-ApiGatewayId'
-  # Lambda
+      Name: !Sub '${AWS::StackName}-ApiGatewayId'  # Lambda
   LambdaFunctionName:
     Description: 'Lambda function name'
     Value: !Ref ApiFunction
     Export:
       Name: !Sub '${AWS::StackName}-LambdaFunction'
-
-  LambdaSecurityGroupId:
-    Description: 'Lambda Security Group ID'
-    Value: !Ref LambdaSecurityGroup
-    Export:
-      Name: !Sub '${AWS::StackName}-LambdaSecurityGroup'
 
   LambdaFunctionArn:
     Description: 'Lambda function ARN'
