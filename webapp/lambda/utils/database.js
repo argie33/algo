@@ -51,11 +51,10 @@ async function getDbCredentials() {
     
     const response = await client.send(command);
     const secret = JSON.parse(response.SecretString);
-    
-    return {
+      return {
       host: secret.host || process.env.DB_ENDPOINT,
       port: parseInt(secret.port) || 5432,
-      database: secret.dbname || 'stocks',
+      database: secret.dbname || 'stocks', // Match Python code: uses 'dbname' field
       user: secret.username,
       password: secret.password,
       useIAM: false
@@ -69,48 +68,66 @@ async function getDbCredentials() {
 async function initializeDatabase() {
   try {
     console.log('Starting database initialization...');
+    
+    // Add debugging for environment variables
+    console.log('Environment check:', {
+      NODE_ENV: process.env.NODE_ENV,
+      DB_ENDPOINT: process.env.DB_ENDPOINT,
+      DB_SECRET_ARN: process.env.DB_SECRET_ARN ? 'SET' : 'NOT_SET',
+      WEBAPP_AWS_REGION: process.env.WEBAPP_AWS_REGION
+    });
+    
     const credentials = await getDbCredentials();
     console.log('Database credentials retrieved:', {
       host: credentials.host,
       port: credentials.port,
       database: credentials.database,
-      user: credentials.user
+      user: credentials.user,
+      useIAM: credentials.useIAM
       // Don't log password
     });
-    
+      // Match the working Python psycopg2 connection pattern
     pool = new Pool({
-      ...credentials,
+      host: credentials.host,
+      port: credentials.port,
+      database: credentials.database,
+      user: credentials.user,
+      password: credentials.password,
       max: 3, // Reduced for Lambda
-      idleTimeoutMillis: 20000,
-      connectionTimeoutMillis: 5000, // Reduced timeout for faster failures
-      statement_timeout: 15000, // Query timeout
-      query_timeout: 15000,
-      acquireTimeoutMillis: 5000, // How long to wait for a connection
-      ssl: credentials.useIAM || process.env.NODE_ENV === 'production' ? { 
-        rejectUnauthorized: false,
-        sslmode: 'require'
-      } : false,
-      // For IAM auth, connection needs to be renewed frequently
-      ...(credentials.useIAM && {
-        idleTimeoutMillis: 300000, // 5 minutes for IAM tokens
-        allowExitOnIdle: true
-      })
-    });
-
-    console.log('Database pool created, testing connection...');
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000, // Match working timeout
+      // Simplified SSL - match Python defaults
+      ssl: process.env.NODE_ENV === 'production' ? true : false
+    });    console.log('Database pool created, testing connection...');
     
-    // Test the connection with shorter timeout
-    const client = await Promise.race([
-      pool.connect(),
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Database connection timeout')), 4000)
-      )
-    ]);
-    
-    console.log('Database client connected, testing query...');
-    const result = await client.query('SELECT NOW() as current_time, version() as db_version');
-    console.log('Database test query successful:', result.rows[0]);
-    client.release();
+    // Test the connection with shorter timeout and better error details
+    let client;
+    try {
+      client = await Promise.race([
+        pool.connect(),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Database connection timeout after 4 seconds')), 4000)
+        )
+      ]);
+      console.log('Database client connected successfully, testing query...');
+      
+      // Simple test query like Python code
+      const result = await client.query('SELECT 1 as test');
+      console.log('Database test query successful:', result.rows[0]);
+      client.release();
+      
+    } catch (connectionError) {
+      console.error('Database connection failed with detailed error:', {
+        message: connectionError.message,
+        code: connectionError.code,
+        errno: connectionError.errno,
+        syscall: connectionError.syscall,
+        address: connectionError.address,
+        port: connectionError.port,
+        stack: connectionError.stack
+      });
+      throw connectionError;
+    }
     
     console.log('Database connection pool initialized successfully');
     return pool;
