@@ -230,7 +230,8 @@ Resources:
       FunctionName: !Sub 'financial-dashboard-api-${EnvironmentName}'
       CodeUri: webapp/lambda/
       Handler: index.handler
-      Role: !GetAtt LambdaExecutionRole.Arn      VpcConfig:
+      Role: !GetAtt LambdaExecutionRole.Arn
+      VpcConfig:
         SecurityGroupIds:
           - !Ref LambdaSecurityGroup
         SubnetIds:
