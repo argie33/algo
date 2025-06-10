@@ -1,5 +1,5 @@
 const express = require('express');
-const { query } = require('../utils/database');
+const { query, initializeDatabase, getPool } = require('../utils/database');
 
 const router = express.Router();
 
@@ -15,10 +15,16 @@ router.get('/', async (req, res) => {
         memory: process.memoryUsage(),
         uptime: process.uptime()
       });
-    }
-
-    // Full health check with database
+    }    // Full health check with database
     console.log('Starting health check with database...');
+    
+    // Initialize database if not already done
+    try {
+      getPool(); // This will throw if not initialized
+    } catch (initError) {
+      console.log('Database not initialized, initializing now...');
+      await initializeDatabase();
+    }
     
     // Check if database error was passed from middleware
     if (req.dbError) {
