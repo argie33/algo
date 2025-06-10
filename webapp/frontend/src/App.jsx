@@ -22,7 +22,9 @@ import {
   TrendingUp as TrendingUpIcon,
   Assessment as AssessmentIcon,
   FilterList as FilterListIcon,
-  Business as BusinessIcon
+  Business as BusinessIcon,
+  Timeline as TimelineIcon,
+  Person as PersonIcon
 } from '@mui/icons-material'
 import { useNavigate, useLocation } from 'react-router-dom'
 
@@ -32,6 +34,8 @@ import StockList from './pages/StockList'
 import StockDetail from './pages/StockDetail'
 import MarketOverview from './pages/MarketOverview'
 import StockScreener from './pages/StockScreener'
+import TradingSignals from './pages/TradingSignals'
+import AnalystInsights from './pages/AnalystInsights'
 
 const drawerWidth = 240
 
@@ -40,6 +44,8 @@ const menuItems = [
   { text: 'Market Overview', icon: <TrendingUpIcon />, path: '/market' },
   { text: 'Stock List', icon: <BusinessIcon />, path: '/stocks' },
   { text: 'Stock Screener', icon: <FilterListIcon />, path: '/screener' },
+  { text: 'Trading Signals', icon: <TimelineIcon />, path: '/trading' },
+  { text: 'Analyst Insights', icon: <PersonIcon />, path: '/analysts' },
   { text: 'Analytics', icon: <AssessmentIcon />, path: '/analytics' },
 ]
 
@@ -166,13 +172,15 @@ function App() {
         }}
       >
         <Toolbar />
-        <Container maxWidth="xl">
-          <Routes>
+        <Container maxWidth="xl">          <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/market" element={<MarketOverview />} />
             <Route path="/stocks" element={<StockList />} />
             <Route path="/stocks/:ticker" element={<StockDetail />} />
+            <Route path="/stock/:ticker" element={<StockDetail />} />
             <Route path="/screener" element={<StockScreener />} />
+            <Route path="/trading" element={<TradingSignals />} />
+            <Route path="/analysts" element={<AnalystInsights />} />
             <Route path="/analytics" element={<Dashboard />} />
           </Routes>
         </Container>

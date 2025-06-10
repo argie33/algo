@@ -128,6 +128,9 @@ app.use(async (req, res, next) => {
 app.use('/health', healthRoutes);
 app.use('/stocks', stockRoutes);
 app.use('/metrics', metricsRoutes);
+app.use('/market', marketRoutes);
+app.use('/analysts', analystRoutes);
+app.use('/trading', tradingRoutes);
 
 // Default route
 app.get('/', (req, res) => {
@@ -145,7 +148,10 @@ app.get('/', (req, res) => {
       api: {
         stocks: '/stocks',
         screen: '/stocks/screen',
-        metrics: '/metrics'
+        metrics: '/metrics',
+        market: '/market',
+        analysts: '/analysts',
+        trading: '/trading'
       }
     },
     notes: 'Use /health?quick=true for fast status check without database dependency'
