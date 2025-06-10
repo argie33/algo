@@ -6,6 +6,7 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   try {
     // Basic health check without database (for quick status)
+    // Use ?quick=true for fast health check without database queries
     if (req.query.quick === 'true') {
       return res.json({
         status: 'healthy',
@@ -13,9 +14,10 @@ router.get('/', async (req, res) => {
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'development',
         memory: process.memoryUsage(),
-        uptime: process.uptime()
+        uptime: process.uptime(),
+        note: 'Quick health check - database not tested'
       });
-    }    // Full health check with database
+    }// Full health check with database
     console.log('Starting health check with database...');
     
     // Initialize database if not already done
@@ -54,20 +56,60 @@ router.get('/', async (req, res) => {
     const dbTime = Date.now() - dbStart;
     
     console.log(`Database connection test completed in ${dbTime}ms`);
-    
-    // Get basic table counts (with shorter timeout)
-    const tableChecks = await Promise.race([
-      Promise.all([
-        query('SELECT COUNT(*) as count FROM company_profile'),
-        query('SELECT COUNT(*) as count FROM key_metrics'), 
-        query('SELECT COUNT(*) as count FROM market_data'),
-        query('SELECT COUNT(*) as count FROM ttm_income_stmt'),
-        query('SELECT COUNT(*) as count FROM ttm_cash_flow')
-      ]),
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Table count timeout')), 3000)
-      )
-    ]);
+      // Get table information (check existence first)
+    let tables = {};
+    try {
+      const tableExistenceCheck = await Promise.race([
+        query(`
+          SELECT table_name 
+          FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name IN ('company_profile', 'key_metrics', 'market_data', 'ttm_income_stmt', 'ttm_cash_flow')
+        `),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Table existence check timeout')), 2000)
+        )
+      ]);
+
+      const existingTables = tableExistenceCheck.rows.map(row => row.table_name);
+      
+      // Only count tables that exist
+      if (existingTables.length > 0) {
+        const countQueries = existingTables.map(tableName => 
+          query(`SELECT COUNT(*) as count FROM ${tableName}`).then(result => ({
+            table: tableName,
+            count: parseInt(result.rows[0].count)
+          })).catch(err => ({
+            table: tableName,
+            count: null,
+            error: err.message
+          }))
+        );
+
+        const tableResults = await Promise.race([
+          Promise.all(countQueries),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Table count timeout')), 5000)
+          )
+        ]);
+
+        // Build tables object
+        tableResults.forEach(result => {
+          tables[result.table] = result.count !== null ? result.count : `Error: ${result.error}`;
+        });
+      }
+
+      // Add missing tables as "not_found"
+      ['company_profile', 'key_metrics', 'market_data', 'ttm_income_stmt', 'ttm_cash_flow'].forEach(tableName => {
+        if (!existingTables.includes(tableName)) {
+          tables[tableName] = 'not_found';
+        }
+      });
+
+    } catch (tableError) {
+      console.log('Table check failed:', tableError.message);
+      tables = { error: tableError.message };
+    }
 
     const health = {
       status: 'healthy',
@@ -75,13 +117,7 @@ router.get('/', async (req, res) => {
       database: {
         status: 'connected',
         version: result.rows[0].db_version.split(' ')[0],
-        tables: {
-          company_profile: parseInt(tableChecks[0].rows[0].count),
-          key_metrics: parseInt(tableChecks[1].rows[0].count),
-          market_data: parseInt(tableChecks[2].rows[0].count),
-          ttm_income_stmt: parseInt(tableChecks[3].rows[0].count),
-          ttm_cash_flow: parseInt(tableChecks[4].rows[0].count)
-        }
+        tables: tables
       },
       api: {
         version: '1.0.0',
