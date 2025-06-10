@@ -176,8 +176,8 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
         - PolicyName: SecretsManagerAccess
           PolicyDocument:
@@ -202,13 +202,8 @@ Resources:
       FunctionName: !Sub 'financial-dashboard-api-${EnvironmentName}'
       CodeUri: webapp/lambda/
       Handler: index.handler
-      Role: !GetAtt LambdaExecutionRole.Arn      # Put Lambda in VPC to match Python scripts networking
-      VpcConfig:
-        SecurityGroupIds:
-          - !ImportValue StocksApp-EcsTasksSecurityGroupId
-        SubnetIds:
-          - !ImportValue StocksCore-PublicSubnet1Id
-          - !ImportValue StocksCore-PublicSubnet2Id
+      Role: !GetAtt LambdaExecutionRole.Arn
+      # Lambda outside VPC for AWS services access
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DatabaseSecretArn
