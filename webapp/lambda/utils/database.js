@@ -73,8 +73,7 @@ async function initializeDatabase() {
       DB_SECRET_ARN: process.env.DB_SECRET_ARN ? 'SET' : 'NOT_SET',
       WEBAPP_AWS_REGION: process.env.WEBAPP_AWS_REGION
     });
-    
-    const credentials = await getDbCredentials();
+      const credentials = await getDbCredentials();
     console.log('Database credentials retrieved:', {
       host: credentials.host,
       port: credentials.port,
@@ -83,68 +82,51 @@ async function initializeDatabase() {
       useIAM: credentials.useIAM
       // Don't log password
     });
-      // Create pool with minimal, Python-like configuration
-    console.log('Creating database pool...');
+
+    // Create database pool with SSL required (RDS standard)
     pool = new Pool({
       host: credentials.host,
       port: credentials.port,
       database: credentials.database,
       user: credentials.user,
       password: credentials.password,
-        max: 3, // Small pool for Lambda
+      max: 3,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 15000, // Increased timeout for Lambda
-      // SSL required by RDS - pg_hba.conf demands encryption
-      ssl: {
-        rejectUnauthorized: false
-      }
+      connectionTimeoutMillis: 15000,
+      ssl: { rejectUnauthorized: false } // AWS RDS requires SSL
     });
     
-    console.log('Database pool created successfully');
-    console.log('Testing database connection...');
-      // Test the connection with detailed error logging
+    console.log('Database pool created, testing connection...');
+    
+    // Test the connection
     let client;
-    try {      console.log('Attempting to connect to database with config:', {
-        host: credentials.host,
-        port: credentials.port,
-        database: credentials.database,
-        user: credentials.user,
-        ssl: true // SSL required by RDS pg_hba.conf
-      });
-      
+    try {
       console.log('Starting database connection attempt...');
       const connectStart = Date.now();
       
       client = await Promise.race([
         pool.connect(),
         new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Database connection timeout after 8 seconds')), 8000)
+          setTimeout(() => reject(new Error('Database connection timeout after 10 seconds')), 10000)
         )
       ]);
       
       const connectTime = Date.now() - connectStart;
       console.log(`Database client connected successfully in ${connectTime}ms`);
       
-      // Simple test query like Python code
-      console.log('Testing database query...');
+      // Simple test query
       const queryStart = Date.now();
       const result = await client.query('SELECT 1 as test');
       const queryTime = Date.now() - queryStart;
       console.log(`Database test query successful in ${queryTime}ms:`, result.rows[0]);
-      client.release();
-        } catch (connectionError) {
+      
+    } catch (connectionError) {
       console.error('Database connection failed:', connectionError.message);
-      
-      // Log pool status for debugging
-      if (pool) {
-        console.error('Pool status:', {
-          totalCount: pool.totalCount,
-          idleCount: pool.idleCount,
-          waitingCount: pool.waitingCount
-        });
-      }
-      
       throw connectionError;
+    } finally {
+      if (client) {
+        client.release();
+      }
     }
     
     console.log('Database connection pool initialized successfully');

@@ -165,7 +165,7 @@ Resources:
   ApiGatewayAccount:
     Type: AWS::ApiGateway::Account
     Properties:
-      CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchLogsRole.Arn  # Lambda Function IAM Role
+      CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchLogsRole.Arn  # Lambda Function IAM Role  
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -178,6 +178,7 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
       Policies:
         - PolicyName: SecretsManagerAccess
           PolicyDocument:
@@ -203,7 +204,13 @@ Resources:
       CodeUri: webapp/lambda/
       Handler: index.handler
       Role: !GetAtt LambdaExecutionRole.Arn
-      # Lambda outside VPC for AWS services access
+      # Place Lambda in VPC to access RDS
+      VpcConfig:
+        SecurityGroupIds:
+          - !ImportValue StocksApp-EcsTasksSecurityGroupId
+        SubnetIds:
+          - !ImportValue StocksCore-PublicSubnet1Id
+          - !ImportValue StocksCore-PublicSubnet2Id
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DatabaseSecretArn
