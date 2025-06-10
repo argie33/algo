@@ -76,6 +76,9 @@ jobs:
       latesttechnicalsdaily: ${{ steps.paths.outputs.latesttechnicalsdaily }}
       latesttechnicalsweekly: ${{ steps.paths.outputs.latesttechnicalsweekly }}
       latesttechnicalsmonthly: ${{ steps.paths.outputs.latesttechnicalsmonthly }}
+      latestbuyselldaily: ${{ steps.paths.outputs.latestbuyselldaily }}
+      latestbuysellweekly: ${{ steps.paths.outputs.latestbuysellweekly }}
+      latestbuysellmonthly: ${{ steps.paths.outputs.latestbuysellmonthly }}
       technicalsdaily:   ${{ steps.paths.outputs.technicalsdaily }}
       loadinfo:          ${{ steps.paths.outputs.loadinfo }}
       earningsestimate:  ${{ steps.paths.outputs.earningsestimate }}
@@ -163,6 +166,18 @@ jobs:
               - 'loadlatesttechnicalsmonthly.py'
               - 'Dockerfile.latesttechnicalsmonthly'
               - 'requirements-loadlatesttechnicalsmonthly.txt'
+            latestbuyselldaily:
+              - 'loadlatestbuyselldaily.py'
+              - 'Dockerfile.latestbuyselldaily'
+              - 'requirements-latestbuysell.txt'
+            latestbuysellweekly:
+              - 'loadlatestbuysellweekly.py'
+              - 'Dockerfile.latestbuysellweekly'
+              - 'requirements-latestbuysell.txt'
+            latestbuysellmonthly:
+              - 'loadlatestbuysellmonthly.py'
+              - 'Dockerfile.latestbuysellmonthly'
+              - 'requirements-latestbuysell.txt'
             technicalsdaily:
               - 'loadtechnicalsdaily.py'
               - 'Dockerfile.technicalsdaily'
@@ -294,7 +309,10 @@ jobs:
              [ "${{ steps.paths.outputs.latesttechnicalsdaily }}" = "true" ] || \
              [ "${{ steps.paths.outputs.latesttechnicalsweekly }}" = "true" ] || \
              [ "${{ steps.paths.outputs.latesttechnicalsmonthly }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.ttmcashflow }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.latestbuyselldaily }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.latestbuysellweekly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.latestbuysellmonthly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.ttmcashflow }}" = "true" ] ||\
              [ "${{ steps.paths.outputs.ttmincomestmt }}" = "true" ] || \
              [ "${{ steps.paths.outputs.recommendations }}" = "true" ] || \
              [ "${{ steps.paths.outputs.balancesheet }}" = "true" ] || \
@@ -341,6 +359,9 @@ jobs:
           [ "${{ steps.paths.outputs.latesttechnicalsdaily }}" = "true" ]  && arr="$arr,\"latesttechnicalsdaily\""
           [ "${{ steps.paths.outputs.latesttechnicalsweekly }}" = "true" ] && arr="$arr,\"latesttechnicalsweekly\""
           [ "${{ steps.paths.outputs.latesttechnicalsmonthly }}" = "true" ] && arr="$arr,\"latesttechnicalsmonthly\""
+          [ "${{ steps.paths.outputs.latestbuyselldaily }}" = "true" ] && arr="$arr,\"latestbuyselldaily\""
+          [ "${{ steps.paths.outputs.latestbuysellweekly }}" = "true" ] && arr="$arr,\"latestbuysellweekly\""
+          [ "${{ steps.paths.outputs.latestbuysellmonthly }}" = "true" ] && arr="$arr,\"latestbuysellmonthly\""
           [ "${{ steps.paths.outputs.ttmcashflow }}" = "true" ] && arr="$arr,\"ttmcashflow\""
           [ "${{ steps.paths.outputs.ttmincomestmt }}" = "true" ] && arr="$arr,\"ttmincomestmt\""
           [ "${{ steps.paths.outputs.recommendations }}" = "true" ] && arr="$arr,\"recommendations\""
@@ -419,6 +440,9 @@ jobs:
             latesttechnicalsdaily)   DOCKERFILE=Dockerfile.latesttechnicalsdaily;   PARAM=LatestTechnicalsDailyImageTag;;\
             latesttechnicalsweekly)  DOCKERFILE=Dockerfile.latesttechnicalsweekly;  PARAM=LatestTechnicalsWeeklyImageTag;;\
             latesttechnicalsmonthly) DOCKERFILE=Dockerfile.latesttechnicalsmonthly; PARAM=LatestTechnicalsMonthlyImageTag;;\
+            latestbuyselldaily)   DOCKERFILE=Dockerfile.latestbuyselldaily;   PARAM=LatestBuySellDailyImageTag;;\
+            latestbuysellweekly)  DOCKERFILE=Dockerfile.latestbuysellweekly;  PARAM=LatestBuySellWeeklyImageTag;;\
+            latestbuysellmonthly) DOCKERFILE=Dockerfile.latestbuysellmonthly; PARAM=LatestBuySellMonthlyImageTag;;\
             ttmcashflow)       DOCKERFILE=Dockerfile.ttmcashflow;   PARAM=TTMCashFlowImageTag;;\
             ttmincomestmt)     DOCKERFILE=Dockerfile.ttmincomestmt; PARAM=TTMIncomeStmtImageTag;;\
             recommendations)   DOCKERFILE=Dockerfile.recommendations; PARAM=RecommendationsImageTag;;\
