@@ -15,16 +15,16 @@ async function getDbCredentials() {
       password: process.env.DB_PASSWORD || 'password',
       useIAM: false
     };
-  }
-  // For production, use Secrets Manager (same as all Python scripts)
+  }  // For production, use Secrets Manager (same as all Python scripts)
   // Note: IAM authentication disabled because lambda_user doesn't exist
     // Fall back to Secrets Manager with optimized timeout
   console.log('Using AWS Secrets Manager for database credentials...');
   const client = new SecretsManagerClient({ 
     region: process.env.WEBAPP_AWS_REGION || 'us-east-1',
-    maxAttempts: 2, // Reduced retries for faster failure
+    maxAttempts: 3, // Allow 3 attempts for better reliability
     requestHandler: {
-      requestTimeout: 15000 // 15 second timeout for secrets
+      requestTimeout: 30000, // Increase timeout to 30 seconds
+      connectionTimeout: 10000 // Connection timeout of 10 seconds
     }
   });
   
@@ -39,7 +39,7 @@ async function getDbCredentials() {
     const response = await Promise.race([
       client.send(command),
       new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Secrets Manager timeout after 20 seconds')), 20000)
+        setTimeout(() => reject(new Error('Secrets Manager timeout after 30 seconds')), 30000)
       )
     ]);
     

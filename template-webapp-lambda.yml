@@ -24,8 +24,8 @@ Parameters:
 
 Globals:
   Function:
-    Timeout: 60
-    MemorySize: 512
+    Timeout: 90
+    MemorySize: 1024
     Runtime: nodejs18.x
     Environment:
       Variables:
@@ -195,22 +195,6 @@ Resources:
           CidrIp: 0.0.0.0/0
           Description: "Allow DNS resolution"
 
-  # VPC Endpoint for Secrets Manager (improves Lambda connectivity)
-  SecretsManagerVPCEndpoint:
-    Type: AWS::EC2::VPCEndpoint
-    Properties:
-      VpcId: !ImportValue StocksCore-VpcId
-      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.secretsmanager'
-      RouteTableIds:
-        - !ImportValue StocksCore-PublicRouteTableId
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal: '*'
-            Action:
-              - secretsmanager:GetSecretValue
-            Resource: '*'
 
   # Lambda Function IAM Role  
   LambdaExecutionRole:
