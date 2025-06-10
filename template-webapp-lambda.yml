@@ -166,7 +166,6 @@ Resources:
     Type: AWS::ApiGateway::Account
     Properties:
       CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
-
   # Lambda Function IAM Role  
   LambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -178,7 +177,7 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
-        ManagedPolicyArns:
+      ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
         - PolicyName: SecretsManagerAccess
