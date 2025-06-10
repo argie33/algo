@@ -167,35 +167,6 @@ Resources:
     Properties:
       CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
 
-  # Lambda Security Group (dedicated for Lambda function)
-  LambdaSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Security group for Lambda function
-      VpcId: !ImportValue StocksCore-VpcId
-      SecurityGroupEgress:
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          CidrIp: 0.0.0.0/0
-          Description: "Allow HTTPS for AWS services (Secrets Manager, RDS)"
-        - IpProtocol: tcp
-          FromPort: 5432
-          ToPort: 5432
-          CidrIp: 10.0.0.0/16
-          Description: "Allow PostgreSQL access to RDS within VPC"
-        - IpProtocol: tcp
-          FromPort: 53
-          ToPort: 53
-          CidrIp: 0.0.0.0/0
-          Description: "Allow DNS resolution"
-        - IpProtocol: udp
-          FromPort: 53
-          ToPort: 53
-          CidrIp: 0.0.0.0/0
-          Description: "Allow DNS resolution"
-
-
   # Lambda Function IAM Role  
   LambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -235,13 +206,6 @@ Resources:
       CodeUri: webapp/lambda/
       Handler: index.handler
       Role: !GetAtt LambdaExecutionRole.Arn
-      # Place Lambda in VPC to access RDS
-      VpcConfig:
-        SecurityGroupIds:
-          - !Ref LambdaSecurityGroup
-        SubnetIds:
-          - !ImportValue StocksCore-PublicSubnet1Id
-          - !ImportValue StocksCore-PublicSubnet2Id
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DatabaseSecretArn
@@ -322,7 +286,7 @@ Outputs:
     Description: 'API Gateway ID'
     Value: !Ref ApiGateway
     Export:
-      Name: !Sub '${AWS::StackName}-ApiGatewayId'  
+      Name: !Sub '${AWS::StackName}-ApiGatewayId'
   
   # Lambda
   LambdaFunctionName:
