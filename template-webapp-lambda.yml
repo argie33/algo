@@ -213,8 +213,6 @@ Resources:
           DB_ENDPOINT: !Ref DatabaseEndpoint
           NODE_ENV: !Ref EnvironmentName
           WEBAPP_AWS_REGION: !Ref AWS::Region
-          USE_IAM_DB_AUTH: 'false'  # Set to 'true' for IAM auth
-          IAM_DB_USER: 'lambda_user'  # Database user for IAM auth
       Events:
         ApiGatewayAny:
           Type: Api

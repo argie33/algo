@@ -16,28 +16,8 @@ async function getDbCredentials() {
       useIAM: false
     };
   }
-    // For production, check if we should use IAM auth or secrets
-  if (process.env.USE_IAM_DB_AUTH === 'true') {
-    console.log('Using IAM database authentication...');
-    // Use IAM database authentication
-    const signer = new Signer({
-      region: process.env.WEBAPP_AWS_REGION || 'us-east-1',
-      hostname: process.env.DB_ENDPOINT,
-      port: 5432,
-      username: process.env.IAM_DB_USER || 'lambda_user'
-    });
-    
-    const token = await signer.getAuthToken();
-    
-    return {
-      host: process.env.DB_ENDPOINT,
-      port: 5432,
-      database: 'stocks',
-      user: process.env.IAM_DB_USER || 'lambda_user',
-      password: token,
-      useIAM: true
-    };
-  }
+  // For production, use Secrets Manager (same as all Python scripts)
+  // Note: IAM authentication disabled because lambda_user doesn't exist
   
   // Fall back to Secrets Manager with timeout
   console.log('Using AWS Secrets Manager for database credentials...');
