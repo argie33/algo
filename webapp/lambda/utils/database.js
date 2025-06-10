@@ -83,8 +83,7 @@ async function initializeDatabase() {
       useIAM: credentials.useIAM
       // Don't log password
     });
-    
-    // Create pool with minimal, Python-like configuration
+      // Create pool with minimal, Python-like configuration
     console.log('Creating database pool...');
     pool = new Pool({
       host: credentials.host,
@@ -95,21 +94,22 @@ async function initializeDatabase() {
       max: 3, // Small pool for Lambda
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 5000, // Shorter timeout to fail fast
-      // Simple SSL configuration - match Python defaults
-      ssl: false  // Start with no SSL to test basic connectivity
+      // Match Python SSL configuration: sslmode="require"
+      ssl: {
+        rejectUnauthorized: false // Required for RDS SSL connections
+      }
     });
     
     console.log('Database pool created successfully');
     console.log('Testing database connection...');
       // Test the connection with detailed error logging
     let client;
-    try {
-      console.log('Attempting to connect to database with config:', {
+    try {      console.log('Attempting to connect to database with config:', {
         host: credentials.host,
         port: credentials.port,
         database: credentials.database,
         user: credentials.user,
-        ssl: process.env.NODE_ENV === 'production' ? true : false
+        ssl: true // SSL enabled to match Python sslmode="require"
       });
       
       console.log('Starting database connection attempt...');
