@@ -165,7 +165,54 @@ Resources:
   ApiGatewayAccount:
     Type: AWS::ApiGateway::Account
     Properties:
-      CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchLogsRole.Arn  # Lambda Function IAM Role  
+      CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
+
+  # Lambda Security Group (dedicated for Lambda function)
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Lambda function
+      VpcId: !ImportValue StocksCore-VpcId
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: "Allow HTTPS for AWS services (Secrets Manager, RDS)"
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: 10.0.0.0/16
+          Description: "Allow PostgreSQL access to RDS within VPC"
+        - IpProtocol: tcp
+          FromPort: 53
+          ToPort: 53
+          CidrIp: 0.0.0.0/0
+          Description: "Allow DNS resolution"
+        - IpProtocol: udp
+          FromPort: 53
+          ToPort: 53
+          CidrIp: 0.0.0.0/0
+          Description: "Allow DNS resolution"
+
+  # VPC Endpoint for Secrets Manager (improves Lambda connectivity)
+  SecretsManagerVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !ImportValue StocksCore-VpcId
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.secretsmanager'
+      RouteTableIds:
+        - !ImportValue StocksCore-PublicRouteTableId
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: '*'
+
+  # Lambda Function IAM Role  
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -207,7 +254,7 @@ Resources:
       # Place Lambda in VPC to access RDS
       VpcConfig:
         SecurityGroupIds:
-          - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          - !Ref LambdaSecurityGroup
         SubnetIds:
           - !ImportValue StocksCore-PublicSubnet1Id
           - !ImportValue StocksCore-PublicSubnet2Id
