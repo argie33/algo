@@ -322,7 +322,9 @@ Outputs:
     Description: 'API Gateway ID'
     Value: !Ref ApiGateway
     Export:
-      Name: !Sub '${AWS::StackName}-ApiGatewayId'  # Lambda
+      Name: !Sub '${AWS::StackName}-ApiGatewayId'  
+  
+  # Lambda
   LambdaFunctionName:
     Description: 'Lambda function name'
     Value: !Ref ApiFunction
