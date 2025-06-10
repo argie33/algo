@@ -177,8 +177,7 @@ Resources:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-        # Removed VPC access policy since Lambda is no longer in VPC
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
       Policies:
         - PolicyName: SecretsManagerAccess
           PolicyDocument:
@@ -196,7 +195,6 @@ Resources:
                 Action:
                   - rds-db:connect
                 Resource: !Sub 'arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:stocks/*'
-
   # Lambda Function
   ApiFunction:
     Type: AWS::Serverless::Function
@@ -204,9 +202,13 @@ Resources:
       FunctionName: !Sub 'financial-dashboard-api-${EnvironmentName}'
       CodeUri: webapp/lambda/
       Handler: index.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
-      # Removed VPC configuration - Lambda doesn't need to be in VPC
-      # to access Secrets Manager and publicly accessible RDS
+      Role: !GetAtt LambdaExecutionRole.Arn      # Put Lambda in VPC to match Python scripts networking
+      VpcConfig:
+        SecurityGroupIds:
+          - !ImportValue StocksApp-EcsTasksSecurityGroupId
+        SubnetIds:
+          - !ImportValue StocksCore-PublicSubnet1Id
+          - !ImportValue StocksCore-PublicSubnet2Id
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DatabaseSecretArn
