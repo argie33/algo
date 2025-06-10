@@ -82,7 +82,7 @@ const MetricTable = ({ data, columns, title }) => (
   </Card>
 )
 
-const MarketOverview = () => {
+function MarketOverview() {
   const [tabValue, setTabValue] = useState(0)
 
   const { data: marketData, isLoading: marketLoading, error: marketError } = useQuery(
