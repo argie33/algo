@@ -91,11 +91,13 @@ async function initializeDatabase() {
       database: credentials.database,
       user: credentials.user,
       password: credentials.password,
-      
-      max: 3, // Small pool for Lambda
+        max: 3, // Small pool for Lambda
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 15000 // Increased timeout for Lambda
-      // No SSL - match Python scripts exactly
+      connectionTimeoutMillis: 15000, // Increased timeout for Lambda
+      // SSL required by RDS - pg_hba.conf demands encryption
+      ssl: {
+        rejectUnauthorized: false
+      }
     });
     
     console.log('Database pool created successfully');
@@ -107,7 +109,7 @@ async function initializeDatabase() {
         port: credentials.port,
         database: credentials.database,
         user: credentials.user,
-        ssl: false // SSL disabled to match Python scripts exactly
+        ssl: true // SSL required by RDS pg_hba.conf
       });
       
       console.log('Starting database connection attempt...');
