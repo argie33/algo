@@ -169,15 +169,15 @@ jobs:
             latestbuyselldaily:
               - 'loadlatestbuyselldaily.py'
               - 'Dockerfile.latestbuyselldaily'
-              - 'requirements-latestbuysell.txt'
+              - 'requirements-loadlatestbuyselldaily.txt'
             latestbuysellweekly:
               - 'loadlatestbuysellweekly.py'
               - 'Dockerfile.latestbuysellweekly'
-              - 'requirements-latestbuysell.txt'
+              - 'requirements-loadlatestbuysellweekly.txt'
             latestbuysellmonthly:
               - 'loadlatestbuysellmonthly.py'
               - 'Dockerfile.latestbuysellmonthly'
-              - 'requirements-latestbuysell.txt'
+              - 'requirements-loadlatestbuysellmonthly.txt'
             technicalsdaily:
               - 'loadtechnicalsdaily.py'
               - 'Dockerfile.technicalsdaily'
