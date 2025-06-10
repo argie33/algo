@@ -32,24 +32,15 @@ Resources:
   StocksDBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow Postgres access from Lambda and ECS
+      GroupDescription: Allow Postgres access
       VpcId: !ImportValue StocksCore-VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 5432
           ToPort: 5432
-          SourceSecurityGroupId: !ImportValue StocksApp-EcsTasksSecurityGroupId
-          Description: "Allow Postgres from ECS tasks"
-        - IpProtocol: tcp
-          FromPort: 5432
-          ToPort: 5432
-          CidrIp: "10.0.0.0/16"
-          Description: "Allow Postgres from VPC (includes ECS tasks)"
-        - IpProtocol: tcp
-          FromPort: 5432
-          ToPort: 5432
           CidrIp: "0.0.0.0/0"
-          Description: "Allow Postgres from internet (for Lambda outside VPC)"
+          Description: "Allow Postgres traffic from anywhere"
+
   ### 3) RDS Instance ###
   StocksDBInstance:
     Type: AWS::RDS::DBInstance
@@ -71,7 +62,6 @@ Resources:
       PubliclyAccessible: true
       MultiAZ: false
       DeletionProtection: false
-      EnableIAMDatabaseAuthentication: true
   ### 4) Secrets Manager: DB creds ###
   DBCredentialsSecret:
     Type: AWS::SecretsManager::Secret
