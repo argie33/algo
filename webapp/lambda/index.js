@@ -102,9 +102,8 @@ app.use(async (req, res, next) => {
   try {
     await ensureDatabase();
     console.log('Database connection verified for database-dependent endpoint');
-    next();
-  } catch (error) {
-    console.error('Database initialization failed for database-dependent endpoint:', error);
+    next();  } catch (error) {
+    console.error('Database initialization failed for database-dependent endpoint:', error.message);
     
     // For health endpoint (non-quick), still allow it to proceed with DB error info
     if (req.path === '/health') {

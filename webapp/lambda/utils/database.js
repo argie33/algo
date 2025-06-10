@@ -152,38 +152,24 @@ async function initializeDatabase() {
       const queryTime = Date.now() - queryStart;
       console.log(`Database test query successful in ${queryTime}ms:`, result.rows[0]);
       client.release();
+        } catch (connectionError) {
+      console.error('Database connection failed:', connectionError.message);
       
-    } catch (connectionError) {
-      console.error('Database connection failed with detailed error:', {
-        message: connectionError.message,
-        code: connectionError.code,
-        errno: connectionError.errno,
-        syscall: connectionError.syscall,
-        address: connectionError.address,
-        port: connectionError.port,
-        host: connectionError.host,
-        stack: connectionError.stack
-      });
-      
-      // Also log pool status
-      console.error('Pool status:', {
-        totalCount: pool.totalCount,
-        idleCount: pool.idleCount,
-        waitingCount: pool.waitingCount
-      });
+      // Log pool status for debugging
+      if (pool) {
+        console.error('Pool status:', {
+          totalCount: pool.totalCount,
+          idleCount: pool.idleCount,
+          waitingCount: pool.waitingCount
+        });
+      }
       
       throw connectionError;
     }
     
     console.log('Database connection pool initialized successfully');
-    return pool;
-  } catch (error) {
-    console.error('Failed to initialize database connection:', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack,
-      timeout: error.timeout
-    });
+    return pool;  } catch (error) {
+    console.error('Database initialization failed:', error.message);
     
     // Clean up failed pool
     if (pool) {
@@ -191,7 +177,7 @@ async function initializeDatabase() {
         await pool.end();
         pool = null;
       } catch (cleanupError) {
-        console.error('Error cleaning up failed pool:', cleanupError);
+        console.error('Error cleaning up failed pool:', cleanupError.message);
       }
     }
     
