@@ -10,6 +10,9 @@ const errorHandler = require('./middleware/errorHandler');
 const stockRoutes = require('./routes/stocks');
 const metricsRoutes = require('./routes/metrics');
 const healthRoutes = require('./routes/health');
+const marketRoutes = require('./routes/market');
+const analystRoutes = require('./routes/analysts');
+const tradingRoutes = require('./routes/trading');
 
 const app = express();
 

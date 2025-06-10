@@ -88,6 +88,194 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Stock screening endpoint - MUST be before /:ticker route
+router.get('/screen', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = (page - 1) * limit;
+    const sortBy = req.query.sortBy || 'market_cap';
+    const sortOrder = req.query.sortOrder || 'desc';
+
+    // Build WHERE clause based on filters
+    let whereClause = 'WHERE 1=1';
+    const params = [];
+    let paramCount = 0;
+
+    // Price filters
+    if (req.query.priceMin) {
+      paramCount++;
+      whereClause += ` AND md.regular_market_price >= $${paramCount}`;
+      params.push(parseFloat(req.query.priceMin));
+    }
+    if (req.query.priceMax) {
+      paramCount++;
+      whereClause += ` AND md.regular_market_price <= $${paramCount}`;
+      params.push(parseFloat(req.query.priceMax));
+    }
+
+    // Market cap filters (convert billions to actual values)
+    if (req.query.marketCapMin) {
+      paramCount++;
+      whereClause += ` AND cp.market_cap >= $${paramCount}`;
+      params.push(parseFloat(req.query.marketCapMin) * 1000000000);
+    }
+    if (req.query.marketCapMax) {
+      paramCount++;
+      whereClause += ` AND cp.market_cap <= $${paramCount}`;
+      params.push(parseFloat(req.query.marketCapMax) * 1000000000);
+    }
+
+    // Valuation filters
+    if (req.query.peRatioMin) {
+      paramCount++;
+      whereClause += ` AND km.trailing_pe >= $${paramCount}`;
+      params.push(parseFloat(req.query.peRatioMin));
+    }
+    if (req.query.peRatioMax) {
+      paramCount++;
+      whereClause += ` AND km.trailing_pe <= $${paramCount}`;
+      params.push(parseFloat(req.query.peRatioMax));
+    }
+
+    // Profitability filters
+    if (req.query.roeMin) {
+      paramCount++;
+      whereClause += ` AND km.return_on_equity >= $${paramCount}`;
+      params.push(parseFloat(req.query.roeMin) / 100);
+    }
+    if (req.query.roeMax) {
+      paramCount++;
+      whereClause += ` AND km.return_on_equity <= $${paramCount}`;
+      params.push(parseFloat(req.query.roeMax) / 100);
+    }
+
+    // Dividend filters
+    if (req.query.dividendYieldMin) {
+      paramCount++;
+      whereClause += ` AND km.dividend_yield >= $${paramCount}`;
+      params.push(parseFloat(req.query.dividendYieldMin) / 100);
+    }
+    if (req.query.dividendYieldMax) {
+      paramCount++;
+      whereClause += ` AND km.dividend_yield <= $${paramCount}`;
+      params.push(parseFloat(req.query.dividendYieldMax) / 100);
+    }
+
+    // Sector and industry filters
+    if (req.query.sector) {
+      paramCount++;
+      whereClause += ` AND cp.sector = $${paramCount}`;
+      params.push(req.query.sector);
+    }
+    if (req.query.country) {
+      paramCount++;
+      whereClause += ` AND cp.country ILIKE $${paramCount}`;
+      params.push(`%${req.query.country}%`);
+    }
+    if (req.query.exchange) {
+      paramCount++;
+      whereClause += ` AND cp.exchange = $${paramCount}`;
+      params.push(req.query.exchange);
+    }
+
+    // Boolean filters
+    if (req.query.paysDividends === 'true') {
+      whereClause += ` AND km.dividend_yield > 0`;
+    }
+    if (req.query.hasPositiveCashFlow === 'true') {
+      whereClause += ` AND EXISTS (SELECT 1 FROM ttm_cash_flow tcf WHERE tcf.symbol = cp.ticker AND tcf.free_cash_flow > 0)`;
+    }
+    if (req.query.hasEarningsGrowth === 'true') {
+      whereClause += ` AND km.earnings_growth > 0`;
+    }
+
+    // Build ORDER BY clause
+    let orderClause = '';
+    const validSortColumns = {
+      'market_capitalization': 'cp.market_cap',
+      'price': 'md.regular_market_price',
+      'pe_ratio': 'km.trailing_pe',
+      'dividend_yield': 'km.dividend_yield',
+      'return_on_equity': 'km.return_on_equity',
+      'revenue_growth': 'km.revenue_growth',
+      'symbol': 'cp.ticker',
+      'company_name': 'cp.short_name',
+      'sector': 'cp.sector'
+    };
+
+    if (validSortColumns[sortBy]) {
+      orderClause = `ORDER BY ${validSortColumns[sortBy]} ${sortOrder.toUpperCase()} NULLS LAST`;
+    } else {
+      orderClause = 'ORDER BY cp.market_cap DESC NULLS LAST';
+    }
+
+    const screenQuery = `
+      SELECT 
+        cp.ticker as symbol,
+        cp.short_name as company_name,
+        cp.sector,
+        cp.industry,
+        cp.country,
+        cp.exchange,
+        cp.market_cap as market_capitalization,
+        md.regular_market_price as price,
+        md.regular_market_change,
+        md.regular_market_change_percent,
+        km.trailing_pe as pe_ratio,
+        km.peg_ratio,
+        km.price_to_book as pb_ratio,
+        km.dividend_yield,
+        km.return_on_equity,
+        km.return_on_assets,
+        km.net_margin,
+        km.revenue_growth,
+        km.earnings_growth,
+        km.current_ratio,
+        km.debt_to_equity
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+      ${whereClause}
+      ${orderClause}
+      LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
+    `;
+
+    params.push(limit, offset);
+
+    // Count query for pagination
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+      ${whereClause}
+    `;
+
+    const [screenResult, countResult] = await Promise.all([
+      query(screenQuery, params),
+      query(countQuery, params.slice(0, -2))
+    ]);
+
+    const total = parseInt(countResult.rows[0].total);
+    const totalPages = Math.ceil(total / limit);
+
+    res.json({
+      data: screenResult.rows,
+      total,
+      page,
+      limit,
+      totalPages,
+      hasNext: page < totalPages,
+      hasPrev: page > 1,
+      filters: req.query
+    });
+  } catch (error) {
+    console.error('Error screening stocks:', error);
+    res.status(500).json({ error: 'Failed to screen stocks' });
+  }
+});
+
 // Get detailed stock information by ticker
 router.get('/:ticker', async (req, res) => {
   try {
@@ -345,194 +533,6 @@ router.get('/:ticker/metrics', async (req, res) => {
   } catch (error) {
     console.error('Error fetching stock metrics:', error);
     res.status(500).json({ error: 'Failed to fetch stock metrics' });
-  }
-});
-
-// Stock screening endpoint
-router.get('/screen', async (req, res) => {
-  try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 50;
-    const offset = (page - 1) * limit;
-    const sortBy = req.query.sortBy || 'market_cap';
-    const sortOrder = req.query.sortOrder || 'desc';
-
-    // Build WHERE clause based on filters
-    let whereClause = 'WHERE 1=1';
-    const params = [];
-    let paramCount = 0;
-
-    // Price filters
-    if (req.query.priceMin) {
-      paramCount++;
-      whereClause += ` AND md.regular_market_price >= $${paramCount}`;
-      params.push(parseFloat(req.query.priceMin));
-    }
-    if (req.query.priceMax) {
-      paramCount++;
-      whereClause += ` AND md.regular_market_price <= $${paramCount}`;
-      params.push(parseFloat(req.query.priceMax));
-    }
-
-    // Market cap filters (convert billions to actual values)
-    if (req.query.marketCapMin) {
-      paramCount++;
-      whereClause += ` AND cp.market_cap >= $${paramCount}`;
-      params.push(parseFloat(req.query.marketCapMin) * 1000000000);
-    }
-    if (req.query.marketCapMax) {
-      paramCount++;
-      whereClause += ` AND cp.market_cap <= $${paramCount}`;
-      params.push(parseFloat(req.query.marketCapMax) * 1000000000);
-    }
-
-    // Valuation filters
-    if (req.query.peRatioMin) {
-      paramCount++;
-      whereClause += ` AND km.trailing_pe >= $${paramCount}`;
-      params.push(parseFloat(req.query.peRatioMin));
-    }
-    if (req.query.peRatioMax) {
-      paramCount++;
-      whereClause += ` AND km.trailing_pe <= $${paramCount}`;
-      params.push(parseFloat(req.query.peRatioMax));
-    }
-
-    // Profitability filters
-    if (req.query.roeMin) {
-      paramCount++;
-      whereClause += ` AND km.return_on_equity >= $${paramCount}`;
-      params.push(parseFloat(req.query.roeMin) / 100);
-    }
-    if (req.query.roeMax) {
-      paramCount++;
-      whereClause += ` AND km.return_on_equity <= $${paramCount}`;
-      params.push(parseFloat(req.query.roeMax) / 100);
-    }
-
-    // Dividend filters
-    if (req.query.dividendYieldMin) {
-      paramCount++;
-      whereClause += ` AND km.dividend_yield >= $${paramCount}`;
-      params.push(parseFloat(req.query.dividendYieldMin) / 100);
-    }
-    if (req.query.dividendYieldMax) {
-      paramCount++;
-      whereClause += ` AND km.dividend_yield <= $${paramCount}`;
-      params.push(parseFloat(req.query.dividendYieldMax) / 100);
-    }
-
-    // Sector and industry filters
-    if (req.query.sector) {
-      paramCount++;
-      whereClause += ` AND cp.sector = $${paramCount}`;
-      params.push(req.query.sector);
-    }
-    if (req.query.country) {
-      paramCount++;
-      whereClause += ` AND cp.country ILIKE $${paramCount}`;
-      params.push(`%${req.query.country}%`);
-    }
-    if (req.query.exchange) {
-      paramCount++;
-      whereClause += ` AND cp.exchange = $${paramCount}`;
-      params.push(req.query.exchange);
-    }
-
-    // Boolean filters
-    if (req.query.paysDividends === 'true') {
-      whereClause += ` AND km.dividend_yield > 0`;
-    }
-    if (req.query.hasPositiveCashFlow === 'true') {
-      whereClause += ` AND EXISTS (SELECT 1 FROM ttm_cash_flow tcf WHERE tcf.symbol = cp.ticker AND tcf.free_cash_flow > 0)`;
-    }
-    if (req.query.hasEarningsGrowth === 'true') {
-      whereClause += ` AND km.earnings_growth > 0`;
-    }
-
-    // Build ORDER BY clause
-    let orderClause = '';
-    const validSortColumns = {
-      'market_capitalization': 'cp.market_cap',
-      'price': 'md.regular_market_price',
-      'pe_ratio': 'km.trailing_pe',
-      'dividend_yield': 'km.dividend_yield',
-      'return_on_equity': 'km.return_on_equity',
-      'revenue_growth': 'km.revenue_growth',
-      'symbol': 'cp.ticker',
-      'company_name': 'cp.short_name',
-      'sector': 'cp.sector'
-    };
-
-    if (validSortColumns[sortBy]) {
-      orderClause = `ORDER BY ${validSortColumns[sortBy]} ${sortOrder.toUpperCase()} NULLS LAST`;
-    } else {
-      orderClause = 'ORDER BY cp.market_cap DESC NULLS LAST';
-    }
-
-    const screenQuery = `
-      SELECT 
-        cp.ticker as symbol,
-        cp.short_name as company_name,
-        cp.sector,
-        cp.industry,
-        cp.country,
-        cp.exchange,
-        cp.market_cap as market_capitalization,
-        md.regular_market_price as price,
-        md.regular_market_change,
-        md.regular_market_change_percent,
-        km.trailing_pe as pe_ratio,
-        km.peg_ratio,
-        km.price_to_book as pb_ratio,
-        km.dividend_yield,
-        km.return_on_equity,
-        km.return_on_assets,
-        km.net_margin,
-        km.revenue_growth,
-        km.earnings_growth,
-        km.current_ratio,
-        km.debt_to_equity
-      FROM company_profile cp
-      LEFT JOIN market_data md ON cp.ticker = md.ticker
-      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
-      ${whereClause}
-      ${orderClause}
-      LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
-    `;
-
-    params.push(limit, offset);
-
-    // Count query for pagination
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM company_profile cp
-      LEFT JOIN market_data md ON cp.ticker = md.ticker
-      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
-      ${whereClause}
-    `;
-
-    const [screenResult, countResult] = await Promise.all([
-      query(screenQuery, params),
-      query(countQuery, params.slice(0, -2))
-    ]);
-
-    const total = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(total / limit);
-
-    res.json({
-      data: screenResult.rows,
-      total,
-      page,
-      limit,
-      totalPages,
-      hasNext: page < totalPages,
-      hasPrev: page > 1,
-      filters: req.query
-    });
-  } catch (error) {
-    console.error('Error screening stocks:', error);
-    res.status(500).json({ error: 'Failed to screen stocks' });
   }
 });
 
