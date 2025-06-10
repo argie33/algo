@@ -28,6 +28,18 @@ Resources:
       SubnetIds:
         - !ImportValue StocksCore-PublicSubnet1Id
         - !ImportValue StocksCore-PublicSubnet2Id
+
+  ### 1.5) ECS Tasks Security Group (moved here to avoid circular dependency) ###
+  EcsTasksSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for ECS tasks
+      VpcId: !ImportValue StocksCore-VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: "Allow all outbound traffic"
+
   ### 2) RDS Security Group ###
   StocksDBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -38,7 +50,7 @@ Resources:
         - IpProtocol: tcp
           FromPort: 5432
           ToPort: 5432
-          SourceSecurityGroupId: !ImportValue StocksApp-EcsTasksSecurityGroupId
+          SourceSecurityGroupId: !Ref EcsTasksSecurityGroup
           Description: "Allow Postgres from ECS tasks"
         - IpProtocol: tcp
           FromPort: 5432
@@ -97,17 +109,6 @@ Resources:
     Type: AWS::ECS::Cluster
     Properties:
       ClusterName: stocks-cluster
-
-  ### 5.1) ECS Tasks Security Group ###
-  EcsTasksSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Security group for ECS tasks
-      VpcId: !ImportValue StocksCore-VpcId
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
-          Description: "Allow all outbound traffic"
 
   ### 6) ECS Task Execution Role ###
   EcsTaskExecutionRole:

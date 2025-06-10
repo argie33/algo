@@ -1,4 +1,4 @@
-#!/usr/bin/env python3  
+#!/usr/bin/env 
 """
 Latest Daily Buy/Sell Signal Generator (Incremental)
 - Processes only symbols with new/changed technical indicators data
