@@ -73,8 +73,14 @@ Resources:
       DBInstanceIdentifier: stocks
       DBName: stocks
       Engine: postgres
-      DBInstanceClass: db.t3.micro
-      AllocatedStorage: 20
+      DBInstanceClass: db.t3.small
+      AllocatedStorage: 30
+      MaxAllocatedStorage: 100
+      StorageType: gp3
+      StorageEncrypted: true
+      MonitoringInterval: 60
+      EnablePerformanceInsights: true
+      PerformanceInsightsRetentionPeriod: 7
       MasterUsername: !Ref RDSUsername
       MasterUserPassword: !Ref RDSPassword
       VPCSecurityGroups:
