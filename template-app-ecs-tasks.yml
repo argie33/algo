@@ -3552,12 +3552,12 @@ Resources:
             }
           }
         - ClusterArn: !ImportValue StocksApp-ClusterArn
-          LatestPriceDailyTaskDefArn: !ImportValue LatestPriceDailyTaskDefArn
-          LatestPriceWeeklyTaskDefArn: !ImportValue LatestPriceWeeklyTaskDefArn
-          LatestPriceMonthlyTaskDefArn: !ImportValue LatestPriceMonthlyTaskDefArn
-          LatestTechnicalsDailyTaskDefArn: !ImportValue LatestTechnicalsDailyTaskDefArn
-          LatestTechnicalsWeeklyTaskDefArn: !ImportValue LatestTechnicalsWeeklyTaskDefArn
-          LatestTechnicalsMonthlyTaskDefArn: !ImportValue LatestTechnicalsMonthlyTaskDefArn
+          LatestPriceDailyTaskDefArn: !Ref LatestPriceDailyTaskDefinition
+          LatestPriceWeeklyTaskDefArn: !Ref LatestPriceWeeklyTaskDefinition
+          LatestPriceMonthlyTaskDefArn: !Ref LatestPriceMonthlyTaskDefinition
+          LatestTechnicalsDailyTaskDefArn: !Ref LatestTechnicalsDailyTaskDefinition
+          LatestTechnicalsWeeklyTaskDefArn: !Ref LatestTechnicalsWeeklyTaskDefinition
+          LatestTechnicalsMonthlyTaskDefArn: !Ref LatestTechnicalsMonthlyTaskDefinition
           LatestBuySellDailyTaskDefArn: !Ref LatestBuySellDailyTaskDefinition
           LatestBuySellWeeklyTaskDefArn: !Ref LatestBuySellWeeklyTaskDefinition
           LatestBuySellMonthlyTaskDefArn: !Ref LatestBuySellMonthlyTaskDefinition
