@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
 """
 Load growth estimates data from Yahoo Finance API and store in database.
 """
