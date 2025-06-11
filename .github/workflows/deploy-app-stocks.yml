@@ -552,7 +552,7 @@ jobs:
         run: |
           STACK_NAME="stocks-ecs-tasks-stack"
           TEMPLATE_URL="https://s3.amazonaws.com/${{ steps.bucket.outputs.CF_BUCKET }}/template-app-ecs-tasks.yml"
-            # Build parameters array
+          # Build parameters array
           PARAMETERS="ParameterKey=StockSymbolsImageTag,ParameterValue=$(grep '^StockSymbolsImageTag=' tags.env | cut -d= -f2-)"
           PARAMETERS="$PARAMETERS ParameterKey=EconDataImageTag,ParameterValue=$(grep '^EconDataImageTag=' tags.env | cut -d= -f2-)"
           PARAMETERS="$PARAMETERS ParameterKey=PriceImageTag,ParameterValue=$(grep '^PriceImageTag=' tags.env | cut -d= -f2-)"
@@ -586,11 +586,15 @@ jobs:
           PARAMETERS="$PARAMETERS ParameterKey=GrowthEstimatesImageTag,ParameterValue=$(grep '^GrowthEstimatesImageTag=' tags.env | cut -d= -f2-)"
           PARAMETERS="$PARAMETERS ParameterKey=IncomeStmtImageTag,ParameterValue=$(grep '^IncomeStmtImageTag=' tags.env | cut -d= -f2-)"
           PARAMETERS="$PARAMETERS ParameterKey=QuarterlyBalanceSheetImageTag,ParameterValue=$(grep '^QuarterlyBalanceSheetImageTag=' tags.env | cut -d= -f2-)"
-          PARAMETERS="$PARAMETERS ParameterKey=QuarterlyCashFlowImageTag,ParameterValue=$(grep '^QuarterlyCashFlowImageTag=' tags.env | cut -d= -f2-)"          PARAMETERS="$PARAMETERS ParameterKey=QuarterlyIncomeStmtImageTag,ParameterValue=$(grep '^QuarterlyIncomeStmtImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=QuarterlyCashFlowImageTag,ParameterValue=$(grep '^QuarterlyCashFlowImageTag=' tags.env | cut -d= -f2-)"          
+          PARAMETERS="$PARAMETERS ParameterKey=QuarterlyIncomeStmtImageTag,ParameterValue=$(grep '^QuarterlyIncomeStmtImageTag=' tags.env | cut -d= -f2-)"
           PARAMETERS="$PARAMETERS ParameterKey=StockScreenerImageTag,ParameterValue=$(grep '^StockScreenerImageTag=' tags.env | cut -d= -f2-)"
           PARAMETERS="$PARAMETERS ParameterKey=AaiiSentimentImageTag,ParameterValue=$(grep '^AaiiSentimentImageTag=' tags.env | cut -d= -f2- || echo "latest")"
           PARAMETERS="$PARAMETERS ParameterKey=FearGreedImageTag,ParameterValue=$(grep '^FearGreedImageTag=' tags.env | cut -d= -f2- || echo "latest")"
           PARAMETERS="$PARAMETERS ParameterKey=NaaimImageTag,ParameterValue=$(grep '^NaaimImageTag=' tags.env | cut -d= -f2- || echo "latest")"
+          PARAMETERS="$PARAMETERS ParameterKey=LatestBuySellDailyImageTag,ParameterValue=$(grep '^LatestBuySellDailyImageTag=' tags.env | cut -d= -f2- || echo "latest")"
+          PARAMETERS="$PARAMETERS ParameterKey=LatestBuySellWeeklyImageTag,ParameterValue=$(grep '^LatestBuySellWeeklyImageTag=' tags.env | cut -d= -f2- || echo "latest")"
+          PARAMETERS="$PARAMETERS ParameterKey=LatestBuySellMonthlyImageTag,ParameterValue=$(grep '^LatestBuySellMonthlyImageTag=' tags.env | cut -d= -f2- || echo "latest")"
           PARAMETERS="$PARAMETERS ParameterKey=FREDApiKey,ParameterValue=${{ secrets.FRED_API_KEY }}"
           PARAMETERS="$PARAMETERS ParameterKey=IBKRUsername,ParameterValue=${{ secrets.IBKR_USERNAME }}"
           PARAMETERS="$PARAMETERS ParameterKey=IBKRPassword,ParameterValue=${{ secrets.IBKR_PASSWORD }}"
