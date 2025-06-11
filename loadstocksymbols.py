@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env 
 import os
 import re
 import csv
