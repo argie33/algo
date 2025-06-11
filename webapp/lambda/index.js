@@ -15,6 +15,7 @@ const analystRoutes = require('./routes/analysts');
 const tradingRoutes = require('./routes/trading');
 const technicalRoutes = require('./routes/technical');
 const calendarRoutes = require('./routes/calendar');
+const signalsRoutes = require('./routes/signals');
 
 const app = express();
 
@@ -135,6 +136,7 @@ app.use('/analysts', analystRoutes);
 app.use('/trading', tradingRoutes);
 app.use('/technical', technicalRoutes);
 app.use('/calendar', calendarRoutes);
+app.use('/signals', signalsRoutes);
 
 // Default route
 app.get('/', (req, res) => {
@@ -156,7 +158,8 @@ app.get('/', (req, res) => {
         analysts: '/analysts',
         trading: '/trading',
         technical: '/technical',
-        calendar: '/calendar'
+        calendar: '/calendar',
+        signals: '/signals'
       }
     },
     notes: 'Use /health?quick=true for fast status check without database dependency'

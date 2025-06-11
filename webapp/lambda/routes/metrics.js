@@ -5,7 +5,8 @@ const router = express.Router();
 
 // Get market overview metrics
 router.get('/overview', async (req, res) => {
-  try {    // Get market summary statistics
+  try {
+    // Get market summary statistics
     const overviewQuery = `
       SELECT 
         COUNT(*) as total_stocks,
@@ -14,41 +15,73 @@ router.get('/overview', async (req, res) => {
         AVG(km.price_to_book) as avg_pb,
         AVG(km.dividend_yield) as avg_dividend_yield,
         SUM(md.market_cap) as total_market_cap,
-        COUNT(CASE WHEN md.regular_market_change_percent > 0 THEN 1 END) as gainers,
-        COUNT(CASE WHEN md.regular_market_change_percent < 0 THEN 1 END) as losers
+        COUNT(CASE WHEN (md.regular_market_price - md.regular_market_previous_close) > 0 THEN 1 END) as gainers,
+        COUNT(CASE WHEN (md.regular_market_price - md.regular_market_previous_close) < 0 THEN 1 END) as losers
       FROM company_profile cp
       LEFT JOIN market_data md ON cp.ticker = md.ticker
       LEFT JOIN key_metrics km ON cp.ticker = km.ticker
       WHERE md.market_cap IS NOT NULL
+        AND md.regular_market_price IS NOT NULL 
+        AND md.regular_market_previous_close IS NOT NULL 
+        AND md.regular_market_previous_close > 0
     `;
 
     // Get top performers
     const topGainersQuery = `
-      SELECT cp.ticker, cp.short_name, md.regular_market_change_percent
+      SELECT 
+        cp.ticker, 
+        cp.short_name, 
+        CASE 
+          WHEN md.regular_market_previous_close > 0 
+          THEN ((md.regular_market_price - md.regular_market_previous_close) / md.regular_market_previous_close) * 100
+          ELSE 0 
+        END as regular_market_change_percent
       FROM company_profile cp
       JOIN market_data md ON cp.ticker = md.ticker
-      WHERE md.regular_market_change_percent IS NOT NULL
-      ORDER BY md.regular_market_change_percent DESC
+      WHERE md.regular_market_price IS NOT NULL 
+        AND md.regular_market_previous_close IS NOT NULL
+        AND md.regular_market_previous_close > 0
+      ORDER BY regular_market_change_percent DESC
       LIMIT 10
     `;
 
     const topLosersQuery = `
-      SELECT cp.ticker, cp.short_name, md.regular_market_change_percent
+      SELECT 
+        cp.ticker, 
+        cp.short_name, 
+        CASE 
+          WHEN md.regular_market_previous_close > 0 
+          THEN ((md.regular_market_price - md.regular_market_previous_close) / md.regular_market_previous_close) * 100
+          ELSE 0 
+        END as regular_market_change_percent
       FROM company_profile cp
       JOIN market_data md ON cp.ticker = md.ticker
-      WHERE md.regular_market_change_percent IS NOT NULL
-      ORDER BY md.regular_market_change_percent ASC
+      WHERE md.regular_market_price IS NOT NULL 
+        AND md.regular_market_previous_close IS NOT NULL
+        AND md.regular_market_previous_close > 0
+      ORDER BY regular_market_change_percent ASC
       LIMIT 10
-    `;    // Get sector performance
+    `;
+
+    // Get sector performance
     const sectorQuery = `
       SELECT 
         cp.sector,
         COUNT(*) as stock_count,
-        AVG(md.regular_market_change_percent) as avg_change,
+        AVG(
+          CASE 
+            WHEN md.regular_market_previous_close > 0 
+            THEN ((md.regular_market_price - md.regular_market_previous_close) / md.regular_market_previous_close) * 100
+            ELSE 0 
+          END
+        ) as avg_change,
         SUM(md.market_cap) as sector_market_cap
       FROM company_profile cp
       LEFT JOIN market_data md ON cp.ticker = md.ticker
       WHERE cp.sector IS NOT NULL AND md.market_cap IS NOT NULL
+        AND md.regular_market_price IS NOT NULL 
+        AND md.regular_market_previous_close IS NOT NULL
+        AND md.regular_market_previous_close > 0
       GROUP BY cp.sector
       ORDER BY avg_change DESC
     `;
@@ -76,22 +109,24 @@ router.get('/overview', async (req, res) => {
 router.get('/valuation', async (req, res) => {
   try {
     const minMarketCap = req.query.minMarketCap || 0;
-    const maxPE = req.query.maxPE || 100;
+    const maxPE = req.query.maxPE || 50;
     const sector = req.query.sector || '';
     const limit = parseInt(req.query.limit) || 50;
 
-    let whereClause = 'WHERE km.trailing_pe IS NOT NULL AND km.trailing_pe > 0';
+    let whereClause = 'WHERE km.trailing_pe IS NOT NULL AND md.market_cap IS NOT NULL';
     const params = [];
-    let paramCount = 0;    if (minMarketCap > 0) {
+    let paramCount = 0;
+
+    if (parseFloat(minMarketCap) > 0) {
       paramCount++;
       whereClause += ` AND md.market_cap >= $${paramCount}`;
-      params.push(minMarketCap);
+      params.push(parseFloat(minMarketCap) * 1000000000);
     }
 
-    if (maxPE < 100) {
+    if (parseFloat(maxPE) < 50) {
       paramCount++;
       whereClause += ` AND km.trailing_pe <= $${paramCount}`;
-      params.push(maxPE);
+      params.push(parseFloat(maxPE));
     }
 
     if (sector) {
@@ -100,20 +135,19 @@ router.get('/valuation', async (req, res) => {
       params.push(sector);
     }
 
-    const valuationQuery = `      SELECT 
+    const valuationQuery = `
+      SELECT 
         cp.ticker,
         cp.short_name,
         cp.sector,
         md.market_cap,
+        md.regular_market_price,
         km.trailing_pe,
         km.forward_pe,
+        km.peg_ratio,
         km.price_to_book,
         km.price_to_sales_ttm,
-        km.peg_ratio,
-        km.ev_to_revenue,
-        km.ev_to_ebitda,
-        km.dividend_yield,
-        md.regular_market_price
+        km.enterprise_value
       FROM company_profile cp
       JOIN key_metrics km ON cp.ticker = km.ticker
       LEFT JOIN market_data md ON cp.ticker = md.ticker
@@ -128,7 +162,7 @@ router.get('/valuation', async (req, res) => {
 
     res.json({
       filters: {
-        minMarketCap: parseInt(minMarketCap),
+        minMarketCap: parseFloat(minMarketCap),
         maxPE: parseFloat(maxPE),
         sector: sector || 'all'
       },
@@ -143,7 +177,7 @@ router.get('/valuation', async (req, res) => {
 // Get growth metrics
 router.get('/growth', async (req, res) => {
   try {
-    const minGrowth = parseFloat(req.query.minGrowth) || 0;
+    const minGrowth = req.query.minGrowth || 0;
     const sector = req.query.sector || '';
     const limit = parseInt(req.query.limit) || 50;
 
@@ -151,10 +185,10 @@ router.get('/growth', async (req, res) => {
     const params = [];
     let paramCount = 0;
 
-    if (minGrowth > 0) {
+    if (parseFloat(minGrowth) > 0) {
       paramCount++;
       whereClause += ` AND km.revenue_growth_pct >= $${paramCount}`;
-      params.push(minGrowth);
+      params.push(parseFloat(minGrowth) / 100);
     }
 
     if (sector) {
@@ -164,21 +198,18 @@ router.get('/growth', async (req, res) => {
     }
 
     const growthQuery = `
-      SELECT        cp.ticker,
+      SELECT 
+        cp.ticker,
         cp.short_name,
         cp.sector,
         md.market_cap,
         km.revenue_growth_pct,
         km.earnings_growth_pct,
-        km.earnings_q_growth_pct,
-        km.total_revenue,
-        km.net_income,
-        km.operating_margin_pct,
-        km.profit_margin_pct,
-        km.return_on_equity_pct,
-        km.return_on_assets_pct
+        km.quarterly_revenue_growth_pct,
+        km.quarterly_earnings_growth_pct
       FROM company_profile cp
       JOIN key_metrics km ON cp.ticker = km.ticker
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
       ${whereClause}
       ORDER BY km.revenue_growth_pct DESC NULLS LAST
       LIMIT $${paramCount + 1}
@@ -201,10 +232,10 @@ router.get('/growth', async (req, res) => {
   }
 });
 
-// Get dividend-focused metrics
+// Get dividend metrics
 router.get('/dividends', async (req, res) => {
   try {
-    const minYield = parseFloat(req.query.minYield) || 0;
+    const minYield = req.query.minYield || 0;
     const sector = req.query.sector || '';
     const limit = parseInt(req.query.limit) || 50;
 
@@ -212,30 +243,28 @@ router.get('/dividends', async (req, res) => {
     const params = [];
     let paramCount = 0;
 
-    if (minYield > 0) {
+    if (parseFloat(minYield) > 0) {
       paramCount++;
       whereClause += ` AND km.dividend_yield >= $${paramCount}`;
-      params.push(minYield);
+      params.push(parseFloat(minYield) / 100);
     }
 
     if (sector) {
       paramCount++;
       whereClause += ` AND cp.sector = $${paramCount}`;
       params.push(sector);
-    }    const dividendQuery = `
+    }
+
+    const dividendQuery = `
       SELECT 
         cp.ticker,
         cp.short_name,
         cp.sector,
         md.market_cap,
         km.dividend_yield,
-        km.dividend_rate,
-        km.five_year_avg_dividend_yield,
-        km.last_annual_dividend_amt,
-        km.trailing_pe,
-        km.current_ratio,
-        km.debt_to_equity,
-        md.regular_market_price
+        km.payout_ratio,
+        km.dividend_date,
+        km.ex_dividend_date
       FROM company_profile cp
       JOIN key_metrics km ON cp.ticker = km.ticker
       LEFT JOIN market_data md ON cp.ticker = md.ticker
@@ -273,13 +302,13 @@ router.get('/financial-strength', async (req, res) => {
     const params = [];
     let paramCount = 0;
 
-    if (minCurrentRatio > 0) {
+    if (minCurrentRatio > 1) {
       paramCount++;
       whereClause += ` AND km.current_ratio >= $${paramCount}`;
       params.push(minCurrentRatio);
     }
 
-    if (maxDebtToEquity > 0) {
+    if (maxDebtToEquity < 2) {
       paramCount++;
       whereClause += ` AND km.debt_to_equity <= $${paramCount}`;
       params.push(maxDebtToEquity);
@@ -292,16 +321,16 @@ router.get('/financial-strength', async (req, res) => {
     }
 
     const strengthQuery = `
-      SELECT        cp.ticker,
+      SELECT 
+        cp.ticker,
         cp.short_name,
         cp.sector,
         md.market_cap,
         km.current_ratio,
         km.quick_ratio,
         km.debt_to_equity,
+        km.total_debt,
         km.total_cash,
-        km.cash_per_share,
-        km.free_cashflow,
         km.operating_cashflow,
         km.return_on_equity_pct,
         km.return_on_assets_pct
@@ -341,21 +370,20 @@ router.get('/screener', async (req, res) => {
       minROE = 0,
       maxDebtToEquity = 2,
       sector = '',
-      limit = 100
-    } = req.query;    let whereClause = `WHERE md.market_cap IS NOT NULL 
-                       AND km.trailing_pe IS NOT NULL 
-                       AND km.trailing_pe > 0`;
+      limit = 50
+    } = req.query;
+
+    let whereClause = 'WHERE md.market_cap IS NOT NULL';
     const params = [];
     let paramCount = 0;
 
-    // Apply filters
     if (parseFloat(minMarketCap) > 0) {
       paramCount++;
       whereClause += ` AND md.market_cap >= $${paramCount}`;
-      params.push(parseFloat(minMarketCap));
+      params.push(parseFloat(minMarketCap) * 1000000000);
     }
 
-    if (parseFloat(maxPE) < 100) {
+    if (parseFloat(maxPE) < 50) {
       paramCount++;
       whereClause += ` AND km.trailing_pe <= $${paramCount}`;
       params.push(parseFloat(maxPE));
@@ -364,18 +392,18 @@ router.get('/screener', async (req, res) => {
     if (parseFloat(minDividendYield) > 0) {
       paramCount++;
       whereClause += ` AND km.dividend_yield >= $${paramCount}`;
-      params.push(parseFloat(minDividendYield));
+      params.push(parseFloat(minDividendYield) / 100);
     }
 
     if (parseFloat(minROE) > 0) {
       paramCount++;
       whereClause += ` AND km.return_on_equity_pct >= $${paramCount}`;
-      params.push(parseFloat(minROE));
+      params.push(parseFloat(minROE) / 100);
     }
 
-    if (parseFloat(maxDebtToEquity) < 10) {
+    if (parseFloat(maxDebtToEquity) < 2) {
       paramCount++;
-      whereClause += ` AND (km.debt_to_equity <= $${paramCount} OR km.debt_to_equity IS NULL)`;
+      whereClause += ` AND km.debt_to_equity <= $${paramCount}`;
       params.push(parseFloat(maxDebtToEquity));
     }
 
@@ -383,16 +411,16 @@ router.get('/screener', async (req, res) => {
       paramCount++;
       whereClause += ` AND cp.sector = $${paramCount}`;
       params.push(sector);
-    }    const screenerQuery = `
+    }
+
+    const screenerQuery = `
       SELECT 
         cp.ticker,
         cp.short_name,
         cp.sector,
         md.market_cap,
         md.regular_market_price,
-        md.regular_market_change_percent,
         km.trailing_pe,
-        km.forward_pe,
         km.price_to_book,
         km.dividend_yield,
         km.return_on_equity_pct,

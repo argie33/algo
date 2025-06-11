@@ -31,10 +31,9 @@ import { useNavigate, useLocation } from 'react-router-dom'
 
 // Pages
 import Dashboard from './pages/Dashboard'
-import StockList from './pages/StockList'
 import StockDetail from './pages/StockDetail'
 import MarketOverview from './pages/MarketOverview'
-import StockScreener from './pages/StockScreener'
+import StockExplorer from './pages/StockExplorer'
 import TradingSignals from './pages/TradingSignals'
 import TechnicalAnalysis from './pages/TechnicalAnalysis'
 import AnalystInsights from './pages/AnalystInsights'
@@ -45,8 +44,7 @@ const drawerWidth = 240
 const menuItems = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
   { text: 'Market Overview', icon: <TrendingUpIcon />, path: '/market' },
-  { text: 'Stock List', icon: <BusinessIcon />, path: '/stocks' },
-  { text: 'Stock Screener', icon: <FilterListIcon />, path: '/screener' },
+  { text: 'Stock Explorer', icon: <FilterListIcon />, path: '/stocks' },
   { text: 'Trading Signals', icon: <TimelineIcon />, path: '/trading' },
   { text: 'Technical Analysis', icon: <AssessmentIcon />, path: '/technical' },
   { text: 'Analyst Insights', icon: <PersonIcon />, path: '/analysts' },
@@ -179,10 +177,10 @@ function App() {
         <Container maxWidth="xl">          <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/market" element={<MarketOverview />} />
-            <Route path="/stocks" element={<StockList />} />
+            <Route path="/stocks" element={<StockExplorer />} />
             <Route path="/stocks/:ticker" element={<StockDetail />} />
             <Route path="/stock/:ticker" element={<StockDetail />} />
-            <Route path="/screener" element={<StockScreener />} />
+            <Route path="/screener" element={<StockExplorer />} />
             <Route path="/trading" element={<TradingSignals />} />
             <Route path="/technical" element={<TechnicalAnalysis />} />
             <Route path="/analysts" element={<AnalystInsights />} />

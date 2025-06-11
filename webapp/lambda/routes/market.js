@@ -20,20 +20,21 @@ router.get('/overview', async (req, res) => {
       FROM naaim_sentiment 
       ORDER BY week_ending DESC 
       LIMIT 1
-    `;
-
-    // Get top gainers today
+    `;    // Get top gainers today
     const gainersQuery = `
       SELECT 
         cp.ticker,
         cp.short_name,
         md.regular_market_price,
-        md.regular_market_change,
-        md.regular_market_change_percent
+        (md.regular_market_price - md.regular_market_previous_close) as regular_market_change,
+        ((md.regular_market_price - md.regular_market_previous_close) / md.regular_market_previous_close * 100) as regular_market_change_percent
       FROM company_profile cp
       JOIN market_data md ON cp.ticker = md.ticker
-      WHERE md.regular_market_change_percent > 0
-      ORDER BY md.regular_market_change_percent DESC
+      WHERE md.regular_market_price IS NOT NULL 
+        AND md.regular_market_previous_close IS NOT NULL 
+        AND md.regular_market_previous_close > 0
+        AND md.regular_market_price > md.regular_market_previous_close
+      ORDER BY ((md.regular_market_price - md.regular_market_previous_close) / md.regular_market_previous_close * 100) DESC
       LIMIT 10
     `;
 
@@ -43,12 +44,15 @@ router.get('/overview', async (req, res) => {
         cp.ticker,
         cp.short_name,
         md.regular_market_price,
-        md.regular_market_change,
-        md.regular_market_change_percent
+        (md.regular_market_price - md.regular_market_previous_close) as regular_market_change,
+        ((md.regular_market_price - md.regular_market_previous_close) / md.regular_market_previous_close * 100) as regular_market_change_percent
       FROM company_profile cp
       JOIN market_data md ON cp.ticker = md.ticker
-      WHERE md.regular_market_change_percent < 0
-      ORDER BY md.regular_market_change_percent ASC
+      WHERE md.regular_market_price IS NOT NULL 
+        AND md.regular_market_previous_close IS NOT NULL 
+        AND md.regular_market_previous_close > 0
+        AND md.regular_market_price < md.regular_market_previous_close
+      ORDER BY ((md.regular_market_price - md.regular_market_previous_close) / md.regular_market_previous_close * 100) ASC
       LIMIT 10
     `;
 
@@ -56,9 +60,8 @@ router.get('/overview', async (req, res) => {
     const activeQuery = `
       SELECT 
         cp.ticker,
-        cp.short_name,
-        md.regular_market_price,
-        md.regular_market_change_percent,
+        cp.short_name,        md.regular_market_price,
+        ((md.regular_market_price - md.regular_market_previous_close) / md.regular_market_previous_close * 100) as regular_market_change_percent,
         pd.volume
       FROM company_profile cp
       JOIN market_data md ON cp.ticker = md.ticker
@@ -136,13 +139,16 @@ router.get('/sectors', async (req, res) => {
       SELECT 
         cp.sector,
         COUNT(*) as stock_count,
-        AVG(md.regular_market_change_percent) as avg_change,
+        AVG((md.regular_market_price - md.regular_market_previous_close) / md.regular_market_previous_close * 100) as avg_change,
         AVG(km.trailing_pe) as avg_pe,
         SUM(md.market_cap) as total_market_cap
       FROM company_profile cp
       LEFT JOIN market_data md ON cp.ticker = md.ticker
       LEFT JOIN key_metrics km ON cp.ticker = km.ticker
       WHERE cp.sector IS NOT NULL
+        AND md.regular_market_price IS NOT NULL 
+        AND md.regular_market_previous_close IS NOT NULL 
+        AND md.regular_market_previous_close > 0
       GROUP BY cp.sector
       ORDER BY avg_change DESC
     `;
