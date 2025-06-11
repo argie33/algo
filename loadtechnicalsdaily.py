@@ -674,19 +674,18 @@ def _process_symbol_chunk_internal(symbol_chunk, db_config, retry_count=0):
         
         # ULTRA-AGGRESSIVE PERFORMANCE TUNING FOR SPEED
         conn.autocommit = False
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-          # Set MAXIMUM performance parameters
-        cur.execute("SET work_mem = '2GB'")  # Massive memory for sorts/joins
+        cur = conn.cursor(cursor_factory=RealDictCursor)        # Set MAXIMUM performance parameters for 8GB memory
+        cur.execute("SET work_mem = '4GB'")  # Increased from 2GB for larger memory
         # cur.execute("SET shared_buffers = '4GB'")  # Cannot be changed at runtime
-        cur.execute("SET effective_cache_size = '8GB'")  # Tell PG about available cache
+        cur.execute("SET effective_cache_size = '16GB'")  # Tell PG about available cache (doubled)
         cur.execute("SET random_page_cost = 1.0")  # SSD-optimized
         cur.execute("SET seq_page_cost = 1.0")  # Sequential scan cost
         cur.execute("SET cpu_tuple_cost = 0.001")  # Very low CPU cost
         cur.execute("SET cpu_index_tuple_cost = 0.001")  # Very low index cost
         cur.execute("SET cpu_operator_cost = 0.0001")  # Very low operator cost
-        cur.execute("SET effective_io_concurrency = 200")  # High I/O concurrency
-        cur.execute("SET max_parallel_workers_per_gather = 4")  # Parallel workers
-        cur.execute("SET max_parallel_workers = 8")
+        cur.execute("SET effective_io_concurrency = 300")  # Increased I/O concurrency for more CPU
+        cur.execute("SET max_parallel_workers_per_gather = 6")  # More parallel workers with 4 vCPU
+        cur.execute("SET max_parallel_workers = 12")  # More total workers
         cur.execute("SET parallel_tuple_cost = 0.001")  # Low parallel cost
         cur.execute("SET enable_seqscan = off")  # Force index usage when possible
         cur.execute("SET enable_hashjoin = on")  # Enable hash joins
@@ -937,17 +936,16 @@ def load_technicals_optimized(symbols):
     """Optimized technical indicators loader with batch processing and advanced parallelization"""
     total = len(symbols)
     logging.info(f"🚀 Starting ultra-optimized technical indicators calculation for {total} symbols")
-    logging.info(f"📊 Performance improvements: TA-Lib C library + Batch processing + Parallel execution")
-      # Dynamic chunk sizing based on total symbols for optimal memory usage and timeout prevention
+    logging.info(f"📊 Performance improvements: TA-Lib C library + Batch processing + Parallel execution")    # Dynamic chunk sizing based on total symbols for optimal memory usage and timeout prevention
     if total <= 100:
-        CHUNK_SIZE = 8   # Reduced from 10 to prevent timeouts
-        MAX_WORKERS = 2
+        CHUNK_SIZE = 12   # Increased from 8 with more resources
+        MAX_WORKERS = 3   # Increased from 2
     elif total <= 500:
-        CHUNK_SIZE = 12  # Reduced from 20 to prevent timeouts
-        MAX_WORKERS = 2  # Reduced from 3 to prevent database overload
+        CHUNK_SIZE = 20   # Increased from 12 with more resources
+        MAX_WORKERS = 4   # Increased from 2 with more CPU/memory
     else:
-        CHUNK_SIZE = 15  # Reduced from 25 to prevent timeouts on large datasets
-        MAX_WORKERS = 2  # Reduced from 3 to prevent database overload
+        CHUNK_SIZE = 25   # Increased from 15 with more resources
+        MAX_WORKERS = 4   # Increased from 2 with more CPU/memory
     
     logging.info(f"⚙️  Configuration: {CHUNK_SIZE} symbols per chunk, {MAX_WORKERS} parallel workers")
     

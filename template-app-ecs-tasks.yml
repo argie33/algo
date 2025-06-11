@@ -752,8 +752,8 @@ Resources:
     UpdateReplacePolicy: Retain
     Properties:
       Family: technicalsdaily-loader
-      Cpu: "2048"
-      Memory: "4096"
+      Cpu: "4096"
+      Memory: "8192"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
