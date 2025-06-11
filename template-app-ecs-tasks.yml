@@ -2928,7 +2928,7 @@ Resources:
 
   #############################################################
   # Step Functions State Machine
-  #############################################################  
+  #############################################################
   FinancialDataStateMachine:
     Type: AWS::StepFunctions::StateMachine
     DependsOn: 
@@ -3077,8 +3077,7 @@ Resources:
                   "Message": "Financial data processing workflow failed. Please check CloudWatch logs for details."
                 },
                 "Next": "WorkflowFailed"
-              },
-              "WorkflowFailed": {
+              },              "WorkflowFailed": {
                 "Type": "Fail",
                 "Error": "FinancialDataProcessingFailed",
                 "Cause": "One or more jobs failed after retry attempts"
