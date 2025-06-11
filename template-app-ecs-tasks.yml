@@ -752,8 +752,8 @@ Resources:
     UpdateReplacePolicy: Retain
     Properties:
       Family: technicalsdaily-loader
-      Cpu: "4096"
-      Memory: "8192"
+      Cpu: "2048"
+      Memory: "4096"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
@@ -2823,10 +2823,10 @@ Resources:
                 Resource:
                   - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/*"
                   - !ImportValue StocksApp-ClusterArn
+
   #############################################################
   # IAM Role for Step Functions
-  #############################################################
-  StepFunctionsExecutionRole:
+  #############################################################    StepFunctionsExecutionRole:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub "${AWS::StackName}-StepFunctionsExecutionRole"
@@ -2861,7 +2861,8 @@ Resources:
                   - 'sns:Publish'
                 Resource: 
                   - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:financial-data-alerts"
-                  - !Ref LatestDataNotificationTopic              - Effect: Allow
+                  - !Ref LatestDataNotificationTopic
+              - Effect: Allow
                 Action:
                   - ecs:RunTask
                   - ecs:StopTask
@@ -2869,7 +2870,7 @@ Resources:
                 Resource:
                   - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/*"
                   - !ImportValue StocksApp-ClusterArn
-                  - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task/*"
+                  - !Sub "${AWS::StackName}:task/*"
               - Effect: Allow
                 Action:
                   - iam:PassRole
@@ -2928,7 +2929,7 @@ Resources:
 
   #############################################################
   # Step Functions State Machine
-  #############################################################
+  #############################################################  
   FinancialDataStateMachine:
     Type: AWS::StepFunctions::StateMachine
     DependsOn: 
@@ -3077,7 +3078,8 @@ Resources:
                   "Message": "Financial data processing workflow failed. Please check CloudWatch logs for details."
                 },
                 "Next": "WorkflowFailed"
-              },              "WorkflowFailed": {
+              },
+              "WorkflowFailed": {
                 "Type": "Fail",
                 "Error": "FinancialDataProcessingFailed",
                 "Cause": "One or more jobs failed after retry attempts"
@@ -3106,7 +3108,482 @@ Resources:
       Targets:
         - Id: FinancialDataProcessingTarget
           Arn: !Ref FinancialDataStateMachine
-          RoleArn: !GetAtt StepFunctionsExecutionRole.Arn
+          RoleArn: !GetAtt EventsStepFunctionsRole.Arn
+
+  #############################################################
+  # IAM Role for EventBridge to Invoke Step Functions 
+  #############################################################
+  EventsStepFunctionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${AWS::StackName}-EventsStepFunctionsRole"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: StepFunctionsInvoke
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: states:StartExecution
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    "aws:ResourceAccount": !Ref "AWS::AccountId"
+  LatestDataStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    DependsOn: 
+      - StepFunctionsExecutionRole
+      - LatestDataNotificationTopic
+    Properties:
+      StateMachineName: 'LatestDataProcessingWorkflow'
+      RoleArn: !GetAtt StepFunctionsExecutionRole.Arn
+      DefinitionString: !Sub 
+        - |
+          {
+            "Comment": "Latest Data Processing Workflow - Price → Technicals → Buy/Sell Signals",
+            "StartAt": "ProcessLatestDataParallel",
+            "States": {
+              "ProcessLatestDataParallel": {
+                "Type": "Parallel",
+                "Comment": "Run daily, weekly, and monthly workflows in parallel",
+                "Branches": [
+                  {
+                    "StartAt": "RunLatestPriceDaily",
+                    "States": {
+                      "RunLatestPriceDaily": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::ecs:runTask.sync",
+                        "Parameters": {
+                          "LaunchType": "FARGATE",
+                          "Cluster": "${ClusterArn}",
+                          "TaskDefinition": "${LatestPriceDailyTaskDefArn}",
+                          "NetworkConfiguration": {
+                            "AwsvpcConfiguration": {
+                              "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                              "SecurityGroups": ["${SecurityGroupId}"],
+                              "AssignPublicIp": "ENABLED"
+                            }
+                          }
+                        },
+                        "Retry": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "IntervalSeconds": 60,
+                            "MaxAttempts": 2,
+                            "BackoffRate": 2
+                          }
+                        ],
+                        "Next": "RunLatestTechnicalsDaily",
+                        "Catch": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "Next": "NotifyDailyError"
+                          }
+                        ]
+                      },
+                      "RunLatestTechnicalsDaily": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::ecs:runTask.sync",
+                        "Parameters": {
+                          "LaunchType": "FARGATE",
+                          "Cluster": "${ClusterArn}",
+                          "TaskDefinition": "${LatestTechnicalsDailyTaskDefArn}",
+                          "NetworkConfiguration": {
+                            "AwsvpcConfiguration": {
+                              "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                              "SecurityGroups": ["${SecurityGroupId}"],
+                              "AssignPublicIp": "ENABLED"
+                            }
+                          }
+                        },
+                        "Retry": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "IntervalSeconds": 60,
+                            "MaxAttempts": 2,
+                            "BackoffRate": 2
+                          }
+                        ],
+                        "Next": "RunLatestBuySellDaily",
+                        "Catch": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "Next": "NotifyDailyError"
+                          }
+                        ]
+                      },
+                      "RunLatestBuySellDaily": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::ecs:runTask.sync",
+                        "Parameters": {
+                          "LaunchType": "FARGATE",
+                          "Cluster": "${ClusterArn}",
+                          "TaskDefinition": "${LatestBuySellDailyTaskDefArn}",
+                          "NetworkConfiguration": {
+                            "AwsvpcConfiguration": {
+                              "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                              "SecurityGroups": ["${SecurityGroupId}"],
+                              "AssignPublicIp": "ENABLED"
+                            }
+                          }
+                        },
+                        "Retry": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "IntervalSeconds": 60,
+                            "MaxAttempts": 2,
+                            "BackoffRate": 2
+                          }
+                        ],
+                        "End": true,
+                        "Catch": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "Next": "NotifyDailyError"
+                          }
+                        ]
+                      },
+                      "NotifyDailyError": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::sns:publish",
+                        "Parameters": {
+                          "TopicArn": "${NotificationTopicArn}",
+                          "Message": "Daily latest data processing workflow failed. Please check CloudWatch logs for details."
+                        },
+                        "Next": "DailyFailed"
+                      },
+                      "DailyFailed": {
+                        "Type": "Fail",
+                        "Error": "DailyLatestDataProcessingFailed",
+                        "Cause": "Daily workflow failed after retry attempts"
+                      }
+                    }
+                  },
+                  {
+                    "StartAt": "RunLatestPriceWeekly",
+                    "States": {
+                      "RunLatestPriceWeekly": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::ecs:runTask.sync",
+                        "Parameters": {
+                          "LaunchType": "FARGATE",
+                          "Cluster": "${ClusterArn}",
+                          "TaskDefinition": "${LatestPriceWeeklyTaskDefArn}",
+                          "NetworkConfiguration": {
+                            "AwsvpcConfiguration": {
+                              "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                              "SecurityGroups": ["${SecurityGroupId}"],
+                              "AssignPublicIp": "ENABLED"
+                            }
+                          }
+                        },
+                        "Retry": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "IntervalSeconds": 60,
+                            "MaxAttempts": 2,
+                            "BackoffRate": 2
+                          }
+                        ],
+                        "Next": "RunLatestTechnicalsWeekly",
+                        "Catch": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "Next": "NotifyWeeklyError"
+                          }
+                        ]
+                      },
+                      "RunLatestTechnicalsWeekly": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::ecs:runTask.sync",
+                        "Parameters": {
+                          "LaunchType": "FARGATE",
+                          "Cluster": "${ClusterArn}",
+                          "TaskDefinition": "${LatestTechnicalsWeeklyTaskDefArn}",
+                          "NetworkConfiguration": {
+                            "AwsvpcConfiguration": {
+                              "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                              "SecurityGroups": ["${SecurityGroupId}"],
+                              "AssignPublicIp": "ENABLED"
+                            }
+                          }
+                        },
+                        "Retry": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "IntervalSeconds": 60,
+                            "MaxAttempts": 2,
+                            "BackoffRate": 2
+                          }
+                        ],
+                        "Next": "RunLatestBuySellWeekly",
+                        "Catch": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "Next": "NotifyWeeklyError"
+                          }
+                        ]
+                      },
+                      "RunLatestBuySellWeekly": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::ecs:runTask.sync",
+                        "Parameters": {
+                          "LaunchType": "FARGATE",
+                          "Cluster": "${ClusterArn}",
+                          "TaskDefinition": "${LatestBuySellWeeklyTaskDefArn}",
+                          "NetworkConfiguration": {
+                            "AwsvpcConfiguration": {
+                              "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                              "SecurityGroups": ["${SecurityGroupId}"],
+                              "AssignPublicIp": "ENABLED"
+                            }
+                          }
+                        },
+                        "Retry": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "IntervalSeconds": 60,
+                            "MaxAttempts": 2,
+                            "BackoffRate": 2
+                          }
+                        ],
+                        "End": true,
+                        "Catch": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "Next": "NotifyWeeklyError"
+                          }
+                        ]
+                      },
+                      "NotifyWeeklyError": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::sns:publish",
+                        "Parameters": {
+                          "TopicArn": "${NotificationTopicArn}",
+                          "Message": "Weekly latest data processing workflow failed. Please check CloudWatch logs for details."
+                        },
+                        "Next": "WeeklyFailed"
+                      },
+                      "WeeklyFailed": {
+                        "Type": "Fail",
+                        "Error": "WeeklyLatestDataProcessingFailed",
+                        "Cause": "Weekly workflow failed after retry attempts"
+                      }
+                    }
+                  },
+                  {
+                    "StartAt": "RunLatestPriceMonthly",
+                    "States": {
+                      "RunLatestPriceMonthly": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::ecs:runTask.sync",
+                        "Parameters": {
+                          "LaunchType": "FARGATE",
+                          "Cluster": "${ClusterArn}",
+                          "TaskDefinition": "${LatestPriceMonthlyTaskDefArn}",
+                          "NetworkConfiguration": {
+                            "AwsvpcConfiguration": {
+                              "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                              "SecurityGroups": ["${SecurityGroupId}"],
+                              "AssignPublicIp": "ENABLED"
+                            }
+                          }
+                        },
+                        "Retry": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "IntervalSeconds": 60,
+                            "MaxAttempts": 2,
+                            "BackoffRate": 2
+                          }
+                        ],
+                        "Next": "RunLatestTechnicalsMonthly",
+                        "Catch": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "Next": "NotifyMonthlyError"
+                          }
+                        ]
+                      },
+                      "RunLatestTechnicalsMonthly": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::ecs:runTask.sync",
+                        "Parameters": {
+                          "LaunchType": "FARGATE",
+                          "Cluster": "${ClusterArn}",
+                          "TaskDefinition": "${LatestTechnicalsMonthlyTaskDefArn}",
+                          "NetworkConfiguration": {
+                            "AwsvpcConfiguration": {
+                              "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                              "SecurityGroups": ["${SecurityGroupId}"],
+                              "AssignPublicIp": "ENABLED"
+                            }
+                          }
+                        },
+                        "Retry": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "IntervalSeconds": 60,
+                            "MaxAttempts": 2,
+                            "BackoffRate": 2
+                          }
+                        ],
+                        "Next": "RunLatestBuySellMonthly",
+                        "Catch": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "Next": "NotifyMonthlyError"
+                          }
+                        ]
+                      },
+                      "RunLatestBuySellMonthly": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::ecs:runTask.sync",
+                        "Parameters": {
+                          "LaunchType": "FARGATE",
+                          "Cluster": "${ClusterArn}",
+                          "TaskDefinition": "${LatestBuySellMonthlyTaskDefArn}",
+                          "NetworkConfiguration": {
+                            "AwsvpcConfiguration": {
+                              "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                              "SecurityGroups": ["${SecurityGroupId}"],
+                              "AssignPublicIp": "ENABLED"
+                            }
+                          }
+                        },
+                        "Retry": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "IntervalSeconds": 60,
+                            "MaxAttempts": 2,
+                            "BackoffRate": 2
+                          }
+                        ],
+                        "End": true,
+                        "Catch": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "Next": "NotifyMonthlyError"
+                          }
+                        ]
+                      },
+                      "NotifyMonthlyError": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::sns:publish",
+                        "Parameters": {
+                          "TopicArn": "${NotificationTopicArn}",
+                          "Message": "Monthly latest data processing workflow failed. Please check CloudWatch logs for details."
+                        },
+                        "Next": "MonthlyFailed"
+                      },
+                      "MonthlyFailed": {
+                        "Type": "Fail",
+                        "Error": "MonthlyLatestDataProcessingFailed",
+                        "Cause": "Monthly workflow failed after retry attempts"
+                      }
+                    }
+                  }
+                ],
+                "ResultPath": "$.LatestDataResults",
+                "Next": "CheckOverallSuccess",
+                "Catch": [
+                  {
+                    "ErrorEquals": ["States.ALL"],
+                    "Next": "NotifyOverallError"
+                  }
+                ]
+              },
+              "CheckOverallSuccess": {
+                "Type": "Choice",
+                "Choices": [
+                  {
+                    "Or": [
+                      {
+                        "Variable": "$.LatestDataResults[0].TaskResult.StopCode",
+                        "NumericEquals": 0
+                      },
+                      {
+                        "Variable": "$.LatestDataResults[1].TaskResult.StopCode", 
+                        "NumericEquals": 0
+                      },
+                      {
+                        "Variable": "$.LatestDataResults[2].TaskResult.StopCode",
+                        "NumericEquals": 0
+                      }
+                    ],
+                    "Next": "WorkflowSuccess"
+                  }
+                ],
+                "Default": "NotifyOverallError"
+              },
+              "WorkflowSuccess": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::sns:publish",
+                "Parameters": {
+                  "TopicArn": "${NotificationTopicArn}",
+                  "Message": "Latest data processing workflow completed successfully! At least one timeframe (daily/weekly/monthly) processed successfully."
+                },
+                "Next": "WorkflowCompleted"
+              },
+              "WorkflowCompleted": {
+                "Type": "Succeed"
+              },
+              "NotifyOverallError": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::sns:publish",
+                "Parameters": {
+                  "TopicArn": "${NotificationTopicArn}",
+                  "Message": "Latest data processing workflow failed completely. All timeframes failed. Please check CloudWatch logs for details."
+                },
+                "Next": "WorkflowFailed"
+              },
+              "WorkflowFailed": {
+                "Type": "Fail",
+                "Error": "LatestDataProcessingFailed",
+                "Cause": "All workflows (daily, weekly, monthly) failed after retry attempts"
+              }
+            }
+          }
+        - ClusterArn: !ImportValue StocksApp-ClusterArn
+          LatestPriceDailyTaskDefArn: !ImportValue LatestPriceDailyTaskDefArn
+          LatestPriceWeeklyTaskDefArn: !ImportValue LatestPriceWeeklyTaskDefArn
+          LatestPriceMonthlyTaskDefArn: !ImportValue LatestPriceMonthlyTaskDefArn
+          LatestTechnicalsDailyTaskDefArn: !ImportValue LatestTechnicalsDailyTaskDefArn
+          LatestTechnicalsWeeklyTaskDefArn: !ImportValue LatestTechnicalsWeeklyTaskDefArn
+          LatestTechnicalsMonthlyTaskDefArn: !ImportValue LatestTechnicalsMonthlyTaskDefArn
+          LatestBuySellDailyTaskDefArn: !Ref LatestBuySellDailyTaskDefinition
+          LatestBuySellWeeklyTaskDefArn: !Ref LatestBuySellWeeklyTaskDefinition
+          LatestBuySellMonthlyTaskDefArn: !Ref LatestBuySellMonthlyTaskDefinition
+          Subnet1Id: !ImportValue StocksCore-PublicSubnet1Id
+          Subnet2Id: !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroupId: !ImportValue StocksApp-EcsTasksSecurityGroupId
+          NotificationTopicArn: !Ref LatestDataNotificationTopic
+
+  #############################################################
+  # EventBridge Schedule to Trigger the Step Function
+  #############################################################
+  LatestDataProcessingSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Run latest data processing workflow every 30 minutes during market hours"
+      ScheduleExpression: "cron(0/30 13-21 ? * MON-FRI *)"
+      # This runs every 30 minutes from 8:00 AM to 4:00 PM CT (13:00-21:00 UTC) on weekdays
+      State: ENABLED
+      Targets:
+        - Id: LatestDataProcessingTarget
+          Arn: !GetAtt LatestDataStateMachine.Arn
+          RoleArn: !ImportValue StocksApp-EventsInvokeStepFunctionsRoleArn
+          Input: |
+            {
+              "comment": "Scheduled execution of latest data processing workflow"
+            }
 
   #########################################
   # Outputs                               #
@@ -3359,3 +3836,11 @@ Outputs:
     Value: !Ref LatestBuySellMonthlyTaskDefinition
     Export:
       Name: LatestBuySellMonthlyTaskDefArn
+
+  LatestDataStateMachineArn:
+    Description: "ARN of the Latest Data Processing State Machine"
+    Value: !Ref LatestDataStateMachine
+
+  LatestDataNotificationTopicArn:
+    Description: "ARN of the Latest Data SNS Topic for notifications"
+    Value: !Ref LatestDataNotificationTopic
