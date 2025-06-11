@@ -2861,8 +2861,7 @@ Resources:
                   - 'sns:Publish'
                 Resource: 
                   - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:financial-data-alerts"
-                  - !Ref LatestDataNotificationTopic
-              - Effect: Allow
+                  - !Ref LatestDataNotificationTopic              - Effect: Allow
                 Action:
                   - ecs:RunTask
                   - ecs:StopTask
@@ -2870,7 +2869,7 @@ Resources:
                 Resource:
                   - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/*"
                   - !ImportValue StocksApp-ClusterArn
-                  - !Sub "${AWS::StackName}:task/*"
+                  - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task/*"
               - Effect: Allow
                 Action:
                   - iam:PassRole
@@ -3103,7 +3102,8 @@ Resources:
     Properties:
       Description: "Run financial data processing workflow at 5:00 AM CT (10:00 UTC) on weekdays"
       ScheduleExpression: "cron(0 23 ? * MON-FRI *)"
-      # This will start at 5:00 AM CT, allowing time for the whole workflow to complete      State: ENABLED
+      # This will start at 5:00 AM CT, allowing time for the whole workflow to complete
+      State: ENABLED
       Targets:
         - Id: FinancialDataProcessingTarget
           Arn: !Ref FinancialDataStateMachine
