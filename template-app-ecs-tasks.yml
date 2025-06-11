@@ -126,15 +126,12 @@ Parameters:
   LatestBuySellDailyImageTag:
     Type: String
     Description: "Tag for latest buy/sell daily loader image"
-    Default: "latest"
   LatestBuySellWeeklyImageTag:
     Type: String
     Description: "Tag for latest buy/sell weekly loader image"  
-    Default: "latest"  LatestBuySellMonthlyImageTag:
+  LatestBuySellMonthlyImageTag:
     Type: String
     Description: "Tag for latest buy/sell monthly loader image"
-    Default: "latest"
-
   FREDApiKey:
     Type: String
     NoEcho: true
@@ -2936,7 +2933,7 @@ Resources:
     Properties:
       StateMachineName: 'FinancialDataProcessingWorkflow'
       RoleArn: !GetAtt StepFunctionsExecutionRole.Arn
-      DefinitionString: !Sub 
+      DefinitionString: !Sub
         - |
           {
             "Comment": "Financial Data Processing Workflow with Retries",

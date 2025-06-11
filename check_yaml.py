@@ -22,7 +22,14 @@ def check_yaml_structure(filename):
                 return {'Fn::GetAtt': loader.construct_sequence(node)}
         
         def construct_sub(loader, node):
-            return {'Fn::Sub': loader.construct_scalar(node)}
+            if isinstance(node, yaml.ScalarNode):
+                return {'Fn::Sub': loader.construct_scalar(node)}
+            elif isinstance(node, yaml.SequenceNode):
+                return {'Fn::Sub': loader.construct_sequence(node)}
+            else:
+                raise yaml.constructor.ConstructorError(None, None,
+                    "expected a scalar or sequence node, but found %s" % node.id,
+                    node.start_mark)
         
         def construct_join(loader, node):
             return {'Fn::Join': loader.construct_sequence(node)}
