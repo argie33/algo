@@ -132,14 +132,13 @@ router.get('/sentiment/history', async (req, res) => {
 
 // Get sector performance
 router.get('/sectors', async (req, res) => {
-  try {
-    const sectorQuery = `
+  try {    const sectorQuery = `
       SELECT 
         cp.sector,
         COUNT(*) as stock_count,
         AVG(md.regular_market_change_percent) as avg_change,
         AVG(km.trailing_pe) as avg_pe,
-        SUM(cp.market_cap) as total_market_cap
+        SUM(md.market_cap) as total_market_cap
       FROM company_profile cp
       LEFT JOIN market_data md ON cp.ticker = md.ticker
       LEFT JOIN key_metrics km ON cp.ticker = km.ticker

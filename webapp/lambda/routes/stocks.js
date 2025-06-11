@@ -26,16 +26,14 @@ router.get('/', async (req, res) => {
       paramCount++;
       whereClause += ` AND cp.sector = $${paramCount}`;
       params.push(sector);
-    }
-
-    const stocksQuery = `
+    }    const stocksQuery = `
       SELECT 
         cp.ticker,
         cp.short_name,
         cp.long_name,
         cp.sector,
         cp.industry,
-        cp.market_cap,
+        md.market_cap,
         cp.currency,
         cp.exchange,
         md.regular_market_price,
@@ -51,7 +49,7 @@ router.get('/', async (req, res) => {
       LEFT JOIN market_data md ON cp.ticker = md.ticker
       LEFT JOIN key_metrics km ON cp.ticker = km.ticker
       ${whereClause}
-      ORDER BY cp.market_cap DESC NULLS LAST
+      ORDER BY md.market_cap DESC NULLS LAST
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
     `;
 
@@ -112,17 +110,15 @@ router.get('/screen', async (req, res) => {
       paramCount++;
       whereClause += ` AND md.regular_market_price <= $${paramCount}`;
       params.push(parseFloat(req.query.priceMax));
-    }
-
-    // Market cap filters (convert billions to actual values)
+    }    // Market cap filters (convert billions to actual values)
     if (req.query.marketCapMin) {
       paramCount++;
-      whereClause += ` AND cp.market_cap >= $${paramCount}`;
+      whereClause += ` AND md.market_cap >= $${paramCount}`;
       params.push(parseFloat(req.query.marketCapMin) * 1000000000);
     }
     if (req.query.marketCapMax) {
       paramCount++;
-      whereClause += ` AND cp.market_cap <= $${paramCount}`;
+      whereClause += ` AND md.market_cap <= $${paramCount}`;
       params.push(parseFloat(req.query.marketCapMax) * 1000000000);
     }
 
@@ -191,9 +187,8 @@ router.get('/screen', async (req, res) => {
     }
 
     // Build ORDER BY clause
-    let orderClause = '';
-    const validSortColumns = {
-      'market_capitalization': 'cp.market_cap',
+    let orderClause = '';    const validSortColumns = {
+      'market_capitalization': 'md.market_cap',
       'price': 'md.regular_market_price',
       'pe_ratio': 'km.trailing_pe',
       'dividend_yield': 'km.dividend_yield',
@@ -207,10 +202,8 @@ router.get('/screen', async (req, res) => {
     if (validSortColumns[sortBy]) {
       orderClause = `ORDER BY ${validSortColumns[sortBy]} ${sortOrder.toUpperCase()} NULLS LAST`;
     } else {
-      orderClause = 'ORDER BY cp.market_cap DESC NULLS LAST';
-    }
-
-    const screenQuery = `
+      orderClause = 'ORDER BY md.market_cap DESC NULLS LAST';
+    }    const screenQuery = `
       SELECT 
         cp.ticker as symbol,
         cp.short_name as company_name,
@@ -218,7 +211,7 @@ router.get('/screen', async (req, res) => {
         cp.industry,
         cp.country,
         cp.exchange,
-        cp.market_cap as market_capitalization,
+        md.market_cap as market_capitalization,
         md.regular_market_price as price,
         md.regular_market_change,
         md.regular_market_change_percent,
@@ -466,10 +459,9 @@ router.get('/:ticker/profile', async (req, res) => {
         industry,
         country,
         exchange,
-        currency,
-        website,
+        currency,        website,
         business_summary as description,
-        market_cap as market_capitalization,
+        md.market_cap as market_capitalization,
         md.regular_market_price as price,
         md.regular_market_previous_close as previous_close,
         md.regular_market_change,
