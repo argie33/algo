@@ -130,11 +130,13 @@ Parameters:
   LatestBuySellWeeklyImageTag:
     Type: String
     Description: "Tag for latest buy/sell weekly loader image"  
-    Default: "latest"
-  LatestBuySellMonthlyImageTag:
+    Default: "latest"  LatestBuySellMonthlyImageTag:
     Type: String
     Description: "Tag for latest buy/sell monthly loader image"
     Default: "latest"
+  AnalystGradeImageTag:
+    Type: String
+    Description: "Tag for analyst grade loader image"
 
   FREDApiKey:
     Type: String

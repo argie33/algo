@@ -552,11 +552,9 @@ jobs:
         run: |
           STACK_NAME="stocks-ecs-tasks-stack"
           TEMPLATE_URL="https://s3.amazonaws.com/${{ steps.bucket.outputs.CF_BUCKET }}/template-app-ecs-tasks.yml"
-          
-          # Build parameters array
+            # Build parameters array
           PARAMETERS="ParameterKey=StockSymbolsImageTag,ParameterValue=$(grep '^StockSymbolsImageTag=' tags.env | cut -d= -f2-)"
           PARAMETERS="$PARAMETERS ParameterKey=EconDataImageTag,ParameterValue=$(grep '^EconDataImageTag=' tags.env | cut -d= -f2-)"
-          PARAMETERS="$PARAMETERS ParameterKey=FindataImageTag,ParameterValue=$(grep '^FindataImageTag=' tags.env | cut -d= -f2-)"
           PARAMETERS="$PARAMETERS ParameterKey=PriceImageTag,ParameterValue=$(grep '^PriceImageTag=' tags.env | cut -d= -f2-)"
           PARAMETERS="$PARAMETERS ParameterKey=PriceWeeklyImageTag,ParameterValue=$(grep '^PriceWeeklyImageTag=' tags.env | cut -d= -f2-)"
           PARAMETERS="$PARAMETERS ParameterKey=PriceMonthlyImageTag,ParameterValue=$(grep '^PriceMonthlyImageTag=' tags.env | cut -d= -f2-)"
