@@ -542,16 +542,19 @@ jobs:
             echo "Stack does not exist, nothing to delete."
           else
             echo "Stack status is $STATUS, not deleting."
-          fi      - name: Upload template to S3
+          fi      
+      
+      - name: Upload template to S3
         run: |
           aws s3 cp template-app-ecs-tasks.yml s3://${{ steps.bucket.outputs.CF_BUCKET }}/template-app-ecs-tasks.yml
           echo "Template uploaded to s3://${{ steps.bucket.outputs.CF_BUCKET }}/template-app-ecs-tasks.yml"
 
+  
       - name: Deploy ECS-tasks CloudFormation stack
         run: |
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
-            --template-url https://${{ steps.bucket.outputs.CF_BUCKET }}.s3.amazonaws.com/template-app-ecs-tasks.yml \
+            --template-url https://s3.amazonaws.com/${{ steps.bucket.outputs.CF_BUCKET }}/template-app-ecs-tasks.yml \
             --parameter-overrides \
               StockSymbolsImageTag=$(grep '^StockSymbolsImageTag=' tags.env | cut -d= -f2-) \
               EconDataImageTag=$(grep '^EconDataImageTag=' tags.env | cut -d= -f2-) \
@@ -593,7 +596,8 @@ jobs:
               StockScreenerImageTag=$(grep '^StockScreenerImageTag=' tags.env | cut -d= -f2-) \
               AaiiSentimentImageTag=$(grep '^AaiiSentimentImageTag=' tags.env | cut -d= -f2- || echo "latest") \
               FearGreedImageTag=$(grep '^FearGreedImageTag=' tags.env | cut -d= -f2- || echo "latest") \
-              NaaimImageTag=$(grep '^NaaimImageTag=' tags.env | cut -d= -f2- || echo "latest") \              FREDApiKey=${{ secrets.FRED_API_KEY }} \
+              NaaimImageTag=$(grep '^NaaimImageTag=' tags.env | cut -d= -f2- || echo "latest") \
+              FREDApiKey=${{ secrets.FRED_API_KEY }} \
               IBKRUsername=${{ secrets.IBKR_USERNAME }} \
               IBKRPassword=${{ secrets.IBKR_PASSWORD }} \
             --capabilities CAPABILITY_NAMED_IAM \
