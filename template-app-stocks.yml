@@ -70,7 +70,6 @@ Resources:
       - StocksDBSubnetGroup
       - StocksDBSecurityGroup
     Properties:
-      DBInstanceIdentifier: stocks
       DBName: stocks
       Engine: postgres
       DBInstanceClass: db.t3.small
