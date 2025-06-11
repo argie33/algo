@@ -197,6 +197,15 @@ export const screenStocks = (params) => {
   return api.get(`/stocks/screen?${params.toString()}`)
 }
 
+// Trading signals endpoints
+export const getBuySignals = () => {
+  return api.get('/signals/buy')
+}
+
+export const getSellSignals = () => {
+  return api.get('/signals/sell')
+}
+
 // Export all methods as a default object for easier importing
 export default {
   healthCheck,
@@ -215,5 +224,7 @@ export default {
   getDividendMetrics,
   getFinancialStrengthMetrics,
   runStockScreener,
-  screenStocks
+  screenStocks,
+  getBuySignals,
+  getSellSignals
 }
