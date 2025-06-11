@@ -2823,10 +2823,10 @@ Resources:
                 Resource:
                   - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/*"
                   - !ImportValue StocksApp-ClusterArn
-
   #############################################################
   # IAM Role for Step Functions
-  #############################################################    StepFunctionsExecutionRole:
+  #############################################################
+  StepFunctionsExecutionRole:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub "${AWS::StackName}-StepFunctionsExecutionRole"
