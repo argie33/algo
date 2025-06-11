@@ -2861,7 +2861,8 @@ Resources:
                   - 'sns:Publish'
                 Resource: 
                   - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:financial-data-alerts"
-                  - !Ref LatestDataNotificationTopic              - Effect: Allow
+                  - !Ref LatestDataNotificationTopic
+              - Effect: Allow
                 Action:
                   - ecs:RunTask
                   - ecs:StopTask
@@ -2869,7 +2870,7 @@ Resources:
                 Resource:
                   - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/*"
                   - !ImportValue StocksApp-ClusterArn
-                  - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task/*"
+                  - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task/*/*"
               - Effect: Allow
                 Action:
                   - iam:PassRole
@@ -2909,17 +2910,16 @@ Resources:
     Properties:
       TopicName: LatestDataProcessingNotifications
       DisplayName: Latest Data Processing Workflow Notifications
-
-  # SMS Subscription
-  SMSSubscription:
+  # SMS Subscription for Latest Data Notifications
+  LatestDataSMSSubscription:
     Type: AWS::SNS::Subscription
     Properties:
       Protocol: sms
       TopicArn: !Ref LatestDataNotificationTopic
       Endpoint: '+13123078620'
 
-  # Email Subscription
-  EmailSubscription:
+  # Email Subscription for Latest Data Notifications
+  LatestDataEmailSubscription:
     Type: AWS::SNS::Subscription
     Properties:
       Protocol: email
@@ -3075,9 +3075,10 @@ Resources:
                 "Parameters": {
                   "TopicArn": "${NotificationTopicArn}",
                   "Message": "Financial data processing workflow failed. Please check CloudWatch logs for details."
-                },
+              },
                 "Next": "WorkflowFailed"
-              },              "WorkflowFailed": {
+              },
+              "WorkflowFailed": {
                 "Type": "Fail",
                 "Error": "FinancialDataProcessingFailed",
                 "Cause": "One or more jobs failed after retry attempts"
