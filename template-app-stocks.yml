@@ -77,7 +77,6 @@ Resources:
       MaxAllocatedStorage: 100
       StorageType: gp3
       StorageEncrypted: true
-      MonitoringInterval: 60
       EnablePerformanceInsights: true
       PerformanceInsightsRetentionPeriod: 7
       MasterUsername: !Ref RDSUsername
