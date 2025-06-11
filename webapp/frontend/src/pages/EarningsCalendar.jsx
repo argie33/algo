@@ -1,0 +1,481 @@
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import {
+  Box,
+  Container,
+  Typography,
+  Grid,
+  Card,
+  CardContent,
+  Alert,
+  CircularProgress,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Chip,
+  Tabs,
+  Tab,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  TablePagination,
+  Avatar,
+  LinearProgress
+} from '@mui/material';
+import {
+  EventNote,
+  TrendingUp,
+  TrendingDown,
+  Assessment,
+  CalendarToday,
+  MonetizationOn,
+  ShowChart
+} from '@mui/icons-material';
+import { formatCurrency, formatPercentage, formatNumber } from '../utils/formatters';
+
+function EarningsCalendar() {
+  const [activeTab, setActiveTab] = useState(0);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [timeFilter, setTimeFilter] = useState('upcoming');
+
+  const API_BASE = process.env.REACT_APP_API_URL || '';
+
+  // Fetch calendar events
+  const { data: calendarData, isLoading: calendarLoading, error: calendarError } = useQuery({
+    queryKey: ['calendarEvents', timeFilter, page, rowsPerPage],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        type: timeFilter,
+        page: page + 1,
+        limit: rowsPerPage
+      });
+      const response = await fetch(`${API_BASE}/calendar/events?${params}`);
+      if (!response.ok) throw new Error('Failed to fetch calendar data');
+      return response.json();
+    },
+    refetchInterval: 300000 // Refresh every 5 minutes
+  });
+
+  // Fetch earnings estimates
+  const { data: estimatesData, isLoading: estimatesLoading } = useQuery({
+    queryKey: ['earningsEstimates', page, rowsPerPage],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        page: page + 1,
+        limit: rowsPerPage
+      });
+      const response = await fetch(`${API_BASE}/analysts/earnings-estimates?${params}`);
+      if (!response.ok) throw new Error('Failed to fetch estimates data');
+      return response.json();
+    },
+    enabled: activeTab === 1,
+    refetchInterval: 300000
+  });
+
+  // Fetch earnings history
+  const { data: historyData, isLoading: historyLoading } = useQuery({
+    queryKey: ['earningsHistory', page, rowsPerPage],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        page: page + 1,
+        limit: rowsPerPage
+      });
+      const response = await fetch(`${API_BASE}/analysts/earnings-history?${params}`);
+      if (!response.ok) throw new Error('Failed to fetch history data');
+      return response.json();
+    },
+    enabled: activeTab === 2,
+    refetchInterval: 600000 // Refresh every 10 minutes
+  });
+
+  const getEventTypeChip = (eventType) => {
+    const typeConfig = {
+      'earnings': { color: '#3B82F6', icon: <ShowChart />, label: 'Earnings' },
+      'dividend': { color: '#10B981', icon: <MonetizationOn />, label: 'Dividend' },
+      'split': { color: '#8B5CF6', icon: <Assessment />, label: 'Stock Split' },
+      'meeting': { color: '#F59E0B', icon: <EventNote />, label: 'Meeting' }
+    };
+
+    const config = typeConfig[eventType?.toLowerCase()] || typeConfig['earnings'];
+    
+    return (
+      <Chip
+        label={config.label}
+        size="small"
+        icon={config.icon}
+        sx={{
+          backgroundColor: config.color,
+          color: 'white',
+          fontWeight: 'medium',
+          '& .MuiChip-icon': {
+            color: 'white'
+          }
+        }}
+      />
+    );
+  };
+
+  const getSurpriseColor = (surprise) => {
+    if (surprise > 5) return 'success.main';
+    if (surprise > 0) return 'success.light';
+    if (surprise < -5) return 'error.main';
+    if (surprise < 0) return 'error.light';
+    return 'grey.500';
+  };
+
+  const getSurpriseIcon = (surprise) => {
+    if (surprise > 0) return <TrendingUp />;
+    if (surprise < 0) return <TrendingDown />;
+    return <TrendingUp />;
+  };
+
+  const CalendarEventsTable = () => (
+    <TableContainer component={Paper} elevation={0}>
+      <Table>
+        <TableHead>
+          <TableRow sx={{ backgroundColor: 'grey.50' }}>
+            <TableCell>Symbol</TableCell>
+            <TableCell>Event Type</TableCell>
+            <TableCell>Date</TableCell>
+            <TableCell>Title</TableCell>
+            <TableCell>Time to Event</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {calendarData?.data?.map((event, index) => (
+            <TableRow key={`${event.symbol}-${index}`} hover>
+              <TableCell>
+                <Typography variant="body2" fontWeight="bold">
+                  {event.symbol}
+                </Typography>
+              </TableCell>
+              <TableCell>
+                {getEventTypeChip(event.event_type)}
+              </TableCell>
+              <TableCell>
+                <Typography variant="body2">
+                  {new Date(event.start_date).toLocaleDateString()}
+                </Typography>
+              </TableCell>
+              <TableCell>
+                <Typography variant="body2" noWrap>
+                  {event.title}
+                </Typography>
+              </TableCell>
+              <TableCell>
+                <Typography variant="body2" color="text.secondary">
+                  {Math.ceil((new Date(event.start_date) - new Date()) / (1000 * 60 * 60 * 24))} days
+                </Typography>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+
+  const EarningsEstimatesTable = () => (
+    <TableContainer component={Paper} elevation={0}>
+      <Table>
+        <TableHead>
+          <TableRow sx={{ backgroundColor: 'grey.50' }}>
+            <TableCell>Symbol</TableCell>
+            <TableCell>Period</TableCell>
+            <TableCell align="right">Avg Estimate</TableCell>
+            <TableCell align="right">Low</TableCell>
+            <TableCell align="right">High</TableCell>
+            <TableCell align="right">Analysts</TableCell>
+            <TableCell align="right">Growth</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {estimatesData?.data?.map((estimate, index) => (
+            <TableRow key={`${estimate.symbol}-${index}`} hover>
+              <TableCell>
+                <Typography variant="body2" fontWeight="bold">
+                  {estimate.symbol}
+                </Typography>
+              </TableCell>
+              <TableCell>
+                <Chip label={estimate.period} size="small" variant="outlined" />
+              </TableCell>
+              <TableCell align="right">
+                <Typography variant="body2" fontWeight="bold">
+                  {formatCurrency(estimate.avg_estimate)}
+                </Typography>
+              </TableCell>
+              <TableCell align="right">
+                {formatCurrency(estimate.low_estimate)}
+              </TableCell>
+              <TableCell align="right">
+                {formatCurrency(estimate.high_estimate)}
+              </TableCell>
+              <TableCell align="right">
+                <Typography variant="body2">
+                  {estimate.number_of_analysts}
+                </Typography>
+              </TableCell>
+              <TableCell align="right">
+                <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
+                  <Avatar sx={{ 
+                    bgcolor: getSurpriseColor(estimate.growth), 
+                    width: 24, 
+                    height: 24 
+                  }}>
+                    {getSurpriseIcon(estimate.growth)}
+                  </Avatar>
+                  <Typography 
+                    variant="body2" 
+                    sx={{ color: getSurpriseColor(estimate.growth) }}
+                  >
+                    {formatPercentage(estimate.growth / 100)}
+                  </Typography>
+                </Box>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+
+  const EarningsHistoryTable = () => (
+    <TableContainer component={Paper} elevation={0}>
+      <Table>
+        <TableHead>
+          <TableRow sx={{ backgroundColor: 'grey.50' }}>
+            <TableCell>Symbol</TableCell>
+            <TableCell>Quarter</TableCell>
+            <TableCell align="right">Actual EPS</TableCell>
+            <TableCell align="right">Estimated EPS</TableCell>
+            <TableCell align="right">Difference</TableCell>
+            <TableCell align="right">Surprise %</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {historyData?.data?.map((history, index) => (
+            <TableRow key={`${history.symbol}-${index}`} hover>
+              <TableCell>
+                <Typography variant="body2" fontWeight="bold">
+                  {history.symbol}
+                </Typography>
+              </TableCell>
+              <TableCell>
+                <Typography variant="body2">
+                  {new Date(history.quarter).toLocaleDateString()}
+                </Typography>
+              </TableCell>
+              <TableCell align="right">
+                <Typography variant="body2" fontWeight="bold">
+                  {formatCurrency(history.eps_actual)}
+                </Typography>
+              </TableCell>
+              <TableCell align="right">
+                {formatCurrency(history.eps_estimate)}
+              </TableCell>
+              <TableCell align="right">
+                <Typography 
+                  variant="body2"
+                  sx={{ color: history.eps_difference >= 0 ? 'success.main' : 'error.main' }}
+                >
+                  {formatCurrency(history.eps_difference)}
+                </Typography>
+              </TableCell>
+              <TableCell align="right">
+                <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
+                  <Avatar sx={{ 
+                    bgcolor: getSurpriseColor(history.surprise_percent), 
+                    width: 24, 
+                    height: 24 
+                  }}>
+                    {getSurpriseIcon(history.surprise_percent)}
+                  </Avatar>
+                  <Typography 
+                    variant="body2" 
+                    sx={{ color: getSurpriseColor(history.surprise_percent) }}
+                  >
+                    {formatPercentage(history.surprise_percent / 100)}
+                  </Typography>
+                </Box>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+
+  const SummaryCard = ({ title, value, subtitle, icon, color }) => (
+    <Card>
+      <CardContent>
+        <Box display="flex" alignItems="center" mb={1}>
+          {icon}
+          <Typography variant="h6" ml={1}>{title}</Typography>
+        </Box>
+        <Typography variant="h4" sx={{ color, fontWeight: 'bold' }}>
+          {value}
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          {subtitle}
+        </Typography>
+      </CardContent>
+    </Card>
+  );
+
+  const isLoading = calendarLoading || (activeTab === 1 && estimatesLoading) || (activeTab === 2 && historyLoading);
+
+  if (isLoading && !calendarData && !estimatesData && !historyData) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+          <CircularProgress />
+        </Box>
+      </Container>
+    );
+  }
+
+  return (
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Typography variant="h4" gutterBottom>
+        Earnings Calendar & Estimates
+      </Typography>
+
+      {/* Summary Cards */}
+      <Grid container spacing={3} mb={4}>
+        <Grid item xs={12} md={3}>
+          <SummaryCard
+            title="Upcoming Events"
+            value={calendarData?.summary?.upcoming_events || 0}
+            subtitle="Next 30 days"
+            icon={<CalendarToday />}
+            color="#3B82F6"
+          />
+        </Grid>
+        <Grid item xs={12} md={3}>
+          <SummaryCard
+            title="Earnings This Week"
+            value={calendarData?.summary?.this_week || 0}
+            subtitle="Companies reporting"
+            icon={<ShowChart />}
+            color="#10B981"
+          />
+        </Grid>
+        <Grid item xs={12} md={3}>
+          <SummaryCard
+            title="Positive Surprises"
+            value={historyData?.summary?.positive_surprises || 0}
+            subtitle="Last quarter"
+            icon={<TrendingUp />}
+            color="#059669"
+          />
+        </Grid>
+        <Grid item xs={12} md={3}>
+          <SummaryCard
+            title="Estimates Updated"
+            value={estimatesData?.summary?.recent_updates || 0}
+            subtitle="Last 7 days"
+            icon={<Assessment />}
+            color="#8B5CF6"
+          />
+        </Grid>
+      </Grid>
+
+      {/* Error Handling */}
+      {calendarError && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          Failed to load calendar data. Please try again later.
+        </Alert>
+      )}
+
+      {/* Tabs */}
+      <Box mb={3}>
+        <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
+          <Tab label="Calendar Events" icon={<CalendarToday />} />
+          <Tab label="Earnings Estimates" icon={<ShowChart />} />
+          <Tab label="Earnings History" icon={<Assessment />} />
+        </Tabs>
+      </Box>
+
+      {/* Filters for Calendar Tab */}
+      {activeTab === 0 && (
+        <Grid container spacing={2} mb={3}>
+          <Grid item xs={12} sm={4}>
+            <FormControl fullWidth>
+              <InputLabel>Time Filter</InputLabel>
+              <Select
+                value={timeFilter}
+                label="Time Filter"
+                onChange={(e) => setTimeFilter(e.target.value)}
+              >
+                <MenuItem value="upcoming">Upcoming Events</MenuItem>
+                <MenuItem value="this_week">This Week</MenuItem>
+                <MenuItem value="next_week">Next Week</MenuItem>
+                <MenuItem value="this_month">This Month</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+        </Grid>
+      )}
+
+      {/* Loading indicator */}
+      {isLoading && <LinearProgress sx={{ mb: 2 }} />}
+
+      {/* Content */}
+      <Card>
+        <CardContent>
+          {activeTab === 0 && (
+            <>
+              <Typography variant="h6" gutterBottom>
+                Earnings Calendar - {timeFilter.replace('_', ' ').toUpperCase()}
+              </Typography>
+              <CalendarEventsTable />
+            </>
+          )}
+          
+          {activeTab === 1 && (
+            <>
+              <Typography variant="h6" gutterBottom>
+                Earnings Estimates
+              </Typography>
+              <EarningsEstimatesTable />
+            </>
+          )}
+
+          {activeTab === 2 && (
+            <>
+              <Typography variant="h6" gutterBottom>
+                Earnings History & Surprises
+              </Typography>
+              <EarningsHistoryTable />
+            </>
+          )}
+          
+          <TablePagination
+            component="div"
+            count={
+              activeTab === 0 ? (calendarData?.pagination?.total || 0) :
+              activeTab === 1 ? (estimatesData?.pagination?.total || 0) :
+              (historyData?.pagination?.total || 0)
+            }
+            page={page}
+            onPageChange={(e, newPage) => setPage(newPage)}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={(e) => {
+              setRowsPerPage(parseInt(e.target.value, 10));
+              setPage(0);
+            }}
+            rowsPerPageOptions={[10, 25, 50, 100]}
+          />
+        </CardContent>
+      </Card>
+    </Container>
+  );
+}
+
+export default EarningsCalendar;

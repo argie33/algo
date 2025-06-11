@@ -51,7 +51,6 @@ function AnalystInsights() {
     },
     refetchInterval: 300000 // Refresh every 5 minutes
   });
-
   const getActionChip = (action) => {
     const actionConfig = {
       'up': { color: '#10B981', icon: <TrendingUp />, label: 'Upgrade' },
@@ -72,7 +71,10 @@ function AnalystInsights() {
         sx={{
           backgroundColor: config.color,
           color: 'white',
-          fontWeight: 'medium'
+          fontWeight: 'medium',
+          '& .MuiChip-icon': {
+            color: 'white'
+          }
         }}
       />
     );

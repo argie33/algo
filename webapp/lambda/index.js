@@ -13,6 +13,8 @@ const healthRoutes = require('./routes/health');
 const marketRoutes = require('./routes/market');
 const analystRoutes = require('./routes/analysts');
 const tradingRoutes = require('./routes/trading');
+const technicalRoutes = require('./routes/technical');
+const calendarRoutes = require('./routes/calendar');
 
 const app = express();
 
@@ -131,6 +133,8 @@ app.use('/metrics', metricsRoutes);
 app.use('/market', marketRoutes);
 app.use('/analysts', analystRoutes);
 app.use('/trading', tradingRoutes);
+app.use('/technical', technicalRoutes);
+app.use('/calendar', calendarRoutes);
 
 // Default route
 app.get('/', (req, res) => {
@@ -144,14 +148,15 @@ app.get('/', (req, res) => {
       health: {
         quick: '/health?quick=true',
         full: '/health'
-      },
-      api: {
+      },      api: {
         stocks: '/stocks',
         screen: '/stocks/screen',
         metrics: '/metrics',
         market: '/market',
         analysts: '/analysts',
-        trading: '/trading'
+        trading: '/trading',
+        technical: '/technical',
+        calendar: '/calendar'
       }
     },
     notes: 'Use /health?quick=true for fast status check without database dependency'

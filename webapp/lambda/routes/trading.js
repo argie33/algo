@@ -1,7 +1,127 @@
 const express = require('express');
+const router = express.Router();
 const { query } = require('../utils/database');
 
-const router = express.Router();
+// Get buy/sell signals by timeframe
+router.get('/signals/:timeframe', async (req, res) => {
+  try {
+    const { timeframe } = req.params;
+    const { limit = 100, symbol, signal_type } = req.query;
+
+    // Validate timeframe
+    const validTimeframes = ['daily', 'weekly', 'monthly'];
+    if (!validTimeframes.includes(timeframe)) {
+      return res.status(400).json({ error: 'Invalid timeframe. Must be daily, weekly, or monthly' });
+    }
+
+    const tableName = `buy_sell_${timeframe}`;
+    
+    // Build WHERE clause
+    let whereClause = '';
+    const queryParams = [];
+    let paramCount = 0;
+
+    const conditions = [];
+    
+    if (symbol) {
+      paramCount++;
+      conditions.push(`symbol = $${paramCount}`);
+      queryParams.push(symbol.toUpperCase());
+    }
+
+    if (signal_type === 'buy') {
+      conditions.push('signal > 0');
+    } else if (signal_type === 'sell') {
+      conditions.push('signal < 0');
+    }
+
+    if (conditions.length > 0) {
+      whereClause = 'WHERE ' + conditions.join(' AND ');
+    }
+
+    const sqlQuery = `
+      SELECT 
+        symbol,
+        date,
+        signal,
+        price,
+        volume
+      FROM ${tableName}
+      ${whereClause}
+      ORDER BY date DESC, ABS(signal) DESC
+      LIMIT $${queryParams.length + 1}
+    `;
+
+    queryParams.push(parseInt(limit));
+
+    const result = await query(sqlQuery, queryParams);
+
+    res.json({
+      success: true,
+      data: result.rows,
+      timeframe,
+      count: result.rows.length,
+      metadata: {
+        limit: parseInt(limit),
+        signal_type: signal_type || 'all',
+        symbol: symbol || null
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching trading signals:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch trading signals',
+      message: error.message 
+    });
+  }
+});
+
+// Get signals summary
+router.get('/summary/:timeframe', async (req, res) => {
+  try {
+    const { timeframe } = req.params;
+    
+    const validTimeframes = ['daily', 'weekly', 'monthly'];
+    if (!validTimeframes.includes(timeframe)) {
+      return res.status(400).json({ error: 'Invalid timeframe' });
+    }
+
+    const tableName = `buy_sell_${timeframe}`;
+    
+    const sqlQuery = `
+      SELECT 
+        COUNT(*) as total_signals,
+        COUNT(CASE WHEN signal > 0 THEN 1 END) as buy_signals,
+        COUNT(CASE WHEN signal < 0 THEN 1 END) as sell_signals,
+        COUNT(CASE WHEN signal > 0.5 THEN 1 END) as strong_buy,
+        COUNT(CASE WHEN signal < -0.5 THEN 1 END) as strong_sell,
+        AVG(signal) as avg_signal,
+        MAX(signal) as max_signal,
+        MIN(signal) as min_signal
+      FROM ${tableName}
+      WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+    `;
+
+    const result = await query(sqlQuery);
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+      timeframe,
+      period: 'last_30_days'
+    });
+
+  } catch (error) {
+    console.error('Error fetching signals summary:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch signals summary',
+      message: error.message 
+    });
+  }
+});
+
+module.exports = router;
 
 // Get latest buy/sell signals
 router.get('/signals', async (req, res) => {
