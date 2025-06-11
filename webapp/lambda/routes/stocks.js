@@ -132,16 +132,15 @@ router.get('/screen', async (req, res) => {
       whereClause += ` AND km.trailing_pe <= $${paramCount}`;
       params.push(parseFloat(req.query.peRatioMax));
     }
-
     // Profitability filters
     if (req.query.roeMin) {
       paramCount++;
-      whereClause += ` AND km.return_on_equity >= $${paramCount}`;
+      whereClause += ` AND km.return_on_equity_pct >= $${paramCount}`;
       params.push(parseFloat(req.query.roeMin) / 100);
     }
     if (req.query.roeMax) {
       paramCount++;
-      whereClause += ` AND km.return_on_equity <= $${paramCount}`;
+      whereClause += ` AND km.return_on_equity_pct <= $${paramCount}`;
       params.push(parseFloat(req.query.roeMax) / 100);
     }
 
@@ -180,9 +179,8 @@ router.get('/screen', async (req, res) => {
     }
     if (req.query.hasPositiveCashFlow === 'true') {
       whereClause += ` AND EXISTS (SELECT 1 FROM ttm_cash_flow tcf WHERE tcf.symbol = cp.ticker AND tcf.free_cash_flow > 0)`;
-    }
-    if (req.query.hasEarningsGrowth === 'true') {
-      whereClause += ` AND km.earnings_growth > 0`;
+    }    if (req.query.hasEarningsGrowth === 'true') {
+      whereClause += ` AND km.earnings_growth_pct > 0`;
     }
 
     // Build ORDER BY clause
@@ -191,8 +189,8 @@ router.get('/screen', async (req, res) => {
       'price': 'md.regular_market_price',
       'pe_ratio': 'km.trailing_pe',
       'dividend_yield': 'km.dividend_yield',
-      'return_on_equity': 'km.return_on_equity',
-      'revenue_growth': 'km.revenue_growth',
+      'return_on_equity': 'km.return_on_equity_pct',
+      'revenue_growth': 'km.revenue_growth_pct',
       'symbol': 'cp.ticker',
       'company_name': 'cp.short_name',
       'sector': 'cp.sector'
@@ -217,11 +215,10 @@ router.get('/screen', async (req, res) => {
         km.peg_ratio,
         km.price_to_book as pb_ratio,
         km.dividend_yield,
-        km.return_on_equity,
-        km.return_on_assets,
-        km.net_margin,
-        km.revenue_growth,
-        km.earnings_growth,
+        km.return_on_equity_pct as return_on_equity,
+        km.return_on_assets_pct as return_on_assets,
+        km.profit_margin_pct as net_margin,        km.revenue_growth_pct as revenue_growth,
+        km.earnings_growth_pct as earnings_growth,
         km.current_ratio,
         km.debt_to_equity
       FROM company_profile cp
@@ -501,14 +498,14 @@ router.get('/:ticker/metrics', async (req, res) => {
         earnings_per_share,
         current_ratio,
         debt_to_equity,
-        return_on_equity,
-        return_on_assets,
-        gross_margin,
-        operating_margin,
-        net_margin,
+        return_on_equity_pct as return_on_equity,
+        return_on_assets_pct as return_on_assets,
+        gross_margin_pct as gross_margin,
+        operating_margin_pct as operating_margin,
+        profit_margin_pct as net_margin,
         asset_turnover,
-        revenue_growth,
-        earnings_growth,
+        revenue_growth_pct as revenue_growth,
+        earnings_growth_pct as earnings_growth,
         collected_date
       FROM key_metrics
       WHERE ticker = $1
