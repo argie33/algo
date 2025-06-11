@@ -3576,7 +3576,8 @@ Resources:
       ScheduleExpression: "cron(0/30 13-21 ? * MON-FRI *)"
       # This runs every 30 minutes from 8:00 AM to 4:00 PM CT (13:00-21:00 UTC) on weekdays
       State: ENABLED
-      Targets:        - Id: LatestDataProcessingTarget
+      Targets:        
+        - Id: LatestDataProcessingTarget
           Arn: !GetAtt LatestDataStateMachine.Arn
           RoleArn: !GetAtt StepFunctionsExecutionRole.Arn
           Input: |
