@@ -178,6 +178,7 @@ function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/market" element={<MarketOverview />} />
             <Route path="/stocks" element={<StockExplorer />} />
+            <Route path="/stocks/screen" element={<StockExplorer />} />
             <Route path="/stocks/:ticker" element={<StockDetail />} />
             <Route path="/stock/:ticker" element={<StockDetail />} />
             <Route path="/screener" element={<StockExplorer />} />

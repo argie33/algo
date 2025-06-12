@@ -129,15 +129,14 @@ function StockExplorer() {
   const [rowsPerPage, setRowsPerPage] = useState(25)
   const [orderBy, setOrderBy] = useState('market_capitalization')
   const [order, setOrder] = useState('desc')
-
-  // Initialize from URL params
+  // Initialize from URL params only once on mount
   useEffect(() => {
     const params = Object.fromEntries(searchParams)
     if (Object.keys(params).length > 0) {
       setFilters(prev => ({ ...prev, ...params }))
       if (params.viewMode) setViewMode(params.viewMode)
     }
-  }, [searchParams])
+  }, []) // Only run on mount
 
   // Build query parameters from filters
   const buildQueryParams = () => {
@@ -165,7 +164,6 @@ function StockExplorer() {
     keepPreviousData: true,
     staleTime: 5 * 60 * 1000 // 5 minutes
   })
-
   const handleFilterChange = (field, value) => {
     setFilters(prev => ({
       ...prev,
@@ -173,14 +171,19 @@ function StockExplorer() {
     }))
     setPage(0) // Reset to first page when filters change
     
-    // Update URL
-    const newParams = new URLSearchParams(searchParams)
-    if (value === '' || value === false) {
-      newParams.delete(field)
-    } else {
-      newParams.set(field, value.toString())
-    }
-    setSearchParams(newParams)
+    // Update URL with debounce to prevent infinite loops
+    setTimeout(() => {
+      const newParams = new URLSearchParams()
+      
+      // Only add non-empty filters to URL
+      Object.entries({...filters, [field]: value}).forEach(([key, val]) => {
+        if (val !== '' && val !== false && val !== INITIAL_FILTERS[key]) {
+          newParams.set(key, val.toString())
+        }
+      })
+      
+      setSearchParams(newParams)
+    }, 100)
   }
 
   const handleClearFilters = () => {
