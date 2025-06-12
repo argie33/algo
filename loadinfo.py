@@ -72,8 +72,8 @@ def load_company_info(symbols, cur, conn):
 
         logging.info(f"Processing batch {batch_idx+1}/{batches}")
         log_mem(f"Batch {batch_idx+1} start")
-
         for yq_sym, orig_sym in mapping.items():
+            info = None  # Initialize info variable
             for attempt in range(1, MAX_BATCH_RETRIES+1):
                 try:
                     ticker = yf.Ticker(yq_sym)
@@ -85,8 +85,13 @@ def load_company_info(symbols, cur, conn):
                     logging.warning(f"Attempt {attempt} failed for {orig_sym}: {e}")
                     if attempt == MAX_BATCH_RETRIES:
                         failed.append(orig_sym)
-                        continue
+                        break  # Break instead of continue to skip processing
                     time.sleep(RETRY_DELAY)
+            
+            # Skip processing if info was not successfully retrieved
+            if info is None:
+                logging.error(f"Skipping {orig_sym} - failed to retrieve info after {MAX_BATCH_RETRIES} attempts")
+                continue
             
             try:
                 # Insert into company_profile

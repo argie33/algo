@@ -88,7 +88,8 @@ Resources:
               OriginProtocolPolicy: https-only
               OriginSSLProtocols: [TLSv1.2]
         
-        # Cache Behaviors        DefaultCacheBehavior:
+        # Cache Behaviors
+        DefaultCacheBehavior:
           TargetOriginId: S3Origin
           ViewerProtocolPolicy: redirect-to-https
           AllowedMethods: [GET, HEAD, OPTIONS]
