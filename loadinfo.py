@@ -82,23 +82,12 @@ def load_company_info(symbols, cur, conn):
         
         logging.info(f"Processing batch {batch_idx+1}/{batches}")
         log_mem(f"Batch {batch_idx+1} start")
-        
         for yq_sym, orig_sym in mapping.items():
             info = None  # Initialize info variable
             for attempt in range(1, MAX_BATCH_RETRIES+1):
                 try:
-                    # Create new session with rotating user agent
-                    session = requests.Session()
-                    session.headers.update({
-                        'User-Agent': random.choice(USER_AGENTS),
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                        'Accept-Language': 'en-US,en;q=0.5',
-                        'Accept-Encoding': 'gzip, deflate',
-                        'Connection': 'keep-alive',
-                        'Upgrade-Insecure-Requests': '1'
-                    })
-                    
-                    ticker = yf.Ticker(yq_sym, session=session)
+                    # Let yfinance handle sessions internally with curl_cffi
+                    ticker = yf.Ticker(yq_sym)
                     info = ticker.info
                     if not info or 'symbol' not in info:
                         raise ValueError("No valid info data received")
