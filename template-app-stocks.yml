@@ -61,7 +61,8 @@ Resources:
           FromPort: 5432
           ToPort: 5432
           CidrIp: "0.0.0.0/0"
-          Description: "Allow Postgres from internet (for Lambda outside VPC)"  ### 3) RDS Instance ###
+          Description: "Allow Postgres from internet (for Lambda outside VPC)"
+  ### 3) RDS Instance ###
   StocksDBInstance:
     Type: AWS::RDS::DBInstance
     DeletionPolicy: Retain
@@ -69,10 +70,9 @@ Resources:
       - StocksDBSubnetGroup
       - StocksDBSecurityGroup
     Properties:
-      DBInstanceIdentifier: stocks-app-db
       DBName: stocks
       Engine: postgres
-      DBInstanceClass: db.t3.small
+      DBInstanceClass: db.t3.micro
       AllocatedStorage: 30
       MaxAllocatedStorage: 100
       StorageType: gp3
