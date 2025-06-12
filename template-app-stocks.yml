@@ -18,7 +18,7 @@ Parameters:
 
 Resources:
 
-  ### 1) RDS Subnet Group (public) ###
+  ### 1) RDS Subnet Group (public) ### 
   StocksDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     DeletionPolicy: Retain
@@ -72,7 +72,7 @@ Resources:
     Properties:
       DBName: stocks
       Engine: postgres
-      DBInstanceClass: db.t3.micro
+      DBInstanceClass: db.t3.small
       AllocatedStorage: 30
       MaxAllocatedStorage: 100
       StorageType: gp3
