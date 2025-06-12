@@ -87,13 +87,18 @@ Resources:
       PubliclyAccessible: true
       MultiAZ: false
       DeletionProtection: false
-      EnableIAMDatabaseAuthentication: true  ### 4) Secrets Manager: DB creds ###
+      EnableIAMDatabaseAuthentication: true
+  ### 4) Secrets Manager: DB creds ###
   DBCredentialsSecret:
     Type: AWS::SecretsManager::Secret
     DeletionPolicy: Retain
     DependsOn: StocksDBInstance
     Properties:
-      Name: !Sub stocks-db-secrets-${AWS::StackName}-${AWS::Region}-${AWS::AccountId}-${AWS::StackId}
+      Name: !Sub 
+        - stocks-db-secrets-${StackName}-${Region}-${UniqueId}
+        - StackName: !Ref AWS::StackName
+          Region: !Ref AWS::Region
+          UniqueId: !Select [2, !Split ["/", !Ref AWS::StackId]]
       Description: JSON with username, password, host, port, dbname
       SecretString:
         Fn::Join:
