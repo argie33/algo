@@ -1,6 +1,6 @@
-#!/usr/bin/env python3    
+#!/usr/bin/env python3   
 """
-Optimized Daily Buy/Sell Signal Generator
+Optimized Monthly Buy/Sell Signal Generator
 - Ultra-fast vectorized operations with NumPy/Pandas
 - Parallel processing with ThreadPoolExecutor
 - Memory-optimized data types and aggressive garbage collection
@@ -223,8 +223,7 @@ def create_buy_sell_table_optimized(cur):
             date         DATE           NOT NULL,
             signal       VARCHAR(10),
             buylevel     REAL,
-            stoplevel    REAL,
-            inposition   BOOLEAN,
+            stoplevel    REAL,            inposition   BOOLEAN,
             UNIQUE(symbol, timeframe, date)
         );
     """)
@@ -234,6 +233,8 @@ def create_buy_sell_table_optimized(cur):
     cur.execute(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_signal ON {table_name}(signal) WHERE signal IS NOT NULL;")
     cur.execute(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_timeframe ON {table_name}(timeframe);")
     cur.connection.commit()
+    
+    logging.info(f"✅ {table_name} table and indexes created successfully")
 
 def bulk_insert_results(cur, symbol_results):
     """Ultra-fast bulk insert using execute_values"""
@@ -260,12 +261,12 @@ def bulk_insert_results(cur, symbol_results):
                 row['Signal'],
                 float(row['buyLevel']) if not pd.isnull(row['buyLevel']) else None,
                 float(row['stopLevel']) if not pd.isnull(row['stopLevel']) else None,
-                bool(row['inPosition'])
-            ))
+                bool(row['inPosition'])            ))
     
     if not insert_data:
         return 0
-      # Bulk insert with ON CONFLICT handling
+    
+    # Bulk insert with ON CONFLICT handling
     table_name = f"buy_sell_{TIMEFRAME}"
     insert_query = f"""
         INSERT INTO {table_name} (

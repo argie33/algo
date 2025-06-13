@@ -42,15 +42,14 @@ router.get('/signals/:timeframe', async (req, res) => {
         bs.signal,
         bs.buylevel as price,
         bs.stoplevel,
-        bs.inposition,
-        md.regular_market_price as current_price,
+        bs.inposition,        md.regular_market_price as current_price,
         cp.short_name as company_name,
         CASE 
-          WHEN bs.signal = 'Buy' AND md.regular_market_price > bs.buylevel 
+          WHEN bs.signal = 'Buy' AND bs.buylevel IS NOT NULL AND md.regular_market_price IS NOT NULL AND bs.buylevel > 0 
           THEN ((md.regular_market_price - bs.buylevel) / bs.buylevel * 100)
-          WHEN bs.signal = 'Sell' AND md.regular_market_price < bs.buylevel 
+          WHEN bs.signal = 'Sell' AND bs.buylevel IS NOT NULL AND md.regular_market_price IS NOT NULL AND bs.buylevel > 0 
           THEN ((bs.buylevel - md.regular_market_price) / bs.buylevel * 100)
-          ELSE 0
+          ELSE NULL
         END as performance_percent
       FROM ${tableName} bs
       LEFT JOIN market_data md ON bs.symbol = md.ticker
