@@ -13,7 +13,6 @@ import logging
 import json
 import os
 import gc
-import resource
 import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import partial
@@ -179,7 +178,7 @@ def get_optimized_connection(retry_count=0):
 FRED_API_KEY = os.environ["FRED_API_KEY"]
 
 ###############################################################################
-# 1) DATABASE FUNCTIONS (Ultra-optimized)
+# 1) DATABASE FUNCTIONS (Ultra-optimized) 
 ###############################################################################
 def get_symbols_batch(batch_size=1000):
     """Get symbols in batches for memory efficiency"""
@@ -221,14 +220,14 @@ def create_buy_sell_table_optimized(cur):
             symbol       VARCHAR(20)    NOT NULL,
             timeframe    VARCHAR(10)    NOT NULL, 
             date         DATE           NOT NULL,
-            signal       VARCHAR(10),
-            buylevel     REAL,
-            stoplevel    REAL,            inposition   BOOLEAN,
-            UNIQUE(symbol, timeframe, date)
-        );
+            signal       VARCHAR(10),            buylevel     REAL,
+            stoplevel    REAL,
+            inposition   BOOLEAN,
+            UNIQUE(symbol, timeframe, date)        );
     """)
     cur.connection.commit()
-      # Create optimized indexes 
+    
+    # Create optimized indexes
     cur.execute(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_symbol_tf_date ON {table_name}(symbol, timeframe, date);")
     cur.execute(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_signal ON {table_name}(signal) WHERE signal IS NOT NULL;")
     cur.execute(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_timeframe ON {table_name}(timeframe);")
@@ -260,8 +259,8 @@ def bulk_insert_results(cur, symbol_results):
                 row['date'].date(),
                 row['Signal'],
                 float(row['buyLevel']) if not pd.isnull(row['buyLevel']) else None,
-                float(row['stopLevel']) if not pd.isnull(row['stopLevel']) else None,
-                bool(row['inPosition'])            ))
+                float(row['stopLevel']) if not pd.isnull(row['stopLevel']) else None,                bool(row['inPosition'])
+            ))
     
     if not insert_data:
         return 0
