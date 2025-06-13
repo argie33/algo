@@ -460,16 +460,20 @@ def process_symbol_incremental(symbol_info, db_config):
             
             for idx in range(len(df_reset)):
                 row = df_reset.iloc[idx]
-                
-                # Skip rows with no signal
-                if row.get('signal') == 'None':
-                    continue
+                  # Convert string signal to numeric value
+                signal_value = 0  # Default neutral
+                if row.get('signal') == 'Buy':
+                    signal_value = 1
+                elif row.get('signal') == 'Sell':
+                    signal_value = -1
+                else:
+                    continue  # Skip 'None' signals
                 
                 record = (
                     symbol,
                     TIMEFRAME,
                     row['date'].to_pydatetime() if hasattr(row['date'], 'to_pydatetime') else row['date'],
-                    row.get('signal'),
+                    signal_value,
                     float(row.get('buy_level')) if not pd.isna(row.get('buy_level')) else None,
                     float(row.get('stop_level')) if not pd.isna(row.get('stop_level')) else None,
                     bool(row.get('in_position', False))

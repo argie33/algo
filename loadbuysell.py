@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Optimized Daily Buy/Sell Signal Generator
+Optimized Buy/Sell Signal Generator
 - Ultra-fast vectorized operations with NumPy/Pandas
 - Parallel processing with ThreadPoolExecutor
 - Memory-optimized data types and aggressive garbage collection
@@ -33,7 +33,7 @@ import psutil
 # -------------------------------
 # Script metadata & logging setup 
 # -------------------------------
-SCRIPT_NAME = "loadbuyselldaily.py"
+SCRIPT_NAME = "loadbuysell.py"
 TIMEFRAME = "daily"
 PRICE_TABLE = "price_daily"
 TECH_TABLE = "technical_data_daily"
