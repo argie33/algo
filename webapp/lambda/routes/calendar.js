@@ -3,9 +3,68 @@ const { query } = require('../utils/database');
 
 const router = express.Router();
 
+// Debug endpoint to check calendar table status
+router.get('/debug', async (req, res) => {
+  try {
+    console.log('Calendar debug endpoint called');
+    
+    // Check if table exists
+    const tableExistsQuery = `
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'calendar_events'
+      );
+    `;
+    
+    const tableExists = await query(tableExistsQuery);
+    console.log('Table exists check:', tableExists.rows[0]);
+    
+    if (tableExists.rows[0].exists) {
+      // Count total records
+      const countQuery = `SELECT COUNT(*) as total FROM calendar_events`;
+      const countResult = await query(countQuery);
+      console.log('Total calendar events:', countResult.rows[0]);
+      
+      // Get sample records
+      const sampleQuery = `
+        SELECT symbol, event_type, start_date, title, fetched_at
+        FROM calendar_events 
+        ORDER BY fetched_at DESC 
+        LIMIT 5
+      `;
+      const sampleResult = await query(sampleQuery);
+      console.log('Sample records:', sampleResult.rows);
+      
+      res.json({
+        tableExists: true,
+        totalRecords: parseInt(countResult.rows[0].total),
+        sampleRecords: sampleResult.rows,
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.json({
+        tableExists: false,
+        message: 'calendar_events table does not exist',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+  } catch (error) {
+    console.error('Error in calendar debug:', error);
+    res.status(500).json({ 
+      error: 'Debug check failed', 
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Get calendar events (earnings, dividends, splits, etc.)
 router.get('/events', async (req, res) => {
   try {
+    console.log('Calendar events endpoint called with params:', req.query);
+    
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 25;
     const offset = (page - 1) * limit;
@@ -31,6 +90,8 @@ router.get('/events', async (req, res) => {
         break;
     }
 
+    console.log('Using whereClause:', whereClause);
+
     const eventsQuery = `
       SELECT 
         ce.symbol,
@@ -52,10 +113,14 @@ router.get('/events', async (req, res) => {
       ${whereClause}
     `;
 
+    console.log('Executing queries with limit:', limit, 'offset:', offset);
+
     const [eventsResult, countResult] = await Promise.all([
       query(eventsQuery, [limit, offset]),
       query(countQuery)
     ]);
+
+    console.log('Query results - events:', eventsResult.rows.length, 'total:', countResult.rows[0].total);
 
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
@@ -79,7 +144,7 @@ router.get('/events', async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching calendar events:', error);
-    res.status(500).json({ error: 'Failed to fetch calendar events' });
+    res.status(500).json({ error: 'Failed to fetch calendar events', details: error.message });
   }
 });
 
