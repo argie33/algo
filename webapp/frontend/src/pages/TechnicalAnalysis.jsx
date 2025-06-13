@@ -34,16 +34,16 @@ function TechnicalAnalysis() {
   useEffect(() => {
     fetchTechnicalData()
   }, [timeframe])
-
   const fetchTechnicalData = async () => {
     setLoading(true)
     setError(null)
+    
     try {
       const params = new URLSearchParams({
         limit: '50',
         ...(symbolFilter && { symbol: symbolFilter })
       })
-      const response = await fetch(`${process.env.REACT_APP_API_URL || ''}/technical/${timeframe}?${params}`)
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/technical/${timeframe}?${params}`)
       if (!response.ok) throw new Error('Failed to fetch technical data')
       const data = await response.json()
       setTechnicalData(data.data || [])

@@ -1,246 +1,374 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
+  Box,
+  Container,
+  Typography,
   Grid,
   Card,
   CardContent,
-  Typography,
-  Box,
-  Chip,
-  LinearProgress,
-  Alert,
-  Paper,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
+  Paper,
+  Chip,
+  CircularProgress,
+  Alert,
   Tabs,
-  Tab
+  Tab,
+  TablePagination
 } from '@mui/material'
-import {
-  TrendingUp,
-  TrendingDown,
-  Timeline,
-  SignalCellularAlt
-} from '@mui/icons-material'
-
-import { getBuySignals, getSellSignals } from '../services/api'
-import { formatCurrency, formatPercentage, getChangeColor } from '../utils/formatters'
-
-function TabPanel(props) {
-  const { children, value, index, ...other } = props
-
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`trading-tabpanel-${index}`}
-      aria-labelledby={`trading-tab-${index}`}
-      {...other}
-    >
-      {value === index && (
-        <Box sx={{ p: 3 }}>
-          {children}
-        </Box>
-      )}
-    </div>
-  )
-}
+import { TrendingUp, TrendingDown, Assessment } from '@mui/icons-material'
+import { formatCurrency, formatPercentage } from '../utils/formatters'
 
 function TradingSignals() {
-  const [tabValue, setTabValue] = React.useState(0)
+  const [activeTab, setActiveTab] = useState(0);
+  const [signalType, setSignalType] = useState('all');
+  const [timeframe, setTimeframe] = useState('daily');
+  const [page, setPage] = useState(0);  const [rowsPerPage, setRowsPerPage] = useState(25);
 
-  const { 
-    data: buySignals, 
-    isLoading: buyLoading, 
-    error: buyError 
-  } = useQuery({
-    queryKey: ['buySignals'],
-    queryFn: getBuySignals,
-    refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
-  })
+  const API_BASE = import.meta.env.VITE_API_URL || '';
 
-  const { 
-    data: sellSignals, 
-    isLoading: sellLoading, 
-    error: sellError 
-  } = useQuery({
-    queryKey: ['sellSignals'],
-    queryFn: getSellSignals,
-    refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
-  })
+  // Fetch buy/sell signals
+  const { data: signalsData, isLoading: signalsLoading, error: signalsError } = useQuery({
+    queryKey: ['tradingSignals', signalType, timeframe, page, rowsPerPage],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        signal: signalType,
+        timeframe,
+        page: page + 1,
+        limit: rowsPerPage
+      });
+      const response = await fetch(`${API_BASE}/trading/signals?${params}`);
+      if (!response.ok) throw new Error('Failed to fetch signals');
+      return response.json();
+    },
+    refetchInterval: 300000 // Refresh every 5 minutes
+  });
 
-  const handleTabChange = (event, newValue) => {
-    setTabValue(newValue)
-  }
+  // Fetch swing trading signals
+  const { data: swingData, isLoading: swingLoading } = useQuery({
+    queryKey: ['swingSignals', page, rowsPerPage],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        page: page + 1,
+        limit: rowsPerPage
+      });
+      const response = await fetch(`${API_BASE}/trading/swing-signals?${params}`);
+      if (!response.ok) throw new Error('Failed to fetch swing signals');
+      return response.json();
+    },
+    enabled: activeTab === 1,
+    refetchInterval: 300000
+  });
 
-  const renderSignalsTable = (signals, type) => {
-    if (!signals || signals.length === 0) {
-      return (
-        <Alert severity="info">
-          No {type} signals available at this time.
-        </Alert>
-      )
-    }
+  // Fetch performance summary
+  const { data: performanceData, isLoading: performanceLoading } = useQuery({
+    queryKey: ['tradingPerformance'],
+    queryFn: async () => {
+      const response = await fetch(`${API_BASE}/trading/performance`);
+      if (!response.ok) throw new Error('Failed to fetch performance');
+      return response.json();
+    },
+    refetchInterval: 600000 // Refresh every 10 minutes
+  });
 
+  const getSignalChip = (signal) => {
+    const isBuy = signal === 'BUY';
     return (
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Symbol</TableCell>
-              <TableCell>Company</TableCell>
-              <TableCell align="right">Price</TableCell>
-              <TableCell align="right">Change</TableCell>
-              <TableCell align="right">Signal Strength</TableCell>
-              <TableCell>Timeframe</TableCell>
-              <TableCell>Generated</TableCell>
+      <Chip
+        label={signal}
+        size="small"
+        icon={isBuy ? <TrendingUp /> : <TrendingDown />}
+        sx={{
+          backgroundColor: isBuy ? '#10B981' : '#DC2626',
+          color: 'white',
+          fontWeight: 'bold'
+        }}
+      />
+    );
+  };
+
+  const getStatusChip = (status) => {
+    const colors = {
+      'TARGET_HIT': '#10B981',
+      'STOP_LOSS_HIT': '#DC2626',
+      'ACTIVE': '#3B82F6'
+    };
+    
+    return (
+      <Chip
+        label={status.replace('_', ' ')}
+        size="small"
+        sx={{
+          backgroundColor: colors[status] || '#6B7280',
+          color: 'white',
+          fontWeight: 'medium'
+        }}
+      />
+    );
+  };
+
+  const PerformanceCard = ({ title, value, subtitle, icon, color }) => (
+    <Card>
+      <CardContent>
+        <Box display="flex" alignItems="center" mb={1}>
+          {icon}
+          <Typography variant="h6" ml={1}>{title}</Typography>
+        </Box>
+        <Typography variant="h4" sx={{ color, fontWeight: 'bold' }}>
+          {value}
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          {subtitle}
+        </Typography>
+      </CardContent>
+    </Card>
+  );
+
+  const BuySellSignalsTable = () => (
+    <TableContainer component={Paper} elevation={0}>
+      <Table>
+        <TableHead>
+          <TableRow sx={{ backgroundColor: 'grey.50' }}>
+            <TableCell>Symbol</TableCell>
+            <TableCell>Company</TableCell>
+            <TableCell>Signal</TableCell>
+            <TableCell align="right">Signal Price</TableCell>
+            <TableCell align="right">Current Price</TableCell>
+            <TableCell align="right">Performance</TableCell>
+            <TableCell>Date</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {signalsData?.data?.map((signal, index) => (
+            <TableRow key={`${signal.symbol}-${index}`} hover>
+              <TableCell>
+                <Typography variant="body2" fontWeight="bold">
+                  {signal.symbol}
+                </Typography>
+              </TableCell>
+              <TableCell>
+                <Typography variant="body2" noWrap>
+                  {signal.company_name}
+                </Typography>
+              </TableCell>
+              <TableCell>
+                {getSignalChip(signal.signal)}
+              </TableCell>
+              <TableCell align="right">
+                {formatCurrency(signal.price)}
+              </TableCell>
+              <TableCell align="right">
+                {formatCurrency(signal.current_price)}
+              </TableCell>
+              <TableCell align="right">
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    color: signal.performance_percent >= 0 ? '#10B981' : '#DC2626',
+                    fontWeight: 'medium'
+                  }}
+                >
+                  {formatPercentage(signal.performance_percent / 100)}
+                </Typography>
+              </TableCell>
+              <TableCell>
+                <Typography variant="body2">
+                  {new Date(signal.date).toLocaleDateString()}
+                </Typography>
+              </TableCell>
             </TableRow>
-          </TableHead>
-          <TableBody>
-            {signals.map((signal, index) => (
-              <TableRow key={index}>
-                <TableCell>
-                  <Typography variant="subtitle2" fontWeight="bold">
-                    {signal.symbol}
-                  </Typography>
-                </TableCell>
-                <TableCell>{signal.company_name || 'N/A'}</TableCell>
-                <TableCell align="right">
-                  {formatCurrency(signal.current_price)}
-                </TableCell>
-                <TableCell align="right">
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-                    {signal.price_change > 0 ? <TrendingUp color="success" /> : <TrendingDown color="error" />}
-                    <Typography 
-                      variant="body2" 
-                      color={getChangeColor(signal.price_change)}
-                      sx={{ ml: 0.5 }}
-                    >
-                      {formatPercentage(signal.price_change)}
-                    </Typography>
-                  </Box>
-                </TableCell>
-                <TableCell align="right">
-                  <Chip 
-                    label={`${signal.signal_strength}%`}
-                    color={signal.signal_strength > 75 ? 'success' : signal.signal_strength > 50 ? 'warning' : 'default'}
-                    size="small"
-                  />
-                </TableCell>
-                <TableCell>
-                  <Chip 
-                    label={signal.timeframe || 'Daily'}
-                    variant="outlined"
-                    size="small"
-                  />
-                </TableCell>
-                <TableCell>
-                  <Typography variant="caption">
-                    {new Date(signal.created_at).toLocaleString()}
-                  </Typography>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    )
-  }
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
 
-  if (buyError || sellError) {
+  const SwingSignalsTable = () => (
+    <TableContainer component={Paper} elevation={0}>
+      <Table>
+        <TableHead>
+          <TableRow sx={{ backgroundColor: 'grey.50' }}>
+            <TableCell>Symbol</TableCell>
+            <TableCell>Company</TableCell>
+            <TableCell>Signal</TableCell>
+            <TableCell align="right">Entry</TableCell>
+            <TableCell align="right">Stop Loss</TableCell>
+            <TableCell align="right">Target</TableCell>
+            <TableCell align="right">Risk/Reward</TableCell>
+            <TableCell align="right">Current</TableCell>
+            <TableCell>Status</TableCell>
+            <TableCell>Date</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {swingData?.data?.map((swing, index) => (
+            <TableRow key={`${swing.symbol}-${index}`} hover>
+              <TableCell>
+                <Typography variant="body2" fontWeight="bold">
+                  {swing.symbol}
+                </Typography>
+              </TableCell>
+              <TableCell>
+                <Typography variant="body2" noWrap>
+                  {swing.company_name}
+                </Typography>
+              </TableCell>
+              <TableCell>
+                {getSignalChip(swing.signal)}
+              </TableCell>
+              <TableCell align="right">
+                {formatCurrency(swing.entry_price)}
+              </TableCell>
+              <TableCell align="right">
+                {formatCurrency(swing.stop_loss)}
+              </TableCell>
+              <TableCell align="right">
+                {formatCurrency(swing.target_price)}
+              </TableCell>
+              <TableCell align="right">
+                <Typography variant="body2" fontWeight="medium">
+                  {swing.risk_reward_ratio ? `1:${swing.risk_reward_ratio.toFixed(1)}` : 'N/A'}
+                </Typography>
+              </TableCell>
+              <TableCell align="right">
+                {formatCurrency(swing.current_price)}
+              </TableCell>
+              <TableCell>
+                {getStatusChip(swing.status)}
+              </TableCell>
+              <TableCell>
+                <Typography variant="body2">
+                  {new Date(swing.date).toLocaleDateString()}
+                </Typography>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+
+  const isLoading = (activeTab === 0 ? signalsLoading : swingLoading) || performanceLoading;
+
+  if (isLoading && !signalsData && !swingData) {
     return (
-      <Alert severity="error">
-        Error loading trading signals: {buyError?.message || sellError?.message}
-      </Alert>
-    )
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+          <CircularProgress />
+        </Box>
+      </Container>
+    );
   }
 
   return (
-    <Box sx={{ width: '100%' }}>
-      <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
-        <Timeline sx={{ mr: 2 }} />
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Typography variant="h4" gutterBottom>
         Trading Signals
       </Typography>
-      
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <TrendingUp color="success" sx={{ mr: 1 }} />
-                <Typography variant="h6">Buy Signals</Typography>
-              </Box>
-              <Typography variant="h3" color="success.main">
-                {buySignals?.length || 0}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Active buy opportunities
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <TrendingDown color="error" sx={{ mr: 1 }} />
-                <Typography variant="h6">Sell Signals</Typography>
-              </Box>
-              <Typography variant="h3" color="error.main">
-                {sellSignals?.length || 0}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Active sell recommendations
-              </Typography>
-            </CardContent>
-          </Card>
+
+      {/* Performance Summary */}
+      <Grid container spacing={3} mb={4}>
+        {performanceData?.performance?.map((perf) => (
+          <Grid item xs={12} md={4} key={perf.signal}>
+            <PerformanceCard
+              title={`${perf.signal} Signals`}
+              value={`${perf.win_rate?.toFixed(1)}%`}
+              subtitle={`${perf.winning_trades}/${perf.total_signals} trades | Avg: ${formatPercentage(perf.avg_performance / 100)}`}
+              icon={perf.signal === 'BUY' ? <TrendingUp /> : <TrendingDown />}
+              color={perf.signal === 'BUY' ? '#10B981' : '#DC2626'}
+            />
+          </Grid>
+        ))}
+        <Grid item xs={12} md={4}>
+          <PerformanceCard
+            title="Analysis Period"
+            value={`${performanceData?.period_days || 0} days`}
+            subtitle="Signal performance tracking"
+            icon={<Assessment />}
+            color="#3B82F6"
+          />
         </Grid>
       </Grid>
 
-      <Paper sx={{ width: '100%' }}>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={tabValue} onChange={handleTabChange}>
-            <Tab 
-              label={
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <TrendingUp sx={{ mr: 1 }} />
-                  Buy Signals ({buySignals?.length || 0})
-                </Box>
-              } 
-            />
-            <Tab 
-              label={
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <TrendingDown sx={{ mr: 1 }} />
-                  Sell Signals ({sellSignals?.length || 0})
-                </Box>
-              } 
-            />
-          </Tabs>
-        </Box>
-        
-        <TabPanel value={tabValue} index={0}>
-          {buyLoading ? (
-            <LinearProgress />
-          ) : (
-            renderSignalsTable(buySignals, 'buy')
-          )}
-        </TabPanel>
-        
-        <TabPanel value={tabValue} index={1}>
-          {sellLoading ? (
-            <LinearProgress />
-          ) : (
-            renderSignalsTable(sellSignals, 'sell')
-          )}
-        </TabPanel>
-      </Paper>
-    </Box>
-  )
+      {/* Tabs */}
+      <Box mb={3}>
+        <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
+          <Tab label="Buy/Sell Signals" />
+          <Tab label="Swing Trading" />
+        </Tabs>
+      </Box>
+
+      {/* Filters */}
+      {activeTab === 0 && (
+        <Grid container spacing={2} mb={3}>
+          <Grid item xs={12} sm={4}>
+            <FormControl fullWidth>
+              <InputLabel>Signal Type</InputLabel>
+              <Select
+                value={signalType}
+                label="Signal Type"
+                onChange={(e) => setSignalType(e.target.value)}
+              >
+                <MenuItem value="all">All Signals</MenuItem>
+                <MenuItem value="buy">Buy Only</MenuItem>
+                <MenuItem value="sell">Sell Only</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <FormControl fullWidth>
+              <InputLabel>Timeframe</InputLabel>
+              <Select
+                value={timeframe}
+                label="Timeframe"
+                onChange={(e) => setTimeframe(e.target.value)}
+              >
+                <MenuItem value="daily">Daily</MenuItem>
+                <MenuItem value="weekly">Weekly</MenuItem>
+                <MenuItem value="monthly">Monthly</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+        </Grid>
+      )}
+
+      {/* Error Handling */}
+      {(signalsError || (activeTab === 1 && swingData?.error)) && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          Failed to load trading signals. Please try again later.
+        </Alert>
+      )}
+
+      {/* Data Tables */}
+      <Card>
+        <CardContent>
+          {activeTab === 0 ? <BuySellSignalsTable /> : <SwingSignalsTable />}
+          
+          <TablePagination
+            component="div"
+            count={activeTab === 0 ? (signalsData?.pagination?.total || 0) : (swingData?.pagination?.total || 0)}
+            page={page}
+            onPageChange={(e, newPage) => setPage(newPage)}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={(e) => {
+              setRowsPerPage(parseInt(e.target.value, 10));
+              setPage(0);
+            }}
+            rowsPerPageOptions={[10, 25, 50, 100]}
+          />
+        </CardContent>
+      </Card>
+    </Container>
+  );
 }
 
-export default TradingSignals
+export default TradingSignals;

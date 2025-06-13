@@ -44,7 +44,7 @@ function EarningsCalendar() {
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [timeFilter, setTimeFilter] = useState('upcoming');
 
-  const API_BASE = process.env.REACT_APP_API_URL || '';
+  const API_BASE = import.meta.env.VITE_API_URL || '';
 
   // Fetch calendar events
   const { data: calendarData, isLoading: calendarLoading, error: calendarError } = useQuery({
