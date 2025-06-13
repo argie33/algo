@@ -37,12 +37,17 @@ function TradingSignals() {
   const API_BASE = import.meta.env.VITE_API_URL || '';
   // Fetch buy/sell signals
   const { data: signalsData, isLoading: signalsLoading, error: signalsError } = useQuery({
-    queryKey: ['tradingSignals', signalType, timeframe, page, rowsPerPage],
-    queryFn: async () => {
+    queryKey: ['tradingSignals', signalType, timeframe, page, rowsPerPage],    queryFn: async () => {
       const params = new URLSearchParams({
-        signal: signalType,
+        signal_type: signalType === 'all' ? undefined : signalType,
         page: page + 1,
         limit: rowsPerPage
+      });
+      // Remove undefined values
+      [...params.entries()].forEach(([key, value]) => {
+        if (value === undefined || value === 'undefined') {
+          params.delete(key);
+        }
       });
       const response = await fetch(`${API_BASE}/trading/signals/${timeframe}?${params}`);
       if (!response.ok) throw new Error('Failed to fetch signals');
@@ -77,9 +82,8 @@ function TradingSignals() {
     },
     refetchInterval: 600000 // Refresh every 10 minutes
   });
-
   const getSignalChip = (signal) => {
-    const isBuy = signal === 'BUY';
+    const isBuy = signal === 'Buy';
     return (
       <Chip
         label={signal}
@@ -130,7 +134,6 @@ function TradingSignals() {
       </CardContent>
     </Card>
   );
-
   const BuySellSignalsTable = () => (
     <TableContainer component={Paper} elevation={0}>
       <Table>
@@ -139,8 +142,10 @@ function TradingSignals() {
             <TableCell>Symbol</TableCell>
             <TableCell>Company</TableCell>
             <TableCell>Signal</TableCell>
-            <TableCell align="right">Signal Price</TableCell>
+            <TableCell align="right">Buy Level</TableCell>
+            <TableCell align="right">Stop Level</TableCell>
             <TableCell align="right">Current Price</TableCell>
+            <TableCell align="center">In Position</TableCell>
             <TableCell align="right">Performance</TableCell>
             <TableCell>Date</TableCell>
           </TableRow>
@@ -165,7 +170,18 @@ function TradingSignals() {
                 {formatCurrency(signal.price)}
               </TableCell>
               <TableCell align="right">
+                {formatCurrency(signal.stoplevel)}
+              </TableCell>
+              <TableCell align="right">
                 {formatCurrency(signal.current_price)}
+              </TableCell>
+              <TableCell align="center">
+                <Chip 
+                  label={signal.inposition ? 'Yes' : 'No'} 
+                  size="small" 
+                  color={signal.inposition ? 'success' : 'default'}
+                  variant="outlined"
+                />
               </TableCell>
               <TableCell align="right">
                 <Typography 
