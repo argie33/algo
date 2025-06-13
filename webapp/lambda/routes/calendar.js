@@ -60,6 +60,42 @@ router.get('/debug', async (req, res) => {
   }
 });
 
+// Simple test endpoint that returns raw data
+router.get('/test', async (req, res) => {
+  try {
+    console.log('Calendar test endpoint called');
+    
+    const testQuery = `
+      SELECT 
+        symbol,
+        event_type,
+        start_date,
+        end_date,
+        title
+      FROM calendar_events
+      ORDER BY start_date ASC
+      LIMIT 10
+    `;
+    
+    const result = await query(testQuery);
+    
+    res.json({
+      success: true,
+      count: result.rows.length,
+      data: result.rows,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error in calendar test:', error);
+    res.status(500).json({ 
+      error: 'Test failed', 
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Get calendar events (earnings, dividends, splits, etc.)
 router.get('/events', async (req, res) => {
   try {
@@ -111,13 +147,11 @@ router.get('/events', async (req, res) => {
       SELECT COUNT(*) as total
       FROM calendar_events ce
       ${whereClause}
-    `;
-
-    console.log('Executing queries with limit:', limit, 'offset:', offset);
+    `;    console.log('Executing queries with limit:', limit, 'offset:', offset);
 
     const [eventsResult, countResult] = await Promise.all([
       query(eventsQuery, [limit, offset]),
-      query(countQuery)
+      query(countQuery, [])
     ]);
 
     console.log('Query results - events:', eventsResult.rows.length, 'total:', countResult.rows[0].total);
@@ -141,10 +175,14 @@ router.get('/events', async (req, res) => {
         filter: timeFilter
       }
     });
-
   } catch (error) {
     console.error('Error fetching calendar events:', error);
-    res.status(500).json({ error: 'Failed to fetch calendar events', details: error.message });
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ 
+      error: 'Failed to fetch calendar events', 
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
