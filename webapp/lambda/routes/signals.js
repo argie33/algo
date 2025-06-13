@@ -31,7 +31,8 @@ router.get('/buy', async (req, res) => {
         km.trailing_pe,
         km.dividend_yield
       FROM ${tableName} bs
-      JOIN company_profile cp ON bs.symbol = cp.ticker      LEFT JOIN market_data md ON bs.symbol = md.ticker
+      JOIN company_profile cp ON bs.symbol = cp.ticker
+      LEFT JOIN market_data md ON bs.symbol = md.ticker
       LEFT JOIN key_metrics km ON bs.symbol = km.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
@@ -104,7 +105,8 @@ router.get('/sell', async (req, res) => {
         km.trailing_pe,
         km.dividend_yield
       FROM ${tableName} bs
-      JOIN company_profile cp ON bs.symbol = cp.ticker      LEFT JOIN market_data md ON bs.symbol = md.ticker
+      JOIN company_profile cp ON bs.symbol = cp.ticker
+      LEFT JOIN market_data md ON bs.symbol = md.ticker
       LEFT JOIN key_metrics km ON bs.symbol = km.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
