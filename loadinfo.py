@@ -40,8 +40,8 @@ def log_mem(stage: str):
 # -------------------------------
 # Retry settings
 # -------------------------------
-MAX_BATCH_RETRIES = 3
-RETRY_DELAY = 0.2  # seconds between download retries
+MAX_BATCH_RETRIES = 2
+RETRY_DELAY = 0.5  # seconds between download retries
 
 # -------------------------------
 # DB config loader
