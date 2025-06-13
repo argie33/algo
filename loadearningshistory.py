@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
 import sys
 import time
 import logging
@@ -89,7 +89,7 @@ def load_earnings_history(symbols, cur, conn):
     total = len(symbols)
     logging.info(f"Loading earnings history for {total} symbols")
     processed, failed = 0, []
-    CHUNK_SIZE, PAUSE = 20, 0.1
+    CHUNK_SIZE, PAUSE = 3, 0.5
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     for batch_idx in range(batches):

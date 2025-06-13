@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
 import sys
 import time
 import logging
@@ -40,8 +40,8 @@ def log_mem(stage: str):
 # -------------------------------
 # Retry settings
 # -------------------------------
-MAX_BATCH_RETRIES = 3
-RETRY_DELAY = 0.2  # seconds between download retries
+MAX_BATCH_RETRIES = 2
+RETRY_DELAY = 0.5  # seconds between download retries
 
 # -------------------------------
 # DB config loader
@@ -84,7 +84,7 @@ def load_earnings_data(symbols, cur, conn):
     total = len(symbols)
     logging.info(f"Loading earnings estimates for {total} symbols")
     processed, failed = 0, []
-    CHUNK_SIZE, PAUSE = 20, 0.1
+    CHUNK_SIZE, PAUSE = 3, 0.5
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     for batch_idx in range(batches):
