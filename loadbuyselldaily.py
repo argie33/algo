@@ -33,7 +33,7 @@ import psutil
 # -------------------------------
 # Script metadata & logging setup 
 # -------------------------------
-SCRIPT_NAME = "loadbuysell.py"
+SCRIPT_NAME = "loadbuyselldaily.py"
 TIMEFRAME = "daily"
 PRICE_TABLE = "price_daily"
 TECH_TABLE = "technical_data_daily"
@@ -205,7 +205,7 @@ def get_symbols_batch(batch_size=1000):
         conn.close()
 
 def create_buy_sell_table_optimized(cur):
-    """Create optimized buy_sell_monthly table with proper indexing"""
+    """Create optimized buy_sell_daily table with proper indexing"""
     table_name = f"buy_sell_{TIMEFRAME}"
     sequence_name = f"{table_name}_id_seq"
     
@@ -542,7 +542,7 @@ def main():
     start_time = time.time()
     log_performance("Startup")
     
-    print("=== DEBUG: Starting loadbuysell.py ===")
+    print("=== DEBUG: Starting loadbuyselldaily.py ===")
     
     try:
         # Get risk-free rate with caching

@@ -35,10 +35,9 @@ Parameters:
     Description: "Tag for technicalsweekly loader image"
   TechnicalsMonthlyImageTag:
     Type: String
-    Description: "Tag for technicalsmonthly loader image"
-  BuySellDailyImageTag:
+    Description: "Tag for technicalsmonthly loader image"  BuySellDailyImageTag:
     Type: String
-    Description: "Tag for buysell loader image"
+    Description: "Tag for buyselldaily loader image"
   BuySellWeeklyImageTag:
     Type: String
     Description: "Tag for buysellweekly loader image"
@@ -258,11 +257,10 @@ Resources:
     Properties:
       LogGroupName: /ecs/technicalsmonthly-loader
       RetentionInDays: 14
-
   BuySellDailyLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: /ecs/buysell-loader
+      LogGroupName: /ecs/buyselldaily-loader
       RetentionInDays: 14
 
   BuySellWeeklyLogGroup:
@@ -383,7 +381,7 @@ Resources:
     Properties:
       LogGroupName: /ecs/quarterlycashflow-loader
       RetentionInDays: 14
-      
+
   CashFlowLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -1791,16 +1789,15 @@ Resources:
           SecurityGroups:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
-
   ########################################
-  # P) buysell loader                    #
+  # P) buyselldaily loader               #
   ########################################
   BuySellDailyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      Family: buysell-loader
+      Family: buyselldaily-loader
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
@@ -1812,7 +1809,7 @@ Resources:
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
-        - Name: buysell-loader
+        - Name: buyselldaily-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref BuySellDailyImageTag]]
           Essential: true
           Environment:
@@ -1823,7 +1820,7 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: /ecs/buysell-loader
+              awslogs-group: /ecs/buyselldaily-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
@@ -1831,7 +1828,7 @@ Resources:
   BuySellDailyLoaderService:
     Type: AWS::ECS::Service
     Properties:
-      ServiceName: buysell-loader-service
+      ServiceName: buyselldaily-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
       DesiredCount: 0
