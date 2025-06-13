@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
 """
 Optimized Monthly Buy/Sell Signal Generator
 - Ultra-fast vectorized operations with NumPy/Pandas
