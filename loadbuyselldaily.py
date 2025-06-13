@@ -1,4 +1,4 @@
-#!/usr/bin/env python3   
+#!/usr/bin/env python3 
 """
 Optimized Monthly Buy/Sell Signal Generator
 - Ultra-fast vectorized operations with NumPy/Pandas
@@ -220,7 +220,8 @@ def create_buy_sell_table_optimized(cur):
             symbol       VARCHAR(20)    NOT NULL,
             timeframe    VARCHAR(10)    NOT NULL, 
             date         DATE           NOT NULL,
-            signal       VARCHAR(10),            buylevel     REAL,
+            signal       VARCHAR(10),            
+            buylevel     REAL,
             stoplevel    REAL,
             inposition   BOOLEAN,
             UNIQUE(symbol, timeframe, date)        );
