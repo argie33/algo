@@ -14,8 +14,6 @@ from datetime import datetime
 
 import boto3
 import yfinance as yf
-import requests
-import random
 
 # -------------------------------
 # Script metadata & logging setup
@@ -42,16 +40,8 @@ def log_mem(stage: str):
 # -------------------------------
 # Retry settings
 # -------------------------------
-MAX_BATCH_RETRIES = 5
-RETRY_DELAY = 1.0  # seconds between download retries
-
-# User agent rotation for avoiding 401 errors
-USER_AGENTS = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0'
-]
+MAX_BATCH_RETRIES = 3
+RETRY_DELAY = 0.2  # seconds between download retries
 
 # -------------------------------
 # DB config loader
@@ -72,53 +62,36 @@ def load_company_info(symbols, cur, conn):
     total = len(symbols)
     logging.info(f"Loading company info for {total} symbols")
     processed, failed = 0, []
-    CHUNK_SIZE, PAUSE = 1, 2.0  # Process one at a time with longer pauses
+    CHUNK_SIZE, PAUSE = 10, 0.2
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     for batch_idx in range(batches):
         batch = symbols[batch_idx*CHUNK_SIZE:(batch_idx+1)*CHUNK_SIZE]
         yq_batch = [s.replace('.', '-').replace('$','-').upper() for s in batch]
         mapping = dict(zip(yq_batch, batch))
-        
+
         logging.info(f"Processing batch {batch_idx+1}/{batches}")
         log_mem(f"Batch {batch_idx+1} start")
         for yq_sym, orig_sym in mapping.items():
             info = None  # Initialize info variable
             for attempt in range(1, MAX_BATCH_RETRIES+1):
                 try:
-                    # Let yfinance handle sessions internally with curl_cffi
                     ticker = yf.Ticker(yq_sym)
                     info = ticker.info
-                    if not info or 'symbol' not in info:
-                        raise ValueError("No valid info data received")
+                    if not info:
+                        raise ValueError("No info data received")
                     break
-                    
-                except requests.exceptions.HTTPError as e:
-                    if e.response and e.response.status_code == 401:
-                        logging.warning(f"401 Unauthorized for {orig_sym} - attempt {attempt}")
-                        # Longer wait for 401 errors with jitter
-                        delay = RETRY_DELAY * (2 ** attempt) + random.uniform(1, 3)
-                        time.sleep(delay)
-                    else:
-                        logging.warning(f"HTTP error for {orig_sym}: {e}")
-                        time.sleep(RETRY_DELAY * attempt)
-                        
                 except Exception as e:
                     logging.warning(f"Attempt {attempt} failed for {orig_sym}: {e}")
                     if attempt == MAX_BATCH_RETRIES:
                         failed.append(orig_sym)
-                        break
-                    # Exponential backoff with jitter
-                    delay = RETRY_DELAY * attempt + random.uniform(0.5, 1.5)
-                    time.sleep(delay)
+                        break  # Break instead of continue to skip processing
+                    time.sleep(RETRY_DELAY)
             
             # Skip processing if info was not successfully retrieved
             if info is None:
                 logging.error(f"Skipping {orig_sym} - failed to retrieve info after {MAX_BATCH_RETRIES} attempts")
                 continue
-            
-            # Add small random delay between each symbol
-            time.sleep(random.uniform(0.5, 1.5))
             
             try:
                 # Insert into company_profile
