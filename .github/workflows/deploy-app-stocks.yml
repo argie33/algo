@@ -213,7 +213,8 @@ jobs:
             calendar:
               - 'loadcalendar.py'
               - 'Dockerfile.loadcalendar'
-              - 'requirements-loadcalendar.txt'            buyselldaily:
+              - 'requirements-loadcalendar.txt'
+            buyselldaily:
               - 'loadbuysell.py'
               - 'Dockerfile.buysell'
               - 'requirements-loadbuysell.txt'
