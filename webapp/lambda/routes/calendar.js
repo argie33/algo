@@ -107,22 +107,20 @@ router.get('/events', async (req, res) => {
     const timeFilter = req.query.type || 'upcoming';
 
     let whereClause = 'WHERE 1=1';
-    const params = [];
-
-    // Apply time filters
+    const params = [];    // Apply time filters (convert CURRENT_DATE to timestamp for proper comparison)
     switch (timeFilter) {
       case 'this_week':
-        whereClause += ` AND start_date >= CURRENT_DATE AND start_date < CURRENT_DATE + INTERVAL '7 days'`;
+        whereClause += ` AND start_date >= CURRENT_DATE::timestamp AND start_date < (CURRENT_DATE + INTERVAL '7 days')::timestamp`;
         break;
       case 'next_week':
-        whereClause += ` AND start_date >= CURRENT_DATE + INTERVAL '7 days' AND start_date < CURRENT_DATE + INTERVAL '14 days'`;
+        whereClause += ` AND start_date >= (CURRENT_DATE + INTERVAL '7 days')::timestamp AND start_date < (CURRENT_DATE + INTERVAL '14 days')::timestamp`;
         break;
       case 'this_month':
-        whereClause += ` AND start_date >= CURRENT_DATE AND start_date < CURRENT_DATE + INTERVAL '30 days'`;
+        whereClause += ` AND start_date >= CURRENT_DATE::timestamp AND start_date < (CURRENT_DATE + INTERVAL '30 days')::timestamp`;
         break;
       case 'upcoming':
       default:
-        whereClause += ` AND start_date >= CURRENT_DATE`;
+        whereClause += ` AND start_date >= CURRENT_DATE::timestamp`;
         break;
     }
 
