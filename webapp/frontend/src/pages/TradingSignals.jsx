@@ -35,18 +35,16 @@ function TradingSignals() {
   const [page, setPage] = useState(0);  const [rowsPerPage, setRowsPerPage] = useState(25);
 
   const API_BASE = import.meta.env.VITE_API_URL || '';
-
   // Fetch buy/sell signals
   const { data: signalsData, isLoading: signalsLoading, error: signalsError } = useQuery({
     queryKey: ['tradingSignals', signalType, timeframe, page, rowsPerPage],
     queryFn: async () => {
       const params = new URLSearchParams({
         signal: signalType,
-        timeframe,
         page: page + 1,
         limit: rowsPerPage
       });
-      const response = await fetch(`${API_BASE}/trading/signals?${params}`);
+      const response = await fetch(`${API_BASE}/trading/signals/${timeframe}?${params}`);
       if (!response.ok) throw new Error('Failed to fetch signals');
       return response.json();
     },

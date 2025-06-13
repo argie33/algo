@@ -27,28 +27,36 @@ router.get('/signals/:timeframe', async (req, res) => {
       paramCount++;
       conditions.push(`symbol = $${paramCount}`);
       queryParams.push(symbol.toUpperCase());
-    }
-
-    if (signal_type === 'buy') {
-      conditions.push('signal > 0');
+    }    if (signal_type === 'buy') {
+      conditions.push("signal = 'Buy'");
     } else if (signal_type === 'sell') {
-      conditions.push('signal < 0');
+      conditions.push("signal = 'Sell'");
     }
 
     if (conditions.length > 0) {
       whereClause = 'WHERE ' + conditions.join(' AND ');
-    }
-
-    const sqlQuery = `
+    }    const sqlQuery = `
       SELECT 
-        symbol,
-        date,
-        signal,
-        price,
-        volume
-      FROM ${tableName}
+        bs.symbol,
+        bs.date,
+        bs.signal,
+        bs.buylevel as price,
+        bs.stoplevel,
+        bs.inposition,
+        md.regular_market_price as current_price,
+        cp.short_name as company_name,
+        CASE 
+          WHEN bs.signal = 'Buy' AND md.regular_market_price > bs.buylevel 
+          THEN ((md.regular_market_price - bs.buylevel) / bs.buylevel * 100)
+          WHEN bs.signal = 'Sell' AND md.regular_market_price < bs.buylevel 
+          THEN ((bs.buylevel - md.regular_market_price) / bs.buylevel * 100)
+          ELSE 0
+        END as performance_percent
+      FROM ${tableName} bs
+      LEFT JOIN market_data md ON bs.symbol = md.ticker
+      LEFT JOIN company_profile cp ON bs.symbol = cp.ticker
       ${whereClause}
-      ORDER BY date DESC, ABS(signal) DESC
+      ORDER BY bs.date DESC, bs.symbol ASC
       LIMIT $${queryParams.length + 1}
     `;
 
@@ -88,17 +96,14 @@ router.get('/summary/:timeframe', async (req, res) => {
     }
 
     const tableName = `buy_sell_${timeframe}`;
-    
-    const sqlQuery = `
+      const sqlQuery = `
       SELECT 
         COUNT(*) as total_signals,
-        COUNT(CASE WHEN signal > 0 THEN 1 END) as buy_signals,
-        COUNT(CASE WHEN signal < 0 THEN 1 END) as sell_signals,
-        COUNT(CASE WHEN signal > 0.5 THEN 1 END) as strong_buy,
-        COUNT(CASE WHEN signal < -0.5 THEN 1 END) as strong_sell,
-        AVG(signal) as avg_signal,
-        MAX(signal) as max_signal,
-        MIN(signal) as min_signal
+        COUNT(CASE WHEN signal = 'Buy' THEN 1 END) as buy_signals,
+        COUNT(CASE WHEN signal = 'Sell' THEN 1 END) as sell_signals,
+        COUNT(CASE WHEN signal = 'Buy' THEN 1 END) as strong_buy,
+        COUNT(CASE WHEN signal = 'Sell' THEN 1 END) as strong_sell,
+        COUNT(CASE WHEN signal != 'None' AND signal IS NOT NULL THEN 1 END) as active_signals
       FROM ${tableName}
       WHERE date >= CURRENT_DATE - INTERVAL '30 days'
     `;
@@ -117,92 +122,7 @@ router.get('/summary/:timeframe', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to fetch signals summary',
       message: error.message 
-    });
-  }
-});
-
-module.exports = router;
-
-// Get latest buy/sell signals
-router.get('/signals', async (req, res) => {
-  try {
-    const timeframe = req.query.timeframe || 'daily'; // daily, weekly, monthly
-    const signal = req.query.signal || 'all'; // buy, sell, all
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 25;
-    const offset = (page - 1) * limit;
-
-    let tableName = 'latest_buy_sell_daily';
-    if (timeframe === 'weekly') tableName = 'latest_buy_sell_weekly';
-    if (timeframe === 'monthly') tableName = 'latest_buy_sell_monthly';
-
-    let whereClause = 'WHERE 1=1';
-    const params = [];
-    let paramCount = 0;
-
-    if (signal === 'buy') {
-      whereClause += ` AND signal = 'BUY'`;
-    } else if (signal === 'sell') {
-      whereClause += ` AND signal = 'SELL'`;
-    }
-
-    const signalsQuery = `
-      SELECT 
-        bs.symbol,
-        cp.short_name as company_name,
-        bs.signal,
-        bs.date,
-        bs.price,
-        md.regular_market_price as current_price,
-        CASE 
-          WHEN bs.signal = 'BUY' AND md.regular_market_price > bs.price 
-          THEN ((md.regular_market_price - bs.price) / bs.price * 100)
-          WHEN bs.signal = 'SELL' AND md.regular_market_price < bs.price 
-          THEN ((bs.price - md.regular_market_price) / bs.price * 100)
-          ELSE 0
-        END as performance_percent
-      FROM ${tableName} bs
-      JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN market_data md ON bs.symbol = md.ticker
-      ${whereClause}
-      ORDER BY bs.date DESC
-      LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
-    `;
-
-    params.push(limit, offset);
-
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM ${tableName} bs
-      ${whereClause}
-    `;
-
-    const [signalsResult, countResult] = await Promise.all([
-      query(signalsQuery, params),
-      query(countQuery, params.slice(0, -2))
-    ]);
-
-    const total = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(total / limit);
-
-    res.json({
-      data: signalsResult.rows,
-      timeframe,
-      signal,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
-      }
-    });
-
-  } catch (error) {
-    console.error('Error fetching trading signals:', error);
-    res.status(500).json({ error: 'Failed to fetch trading signals' });
-  }
+    });  }
 });
 
 // Get swing trading signals
