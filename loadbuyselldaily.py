@@ -33,7 +33,7 @@ import psutil
 # -------------------------------
 # Script metadata & logging setup  
 # -------------------------------
-SCRIPT_NAME = "loadbuyselldaily.py"
+SCRIPT_NAME = "loadbuysellDaily.py"
 TIMEFRAME = "daily"
 PRICE_TABLE = "price_daily"
 TECH_TABLE = "technical_data_daily"

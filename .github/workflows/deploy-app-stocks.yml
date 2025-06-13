@@ -215,9 +215,9 @@ jobs:
               - 'Dockerfile.loadcalendar'
               - 'requirements-loadcalendar.txt'
             buyselldaily:
-              - 'loadbuyselldaily.py'
+              - 'loadbuysellDaily.py'
               - 'Dockerfile.buyselldaily'
-              - 'requirements-loadbuyselldaily.txt'
+              - 'requirements-loadbuysellDaily.txt'
             buysellweekly:
               - 'loadbuysellweekly.py'
               - 'Dockerfile.buysellweekly'
@@ -225,7 +225,7 @@ jobs:
             buysellmonthly:
               - 'loadbuysellmonthly.py'
               - 'Dockerfile.buysellmonthly'
-              - 'requirements-loadbuyselldaily.txt'
+              - 'requirements-loadbuysellmonthly.txt'
             ttmcashflow:
               - 'loadttmcashflow.py'
               - 'Dockerfile.ttmcashflow'
