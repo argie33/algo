@@ -142,7 +142,7 @@ def get_optimized_connection(retry_count=0):
             dbname=cfg["dbname"],
             # Extended timeout for connection establishment
             connect_timeout=connection_timeout,
-            application_name=f"{SCRIPT_NAME}_monthly",
+            application_name=f"{SCRIPT_NAME}_daily",
             # Additional connection parameters for reliability
             keepalives_idle=600,
             keepalives_interval=30,

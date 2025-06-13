@@ -35,7 +35,8 @@ Parameters:
     Description: "Tag for technicalsweekly loader image"
   TechnicalsMonthlyImageTag:
     Type: String
-    Description: "Tag for technicalsmonthly loader image"  BuySellDailyImageTag:
+    Description: "Tag for technicalsmonthly loader image"
+  BuySellDailyImageTag:
     Type: String
     Description: "Tag for buyselldaily loader image"
   BuySellWeeklyImageTag:
