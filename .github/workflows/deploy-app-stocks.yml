@@ -215,9 +215,9 @@ jobs:
               - 'Dockerfile.loadcalendar'
               - 'requirements-loadcalendar.txt'
             buyselldaily:
-              - 'loadbuysellDaily.py'
+              - 'loadbuyselldaily.py'
               - 'Dockerfile.buyselldaily'
-              - 'requirements-loadbuysellDaily.txt'
+              - 'requirements-loadbuyselldaily.txt'
             buysellweekly:
               - 'loadbuysellweekly.py'
               - 'Dockerfile.buysellweekly'

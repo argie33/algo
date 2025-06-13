@@ -31,9 +31,9 @@ import numpy as np
 import psutil
 
 # -------------------------------
-# Script metadata & logging setup  
+# Script metadata & logging setup 
 # -------------------------------
-SCRIPT_NAME = "loadbuysellDaily.py"
+SCRIPT_NAME = "loadbuyselldaily.py"
 TIMEFRAME = "daily"
 PRICE_TABLE = "price_daily"
 TECH_TABLE = "technical_data_daily"
