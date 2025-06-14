@@ -155,3 +155,7 @@ def lambda_handler(event, context):
         "failed": f,
         "peak_rss_mb": peak
     }
+
+if __name__ == "__main__":
+    # Run the same logic as lambda_handler when executed directly
+    lambda_handler(None, None)
