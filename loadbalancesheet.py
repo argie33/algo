@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
 import sys
 import time
 import logging
@@ -7,10 +7,13 @@ import os
 import gc
 import resource
 import math
+from decimal import Decimal, InvalidOperation
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
 from datetime import datetime
+import pandas as pd
+import numpy as np
 
 import boto3
 import yfinance as yf
@@ -24,6 +27,22 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
     stream=sys.stdout
 )
+
+# -------------------------------
+# Financial value conversion helper
+# -------------------------------
+def safe_financial_value(value):
+    """Convert financial value to Decimal, handling NaN/None/inf cases."""
+    if value is None or pd.isna(value) or np.isinf(value):
+        return None
+    try:
+        # Convert to string first to handle numpy types
+        str_value = str(value)
+        if str_value.lower() in ('nan', 'inf', '-inf'):
+            return None
+        return Decimal(str_value)
+    except (ValueError, InvalidOperation, TypeError):
+        return None
 
 # -------------------------------
 # Memory-logging helper (RSS in MB)
@@ -62,18 +81,21 @@ def load_balance_sheet_data(symbols, cur, conn):
     total = len(symbols)
     logging.info(f"Loading balance sheet data for {total} symbols")
     processed, failed = 0, []
-    CHUNK_SIZE, PAUSE = 3, 0.5
+    CHUNK_SIZE, PAUSE = 5, 0.3
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
+    fetched_at = datetime.now()
 
     for batch_idx in range(batches):
         batch = symbols[batch_idx*CHUNK_SIZE:(batch_idx+1)*CHUNK_SIZE]
         yq_batch = [s.replace('.', '-').replace('$','-').upper() for s in batch]
         mapping = dict(zip(yq_batch, batch))
 
-        logging.info(f"Processing batch {batch_idx+1}/{batches}")
+        logging.info(f"Processing batch {batch_idx+1}/{batches} ({len(batch)} symbols)")
         log_mem(f"Batch {batch_idx+1} start")
+        
         for yq_sym, orig_sym in mapping.items():
-            balance_sheet = None  # Initialize balance_sheet variable
+            balance_sheet = None
+            
             for attempt in range(1, MAX_BATCH_RETRIES+1):
                 try:
                     ticker = yf.Ticker(yq_sym)
@@ -85,22 +107,23 @@ def load_balance_sheet_data(symbols, cur, conn):
                     logging.warning(f"Attempt {attempt} failed for {orig_sym}: {e}")
                     if attempt == MAX_BATCH_RETRIES:
                         failed.append(orig_sym)
-                        break  # Break instead of continue to skip processing
+                        break
                     time.sleep(RETRY_DELAY)
             
-            # Skip processing if balance_sheet was not successfully retrieved
             if balance_sheet is None or balance_sheet.empty:
                 logging.error(f"Skipping {orig_sym} - failed to retrieve balance sheet after {MAX_BATCH_RETRIES} attempts")
                 continue
             
             try:
-                # Process balance sheet data
+                # Process balance sheet data for each period
                 for col in balance_sheet.columns:
                     period_end = col.strftime('%Y-%m-%d')
                     
-                    # Extract values safely
+                    # Extract values safely with financial conversion
                     def get_value(index_name):
-                        return balance_sheet.loc[index_name, col] if index_name in balance_sheet.index else None
+                        if index_name in balance_sheet.index:
+                            return safe_financial_value(balance_sheet.loc[index_name, col])
+                        return None
                     
                     # Insert balance sheet data
                     cur.execute("""
@@ -114,12 +137,38 @@ def load_balance_sheet_data(symbols, cur, conn):
                             long_term_debt, current_liabilities, current_debt,
                             accounts_payable, total_assets, net_ppe, goodwill,
                             current_assets, inventory, accounts_receivable,
-                            cash_and_cash_equivalents
-                        ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                            cash_and_cash_equivalents, fetched_at
+                        ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                         ON CONFLICT (ticker, period_end) DO UPDATE SET
                             ordinary_shares_number = EXCLUDED.ordinary_shares_number,
+                            share_issued = EXCLUDED.share_issued,
+                            net_debt = EXCLUDED.net_debt,
                             total_debt = EXCLUDED.total_debt,
-                            stockholders_equity = EXCLUDED.stockholders_equity
+                            tangible_book_value = EXCLUDED.tangible_book_value,
+                            invested_capital = EXCLUDED.invested_capital,
+                            working_capital = EXCLUDED.working_capital,
+                            net_tangible_assets = EXCLUDED.net_tangible_assets,
+                            common_stock_equity = EXCLUDED.common_stock_equity,
+                            total_capitalization = EXCLUDED.total_capitalization,
+                            stockholders_equity = EXCLUDED.stockholders_equity,
+                            retained_earnings = EXCLUDED.retained_earnings,
+                            additional_paid_in_capital = EXCLUDED.additional_paid_in_capital,
+                            capital_stock = EXCLUDED.capital_stock,
+                            common_stock = EXCLUDED.common_stock,
+                            preferred_stock = EXCLUDED.preferred_stock,
+                            total_liabilities_net_minority_interest = EXCLUDED.total_liabilities_net_minority_interest,
+                            long_term_debt = EXCLUDED.long_term_debt,
+                            current_liabilities = EXCLUDED.current_liabilities,
+                            current_debt = EXCLUDED.current_debt,
+                            accounts_payable = EXCLUDED.accounts_payable,
+                            total_assets = EXCLUDED.total_assets,
+                            net_ppe = EXCLUDED.net_ppe,
+                            goodwill = EXCLUDED.goodwill,
+                            current_assets = EXCLUDED.current_assets,
+                            inventory = EXCLUDED.inventory,
+                            accounts_receivable = EXCLUDED.accounts_receivable,
+                            cash_and_cash_equivalents = EXCLUDED.cash_and_cash_equivalents,
+                            fetched_at = EXCLUDED.fetched_at
                     """, (
                         orig_sym, period_end,
                         get_value('Ordinary Shares Number'),
@@ -149,18 +198,20 @@ def load_balance_sheet_data(symbols, cur, conn):
                         get_value('Current Assets'),
                         get_value('Inventory'),
                         get_value('Accounts Receivable'),
-                        get_value('Cash And Cash Equivalents')
+                        get_value('Cash And Cash Equivalents'),
+                        fetched_at
                     ))
 
                 conn.commit()
                 processed += 1
-                logging.info(f"Successfully processed {orig_sym}")
+                logging.info(f"Successfully processed {orig_sym} - {len(balance_sheet.columns)} periods")
 
             except Exception as e:
                 logging.error(f"Failed to process {orig_sym}: {str(e)}")
                 failed.append(orig_sym)
                 conn.rollback()
 
+        # Cleanup
         del batch, yq_batch, mapping
         gc.collect()
         log_mem(f"Batch {batch_idx+1} end")
@@ -183,8 +234,7 @@ if __name__ == "__main__":
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
-
-    # Recreate table
+    # Recreate table with proper schema
     logging.info("Recreating balance sheet table...")
     cur.execute("DROP TABLE IF EXISTS balance_sheet CASCADE;")
 
@@ -192,39 +242,46 @@ if __name__ == "__main__":
         CREATE TABLE balance_sheet (
             ticker VARCHAR(10) NOT NULL,
             period_end DATE NOT NULL,
-            ordinary_shares_number BIGINT,
-            share_issued BIGINT,
-            net_debt BIGINT,
-            total_debt BIGINT,
-            tangible_book_value BIGINT,
-            invested_capital BIGINT,
-            working_capital BIGINT,
-            net_tangible_assets BIGINT,
-            common_stock_equity BIGINT,
-            total_capitalization BIGINT,
-            stockholders_equity BIGINT,
-            retained_earnings BIGINT,
-            additional_paid_in_capital BIGINT,
-            capital_stock BIGINT,
-            common_stock BIGINT,
-            preferred_stock BIGINT,
-            total_liabilities_net_minority_interest BIGINT,
-            long_term_debt BIGINT,
-            current_liabilities BIGINT,
-            current_debt BIGINT,
-            accounts_payable BIGINT,
-            total_assets BIGINT,
-            net_ppe BIGINT,
-            goodwill BIGINT,
-            current_assets BIGINT,
-            inventory BIGINT,
-            accounts_receivable BIGINT,
-            cash_and_cash_equivalents BIGINT,
+            ordinary_shares_number NUMERIC(20,2),
+            share_issued NUMERIC(20,2),
+            net_debt NUMERIC(20,2),
+            total_debt NUMERIC(20,2),
+            tangible_book_value NUMERIC(20,2),
+            invested_capital NUMERIC(20,2),
+            working_capital NUMERIC(20,2),
+            net_tangible_assets NUMERIC(20,2),
+            common_stock_equity NUMERIC(20,2),
+            total_capitalization NUMERIC(20,2),
+            stockholders_equity NUMERIC(20,2),
+            retained_earnings NUMERIC(20,2),
+            additional_paid_in_capital NUMERIC(20,2),
+            capital_stock NUMERIC(20,2),
+            common_stock NUMERIC(20,2),
+            preferred_stock NUMERIC(20,2),
+            total_liabilities_net_minority_interest NUMERIC(20,2),
+            long_term_debt NUMERIC(20,2),
+            current_liabilities NUMERIC(20,2),
+            current_debt NUMERIC(20,2),
+            accounts_payable NUMERIC(20,2),
+            total_assets NUMERIC(20,2),
+            net_ppe NUMERIC(20,2),
+            goodwill NUMERIC(20,2),
+            current_assets NUMERIC(20,2),
+            inventory NUMERIC(20,2),
+            accounts_receivable NUMERIC(20,2),
+            cash_and_cash_equivalents NUMERIC(20,2),
+            fetched_at TIMESTAMP DEFAULT NOW(),
             PRIMARY KEY(ticker, period_end)
         );
     """)
 
+    # Create indexes for performance
+    cur.execute("CREATE INDEX idx_balance_sheet_ticker ON balance_sheet(ticker);")
+    cur.execute("CREATE INDEX idx_balance_sheet_period_end ON balance_sheet(period_end);")
+    cur.execute("CREATE INDEX idx_balance_sheet_fetched_at ON balance_sheet(fetched_at);")
+
     conn.commit()
+    logging.info("Balance sheet table recreated successfully")
 
     # Load stock symbols
     cur.execute("SELECT symbol FROM stock_symbols;")

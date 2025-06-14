@@ -1,0 +1,701 @@
+# This is the corrected section for the CloudFormation template
+# Replace the existing Step Functions section with these TWO separate Step Functions
+
+  #############################################################
+  # FIRST STEP FUNCTION: Main Financial Data Processing
+  #############################################################
+  FinancialDataStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    DependsOn: 
+      - StepFunctionsExecutionRole
+      - NotificationTopic
+    Properties:
+      StateMachineName: 'FinancialDataProcessingWorkflow'
+      RoleArn: !GetAtt StepFunctionsExecutionRole.Arn
+      DefinitionString: !Sub
+        - |
+          {
+            "Comment": "Main Financial Data Processing - Core Loaders in Groups of 2, then StockScreener",
+            "StartAt": "LoadInfoGroup",
+            "States": {
+              "LoadInfoGroup": {
+                "Type": "Parallel",
+                "Branches": [
+                  {
+                    "StartAt": "RunLoadInfo",
+                    "States": {
+                      "RunLoadInfo": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::ecs:runTask.sync",
+                        "Parameters": {
+                          "LaunchType": "FARGATE",
+                          "Cluster": "${ClusterArn}",
+                          "TaskDefinition": "${LoadInfoTaskDefArn}",
+                          "NetworkConfiguration": {
+                            "AwsvpcConfiguration": {
+                              "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                              "SecurityGroups": ["${SecurityGroupId}"],
+                              "AssignPublicIp": "ENABLED"
+                            }
+                          }
+                        },
+                        "Retry": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "IntervalSeconds": 60,
+                            "MaxAttempts": 2,
+                            "BackoffRate": 2
+                          }
+                        ],
+                        "End": true
+                      }
+                    }
+                  },
+                  {
+                    "StartAt": "RunRecommendations",
+                    "States": {
+                      "RunRecommendations": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::ecs:runTask.sync",
+                        "Parameters": {
+                          "LaunchType": "FARGATE",
+                          "Cluster": "${ClusterArn}",
+                          "TaskDefinition": "${RecommendationsTaskDefArn}",
+                          "NetworkConfiguration": {
+                            "AwsvpcConfiguration": {
+                              "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                              "SecurityGroups": ["${SecurityGroupId}"],
+                              "AssignPublicIp": "ENABLED"
+                            }
+                          }
+                        },
+                        "Retry": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "IntervalSeconds": 60,
+                            "MaxAttempts": 2,
+                            "BackoffRate": 2
+                          }
+                        ],
+                        "End": true
+                      }
+                    }
+                  }
+                ],
+                "ResultPath": "$.LoadInfoGroupResults",
+                "Next": "FinancialGroup1",
+                "Catch": [
+                  {
+                    "ErrorEquals": ["States.ALL"],
+                    "Next": "NotifyFinancialError"
+                  }
+                ]
+              },
+              "FinancialGroup1": {
+                "Type": "Parallel",
+                "Branches": [
+                  {
+                    "StartAt": "RunIncomeStmt",
+                    "States": {
+                      "RunIncomeStmt": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::ecs:runTask.sync",
+                        "Parameters": {
+                          "LaunchType": "FARGATE",
+                          "Cluster": "${ClusterArn}",
+                          "TaskDefinition": "${IncomeStmtTaskDefArn}",
+                          "NetworkConfiguration": {
+                            "AwsvpcConfiguration": {
+                              "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                              "SecurityGroups": ["${SecurityGroupId}"],
+                              "AssignPublicIp": "ENABLED"
+                            }
+                          }
+                        },
+                        "Retry": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "IntervalSeconds": 60,
+                            "MaxAttempts": 2,
+                            "BackoffRate": 2
+                          }
+                        ],
+                        "End": true
+                      }
+                    }
+                  },
+                  {
+                    "StartAt": "RunBalanceSheet",
+                    "States": {
+                      "RunBalanceSheet": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::ecs:runTask.sync",
+                        "Parameters": {
+                          "LaunchType": "FARGATE",
+                          "Cluster": "${ClusterArn}",
+                          "TaskDefinition": "${BalanceSheetTaskDefArn}",
+                          "NetworkConfiguration": {
+                            "AwsvpcConfiguration": {
+                              "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                              "SecurityGroups": ["${SecurityGroupId}"],
+                              "AssignPublicIp": "ENABLED"
+                            }
+                          }
+                        },
+                        "Retry": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "IntervalSeconds": 60,
+                            "MaxAttempts": 2,
+                            "BackoffRate": 2
+                          }
+                        ],
+                        "End": true
+                      }
+                    }
+                  }
+                ],
+                "ResultPath": "$.FinancialGroup1Results",
+                "Next": "FinancialGroup2",
+                "Catch": [
+                  {
+                    "ErrorEquals": ["States.ALL"],
+                    "Next": "NotifyFinancialError"
+                  }
+                ]
+              },
+              "FinancialGroup2": {
+                "Type": "Parallel",
+                "Branches": [
+                  {
+                    "StartAt": "RunCashFlow",
+                    "States": {
+                      "RunCashFlow": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::ecs:runTask.sync",
+                        "Parameters": {
+                          "LaunchType": "FARGATE",
+                          "Cluster": "${ClusterArn}",
+                          "TaskDefinition": "${CashFlowTaskDefArn}",
+                          "NetworkConfiguration": {
+                            "AwsvpcConfiguration": {
+                              "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                              "SecurityGroups": ["${SecurityGroupId}"],
+                              "AssignPublicIp": "ENABLED"
+                            }
+                          }
+                        },
+                        "Retry": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "IntervalSeconds": 60,
+                            "MaxAttempts": 2,
+                            "BackoffRate": 2
+                          }
+                        ],
+                        "End": true
+                      }
+                    }
+                  },
+                  {
+                    "StartAt": "RunEarningsEstimate",
+                    "States": {
+                      "RunEarningsEstimate": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::ecs:runTask.sync",
+                        "Parameters": {
+                          "LaunchType": "FARGATE",
+                          "Cluster": "${ClusterArn}",
+                          "TaskDefinition": "${EarningsEstimateTaskDefArn}",
+                          "NetworkConfiguration": {
+                            "AwsvpcConfiguration": {
+                              "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                              "SecurityGroups": ["${SecurityGroupId}"],
+                              "AssignPublicIp": "ENABLED"
+                            }
+                          }
+                        },
+                        "Retry": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "IntervalSeconds": 60,
+                            "MaxAttempts": 2,
+                            "BackoffRate": 2
+                          }
+                        ],
+                        "End": true
+                      }
+                    }
+                  }
+                ],
+                "ResultPath": "$.FinancialGroup2Results",
+                "Next": "RunStockScreener",
+                "Catch": [
+                  {
+                    "ErrorEquals": ["States.ALL"],
+                    "Next": "NotifyFinancialError"
+                  }
+                ]
+              },
+              "RunStockScreener": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::ecs:runTask.sync",
+                "Parameters": {
+                  "LaunchType": "FARGATE",
+                  "Cluster": "${ClusterArn}",
+                  "TaskDefinition": "${StockScreenerTaskDefArn}",
+                  "NetworkConfiguration": {
+                    "AwsvpcConfiguration": {
+                      "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                      "SecurityGroups": ["${SecurityGroupId}"],
+                      "AssignPublicIp": "ENABLED"
+                    }
+                  }
+                },
+                "Retry": [
+                  {
+                    "ErrorEquals": ["States.ALL"],
+                    "IntervalSeconds": 60,
+                    "MaxAttempts": 2,
+                    "BackoffRate": 2
+                  }
+                ],
+                "Next": "FinancialWorkflowSuccess",
+                "Catch": [
+                  {
+                    "ErrorEquals": ["States.ALL"],
+                    "Next": "NotifyFinancialError"
+                  }
+                ]
+              },
+              "FinancialWorkflowSuccess": {
+                "Type": "Succeed"
+              },
+              "NotifyFinancialError": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::sns:publish",
+                "Parameters": {
+                  "TopicArn": "${NotificationTopicArn}",
+                  "Message": "Financial data processing workflow failed. Please check CloudWatch logs for details."
+                },
+                "Next": "FinancialWorkflowFailed"
+              },
+              "FinancialWorkflowFailed": {
+                "Type": "Fail",
+                "Error": "FinancialDataProcessingFailed",
+                "Cause": "One or more financial data jobs failed after retry attempts"
+              }
+            }
+          }
+        - ClusterArn: !ImportValue StocksApp-ClusterArn
+          LoadInfoTaskDefArn: !Ref LoadInfoTaskDefinition
+          RecommendationsTaskDefArn: !Ref RecommendationsTaskDefinition
+          IncomeStmtTaskDefArn: !Ref IncomeStmtTaskDefinition
+          BalanceSheetTaskDefArn: !Ref BalanceSheetTaskDefinition
+          CashFlowTaskDefArn: !Ref CashFlowTaskDefinition
+          EarningsEstimateTaskDefArn: !Ref EarningsEstimateTaskDefinition
+          StockScreenerTaskDefArn: !Ref StockScreenerTaskDefinition
+          Subnet1Id: !ImportValue StocksCore-PublicSubnet1Id
+          Subnet2Id: !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroupId: !ImportValue StocksApp-EcsTasksSecurityGroupId
+          NotificationTopicArn: !Ref NotificationTopic
+
+  #############################################################
+  # SECOND STEP FUNCTION: Latest Data Processing (3 time periods in parallel)
+  #############################################################
+  LatestDataStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    DependsOn: 
+      - StepFunctionsExecutionRole
+      - NotificationTopic
+    Properties:
+      StateMachineName: 'LatestDataProcessingWorkflow'
+      RoleArn: !GetAtt StepFunctionsExecutionRole.Arn
+      DefinitionString: !Sub
+        - |
+          {
+            "Comment": "Latest Data Processing - Three Time Periods in Parallel",
+            "StartAt": "LatestPriceGroup",
+            "States": {
+              "LatestPriceGroup": {
+                "Type": "Parallel",
+                "Branches": [
+                  {
+                    "StartAt": "RunLatestPriceDaily",
+                    "States": {
+                      "RunLatestPriceDaily": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::ecs:runTask.sync",
+                        "Parameters": {
+                          "LaunchType": "FARGATE",
+                          "Cluster": "${ClusterArn}",
+                          "TaskDefinition": "${LatestPriceDailyTaskDefArn}",
+                          "NetworkConfiguration": {
+                            "AwsvpcConfiguration": {
+                              "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                              "SecurityGroups": ["${SecurityGroupId}"],
+                              "AssignPublicIp": "ENABLED"
+                            }
+                          }
+                        },
+                        "Retry": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "IntervalSeconds": 60,
+                            "MaxAttempts": 2,
+                            "BackoffRate": 2
+                          }
+                        ],
+                        "End": true
+                      }
+                    }
+                  },
+                  {
+                    "StartAt": "RunLatestPriceWeekly",
+                    "States": {
+                      "RunLatestPriceWeekly": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::ecs:runTask.sync",
+                        "Parameters": {
+                          "LaunchType": "FARGATE",
+                          "Cluster": "${ClusterArn}",
+                          "TaskDefinition": "${LatestPriceWeeklyTaskDefArn}",
+                          "NetworkConfiguration": {
+                            "AwsvpcConfiguration": {
+                              "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                              "SecurityGroups": ["${SecurityGroupId}"],
+                              "AssignPublicIp": "ENABLED"
+                            }
+                          }
+                        },
+                        "Retry": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "IntervalSeconds": 60,
+                            "MaxAttempts": 2,
+                            "BackoffRate": 2
+                          }
+                        ],
+                        "End": true
+                      }
+                    }
+                  },
+                  {
+                    "StartAt": "RunLatestPriceMonthly",
+                    "States": {
+                      "RunLatestPriceMonthly": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::ecs:runTask.sync",
+                        "Parameters": {
+                          "LaunchType": "FARGATE",
+                          "Cluster": "${ClusterArn}",
+                          "TaskDefinition": "${LatestPriceMonthlyTaskDefArn}",
+                          "NetworkConfiguration": {
+                            "AwsvpcConfiguration": {
+                              "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                              "SecurityGroups": ["${SecurityGroupId}"],
+                              "AssignPublicIp": "ENABLED"
+                            }
+                          }
+                        },
+                        "Retry": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "IntervalSeconds": 60,
+                            "MaxAttempts": 2,
+                            "BackoffRate": 2
+                          }
+                        ],
+                        "End": true
+                      }
+                    }
+                  }
+                ],
+                "ResultPath": "$.LatestPriceResults",
+                "Next": "LatestTechnicalsGroup",
+                "Catch": [
+                  {
+                    "ErrorEquals": ["States.ALL"],
+                    "Next": "NotifyLatestError"
+                  }
+                ]
+              },
+              "LatestTechnicalsGroup": {
+                "Type": "Parallel",
+                "Branches": [
+                  {
+                    "StartAt": "RunLatestTechnicalsDaily",
+                    "States": {
+                      "RunLatestTechnicalsDaily": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::ecs:runTask.sync",
+                        "Parameters": {
+                          "LaunchType": "FARGATE",
+                          "Cluster": "${ClusterArn}",
+                          "TaskDefinition": "${LatestTechnicalsDailyTaskDefArn}",
+                          "NetworkConfiguration": {
+                            "AwsvpcConfiguration": {
+                              "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                              "SecurityGroups": ["${SecurityGroupId}"],
+                              "AssignPublicIp": "ENABLED"
+                            }
+                          }
+                        },
+                        "Retry": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "IntervalSeconds": 60,
+                            "MaxAttempts": 2,
+                            "BackoffRate": 2
+                          }
+                        ],
+                        "End": true
+                      }
+                    }
+                  },
+                  {
+                    "StartAt": "RunLatestTechnicalsWeekly",
+                    "States": {
+                      "RunLatestTechnicalsWeekly": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::ecs:runTask.sync",
+                        "Parameters": {
+                          "LaunchType": "FARGATE",
+                          "Cluster": "${ClusterArn}",
+                          "TaskDefinition": "${LatestTechnicalsWeeklyTaskDefArn}",
+                          "NetworkConfiguration": {
+                            "AwsvpcConfiguration": {
+                              "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                              "SecurityGroups": ["${SecurityGroupId}"],
+                              "AssignPublicIp": "ENABLED"
+                            }
+                          }
+                        },
+                        "Retry": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "IntervalSeconds": 60,
+                            "MaxAttempts": 2,
+                            "BackoffRate": 2
+                          }
+                        ],
+                        "End": true
+                      }
+                    }
+                  },
+                  {
+                    "StartAt": "RunLatestTechnicalsMonthly",
+                    "States": {
+                      "RunLatestTechnicalsMonthly": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::ecs:runTask.sync",
+                        "Parameters": {
+                          "LaunchType": "FARGATE",
+                          "Cluster": "${ClusterArn}",
+                          "TaskDefinition": "${LatestTechnicalsMonthlyTaskDefArn}",
+                          "NetworkConfiguration": {
+                            "AwsvpcConfiguration": {
+                              "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                              "SecurityGroups": ["${SecurityGroupId}"],
+                              "AssignPublicIp": "ENABLED"
+                            }
+                          }
+                        },
+                        "Retry": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "IntervalSeconds": 60,
+                            "MaxAttempts": 2,
+                            "BackoffRate": 2
+                          }
+                        ],
+                        "End": true
+                      }
+                    }
+                  }
+                ],
+                "ResultPath": "$.LatestTechnicalsResults",
+                "Next": "LatestBuySellGroup",
+                "Catch": [
+                  {
+                    "ErrorEquals": ["States.ALL"],
+                    "Next": "NotifyLatestError"
+                  }
+                ]
+              },
+              "LatestBuySellGroup": {
+                "Type": "Parallel",
+                "Branches": [
+                  {
+                    "StartAt": "RunLatestBuySellDaily",
+                    "States": {
+                      "RunLatestBuySellDaily": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::ecs:runTask.sync",
+                        "Parameters": {
+                          "LaunchType": "FARGATE",
+                          "Cluster": "${ClusterArn}",
+                          "TaskDefinition": "${LatestBuySellDailyTaskDefArn}",
+                          "NetworkConfiguration": {
+                            "AwsvpcConfiguration": {
+                              "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                              "SecurityGroups": ["${SecurityGroupId}"],
+                              "AssignPublicIp": "ENABLED"
+                            }
+                          }
+                        },
+                        "Retry": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "IntervalSeconds": 60,
+                            "MaxAttempts": 2,
+                            "BackoffRate": 2
+                          }
+                        ],
+                        "End": true
+                      }
+                    }
+                  },
+                  {
+                    "StartAt": "RunLatestBuySellWeekly",
+                    "States": {
+                      "RunLatestBuySellWeekly": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::ecs:runTask.sync",
+                        "Parameters": {
+                          "LaunchType": "FARGATE",
+                          "Cluster": "${ClusterArn}",
+                          "TaskDefinition": "${LatestBuySellWeeklyTaskDefArn}",
+                          "NetworkConfiguration": {
+                            "AwsvpcConfiguration": {
+                              "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                              "SecurityGroups": ["${SecurityGroupId}"],
+                              "AssignPublicIp": "ENABLED"
+                            }
+                          }
+                        },
+                        "Retry": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "IntervalSeconds": 60,
+                            "MaxAttempts": 2,
+                            "BackoffRate": 2
+                          }
+                        ],
+                        "End": true
+                      }
+                    }
+                  },
+                  {
+                    "StartAt": "RunLatestBuySellMonthly",
+                    "States": {
+                      "RunLatestBuySellMonthly": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::ecs:runTask.sync",
+                        "Parameters": {
+                          "LaunchType": "FARGATE",
+                          "Cluster": "${ClusterArn}",
+                          "TaskDefinition": "${LatestBuySellMonthlyTaskDefArn}",
+                          "NetworkConfiguration": {
+                            "AwsvpcConfiguration": {
+                              "Subnets": ["${Subnet1Id}", "${Subnet2Id}"],
+                              "SecurityGroups": ["${SecurityGroupId}"],
+                              "AssignPublicIp": "ENABLED"
+                            }
+                          }
+                        },
+                        "Retry": [
+                          {
+                            "ErrorEquals": ["States.ALL"],
+                            "IntervalSeconds": 60,
+                            "MaxAttempts": 2,
+                            "BackoffRate": 2
+                          }
+                        ],
+                        "End": true
+                      }
+                    }
+                  }
+                ],
+                "ResultPath": "$.LatestBuySellResults",
+                "Next": "LatestWorkflowSuccess",
+                "Catch": [
+                  {
+                    "ErrorEquals": ["States.ALL"],
+                    "Next": "NotifyLatestError"
+                  }
+                ]
+              },
+              "LatestWorkflowSuccess": {
+                "Type": "Succeed"
+              },
+              "NotifyLatestError": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::sns:publish",
+                "Parameters": {
+                  "TopicArn": "${NotificationTopicArn}",
+                  "Message": "Latest data processing workflow failed. Please check CloudWatch logs for details."
+                },
+                "Next": "LatestWorkflowFailed"
+              },
+              "LatestWorkflowFailed": {
+                "Type": "Fail",
+                "Error": "LatestDataProcessingFailed",
+                "Cause": "One or more latest data jobs failed after retry attempts"
+              }
+            }
+          }
+        - ClusterArn: !ImportValue StocksApp-ClusterArn
+          LatestPriceDailyTaskDefArn: !Ref LatestPriceDailyTaskDefinition
+          LatestPriceWeeklyTaskDefArn: !Ref LatestPriceWeeklyTaskDefinition
+          LatestPriceMonthlyTaskDefArn: !Ref LatestPriceMonthlyTaskDefinition
+          LatestTechnicalsDailyTaskDefArn: !Ref LatestTechnicalsDailyTaskDefinition
+          LatestTechnicalsWeeklyTaskDefArn: !Ref LatestTechnicalsWeeklyTaskDefinition
+          LatestTechnicalsMonthlyTaskDefArn: !Ref LatestTechnicalsMonthlyTaskDefinition
+          LatestBuySellDailyTaskDefArn: !Ref LatestBuySellDailyTaskDefinition
+          LatestBuySellWeeklyTaskDefArn: !Ref LatestBuySellWeeklyTaskDefinition
+          LatestBuySellMonthlyTaskDefArn: !Ref LatestBuySellMonthlyTaskDefinition
+          Subnet1Id: !ImportValue StocksCore-PublicSubnet1Id
+          Subnet2Id: !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroupId: !ImportValue StocksApp-EcsTasksSecurityGroupId
+          NotificationTopicArn: !Ref NotificationTopic
+
+  #############################################################
+  # EventBridge Schedules for Both Step Functions
+  #############################################################
+  FinancialDataProcessingSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Run main financial data processing workflow at 5:00 AM CT (10:00 UTC) on weekdays"
+      ScheduleExpression: "cron(0 10 ? * MON-FRI *)"
+      State: ENABLED
+      Targets:
+        - Id: FinancialDataProcessingTarget
+          Arn: !Ref FinancialDataStateMachine
+          RoleArn: !GetAtt StepFunctionsExecutionRole.Arn
+
+  LatestDataProcessingSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Run latest data processing workflow every 15 minutes during market hours"
+      ScheduleExpression: "cron(*/15 14-21 ? * MON-FRI *)"
+      State: ENABLED
+      Targets:
+        - Id: LatestDataProcessingTarget
+          Arn: !Ref LatestDataStateMachine
+          RoleArn: !GetAtt StepFunctionsExecutionRole.Arn
+
+#########################################
+# Outputs for Both Step Functions      #
+#########################################
+  FinancialStateMachineArn:
+    Description: "ARN of the Financial Data Processing State Machine"
+    Value: !Ref FinancialDataStateMachine
+    Export:
+      Name: FinancialStateMachineArn
+
+  LatestStateMachineArn:
+    Description: "ARN of the Latest Data Processing State Machine"
+    Value: !Ref LatestDataStateMachine
+    Export:
+      Name: LatestStateMachineArn
