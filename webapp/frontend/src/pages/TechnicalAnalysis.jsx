@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Box,
+  Container,
   Typography,
   Grid,
   Card,
@@ -16,208 +18,464 @@ import {
   TableHead,
   TableRow,
   Paper,
-  Chip,
   CircularProgress,
   Alert,
   TextField,
-  Button
-} from '@mui/material'
-import { apiService } from '../services/api'
+  Button,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails
+} from '@mui/material';
+import {
+  ExpandMore,
+  Search
+} from '@mui/icons-material';
+import { formatNumber, formatDate } from '../utils/formatters';
+import { getTechnicalData } from '../services/api';
 
 function TechnicalAnalysis() {
-  const [timeframe, setTimeframe] = useState('daily')
-  const [technicalData, setTechnicalData] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
-  const [symbolFilter, setSymbolFilter] = useState('')
+  const [timeframe, setTimeframe] = useState('daily');
+  const [symbolFilter, setSymbolFilter] = useState('');
 
-  useEffect(() => {
-    fetchTechnicalData()
-  }, [timeframe])
-  const fetchTechnicalData = async () => {
-    setLoading(true)
-    setError(null)
+  // Fetch technical data
+  const { data: technicalData, isLoading, error, refetch } = useQuery({
+    queryKey: ['technicalAnalysis', timeframe, symbolFilter],
+    queryFn: () => getTechnicalData(timeframe, { 
+      symbol: symbolFilter || undefined,
+      limit: 50
+    }),
+    refetchInterval: 300000 // Refresh every 5 minutes
+  });
+
+  const handleSearch = () => {
+    refetch();
+  };
+
+  const getSignalColor = (value, type) => {
+    if (value === null || value === undefined) return 'grey.500';
     
-    try {
-      const params = new URLSearchParams({
-        limit: '50',
-        ...(symbolFilter && { symbol: symbolFilter })
-      })
-      const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/technical/${timeframe}?${params}`)
-      if (!response.ok) throw new Error('Failed to fetch technical data')
-      const data = await response.json()
-      setTechnicalData(data.data || [])
-    } catch (err) {
-      setError('Failed to fetch technical data')
-      console.error('Error fetching technical data:', err)
-    } finally {
-      setLoading(false)
+    switch (type) {
+      case 'rsi':
+        if (value > 70) return 'error.main'; // Overbought
+        if (value < 30) return 'success.main'; // Oversold
+        return 'warning.main';
+      case 'macd':
+        return value > 0 ? 'success.main' : 'error.main';
+      case 'adx':
+        if (value > 25) return 'success.main'; // Strong trend
+        return 'warning.main';
+      default:
+        return 'grey.500';
     }
+  };
+
+  const TechnicalIndicatorCard = ({ title, value, description, type, unit = '' }) => (
+    <Card sx={{ height: '100%' }}>
+      <CardContent>
+        <Typography variant="h6" component="h3" gutterBottom>
+          {title}
+        </Typography>
+        <Typography 
+          variant="h4" 
+          component="p" 
+          sx={{ 
+            color: getSignalColor(value, type),
+            fontWeight: 'bold',
+            mb: 1
+          }}
+        >
+          {value !== null && value !== undefined ? `${formatNumber(value)}${unit}` : 'N/A'}
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          {description}
+        </Typography>
+      </CardContent>
+    </Card>
+  );
+
+  const ComprehensiveTechnicalTable = () => (
+    <TableContainer component={Paper} elevation={0} sx={{ maxHeight: 600, overflow: 'auto' }}>
+      <Table stickyHeader>
+        <TableHead>
+          <TableRow>
+            <TableCell sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Symbol</TableCell>
+            <TableCell sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Date</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>RSI</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>MACD</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>MACD Signal</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>MACD Hist</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>ADX</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>ATR</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>MFI</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>ROC</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>MOM</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>BB Upper</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>BB Middle</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>BB Lower</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>SMA 10</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>SMA 20</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>SMA 50</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>SMA 150</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>SMA 200</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>EMA 4</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>EMA 9</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>EMA 21</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>A/D</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>CMF</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>TD Seq</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>TD Combo</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>MW</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>DM</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Pivot H</TableCell>
+            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Pivot L</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {technicalData?.data?.map((row, index) => (
+            <TableRow key={`${row.symbol}-${index}`} hover>
+              <TableCell>
+                <Typography variant="body2" fontWeight="bold">
+                  {row.symbol}
+                </Typography>
+              </TableCell>
+              <TableCell>
+                <Typography variant="body2">
+                  {formatDate(row.date)}
+                </Typography>
+              </TableCell>
+              <TableCell align="right">
+                <Typography 
+                  variant="body2" 
+                  sx={{ color: getSignalColor(row.rsi, 'rsi') }}
+                >
+                  {row.rsi ? formatNumber(row.rsi) : 'N/A'}
+                </Typography>
+              </TableCell>
+              <TableCell align="right">
+                <Typography 
+                  variant="body2"
+                  sx={{ color: getSignalColor(row.macd, 'macd') }}
+                >
+                  {row.macd ? formatNumber(row.macd, 4) : 'N/A'}
+                </Typography>
+              </TableCell>
+              <TableCell align="right">{row.macd_signal ? formatNumber(row.macd_signal, 4) : 'N/A'}</TableCell>
+              <TableCell align="right">{row.macd_hist ? formatNumber(row.macd_hist, 4) : 'N/A'}</TableCell>
+              <TableCell align="right">
+                <Typography 
+                  variant="body2"
+                  sx={{ color: getSignalColor(row.adx, 'adx') }}
+                >
+                  {row.adx ? formatNumber(row.adx) : 'N/A'}
+                </Typography>
+              </TableCell>
+              <TableCell align="right">{row.atr ? formatNumber(row.atr) : 'N/A'}</TableCell>
+              <TableCell align="right">{row.mfi ? formatNumber(row.mfi) : 'N/A'}</TableCell>
+              <TableCell align="right">{row.roc ? formatNumber(row.roc) : 'N/A'}</TableCell>
+              <TableCell align="right">{row.mom ? formatNumber(row.mom) : 'N/A'}</TableCell>
+              <TableCell align="right">{row.bbands_upper ? formatNumber(row.bbands_upper) : 'N/A'}</TableCell>
+              <TableCell align="right">{row.bbands_middle ? formatNumber(row.bbands_middle) : 'N/A'}</TableCell>
+              <TableCell align="right">{row.bbands_lower ? formatNumber(row.bbands_lower) : 'N/A'}</TableCell>
+              <TableCell align="right">{row.sma_10 ? formatNumber(row.sma_10) : 'N/A'}</TableCell>
+              <TableCell align="right">{row.sma_20 ? formatNumber(row.sma_20) : 'N/A'}</TableCell>
+              <TableCell align="right">{row.sma_50 ? formatNumber(row.sma_50) : 'N/A'}</TableCell>
+              <TableCell align="right">{row.sma_150 ? formatNumber(row.sma_150) : 'N/A'}</TableCell>
+              <TableCell align="right">{row.sma_200 ? formatNumber(row.sma_200) : 'N/A'}</TableCell>
+              <TableCell align="right">{row.ema_4 ? formatNumber(row.ema_4) : 'N/A'}</TableCell>
+              <TableCell align="right">{row.ema_9 ? formatNumber(row.ema_9) : 'N/A'}</TableCell>
+              <TableCell align="right">{row.ema_21 ? formatNumber(row.ema_21) : 'N/A'}</TableCell>
+              <TableCell align="right">{row.ad ? formatNumber(row.ad) : 'N/A'}</TableCell>
+              <TableCell align="right">{row.cmf ? formatNumber(row.cmf, 4) : 'N/A'}</TableCell>
+              <TableCell align="right">{row.td_sequential ? formatNumber(row.td_sequential) : 'N/A'}</TableCell>
+              <TableCell align="right">{row.td_combo ? formatNumber(row.td_combo) : 'N/A'}</TableCell>
+              <TableCell align="right">{row.marketwatch ? formatNumber(row.marketwatch) : 'N/A'}</TableCell>
+              <TableCell align="right">{row.dm ? formatNumber(row.dm) : 'N/A'}</TableCell>
+              <TableCell align="right">{row.pivot_high ? formatNumber(row.pivot_high) : 'N/A'}</TableCell>
+              <TableCell align="right">{row.pivot_low ? formatNumber(row.pivot_low) : 'N/A'}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+
+  if (error) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Alert severity="error">
+          Error loading technical data: {error.message}
+        </Alert>
+      </Container>
+    );
   }
 
-  const getRSIColor = (rsi) => {
-    if (rsi > 70) return 'error'
-    if (rsi < 30) return 'success'
-    return 'default'
-  }
-
-  const getRSILabel = (rsi) => {
-    if (rsi > 70) return 'Overbought'
-    if (rsi < 30) return 'Oversold'
-    return 'Neutral'
-  }
-
-  const getMACDSignal = (macd, signal) => {
-    if (macd > signal) return { label: 'Bullish', color: 'success' }
-    return { label: 'Bearish', color: 'error' }
-  }
-
-  const getADXStrength = (adx) => {
-    if (adx > 50) return { label: 'Very Strong', color: 'success' }
-    if (adx > 25) return { label: 'Strong', color: 'info' }
-    if (adx > 20) return { label: 'Trending', color: 'warning' }
-    return { label: 'Weak', color: 'default' }
-  }
-
-  const handleSymbolSearch = () => {
-    fetchTechnicalData()
-  }
+  // Get sample data for overview cards
+  const sampleData = technicalData?.data?.[0] || {};
 
   return (
-    <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" gutterBottom>
-          Technical Analysis
-        </Typography>
+    <Container maxWidth="xl" sx={{ py: 4 }}>
+      <Typography variant="h4" gutterBottom>
+        Technical Analysis - All Indicators
+      </Typography>
+      
+      {/* Controls */}
+      <Box display="flex" gap={2} mb={3} alignItems="center">
+        <FormControl size="small" sx={{ minWidth: 120 }}>
+          <InputLabel>Timeframe</InputLabel>
+          <Select
+            value={timeframe}
+            onChange={(e) => setTimeframe(e.target.value)}
+          >
+            <MenuItem value="daily">Daily</MenuItem>
+            <MenuItem value="weekly">Weekly</MenuItem>
+            <MenuItem value="monthly">Monthly</MenuItem>
+          </Select>
+        </FormControl>
         
-        <Box display="flex" gap={2} alignItems="center">
-          <TextField
-            label="Symbol"
-            variant="outlined"
-            size="small"
-            value={symbolFilter}
-            onChange={(e) => setSymbolFilter(e.target.value.toUpperCase())}
-            placeholder="e.g., AAPL"
-          />
-          <Button variant="contained" onClick={handleSymbolSearch}>
-            Search
-          </Button>
-          <FormControl sx={{ minWidth: 120 }}>
-            <InputLabel>Timeframe</InputLabel>
-            <Select
-              value={timeframe}
-              label="Timeframe"
-              onChange={(e) => setTimeframe(e.target.value)}
-            >
-              <MenuItem value="daily">Daily</MenuItem>
-              <MenuItem value="weekly">Weekly</MenuItem>
-              <MenuItem value="monthly">Monthly</MenuItem>
-            </Select>
-          </FormControl>
-        </Box>
+        <TextField
+          label="Search Symbol"
+          value={symbolFilter}
+          onChange={(e) => setSymbolFilter(e.target.value.toUpperCase())}
+          size="small"
+          sx={{ minWidth: 150 }}
+        />
+        
+        <Button
+          variant="outlined"
+          onClick={handleSearch}
+          startIcon={<Search />}
+          disabled={isLoading}
+        >
+          Search
+        </Button>
       </Box>
 
-      {loading && (
-        <Box display="flex" justifyContent="center" p={4}>
-          <CircularProgress />
-        </Box>
-      )}
-      
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-
-      {!loading && !error && (
-        <Grid container spacing={3}>
-          <Grid item xs={12}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Technical Indicators - {timeframe.charAt(0).toUpperCase() + timeframe.slice(1)}
+      {/* Technical Indicators Overview */}
+      {sampleData.symbol && (
+        <Accordion sx={{ mb: 3 }}>
+          <AccordionSummary expandIcon={<ExpandMore />}>
+            <Typography variant="h6">
+              Technical Indicators Overview - {sampleData.symbol}
+            </Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Grid container spacing={2}>
+              {/* Oscillators */}
+              <Grid item xs={12}>
+                <Typography variant="h6" gutterBottom color="primary">
+                  Oscillators
                 </Typography>
-                
-                {technicalData.length === 0 ? (
-                  <Alert severity="info">No technical data found</Alert>
-                ) : (
-                  <TableContainer component={Paper} sx={{ mt: 2 }}>
-                    <Table>
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Symbol</TableCell>
-                          <TableCell>Date</TableCell>
-                          <TableCell>RSI (14)</TableCell>
-                          <TableCell>MACD</TableCell>
-                          <TableCell>ADX</TableCell>
-                          <TableCell>MFI</TableCell>
-                          <TableCell>SMA 20</TableCell>
-                          <TableCell>SMA 50</TableCell>
-                          <TableCell>BB Upper</TableCell>
-                          <TableCell>BB Lower</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {technicalData.map((row, index) => (
-                          <TableRow key={index}>
-                            <TableCell>
-                              <Typography fontWeight="bold">{row.symbol}</Typography>
-                            </TableCell>
-                            <TableCell>
-                              {new Date(row.date).toLocaleDateString()}
-                            </TableCell>
-                            <TableCell>
-                              <Box display="flex" alignItems="center" gap={1}>
-                                <Typography>{row.rsi?.toFixed(2) || 'N/A'}</Typography>
-                                {row.rsi && (
-                                  <Chip 
-                                    label={getRSILabel(row.rsi)} 
-                                    color={getRSIColor(row.rsi)} 
-                                    size="small" 
-                                  />
-                                )}
-                              </Box>
-                            </TableCell>
-                            <TableCell>
-                              <Box>
-                                <Typography variant="body2">
-                                  {row.macd?.toFixed(4) || 'N/A'}
-                                </Typography>
-                                {row.macd && row.macd_signal && (
-                                  <Chip 
-                                    label={getMACDSignal(row.macd, row.macd_signal).label}
-                                    color={getMACDSignal(row.macd, row.macd_signal).color}
-                                    size="small"
-                                  />
-                                )}
-                              </Box>
-                            </TableCell>
-                            <TableCell>
-                              <Box display="flex" alignItems="center" gap={1}>
-                                <Typography>{row.adx?.toFixed(2) || 'N/A'}</Typography>
-                                {row.adx && (
-                                  <Chip 
-                                    label={getADXStrength(row.adx).label}
-                                    color={getADXStrength(row.adx).color}
-                                    size="small"
-                                  />
-                                )}
-                              </Box>
-                            </TableCell>
-                            <TableCell>{row.mfi?.toFixed(2) || 'N/A'}</TableCell>
-                            <TableCell>${row.sma_20?.toFixed(2) || 'N/A'}</TableCell>
-                            <TableCell>${row.sma_50?.toFixed(2) || 'N/A'}</TableCell>
-                            <TableCell>${row.bbands_upper?.toFixed(2) || 'N/A'}</TableCell>
-                            <TableCell>${row.bbands_lower?.toFixed(2) || 'N/A'}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                )}
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <TechnicalIndicatorCard
+                  title="RSI (14)"
+                  value={sampleData.rsi}
+                  description="Relative Strength Index - Momentum oscillator"
+                  type="rsi"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <TechnicalIndicatorCard
+                  title="MFI"
+                  value={sampleData.mfi}
+                  description="Money Flow Index - Volume-weighted RSI"
+                  type="rsi"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <TechnicalIndicatorCard
+                  title="ADX"
+                  value={sampleData.adx}
+                  description="Average Directional Index - Trend strength"
+                  type="adx"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <TechnicalIndicatorCard
+                  title="ATR"
+                  value={sampleData.atr}
+                  description="Average True Range - Volatility measure"
+                  type="default"
+                />
+              </Grid>
+
+              {/* MACD Group */}
+              <Grid item xs={12}>
+                <Typography variant="h6" gutterBottom color="primary" sx={{ mt: 2 }}>
+                  MACD Indicators
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={6} md={4}>
+                <TechnicalIndicatorCard
+                  title="MACD Line"
+                  value={sampleData.macd}
+                  description="Moving Average Convergence Divergence"
+                  type="macd"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={4}>
+                <TechnicalIndicatorCard
+                  title="MACD Signal"
+                  value={sampleData.macd_signal}
+                  description="MACD Signal Line"
+                  type="default"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={4}>
+                <TechnicalIndicatorCard
+                  title="MACD Histogram"
+                  value={sampleData.macd_hist}
+                  description="MACD - MACD Signal"
+                  type="macd"
+                />
+              </Grid>
+
+              {/* Moving Averages */}
+              <Grid item xs={12}>
+                <Typography variant="h6" gutterBottom color="primary" sx={{ mt: 2 }}>
+                  Moving Averages
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={6} md={2}>
+                <TechnicalIndicatorCard
+                  title="SMA 10"
+                  value={sampleData.sma_10}
+                  description="Simple Moving Average"
+                  type="default"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={2}>
+                <TechnicalIndicatorCard
+                  title="SMA 20"
+                  value={sampleData.sma_20}
+                  description="Simple Moving Average"
+                  type="default"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={2}>
+                <TechnicalIndicatorCard
+                  title="SMA 50"
+                  value={sampleData.sma_50}
+                  description="Simple Moving Average"
+                  type="default"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={2}>
+                <TechnicalIndicatorCard
+                  title="SMA 150"
+                  value={sampleData.sma_150}
+                  description="Simple Moving Average"
+                  type="default"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={2}>
+                <TechnicalIndicatorCard
+                  title="SMA 200"
+                  value={sampleData.sma_200}
+                  description="Simple Moving Average"
+                  type="default"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={2}>
+                <TechnicalIndicatorCard
+                  title="EMA 21"
+                  value={sampleData.ema_21}
+                  description="Exponential Moving Average"
+                  type="default"
+                />
+              </Grid>
+
+              {/* Bollinger Bands */}
+              <Grid item xs={12}>
+                <Typography variant="h6" gutterBottom color="primary" sx={{ mt: 2 }}>
+                  Bollinger Bands
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={6} md={4}>
+                <TechnicalIndicatorCard
+                  title="BB Upper"
+                  value={sampleData.bbands_upper}
+                  description="Bollinger Band Upper"
+                  type="default"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={4}>
+                <TechnicalIndicatorCard
+                  title="BB Middle"
+                  value={sampleData.bbands_middle}
+                  description="Bollinger Band Middle (SMA 20)"
+                  type="default"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={4}>
+                <TechnicalIndicatorCard
+                  title="BB Lower"
+                  value={sampleData.bbands_lower}
+                  description="Bollinger Band Lower"
+                  type="default"
+                />
+              </Grid>
+
+              {/* Momentum & Volume */}
+              <Grid item xs={12}>
+                <Typography variant="h6" gutterBottom color="primary" sx={{ mt: 2 }}>
+                  Momentum & Volume Indicators
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <TechnicalIndicatorCard
+                  title="Momentum"
+                  value={sampleData.mom}
+                  description="Price momentum indicator"
+                  type="default"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <TechnicalIndicatorCard
+                  title="ROC"
+                  value={sampleData.roc}
+                  description="Rate of Change"
+                  type="default"
+                  unit="%"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <TechnicalIndicatorCard
+                  title="A/D Line"
+                  value={sampleData.ad}
+                  description="Accumulation/Distribution Line"
+                  type="default"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <TechnicalIndicatorCard
+                  title="CMF"
+                  value={sampleData.cmf}
+                  description="Chaikin Money Flow"
+                  type="default"
+                />
+              </Grid>
+            </Grid>
+          </AccordionDetails>
+        </Accordion>
       )}
-    </Box>
-  )
+
+      {/* Comprehensive Data Table */}
+      <Box mb={3}>
+        <Typography variant="h6" gutterBottom>
+          Complete Technical Data ({timeframe.charAt(0).toUpperCase() + timeframe.slice(1)})
+        </Typography>
+        
+        {isLoading ? (
+          <Box display="flex" justifyContent="center" p={4}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <ComprehensiveTechnicalTable />
+        )}
+      </Box>
+    </Container>
+  );
 }
 
-export default TechnicalAnalysis
+export default TechnicalAnalysis;

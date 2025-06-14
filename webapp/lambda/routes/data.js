@@ -411,4 +411,111 @@ router.get('/validation-summary', async (req, res) => {
   }
 });
 
+// Get all financial data for a symbol across all statement types
+router.get('/financials/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const limit = parseInt(req.query.limit) || 10;
+
+    // Query all financial statement types
+    const queries = [
+      { name: 'TTM Income Statement', table: 'ttm_income_stmt' },
+      { name: 'TTM Cash Flow', table: 'ttm_cashflow' },
+      { name: 'Annual Income Statement', table: 'income_stmt' },
+      { name: 'Annual Cash Flow', table: 'cash_flow' },
+      { name: 'Balance Sheet', table: 'balance_sheet' },
+      { name: 'Quarterly Income Statement', table: 'quarterly_income_stmt' },
+      { name: 'Quarterly Cash Flow', table: 'quarterly_cashflow' },
+      { name: 'Quarterly Balance Sheet', table: 'quarterly_balance_sheet' }
+    ];
+
+    const results = {};
+
+    for (const { name, table } of queries) {
+      try {
+        const financialQuery = `
+          SELECT date, item_name, value
+          FROM ${table}
+          WHERE symbol = $1
+          ORDER BY date DESC, item_name
+          LIMIT $2
+        `;
+        
+        const result = await query(financialQuery, [symbol.toUpperCase(), limit * 50]); // Get more items per date
+        
+        // Transform the data by date
+        const transformedData = {};
+        result.rows.forEach(row => {
+          const dateKey = row.date;
+          if (!transformedData[dateKey]) {
+            transformedData[dateKey] = {
+              date: row.date,
+              items: {}
+            };
+          }
+          transformedData[dateKey].items[row.item_name] = row.value;
+        });
+
+        results[name] = Object.values(transformedData)
+          .sort((a, b) => new Date(b.date) - new Date(a.date))
+          .slice(0, limit);
+
+      } catch (tableError) {
+        console.warn(`Table ${table} not accessible:`, tableError.message);
+        results[name] = [];
+      }
+    }
+
+    res.json({
+      symbol: symbol.toUpperCase(),
+      data: results,
+      limit
+    });
+
+  } catch (error) {
+    console.error('Error fetching comprehensive financial data:', error);
+    res.status(500).json({ error: 'Failed to fetch comprehensive financial data' });
+  }
+});
+
+// Get all available financial metrics (item names) across all tables
+router.get('/financial-metrics', async (req, res) => {
+  try {
+    const tables = [
+      'ttm_income_stmt', 'ttm_cashflow', 'income_stmt', 'cash_flow', 
+      'balance_sheet', 'quarterly_income_stmt', 'quarterly_cashflow', 'quarterly_balance_sheet'
+    ];
+
+    const metrics = {};
+
+    for (const table of tables) {
+      try {
+        const metricsQuery = `
+          SELECT DISTINCT item_name, COUNT(*) as occurrence_count
+          FROM ${table}
+          GROUP BY item_name
+          ORDER BY item_name
+        `;
+        
+        const result = await query(metricsQuery);
+        metrics[table] = result.rows;
+
+      } catch (tableError) {
+        console.warn(`Table ${table} not accessible:`, tableError.message);
+        metrics[table] = [];
+      }
+    }
+
+    res.json({
+      metrics,
+      tables: tables,
+      generated_at: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error fetching financial metrics:', error);
+    res.status(500).json({ error: 'Failed to fetch financial metrics' });
+  }
+});
+
 module.exports = router;

@@ -30,9 +30,7 @@ router.get('/:timeframe', async (req, res) => {
     // Validate sort column
     const validSortColumns = ['symbol', 'date', 'rsi', 'macd', 'adx', 'mfi'];
     const sortColumn = validSortColumns.includes(sortBy) ? sortBy : 'date';
-    const order = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
-
-    const sqlQuery = `
+    const order = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC';    const sqlQuery = `
       SELECT 
         symbol,
         date,
@@ -58,19 +56,7 @@ router.get('/:timeframe', async (req, res) => {
         sma_200,
         ema_4,
         ema_9,
-        ema_21,
-        bbands_lower,
-        bbands_middle,
-        bbands_upper,
-        pivot_high,
-        pivot_low,
-        fetched_at
-        sma_150,
-        sma_200,
-        ema_4,
-        ema_9,
-        ema_21,
-        bbands_lower,
+        ema_21,        bbands_lower,
         bbands_middle,
         bbands_upper,
         pivot_high,
@@ -118,8 +104,7 @@ router.get('/:timeframe/:symbol', async (req, res) => {
       return res.status(400).json({ error: 'Invalid timeframe. Must be daily, weekly, or monthly' });
     }
 
-    const tableName = `technical_data_${timeframe}`;
-      const sqlQuery = `
+    const tableName = `technical_data_${timeframe}`;    const sqlQuery = `
       SELECT 
         symbol,
         date,
@@ -135,7 +120,22 @@ router.get('/:timeframe/:symbol', async (req, res) => {
         bbands_lower,
         bbands_middle,
         bbands_upper,
-        fetched_at
+        mom,
+        roc,
+        atr,
+        ad,
+        cmf,
+        td_sequential,
+        td_combo,
+        marketwatch,
+        dm,
+        sma_10,
+        sma_150,
+        ema_4,
+        ema_9,
+        ema_21,
+        pivot_high,
+        pivot_low
       FROM ${tableName}
       WHERE symbol = $1
       ORDER BY date DESC

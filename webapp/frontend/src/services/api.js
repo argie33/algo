@@ -327,6 +327,21 @@ export const getTechnicalData = (timeframe, params = {}) => {
 
 export const getDataValidationSummary = () => api.get('/data/validation-summary')
 
+// Comprehensive financial data endpoints
+export const getAllFinancialData = (symbol, params = {}) => {
+  const queryParams = new URLSearchParams()
+  
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      queryParams.append(key, value)
+    }
+  })
+  
+  return api.get(`/data/financials/${symbol}?${queryParams.toString()}`)
+}
+
+export const getFinancialMetrics = () => api.get('/data/financial-metrics')
+
 // Export all methods as a default object for easier importing
 export default {
   healthCheck,
@@ -360,5 +375,7 @@ export default {
   getNaaimData,
   getFearGreedData,
   getTechnicalData,
-  getDataValidationSummary
+  getDataValidationSummary,
+  getAllFinancialData,
+  getFinancialMetrics
 }

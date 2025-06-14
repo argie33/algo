@@ -350,42 +350,74 @@ router.get('/:ticker/prices', async (req, res) => {
 router.get('/:ticker/financials', async (req, res) => {
   try {
     const { ticker } = req.params;
-    const type = req.query.type || 'income'; // income, cash_flow, balance_sheet
+    const type = req.query.type || 'income'; // income, cash_flow, balance_sheet, quarterly_income, quarterly_cash_flow, quarterly_balance
 
-    let query_text = '';
     let tableName = '';
-
+    
     switch (type) {
       case 'income':
         tableName = 'ttm_income_stmt';
-        query_text = `
-          SELECT symbol, date, revenue, gross_profit, operating_income, net_income,
-                 ebit, basic_eps, diluted_eps, operating_expense
-          FROM ${tableName}
-          WHERE symbol = $1
-          ORDER BY date DESC
-        `;
         break;
       case 'cash_flow':
-        tableName = 'ttm_cash_flow';
-        query_text = `
-          SELECT symbol, date, operating_cash_flow, free_cash_flow, 
-                 capital_expenditure, financing_cash_flow, investing_cash_flow
-          FROM ${tableName}
-          WHERE symbol = $1
-          ORDER BY date DESC
-        `;
+        tableName = 'ttm_cashflow';
+        break;
+      case 'balance_sheet':
+        tableName = 'balance_sheet';
+        break;
+      case 'quarterly_income':
+        tableName = 'quarterly_income_stmt';
+        break;
+      case 'quarterly_cash_flow':
+        tableName = 'quarterly_cashflow';
+        break;
+      case 'quarterly_balance':
+        tableName = 'quarterly_balance_sheet';
+        break;
+      case 'annual_income':
+        tableName = 'income_stmt';
+        break;
+      case 'annual_cash_flow':
+        tableName = 'cash_flow';
         break;
       default:
-        return res.status(400).json({ error: 'Invalid financial statement type' });
+        return res.status(400).json({ error: 'Invalid financial statement type. Valid types: income, cash_flow, balance_sheet, quarterly_income, quarterly_cash_flow, quarterly_balance, annual_income, annual_cash_flow' });
     }
 
+    // Query using the normalized structure with item_name and value
+    const query_text = `
+      SELECT symbol, date, item_name, value
+      FROM ${tableName}
+      WHERE symbol = $1
+      ORDER BY date DESC, item_name
+    `;
+
     const result = await query(query_text, [ticker.toUpperCase()]);
+
+    // Transform the normalized data into a more usable structure
+    const transformedData = {};
+    
+    result.rows.forEach(row => {
+      const dateKey = row.date;
+      if (!transformedData[dateKey]) {
+        transformedData[dateKey] = {
+          symbol: row.symbol,
+          date: row.date,
+          items: {}
+        };
+      }
+      transformedData[dateKey].items[row.item_name] = row.value;
+    });
+
+    // Convert to array sorted by date (newest first)
+    const dataArray = Object.values(transformedData)
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
 
     res.json({
       ticker: ticker.toUpperCase(),
       type,
-      data: result.rows
+      table: tableName,
+      data: dataArray,
+      count: dataArray.length
     });
   } catch (error) {
     console.error('Error fetching financial data:', error);
