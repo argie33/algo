@@ -11,6 +11,7 @@ import math
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
 from datetime import datetime
+import pandas as pd
 
 import boto3
 import yfinance as yf
@@ -70,9 +71,40 @@ def fetch_analyst_actions(symbol):
         return None
     if df is None or df.empty:
         return None
-    # Only keep upgrade/downgrade actions
-    df = df[df["To Grade"].notna() | df["From Grade"].notna()]
-    return df
+    
+    # Debug: Log available columns for first symbol
+    if symbol == "AAL":  # Log columns for debugging
+        logging.info(f"Available columns for {symbol}: {list(df.columns)}")
+    
+    # Check if the expected columns exist, if not try alternatives
+    grade_columns = []
+    if "To Grade" in df.columns:
+        grade_columns.append("To Grade")
+    elif "toGrade" in df.columns:
+        grade_columns.append("toGrade")
+    elif "To" in df.columns:
+        grade_columns.append("To")
+        
+    if "From Grade" in df.columns:
+        grade_columns.append("From Grade")
+    elif "fromGrade" in df.columns:
+        grade_columns.append("fromGrade")
+    elif "From" in df.columns:
+        grade_columns.append("From")
+    
+    # If no grade columns found, return all recommendations
+    if not grade_columns:
+        logging.warning(f"No grade columns found for {symbol}, returning all recommendations")
+        return df
+    
+    # Filter for rows that have grade information
+    condition = pd.Series([False] * len(df))
+    for col in grade_columns:
+        if col in df.columns:
+            condition = condition | df[col].notna()
+    
+    df_filtered = df[condition] if condition.any() else df
+    return df_filtered
 
 def load_analyst_actions(symbols, cur, conn):
     total = len(symbols)
@@ -84,14 +116,25 @@ def load_analyst_actions(symbols, cur, conn):
         if df is None or df.empty:
             logging.info(f"No analyst upgrades/downgrades for {symbol}")
             continue
+        
         rows = []
         for dt, row in df.iterrows():
+            # Handle flexible column names
+            from_grade = (row.get("From Grade") or 
+                         row.get("fromGrade") or 
+                         row.get("From") or 
+                         None)
+            to_grade = (row.get("To Grade") or 
+                       row.get("toGrade") or 
+                       row.get("To") or 
+                       None)
+            
             rows.append([
                 symbol,
                 row.get("Firm"),
                 row.get("Action"),
-                row.get("From Grade"),
-                row.get("To Grade"),
+                from_grade,
+                to_grade,
                 dt.date() if hasattr(dt, 'date') else dt,
                 row.get("Details") if "Details" in row else None
             ])
@@ -155,6 +198,24 @@ def lambda_handler(event, context):
         "failed": f,
         "peak_rss_mb": peak
     }
+
+# Test function to debug column names (remove after testing)
+def test_recommendation_columns():
+    """Test function to see what columns are available in recommendations data"""
+    try:
+        import yfinance as yf
+        ticker = yf.Ticker("AAPL")
+        df = ticker.recommendations
+        if df is not None and not df.empty:
+            print(f"Available columns: {list(df.columns)}")
+            print(f"Sample data:")
+            print(df.head())
+        else:
+            print("No recommendations data available")
+    except Exception as e:
+        print(f"Error: {e}")
+
+# Uncomment to test: test_recommendation_columns()
 
 if __name__ == "__main__":
     # Run the same logic as lambda_handler when executed directly
