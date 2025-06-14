@@ -36,7 +36,7 @@ import {
   Info as InfoIcon
 } from '@mui/icons-material'
 
-import { getStocks, getSectors } from '../services/api'
+import { getStocks, getStocksQuick, getSectors } from '../services/api'
 import { formatCurrency, formatNumber, formatPercentage, getChangeColor, getChangeIcon, getMarketCapCategory, debounce } from '../utils/formatters'
 
 const StockList = () => {
@@ -56,9 +56,16 @@ const StockList = () => {
     handler()
   }, [search])
 
-  const { data: stocksData, isLoading, error } = useQuery(
-    ['stocks', { page, search: debouncedSearch, sector, limit: 20 }],
-    () => getStocks({ page, search: debouncedSearch, sector, limit: 20 }),
+  const { data: stocksData, isLoading, error } = useQuery(    ['stocks', { page, search: debouncedSearch, sector, limit: 10 }],
+    () => {
+      if (debouncedSearch || sector) {
+        // Use full search when filtering
+        return getStocks({ page, search: debouncedSearch, sector, limit: 10 });
+      } else {
+        // Use quick overview for general browsing
+        return getStocksQuick({ page, limit: 15 });
+      }
+    },
     {
       keepPreviousData: true,
     }

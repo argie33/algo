@@ -97,9 +97,14 @@ export const healthCheck = () => api.get('/health')
 // Market overview
 export const getMarketOverview = () => api.get('/metrics/overview')
 
-// Stocks
+// Stocks - Updated to use optimized endpoints
 export const getStocks = (params = {}) => {
   const queryParams = new URLSearchParams()
+  
+  // Use smaller default limit to prevent white screen
+  if (!params.limit) {
+    params.limit = 10
+  }
   
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
@@ -108,6 +113,43 @@ export const getStocks = (params = {}) => {
   })
   
   return api.get(`/stocks?${queryParams.toString()}`)
+}
+
+// Quick stocks overview for initial page load
+export const getStocksQuick = (params = {}) => {
+  const queryParams = new URLSearchParams()
+  
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      queryParams.append(key, value)
+    }
+  })
+  
+  return api.get(`/stocks/quick/overview?${queryParams.toString()}`)
+}
+
+// Chunked stocks loading
+export const getStocksChunk = (chunkIndex = 0) => {
+  return api.get(`/stocks/chunk/${chunkIndex}`)
+}
+
+// Full stocks data (use with caution)
+export const getStocksFull = (params = {}) => {
+  const queryParams = new URLSearchParams()
+  
+  // Force small limit for safety
+  if (!params.limit || params.limit > 10) {
+    params.limit = 5
+    console.warn('Stocks limit reduced to 5 for performance')
+  }
+  
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      queryParams.append(key, value)
+    }
+  })
+  
+  return api.get(`/stocks/full/data?${queryParams.toString()}`)
 }
 
 export const getStock = (ticker) => api.get(`/stocks/${ticker}`)
@@ -313,8 +355,14 @@ export const getFearGreedData = (params = {}) => {
   return api.get(`/data/fear-greed?${queryParams.toString()}`)
 }
 
+// Technical data - Updated to use optimized endpoints
 export const getTechnicalData = (timeframe, params = {}) => {
   const queryParams = new URLSearchParams()
+  
+  // Use smaller default limit to prevent white screen
+  if (!params.limit) {
+    params.limit = 5
+  }
   
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
@@ -325,7 +373,7 @@ export const getTechnicalData = (timeframe, params = {}) => {
   return api.get(`/technical/${timeframe}?${queryParams.toString()}`)
 }
 
-// New optimized endpoint for faster loading
+// Quick technical summary for initial page load
 export const getTechnicalSummary = (timeframe, params = {}) => {
   const queryParams = new URLSearchParams()
   
@@ -336,6 +384,30 @@ export const getTechnicalSummary = (timeframe, params = {}) => {
   })
   
   return api.get(`/technical/${timeframe}/summary?${queryParams.toString()}`)
+}
+
+// Chunked technical data loading
+export const getTechnicalChunk = (timeframe, chunkIndex = 0) => {
+  return api.get(`/technical/${timeframe}/chunk/${chunkIndex}`)
+}
+
+// Full technical data (use with caution)
+export const getTechnicalFull = (timeframe, params = {}) => {
+  const queryParams = new URLSearchParams()
+  
+  // Force small limit for safety
+  if (!params.limit || params.limit > 10) {
+    params.limit = 5
+    console.warn('Technical data limit reduced to 5 for performance')
+  }
+  
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      queryParams.append(key, value)
+    }
+  })
+  
+  return api.get(`/technical/${timeframe}/full?${queryParams.toString()}`)
 }
 
 // Comprehensive financial data endpoints
@@ -358,6 +430,9 @@ export default {
   healthCheck,
   getMarketOverview,
   getStocks,
+  getStocksQuick,
+  getStocksChunk,
+  getStocksFull,
   getStock,
   getStockProfile,
   getStockMetrics,
@@ -387,8 +462,8 @@ export default {
   getFearGreedData,
   getTechnicalData,
   getTechnicalSummary,
-  getTechnicalSummary,
-  getDataValidationSummary,
+  getTechnicalChunk,
+  getTechnicalFull,
   getAllFinancialData,
   getFinancialMetrics
 }

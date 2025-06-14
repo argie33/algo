@@ -4,10 +4,9 @@ const { query } = require('../utils/database');
 const router = express.Router();
 
 // Get all stocks with basic info and pagination
-router.get('/', async (req, res) => {
-  try {
+router.get('/', async (req, res) => {  try {
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 50;
+    const limit = parseInt(req.query.limit) || 10; // Reduced from 50 to 10
     const offset = (page - 1) * limit;
     const search = req.query.search || '';
     const sector = req.query.sector || '';
@@ -86,11 +85,10 @@ router.get('/', async (req, res) => {
 });
 
 // Stock screening endpoint - MUST be before /:ticker route
-router.get('/screen', async (req, res) => {
-  try {
+router.get('/screen', async (req, res) => {  try {
     const page = parseInt(req.query.page) || 1;
-    const limit = Math.min(parseInt(req.query.limit) || 25, 100); // Cap at 100 for performance
-    const offset = (page - 1) * limit;    const sortBy = req.query.sortBy || 'symbol'; // Default to alphabetical
+    const limit = Math.min(parseInt(req.query.limit) || 10, 100); // Reduced from 25 to 10, cap at 100
+    const offset = (page - 1) * limit;const sortBy = req.query.sortBy || 'symbol'; // Default to alphabetical
     const sortOrder = req.query.sortOrder || 'asc'; // Default to ascending
 
     // Build WHERE clause based on filters
@@ -573,6 +571,281 @@ router.get('/:ticker/metrics', async (req, res) => {
   } catch (error) {
     console.error('Error fetching stock metrics:', error);
     res.status(500).json({ error: 'Failed to fetch stock metrics' });
+  }
+});
+
+// Lightweight stocks endpoint for initial page load
+router.get('/quick/overview', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20; // More items since less data per item
+    const offset = (page - 1) * limit;
+    
+    // Set caching headers
+    res.set({
+      'Cache-Control': 'public, max-age=300', // 5 minutes cache
+      'Content-Type': 'application/json',
+    });
+
+    // Minimal data for quick loading
+    const quickQuery = `
+      SELECT 
+        cp.ticker,
+        cp.short_name,
+        cp.sector,
+        md.regular_market_price,
+        ((md.regular_market_price - md.regular_market_previous_close) / md.regular_market_previous_close * 100) as change_percent,
+        md.market_cap
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      WHERE md.regular_market_price IS NOT NULL
+      ORDER BY md.market_cap DESC NULLS LAST
+      LIMIT $1 OFFSET $2
+    `;
+
+    const result = await query(quickQuery, [limit, offset]);
+    
+    // Clean up the data
+    const cleanData = result.rows.map(row => ({
+      ticker: row.ticker,
+      name: row.short_name,
+      sector: row.sector,
+      price: row.regular_market_price ? Math.round(row.regular_market_price * 100) / 100 : null,
+      changePercent: row.change_percent ? Math.round(row.change_percent * 100) / 100 : null,
+      marketCap: row.market_cap
+    }));
+
+    res.json({
+      success: true,
+      data: cleanData,
+      count: cleanData.length,
+      metadata: {
+        page,
+        limit,
+        loadingStrategy: 'quick',
+        dataSize: JSON.stringify(cleanData).length
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching quick stocks overview:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch stocks overview',
+      message: error.message
+    });
+  }
+});
+
+// Chunked stocks loading endpoint
+router.get('/chunk/:chunkIndex', async (req, res) => {
+  try {
+    const chunkIndex = parseInt(req.params.chunkIndex) || 0;
+    const chunkSize = 5; // Load 5 stocks at a time
+    const offset = chunkIndex * chunkSize;
+    
+    // Set caching headers
+    res.set({
+      'Cache-Control': 'public, max-age=300',
+      'Content-Type': 'application/json',
+    });
+
+    // Full stock data for this chunk
+    const chunkQuery = `
+      SELECT 
+        cp.ticker,
+        cp.short_name,
+        cp.long_name,
+        cp.sector,
+        cp.industry,
+        md.market_cap,
+        cp.currency,
+        cp.exchange,
+        md.regular_market_price,
+        (md.regular_market_price - md.regular_market_previous_close) as regular_market_change,
+        ((md.regular_market_price - md.regular_market_previous_close) / md.regular_market_previous_close * 100) as regular_market_change_percent,
+        md.fifty_two_week_high,
+        md.fifty_two_week_low,
+        km.trailing_pe,
+        km.forward_pe,
+        km.price_to_book,
+        km.dividend_yield
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+      WHERE md.regular_market_price IS NOT NULL
+      ORDER BY md.market_cap DESC NULLS LAST
+      LIMIT $1 OFFSET $2
+    `;
+
+    const result = await query(chunkQuery, [chunkSize, offset]);
+    
+    // Get total count for pagination info
+    const countQuery = `
+      SELECT COUNT(*) as total 
+      FROM company_profile cp 
+      LEFT JOIN market_data md ON cp.ticker = md.ticker 
+      WHERE md.regular_market_price IS NOT NULL
+    `;
+    const countResult = await query(countQuery);
+    const totalStocks = parseInt(countResult.rows[0]?.total || 0);
+    const totalChunks = Math.ceil(totalStocks / chunkSize);
+
+    // Clean up numeric data
+    const cleanData = result.rows.map(row => {
+      const cleaned = {};
+      for (const [key, value] of Object.entries(row)) {
+        if (value !== null && value !== undefined) {
+          if (typeof value === 'number' && !Number.isInteger(value)) {
+            cleaned[key] = Math.round(value * 10000) / 10000;
+          } else {
+            cleaned[key] = value;
+          }
+        }
+      }
+      return cleaned;
+    });
+
+    res.json({
+      success: true,
+      data: cleanData,
+      chunk: {
+        index: chunkIndex,
+        size: chunkSize,
+        count: cleanData.length,
+        totalChunks,
+        totalStocks,
+        hasMore: chunkIndex < totalChunks - 1
+      },
+      metadata: {
+        dataSize: JSON.stringify(cleanData).length,
+        loadingStrategy: 'chunked'
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching stocks chunk:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch stocks chunk',
+      message: error.message
+    });
+  }
+});
+
+// Full stocks data endpoint - use with caution for large datasets
+router.get('/full/data', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 5; // Very small default limit
+    const offset = (page - 1) * limit;
+    const search = req.query.search || '';
+    const sector = req.query.sector || '';
+    
+    console.log(`Full stocks data request - limit: ${limit}, page: ${page}`);
+    
+    // Warning for large requests
+    if (limit > 15) {
+      console.warn(`Large stocks data request detected: ${limit} stocks requested`);
+    }
+    
+    // Set headers
+    res.set({
+      'Cache-Control': 'public, max-age=300',
+      'Content-Type': 'application/json',
+    });
+
+    let whereClause = 'WHERE 1=1';
+    const params = [];
+    let paramCount = 0;
+
+    if (search) {
+      paramCount++;
+      whereClause += ` AND (cp.ticker ILIKE $${paramCount} OR cp.short_name ILIKE $${paramCount} OR cp.long_name ILIKE $${paramCount})`;
+      params.push(`%${search}%`);
+    }
+
+    if (sector) {
+      paramCount++;
+      whereClause += ` AND cp.sector = $${paramCount}`;
+      params.push(sector);
+    }
+
+    const stocksQuery = `
+      SELECT 
+        cp.ticker,
+        cp.short_name,
+        cp.long_name,
+        cp.sector,
+        cp.industry,
+        md.market_cap,
+        cp.currency,
+        cp.exchange,
+        md.regular_market_price,
+        (md.regular_market_price - md.regular_market_previous_close) as regular_market_change,
+        ((md.regular_market_price - md.regular_market_previous_close) / md.regular_market_previous_close * 100) as regular_market_change_percent,
+        md.fifty_two_week_high,
+        md.fifty_two_week_low,
+        km.trailing_pe,
+        km.forward_pe,
+        km.price_to_book,
+        km.dividend_yield
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+      ${whereClause}
+      ORDER BY cp.ticker ASC
+      LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
+    `;
+
+    params.push(limit, offset);
+
+    const startTime = Date.now();
+    const stocksResult = await query(stocksQuery, params);
+    const queryTime = Date.now() - startTime;
+    
+    console.log(`Stocks query completed in ${queryTime}ms, returned ${stocksResult.rows.length} rows`);
+
+    // Process data but keep ALL columns
+    const processedData = stocksResult.rows.map(row => {
+      const processed = {};
+      for (const [key, value] of Object.entries(row)) {
+        if (value !== null && value !== undefined) {
+          if (typeof value === 'number' && !Number.isInteger(value)) {
+            processed[key] = Math.round(value * 10000) / 10000;
+          } else {
+            processed[key] = value;
+          }
+        } else {
+          processed[key] = null;
+        }
+      }
+      return processed;
+    });
+
+    const responseSize = JSON.stringify(processedData).length;
+    console.log(`Response size: ${responseSize} bytes for ${processedData.length} stocks`);
+
+    res.json({
+      success: true,
+      data: processedData,
+      count: processedData.length,
+      metadata: {
+        page,
+        limit,
+        queryTimeMs: queryTime,
+        dataSize: responseSize,
+        averageSizePerStock: Math.round(responseSize / processedData.length),
+        loadingStrategy: 'full',
+        warning: limit > 10 ? `Large dataset requested (${limit} stocks)` : null
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching full stocks data:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch full stocks data',
+      message: error.message,
+      stack: error.stack
+    });
   }
 });
 

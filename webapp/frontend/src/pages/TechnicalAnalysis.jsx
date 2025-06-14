@@ -31,21 +31,31 @@ import {
   Search
 } from '@mui/icons-material';
 import { formatNumber, formatDate } from '../utils/formatters';
-import { getTechnicalData } from '../services/api';
+import { getTechnicalData, getTechnicalSummary } from '../services/api';
 
 function TechnicalAnalysis() {
   const [timeframe, setTimeframe] = useState('daily');
   const [symbolFilter, setSymbolFilter] = useState('');
   const [page, setPage] = useState(1);
-  const [searchInput, setSearchInput] = useState('');
-  // Fetch technical data
+  const [searchInput, setSearchInput] = useState('');  // Fetch technical data - use summary for quick loading, full data for specific symbols
   const { data: technicalData, isLoading, error, refetch } = useQuery({
     queryKey: ['technicalAnalysis', timeframe, symbolFilter, page],
-    queryFn: () => getTechnicalData(timeframe, { 
-      symbol: symbolFilter || undefined,
-      limit: 25, // Reduced limit for faster loading
-      page: page
-    }),
+    queryFn: () => {
+      if (symbolFilter) {
+        // For specific symbols, get full data
+        return getTechnicalData(timeframe, { 
+          symbol: symbolFilter,
+          limit: 10,
+          page: page
+        });
+      } else {
+        // For general view, use summary for faster loading
+        return getTechnicalSummary(timeframe, { 
+          limit: 10,
+          page: page
+        });
+      }
+    },
     refetchInterval: 300000, // Refresh every 5 minutes
     retry: 2,
     staleTime: 60000 // Consider data fresh for 1 minute
