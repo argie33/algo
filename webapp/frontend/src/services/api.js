@@ -206,6 +206,40 @@ export const getSellSignals = () => {
   return api.get('/signals/sell')
 }
 
+// Earnings and analyst endpoints
+export const getEarningsEstimates = (params = {}) => {
+  const queryParams = new URLSearchParams()
+  
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      queryParams.append(key, value)
+    }
+  })
+  
+  return api.get(`/calendar/earnings-estimates?${queryParams.toString()}`)
+}
+
+export const getEarningsHistory = (params = {}) => {
+  const queryParams = new URLSearchParams()
+  
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      queryParams.append(key, value)
+    }
+  })
+  
+  return api.get(`/calendar/earnings-history?${queryParams.toString()}`)
+}
+
+export const getTickerEarningsEstimates = (ticker) => 
+  api.get(`/analysts/${ticker}/earnings-estimates`)
+
+export const getTickerEarningsHistory = (ticker) => 
+  api.get(`/analysts/${ticker}/earnings-history`)
+
+export const getTickerRevenueEstimates = (ticker) => 
+  api.get(`/analysts/${ticker}/revenue-estimates`)
+
 // Export all methods as a default object for easier importing
 export default {
   healthCheck,
@@ -226,5 +260,10 @@ export default {
   runStockScreener,
   screenStocks,
   getBuySignals,
-  getSellSignals
+  getSellSignals,
+  getEarningsEstimates,
+  getEarningsHistory,
+  getTickerEarningsEstimates,
+  getTickerEarningsHistory,
+  getTickerRevenueEstimates
 }

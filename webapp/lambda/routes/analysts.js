@@ -101,7 +101,7 @@ router.get('/:ticker/earnings-estimates', async (req, res) => {
         difference,
         surprise_percent,
         reported_date
-      FROM earnings_estimate
+        FROM earnings_estimates
       WHERE symbol = $1
       ORDER BY reported_date DESC
       LIMIT 8
@@ -132,8 +132,7 @@ router.get('/:ticker/revenue-estimates', async (req, res) => {
         actual,
         difference,
         surprise_percent,
-        reported_date
-      FROM revenue_estimate
+        reported_date      FROM revenue_estimates
       WHERE symbol = $1
       ORDER BY reported_date DESC
       LIMIT 8

@@ -70,7 +70,7 @@ function EarningsCalendar() {
         page: page + 1,
         limit: rowsPerPage
       });
-      const response = await fetch(`${API_BASE}/analysts/earnings-estimates?${params}`);
+      const response = await fetch(`${API_BASE}/calendar/earnings-estimates?${params}`);
       if (!response.ok) throw new Error('Failed to fetch estimates data');
       return response.json();
     },
@@ -86,7 +86,7 @@ function EarningsCalendar() {
         page: page + 1,
         limit: rowsPerPage
       });
-      const response = await fetch(`${API_BASE}/analysts/earnings-history?${params}`);
+      const response = await fetch(`${API_BASE}/calendar/earnings-history?${params}`);
       if (!response.ok) throw new Error('Failed to fetch history data');
       return response.json();
     },
