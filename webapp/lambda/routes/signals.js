@@ -37,7 +37,7 @@ router.get('/buy', async (req, res) => {
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
         AND CAST(bs.signal AS NUMERIC) > 0
-      ORDER BY bs.signal DESC, bs.date DESC
+      ORDER BY bs.symbol ASC, bs.signal DESC, bs.date DESC
       LIMIT $1 OFFSET $2
     `;
 
@@ -111,7 +111,7 @@ router.get('/sell', async (req, res) => {
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
         AND CAST(bs.signal AS NUMERIC) < 0
-      ORDER BY bs.signal ASC, bs.date DESC
+      ORDER BY bs.symbol ASC, bs.signal ASC, bs.date DESC
       LIMIT $1 OFFSET $2
     `;
 

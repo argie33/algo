@@ -114,8 +114,7 @@ router.get('/:timeframe', async (req, res) => {
       
     } else {
       // Simplified query - just get recent data directly instead of complex CTE
-      sqlQuery = `
-        SELECT DISTINCT ON (symbol)
+      sqlQuery = `        SELECT DISTINCT ON (symbol)
           symbol,
           date,
           rsi,
@@ -147,7 +146,7 @@ router.get('/:timeframe', async (req, res) => {
           pivot_high,
           pivot_low
         FROM ${tableName}
-        ORDER BY symbol, date DESC
+        ORDER BY symbol ASC, date DESC
         LIMIT $1 OFFSET $2
       `;
       

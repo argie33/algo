@@ -126,9 +126,8 @@ function StockExplorer() {
   const [filters, setFilters] = useState(INITIAL_FILTERS)
   const [viewMode, setViewMode] = useState('simple') // 'simple' or 'advanced'
   const [page, setPage] = useState(0)
-  const [rowsPerPage, setRowsPerPage] = useState(25) // Reduced from potentially higher default
-  const [orderBy, setOrderBy] = useState('market_capitalization')
-  const [order, setOrder] = useState('desc')
+  const [rowsPerPage, setRowsPerPage] = useState(25) // Reduced from potentially higher default  const [orderBy, setOrderBy] = useState('symbol') // Default to alphabetical
+  const [order, setOrder] = useState('asc') // Default to ascending
   
   // Initialize from URL params only once on mount
   useEffect(() => {

@@ -47,8 +47,7 @@ router.get('/', async (req, res) => {
       FROM company_profile cp
       LEFT JOIN market_data md ON cp.ticker = md.ticker
       LEFT JOIN key_metrics km ON cp.ticker = km.ticker
-      ${whereClause}
-      ORDER BY md.market_cap DESC NULLS LAST
+      ${whereClause}      ORDER BY cp.ticker ASC
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
     `;
 
@@ -90,9 +89,8 @@ router.get('/screen', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = Math.min(parseInt(req.query.limit) || 25, 100); // Cap at 100 for performance
-    const offset = (page - 1) * limit;
-    const sortBy = req.query.sortBy || 'market_cap';
-    const sortOrder = req.query.sortOrder || 'desc';
+    const offset = (page - 1) * limit;    const sortBy = req.query.sortBy || 'symbol'; // Default to alphabetical
+    const sortOrder = req.query.sortOrder || 'asc'; // Default to ascending
 
     // Build WHERE clause based on filters
     let whereClause = 'WHERE 1=1';
@@ -507,7 +505,9 @@ router.get('/:ticker/profile', async (req, res) => {
         industry,
         country,
         exchange,
-        currency,        website,        business_summary as description,
+        currency,
+        website,
+        business_summary as description,
         md.market_cap as market_capitalization,
         md.regular_market_price as price,
         md.regular_market_previous_close as previous_close,

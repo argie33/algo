@@ -115,8 +115,8 @@ function StockScreener() {
   const [savedScreens, setSavedScreens] = useState([])
   const [page, setPage] = useState(0)
   const [rowsPerPage, setRowsPerPage] = useState(25)
-  const [orderBy, setOrderBy] = useState('market_capitalization')
-  const [order, setOrder] = useState('desc')
+  const [orderBy, setOrderBy] = useState('symbol') // Default to alphabetical
+  const [order, setOrder] = useState('asc') // Default to ascending for alphabetical
 
   // Build query parameters from filters
   const buildQueryParams = () => {
