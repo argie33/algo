@@ -25,7 +25,8 @@ import {
   Business as BusinessIcon,
   Timeline as TimelineIcon,
   Person as PersonIcon,
-  Event as EventIcon
+  Event as EventIcon,
+  Storage as StorageIcon
 } from '@mui/icons-material'
 import { useNavigate, useLocation } from 'react-router-dom'
 
@@ -38,6 +39,7 @@ import TradingSignals from './pages/TradingSignals'
 import TechnicalAnalysis from './pages/TechnicalAnalysis'
 import AnalystInsights from './pages/AnalystInsights'
 import EarningsCalendar from './pages/EarningsCalendar'
+import DataValidation from './pages/DataValidation'
 
 const drawerWidth = 240
 
@@ -49,6 +51,7 @@ const menuItems = [
   { text: 'Technical Analysis', icon: <AssessmentIcon />, path: '/technical' },
   { text: 'Analyst Insights', icon: <PersonIcon />, path: '/analysts' },
   { text: 'Earnings Calendar', icon: <EventIcon />, path: '/earnings' },
+  { text: 'Data Validation', icon: <StorageIcon />, path: '/data-validation' },
 ]
 
 function App() {
@@ -186,6 +189,7 @@ function App() {
             <Route path="/technical" element={<TechnicalAnalysis />} />
             <Route path="/analysts" element={<AnalystInsights />} />
             <Route path="/earnings" element={<EarningsCalendar />} />
+            <Route path="/data-validation" element={<DataValidation />} />
           </Routes>
         </Container>
       </Box>

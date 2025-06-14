@@ -26,7 +26,7 @@ router.get('/:timeframe', async (req, res) => {
       whereClause = `WHERE symbol = $${paramCount}`;
       queryParams.push(symbol);
     }
-
+    
     // Validate sort column
     const validSortColumns = ['symbol', 'date', 'rsi', 'macd', 'adx', 'mfi'];
     const sortColumn = validSortColumns.includes(sortBy) ? sortBy : 'date';
@@ -44,10 +44,27 @@ router.get('/:timeframe', async (req, res) => {
         roc,
         adx,
         atr,
+        ad,
+        cmf,
         mfi,
+        td_sequential,
+        td_combo,
+        marketwatch,
+        dm,
         sma_10,
         sma_20,
         sma_50,
+        sma_150,
+        sma_200,
+        ema_4,
+        ema_9,
+        ema_21,
+        bbands_lower,
+        bbands_middle,
+        bbands_upper,
+        pivot_high,
+        pivot_low,
+        fetched_at
         sma_150,
         sma_200,
         ema_4,
@@ -102,8 +119,7 @@ router.get('/:timeframe/:symbol', async (req, res) => {
     }
 
     const tableName = `technical_data_${timeframe}`;
-    
-    const sqlQuery = `
+      const sqlQuery = `
       SELECT 
         symbol,
         date,
@@ -118,7 +134,8 @@ router.get('/:timeframe/:symbol', async (req, res) => {
         sma_200,
         bbands_lower,
         bbands_middle,
-        bbands_upper
+        bbands_upper,
+        fetched_at
       FROM ${tableName}
       WHERE symbol = $1
       ORDER BY date DESC

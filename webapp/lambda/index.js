@@ -19,6 +19,7 @@ const tradingRoutes = require('./routes/trading');
 const technicalRoutes = require('./routes/technical');
 const calendarRoutes = require('./routes/calendar');
 const signalsRoutes = require('./routes/signals');
+const dataRoutes = require('./routes/data');
 
 const app = express();
 
@@ -140,6 +141,7 @@ app.use('/trading', tradingRoutes);
 app.use('/technical', technicalRoutes);
 app.use('/calendar', calendarRoutes);
 app.use('/signals', signalsRoutes);
+app.use('/data', dataRoutes);
 
 // Default route
 app.get('/', (req, res) => {
