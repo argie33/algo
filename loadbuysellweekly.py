@@ -334,12 +334,11 @@ def fetch_symbol_data_vectorized(symbols_batch, retry_count=0):
             sql = f"""
                 SELECT
                     p.symbol, p.date, p.open, p.high, p.low, p.close, p.volume,
-                    COALESCE(t.rsi, 50.0) as rsi,
-                    COALESCE(t.atr, 1.0) as atr,  
+                    COALESCE(t.rsi, 50.0) as rsi,                    COALESCE(t.atr, 1.0) as atr,  
                     COALESCE(t.adx, 25.0) as adx,
                     COALESCE(t.sma_50, p.close) AS "TrendMA",
-                    COALESCE(t.pivot_high, p.high) AS "PivotHighRaw",
-                    COALESCE(t.pivot_low, p.low) AS "PivotLowRaw"
+                    t.pivot_high AS "PivotHighRaw",
+                    t.pivot_low AS "PivotLowRaw"
                 FROM {PRICE_TABLE} p
                 LEFT JOIN {TECH_TABLE} t
                     ON p.symbol = t.symbol AND p.date = t.date
@@ -404,19 +403,22 @@ def generate_signals_vectorized(df, atrMult=1.0, useADX=True, adxThreshold=25):
     
     rsi_buy = (rsi > 50) & (rsi_prev <= 50)
     rsi_sell = (rsi < 50) & (rsi_prev >= 50)
+      # Pivot levels using forward fill - handle NaN values properly
+    last_ph = pivot_high.copy()
+    last_pl = pivot_low.copy()
     
-    # Pivot levels using forward fill
-    last_ph = np.roll(pivot_high, 1)
-    last_pl = np.roll(pivot_low, 1)
-    last_ph[0] = pivot_high[0]
-    last_pl[0] = pivot_low[0]
-    
-    # Forward fill using numba-style loop (faster than pandas ffill)
+    # Forward fill using pandas-style logic
     for i in range(1, n):
-        if np.isnan(last_ph[i]):
-            last_ph[i] = last_ph[i-1]
-        if np.isnan(last_pl[i]):
-            last_pl[i] = last_pl[i-1]
+        if pd.isna(last_ph[i]) and i > 0:
+            last_ph[i] = last_ph[i-1] if not pd.isna(last_ph[i-1]) else high[i]
+        if pd.isna(last_pl[i]) and i > 0:
+            last_pl[i] = last_pl[i-1] if not pd.isna(last_pl[i-1]) else low[i]
+    
+    # Handle first elements if they're NaN
+    if pd.isna(last_ph[0]):
+        last_ph[0] = high[0]
+    if pd.isna(last_pl[0]):
+        last_pl[0] = low[0]
     
     # Stop and buy levels
     stop_buffer = atr * atrMult
