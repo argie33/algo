@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Optimized Monthly Buy/Sell Signal Generator
+Optimized Buy/Sell Signal Generator
 - Ultra-fast vectorized operations with NumPy/Pandas
 - Parallel processing with ThreadPoolExecutor
 - Memory-optimized data types and aggressive garbage collection
@@ -31,7 +31,7 @@ import numpy as np
 import psutil
 
 # -------------------------------
-# Script metadata & logging setup  
+# Script metadata & logging setup 
 # -------------------------------
 SCRIPT_NAME = "loadbuyselldaily.py"
 TIMEFRAME = "daily"
@@ -139,8 +139,7 @@ def get_optimized_connection(retry_count=0):
         conn = psycopg2.connect(
             host=cfg["host"], port=cfg["port"],
             user=cfg["user"], password=cfg["password"],
-            dbname=cfg["dbname"],
-            # Extended timeout for connection establishment
+            dbname=cfg["dbname"],            # Extended timeout for connection establishment
             connect_timeout=connection_timeout,
             application_name=f"{SCRIPT_NAME}_daily",
             # Additional connection parameters for reliability
@@ -326,6 +325,8 @@ def fetch_symbol_data_vectorized(symbols_batch, retry_count=0):
     if not symbols_batch:
         return {}
     
+    print(f"DEBUG: Fetching data for symbols: {symbols_batch}")
+    
     conn = get_optimized_connection(retry_count)
     symbol_data = {}
     
@@ -349,8 +350,10 @@ def fetch_symbol_data_vectorized(symbols_batch, retry_count=0):
                 ORDER BY p.symbol, p.date ASC
             """
             
+            print(f"DEBUG: Executing query on tables {PRICE_TABLE} and {TECH_TABLE}")
             cur.execute(sql, (symbols_batch,))
             rows = cur.fetchall()
+            print(f"DEBUG: Query returned {len(rows)} rows")
             
             # Group by symbol using vectorized operations
             df_all = pd.DataFrame(rows)
@@ -369,12 +372,19 @@ def fetch_symbol_data_vectorized(symbols_batch, retry_count=0):
                     if not symbol_df.empty:
                         symbol_df = symbol_df.drop('symbol', axis=1).reset_index(drop=True)
                         symbol_data[symbol] = optimize_dataframe(symbol_df)
+                        print(f"DEBUG: Symbol {symbol} has {len(symbol_df)} rows")
+                    else:
+                        print(f"DEBUG: No data for symbol {symbol}")
+            else:
+                print("DEBUG: DataFrame is empty after query")
     
     except Exception as e:
         logging.error(f"Batch fetch error: {e}")
+        print(f"DEBUG: Fetch error: {e}")
     finally:
         conn.close()
     
+    print(f"DEBUG: Returning data for {len(symbol_data)} symbols")
     return symbol_data
 
 ###############################################################################
@@ -531,16 +541,20 @@ def main():
     start_time = time.time()
     log_performance("Startup")
     
+    print("=== DEBUG: Starting loadbuyselldaily.py ===")
+    
     try:
         # Get risk-free rate with caching
         annual_rfr = get_risk_free_rate_fred(FRED_API_KEY)
         logging.info(f"Annual RFR: {annual_rfr:.2%}")
+        print(f"DEBUG: Got RFR: {annual_rfr}")
     except Exception as e:
         logging.warning(f"Failed to get risk-free rate: {e}")
+        print(f"DEBUG: RFR error: {e}")
         annual_rfr = 0.0
-    
-    # Get symbols efficiently
+      # Get symbols efficiently
     symbols = get_symbols_batch()
+    print(f"DEBUG: Got {len(symbols)} symbols from database")
     if not symbols:
         logging.info("No symbols found in database")
         return
@@ -555,9 +569,10 @@ def main():
             create_buy_sell_table_optimized(cur)
             conn.commit()
             log_performance("Database setup complete")
-            
-            # Process symbols in parallel batches
+            print("DEBUG: Database table created")
+              # Process symbols in parallel batches
             all_results = parallel_process_symbols(symbols)
+            print(f"DEBUG: Got {len(all_results)} results from processing")
             log_performance(f"Generated signals for {len(all_results)} symbols")
             
             # Bulk insert all results
@@ -565,7 +580,10 @@ def main():
                 total_inserted = bulk_insert_results(cur, all_results)
                 conn.commit()
                 logging.info(f"Bulk inserted {total_inserted} records")
+                print(f"DEBUG: Inserted {total_inserted} records")
                 log_performance("Database insertion complete")
+            else:
+                print("DEBUG: No results to insert!")
             
             # Record completion
             cur.execute("""
@@ -578,8 +596,7 @@ def main():
             
     finally:
         conn.close()
-    
-    # Final cleanup and reporting
+      # Final cleanup and reporting
     gc.collect()
     end_time = time.time()
     execution_time = end_time - start_time
@@ -588,6 +605,7 @@ def main():
     logging.info(f"Processing complete in {execution_time:.2f} seconds")
     logging.info(f"Processed {len(symbols)} symbols")
     logging.info(f"Generated signals for {len(all_results)} symbols")
+    print(f"DEBUG: Completed in {execution_time:.2f} seconds")
 
 if __name__ == "__main__":
     main()
