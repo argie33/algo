@@ -165,9 +165,8 @@ if __name__ == "__main__":
             UNIQUE(symbol, date, item_name)
         );
     """)
-    
-    # Create index for better performance
-    cur.execute("CREATE INDEX idx_ttm_income_stmt_symbol_date ON ttm_income_stmt(symbol, date);")
+      # Create index for better performance
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ttm_income_stmt_symbol_date ON ttm_income_stmt(symbol, date);")
     
     # Ensure last_updated table exists
     cur.execute("""

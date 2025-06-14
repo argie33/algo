@@ -273,12 +273,10 @@ if __name__ == "__main__":
             fetched_at TIMESTAMP DEFAULT NOW(),
             PRIMARY KEY(ticker, period_end)
         );
-    """)
-
-    # Create indexes for performance
-    cur.execute("CREATE INDEX idx_balance_sheet_ticker ON balance_sheet(ticker);")
-    cur.execute("CREATE INDEX idx_balance_sheet_period_end ON balance_sheet(period_end);")
-    cur.execute("CREATE INDEX idx_balance_sheet_fetched_at ON balance_sheet(fetched_at);")
+    """)    # Create indexes for performance
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_balance_sheet_ticker ON balance_sheet(ticker);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_balance_sheet_period_end ON balance_sheet(period_end);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_balance_sheet_fetched_at ON balance_sheet(fetched_at);")
 
     conn.commit()
     logging.info("Balance sheet table recreated successfully")

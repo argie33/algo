@@ -47,7 +47,8 @@ router.get('/', async (req, res) => {
       FROM company_profile cp
       LEFT JOIN market_data md ON cp.ticker = md.ticker
       LEFT JOIN key_metrics km ON cp.ticker = km.ticker
-      ${whereClause}      ORDER BY cp.ticker ASC
+      ${whereClause}
+      ORDER BY cp.ticker ASC
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
     `;
 

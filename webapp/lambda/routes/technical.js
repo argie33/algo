@@ -114,7 +114,8 @@ router.get('/:timeframe', async (req, res) => {
       
     } else {
       // Simplified query - just get recent data directly instead of complex CTE
-      sqlQuery = `        SELECT DISTINCT ON (symbol)
+      sqlQuery = `
+      SELECT DISTINCT ON (symbol)
           symbol,
           date,
           rsi,

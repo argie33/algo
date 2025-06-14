@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
 import sys
 import time
 import logging
@@ -176,9 +176,8 @@ if __name__ == "__main__":
             PRIMARY KEY (symbol, period, collected_date)
         );
     """)
-    
-    # Create index for better performance
-    cur.execute("CREATE INDEX idx_analyst_recommendations_symbol ON analyst_recommendations(symbol);")
+      # Create index for better performance
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_analyst_recommendations_symbol ON analyst_recommendations(symbol);")
     
     # Ensure last_updated table exists
     cur.execute("""
