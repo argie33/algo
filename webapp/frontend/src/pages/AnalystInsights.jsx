@@ -36,7 +36,6 @@ function AnalystInsights() {
   const [rowsPerPage, setRowsPerPage] = useState(25);
 
   const API_BASE = import.meta.env.VITE_API_URL || '';
-
   // Fetch analyst upgrades/downgrades
   const { data: upgradesData, isLoading: upgradesLoading, error: upgradesError } = useQuery({
     queryKey: ['analystUpgrades', page, rowsPerPage],
@@ -46,10 +45,15 @@ function AnalystInsights() {
         limit: rowsPerPage
       });
       const response = await fetch(`${API_BASE}/analysts/upgrades?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch analyst data');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to fetch analyst data (${response.status})`);
+      }
       return response.json();
     },
-    refetchInterval: 300000 // Refresh every 5 minutes
+    refetchInterval: 300000, // Refresh every 5 minutes
+    retry: 2,
+    staleTime: 60000
   });
   const getActionChip = (action) => {
     const actionConfig = {
@@ -244,12 +248,12 @@ function AnalystInsights() {
             color="#3B82F6"
           />
         </Grid>
-      </Grid>
-
-      {/* Error Handling */}
+      </Grid>      {/* Error Handling */}
       {upgradesError && (
         <Alert severity="error" sx={{ mb: 3 }}>
-          Failed to load analyst data. Please try again later.
+          Failed to load analyst data: {upgradesError.message}
+          <br />
+          <small>This may indicate that analyst data tables are not yet populated or there's a database connectivity issue.</small>
         </Alert>
       )}
 
