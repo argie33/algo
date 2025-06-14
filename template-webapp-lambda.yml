@@ -16,11 +16,16 @@ Parameters:
   DatabaseEndpoint:
     Type: String
     Description: RDS database endpoint
-    
-  FrontendDomainName:
+      FrontendDomainName:
     Type: String
     Default: ''
     Description: Custom domain name for CloudFront (optional)
+  
+  ApiGatewayCacheClusterSize:
+    Type: String
+    Default: '0.5'
+    AllowedValues: ['0.5', '1.6', '6.1', '13.5', '28.4', '58.2', '118', '237']
+    Description: API Gateway cache cluster size in GB (affects cost and performance)
 
 Globals:
   Function:
@@ -102,9 +107,73 @@ Resources:
           MaxTTL: 31536000
           MinTTL: 0
           Compress: true
-        
-        # API Gateway caching
+          # API Gateway caching - Optimized for performance
         CacheBehaviors:
+          # Cache for financial data endpoints (stocks, prices, etc.)
+          - PathPattern: '/api/stocks/*'
+            TargetOriginId: APIOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachedMethods: [GET, HEAD, OPTIONS]
+            ForwardedValues:
+              QueryString: true
+              Headers: [Authorization, Content-Type]
+              Cookies:
+                Forward: none
+            DefaultTTL: 300      # 5 minutes for stock data
+            MaxTTL: 3600         # 1 hour max
+            MinTTL: 60           # 1 minute minimum
+            Compress: true
+          
+          # Cache for market data endpoints
+          - PathPattern: '/api/market/*'
+            TargetOriginId: APIOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachedMethods: [GET, HEAD, OPTIONS]
+            ForwardedValues:
+              QueryString: true
+              Headers: [Authorization, Content-Type]
+              Cookies:
+                Forward: none
+            DefaultTTL: 180      # 3 minutes for market data
+            MaxTTL: 1800         # 30 minutes max
+            MinTTL: 30           # 30 seconds minimum
+            Compress: true
+          
+          # Cache for fundamental data (less frequent updates)
+          - PathPattern: '/api/fundamentals/*'
+            TargetOriginId: APIOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachedMethods: [GET, HEAD, OPTIONS]
+            ForwardedValues:
+              QueryString: true
+              Headers: [Authorization, Content-Type]
+              Cookies:
+                Forward: none
+            DefaultTTL: 3600     # 1 hour for fundamentals
+            MaxTTL: 86400        # 24 hours max
+            MinTTL: 300          # 5 minutes minimum
+            Compress: true
+          
+          # Cache for earnings and estimates (moderate frequency)
+          - PathPattern: '/api/earnings/*'
+            TargetOriginId: APIOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachedMethods: [GET, HEAD, OPTIONS]
+            ForwardedValues:
+              QueryString: true
+              Headers: [Authorization, Content-Type]
+              Cookies:
+                Forward: none
+            DefaultTTL: 1800     # 30 minutes for earnings
+            MaxTTL: 21600        # 6 hours max
+            MinTTL: 180          # 3 minutes minimum
+            Compress: true
+          
+          # General API caching (fallback for other endpoints)
           - PathPattern: '/api/*'
             TargetOriginId: APIOrigin
             ViewerProtocolPolicy: redirect-to-https
@@ -115,9 +184,9 @@ Resources:
               Headers: [Authorization, Content-Type, X-Forwarded-For]
               Cookies:
                 Forward: none
-            DefaultTTL: 0
-            MaxTTL: 86400
-            MinTTL: 0
+            DefaultTTL: 60       # 1 minute default
+            MaxTTL: 3600         # 1 hour max
+            MinTTL: 0            # No minimum for dynamic content
             Compress: true
         
         # Custom error pages
@@ -223,13 +292,40 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /
             Method: ANY
-
   # API Gateway
   ApiGateway:
     Type: AWS::Serverless::Api
     Properties:
       Name: !Sub 'financial-dashboard-api-${EnvironmentName}'
-      StageName: !Ref EnvironmentName
+      StageName: !Ref EnvironmentName      # Enable server-side caching for better performance
+      CacheClusterEnabled: true
+      CacheClusterSize: !Ref ApiGatewayCacheClusterSize
+      CachingEnabled: true
+      CacheTtlInSeconds: 300   # 5 minutes default cache TTL
+      CacheKeyParameters:
+        - method.request.querystring.symbol
+        - method.request.querystring.period
+        - method.request.querystring.limit
+      MethodSettings:
+        - ResourcePath: '/stocks/*'
+          HttpMethod: GET
+          CachingEnabled: true
+          CacheTtlInSeconds: 300  # 5 minutes for stock data
+          CacheKeyParameters:
+            - method.request.querystring.symbol
+            - method.request.querystring.period
+        - ResourcePath: '/market/*'
+          HttpMethod: GET
+          CachingEnabled: true
+          CacheTtlInSeconds: 180  # 3 minutes for market data
+        - ResourcePath: '/fundamentals/*'
+          HttpMethod: GET
+          CachingEnabled: true
+          CacheTtlInSeconds: 3600  # 1 hour for fundamentals
+        - ResourcePath: '/earnings/*'
+          HttpMethod: GET
+          CachingEnabled: true
+          CacheTtlInSeconds: 1800  # 30 minutes for earnings
       Cors:
         AllowMethods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
@@ -237,7 +333,7 @@ Resources:
         AllowCredentials: false
       AccessLogSetting:
         DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
-        Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength","responseLatency":"$context.responseLatency","integrationLatency":"$context.integrationLatency"}'
+        Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength","responseLatency":"$context.responseLatency","integrationLatency":"$context.integrationLatency","cacheHitStatus":"$context.identity.cacheHitStatus"}'
 
   # CloudWatch Log Group for API Gateway
   ApiGatewayLogGroup:
@@ -279,12 +375,17 @@ Outputs:
     Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}'
     Export:
       Name: !Sub '${AWS::StackName}-ApiUrl'
-
   ApiGatewayId:
     Description: 'API Gateway ID'
     Value: !Ref ApiGateway
     Export:
       Name: !Sub '${AWS::StackName}-ApiGatewayId'
+
+  ApiGatewayCacheEnabled:
+    Description: 'API Gateway caching status'
+    Value: 'Enabled'
+    Export:
+      Name: !Sub '${AWS::StackName}-CacheStatus'
   
   # Lambda
   LambdaFunctionName:
