@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
 import sys
 import time
 import logging
@@ -763,10 +763,13 @@ def _process_symbol_chunk_internal(symbol_chunk, db_config, retry_count=0):
         """, symbol_chunk)
         delete_time = time.time() - delete_start
         logging.info(f"⚡ Bulk delete completed in {delete_time:.2f} seconds")
-        
-        # AGGRESSIVE PROCESSING with parallel-friendly chunking
+          # AGGRESSIVE PROCESSING with parallel-friendly chunking
         all_insert_data = []
         processed_symbols = []
+        
+        # Single timestamp for this entire run
+        run_timestamp = datetime.now()
+        
           # Process each symbol with MAXIMUM SPEED optimizations
         symbol_process_start = time.time()
         for i, symbol in enumerate(symbol_chunk):
@@ -837,12 +840,13 @@ def _process_symbol_chunk_internal(symbol_chunk, db_config, retry_count=0):
                         sanitize_value(row.get('sma_200')),
                         sanitize_value(row.get('ema_4')),
                         sanitize_value(row.get('ema_9')),
-                        sanitize_value(row.get('ema_21')),                        sanitize_value(row.get('bbands_lower')),
+                        sanitize_value(row.get('ema_21')),                        
+                        sanitize_value(row.get('bbands_lower')),
                         sanitize_value(row.get('bbands_middle')),
                         sanitize_value(row.get('bbands_upper')),
                         sanitize_value(row.get('pivot_high')),
                         sanitize_value(row.get('pivot_low')),
-                        datetime.now()
+                        run_timestamp
                     )
                     symbol_insert_data.append(record)
                 
@@ -1082,7 +1086,8 @@ def main():
             dbname=cfg["dbname"]
         )
         conn.autocommit = False
-        cur = conn.cursor(cursor_factory=RealDictCursor)        # Recreate technical_data_daily table
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        # Recreate technical_data_daily table
         logging.info("Recreating technical_data_daily table…")
         
         # Check if table exists first
