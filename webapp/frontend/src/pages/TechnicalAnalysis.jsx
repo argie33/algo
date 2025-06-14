@@ -21,10 +21,10 @@ import {
   CircularProgress,
   Alert,
   TextField,
-  Button,
-  Accordion,
+  Button,  Accordion,
   AccordionSummary,
-  AccordionDetails
+  AccordionDetails,
+  Pagination
 } from '@mui/material';
 import {
   ExpandMore,
@@ -36,19 +36,34 @@ import { getTechnicalData } from '../services/api';
 function TechnicalAnalysis() {
   const [timeframe, setTimeframe] = useState('daily');
   const [symbolFilter, setSymbolFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const [searchInput, setSearchInput] = useState('');
 
   // Fetch technical data
   const { data: technicalData, isLoading, error, refetch } = useQuery({
-    queryKey: ['technicalAnalysis', timeframe, symbolFilter],
+    queryKey: ['technicalAnalysis', timeframe, symbolFilter, page],
     queryFn: () => getTechnicalData(timeframe, { 
       symbol: symbolFilter || undefined,
-      limit: 50
+      limit: 50,
+      page: page
     }),
     refetchInterval: 300000 // Refresh every 5 minutes
   });
 
   const handleSearch = () => {
-    refetch();
+    setSymbolFilter(searchInput.trim());
+    setPage(1); // Reset to first page when searching
+  };
+
+  const handleClearSearch = () => {
+    setSearchInput('');
+    setSymbolFilter('');
+    setPage(1);
+  };
+
+  const handleTimeframeChange = (newTimeframe) => {
+    setTimeframe(newTimeframe);
+    setPage(1); // Reset to first page when changing timeframe
   };
 
   const getSignalColor = (value, type) => {
@@ -211,20 +226,28 @@ function TechnicalAnalysis() {
 
   // Get sample data for overview cards
   const sampleData = technicalData?.data?.[0] || {};
-
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       <Typography variant="h4" gutterBottom>
         Technical Analysis - All Indicators
       </Typography>
       
+      {/* Info Alert about data display */}
+      <Alert severity="info" sx={{ mb: 3 }}>
+        {symbolFilter ? (
+          `Showing historical data for ${symbolFilter.toUpperCase()} (${timeframe})`
+        ) : (
+          `Showing latest ${timeframe} technical data for all symbols. Search for a specific symbol to view its historical data.`
+        )}
+      </Alert>
+      
       {/* Controls */}
-      <Box display="flex" gap={2} mb={3} alignItems="center">
+      <Box display="flex" gap={2} mb={3} alignItems="center" flexWrap="wrap">
         <FormControl size="small" sx={{ minWidth: 120 }}>
           <InputLabel>Timeframe</InputLabel>
           <Select
             value={timeframe}
-            onChange={(e) => setTimeframe(e.target.value)}
+            onChange={(e) => handleTimeframeChange(e.target.value)}
           >
             <MenuItem value="daily">Daily</MenuItem>
             <MenuItem value="weekly">Weekly</MenuItem>
@@ -234,10 +257,12 @@ function TechnicalAnalysis() {
         
         <TextField
           label="Search Symbol"
-          value={symbolFilter}
-          onChange={(e) => setSymbolFilter(e.target.value.toUpperCase())}
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value.toUpperCase())}
+          onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
           size="small"
           sx={{ minWidth: 150 }}
+          placeholder="e.g., AAPL"
         />
         
         <Button
@@ -246,8 +271,41 @@ function TechnicalAnalysis() {
           startIcon={<Search />}
           disabled={isLoading}
         >
-          Search
+          {symbolFilter ? 'Search' : 'Filter'}
         </Button>
+
+        {symbolFilter && (
+          <Button
+            variant="text"
+            onClick={handleClearSearch}
+            disabled={isLoading}
+          >
+            Show All Symbols
+          </Button>
+        )}
+
+        {/* Pagination Controls */}
+        {!symbolFilter && (
+          <Box sx={{ ml: 'auto', display: 'flex', gap: 1, alignItems: 'center' }}>
+            <Button
+              size="small"
+              onClick={() => setPage(Math.max(1, page - 1))}
+              disabled={page === 1 || isLoading}
+            >
+              Previous
+            </Button>
+            <Typography variant="body2">
+              Page {page}
+            </Typography>
+            <Button
+              size="small"
+              onClick={() => setPage(page + 1)}
+              disabled={isLoading || (technicalData?.data?.length || 0) < 50}
+            >
+              Next
+            </Button>
+          </Box>
+        )}
       </Box>
 
       {/* Technical Indicators Overview */}
@@ -458,13 +516,21 @@ function TechnicalAnalysis() {
             </Grid>
           </AccordionDetails>
         </Accordion>
-      )}
-
-      {/* Comprehensive Data Table */}
+      )}      {/* Comprehensive Data Table */}
       <Box mb={3}>
         <Typography variant="h6" gutterBottom>
-          Complete Technical Data ({timeframe.charAt(0).toUpperCase() + timeframe.slice(1)})
+          {symbolFilter ? (
+            `${symbolFilter.toUpperCase()} Technical Data (${timeframe.charAt(0).toUpperCase() + timeframe.slice(1)})`
+          ) : (
+            `Latest Technical Data for All Symbols (${timeframe.charAt(0).toUpperCase() + timeframe.slice(1)})`
+          )}
         </Typography>
+        
+        {technicalData?.data?.length === 0 && !isLoading && (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            No technical data found. {symbolFilter ? `Try a different symbol or timeframe.` : `No data available for this timeframe.`}
+          </Alert>
+        )}
         
         {isLoading ? (
           <Box display="flex" justifyContent="center" p={4}>
@@ -472,6 +538,28 @@ function TechnicalAnalysis() {
           </Box>
         ) : (
           <ComprehensiveTechnicalTable />
+        )}
+
+        {/* Pagination for historical data */}
+        {symbolFilter && technicalData?.data?.length > 0 && (
+          <Box display="flex" justifyContent="center" mt={2}>
+            <Button
+              onClick={() => setPage(Math.max(1, page - 1))}
+              disabled={page === 1 || isLoading}
+              sx={{ mr: 2 }}
+            >
+              Previous
+            </Button>
+            <Typography variant="body2" sx={{ alignSelf: 'center', mx: 2 }}>
+              Page {page}
+            </Typography>
+            <Button
+              onClick={() => setPage(page + 1)}
+              disabled={isLoading || (technicalData?.data?.length || 0) < 50}
+            >
+              Next
+            </Button>
+          </Box>
         )}
       </Box>
     </Container>
