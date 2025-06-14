@@ -809,9 +809,7 @@ def _process_symbol_chunk_internal(symbol_chunk, db_config, retry_count=0):
                 
                 # VECTORIZED data preparation - much faster than iterrows()
                 dates = df_reset['date'].values
-                n_rows = len(df_reset)
-                
-                # Pre-allocate and vectorize the data preparation
+                n_rows = len(df_reset)                # Pre-allocate and vectorize the data preparation
                 for idx in range(n_rows):
                     row = df_reset.iloc[idx]
                     record = (
@@ -1086,11 +1084,46 @@ def main():
             dbname=cfg["dbname"]
         )
         conn.autocommit = False
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # Recreate technical_data_monthly table
+        cur = conn.cursor(cursor_factory=RealDictCursor)        # Recreate technical_data_monthly table
         logging.info("Recreating technical_data_monthly table…")
-        cur.execute("DROP TABLE IF EXISTS technical_data_monthly CASCADE;")
+        
+        # Check if table exists first
+        cur.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'technical_data_monthly'
+            );
+        """)
+        table_exists = cur.fetchone()[0]
+        logging.info(f"Table technical_data_monthly exists: {table_exists}")
+        
+        if table_exists:
+            # Drop indexes first to avoid conflicts
+            logging.info("Dropping indexes first...")
+            cur.execute("DROP INDEX IF EXISTS idx_technical_monthly_symbol CASCADE;")
+            cur.execute("DROP INDEX IF EXISTS idx_technical_monthly_date CASCADE;")
+            
+            # Now drop the table
+            cur.execute("DROP TABLE technical_data_monthly CASCADE;")
+            logging.info("✅ Dropped existing technical_data_monthly table and its indexes")
+        
+        # Verify table is gone
+        cur.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'technical_data_monthly'
+            );        """)
+        table_still_exists = cur.fetchone()[0]
+        logging.info(f"Table technical_data_monthly still exists after drop: {table_still_exists}")
+        
+        if table_still_exists:
+            logging.error("❌ Failed to drop table, trying one more time...")
+            cur.execute("DROP INDEX IF EXISTS idx_technical_monthly_symbol CASCADE;")
+            cur.execute("DROP INDEX IF EXISTS idx_technical_monthly_date CASCADE;")
+            cur.execute("DROP TABLE IF EXISTS technical_data_monthly CASCADE;")
+        
         cur.execute("""
             CREATE TABLE technical_data_monthly (
                 symbol          VARCHAR(50) NOT NULL,

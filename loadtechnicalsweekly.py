@@ -807,9 +807,7 @@ def process_symbol_chunk(symbol_chunk, db_config):
                 
                 # VECTORIZED data preparation - much faster than iterrows()
                 dates = df_reset['date'].values
-                n_rows = len(df_reset)
-                
-                # Pre-allocate and vectorize the data preparation
+                n_rows = len(df_reset)                # Pre-allocate and vectorize the data preparation
                 for idx in range(n_rows):
                     row = df_reset.iloc[idx]
                     record = (
@@ -841,7 +839,8 @@ def process_symbol_chunk(symbol_chunk, db_config):
                         sanitize_value(row.get('bbands_lower')),
                         sanitize_value(row.get('bbands_middle')),
                         sanitize_value(row.get('bbands_upper')),
-                        sanitize_value(row.get('pivot_high')),                        sanitize_value(row.get('pivot_low')),
+                        sanitize_value(row.get('pivot_high')),
+                        sanitize_value(row.get('pivot_low')),
                         datetime.now()
                     )
                     symbol_insert_data.append(record)
@@ -1083,11 +1082,46 @@ def main():
             dbname=cfg["dbname"]
         )
         conn.autocommit = False
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # Recreate technical_data_weekly table
+        cur = conn.cursor(cursor_factory=RealDictCursor)        # Recreate technical_data_weekly table
         logging.info("Recreating technical_data_weekly table…")
-        cur.execute("DROP TABLE IF EXISTS technical_data_weekly CASCADE;")
+        
+        # Check if table exists first
+        cur.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'technical_data_weekly'
+            );
+        """)
+        table_exists = cur.fetchone()[0]
+        logging.info(f"Table technical_data_weekly exists: {table_exists}")
+        
+        if table_exists:
+            # Drop indexes first to avoid conflicts
+            logging.info("Dropping indexes first...")
+            cur.execute("DROP INDEX IF EXISTS idx_technical_weekly_symbol CASCADE;")
+            cur.execute("DROP INDEX IF EXISTS idx_technical_weekly_date CASCADE;")
+            
+            # Now drop the table
+            cur.execute("DROP TABLE technical_data_weekly CASCADE;")
+            logging.info("✅ Dropped existing technical_data_weekly table and its indexes")
+        
+        # Verify table is gone
+        cur.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'technical_data_weekly'
+            );        """)
+        table_still_exists = cur.fetchone()[0]
+        logging.info(f"Table technical_data_weekly still exists after drop: {table_still_exists}")
+        
+        if table_still_exists:
+            logging.error("❌ Failed to drop table, trying one more time...")
+            cur.execute("DROP INDEX IF EXISTS idx_technical_weekly_symbol CASCADE;")
+            cur.execute("DROP INDEX IF EXISTS idx_technical_weekly_date CASCADE;")
+            cur.execute("DROP TABLE IF EXISTS technical_data_weekly CASCADE;")
+        
         cur.execute("""
             CREATE TABLE technical_data_weekly (
                 symbol          VARCHAR(50) NOT NULL,

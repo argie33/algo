@@ -633,8 +633,9 @@ jobs:
             --settings name=containerInsights,value=enabled
 
 ################################################################################
-# 6) Run each changed loader                                                    #
+# 6) Run each changed loader - LIMITED TO 2 PARALLEL JOBS                      #
 ################################################################################
+# GROUP 1: First pair of jobs (can run in parallel)
   run_symbols:
     name: Run stock-symbols loader
     needs: deploy-tasks
@@ -810,11 +811,10 @@ jobs:
             echo "❌ econ-data failed with exit code $EXIT"
             exit $EXIT
           fi
-
   run_pricedaily:
     name: Run pricedaily loader
-    needs: deploy-tasks
-    if: ${{ needs.filter.outputs.pricedaily == 'true' }}
+    needs: [run_symbols, run_econ]  # GROUP 2: Depends on Group 1 completion
+    if: ${{ always() && needs.filter.outputs.pricedaily == 'true' && !contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
