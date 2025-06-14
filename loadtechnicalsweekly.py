@@ -590,18 +590,8 @@ def calculate_technicals_parallel(df):
         results['td_combo'] = td_combo_vectorized(df['close'], lookback=2)
         results['marketwatch'] = marketwatch_indicator_vectorized(df['close'], df['open'])
           # Pivot points
-        print(f"DEBUG: Computing pivots for {len(df)} rows of data")
         results['pivot_high'] = pivot_high_vectorized(df['high'], left_bars=3, right_bars=3)
         results['pivot_low'] = pivot_low_vectorized(df['low'], left_bars=3, right_bars=3)
-        
-        # Debug pivot results
-        ph_count = results['pivot_high'].notna().sum()
-        pl_count = results['pivot_low'].notna().sum()
-        print(f"DEBUG: Found {ph_count} pivot highs and {pl_count} pivot lows")
-        if ph_count > 0:
-            print(f"DEBUG: First few pivot highs: {results['pivot_high'].dropna().head()}")
-        if pl_count > 0:
-            print(f"DEBUG: First few pivot lows: {results['pivot_low'].dropna().head()}")
         
         # DM calculation
         dm_plus = df['high'].diff()

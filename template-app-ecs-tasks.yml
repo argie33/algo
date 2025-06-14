@@ -3055,7 +3055,8 @@ Resources:
       - NotificationTopic
     Properties:
       StateMachineName: 'FinancialDataProcessingWorkflow'
-      RoleArn: !GetAtt StepFunctionsExecutionRole.Arn      DefinitionString: !Sub
+      RoleArn: !GetAtt StepFunctionsExecutionRole.Arn
+      DefinitionString: !Sub
         - |
           {
             "Comment": "Financial Data Processing Workflow with 2-Task Parallel Limit",
@@ -3402,7 +3403,8 @@ Resources:
                 "Cause": "One or more jobs failed after retry attempts"
               }
             }
-          }        - ClusterArn: !ImportValue StocksApp-ClusterArn
+          }
+          - ClusterArn: !ImportValue StocksApp-ClusterArn
           LoadInfoTaskDefArn: !Ref LoadInfoTaskDefinition
           EpsTrendTaskDefArn: !Ref EpsTrendTaskDefinition
           TechnicalsDailyTaskDefArn: !Ref TechnicalsDailyTaskDefinition

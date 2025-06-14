@@ -1,18 +1,225 @@
-#!/usr/bin/env python3  
+#!/usr/bin/env python3 
 import sys
 import time
 import logging
-import functools
-import os
 import json
+import os
+import gc
 import resource
+import math
+
+import psycopg2
+from psycopg2.extras import RealDictCursor, execute_values
+from datetime import datetime
 
 import boto3
-import psycopg2
-from psycopg2.extras import DictCursor
 import yfinance as yf
-import pandas as pd
-import math
+
+# -------------------------------
+# Script metadata & logging setup
+# -------------------------------
+SCRIPT_NAME = "loadcashflow.py"
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    stream=sys.stdout
+)
+
+# -------------------------------
+# Memory-logging helper (RSS in MB)
+# -------------------------------
+def get_rss_mb():
+    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    if sys.platform.startswith("linux"):
+        return usage / 1024
+    return usage / (1024 * 1024)
+
+def log_mem(stage: str):
+    logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
+
+# -------------------------------
+# Retry settings
+# -------------------------------
+MAX_BATCH_RETRIES = 2
+RETRY_DELAY = 0.5  # seconds between download retries
+
+# -------------------------------
+# DB config loader
+# -------------------------------
+def get_db_config():
+    secret_str = boto3.client("secretsmanager") \
+                     .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
+    sec = json.loads(secret_str)
+    return {
+        "host": sec["host"],
+        "port": int(sec.get("port", 5432)),
+        "user": sec["username"],
+        "password": sec["password"],
+        "dbname": sec["dbname"]
+    }
+
+def load_cash_flow_data(symbols, cur, conn):
+    total = len(symbols)
+    logging.info(f"Loading cash flow data for {total} symbols")
+    processed, failed = 0, []
+    CHUNK_SIZE, PAUSE = 3, 0.5
+    batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
+
+    for batch_idx in range(batches):
+        batch = symbols[batch_idx*CHUNK_SIZE:(batch_idx+1)*CHUNK_SIZE]
+        yq_batch = [s.replace('.', '-').replace('$','-').upper() for s in batch]
+        mapping = dict(zip(yq_batch, batch))
+
+        logging.info(f"Processing batch {batch_idx+1}/{batches}")
+        log_mem(f"Batch {batch_idx+1} start")
+        for yq_sym, orig_sym in mapping.items():
+            cash_flow = None  # Initialize cash_flow variable
+            for attempt in range(1, MAX_BATCH_RETRIES+1):
+                try:
+                    ticker = yf.Ticker(yq_sym)
+                    cash_flow = ticker.cashflow
+                    if cash_flow is None or cash_flow.empty:
+                        raise ValueError("No cash flow data received")
+                    break
+                except Exception as e:
+                    logging.warning(f"Attempt {attempt} failed for {orig_sym}: {e}")
+                    if attempt == MAX_BATCH_RETRIES:
+                        failed.append(orig_sym)
+                        break  # Break instead of continue to skip processing
+                    time.sleep(RETRY_DELAY)
+            
+            # Skip processing if cash_flow was not successfully retrieved
+            if cash_flow is None or cash_flow.empty:
+                logging.error(f"Skipping {orig_sym} - failed to retrieve cash flow after {MAX_BATCH_RETRIES} attempts")
+                continue
+            
+            try:
+                # Process cash flow data
+                for col in cash_flow.columns:
+                    period_end = col.strftime('%Y-%m-%d')
+                    
+                    # Extract values safely
+                    def get_value(index_name):
+                        return cash_flow.loc[index_name, col] if index_name in cash_flow.index else None
+                    
+                    # Insert cash flow data
+                    cur.execute("""
+                        INSERT INTO cash_flow (
+                            ticker, period_end, operating_cash_flow, investing_cash_flow,
+                            financing_cash_flow, end_cash_position, capital_expenditure,
+                            issuance_of_capital_stock, issuance_of_debt, repayment_of_debt,
+                            repurchase_of_capital_stock, free_cash_flow, net_income,
+                            depreciation, changes_in_working_capital, stock_based_compensation
+                        ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                        ON CONFLICT (ticker, period_end) DO UPDATE SET
+                            operating_cash_flow = EXCLUDED.operating_cash_flow,
+                            investing_cash_flow = EXCLUDED.investing_cash_flow,
+                            financing_cash_flow = EXCLUDED.financing_cash_flow
+                    """, (
+                        orig_sym, period_end,
+                        get_value('Operating Cash Flow'),
+                        get_value('Investing Cash Flow'),
+                        get_value('Financing Cash Flow'),
+                        get_value('End Cash Position'),
+                        get_value('Capital Expenditure'),
+                        get_value('Issuance Of Capital Stock'),
+                        get_value('Issuance Of Debt'),
+                        get_value('Repayment Of Debt'),
+                        get_value('Repurchase Of Capital Stock'),
+                        get_value('Free Cash Flow'),
+                        get_value('Net Income'),
+                        get_value('Depreciation'),
+                        get_value('Changes In Working Capital'),
+                        get_value('Stock Based Compensation')
+                    ))
+
+                conn.commit()
+                processed += 1
+                logging.info(f"Successfully processed {orig_sym}")
+
+            except Exception as e:
+                logging.error(f"Failed to process {orig_sym}: {str(e)}")
+                failed.append(orig_sym)
+                conn.rollback()
+
+        del batch, yq_batch, mapping
+        gc.collect()
+        log_mem(f"Batch {batch_idx+1} end")
+        time.sleep(PAUSE)
+
+    return total, processed, failed
+
+# -------------------------------
+# Entrypoint
+# -------------------------------
+if __name__ == "__main__":
+    log_mem("startup")
+
+    # Connect to DB
+    cfg = get_db_config()
+    conn = psycopg2.connect(
+        host=cfg["host"], port=cfg["port"],
+        user=cfg["user"], password=cfg["password"],
+        dbname=cfg["dbname"]
+    )
+    conn.autocommit = False
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    # Recreate table
+    logging.info("Recreating cash flow table...")
+    cur.execute("DROP TABLE IF EXISTS cash_flow CASCADE;")
+
+    cur.execute("""
+        CREATE TABLE cash_flow (
+            ticker VARCHAR(10) NOT NULL,
+            period_end DATE NOT NULL,
+            operating_cash_flow BIGINT,
+            investing_cash_flow BIGINT,
+            financing_cash_flow BIGINT,
+            end_cash_position BIGINT,
+            capital_expenditure BIGINT,
+            issuance_of_capital_stock BIGINT,
+            issuance_of_debt BIGINT,
+            repayment_of_debt BIGINT,
+            repurchase_of_capital_stock BIGINT,
+            free_cash_flow BIGINT,
+            net_income BIGINT,
+            depreciation BIGINT,
+            changes_in_working_capital BIGINT,
+            stock_based_compensation BIGINT,
+            PRIMARY KEY(ticker, period_end)
+        );
+    """)
+
+    conn.commit()
+
+    # Load stock symbols
+    cur.execute("SELECT symbol FROM stock_symbols;")
+    stock_syms = [r["symbol"] for r in cur.fetchall()]
+    t_s, p_s, f_s = load_cash_flow_data(stock_syms, cur, conn)
+
+    # Load ETF symbols
+    cur.execute("SELECT symbol FROM etf_symbols;")
+    etf_syms = [r["symbol"] for r in cur.fetchall()]
+    t_e, p_e, f_e = load_cash_flow_data(etf_syms, cur, conn)
+
+    # Record last run
+    cur.execute("""
+        INSERT INTO last_updated (script_name, last_run)
+        VALUES (%s, NOW())
+        ON CONFLICT (script_name) DO UPDATE
+            SET last_run = EXCLUDED.last_run;
+    """, (SCRIPT_NAME,))
+    conn.commit()
+
+    peak = get_rss_mb()
+    logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
+    logging.info(f"Stocks — total: {t_s}, processed: {p_s}, failed: {len(f_s)}")
+    logging.info(f"ETFs   — total: {t_e}, processed: {p_e}, failed: {len(f_e)}")
+
+    cur.close()
+    conn.close()
+    logging.info("All done.")
 
 # -------------------------------
 # Script metadata & logging setup

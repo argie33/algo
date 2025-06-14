@@ -1,122 +1,34 @@
-#!/usr/bin/env python3  
+#!/usr/bin/env python3 
 import sys
 import time
 import logging
-import functools
-import os
 import json
+import os
+import gc
 import resource
+import math
+
+import psycopg2
+from psycopg2.extras import RealDictCursor, execute_values
+from datetime import datetime
 
 import boto3
-import psycopg2
-from psycopg2.extras import DictCursor
 import yfinance as yf
 import pandas as pd
-import math
 
 # -------------------------------
 # Script metadata & logging setup
 # -------------------------------
 SCRIPT_NAME = "loadquarterlybalancesheet.py"
-
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
-    force=True
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    stream=sys.stdout
 )
-logger = logging.getLogger(__name__)
 
 # -------------------------------
-# Environment-driven configuration
+# Memory-logging helper (RSS in MB)
 # -------------------------------
-DB_SECRET_ARN = os.getenv("DB_SECRET_ARN")
-if not DB_SECRET_ARN:
-    logger.error("DB_SECRET_ARN environment variable is not set")
-    sys.exit(1)
-
-def get_db_config():
-    """
-    Fetch host, port, dbname, username & password from Secrets Manager.
-    SecretString must be JSON with keys: username, password, host, port, dbname.
-    """
-    client = boto3.client("secretsmanager")
-    resp = client.get_secret_value(SecretId=DB_SECRET_ARN)
-    sec = json.loads(resp["SecretString"])
-    return (
-        sec["username"],
-        sec["password"],
-        sec["host"],
-        int(sec["port"]),
-        sec["dbname"]
-    )
-
-def retry(max_attempts=3, initial_delay=2, backoff=2):
-    """Retry decorator with exponential backoff."""
-    def decorator(f):
-        @functools.wraps(f)
-        def wrapper(symbol, conn, *args, **kwargs):
-            attempts, delay = 0, initial_delay
-            while attempts < max_attempts:
-                try:
-                    return f(symbol, conn, *args, **kwargs)
-                except Exception as e:
-                    attempts += 1
-                    logger.error(
-                        f"{f.__name__} failed for {symbol} "
-                        f"(attempt {attempts}/{max_attempts}): {e}",
-                        exc_info=True
-                    )
-                    time.sleep(delay)
-                    delay *= backoff
-            raise RuntimeError(
-                f"All {max_attempts} attempts failed for {f.__name__} with symbol {symbol}"
-            )
-        return wrapper
-    return decorator
-
-def clean_value(value):
-    """Convert NaN or pandas NAs to None."""
-    if isinstance(value, float) and math.isnan(value):
-        return None
-    if pd.isna(value):
-        return None
-    return value
-
-def ensure_tables(conn):
-    """Drop & recreate quarterly_balance_sheet tables and ensure last_updated exists."""
-    with conn.cursor() as cur:
-        # quarterly_balance_sheet table
-        cur.execute("DROP TABLE IF EXISTS quarterly_balance_sheet;")
-        cur.execute("""
-            CREATE TABLE quarterly_balance_sheet (
-                id          SERIAL PRIMARY KEY,
-                symbol      VARCHAR(10) NOT NULL,
-                date        DATE NOT NULL,
-                item_name   VARCHAR(255) NOT NULL,
-                value       NUMERIC,
-                fetched_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            );
-        """)
-        # Create index on symbol for faster lookups
-        cur.execute("""
-            CREATE INDEX idx_quarterly_balance_sheet_symbol 
-            ON quarterly_balance_sheet (symbol);
-        """)
-        # Create index on date for faster lookups
-        cur.execute("""
-            CREATE INDEX idx_quarterly_balance_sheet_date 
-            ON quarterly_balance_sheet (date);
-        """)
-        # last_updated
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS last_updated (
-                script_name VARCHAR(255) PRIMARY KEY,
-                last_run    TIMESTAMPTZ NOT NULL
-            );
-        """)
-    conn.commit()
-
 def get_rss_mb():
     usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     if sys.platform.startswith("linux"):
@@ -126,135 +38,164 @@ def get_rss_mb():
 def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
-@retry(max_attempts=3, initial_delay=2, backoff=2)
-def process_symbol(symbol, conn):
-    """Fetch quarterly balance sheet via yfinance and insert into PostgreSQL."""
-    yf_symbol = symbol.upper().replace(".", "-")
-    ticker = yf.Ticker(yf_symbol)
+# -------------------------------
+# Retry settings
+# -------------------------------
+MAX_BATCH_RETRIES = 2
+RETRY_DELAY = 0.5  # seconds between download retries
 
-    # Try to get quarterly balance sheet data
-    try:
-        quarterly_balance_sheet = ticker.quarterly_balance_sheet
-        if quarterly_balance_sheet is None or quarterly_balance_sheet.empty:
-            logger.warning(f"No quarterly balance sheet data for {symbol}")
-            return
-    except Exception as e:
-        logger.error(f"Error fetching quarterly balance sheet data for {symbol}: {e}")
-        raise
+# -------------------------------
+# DB config loader
+# -------------------------------
+def get_db_config():
+    secret_str = boto3.client("secretsmanager") \
+                     .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
+    sec = json.loads(secret_str)
+    return {
+        "host": sec["host"],
+        "port": int(sec.get("port", 5432)),
+        "user": sec["username"],
+        "password": sec["password"],
+        "dbname": sec["dbname"]
+    }
 
-    # Process each item in the quarterly balance sheet dataframe
-    data_to_insert = []
-    
-    # Iterate through rows (items) and columns (dates)
-    for item_name, row in quarterly_balance_sheet.iterrows():
-        for date_col in quarterly_balance_sheet.columns:
-            # Convert the pandas Timestamp to a Python date object
-            date_str = pd.to_datetime(date_col).strftime('%Y-%m-%d')
-            
-            # Get the value for this item and date
-            value = clean_value(row[date_col])
-            
-            # Only insert if we have a valid value
-            if value is not None:
-                data_to_insert.append((
-                    symbol,
-                    date_str,
-                    str(item_name),
-                    value
-                ))
-    
-    if not data_to_insert:
-        logger.info(f"No quarterly balance sheet data found for {symbol}")
-        return
-        
-    # Batch insert all data
-    with conn.cursor() as cur:
-        cur.executemany(
-            """
-            INSERT INTO quarterly_balance_sheet
-            (symbol, date, item_name, value)
-            VALUES (%s, %s, %s, %s)
-            """,
-            data_to_insert
-        )
-    conn.commit()
+def clean_value(value):
+    """Convert NaN or pandas NAs to None."""
+    if isinstance(value, float) and math.isnan(value):
+        return None
+    if pd.isna(value):
+        return None
+    return value
 
-    logger.info(f"Successfully processed {len(data_to_insert)} quarterly balance sheet records for {symbol}")
+def load_quarterly_balance_sheets(symbols, cur, conn):
+    total = len(symbols)
+    logging.info(f"Loading quarterly balance sheets for {total} symbols")
+    processed, failed = 0, []
+    CHUNK_SIZE, PAUSE = 3, 0.5
+    batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
-def update_last_run(conn):
-    """Stamp the last run time in last_updated."""
-    with conn.cursor() as cur:
-        cur.execute("""
-            INSERT INTO last_updated (script_name, last_run)
-            VALUES (%s, NOW())
-            ON CONFLICT (script_name) DO UPDATE
-              SET last_run = EXCLUDED.last_run;
-        """, (SCRIPT_NAME,))
-    conn.commit()
+    for batch_idx in range(batches):
+        batch = symbols[batch_idx*CHUNK_SIZE:(batch_idx+1)*CHUNK_SIZE]
+        yq_batch = [s.replace('.', '-').replace('$','-').upper() for s in batch]
+        mapping = dict(zip(yq_batch, batch))
 
-def main():
-    conn = None
-    try:
-        user, pwd, host, port, dbname = get_db_config()
-        conn = psycopg2.connect(
-            host=host,
-            port=port,
-            user=user,
-            password=pwd,
-            dbname=dbname,
-            sslmode="require",
-            cursor_factory=DictCursor
-        )
-          # Set a larger cursor size for better performance
-        conn.set_session(autocommit=False)
-        
-        ensure_tables(conn)
-
-        log_mem("Before fetching symbols")
-        with conn.cursor() as cur:
-            # Get all symbols
-            cur.execute("""
-                SELECT DISTINCT symbol 
-                FROM stock_symbols 
-                ORDER BY symbol;
-            """)
-            symbols = [r["symbol"] for r in cur.fetchall()]
-        log_mem("After fetching symbols")
-
-        total_symbols = len(symbols)
-        processed = 0
-        failed = 0
-
-        for sym in symbols:
-            try:
-                log_mem(f"Processing {sym} ({processed + 1}/{total_symbols})")
-                process_symbol(sym, conn)
-                processed += 1
-                # Adaptive sleep based on memory usage
-                if get_rss_mb() > 1000:  # If using more than 1GB
-                    time.sleep(0.5)
-                else:
-                    time.sleep(0.1)
-            except Exception:
-                logger.exception(f"Failed to process {sym}")
-                failed += 1
-                if failed > total_symbols * 0.2:  # If more than 20% failed
-                    logger.error("Too many failures, stopping process")
+        logging.info(f"Processing batch {batch_idx+1}/{batches}")
+        log_mem(f"Batch {batch_idx+1} start")
+        for yq_sym, orig_sym in mapping.items():
+            balance_sheet = None
+            for attempt in range(1, MAX_BATCH_RETRIES+1):
+                try:
+                    ticker = yf.Ticker(yq_sym)
+                    balance_sheet = ticker.quarterly_balance_sheet
+                    if balance_sheet is None or balance_sheet.empty:
+                        raise ValueError("No quarterly balance sheet data received")
                     break
-
-        update_last_run(conn)
-        logger.info(f"Completed processing {processed}/{total_symbols} symbols with {failed} failures")
-    except Exception:
-        logger.exception("Fatal error in main()")
-        raise
-    finally:
-        if conn:
+                except Exception as e:
+                    logging.warning(f"Attempt {attempt} failed for {orig_sym}: {e}")
+                    if attempt == MAX_BATCH_RETRIES:
+                        failed.append(orig_sym)
+                        break
+                    time.sleep(RETRY_DELAY)
+            
+            if balance_sheet is None or balance_sheet.empty:
+                logging.error(f"Skipping {orig_sym} - failed to retrieve quarterly balance sheet after {MAX_BATCH_RETRIES} attempts")
+                continue
+            
             try:
-                conn.close()
-            except Exception:
-                logger.exception("Error closing database connection")
-        log_mem("End of script")
-        logger.info("loadquarterlybalancesheet complete.")
+                data_to_insert = []
+                for date_col in balance_sheet.columns:
+                    date_value = pd.to_datetime(date_col).date()
+                    for item_name in balance_sheet.index:
+                        value = balance_sheet.loc[item_name, date_col]
+                        cleaned_value = clean_value(value)
+                        data_to_insert.append((orig_sym, date_value, item_name, cleaned_value))
 
+                if data_to_insert:
+                    execute_values(cur, """
+                        INSERT INTO quarterly_balance_sheet (symbol, date, item_name, value)
+                        VALUES %s
+                        ON CONFLICT (symbol, date, item_name) DO UPDATE SET
+                            value = EXCLUDED.value,
+                            fetched_at = NOW()
+                    """, data_to_insert)
+
+                conn.commit()
+                processed += 1
+                logging.info(f"Successfully processed {orig_sym} with {len(data_to_insert)} records")
+
+            except Exception as e:
+                logging.error(f"Failed to process {orig_sym}: {str(e)}")
+                failed.append(orig_sym)
+                conn.rollback()
+
+        del batch, yq_batch, mapping
+        gc.collect()
+        log_mem(f"Batch {batch_idx+1} end")
+        time.sleep(PAUSE)
+
+    return total, processed, failed
+
+# -------------------------------
+# Entrypoint
+# -------------------------------
 if __name__ == "__main__":
-    main()
+    log_mem("startup")
+
+    # Connect to DB
+    cfg = get_db_config()
+    conn = psycopg2.connect(
+        host=cfg["host"], port=cfg["port"],
+        user=cfg["user"], password=cfg["password"],
+        dbname=cfg["dbname"]
+    )
+    conn.autocommit = False
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    # Recreate table
+    logging.info("Recreating quarterly_balance_sheet table...")
+    cur.execute("DROP TABLE IF EXISTS quarterly_balance_sheet CASCADE;")
+    cur.execute("""
+        CREATE TABLE quarterly_balance_sheet (
+            id          SERIAL PRIMARY KEY,
+            symbol      VARCHAR(10) NOT NULL,
+            date        DATE NOT NULL,
+            item_name   VARCHAR(255) NOT NULL,
+            value       NUMERIC,
+            fetched_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE(symbol, date, item_name)
+        );
+    """)
+    
+    # Create index for better performance
+    cur.execute("CREATE INDEX idx_quarterly_balance_sheet_symbol_date ON quarterly_balance_sheet(symbol, date);")
+    
+    # Ensure last_updated table exists
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS last_updated (
+            script_name VARCHAR(255) PRIMARY KEY,
+            last_run    TIMESTAMPTZ NOT NULL
+        );
+    """)
+    conn.commit()
+
+    # Load stock symbols
+    cur.execute("SELECT symbol FROM stock_symbols ORDER BY symbol;")
+    stock_syms = [r["symbol"] for r in cur.fetchall()]
+    t_s, p_s, f_s = load_quarterly_balance_sheets(stock_syms, cur, conn)
+
+    # Record last run
+    cur.execute("""
+        INSERT INTO last_updated (script_name, last_run)
+        VALUES (%s, NOW())
+        ON CONFLICT (script_name) DO UPDATE
+            SET last_run = EXCLUDED.last_run;
+    """, (SCRIPT_NAME,))
+    conn.commit()
+
+    peak = get_rss_mb()
+    logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
+    logging.info(f"Stocks — total: {t_s}, processed: {p_s}, failed: {len(f_s)}")
+
+    cur.close()
+    conn.close()
+    logging.info("All done.")

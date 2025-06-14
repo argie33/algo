@@ -1,276 +1,201 @@
-#!/usr/bin/env python3  
-"""
-Load TTM Income Statement data from Yahoo Finance API and store in database.
-"""
-import os
-import logging
-import time
-import boto3
-import psycopg2
-from psycopg2 import sql
-import pandas as pd
-import yfinance as yf
-from datetime import datetime
-import numpy as np
+#!/usr/bin/env python3 
 import sys
+import time
+import logging
+import json
+import os
 import gc
+import resource
+import math
 
-# Set up logging
+import psycopg2
+from psycopg2.extras import RealDictCursor, execute_values
+from datetime import datetime
+
+import boto3
+import yfinance as yf
+import pandas as pd
+
+# -------------------------------
+# Script metadata & logging setup
+# -------------------------------
+SCRIPT_NAME = "loadttmincomestmt.py"
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler()]
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    stream=sys.stdout
 )
-logger = logging.getLogger(__name__)
 
-# Function to get DB connection
-def get_db_connection():
-    """Create a connection to the PostgreSQL database."""
-    try:
-        # Check if we're running in AWS (using AWS Secrets Manager)
-        db_secret_arn = os.environ.get('DB_SECRET_ARN')
-        if db_secret_arn:
-            logger.info("Using AWS Secrets Manager for database credentials")
-            session = boto3.session.Session()
-            client = session.client(service_name='secretsmanager')
-            secret_value = client.get_secret_value(SecretId=db_secret_arn)
-            secret = eval(secret_value['SecretString'])
-            
-            # Extract credentials from the secret
-            db_host = os.environ.get('DB_HOST')
-            db_port = os.environ.get('DB_PORT', '5432')
-            db_name = os.environ.get('DB_NAME')
-            db_user = os.environ.get('DB_USER')
-            db_password = secret['password']
-        else:
-            # Local development using environment variables
-            logger.info("Using environment variables for database credentials")
-            db_host = os.environ.get('DB_HOST', 'localhost')
-            db_port = os.environ.get('DB_PORT', '5432')
-            db_name = os.environ.get('DB_NAME', 'stocks')
-            db_user = os.environ.get('DB_USER', 'postgres')
-            db_password = os.environ.get('DB_PASSWORD', 'postgres')
-        
-        # Establish the connection
-        connection = psycopg2.connect(
-            host=db_host,
-            port=db_port,
-            dbname=db_name,
-            user=db_user,
-            password=db_password
-        )
-        return connection
-    except Exception as e:
-        logger.error(f"Error connecting to the database: {e}")
-        raise
+# -------------------------------
+# Memory-logging helper (RSS in MB)
+# -------------------------------
+def get_rss_mb():
+    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    if sys.platform.startswith("linux"):
+        return usage / 1024
+    return usage / (1024 * 1024)
 
-def get_stock_symbols():
-    """Get the list of stock symbols from the database."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        
-        # Get all symbols
-        cur.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
-        symbols = [row[0] for row in cur.fetchall()]
-        
-        cur.close()
-        return symbols
-    except Exception as e:
-        logger.error(f"Error getting stock symbols: {e}")
-        raise
-    finally:
-        if conn:
-            conn.close()
+def log_mem(stage: str):
+    logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
-def create_ttm_income_stmt_table():
-    """Create the TTM income statement table if it doesn't exist."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        
-        # Create the table if it doesn't exist
-        cur.execute("""
-        CREATE TABLE IF NOT EXISTS ttm_income_stmt (
-            symbol VARCHAR(10) NOT NULL,
-            date DATE NOT NULL,
-            gross_profit NUMERIC,
-            revenue NUMERIC,
-            cost_of_revenue NUMERIC,
-            operating_income NUMERIC,
-            operating_expense NUMERIC,
-            selling_general_administrative NUMERIC,
-            research_development NUMERIC,
-            net_income NUMERIC,
-            interest_expense NUMERIC,
-            income_tax_expense NUMERIC,
-            income_before_tax NUMERIC,
-            other_items NUMERIC,
-            ebit NUMERIC,
-            net_income_from_continuing_operations NUMERIC,
-            normalized_income NUMERIC,
-            net_income_applicable_to_common_shares NUMERIC,
-            tax_provision NUMERIC,
-            tax_effect_of_unusual_items NUMERIC,
-            basic_eps NUMERIC,
-            diluted_eps NUMERIC,
-            weighted_average_shares NUMERIC,
-            weighted_average_shares_diluted NUMERIC,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (symbol, date)
-        );
-        """)
-        
-        conn.commit()
-        cur.close()
-    except Exception as e:
-        logger.error(f"Error creating TTM income statement table: {e}")
-        raise
-    finally:
-        if conn:
-            conn.close()
+# -------------------------------
+# Retry settings
+# -------------------------------
+MAX_BATCH_RETRIES = 2
+RETRY_DELAY = 0.5  # seconds between download retries
 
-def load_ttm_income_stmt_for_symbol(symbol):
-    """Load TTM income statement data for a given symbol."""
-    conn = None
-    try:
-        # Get the ticker data
-        ticker = yf.Ticker(symbol)
-        ttm_income_stmt = ticker.ttm_income_stmt
-        
-        if ttm_income_stmt is None or ttm_income_stmt.empty:
-            logger.info(f"No TTM income statement data available for {symbol}")
-            return 0
-        
-        # Convert to records
-        records = []
-        
-        # Get the date (column name)
-        if len(ttm_income_stmt.columns) > 0:
-            date_col = ttm_income_stmt.columns[0]  # First column is the date
-            
-            # Extract data
-            record = {
-                'symbol': symbol,
-                'date': date_col,
-                'gross_profit': ttm_income_stmt.loc['Gross Profit', date_col] if 'Gross Profit' in ttm_income_stmt.index else None,
-                'revenue': ttm_income_stmt.loc['Total Revenue', date_col] if 'Total Revenue' in ttm_income_stmt.index else None,
-                'cost_of_revenue': ttm_income_stmt.loc['Cost Of Revenue', date_col] if 'Cost Of Revenue' in ttm_income_stmt.index else None,
-                'operating_income': ttm_income_stmt.loc['Operating Income', date_col] if 'Operating Income' in ttm_income_stmt.index else None,
-                'operating_expense': ttm_income_stmt.loc['Operating Expense', date_col] if 'Operating Expense' in ttm_income_stmt.index else None,
-                'selling_general_administrative': ttm_income_stmt.loc['Selling General Administrative', date_col] if 'Selling General Administrative' in ttm_income_stmt.index else None,
-                'research_development': ttm_income_stmt.loc['Research Development', date_col] if 'Research Development' in ttm_income_stmt.index else None,
-                'net_income': ttm_income_stmt.loc['Net Income', date_col] if 'Net Income' in ttm_income_stmt.index else None,
-                'interest_expense': ttm_income_stmt.loc['Interest Expense', date_col] if 'Interest Expense' in ttm_income_stmt.index else None,
-                'income_tax_expense': ttm_income_stmt.loc['Income Tax Expense', date_col] if 'Income Tax Expense' in ttm_income_stmt.index else None,
-                'income_before_tax': ttm_income_stmt.loc['Income Before Tax', date_col] if 'Income Before Tax' in ttm_income_stmt.index else None,
-                'other_items': ttm_income_stmt.loc['Other Items', date_col] if 'Other Items' in ttm_income_stmt.index else None,
-                'ebit': ttm_income_stmt.loc['EBIT', date_col] if 'EBIT' in ttm_income_stmt.index else None,
-                'net_income_from_continuing_operations': ttm_income_stmt.loc['Net Income From Continuing Operations', date_col] if 'Net Income From Continuing Operations' in ttm_income_stmt.index else None,
-                'normalized_income': ttm_income_stmt.loc['Normalized Income', date_col] if 'Normalized Income' in ttm_income_stmt.index else None,
-                'net_income_applicable_to_common_shares': ttm_income_stmt.loc['Net Income Applicable To Common Shares', date_col] if 'Net Income Applicable To Common Shares' in ttm_income_stmt.index else None,
-                'tax_provision': ttm_income_stmt.loc['Tax Provision', date_col] if 'Tax Provision' in ttm_income_stmt.index else None,
-                'tax_effect_of_unusual_items': ttm_income_stmt.loc['Tax Effect Of Unusual Items', date_col] if 'Tax Effect Of Unusual Items' in ttm_income_stmt.index else None,
-                'basic_eps': ttm_income_stmt.loc['Basic EPS', date_col] if 'Basic EPS' in ttm_income_stmt.index else None,
-                'diluted_eps': ttm_income_stmt.loc['Diluted EPS', date_col] if 'Diluted EPS' in ttm_income_stmt.index else None,
-                'weighted_average_shares': ttm_income_stmt.loc['Weighted Average Shares', date_col] if 'Weighted Average Shares' in ttm_income_stmt.index else None,
-                'weighted_average_shares_diluted': ttm_income_stmt.loc['Weighted Average Shares Diluted', date_col] if 'Weighted Average Shares Diluted' in ttm_income_stmt.index else None
-            }
-            records.append(record)
-        
-        # Insert into database
-        if records:
-            conn = get_db_connection()
-            cur = conn.cursor()
-            
-            # Build SQL query dynamically
-            columns = list(records[0].keys())
-            values_template = ", ".join(["%s"] * len(columns))
-            column_names = ", ".join([sql.Identifier(col).as_string(conn) for col in columns])
-            
-            upsert_stmt = f"""
-            INSERT INTO ttm_income_stmt ({column_names})
-            VALUES ({values_template})
-            ON CONFLICT (symbol, date) DO UPDATE SET
-            """
-            
-            # Exclude primary key fields from the update
-            update_columns = [col for col in columns if col not in ['symbol', 'date']]
-            update_stmt = ", ".join([f"{sql.Identifier(col).as_string(conn)} = EXCLUDED.{sql.Identifier(col).as_string(conn)}" for col in update_columns])
-            upsert_stmt += update_stmt
-            
-            # Execute the query for each record
-            for record in records:
-                values = [record[col] for col in columns]
-                cur.execute(upsert_stmt, values)
-            
-            conn.commit()
-            cur.close()
-            
-            return len(records)
-        else:
-            return 0
-            
-    except Exception as e:
-        logger.error(f"Error loading TTM income statement data for {symbol}: {e}")
-        return 0
-    finally:
-        if conn:
-            conn.close()
-        # Clean up memory
-        gc.collect()
+# -------------------------------
+# DB config loader
+# -------------------------------
+def get_db_config():
+    secret_str = boto3.client("secretsmanager") \
+                     .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
+    sec = json.loads(secret_str)
+    return {
+        "host": sec["host"],
+        "port": int(sec.get("port", 5432)),
+        "user": sec["username"],
+        "password": sec["password"],
+        "dbname": sec["dbname"]
+    }
 
-def main():
-    """Main function to load TTM income statement data for all stocks."""
-    try:
-        # Create table if it doesn't exist
-        create_ttm_income_stmt_table()
-        
-        # Get the list of stock symbols
-        symbols = get_stock_symbols()
-        logger.info(f"Found {len(symbols)} stock symbols")
-        
-        # Process each symbol
-        successful_loads = 0
-        start_time = time.time()
-        
-        for i, symbol in enumerate(symbols):
-            logger.info(f"Processing {symbol} ({i+1}/{len(symbols)})")
-            
-            # Use retry mechanism
-            max_retries = 3
-            retries = 0
-            
-            while retries < max_retries:
+def clean_value(value):
+    """Convert NaN or pandas NAs to None."""
+    if isinstance(value, float) and math.isnan(value):
+        return None
+    if pd.isna(value):
+        return None
+    return value
+
+def load_ttm_income_statements(symbols, cur, conn):
+    total = len(symbols)
+    logging.info(f"Loading TTM income statements for {total} symbols")
+    processed, failed = 0, []
+    CHUNK_SIZE, PAUSE = 3, 0.5
+    batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
+
+    for batch_idx in range(batches):
+        batch = symbols[batch_idx*CHUNK_SIZE:(batch_idx+1)*CHUNK_SIZE]
+        yq_batch = [s.replace('.', '-').replace('$','-').upper() for s in batch]
+        mapping = dict(zip(yq_batch, batch))
+
+        logging.info(f"Processing batch {batch_idx+1}/{batches}")
+        log_mem(f"Batch {batch_idx+1} start")
+        for yq_sym, orig_sym in mapping.items():
+            income_stmt = None
+            for attempt in range(1, MAX_BATCH_RETRIES+1):
                 try:
-                    records_loaded = load_ttm_income_stmt_for_symbol(symbol)
-                    if records_loaded > 0:
-                        successful_loads += 1
-                        logger.info(f"Successfully loaded {records_loaded} TTM income statement records for {symbol}")
+                    ticker = yf.Ticker(yq_sym)
+                    income_stmt = ticker.income_stmt
+                    if income_stmt is None or income_stmt.empty:
+                        raise ValueError("No TTM income statement data received")
                     break
                 except Exception as e:
-                    retries += 1
-                    logger.warning(f"Attempt {retries}/{max_retries} failed for {symbol}: {e}")
-                    if retries < max_retries:
-                        time.sleep(2)  # Wait before retrying
-                    else:
-                        logger.error(f"Failed to load TTM income statement data for {symbol} after {max_retries} attempts")
+                    logging.warning(f"Attempt {attempt} failed for {orig_sym}: {e}")
+                    if attempt == MAX_BATCH_RETRIES:
+                        failed.append(orig_sym)
+                        break
+                    time.sleep(RETRY_DELAY)
             
-            # Sleep to avoid rate limiting
-            if i % 5 == 0 and i > 0:
-                logger.info(f"Processed {i} symbols. Taking a short break...")
-                time.sleep(1)
-        
-        end_time = time.time()
-        elapsed_time = end_time - start_time
-        
-        logger.info(f"TTM income statement data loading completed. Successfully loaded data for {successful_loads}/{len(symbols)} symbols in {elapsed_time:.2f} seconds")
-        
-    except Exception as e:
-        logger.error(f"Error in main process: {e}")
-        sys.exit(1)
+            if income_stmt is None or income_stmt.empty:
+                logging.error(f"Skipping {orig_sym} - failed to retrieve TTM income statement after {MAX_BATCH_RETRIES} attempts")
+                continue
+            
+            try:
+                data_to_insert = []
+                for date_col in income_stmt.columns:
+                    date_value = pd.to_datetime(date_col).date()
+                    for item_name in income_stmt.index:
+                        value = income_stmt.loc[item_name, date_col]
+                        cleaned_value = clean_value(value)
+                        data_to_insert.append((orig_sym, date_value, item_name, cleaned_value))
 
+                if data_to_insert:
+                    execute_values(cur, """
+                        INSERT INTO ttm_income_stmt (symbol, date, item_name, value)
+                        VALUES %s
+                        ON CONFLICT (symbol, date, item_name) DO UPDATE SET
+                            value = EXCLUDED.value,
+                            fetched_at = NOW()
+                    """, data_to_insert)
+
+                conn.commit()
+                processed += 1
+                logging.info(f"Successfully processed {orig_sym} with {len(data_to_insert)} records")
+
+            except Exception as e:
+                logging.error(f"Failed to process {orig_sym}: {str(e)}")
+                failed.append(orig_sym)
+                conn.rollback()
+
+        del batch, yq_batch, mapping
+        gc.collect()
+        log_mem(f"Batch {batch_idx+1} end")
+        time.sleep(PAUSE)
+
+    return total, processed, failed
+
+# -------------------------------
+# Entrypoint
+# -------------------------------
 if __name__ == "__main__":
-    main()
+    log_mem("startup")
+
+    # Connect to DB
+    cfg = get_db_config()
+    conn = psycopg2.connect(
+        host=cfg["host"], port=cfg["port"],
+        user=cfg["user"], password=cfg["password"],
+        dbname=cfg["dbname"]
+    )
+    conn.autocommit = False
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    # Recreate table
+    logging.info("Recreating ttm_income_stmt table...")
+    cur.execute("DROP TABLE IF EXISTS ttm_income_stmt CASCADE;")
+    cur.execute("""
+        CREATE TABLE ttm_income_stmt (
+            id          SERIAL PRIMARY KEY,
+            symbol      VARCHAR(10) NOT NULL,
+            date        DATE NOT NULL,
+            item_name   VARCHAR(255) NOT NULL,
+            value       NUMERIC,
+            fetched_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE(symbol, date, item_name)
+        );
+    """)
+    
+    # Create index for better performance
+    cur.execute("CREATE INDEX idx_ttm_income_stmt_symbol_date ON ttm_income_stmt(symbol, date);")
+    
+    # Ensure last_updated table exists
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS last_updated (
+            script_name VARCHAR(255) PRIMARY KEY,
+            last_run    TIMESTAMPTZ NOT NULL
+        );
+    """)
+    conn.commit()
+
+    # Load stock symbols
+    cur.execute("SELECT symbol FROM stock_symbols ORDER BY symbol;")
+    stock_syms = [r["symbol"] for r in cur.fetchall()]
+    t_s, p_s, f_s = load_ttm_income_statements(stock_syms, cur, conn)
+
+    # Record last run
+    cur.execute("""
+        INSERT INTO last_updated (script_name, last_run)
+        VALUES (%s, NOW())
+        ON CONFLICT (script_name) DO UPDATE
+            SET last_run = EXCLUDED.last_run;
+    """, (SCRIPT_NAME,))
+    conn.commit()
+
+    peak = get_rss_mb()
+    logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
+    logging.info(f"Stocks — total: {t_s}, processed: {p_s}, failed: {len(f_s)}")
+
+    cur.close()
+    conn.close()
+    logging.info("All done.")

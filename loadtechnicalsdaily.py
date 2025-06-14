@@ -383,16 +383,10 @@ def calculate_mfi(high, low, close, volume, period=14):
 
 def pivot_high_vectorized(high, left_bars=3, right_bars=3):
     """Vectorized pivot high calculation"""
-    print(f"DEBUG: pivot_high_vectorized called with {len(high)} data points")
-    print(f"DEBUG: First 10 high values: {high.head(10).tolist()}")
-    print(f"DEBUG: Min/Max high values: {high.min():.2f} / {high.max():.2f}")
-    
     if len(high) < left_bars + right_bars + 1:
-        print(f"DEBUG: Not enough data points: {len(high)} < {left_bars + right_bars + 1}")
         return pd.Series(np.full(len(high), np.nan), index=high.index)
     
     result = pd.Series(np.full(len(high), np.nan), index=high.index)
-    pivot_count = 0
     
     for i in range(left_bars, len(high) - right_bars):
         # Check if current high is higher than surrounding bars
@@ -405,25 +399,15 @@ def pivot_high_vectorized(high, left_bars=3, right_bars=3):
         
         if (current_high > left_max) and (current_high > right_max):
             result.iloc[i] = current_high
-            pivot_count += 1
-            if pivot_count <= 3:  # Only log first few
-                print(f"DEBUG: Found pivot high at index {i}: {current_high:.2f} (left_max: {left_max:.2f}, right_max: {right_max:.2f})")
     
-    print(f"DEBUG: Found {pivot_count} pivot highs total")
     return result
 
 def pivot_low_vectorized(low, left_bars=3, right_bars=3):
     """Vectorized pivot low calculation"""
-    print(f"DEBUG: pivot_low_vectorized called with {len(low)} data points")
-    print(f"DEBUG: First 10 low values: {low.head(10).tolist()}")
-    print(f"DEBUG: Min/Max low values: {low.min():.2f} / {low.max():.2f}")
-    
     if len(low) < left_bars + right_bars + 1:
-        print(f"DEBUG: Not enough data points: {len(low)} < {left_bars + right_bars + 1}")
         return pd.Series(np.full(len(low), np.nan), index=low.index)
     
     result = pd.Series(np.full(len(low), np.nan), index=low.index)
-    pivot_count = 0
     
     for i in range(left_bars, len(low) - right_bars):
         # Check if current low is lower than surrounding bars
@@ -436,11 +420,7 @@ def pivot_low_vectorized(low, left_bars=3, right_bars=3):
         
         if (current_low < left_min) and (current_low < right_min):
             result.iloc[i] = current_low
-            pivot_count += 1
-            if pivot_count <= 3:  # Only log first few
-                print(f"DEBUG: Found pivot low at index {i}: {current_low:.2f} (left_min: {left_min:.2f}, right_min: {right_min:.2f})")
     
-    print(f"DEBUG: Found {pivot_count} pivot lows total")
     return result
 
 def td_sequential_vectorized(close, lookback=4):
@@ -619,17 +599,8 @@ def calculate_technicals_parallel(df):
         results['td_combo'] = td_combo_vectorized(df['close'], lookback=2)
         results['marketwatch'] = marketwatch_indicator_vectorized(df['close'], df['open'])
           # Pivot points
-        print(f"DEBUG: Computing pivots for {len(df)} rows of data")
         results['pivot_high'] = pivot_high_vectorized(df['high'], left_bars=3, right_bars=3)
         results['pivot_low'] = pivot_low_vectorized(df['low'], left_bars=3, right_bars=3)
-        # Debug pivot results
-        ph_count = results['pivot_high'].notna().sum()
-        pl_count = results['pivot_low'].notna().sum()
-        print(f"DEBUG: Found {ph_count} pivot highs and {pl_count} pivot lows")
-        if ph_count > 0:
-            print(f"DEBUG: First few pivot highs: {results['pivot_high'].dropna().head()}")
-        if pl_count > 0:
-            print(f"DEBUG: First few pivot lows: {results['pivot_low'].dropna().head()}")
         
         # DM calculation
         dm_plus = df['high'].diff()
