@@ -37,10 +37,9 @@ router.get('/health', async (req, res) => {
 });
 
 // Get technical data by timeframe
-router.get('/:timeframe', async (req, res) => {
-  try {
+router.get('/:timeframe', async (req, res) => {  try {
     const { timeframe } = req.params;
-    const { limit = 25, symbol, page = 1 } = req.query; // Reduced default limit
+    const { limit = 10, symbol, page = 1 } = req.query; // Reduced default limit to prevent timeout
 
     // Validate timeframe
     const validTimeframes = ['daily', 'weekly', 'monthly'];
@@ -50,6 +49,12 @@ router.get('/:timeframe', async (req, res) => {
 
     const tableName = `technical_data_${timeframe}`;
     const offset = (parseInt(page) - 1) * parseInt(limit);
+    
+    // Add response headers for better performance
+    res.set({
+      'Cache-Control': 'public, max-age=300', // 5 minutes cache
+      'Content-Type': 'application/json',
+    });
     
     // First, check if table exists and has data
     const tableCheckQuery = `
@@ -111,9 +116,8 @@ router.get('/:timeframe', async (req, res) => {
       `;
       
       queryParams = [symbol.toUpperCase(), parseInt(limit), offset];
-      
-    } else {
-      // Simplified query - just get recent data directly instead of complex CTE
+        } else {
+      // Get all technical data with ALL columns - same as individual symbol query
       sqlQuery = `
       SELECT DISTINCT ON (symbol)
           symbol,
@@ -156,17 +160,34 @@ router.get('/:timeframe', async (req, res) => {
 
     const result = await query(sqlQuery, queryParams);
 
+    // Optimize response by rounding numbers and removing nulls
+    const optimizedData = result.rows.map(row => {
+      const optimized = {};
+      for (const [key, value] of Object.entries(row)) {
+        if (value !== null && value !== undefined) {
+          if (typeof value === 'number') {
+            // Round numbers to reduce payload size
+            optimized[key] = Math.round(value * 10000) / 10000; // 4 decimal places
+          } else {
+            optimized[key] = value;
+          }
+        }
+      }
+      return optimized;
+    });
+
     res.json({
       success: true,
-      data: result.rows,
+      data: optimizedData,
       timeframe,
-      count: result.rows.length,
+      count: optimizedData.length,
       metadata: {
         limit: parseInt(limit),
         page: parseInt(page),
         symbol: symbol || null,
         hasSymbolFilter: !!symbol,
-        totalDataPoints: tableCheck.rows[0]?.count || 0
+        totalDataPoints: tableCheck.rows[0]?.count || 0,
+        dataSize: JSON.stringify(optimizedData).length // Add size info for monitoring
       }
     });
 
@@ -253,6 +274,305 @@ router.get('/:timeframe/:symbol', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to fetch technical data for symbol',
       message: error.message 
+    });
+  }
+});
+
+// Lightweight endpoint for initial page load - returns only essential data
+router.get('/:timeframe/summary', async (req, res) => {
+  try {
+    const { timeframe } = req.params;
+    const { limit = 50, page = 1 } = req.query; // Allow more items since less data per item
+    
+    const validTimeframes = ['daily', 'weekly', 'monthly'];
+    if (!validTimeframes.includes(timeframe)) {
+      return res.status(400).json({ error: 'Invalid timeframe. Must be daily, weekly, or monthly' });
+    }
+
+    const tableName = `technical_data_${timeframe}`;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    
+    // Set aggressive caching for summary data
+    res.set({
+      'Cache-Control': 'public, max-age=300', // 5 minutes cache
+    });
+
+    // Only return essential indicators for quick overview
+    const sqlQuery = `
+    SELECT DISTINCT ON (symbol)
+        symbol,
+        date,
+        rsi,
+        macd,
+        adx,
+        sma_20,
+        sma_50,
+        marketwatch
+      FROM ${tableName}
+      ORDER BY symbol ASC, date DESC
+      LIMIT $1 OFFSET $2
+    `;
+    
+    const result = await query(sqlQuery, [parseInt(limit), offset]);
+    
+    // Minimal response for fast loading
+    const summaryData = result.rows.map(row => ({
+      symbol: row.symbol,
+      date: row.date,
+      rsi: row.rsi ? Math.round(row.rsi * 100) / 100 : null,
+      macd: row.macd ? Math.round(row.macd * 10000) / 10000 : null,
+      adx: row.adx ? Math.round(row.adx * 100) / 100 : null,
+      sma20: row.sma_20 ? Math.round(row.sma_20 * 100) / 100 : null,
+      sma50: row.sma_50 ? Math.round(row.sma_50 * 100) / 100 : null,
+      signal: row.marketwatch || 'NEUTRAL'
+    }));
+
+    res.json({
+      success: true,
+      data: summaryData,
+      timeframe,
+      count: summaryData.length,
+      metadata: {
+        limit: parseInt(limit),
+        page: parseInt(page),
+        type: 'summary',
+        dataSize: JSON.stringify(summaryData).length
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching technical summary:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch technical summary',
+      message: error.message
+    });
+  }
+});
+
+// Chunked loading endpoint - returns full data in smaller chunks
+router.get('/:timeframe/chunk/:chunkIndex', async (req, res) => {
+  try {
+    const { timeframe, chunkIndex } = req.params;
+    const chunkSize = 5; // Load 5 symbols at a time
+    const chunk = parseInt(chunkIndex) || 0;
+    
+    const validTimeframes = ['daily', 'weekly', 'monthly'];
+    if (!validTimeframes.includes(timeframe)) {
+      return res.status(400).json({ error: 'Invalid timeframe. Must be daily, weekly, or monthly' });
+    }
+
+    const tableName = `technical_data_${timeframe}`;
+    const offset = chunk * chunkSize;
+    
+    // Set caching headers
+    res.set({
+      'Cache-Control': 'public, max-age=300',
+      'Content-Type': 'application/json',
+    });
+
+    // Get ALL technical data columns for this chunk
+    const sqlQuery = `
+    SELECT DISTINCT ON (symbol)
+        symbol,
+        date,
+        rsi,
+        macd,
+        macd_signal,
+        macd_hist,
+        mom,
+        roc,
+        adx,
+        atr,
+        ad,
+        cmf,
+        mfi,
+        td_sequential,
+        td_combo,
+        marketwatch,
+        dm,
+        sma_10,
+        sma_20,
+        sma_50,
+        sma_150,
+        sma_200,
+        ema_4,
+        ema_9,
+        ema_21,
+        bbands_lower,
+        bbands_middle,
+        bbands_upper,
+        pivot_high,
+        pivot_low
+      FROM ${tableName}
+      ORDER BY symbol ASC, date DESC
+      LIMIT $1 OFFSET $2
+    `;
+    
+    const result = await query(sqlQuery, [chunkSize, offset]);
+    
+    // Get total count for pagination info
+    const countQuery = `SELECT COUNT(DISTINCT symbol) as total FROM ${tableName}`;
+    const countResult = await query(countQuery);
+    const totalSymbols = parseInt(countResult.rows[0]?.total || 0);
+    const totalChunks = Math.ceil(totalSymbols / chunkSize);
+
+    // Clean up the data but keep all columns
+    const cleanData = result.rows.map(row => {
+      const cleaned = {};
+      for (const [key, value] of Object.entries(row)) {
+        if (value !== null && value !== undefined) {
+          if (typeof value === 'number' && !Number.isInteger(value)) {
+            // Round to 4 decimal places for cleaner data
+            cleaned[key] = Math.round(value * 10000) / 10000;
+          } else {
+            cleaned[key] = value;
+          }
+        }
+      }
+      return cleaned;
+    });
+
+    res.json({
+      success: true,
+      data: cleanData,
+      timeframe,
+      chunk: {
+        index: chunk,
+        size: chunkSize,
+        count: cleanData.length,
+        totalChunks,
+        totalSymbols,
+        hasMore: chunk < totalChunks - 1
+      },
+      metadata: {
+        dataSize: JSON.stringify(cleanData).length,
+        loadingStrategy: 'chunked'
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching technical data chunk:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch technical data chunk',
+      message: error.message
+    });
+  }
+});
+
+// Full data endpoint - use with caution for large datasets
+router.get('/:timeframe/full', async (req, res) => {
+  try {
+    const { timeframe } = req.params;
+    const { limit = 5, page = 1 } = req.query; // Very small default limit for safety
+    
+    console.log(`Full data request - timeframe: ${timeframe}, limit: ${limit}, page: ${page}`);
+    
+    const validTimeframes = ['daily', 'weekly', 'monthly'];
+    if (!validTimeframes.includes(timeframe)) {
+      return res.status(400).json({ error: 'Invalid timeframe. Must be daily, weekly, or monthly' });
+    }
+
+    const tableName = `technical_data_${timeframe}`;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    
+    // Warning for large requests
+    if (parseInt(limit) > 20) {
+      console.warn(`Large data request detected: ${limit} symbols requested`);
+    }
+    
+    // Set headers for large responses
+    res.set({
+      'Cache-Control': 'public, max-age=300',
+      'Content-Type': 'application/json',
+    });
+
+    // Get ALL technical data columns - full dataset
+    const sqlQuery = `
+    SELECT DISTINCT ON (symbol)
+        symbol,
+        date,
+        rsi,
+        macd,
+        macd_signal,
+        macd_hist,
+        mom,
+        roc,
+        adx,
+        atr,
+        ad,
+        cmf,
+        mfi,
+        td_sequential,
+        td_combo,
+        marketwatch,
+        dm,
+        sma_10,
+        sma_20,
+        sma_50,
+        sma_150,
+        sma_200,
+        ema_4,
+        ema_9,
+        ema_21,
+        bbands_lower,
+        bbands_middle,
+        bbands_upper,
+        pivot_high,
+        pivot_low
+      FROM ${tableName}
+      ORDER BY symbol ASC, date DESC
+      LIMIT $1 OFFSET $2
+    `;
+    
+    const startTime = Date.now();
+    const result = await query(sqlQuery, [parseInt(limit), offset]);
+    const queryTime = Date.now() - startTime;
+    
+    console.log(`Query completed in ${queryTime}ms, returned ${result.rows.length} rows`);
+
+    // Process data but keep ALL columns
+    const processedData = result.rows.map(row => {
+      const processed = {};
+      for (const [key, value] of Object.entries(row)) {
+        // Keep all data, just clean up null values and round numbers
+        if (value !== null && value !== undefined) {
+          if (typeof value === 'number' && !Number.isInteger(value)) {
+            processed[key] = Math.round(value * 10000) / 10000;
+          } else {
+            processed[key] = value;
+          }
+        } else {
+          processed[key] = null; // Keep null structure for consistency
+        }
+      }
+      return processed;
+    });
+
+    const responseSize = JSON.stringify(processedData).length;
+    console.log(`Response size: ${responseSize} bytes for ${processedData.length} symbols`);
+
+    res.json({
+      success: true,
+      data: processedData,
+      timeframe,
+      count: processedData.length,
+      metadata: {
+        limit: parseInt(limit),
+        page: parseInt(page),
+        queryTimeMs: queryTime,
+        dataSize: responseSize,
+        averageSizePerSymbol: Math.round(responseSize / processedData.length),
+        loadingStrategy: 'full',
+        warning: parseInt(limit) > 10 ? `Large dataset requested (${limit} symbols)` : null
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching full technical data:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch full technical data',
+      message: error.message,
+      stack: error.stack
     });
   }
 });

@@ -325,7 +325,18 @@ export const getTechnicalData = (timeframe, params = {}) => {
   return api.get(`/technical/${timeframe}?${queryParams.toString()}`)
 }
 
-export const getDataValidationSummary = () => api.get('/data/validation-summary')
+// New optimized endpoint for faster loading
+export const getTechnicalSummary = (timeframe, params = {}) => {
+  const queryParams = new URLSearchParams()
+  
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      queryParams.append(key, value)
+    }
+  })
+  
+  return api.get(`/technical/${timeframe}/summary?${queryParams.toString()}`)
+}
 
 // Comprehensive financial data endpoints
 export const getAllFinancialData = (symbol, params = {}) => {
@@ -375,6 +386,8 @@ export default {
   getNaaimData,
   getFearGreedData,
   getTechnicalData,
+  getTechnicalSummary,
+  getTechnicalSummary,
   getDataValidationSummary,
   getAllFinancialData,
   getFinancialMetrics
