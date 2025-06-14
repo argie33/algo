@@ -38,16 +38,17 @@ function TechnicalAnalysis() {
   const [symbolFilter, setSymbolFilter] = useState('');
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState('');
-
   // Fetch technical data
   const { data: technicalData, isLoading, error, refetch } = useQuery({
     queryKey: ['technicalAnalysis', timeframe, symbolFilter, page],
     queryFn: () => getTechnicalData(timeframe, { 
       symbol: symbolFilter || undefined,
-      limit: 50,
+      limit: 25, // Reduced limit for faster loading
       page: page
     }),
-    refetchInterval: 300000 // Refresh every 5 minutes
+    refetchInterval: 300000, // Refresh every 5 minutes
+    retry: 2,
+    staleTime: 60000 // Consider data fresh for 1 minute
   });
 
   const handleSearch = () => {
@@ -213,13 +214,20 @@ function TechnicalAnalysis() {
       </Table>
     </TableContainer>
   );
-
   if (error) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Alert severity="error">
+        <Alert severity="error" sx={{ mb: 2 }}>
           Error loading technical data: {error.message}
         </Alert>
+        <Box display="flex" gap={2}>
+          <Button variant="outlined" onClick={() => refetch()}>
+            Retry
+          </Button>
+          <Button variant="text" onClick={() => window.location.reload()}>
+            Refresh Page
+          </Button>
+        </Box>
       </Container>
     );
   }
@@ -296,11 +304,10 @@ function TechnicalAnalysis() {
             </Button>
             <Typography variant="body2">
               Page {page}
-            </Typography>
-            <Button
+            </Typography>            <Button
               size="small"
               onClick={() => setPage(page + 1)}
-              disabled={isLoading || (technicalData?.data?.length || 0) < 50}
+              disabled={isLoading || (technicalData?.data?.length || 0) < 25}
             >
               Next
             </Button>
@@ -531,10 +538,15 @@ function TechnicalAnalysis() {
             No technical data found. {symbolFilter ? `Try a different symbol or timeframe.` : `No data available for this timeframe.`}
           </Alert>
         )}
-        
-        {isLoading ? (
-          <Box display="flex" justifyContent="center" p={4}>
-            <CircularProgress />
+          {isLoading ? (
+          <Box display="flex" flexDirection="column" alignItems="center" p={4}>
+            <CircularProgress sx={{ mb: 2 }} />
+            <Typography variant="body2" color="text.secondary">
+              {symbolFilter ? 
+                `Loading historical data for ${symbolFilter.toUpperCase()}...` : 
+                `Loading latest technical data for all symbols...`
+              }
+            </Typography>
           </Box>
         ) : (
           <ComprehensiveTechnicalTable />
@@ -552,10 +564,9 @@ function TechnicalAnalysis() {
             </Button>
             <Typography variant="body2" sx={{ alignSelf: 'center', mx: 2 }}>
               Page {page}
-            </Typography>
-            <Button
+            </Typography>            <Button
               onClick={() => setPage(page + 1)}
-              disabled={isLoading || (technicalData?.data?.length || 0) < 50}
+              disabled={isLoading || (technicalData?.data?.length || 0) < 25}
             >
               Next
             </Button>

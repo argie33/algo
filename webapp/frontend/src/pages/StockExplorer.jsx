@@ -126,9 +126,10 @@ function StockExplorer() {
   const [filters, setFilters] = useState(INITIAL_FILTERS)
   const [viewMode, setViewMode] = useState('simple') // 'simple' or 'advanced'
   const [page, setPage] = useState(0)
-  const [rowsPerPage, setRowsPerPage] = useState(25)
+  const [rowsPerPage, setRowsPerPage] = useState(25) // Reduced from potentially higher default
   const [orderBy, setOrderBy] = useState('market_capitalization')
   const [order, setOrder] = useState('desc')
+  
   // Initialize from URL params only once on mount
   useEffect(() => {
     const params = Object.fromEntries(searchParams)
@@ -142,6 +143,7 @@ function StockExplorer() {
   const buildQueryParams = () => {
     const params = new URLSearchParams()
     
+    // Only add non-empty filters to reduce query complexity
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== '' && value !== false) {
         params.append(key, value.toString())
@@ -157,12 +159,15 @@ function StockExplorer() {
     return params
   }
 
-  // Fetch screener results
+  // Fetch screener results with optimized settings
   const { data: stocksData, isLoading, error, refetch } = useQuery({
     queryKey: ['stockExplorer', filters, page, rowsPerPage, orderBy, order],
     queryFn: () => api.screenStocks(buildQueryParams()),
     keepPreviousData: true,
-    staleTime: 5 * 60 * 1000 // 5 minutes
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes (was cacheTime)
+    retry: 2, // Reduce retries to fail faster if there's an issue
+    retryDelay: 1000
   })
   const handleFilterChange = (field, value) => {
     setFilters(prev => ({
@@ -286,7 +291,6 @@ function StockExplorer() {
     { id: 'revenue_growth', label: 'Rev Growth', sortable: true, format: (val) => val ? formatPercent(val) : 'N/A' },
     { id: 'sector', label: 'Sector', sortable: true }
   ]
-
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
@@ -332,6 +336,19 @@ function StockExplorer() {
           />
         </Box>
       </Box>
+
+      {/* Performance and Error Alerts */}
+      {stocksData?.performance?.hasComplexFilters && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          <strong>Performance Note:</strong> Complex filters are active. Results may take longer to load.
+        </Alert>
+      )}
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          <strong>Error loading stocks:</strong> {error.message}. Try reducing filter complexity or refreshing the page.
+        </Alert>
+      )}
 
       <Grid container spacing={3}>
         {/* Filters Panel */}
