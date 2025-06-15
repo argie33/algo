@@ -304,6 +304,55 @@ export const getAllFinancialData = (symbol, params = {}) => {
 
 export const getFinancialMetrics = () => api.get('/data/financial-metrics')
 
+// Technical analysis endpoints
+export const getTechnicalData = (params = {}) => {
+  const queryParams = new URLSearchParams()
+  
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      queryParams.append(key, value)
+    }
+  })
+  
+  return api.get(`/technical/data?${queryParams.toString()}`)
+}
+
+export const getTechnicalSummary = (params = {}) => {
+  const queryParams = new URLSearchParams()
+  
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      queryParams.append(key, value)
+    }
+  })
+  
+  return api.get(`/technical/summary?${queryParams.toString()}`)
+}
+
+export const getTechnicalChunk = (params = {}) => {
+  const queryParams = new URLSearchParams()
+  
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      queryParams.append(key, value)
+    }
+  })
+  
+  return api.get(`/technical/chunk?${queryParams.toString()}`)
+}
+
+export const getTechnicalFull = (params = {}) => {
+  const queryParams = new URLSearchParams()
+  
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      queryParams.append(key, value)
+    }
+  })
+  
+  return api.get(`/technical/full?${queryParams.toString()}`)
+}
+
 // Export all methods as a default object for easier importing
 export default {
   healthCheck,
