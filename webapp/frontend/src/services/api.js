@@ -1,8 +1,8 @@
 import axios from 'axios'
 
 // API Gateway/Lambda configuration  
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
-const IS_SERVERLESS = import.meta.env.VITE_SERVERLESS === 'true'
+const API_BASE_URL = 'https://zytedqhltg.execute-api.us-east-1.amazonaws.com/prod'
+const IS_SERVERLESS = true
 
 console.log('API Configuration:', {
   API_BASE_URL,

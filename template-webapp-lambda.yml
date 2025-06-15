@@ -109,7 +109,7 @@ Resources:
             OriginAccessControlId: !Ref OriginAccessControl
         # API Gateway Origin
           - Id: APIOrigin
-            DomainName: !Sub '${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com'
+            DomainName: !Sub '${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com'
             OriginPath: !Sub '/${EnvironmentName}'
             CustomOriginConfig:
               HTTPPort: 443
@@ -353,123 +353,16 @@ Resources:
           DB_CONNECT_TIMEOUT: '10000'
           # API response optimization
           ENABLE_COMPRESSION: 'true'
-          CACHE_HEADERS: 'true'
-      Events:
+          CACHE_HEADERS: 'true'      Events:
         ApiGatewayAny:
           Type: Api
           Properties:
-            RestApiId: !Ref ApiGateway
             Path: /{proxy+}
             Method: ANY
         ApiGatewayRoot:
           Type: Api
           Properties:
-            RestApiId: !Ref ApiGateway
-            Path: /
-            Method: ANY# API Gateway
-  ApiGateway:
-    Type: AWS::Serverless::Api
-    Properties:
-      Name: !Sub 'financial-dashboard-api-${EnvironmentName}'
-      StageName: !Ref EnvironmentName
-      # Performance optimizations
-      BinaryMediaTypes:
-        - 'application/json'
-        - 'application/octet-stream'
-      GatewayResponses:
-        DEFAULT_4XX:
-          ResponseParameters:
-            Headers:
-              Access-Control-Allow-Origin: "'*'"
-              Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-        DEFAULT_5XX:
-          ResponseParameters:
-            Headers:
-              Access-Control-Allow-Origin: "'*'"
-              Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-      # Define explicit OpenAPI definition for performance
-      DefinitionBody:
-        swagger: "2.0"
-        info:
-          title: !Sub "${AWS::StackName}-api"
-          version: "1.0"
-        basePath: !Sub "/${EnvironmentName}"
-        schemes:
-          - "https"
-        x-amazon-apigateway-policy:
-          Version: "2012-10-17"
-          Statement:
-            - Effect: "Allow"
-              Principal: "*"
-              Action: "execute-api:Invoke"
-              Resource: "*"
-        x-amazon-apigateway-request-validators:
-          params-only:
-            validateRequestParameters: true
-            validateRequestBody: false
-        x-amazon-apigateway-request-validator: "params-only"
-        paths:
-          /{proxy+}:
-            x-amazon-apigateway-any-method:
-              x-amazon-apigateway-integration:
-                type: "aws_proxy"
-                httpMethod: "POST"
-                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiFunction.Arn}/invocations"
-                responses:
-                  default:
-                    statusCode: "200"
-                    responseParameters:
-                      method.response.header.Access-Control-Allow-Origin: "'*'"
-                      method.response.header.Cache-Control: "'public, max-age=300'"
-                passthroughBehavior: "when_no_match"
-                contentHandling: "CONVERT_TO_TEXT"
-              responses:
-                "200":
-                  description: "200 response"
-                  headers:
-                    Access-Control-Allow-Origin:
-                      type: "string"
-                    Cache-Control:
-                      type: "string"
-          /:
-            x-amazon-apigateway-any-method:
-              x-amazon-apigateway-integration:
-                type: "aws_proxy"
-                httpMethod: "POST"
-                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiFunction.Arn}/invocations"
-                responses:
-                  default:
-                    statusCode: "200"
-                    responseParameters:
-                      method.response.header.Access-Control-Allow-Origin: "'*'"
-                passthroughBehavior: "when_no_match"
-              responses:
-                "200":
-                  description: "200 response"
-                  headers:
-                    Access-Control-Allow-Origin:
-                      type: "string"      
-      Cors:
-        AllowMethods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
-        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-        AllowOrigin: "'*'"
-        AllowCredentials: false
-      AccessLogSetting:
-        DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
-        Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength","responseLatency":"$context.responseLatency","integrationLatency":"$context.integrationLatency","cacheHitStatus":"$context.identity.cacheHitStatus"}'
-      # API Gateway Performance Configuration
-      CacheClusterEnabled: !If [EnableOptimizations, true, false]
-      CacheClusterSize: !If [EnableOptimizations, !Ref ApiGatewayCacheClusterSize, !Ref 'AWS::NoValue']
-      MethodSettings:
-        - ResourcePath: "/*"
-          HttpMethod: "*"
-          LoggingLevel: ERROR
-          DataTraceEnabled: false
-          MetricsEnabled: true
-          ThrottlingBurstLimit: !Ref ApiGatewayThrottlingBurstLimit
-          ThrottlingRateLimit: !Ref ApiGatewayThrottlingRateLimit
-          CachingEnabled: !If [EnableOptimizations, true, false]
-          CacheTtlInSeconds: 300
+            Path: /            Method: ANY
 
   # CloudWatch Log Group for API Gateway
   ApiGatewayLogGroup:
@@ -539,16 +432,15 @@ Outputs:
     Value: !Sub 'https://${CloudFrontDistribution.DomainName}'
     Export:
       Name: !Sub '${AWS::StackName}-WebsiteURL'
-
   # API
   ApiGatewayUrl:
     Description: 'API Gateway URL'
-    Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}'
+    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}'
     Export:
       Name: !Sub '${AWS::StackName}-ApiUrl'
   ApiGatewayId:
     Description: 'API Gateway ID'
-    Value: !Ref ApiGateway
+    Value: !Ref ServerlessRestApi
     Export:
       Name: !Sub '${AWS::StackName}-ApiGatewayId'
 

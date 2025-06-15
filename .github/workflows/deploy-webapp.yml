@@ -317,10 +317,19 @@ jobs:
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='WebsiteURL'].OutputValue" \
             --output text)          
-          
-          # Validate required outputs
+            # Validate required outputs
           if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
             echo "❌ Failed to get FrontendBucketName from stack outputs"
+            aws cloudformation describe-stacks \
+              --stack-name ${{ env.STACK_NAME }} \
+              --query "Stacks[0].Outputs[].[OutputKey,OutputValue]" \
+              --output table
+            exit 1
+          fi
+          
+          if [[ -z "$API_URL" || "$API_URL" == "None" ]]; then
+            echo "❌ Failed to get ApiGatewayUrl from stack outputs"
+            echo "This is critical - the frontend needs this URL!"
             aws cloudformation describe-stacks \
               --stack-name ${{ env.STACK_NAME }} \
               --query "Stacks[0].Outputs[].[OutputKey,OutputValue]" \
@@ -395,15 +404,36 @@ jobs:
           else
             echo "No lint script found, skipping"
           fi
-
       - name: Build Frontend
         working-directory: webapp/frontend
         env:
           API_URL: ${{ needs.deploy_infrastructure.outputs.api_url }}
           VITE_API_URL: ${{ needs.deploy_infrastructure.outputs.api_url }}
         run: |
+          echo "🔧 Environment variables for build:"
+          echo "API_URL: $API_URL"
+          echo "VITE_API_URL: $VITE_API_URL"
+          echo "Node environment: $NODE_ENV"
+          
+          # Verify the API URL is not empty
+          if [[ -z "$VITE_API_URL" ]]; then
+            echo "❌ VITE_API_URL is empty! This will cause the frontend to fail."
+            echo "Available outputs from deploy_infrastructure:"
+            echo "  api_url: '${{ needs.deploy_infrastructure.outputs.api_url }}'"
+            exit 1
+          fi
+          
+          # Show what's in the .env file for debugging
+          echo "📄 Current .env content (if exists):"
+          cat .env 2>/dev/null || echo "No .env file found"
+          
+          # Create/update .env file with the API URL
+          echo "VITE_API_URL=$VITE_API_URL" > .env
+          echo "📝 Created .env file with:"
+          cat .env
+          
           npm run build
-          echo "Frontend build completed"
+          echo "✅ Frontend build completed"
       - name: Deploy Frontend to S3
         working-directory: webapp/frontend
         run: |
