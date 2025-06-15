@@ -280,17 +280,8 @@ export const getTickerGrowthEstimates = (ticker) => api.get(`/analysts/${ticker}
 export const getTickerAnalystRecommendations = (ticker) => api.get(`/analysts/${ticker}/recommendations`)
 export const getAnalystOverview = (ticker) => api.get(`/analysts/${ticker}/overview`)
 
-// Data validation endpoints
-export const getDataValidationSummary = () => api.get('/data/validation/summary')
-
-// Financial statements endpoints
-export const getBalanceSheet = (ticker, period = 'annual') => api.get(`/financials/${ticker}/balance-sheet?period=${period}`)
-export const getIncomeStatement = (ticker, period = 'annual') => api.get(`/financials/${ticker}/income-statement?period=${period}`)
-export const getCashFlowStatement = (ticker, period = 'annual') => api.get(`/financials/${ticker}/cash-flow?period=${period}`)
-export const getFinancialStatements = (ticker, period = 'annual') => api.get(`/financials/${ticker}/financials?period=${period}`)
-
-// Comprehensive financial data endpoints
-export const getAllFinancialData = (symbol, params = {}) => {
+// General analyst data endpoints (for market-wide analysis)
+export const getEpsRevisions = (params = {}) => {
   const queryParams = new URLSearchParams()
   
   Object.entries(params).forEach(([key, value]) => {
@@ -299,10 +290,69 @@ export const getAllFinancialData = (symbol, params = {}) => {
     }
   })
   
-  return api.get(`/data/financials/${symbol}?${queryParams.toString()}`)
+  return api.get(`/analysts/eps-revisions?${queryParams.toString()}`)
 }
 
-export const getFinancialMetrics = () => api.get('/data/financial-metrics')
+export const getEpsTrend = (params = {}) => {
+  const queryParams = new URLSearchParams()
+  
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      queryParams.append(key, value)
+    }
+  })
+  
+  return api.get(`/analysts/eps-trend?${queryParams.toString()}`)
+}
+
+export const getGrowthEstimates = (params = {}) => {
+  const queryParams = new URLSearchParams()
+  
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      queryParams.append(key, value)
+    }
+  })
+  
+  return api.get(`/analysts/growth-estimates?${queryParams.toString()}`)
+}
+
+// Economic and market data endpoints
+export const getEconomicData = (params = {}) => {
+  const queryParams = new URLSearchParams()
+  
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      queryParams.append(key, value)
+    }
+  })
+  
+  return api.get(`/market/economic-data?${queryParams.toString()}`)
+}
+
+export const getNaaimData = (params = {}) => {
+  const queryParams = new URLSearchParams()
+  
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      queryParams.append(key, value)
+    }
+  })
+  
+  return api.get(`/market/naaim?${queryParams.toString()}`)
+}
+
+export const getFearGreedData = (params = {}) => {
+  const queryParams = new URLSearchParams()
+  
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      queryParams.append(key, value)
+    }
+  })
+  
+  return api.get(`/market/fear-greed?${queryParams.toString()}`)
+}
 
 // Technical analysis endpoints
 export const getTechnicalData = (params = {}) => {
