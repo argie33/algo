@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: 'Financial Dashboard - Serverless Web Application with Lambda + API Gateway (Fixed Circular Dependency)'
+Description: 'Financial Dashboard - Serverless Web Application with Lambda + API Gateway'
 
 Parameters:
   EnvironmentName:
@@ -27,6 +27,7 @@ Parameters:
     Default: '0.5'
     AllowedValues: ['0.5', '1.6', '6.1', '13.5', '28.4', '58.2', '118', '237']
     Description: API Gateway cache cluster size in GB (affects cost and performance)
+    
   EnablePerformanceOptimizations:
     Type: String
     Default: 'true'
@@ -48,6 +49,7 @@ Parameters:
     Description: API Gateway throttling rate limit (requests per second)
 
 Conditions:
+  HasCustomDomain: !Not [!Equals [!Ref FrontendDomainName, '']]
   EnableOptimizations: !Equals [!Ref EnablePerformanceOptimizations, 'true']
 
 Globals:
@@ -61,14 +63,6 @@ Globals:
         DB_SECRET_ARN: !Ref DatabaseSecretArn
         WEBAPP_AWS_REGION: !Ref AWS::Region
         DB_ENDPOINT: !Ref DatabaseEndpoint
-  Api:
-    # Define the API Gateway stage name based on environment
-    StageName: !Ref EnvironmentName
-    # Enable CORS for all origins (can be restricted per environment)
-    Cors:
-      AllowMethods: "'GET,POST,OPTIONS'"
-      AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-      AllowOrigin: "'*''"
 
 Resources:
   # S3 Bucket for Frontend Static Files 
@@ -88,7 +82,7 @@ Resources:
       VersioningConfiguration:
         Status: Enabled
 
-  # CloudFront Origin Access Control
+  # Origin Access Control for CloudFront
   OriginAccessControl:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
@@ -108,6 +102,7 @@ Resources:
         Enabled: true
         HttpVersion: http2
         PriceClass: PriceClass_100
+        
         # S3 Origin for Frontend        
         Origins:
           - Id: S3Origin
@@ -115,9 +110,9 @@ Resources:
             S3OriginConfig:
               OriginAccessIdentity: ''
             OriginAccessControlId: !Ref OriginAccessControl
-        # API Gateway Origin
+          # API Gateway Origin
           - Id: APIOrigin
-            DomainName: !Sub '${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com'
+            DomainName: !Sub '${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com'
             OriginPath: !Sub '/${EnvironmentName}'
             CustomOriginConfig:
               HTTPPort: 443
@@ -138,7 +133,8 @@ Resources:
           MaxTTL: 31536000
           MinTTL: 0
           Compress: true
-          # API Gateway caching - Optimized for performance
+          
+        # API Gateway caching - Optimized for performance
         CacheBehaviors:
           # Cache for financial data endpoints (stocks, prices, etc.)
           - PathPattern: '/api/stocks/*'
@@ -172,71 +168,7 @@ Resources:
             MinTTL: 30           # 30 seconds minimum
             Compress: true
           
-          # Cache for fundamental data (less frequent updates)
-          - PathPattern: '/api/fundamentals/*'
-            TargetOriginId: APIOrigin
-            ViewerProtocolPolicy: redirect-to-https
-            AllowedMethods: [GET, HEAD, OPTIONS]
-            CachedMethods: [GET, HEAD, OPTIONS]
-            ForwardedValues:
-              QueryString: true
-              Headers: [Authorization, Content-Type]
-              Cookies:
-                Forward: none
-            DefaultTTL: 3600     # 1 hour for fundamentals
-            MaxTTL: 86400        # 24 hours max
-            MinTTL: 300          # 5 minutes minimum
-            Compress: true
-          
-          # Cache for earnings and estimates (moderate frequency)
-          - PathPattern: '/api/earnings/*'
-            TargetOriginId: APIOrigin
-            ViewerProtocolPolicy: redirect-to-https
-            AllowedMethods: [GET, HEAD, OPTIONS]
-            CachedMethods: [GET, HEAD, OPTIONS]
-            ForwardedValues:
-              QueryString: true
-              Headers: [Authorization, Content-Type]
-              Cookies:
-                Forward: none
-            DefaultTTL: 1800     # 30 minutes for earnings
-            MaxTTL: 21600        # 6 hours max
-            MinTTL: 180          # 3 minutes minimum
-            Compress: true
-          
-          # Cache for technical analysis data (frequent updates)
-          - PathPattern: '/api/technical/*'
-            TargetOriginId: APIOrigin
-            ViewerProtocolPolicy: redirect-to-https
-            AllowedMethods: [GET, HEAD, OPTIONS]
-            CachedMethods: [GET, HEAD, OPTIONS]
-            ForwardedValues:
-              QueryString: true
-              Headers: [Authorization, Content-Type]
-              Cookies:
-                Forward: none
-            DefaultTTL: 300      # 5 minutes for technical data
-            MaxTTL: 1800         # 30 minutes max
-            MinTTL: 60           # 1 minute minimum
-            Compress: true
-          
-          # Cache for analyst insights and ratings (moderate frequency)
-          - PathPattern: '/api/analysts/*'
-            TargetOriginId: APIOrigin
-            ViewerProtocolPolicy: redirect-to-https
-            AllowedMethods: [GET, HEAD, OPTIONS]
-            CachedMethods: [GET, HEAD, OPTIONS]
-            ForwardedValues:
-              QueryString: true
-              Headers: [Authorization, Content-Type]
-              Cookies:
-                Forward: none
-            DefaultTTL: 900      # 15 minutes for analyst data
-            MaxTTL: 3600         # 1 hour max
-            MinTTL: 180          # 3 minutes minimum
-            Compress: true
-          
-          # General API caching (fallback for other endpoints)
+          # No cache for API endpoints that should be real-time
           - PathPattern: '/api/*'
             TargetOriginId: APIOrigin
             ViewerProtocolPolicy: redirect-to-https
@@ -244,64 +176,46 @@ Resources:
             CachedMethods: [GET, HEAD, OPTIONS]
             ForwardedValues:
               QueryString: true
-              Headers: [Authorization, Content-Type, X-Forwarded-For]
+              Headers: [Authorization, Content-Type, X-Requested-With]
               Cookies:
-                Forward: none
-            DefaultTTL: 60       # 1 minute default
-            MaxTTL: 3600         # 1 hour max
-            MinTTL: 0            # No minimum for dynamic content
+                Forward: all
+            DefaultTTL: 0        # No caching for dynamic API calls
+            MaxTTL: 0
+            MinTTL: 0
             Compress: true
-        
-        # Custom error pages
+
+        # Custom Error Pages
         CustomErrorResponses:
           - ErrorCode: 404
             ResponseCode: 200
             ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 300
           - ErrorCode: 403
             ResponseCode: 200
             ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 300
 
-  # S3 Bucket Policy for CloudFront
+  # S3 Bucket Policy for CloudFront OAC
   FrontendBucketPolicy:
     Type: AWS::S3::BucketPolicy
-    DependsOn: CloudFrontDistribution
     Properties:
       Bucket: !Ref FrontendBucket
       PolicyDocument:
         Statement:
-          - Sid: AllowCloudFrontAccess
-            Effect: Allow
+          - Effect: Allow
             Principal:
               Service: cloudfront.amazonaws.com
             Action: s3:GetObject
-            Resource: !Sub '${FrontendBucket.Arn}/*'
+            Resource: !Sub '${FrontendBucket}/*'
             Condition:
               StringEquals:
                 'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
 
-  # API Gateway CloudWatch Logs Role
-  ApiGatewayCloudWatchLogsRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: apigateway.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
-
-  # API Gateway Account Configuration
-  ApiGatewayAccount:
-    Type: AWS::ApiGateway::Account
-    Properties:
-      CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
-  # Lambda Function IAM Role  
+  # IAM Role for Lambda Function
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
+      RoleName: !Sub 'financial-dashboard-lambda-role-${EnvironmentName}'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -311,6 +225,7 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
       Policies:
         - PolicyName: SecretsManagerAccess
           PolicyDocument:
@@ -319,6 +234,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
                 Resource: !Ref DatabaseSecretArn
         - PolicyName: RDSConnect
           PolicyDocument:
@@ -328,6 +244,30 @@ Resources:
                 Action:
                   - rds-db:connect
                 Resource: !Sub 'arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:stocks/*'
+
+  # Explicit API Gateway to control stage name
+  ApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref EnvironmentName
+      # Enable CORS
+      Cors:
+        AllowMethods: "'GET,POST,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+      # Enable caching if optimizations are enabled
+      CacheClusterEnabled: !Ref EnablePerformanceOptimizations
+      CacheClusterSize: !If 
+        - EnableOptimizations
+        - !Ref ApiGatewayCacheClusterSize
+        - !Ref AWS::NoValue
+      # Throttling settings
+      MethodSettings:
+        - ResourcePath: "/*"
+          HttpMethod: "*"
+          ThrottlingBurstLimit: !Ref ApiGatewayThrottlingBurstLimit
+          ThrottlingRateLimit: !Ref ApiGatewayThrottlingRateLimit
+
   # Lambda Function
   ApiFunction:
     Type: AWS::Serverless::Function
@@ -366,11 +306,13 @@ Resources:
         ApiGatewayAny:
           Type: Api
           Properties:
+            RestApiId: !Ref ApiGateway
             Path: /{proxy+}
             Method: ANY
         ApiGatewayRoot:
           Type: Api
           Properties:
+            RestApiId: !Ref ApiGateway
             Path: /            
             Method: ANY
 
@@ -387,50 +329,14 @@ Resources:
     Properties:
       LogGroupName: !Sub '/aws/lambda/financial-dashboard-api-${EnvironmentName}'
       RetentionInDays: 30
-  # API Gateway Performance Monitoring
-  ApiGatewayPerformanceAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub '${AWS::StackName}-api-high-latency'
-      AlarmDescription: 'Monitor API Gateway latency'
-      MetricName: Latency
-      Namespace: AWS/ApiGateway
-      Statistic: Average
-      Period: 300
-      EvaluationPeriods: 2
-      Threshold: 5000  # 5 seconds
-      ComparisonOperator: GreaterThanThreshold
-      Dimensions:
-        - Name: ApiName
-          Value: !Sub 'financial-dashboard-api-${EnvironmentName}'
-        - Name: Stage
-          Value: !Ref EnvironmentName
-
-  # Lambda Performance Monitoring
-  LambdaPerformanceAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub '${AWS::StackName}-lambda-high-duration'
-      AlarmDescription: 'Monitor Lambda function duration'
-      MetricName: Duration
-      Namespace: AWS/Lambda
-      Statistic: Average
-      Period: 300
-      EvaluationPeriods: 2
-      Threshold: 10000  # 10 seconds
-      ComparisonOperator: GreaterThanThreshold
-      Dimensions:
-        - Name: FunctionName
-          Value: !Ref ApiFunction
 
 Outputs:
   # Frontend
   FrontendBucketName:
-    Description: 'S3 bucket name for frontend'
+    Description: 'S3 Bucket for Frontend Static Files'
     Value: !Ref FrontendBucket
     Export:
       Name: !Sub '${AWS::StackName}-FrontendBucket'
-
   CloudFrontDistributionId:
     Description: 'CloudFront Distribution ID'
     Value: !Ref CloudFrontDistribution
@@ -440,15 +346,17 @@ Outputs:
     Description: 'Website URL'
     Value: !Sub 'https://${CloudFrontDistribution.DomainName}'
     Export:
-      Name: !Sub '${AWS::StackName}-WebsiteURL'  # API
+      Name: !Sub '${AWS::StackName}-WebsiteURL'
+      
+  # API
   ApiGatewayUrl:
     Description: 'API Gateway URL'
-    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}'
+    Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}'
     Export:
       Name: !Sub '${AWS::StackName}-ApiUrl'
   ApiGatewayId:
     Description: 'API Gateway ID'
-    Value: !Ref ServerlessRestApi
+    Value: !Ref ApiGateway
     Export:
       Name: !Sub '${AWS::StackName}-ApiGatewayId'
 
@@ -456,17 +364,4 @@ Outputs:
     Description: 'API Gateway caching status'
     Value: 'Enabled'
     Export:
-      Name: !Sub '${AWS::StackName}-CacheStatus'
-  
-  # Lambda
-  LambdaFunctionName:
-    Description: 'Lambda function name'
-    Value: !Ref ApiFunction
-    Export:
-      Name: !Sub '${AWS::StackName}-LambdaFunction'
-
-  LambdaFunctionArn:
-    Description: 'Lambda function ARN'
-    Value: !GetAtt ApiFunction.Arn
-    Export:
-      Name: !Sub '${AWS::StackName}-LambdaArn'
+      Name: !Sub '${AWS::StackName}-ApiGatewayCacheEnabled'
