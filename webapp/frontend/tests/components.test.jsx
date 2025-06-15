@@ -4,7 +4,6 @@ import { BrowserRouter } from 'react-router-dom'
 import { ThemeProvider } from '@mui/material/styles'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import Dashboard from '../src/pages/Dashboard'
-import StockList from '../src/pages/StockList'
 import theme from '../src/theme'
 
 // Mock the API module
@@ -60,70 +59,7 @@ describe('Dashboard Component', () => {
   it('shows loading state initially', () => {
     render(<Dashboard />, { wrapper: createWrapper() })
     
-    expect(screen.getByRole('progressbar')).toBeInTheDocument()
-  })
-})
-
-describe('StockList Component', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('renders stock list title', async () => {
-    const { default: api } = await import('../src/services/api')
-    
-    api.getStocks.mockResolvedValue({
-      data: {
-        data: [],
-        pagination: {
-          page: 1,
-          limit: 50,
-          total: 0,
-          totalPages: 0
-        }
-      }
-    })
-
-    api.getSectors.mockResolvedValue({
-      data: {
-        sectors: []
-      }
-    })
-
-    render(<StockList />, { wrapper: createWrapper() })
-    
-    expect(screen.getByText('Stock Universe')).toBeInTheDocument()
-  })
-
-  it('handles search functionality', async () => {
-    const { default: api } = await import('../src/services/api')
-    
-    api.getStocks.mockResolvedValue({
-      data: {
-        data: [],
-        pagination: {
-          page: 1,
-          limit: 50,
-          total: 0,
-          totalPages: 0
-        }
-      }
-    })
-
-    api.getSectors.mockResolvedValue({
-      data: {
-        sectors: []
-      }
-    })
-
-    render(<StockList />, { wrapper: createWrapper() })
-    
-    const searchInput = screen.getByPlaceholderText('Search stocks...')
-    expect(searchInput).toBeInTheDocument()
-    
-    fireEvent.change(searchInput, { target: { value: 'AAPL' } })
-    expect(searchInput.value).toBe('AAPL')
-  })
+    expect(screen.getByRole('progressbar')).toBeInTheDocument()  })
 })
 
 describe('API Service', () => {

@@ -23,10 +23,10 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 import { 
   getMarketOverview, 
-  getValuationMetrics, 
-  getGrowthMetrics, 
-  getDividendMetrics, 
-  getFinancialStrengthMetrics 
+  getMarketSentimentHistory, 
+  getMarketSectorPerformance, 
+  getMarketBreadth, 
+  getEconomicIndicators 
 } from '../services/api'
 import { formatCurrency, formatNumber, formatPercentage, getChangeColor, getMarketCapCategory } from '../utils/formatters'
 
@@ -84,41 +84,39 @@ const MetricTable = ({ data, columns, title }) => (
 
 function MarketOverview() {
   const [tabValue, setTabValue] = useState(0)
-
   const { data: marketData, isLoading: marketLoading, error: marketError } = useQuery(
     'market-overview',
     getMarketOverview,
     { refetchInterval: 60000 }
   )
 
-  const { data: valuationData, isLoading: valuationLoading } = useQuery(
-    'valuation-metrics',
-    () => getValuationMetrics({ limit: 20 }),
+  const { data: sentimentData, isLoading: sentimentLoading } = useQuery(
+    'market-sentiment-history',
+    () => getMarketSentimentHistory(30),
     { enabled: tabValue === 1 }
   )
 
-  const { data: growthData, isLoading: growthLoading } = useQuery(
-    'growth-metrics',
-    () => getGrowthMetrics({ limit: 20 }),
+  const { data: sectorData, isLoading: sectorLoading } = useQuery(
+    'market-sector-performance',
+    getMarketSectorPerformance,
     { enabled: tabValue === 2 }
   )
 
-  const { data: dividendData, isLoading: dividendLoading } = useQuery(
-    'dividend-metrics',
-    () => getDividendMetrics({ limit: 20 }),
+  const { data: breadthData, isLoading: breadthLoading } = useQuery(
+    'market-breadth',
+    getMarketBreadth,
     { enabled: tabValue === 3 }
   )
 
-  const { data: strengthData, isLoading: strengthLoading } = useQuery(
-    'strength-metrics',
-    () => getFinancialStrengthMetrics({ limit: 20 }),
+  const { data: economicData, isLoading: economicLoading } = useQuery(
+    'economic-indicators',
+    () => getEconomicIndicators(90),
     { enabled: tabValue === 4 }
   )
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue)
   }
-
   if (marketError) {
     return (
       <Box>
@@ -132,52 +130,32 @@ function MarketOverview() {
     )
   }
 
-  const overview = marketData?.data?.overview
-  const sectorPerformance = marketData?.data?.sector_performance || []
+  // Extract data from the new market API structure
+  const sentimentIndicators = marketData?.data?.sentiment_indicators || {}
+  const marketBreadth = marketData?.data?.market_breadth || {}
+  const marketCap = marketData?.data?.market_cap || {}
+  const economicIndicators = marketData?.data?.economic_indicators || []
+  
+  const sectors = sectorData?.data?.sectors || []
+  const breadthInfo = breadthData?.data || {}
+  const sentimentHistory = sentimentData?.data || {}
 
-  // Prepare chart data
-  const sectorChartData = sectorPerformance.slice(0, 8).map(sector => ({
+  // Prepare chart data for sectors
+  const sectorChartData = sectors.slice(0, 8).map(sector => ({
     name: sector.sector?.substring(0, 15) || 'Other',
-    performance: parseFloat(sector.avg_change) || 0,
+    performance: parseFloat(sector.avg_change_percent) || 0,
     marketCap: parseFloat(sector.sector_market_cap) || 0,
-    stocks: parseInt(sector.stock_count) || 0
+    stocks: parseInt(sector.stock_count) || 0,
+    advanceDeclineRatio: parseFloat(sector.advance_decline_ratio) || 0
   }))
 
-  const valuationColumns = [
-    { key: 'ticker', label: 'Ticker' },
-    { key: 'short_name', label: 'Company', render: (val) => val?.substring(0, 30) + (val?.length > 30 ? '...' : '') },
-    { key: 'sector', label: 'Sector', render: (val) => <Chip label={val || 'Other'} size="small" variant="outlined" /> },
-    { key: 'trailing_pe', label: 'P/E', render: (val) => formatNumber(val) },
-    { key: 'price_to_book', label: 'P/B', render: (val) => formatNumber(val) },
-    { key: 'market_cap', label: 'Market Cap', render: (val) => formatCurrency(val, 0) }
-  ]
-
-  const growthColumns = [
-    { key: 'ticker', label: 'Ticker' },
-    { key: 'short_name', label: 'Company', render: (val) => val?.substring(0, 30) + (val?.length > 30 ? '...' : '') },
-    { key: 'revenue_growth_pct', label: 'Revenue Growth', render: (val) => formatPercentage(val) },
-    { key: 'earnings_growth_pct', label: 'Earnings Growth', render: (val) => formatPercentage(val) },
-    { key: 'return_on_equity_pct', label: 'ROE', render: (val) => formatPercentage(val) },
-    { key: 'profit_margin_pct', label: 'Profit Margin', render: (val) => formatPercentage(val) }
-  ]
-
-  const dividendColumns = [
-    { key: 'ticker', label: 'Ticker' },
-    { key: 'short_name', label: 'Company', render: (val) => val?.substring(0, 30) + (val?.length > 30 ? '...' : '') },
-    { key: 'dividend_yield', label: 'Yield', render: (val) => formatPercentage(val) },
-    { key: 'dividend_rate', label: 'Rate', render: (val) => formatCurrency(val) },
-    { key: 'trailing_pe', label: 'P/E', render: (val) => formatNumber(val) },
-    { key: 'market_cap', label: 'Market Cap', render: (val) => formatCurrency(val, 0) }
-  ]
-
-  const strengthColumns = [
-    { key: 'ticker', label: 'Ticker' },
-    { key: 'short_name', label: 'Company', render: (val) => val?.substring(0, 30) + (val?.length > 30 ? '...' : '') },
-    { key: 'current_ratio', label: 'Current Ratio', render: (val) => formatNumber(val) },
-    { key: 'debt_to_equity', label: 'Debt/Equity', render: (val) => formatNumber(val) },
-    { key: 'return_on_equity_pct', label: 'ROE', render: (val) => formatPercentage(val) },
-    { key: 'free_cashflow', label: 'FCF', render: (val) => formatCurrency(val, 0) }
-  ]
+  // Prepare sentiment chart data
+  const fearGreedHistory = sentimentHistory.fear_greed_history || []
+  const sentimentChartData = fearGreedHistory.slice(0, 30).map(item => ({
+    date: new Date(item.timestamp).toLocaleDateString(),
+    value: item.value,
+    text: item.value_text
+  })).reverse()
 
   return (
     <Box>
@@ -187,133 +165,245 @@ function MarketOverview() {
 
       {marketLoading && <LinearProgress sx={{ mb: 2 }} />}
 
-      {/* Sector Performance Chart */}
+      {/* Market Sentiment Indicators */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} lg={8}>
-          <Card sx={{ height: 400 }}>
+        <Grid item xs={12} md={4}>
+          <Card>
             <CardContent>
               <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Sector Performance Today
+                Fear & Greed Index
               </Typography>
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={sectorChartData} margin={{ top: 5, right: 30, left: 20, bottom: 60 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="name" 
-                    tick={{ fontSize: 11 }}
-                    angle={-45}
-                    textAnchor="end"
-                    height={80}
+              {sentimentIndicators.fear_greed ? (
+                <Box>
+                  <Typography variant="h3" color="primary" sx={{ mb: 1 }}>
+                    {sentimentIndicators.fear_greed.value}
+                  </Typography>
+                  <Chip 
+                    label={sentimentIndicators.fear_greed.value_text} 
+                    color={
+                      sentimentIndicators.fear_greed.value > 75 ? 'error' :
+                      sentimentIndicators.fear_greed.value > 55 ? 'warning' :
+                      sentimentIndicators.fear_greed.value > 45 ? 'info' :
+                      sentimentIndicators.fear_greed.value > 25 ? 'warning' : 'error'
+                    }
+                    sx={{ mb: 1 }}
                   />
-                  <YAxis 
-                    tick={{ fontSize: 11 }}
-                    tickFormatter={(value) => `${value}%`}
-                  />
-                  <Tooltip 
-                    formatter={(value, name) => [
-                      `${value.toFixed(2)}%`, 
-                      'Avg Change'
-                    ]}
-                    labelFormatter={(label) => `Sector: ${label}`}
-                    contentStyle={{ 
-                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                      border: '1px solid #ccc',
-                      borderRadius: '8px'
-                    }}
-                  />
-                  <Bar 
-                    dataKey="performance" 
-                    fill={(entry) => entry > 0 ? '#2e7d32' : '#d32f2f'}
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+                  <Typography variant="body2" color="text.secondary">
+                    Last updated: {new Date(sentimentIndicators.fear_greed.timestamp).toLocaleDateString()}
+                  </Typography>
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary">No data available</Typography>
+              )}
             </CardContent>
           </Card>
         </Grid>
 
-        <Grid item xs={12} lg={4}>
-          <Card sx={{ height: 400 }}>
+        <Grid item xs={12} md={4}>
+          <Card>
             <CardContent>
               <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Market Cap Distribution
+                AAII Investor Sentiment
               </Typography>
-              <ResponsiveContainer width="100%" height={320}>
-                <PieChart>
-                  <Pie
-                    data={sectorChartData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={120}
-                    paddingAngle={5}
-                    dataKey="marketCap"
-                  >
-                    {sectorChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    formatter={(value) => [formatCurrency(value, 0), 'Market Cap']}
-                  />
-                  <Legend 
-                    wrapperStyle={{ fontSize: '12px' }}
-                    iconSize={8}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+              {sentimentIndicators.aaii ? (
+                <Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2">Bullish:</Typography>
+                    <Typography variant="body2" color="success.main">
+                      {(sentimentIndicators.aaii.bullish * 100).toFixed(1)}%
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2">Neutral:</Typography>
+                    <Typography variant="body2" color="info.main">
+                      {(sentimentIndicators.aaii.neutral * 100).toFixed(1)}%
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2">Bearish:</Typography>
+                    <Typography variant="body2" color="error.main">
+                      {(sentimentIndicators.aaii.bearish * 100).toFixed(1)}%
+                    </Typography>
+                  </Box>
+                  <Typography variant="body2" color="text.secondary">
+                    Week ending: {new Date(sentimentIndicators.aaii.date).toLocaleDateString()}
+                  </Typography>
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary">No data available</Typography>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={4}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                NAAIM Exposure Index
+              </Typography>
+              {sentimentIndicators.naaim ? (
+                <Box>
+                  <Typography variant="h3" color="primary" sx={{ mb: 1 }}>
+                    {sentimentIndicators.naaim.average?.toFixed(1)}%
+                  </Typography>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2">Bullish:</Typography>
+                    <Typography variant="body2" color="success.main">
+                      {sentimentIndicators.naaim.bullish_8100?.toFixed(1)}%
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2">Bearish:</Typography>
+                    <Typography variant="body2" color="error.main">
+                      {sentimentIndicators.naaim.bearish?.toFixed(1)}%
+                    </Typography>
+                  </Box>
+                  <Typography variant="body2" color="text.secondary">
+                    Week ending: {new Date(sentimentIndicators.naaim.week_ending).toLocaleDateString()}
+                  </Typography>
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary">No data available</Typography>
+              )}
             </CardContent>
           </Card>
         </Grid>
       </Grid>
 
-      {/* Tabs for different metrics */}
+      {/* Market Breadth */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                Market Breadth
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Box sx={{ textAlign: 'center', p: 2, backgroundColor: 'success.light', borderRadius: 1 }}>
+                    <Typography variant="h4" color="success.contrastText">
+                      {marketBreadth.advancing || 0}
+                    </Typography>
+                    <Typography variant="body2" color="success.contrastText">
+                      Advancing
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={6}>
+                  <Box sx={{ textAlign: 'center', p: 2, backgroundColor: 'error.light', borderRadius: 1 }}>
+                    <Typography variant="h4" color="error.contrastText">
+                      {marketBreadth.declining || 0}
+                    </Typography>
+                    <Typography variant="body2" color="error.contrastText">
+                      Declining
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12}>
+                  <Box sx={{ textAlign: 'center', mt: 2 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Advance/Decline Ratio: {marketBreadth.advance_decline_ratio || 'N/A'}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Average Change: {marketBreadth.average_change_percent || 'N/A'}%
+                    </Typography>
+                  </Box>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                Market Statistics
+              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                <Typography variant="body2">Total Stocks:</Typography>
+                <Typography variant="body2" fontWeight="600">
+                  {marketBreadth.total_stocks?.toLocaleString() || 'N/A'}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                <Typography variant="body2">Total Market Cap:</Typography>
+                <Typography variant="body2" fontWeight="600">
+                  {formatCurrency(marketCap.total)}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                <Typography variant="body2">Unchanged:</Typography>
+                <Typography variant="body2" fontWeight="600">
+                  {marketBreadth.unchanged || 0}
+                </Typography>
+              </Box>            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Tabs for different market data */}
       <Card>
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={tabValue} onChange={handleTabChange} aria-label="market metrics tabs">
-            <Tab label="Overview" />
-            <Tab label="Valuation" />
-            <Tab label="Growth" />
-            <Tab label="Dividends" />
-            <Tab label="Financial Strength" />
+          <Tabs value={tabValue} onChange={handleTabChange} aria-label="market data tabs">
+            <Tab label="Market Overview" />
+            <Tab label="Sentiment History" />
+            <Tab label="Sector Performance" />
+            <Tab label="Market Breadth" />
+            <Tab label="Economic Indicators" />
           </Tabs>
         </Box>
 
         <TabPanel value={tabValue} index={0}>
           <Grid container spacing={3}>
-            <Grid item xs={12} md={4}>
-              <Card variant="outlined">
-                <CardContent sx={{ textAlign: 'center' }}>
-                  <Typography variant="h4" color="primary" sx={{ fontWeight: 600 }}>
-                    {formatNumber(overview?.total_stocks || 0, 0)}
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                    Market Cap Distribution
                   </Typography>
-                  <Typography variant="subtitle1" color="text.secondary">
-                    Total Stocks
-                  </Typography>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2">Large Cap:</Typography>
+                    <Typography variant="body2" fontWeight="600">
+                      {formatCurrency(marketCap.large_cap)}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2">Mid Cap:</Typography>
+                    <Typography variant="body2" fontWeight="600">
+                      {formatCurrency(marketCap.mid_cap)}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2">Small Cap:</Typography>
+                    <Typography variant="body2" fontWeight="600">
+                      {formatCurrency(marketCap.small_cap)}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2">Total:</Typography>
+                    <Typography variant="body2" fontWeight="600">
+                      {formatCurrency(marketCap.total)}
+                    </Typography>
+                  </Box>
                 </CardContent>
               </Card>
             </Grid>
-            <Grid item xs={12} md={4}>
-              <Card variant="outlined">
-                <CardContent sx={{ textAlign: 'center' }}>
-                  <Typography variant="h4" color="success.main" sx={{ fontWeight: 600 }}>
-                    {formatNumber(overview?.gainers || 0, 0)}
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                    Latest Economic Indicators
                   </Typography>
-                  <Typography variant="subtitle1" color="text.secondary">
-                    Gainers Today
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <Card variant="outlined">
-                <CardContent sx={{ textAlign: 'center' }}>
-                  <Typography variant="h4" color="error.main" sx={{ fontWeight: 600 }}>
-                    {formatNumber(overview?.losers || 0, 0)}
-                  </Typography>
-                  <Typography variant="subtitle1" color="text.secondary">
-                    Losers Today
-                  </Typography>
+                  {economicIndicators.slice(0, 5).map((indicator, index) => (
+                    <Box key={index} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="body2">{indicator.name}:</Typography>
+                      <Typography variant="body2" fontWeight="600">
+                        {indicator.value} {indicator.unit}
+                      </Typography>
+                    </Box>
+                  ))}
                 </CardContent>
               </Card>
             </Grid>
@@ -321,50 +411,250 @@ function MarketOverview() {
         </TabPanel>
 
         <TabPanel value={tabValue} index={1}>
-          {valuationLoading ? (
+          {sentimentLoading ? (
             <LinearProgress />
           ) : (
-            <MetricTable 
-              data={valuationData?.data?.data}
-              columns={valuationColumns}
-              title="Best Value Stocks (Low P/E Ratio)"
-            />
+            <Card>
+              <CardContent>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  Fear & Greed Index History (30 Days)
+                </Typography>
+                <ResponsiveContainer width="100%" height={400}>
+                  <LineChart data={sentimentChartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis domain={[0, 100]} />
+                    <Tooltip 
+                      formatter={(value, name, props) => [
+                        `${value} (${props.payload.text})`,
+                        'Fear & Greed Index'
+                      ]}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="value" 
+                      stroke="#8884d8" 
+                      strokeWidth={2}
+                      dot={{ r: 4 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
           )}
         </TabPanel>
 
         <TabPanel value={tabValue} index={2}>
-          {growthLoading ? (
+          {sectorLoading ? (
             <LinearProgress />
           ) : (
-            <MetricTable 
-              data={growthData?.data?.data}
-              columns={growthColumns}
-              title="High Growth Stocks"
-            />
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={8}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                      Sector Performance
+                    </Typography>
+                    <ResponsiveContainer width="100%" height={400}>
+                      <BarChart data={sectorChartData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis 
+                          dataKey="name" 
+                          angle={-45}
+                          textAnchor="end"
+                          height={80}
+                        />
+                        <YAxis />
+                        <Tooltip 
+                          formatter={(value, name) => [
+                            `${value.toFixed(2)}%`,
+                            'Performance'
+                          ]}
+                        />
+                        <Bar dataKey="performance" fill="#8884d8" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                      Sector Details
+                    </Typography>
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Sector</TableCell>
+                            <TableCell align="right">Change %</TableCell>
+                            <TableCell align="right">Stocks</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {sectors.slice(0, 8).map((sector, index) => (
+                            <TableRow key={index}>
+                              <TableCell>{sector.sector?.substring(0, 12) || 'N/A'}</TableCell>
+                              <TableCell 
+                                align="right"
+                                sx={{ 
+                                  color: getChangeColor(parseFloat(sector.avg_change_percent) || 0),
+                                  fontWeight: 600
+                                }}
+                              >
+                                {formatPercentage(parseFloat(sector.avg_change_percent) || 0)}
+                              </TableCell>
+                              <TableCell align="right">
+                                {sector.stock_count || 0}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
           )}
         </TabPanel>
 
         <TabPanel value={tabValue} index={3}>
-          {dividendLoading ? (
+          {breadthLoading ? (
             <LinearProgress />
           ) : (
-            <MetricTable 
-              data={dividendData?.data?.data}
-              columns={dividendColumns}
-              title="High Dividend Yield Stocks"
-            />
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                      Market Breadth Details
+                    </Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                      <Typography variant="body2">Advancing Stocks:</Typography>
+                      <Typography variant="body2" color="success.main" fontWeight="600">
+                        {breadthInfo.advancing || 0}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                      <Typography variant="body2">Declining Stocks:</Typography>
+                      <Typography variant="body2" color="error.main" fontWeight="600">
+                        {breadthInfo.declining || 0}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                      <Typography variant="body2">Unchanged:</Typography>
+                      <Typography variant="body2" fontWeight="600">
+                        {breadthInfo.unchanged || 0}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                      <Typography variant="body2">A/D Ratio:</Typography>
+                      <Typography variant="body2" fontWeight="600">
+                        {breadthInfo.advance_decline_ratio || 'N/A'}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                      <Typography variant="body2">Average Change:</Typography>
+                      <Typography 
+                        variant="body2" 
+                        fontWeight="600"
+                        sx={{ color: getChangeColor(parseFloat(breadthInfo.average_change_percent) || 0) }}
+                      >
+                        {formatPercentage(parseFloat(breadthInfo.average_change_percent) || 0)}
+                      </Typography>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                      Breadth Visualization
+                    </Typography>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: 'Advancing', value: breadthInfo.advancing || 0, color: '#4CAF50' },
+                            { name: 'Declining', value: breadthInfo.declining || 0, color: '#F44336' },
+                            { name: 'Unchanged', value: breadthInfo.unchanged || 0, color: '#9E9E9E' }
+                          ]}
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={80}
+                          dataKey="value"
+                          label={({ name, value }) => `${name}: ${value}`}
+                        >
+                          <Cell fill="#4CAF50" />
+                          <Cell fill="#F44336" />
+                          <Cell fill="#9E9E9E" />
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
           )}
         </TabPanel>
 
         <TabPanel value={tabValue} index={4}>
-          {strengthLoading ? (
+          {economicLoading ? (
             <LinearProgress />
           ) : (
-            <MetricTable 
-              data={strengthData?.data?.data}
-              columns={strengthColumns}
-              title="Financially Strong Stocks"
-            />
+            <Grid container spacing={3}>
+              <Grid item xs={12}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                      Economic Indicators (Last 90 Days)
+                    </Typography>
+                    <TableContainer>
+                      <Table>
+                        <TableHead>
+                          <TableRow sx={{ backgroundColor: 'grey.50' }}>
+                            <TableCell sx={{ fontWeight: 600 }}>Indicator</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 600 }}>Current Value</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 600 }}>Previous Value</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 600 }}>Change</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 600 }}>Date</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {economicData?.data?.slice(0, 10).map((indicator, index) => (
+                            <TableRow key={index} hover>
+                              <TableCell>{indicator.name || 'N/A'}</TableCell>
+                              <TableCell align="right">
+                                {indicator.value} {indicator.unit}
+                              </TableCell>
+                              <TableCell align="right">
+                                {indicator.previous_value || 'N/A'} {indicator.unit}
+                              </TableCell>
+                              <TableCell 
+                                align="right"
+                                sx={{ 
+                                  color: getChangeColor(parseFloat(indicator.change_percent) || 0),
+                                  fontWeight: 600
+                                }}
+                              >
+                                {indicator.change_percent ? formatPercentage(parseFloat(indicator.change_percent)) : 'N/A'}
+                              </TableCell>
+                              <TableCell align="right">
+                                {indicator.timestamp ? new Date(indicator.timestamp).toLocaleDateString() : 'N/A'}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
           )}
         </TabPanel>
       </Card>

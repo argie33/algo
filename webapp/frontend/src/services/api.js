@@ -95,7 +95,12 @@ api.interceptors.response.use(
 export const healthCheck = () => api.get('/health')
 
 // Market overview
-export const getMarketOverview = () => api.get('/metrics/overview')
+// Market data - Updated to use proper market endpoints
+export const getMarketOverview = () => api.get('/market/overview')
+export const getMarketSentimentHistory = (days = 30) => api.get(`/market/sentiment/history?days=${days}`)
+export const getMarketSectorPerformance = () => api.get('/market/sectors/performance')
+export const getMarketBreadth = () => api.get('/market/breadth')
+export const getEconomicIndicators = (days = 90) => api.get(`/market/economic?days=${days}`)
 
 // Stocks - Updated to use optimized endpoints
 export const getStocks = (params = {}) => {
@@ -218,20 +223,7 @@ export const getFinancialStrengthMetrics = (params = {}) => {
       queryParams.append(key, value)
     }
   })
-  
-  return api.get(`/metrics/financial-strength?${queryParams.toString()}`)
-}
-
-export const runStockScreener = (params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-  
-  return api.get(`/metrics/screener?${queryParams.toString()}`)
+    return api.get(`/metrics/financial-strength?${queryParams.toString()}`)
 }
 
 // New method for stock screening with proper parameter handling
@@ -432,6 +424,10 @@ export const getDataValidationSummary = () => api.get('/data/validation/summary'
 export default {
   healthCheck,
   getMarketOverview,
+  getMarketSentimentHistory,
+  getMarketSectorPerformance,
+  getMarketBreadth,
+  getEconomicIndicators,
   getStocks,
   getStocksQuick,
   getStocksChunk,
@@ -448,7 +444,6 @@ export default {
   getGrowthMetrics,
   getDividendMetrics,
   getFinancialStrengthMetrics,
-  runStockScreener,
   screenStocks,
   getBuySignals,
   getSellSignals,
@@ -465,7 +460,8 @@ export default {
   getFearGreedData,
   getTechnicalData,
   getTechnicalSummary,
-  getTechnicalChunk,  getTechnicalFull,
+  getTechnicalChunk,
+  getTechnicalFull,
   getAllFinancialData,
   getFinancialMetrics,
   getDataValidationSummary
