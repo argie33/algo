@@ -48,9 +48,11 @@ router.get('/upgrades', async (req, res) => {
       }
     });
 
-  } catch (error) {
-    console.error('Error fetching analyst upgrades:', error);
-    res.status(500).json({ error: 'Failed to fetch analyst upgrades' });
+  } catch (error) {    console.error('Error fetching analyst upgrades:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch analyst upgrades',
+      message: error.message 
+    });
   }
 });
 
