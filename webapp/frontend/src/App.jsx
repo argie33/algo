@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { 
   AppBar, 
@@ -15,7 +15,11 @@ import {
   IconButton,
   useTheme,
   useMediaQuery,
-  Alert
+  Alert,
+  Paper,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails
 } from '@mui/material'
 import {
   Menu as MenuIcon,
@@ -28,9 +32,81 @@ import {
   Person as PersonIcon,
   Event as EventIcon,
   Storage as StorageIcon,
-  AccountBalance as AccountBalanceIcon
+  AccountBalance as AccountBalanceIcon,
+  ExpandMore as ExpandMoreIcon,
+  BugReport as BugReportIcon
 } from '@mui/icons-material'
 import { useNavigate, useLocation } from 'react-router-dom'
+
+// Debug Component
+const DebugInfo = () => {
+  const [apiTest, setApiTest] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const testApi = async () => {
+      try {
+        // Test with hardcoded API URL first
+        const hardcodedUrl = 'https://zytedqhltg.execute-api.us-east-1.amazonaws.com/prod'
+        console.log('Testing hardcoded API URL:', hardcodedUrl)
+        
+        const response = await fetch(`${hardcodedUrl}/health`)
+        const data = await response.json()
+        
+        setApiTest({
+          success: true,
+          hardcodedUrl,
+          status: response.status,
+          data: data
+        })
+      } catch (error) {
+        console.error('API Test Failed:', error)
+        setApiTest({
+          success: false,
+          error: error.message,
+          hardcodedUrl: 'https://zytedqhltg.execute-api.us-east-1.amazonaws.com/prod'
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    testApi()
+  }, [])
+
+  const envInfo = {
+    VITE_API_URL: import.meta.env.VITE_API_URL,
+    MODE: import.meta.env.MODE,
+    DEV: import.meta.env.DEV,
+    PROD: import.meta.env.PROD,
+    BASE_URL: import.meta.env.BASE_URL,
+    location: window.location.href
+  }
+
+  return (
+    <Box sx={{ position: 'fixed', top: 0, right: 0, zIndex: 9999, width: 400, m: 1 }}>
+      <Accordion>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <BugReportIcon sx={{ mr: 1 }} />
+          <Typography variant="body2">
+            Debug Info {apiTest?.success ? '✅' : apiTest?.success === false ? '❌' : '⏳'}
+          </Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          <Paper sx={{ p: 2, fontSize: '12px', fontFamily: 'monospace' }}>
+            <Typography variant="subtitle2" gutterBottom>Environment:</Typography>
+            <pre>{JSON.stringify(envInfo, null, 2)}</pre>
+            
+            <Typography variant="subtitle2" gutterBottom sx={{ mt: 2 }}>API Test:</Typography>
+            <pre>
+              {loading ? 'Testing API...' : JSON.stringify(apiTest, null, 2)}
+            </pre>
+          </Paper>
+        </AccordionDetails>
+      </Accordion>
+    </Box>
+  )
+}
 
 // Pages
 import Dashboard from './pages/Dashboard'
@@ -150,9 +226,9 @@ function App() {
       </List>
     </div>
   )
-
   return (
     <ErrorBoundary>
+      <DebugInfo />
       <Box sx={{ display: 'flex' }}>
         <AppBar
           position="fixed"

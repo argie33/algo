@@ -1168,10 +1168,10 @@ def validate_prerequisites(cur):
         if not price_table_exists:
             logging.error("❌ price_daily table does not exist. Technical data requires price data.")
             return False
-        
-        # Check if we have price data for symbols
+          # Check if we have price data for symbols
         cur.execute("SELECT COUNT(DISTINCT symbol) FROM price_daily")
-        price_symbol_count = cur.fetchone()[0]
+        result = cur.fetchone()
+        price_symbol_count = result[0] if result else 0
         
         if price_symbol_count == 0:
             logging.error("❌ No symbols found in price_daily table")
@@ -1181,7 +1181,7 @@ def validate_prerequisites(cur):
         return True
         
     except Exception as e:
-        logging.error(f"❌ Error validating prerequisites: {e}")
+        logging.error(f"❌ Error validating prerequisites: {str(e)}")
         return False
 
 # -------------------------------
