@@ -23,24 +23,35 @@ router.get('/debug', async (req, res) => {
         
         const tableExists = await query(tableExistsQuery);
         console.log(`Table ${table} exists:`, tableExists.rows[0]);
-        
-        if (tableExists.rows[0].exists) {
+          if (tableExists.rows[0].exists) {
           // Count total records
           const countQuery = `SELECT COUNT(*) as total FROM ${table}`;
           const countResult = await query(countQuery);
           
-          // Get sample records
+          // Get all column names for this table
+          const columnsQuery = `
+            SELECT column_name, data_type 
+            FROM information_schema.columns 
+            WHERE table_schema = 'public' 
+            AND table_name = '${table}'
+            ORDER BY ordinal_position
+          `;
+          const columnsResult = await query(columnsQuery);
+          
+          // Get sample records with ALL technical indicators
           const sampleQuery = `
-            SELECT symbol, date, rsi, macd, sma_20
+            SELECT *
             FROM ${table} 
+            WHERE symbol IS NOT NULL
             ORDER BY date DESC 
-            LIMIT 3
+            LIMIT 2
           `;
           const sampleResult = await query(sampleQuery);
           
           results[table] = {
             exists: true,
             totalRecords: parseInt(countResult.rows[0].total),
+            columns: columnsResult.rows,
             sampleRecords: sampleResult.rows
           };
         } else {
@@ -73,29 +84,36 @@ router.get('/debug', async (req, res) => {
   }
 });
 
-// Simple test endpoint that returns raw data
+// Extended test endpoint that returns all available technical indicators
 router.get('/test', async (req, res) => {
   try {
     console.log('Technical test endpoint called');
     
     const testQuery = `
-      SELECT 
-        symbol,
-        date,
-        rsi,
-        macd,
-        sma_20
+      SELECT *
       FROM technical_data_daily
+      WHERE symbol IS NOT NULL
       ORDER BY date DESC
-      LIMIT 5
+      LIMIT 3
     `;
     
     const result = await query(testQuery);
     
+    // Also get the column information
+    const columnsQuery = `
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_schema = 'public' 
+      AND table_name = 'technical_data_daily'
+      ORDER BY ordinal_position
+    `;
+    const columnsResult = await query(columnsQuery);
+    
     res.json({
       success: true,
       count: result.rows.length,
-      data: result.rows,
+      availableIndicators: columnsResult.rows,
+      sampleData: result.rows,
       timestamp: new Date().toISOString()
     });
     
@@ -224,6 +242,98 @@ router.get('/:timeframe/:symbol', async (req, res) => {
       message: error.message 
     });
   }
+});
+
+// Get all available technical indicators with sample data
+router.get('/indicators/all', async (req, res) => {
+  try {
+    console.log('All technical indicators endpoint called');
+    
+    const timeframe = req.query.timeframe || 'daily';
+    const validTimeframes = ['daily', 'weekly', 'monthly'];
+    
+    if (!validTimeframes.includes(timeframe)) {
+      return res.status(400).json({ error: 'Invalid timeframe. Must be daily, weekly, or monthly' });
+    }
+
+    const tableName = `technical_data_${timeframe}`;
+    
+    // Get all columns
+    const columnsQuery = `
+      SELECT column_name, data_type, is_nullable
+      FROM information_schema.columns 
+      WHERE table_schema = 'public' 
+      AND table_name = '${tableName}'
+      ORDER BY ordinal_position
+    `;
+    const columnsResult = await query(columnsQuery);
+    
+    // Get one complete record with all indicators
+    const sampleQuery = `
+      SELECT *
+      FROM ${tableName}
+      WHERE symbol IS NOT NULL
+      ORDER BY date DESC
+      LIMIT 1
+    `;
+    const sampleResult = await query(sampleQuery);
+    
+    // Categorize indicators
+    const indicators = {
+      basic: ['symbol', 'date', 'fetched_at'],
+      momentum: [],
+      trend: [],
+      volatility: [],
+      volume: [],
+      patterns: [],
+      other: []
+    };
+    
+    columnsResult.rows.forEach(col => {
+      const name = col.column_name.toLowerCase();
+      if (indicators.basic.includes(name)) return;
+      
+      if (name.includes('rsi') || name.includes('mom') || name.includes('roc') || name.includes('macd')) {
+        indicators.momentum.push(col);
+      } else if (name.includes('sma') || name.includes('ema') || name.includes('adx') || name.includes('trend')) {
+        indicators.trend.push(col);
+      } else if (name.includes('atr') || name.includes('bbands') || name.includes('volatility')) {
+        indicators.volatility.push(col);
+      } else if (name.includes('ad') || name.includes('cmf') || name.includes('mfi') || name.includes('volume')) {
+        indicators.volume.push(col);
+      } else if (name.includes('pivot') || name.includes('td_') || name.includes('pattern')) {
+        indicators.patterns.push(col);
+      } else {
+        indicators.other.push(col);
+      }
+    });
+    
+    res.json({
+      success: true,
+      timeframe,
+      totalIndicators: columnsResult.rows.length,
+      indicatorCategories: indicators,
+      sampleRecord: sampleResult.rows[0] || null,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error fetching all indicators:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch all indicators',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Basic connectivity test - no database
+router.get('/ping', async (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    service: 'technical', 
+    timestamp: new Date().toISOString() 
+  });
 });
 
 module.exports = router;
