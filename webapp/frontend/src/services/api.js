@@ -425,6 +425,9 @@ export const getAllFinancialData = (symbol, params = {}) => {
 
 export const getFinancialMetrics = () => api.get('/data/financial-metrics')
 
+// Data validation endpoints
+export const getDataValidationSummary = () => api.get('/data/validation/summary')
+
 // Export all methods as a default object for easier importing
 export default {
   healthCheck,
@@ -462,8 +465,8 @@ export default {
   getFearGreedData,
   getTechnicalData,
   getTechnicalSummary,
-  getTechnicalChunk,
-  getTechnicalFull,
+  getTechnicalChunk,  getTechnicalFull,
   getAllFinancialData,
-  getFinancialMetrics
+  getFinancialMetrics,
+  getDataValidationSummary
 }
