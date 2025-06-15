@@ -305,9 +305,8 @@ def calculate_technicals_parallel(df):
         
         # ADX (computationally expensive)
         results['adx'] = adx_fast(df['high'], df['low'], df['close'], period=14)
-        
-        # Bollinger Bands
-        bb_lower, bb_middle, bb_upper = bollinger_bands_fast(df['close'], period=20, std_dev=2)
+          # Bollinger Bands
+        bb_lower, bb_middle, bb_upper = bollinger_bands_fast(df['close'], period=20, std_multiplier=2)
         results['bbands_lower'] = bb_lower
         results['bbands_middle'] = bb_middle
         results['bbands_upper'] = bb_upper
