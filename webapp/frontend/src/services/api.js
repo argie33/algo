@@ -280,6 +280,12 @@ export const getTickerGrowthEstimates = (ticker) => api.get(`/analysts/${ticker}
 export const getTickerAnalystRecommendations = (ticker) => api.get(`/analysts/${ticker}/recommendations`)
 export const getAnalystOverview = (ticker) => api.get(`/analysts/${ticker}/overview`)
 
+// Financial statements endpoints
+export const getBalanceSheet = (ticker, period = 'annual') => api.get(`/financials/${ticker}/balance-sheet?period=${period}`)
+export const getIncomeStatement = (ticker, period = 'annual') => api.get(`/financials/${ticker}/income-statement?period=${period}`)
+export const getCashFlowStatement = (ticker, period = 'annual') => api.get(`/financials/${ticker}/cash-flow?period=${period}`)
+export const getFinancialStatements = (ticker, period = 'annual') => api.get(`/financials/${ticker}/financials?period=${period}`)
+
 // General analyst data endpoints (for market-wide analysis)
 export const getEpsRevisions = (params = {}) => {
   const queryParams = new URLSearchParams()
