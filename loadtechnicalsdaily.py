@@ -1077,16 +1077,18 @@ def verify_table_deletion(cur, table_name='technical_data_daily'):
                 SELECT FROM information_schema.tables 
                 WHERE table_schema = 'public' 
                 AND table_name = %s
-            );
+            ) as table_exists;
         """, (table_name,))
-        table_exists = cur.fetchone()[0]
+        result = cur.fetchone()
+        table_exists = result['table_exists']
         
         # Check if indexes still exist
         cur.execute("""
-            SELECT COUNT(*) FROM pg_indexes 
+            SELECT COUNT(*) as index_count FROM pg_indexes 
             WHERE tablename = %s AND schemaname = 'public'
         """, (table_name,))
-        index_count = cur.fetchone()[0]
+        result = cur.fetchone()
+        index_count = result['index_count']
         
         if table_exists:
             logging.error(f"❌ Table {table_name} still exists after deletion attempt")
@@ -1109,15 +1111,15 @@ def verify_table_deletion(cur, table_name='technical_data_daily'):
 def verify_table_creation(cur, table_name='technical_data_daily'):
     """Verify that table and indexes were successfully created"""
     try:
-        # Check if table exists
-        cur.execute("""
+        # Check if table exists        cur.execute("""
             SELECT EXISTS (
                 SELECT FROM information_schema.tables 
                 WHERE table_schema = 'public' 
                 AND table_name = %s
-            );
+            ) as table_exists;
         """, (table_name,))
-        table_exists = cur.fetchone()[0]
+        result = cur.fetchone()
+        table_exists = result['table_exists']
         
         if not table_exists:
             logging.error(f"❌ Table {table_name} was not created successfully")
@@ -1156,16 +1158,16 @@ def validate_prerequisites(cur):
     """Validate that prerequisites for loading technical data are met"""
     try:
         logging.info("🔍 Step 1: Checking if price_daily table exists...")
-        
-        # Check if price_daily table exists and has data
+          # Check if price_daily table exists and has data
         cur.execute("""
             SELECT EXISTS (
                 SELECT FROM information_schema.tables 
                 WHERE table_schema = 'public' 
                 AND table_name = 'price_daily'
-            );
+            ) as table_exists;
         """)
-        price_table_exists = cur.fetchone()[0]
+        result = cur.fetchone()
+        price_table_exists = result['table_exists']
         logging.info(f"📊 price_daily table exists: {price_table_exists}")
         
         if not price_table_exists:
@@ -1174,22 +1176,21 @@ def validate_prerequisites(cur):
             return False
         
         logging.info("🔍 Step 2: Checking if price_daily table has data...")
-        
-        # Check total number of rows first
-        cur.execute("SELECT COUNT(*) FROM price_daily")
-        total_rows = cur.fetchone()[0]
+          # Check total number of rows first
+        cur.execute("SELECT COUNT(*) as total_rows FROM price_daily")
+        result = cur.fetchone()
+        total_rows = result['total_rows']
         logging.info(f"📊 Total rows in price_daily: {total_rows}")
         
         if total_rows == 0:
             logging.error("❌ price_daily table exists but is empty (0 rows)")
             logging.error("💡 Hint: Run the price data loader first (pricedaily-loader) to populate price_daily table")
             return False
-        
-        # Check if we have price data for symbols
+          # Check if we have price data for symbols
         logging.info("🔍 Step 3: Counting distinct symbols in price_daily...")
-        cur.execute("SELECT COUNT(DISTINCT symbol) FROM price_daily")
+        cur.execute("SELECT COUNT(DISTINCT symbol) as symbol_count FROM price_daily")
         result = cur.fetchone()
-        price_symbol_count = result[0] if result else 0
+        price_symbol_count = result['symbol_count'] if result else 0
         logging.info(f"📊 Distinct symbols in price_daily: {price_symbol_count}")
         
         if price_symbol_count == 0:

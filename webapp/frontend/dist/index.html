@@ -9,12 +9,37 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <script type="module" crossorigin src="/assets/index-DSflLpxy.js"></script>
+    <script type="module" crossorigin src="/assets/index-2ZpcdtyN.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/vendor-Cr2nE3UY.js">
-    <link rel="modulepreload" crossorigin href="/assets/mui-UCEombtn.js">
-    <link rel="modulepreload" crossorigin href="/assets/charts-DB9tZLd1.js">
-  </head>
-  <body>
-    <div id="root"></div>
+    <link rel="modulepreload" crossorigin href="/assets/mui-BtFFH2F_.js">
+    <link rel="modulepreload" crossorigin href="/assets/charts-ClgUpL6e.js">
+  </head>  <body>
+    <div id="root">
+      <div style="padding: 20px; font-family: Arial, sans-serif;">
+        <h1>Loading Financial Dashboard...</h1>
+        <p>If you see this message, the HTML is loading but React is not starting.</p>
+        <p id="debug-info">Checking JavaScript...</p>
+      </div>
+    </div>
+    <script>
+      console.log('🚀 HTML loaded successfully');
+      document.getElementById('debug-info').textContent = 'HTML loaded, waiting for React...';
+      
+      // Log any errors
+      window.addEventListener('error', function(e) {
+        console.error('🚨 JavaScript Error:', e.error);
+        document.getElementById('debug-info').innerHTML = 
+          '<strong style="color: red;">JavaScript Error: ' + e.error.message + '</strong>';
+      });
+      
+      // Check if root element exists
+      setTimeout(() => {
+        const root = document.getElementById('root');
+        if (root && root.innerHTML.includes('Loading Financial Dashboard')) {
+          document.getElementById('debug-info').innerHTML = 
+            '<strong style="color: orange;">React failed to mount after 3 seconds</strong>';
+        }
+      }, 3000);
+    </script>
   </body>
 </html>

@@ -293,6 +293,32 @@ export const getIncomeStatement = (ticker, period = 'annual') => api.get(`/finan
 export const getCashFlowStatement = (ticker, period = 'annual') => api.get(`/financials/${ticker}/cash-flow?period=${period}`)
 export const getFinancialStatements = (ticker, period = 'annual') => api.get(`/financials/${ticker}/financials?period=${period}`)
 
+// Comprehensive financial data endpoint
+export const getAllFinancialData = (params = {}) => {
+  const queryParams = new URLSearchParams()
+  
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      queryParams.append(key, value)
+    }
+  })
+  
+  return api.get(`/financials/all?${queryParams.toString()}`)
+}
+
+// Financial metrics aggregation
+export const getFinancialMetrics = (params = {}) => {
+  const queryParams = new URLSearchParams()
+  
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      queryParams.append(key, value)
+    }
+  })
+  
+  return api.get(`/financials/metrics?${queryParams.toString()}`)
+}
+
 // General analyst data endpoints (for market-wide analysis)
 export const getEpsRevisions = (params = {}) => {
   const queryParams = new URLSearchParams()
@@ -460,6 +486,8 @@ export default {
   getIncomeStatement,
   getCashFlowStatement,
   getFinancialStatements,
+  getAllFinancialData,
+  getFinancialMetrics,
   getEpsRevisions,
   getEpsTrend,
   getGrowthEstimates,
@@ -470,8 +498,6 @@ export default {
   getTechnicalSummary,
   getTechnicalChunk,
   getTechnicalFull,
-  getAllFinancialData,
-  getFinancialMetrics,
   getDataValidationSummary
 }
 
