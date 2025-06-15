@@ -36,6 +36,63 @@ router.get('/health', async (req, res) => {
   }
 });
 
+// Lightweight endpoint for initial page load - returns only essential data
+router.get('/:timeframe/summary', async (req, res) => {
+  try {
+    const { timeframe } = req.params;
+    const { limit = 50, page = 1 } = req.query; // Allow more items since less data per item
+    
+    const validTimeframes = ['daily', 'weekly', 'monthly'];
+    if (!validTimeframes.includes(timeframe)) {
+      return res.status(400).json({ error: 'Invalid timeframe. Must be daily, weekly, or monthly' });
+    }
+
+    const tableName = `technical_data_${timeframe}`;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    
+    // Set aggressive caching for summary data
+    res.set({
+      'Cache-Control': 'public, max-age=300', // 5 minutes cache
+    });
+
+    // Only return essential indicators for quick overview
+    const sqlQuery = `
+    SELECT DISTINCT ON (symbol)
+        symbol,
+        date,
+        rsi,
+        macd,
+        macd_signal,
+        adx,
+        marketwatch
+    FROM ${tableName}
+    ORDER BY symbol ASC, date DESC
+    LIMIT $1 OFFSET $2
+    `;
+    
+    const result = await query(sqlQuery, [parseInt(limit), offset]);
+
+    res.json({
+      success: true,
+      data: result.rows,
+      timeframe,
+      count: result.rows.length,
+      metadata: {
+        limit: parseInt(limit),
+        page: parseInt(page),
+        isSummary: true
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching technical summary:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch technical summary',
+      message: error.message 
+    });
+  }
+});
+
 // Get technical data by timeframe
 router.get('/:timeframe', async (req, res) => {  try {
     const { timeframe } = req.params;
@@ -259,77 +316,6 @@ router.get('/:timeframe/:symbol', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to fetch technical data for symbol',
       message: error.message 
-    });
-  }
-});
-
-// Lightweight endpoint for initial page load - returns only essential data
-router.get('/:timeframe/summary', async (req, res) => {
-  try {
-    const { timeframe } = req.params;
-    const { limit = 50, page = 1 } = req.query; // Allow more items since less data per item
-    
-    const validTimeframes = ['daily', 'weekly', 'monthly'];
-    if (!validTimeframes.includes(timeframe)) {
-      return res.status(400).json({ error: 'Invalid timeframe. Must be daily, weekly, or monthly' });
-    }
-
-    const tableName = `technical_data_${timeframe}`;
-    const offset = (parseInt(page) - 1) * parseInt(limit);
-    
-    // Set aggressive caching for summary data
-    res.set({
-      'Cache-Control': 'public, max-age=300', // 5 minutes cache
-    });
-
-    // Only return essential indicators for quick overview
-    const sqlQuery = `
-    SELECT DISTINCT ON (symbol)
-        symbol,
-        date,
-        rsi,
-        macd,
-        adx,
-        sma_20,
-        sma_50,
-        marketwatch
-      FROM ${tableName}
-      ORDER BY symbol ASC, date DESC
-      LIMIT $1 OFFSET $2
-    `;
-    
-    const result = await query(sqlQuery, [parseInt(limit), offset]);
-    
-    // Minimal response for fast loading
-    const summaryData = result.rows.map(row => ({
-      symbol: row.symbol,
-      date: row.date,
-      rsi: row.rsi ? Math.round(row.rsi * 100) / 100 : null,
-      macd: row.macd ? Math.round(row.macd * 10000) / 10000 : null,
-      adx: row.adx ? Math.round(row.adx * 100) / 100 : null,
-      sma20: row.sma_20 ? Math.round(row.sma_20 * 100) / 100 : null,
-      sma50: row.sma_50 ? Math.round(row.sma_50 * 100) / 100 : null,
-      signal: row.marketwatch || 'NEUTRAL'
-    }));
-
-    res.json({
-      success: true,
-      data: summaryData,
-      timeframe,
-      count: summaryData.length,
-      metadata: {
-        limit: parseInt(limit),
-        page: parseInt(page),
-        type: 'summary',
-        dataSize: JSON.stringify(summaryData).length
-      }
-    });
-
-  } catch (error) {
-    console.error('Error fetching technical summary:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch technical summary',
-      message: error.message
     });
   }
 });

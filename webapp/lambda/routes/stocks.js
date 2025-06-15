@@ -4,739 +4,14 @@ const { query } = require('../utils/database');
 const router = express.Router();
 
 // Get all stocks with basic info and pagination
-router.get('/', async (req, res) => {  try {
+router.get('/', async (req, res) => {
+  try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10; // Reduced from 50 to 10
     const offset = (page - 1) * limit;
     const search = req.query.search || '';
     const sector = req.query.sector || '';
     
-    let whereClause = 'WHERE 1=1';
-    const params = [];
-    let paramCount = 0;
-
-    if (search) {
-      paramCount++;
-      whereClause += ` AND (cp.ticker ILIKE $${paramCount} OR cp.short_name ILIKE $${paramCount} OR cp.long_name ILIKE $${paramCount})`;
-      params.push(`%${search}%`);
-    }
-
-    if (sector) {
-      paramCount++;
-      whereClause += ` AND cp.sector = $${paramCount}`;
-      params.push(sector);
-    }    const stocksQuery = `
-      SELECT        cp.ticker,
-        cp.short_name,
-        cp.long_name,
-        cp.sector,
-        cp.industry,
-        md.market_cap,
-        cp.currency,
-        cp.exchange,
-        md.regular_market_price,
-        (md.regular_market_price - md.regular_market_previous_close) as regular_market_change,
-        ((md.regular_market_price - md.regular_market_previous_close) / md.regular_market_previous_close * 100) as regular_market_change_percent,
-        md.fifty_two_week_high,
-        md.fifty_two_week_low,
-        km.trailing_pe,
-        km.forward_pe,
-        km.price_to_book,
-        km.dividend_yield
-      FROM company_profile cp
-      LEFT JOIN market_data md ON cp.ticker = md.ticker
-      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
-      ${whereClause}
-      ORDER BY cp.ticker ASC
-      LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
-    `;
-
-    params.push(limit, offset);
-
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM company_profile cp
-      ${whereClause}
-    `;
-
-    const [stocksResult, countResult] = await Promise.all([
-      query(stocksQuery, params),
-      query(countQuery, params.slice(0, -2)) // Remove limit and offset for count
-    ]);
-
-    const total = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(total / limit);
-
-    res.json({
-      data: stocksResult.rows,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching stocks:', error);
-    res.status(500).json({ error: 'Failed to fetch stocks data' });
-  }
-});
-
-// Stock screening endpoint - MUST be before /:ticker route
-router.get('/screen', async (req, res) => {  try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = Math.min(parseInt(req.query.limit) || 10, 100); // Reduced from 25 to 10, cap at 100
-    const offset = (page - 1) * limit;const sortBy = req.query.sortBy || 'symbol'; // Default to alphabetical
-    const sortOrder = req.query.sortOrder || 'asc'; // Default to ascending
-
-    // Build WHERE clause based on filters
-    let whereClause = 'WHERE 1=1';
-    const params = [];
-    let paramCount = 0;
-
-    // Search filter (most common)
-    if (req.query.search) {
-      paramCount++;
-      whereClause += ` AND (cp.ticker ILIKE $${paramCount} OR cp.short_name ILIKE $${paramCount})`;
-      params.push(`%${req.query.search}%`);
-    }
-
-    // Basic filters (most performant)
-    if (req.query.sector) {
-      paramCount++;
-      whereClause += ` AND cp.sector = $${paramCount}`;
-      params.push(req.query.sector);
-    }
-
-    if (req.query.exchange) {
-      paramCount++;
-      whereClause += ` AND cp.exchange = $${paramCount}`;
-      params.push(req.query.exchange);
-    }
-
-    // Price filters (with NULL checks for performance)
-    if (req.query.priceMin) {
-      paramCount++;
-      whereClause += ` AND md.regular_market_price >= $${paramCount} AND md.regular_market_price IS NOT NULL`;
-      params.push(parseFloat(req.query.priceMin));
-    }
-    if (req.query.priceMax) {
-      paramCount++;
-      whereClause += ` AND md.regular_market_price <= $${paramCount} AND md.regular_market_price IS NOT NULL`;
-      params.push(parseFloat(req.query.priceMax));
-    }
-
-    // Market cap filters (convert billions to actual values)
-    if (req.query.marketCapMin) {
-      paramCount++;
-      whereClause += ` AND md.market_cap >= $${paramCount} AND md.market_cap IS NOT NULL`;
-      params.push(parseFloat(req.query.marketCapMin) * 1000000000);
-    }
-    if (req.query.marketCapMax) {
-      paramCount++;
-      whereClause += ` AND md.market_cap <= $${paramCount} AND md.market_cap IS NOT NULL`;
-      params.push(parseFloat(req.query.marketCapMax) * 1000000000);
-    }
-
-    // Only add complex filters if they're actually requested (performance optimization)
-    const hasComplexFilters = req.query.peRatioMin || req.query.peRatioMax || 
-                             req.query.roeMin || req.query.roeMax || 
-                             req.query.dividendYieldMin || req.query.dividendYieldMax ||
-                             req.query.paysDividends === 'true' || 
-                             req.query.hasEarningsGrowth === 'true';
-
-    // PE Ratio filters
-    if (req.query.peRatioMin) {
-      paramCount++;
-      whereClause += ` AND km.trailing_pe >= $${paramCount} AND km.trailing_pe IS NOT NULL`;
-      params.push(parseFloat(req.query.peRatioMin));
-    }
-    if (req.query.peRatioMax) {
-      paramCount++;
-      whereClause += ` AND km.trailing_pe <= $${paramCount} AND km.trailing_pe IS NOT NULL`;
-      params.push(parseFloat(req.query.peRatioMax));
-    }
-
-    // ROE filters
-    if (req.query.roeMin) {
-      paramCount++;
-      whereClause += ` AND km.return_on_equity_pct >= $${paramCount} AND km.return_on_equity_pct IS NOT NULL`;
-      params.push(parseFloat(req.query.roeMin) / 100);
-    }
-    if (req.query.roeMax) {
-      paramCount++;
-      whereClause += ` AND km.return_on_equity_pct <= $${paramCount} AND km.return_on_equity_pct IS NOT NULL`;
-      params.push(parseFloat(req.query.roeMax) / 100);
-    }
-
-    // Dividend filters
-    if (req.query.dividendYieldMin) {
-      paramCount++;
-      whereClause += ` AND km.dividend_yield >= $${paramCount} AND km.dividend_yield IS NOT NULL`;
-      params.push(parseFloat(req.query.dividendYieldMin) / 100);
-    }
-    if (req.query.dividendYieldMax) {
-      paramCount++;
-      whereClause += ` AND km.dividend_yield <= $${paramCount} AND km.dividend_yield IS NOT NULL`;
-      params.push(parseFloat(req.query.dividendYieldMax) / 100);
-    }
-
-    // Boolean filters (simplified for performance)
-    if (req.query.paysDividends === 'true') {
-      whereClause += ` AND km.dividend_yield > 0`;
-    }
-    if (req.query.hasEarningsGrowth === 'true') {
-      whereClause += ` AND km.earnings_growth_pct > 0`;
-    }
-
-    // Build ORDER BY clause
-    const validSortColumns = {
-      'market_capitalization': 'md.market_cap',
-      'market_cap': 'md.market_cap',
-      'price': 'md.regular_market_price',
-      'pe_ratio': 'km.trailing_pe',
-      'dividend_yield': 'km.dividend_yield',
-      'return_on_equity': 'km.return_on_equity_pct',
-      'revenue_growth': 'km.revenue_growth_pct',
-      'symbol': 'cp.ticker',
-      'company_name': 'cp.short_name',
-      'sector': 'cp.sector'
-    };
-
-    const orderColumn = validSortColumns[sortBy] || 'md.market_cap';
-    const orderClause = `ORDER BY ${orderColumn} ${sortOrder.toUpperCase()} NULLS LAST`;
-
-    // Optimized query - only select essential columns for performance
-    const screenQuery = `
-      SELECT 
-        cp.ticker as symbol,
-        cp.short_name as company_name,
-        cp.sector,
-        cp.industry,
-        cp.country,
-        cp.exchange,
-        md.market_cap as market_capitalization,
-        md.regular_market_price as price,
-        (md.regular_market_price - md.regular_market_previous_close) as regular_market_change,
-        ((md.regular_market_price - md.regular_market_previous_close) / md.regular_market_previous_close * 100) as regular_market_change_percent,
-        km.trailing_pe as pe_ratio,
-        km.peg_ratio,
-        km.price_to_book as pb_ratio,
-        km.dividend_yield,
-        km.return_on_equity_pct as return_on_equity,
-        km.return_on_assets_pct as return_on_assets,
-        km.profit_margin_pct as net_margin,
-        km.revenue_growth_pct as revenue_growth,
-        km.earnings_growth_pct as earnings_growth,
-        km.current_ratio,
-        km.debt_to_equity
-      FROM company_profile cp
-      LEFT JOIN market_data md ON cp.ticker = md.ticker
-      ${hasComplexFilters ? 'LEFT JOIN key_metrics km ON cp.ticker = km.ticker' : 'LEFT JOIN key_metrics km ON cp.ticker = km.ticker'}
-      ${whereClause}
-      ${orderClause}
-      LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
-    `;
-
-    params.push(limit, offset);
-
-    // Simplified count query for better performance
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM company_profile cp
-      LEFT JOIN market_data md ON cp.ticker = md.ticker
-      ${hasComplexFilters ? 'LEFT JOIN key_metrics km ON cp.ticker = km.ticker' : ''}
-      ${whereClause}
-    `;
-
-    const [screenResult, countResult] = await Promise.all([
-      query(screenQuery, params),
-      query(countQuery, params.slice(0, -2))
-    ]);
-
-    const total = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(total / limit);
-
-    res.json({
-      data: screenResult.rows,
-      total,
-      page,
-      limit,
-      totalPages,
-      hasNext: page < totalPages,
-      hasPrev: page > 1,
-      filters: req.query,
-      performance: {
-        hasComplexFilters,
-        resultCount: screenResult.rows.length
-      }
-    });
-  } catch (error) {
-    console.error('Error screening stocks:', error);
-    res.status(500).json({ 
-      error: 'Failed to screen stocks',
-      message: error.message
-    });
-  }
-});
-
-// Get detailed stock information by ticker
-router.get('/:ticker', async (req, res) => {
-  try {
-    const { ticker } = req.params;
-
-    const stockQuery = `
-      SELECT 
-        cp.*,
-        md.*,
-        km.*,
-        gs.audit_risk,
-        gs.board_risk,
-        gs.compensation_risk,
-        gs.shareholder_rights_risk,
-        gs.overall_risk
-      FROM company_profile cp
-      LEFT JOIN market_data md ON cp.ticker = md.ticker
-      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
-      LEFT JOIN governance_scores gs ON cp.ticker = gs.ticker
-      WHERE cp.ticker = $1
-    `;
-
-    const result = await query(stockQuery, [ticker.toUpperCase()]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Stock not found' });
-    }
-
-    // Get leadership team
-    const leadershipQuery = `
-      SELECT person_name, title, age, total_pay, fiscal_year
-      FROM leadership_team
-      WHERE ticker = $1
-      ORDER BY total_pay DESC NULLS LAST
-    `;
-
-    const leadershipResult = await query(leadershipQuery, [ticker.toUpperCase()]);
-
-    const stockData = {
-      ...result.rows[0],
-      leadership_team: leadershipResult.rows
-    };
-
-    res.json(stockData);
-  } catch (error) {
-    console.error('Error fetching stock details:', error);
-    res.status(500).json({ error: 'Failed to fetch stock details' });
-  }
-});
-
-// Get stock price history
-router.get('/:ticker/prices', async (req, res) => {
-  try {
-    const { ticker } = req.params;
-    const timeframe = req.query.timeframe || 'daily'; // daily, weekly, monthly
-    const limit = parseInt(req.query.limit) || 100;
-
-    let tableName = 'price_daily';
-    if (timeframe === 'weekly') tableName = 'price_weekly';
-    if (timeframe === 'monthly') tableName = 'price_monthly';
-
-    const priceQuery = `
-      SELECT date, open, high, low, close, volume, adj_close
-      FROM ${tableName}
-      WHERE symbol = $1
-      ORDER BY date DESC
-      LIMIT $2
-    `;
-
-    const result = await query(priceQuery, [ticker.toUpperCase(), limit]);
-
-    res.json({
-      ticker: ticker.toUpperCase(),
-      timeframe,
-      data: result.rows.reverse() // Return in chronological order
-    });
-  } catch (error) {
-    console.error('Error fetching price history:', error);
-    res.status(500).json({ error: 'Failed to fetch price history' });
-  }
-});
-
-// Get financial statements
-router.get('/:ticker/financials', async (req, res) => {
-  try {
-    const { ticker } = req.params;
-    const type = req.query.type || 'income'; // income, cash_flow, balance_sheet, quarterly_income, quarterly_cash_flow, quarterly_balance
-
-    let tableName = '';
-    
-    switch (type) {
-      case 'income':
-        tableName = 'ttm_income_stmt';
-        break;
-      case 'cash_flow':
-        tableName = 'ttm_cashflow';
-        break;
-      case 'balance_sheet':
-        tableName = 'balance_sheet';
-        break;
-      case 'quarterly_income':
-        tableName = 'quarterly_income_stmt';
-        break;
-      case 'quarterly_cash_flow':
-        tableName = 'quarterly_cashflow';
-        break;
-      case 'quarterly_balance':
-        tableName = 'quarterly_balance_sheet';
-        break;
-      case 'annual_income':
-        tableName = 'income_stmt';
-        break;
-      case 'annual_cash_flow':
-        tableName = 'cash_flow';
-        break;
-      default:
-        return res.status(400).json({ error: 'Invalid financial statement type. Valid types: income, cash_flow, balance_sheet, quarterly_income, quarterly_cash_flow, quarterly_balance, annual_income, annual_cash_flow' });
-    }
-
-    // Query using the normalized structure with item_name and value
-    const query_text = `
-      SELECT symbol, date, item_name, value
-      FROM ${tableName}
-      WHERE symbol = $1
-      ORDER BY date DESC, item_name
-    `;
-
-    const result = await query(query_text, [ticker.toUpperCase()]);
-
-    // Transform the normalized data into a more usable structure
-    const transformedData = {};
-    
-    result.rows.forEach(row => {
-      const dateKey = row.date;
-      if (!transformedData[dateKey]) {
-        transformedData[dateKey] = {
-          symbol: row.symbol,
-          date: row.date,
-          items: {}
-        };
-      }
-      transformedData[dateKey].items[row.item_name] = row.value;
-    });
-
-    // Convert to array sorted by date (newest first)
-    const dataArray = Object.values(transformedData)
-      .sort((a, b) => new Date(b.date) - new Date(a.date));
-
-    res.json({
-      ticker: ticker.toUpperCase(),
-      type,
-      table: tableName,
-      data: dataArray,
-      count: dataArray.length
-    });
-  } catch (error) {
-    console.error('Error fetching financial data:', error);
-    res.status(500).json({ error: 'Failed to fetch financial data' });
-  }
-});
-
-// Get analyst recommendations
-router.get('/:ticker/recommendations', async (req, res) => {
-  try {
-    const { ticker } = req.params;
-
-    const recQuery = `
-      SELECT period, strong_buy, buy, hold, sell, strong_sell, collected_date
-      FROM analyst_recommendations
-      WHERE symbol = $1
-      ORDER BY collected_date DESC
-      LIMIT 12
-    `;
-
-    const result = await query(recQuery, [ticker.toUpperCase()]);
-
-    res.json({
-      ticker: ticker.toUpperCase(),
-      recommendations: result.rows
-    });
-  } catch (error) {
-    console.error('Error fetching recommendations:', error);
-    res.status(500).json({ error: 'Failed to fetch analyst recommendations' });
-  }
-});
-
-// Get available sectors for filtering
-router.get('/filters/sectors', async (req, res) => {
-  try {
-    const sectorsQuery = `
-      SELECT DISTINCT sector, COUNT(*) as count
-      FROM company_profile 
-      WHERE sector IS NOT NULL
-      GROUP BY sector
-      ORDER BY count DESC, sector
-    `;
-
-    const result = await query(sectorsQuery);
-
-    res.json({
-      sectors: result.rows
-    });
-  } catch (error) {
-    console.error('Error fetching sectors:', error);
-    res.status(500).json({ error: 'Failed to fetch sectors' });
-  }
-});
-
-// Get stock profile data for detail page
-router.get('/:ticker/profile', async (req, res) => {
-  try {
-    const { ticker } = req.params;
-
-    const profileQuery = `
-      SELECT 
-        ticker as symbol,
-        short_name as company_name,
-        long_name as full_name,
-        sector,
-        industry,
-        country,
-        exchange,
-        currency,
-        website,
-        business_summary as description,
-        md.market_cap as market_capitalization,
-        md.regular_market_price as price,
-        md.regular_market_previous_close as previous_close,
-        (md.regular_market_price - md.regular_market_previous_close) as regular_market_change,
-        ((md.regular_market_price - md.regular_market_previous_close) / md.regular_market_previous_close * 100) as regular_market_change_percent,
-        md.fifty_two_week_high,
-        md.fifty_two_week_low
-      FROM company_profile cp
-      LEFT JOIN market_data md ON cp.ticker = md.ticker
-      WHERE cp.ticker = $1
-    `;
-
-    const result = await query(profileQuery, [ticker.toUpperCase()]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Stock not found' });
-    }
-
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching stock profile:', error);
-    res.status(500).json({ error: 'Failed to fetch stock profile' });
-  }
-});
-
-// Get stock metrics for detail page
-router.get('/:ticker/metrics', async (req, res) => {
-  try {
-    const { ticker } = req.params;
-
-    const metricsQuery = `
-      SELECT 
-        ticker as symbol,
-        market_cap as market_capitalization,
-        trailing_pe as pe_ratio,
-        peg_ratio,
-        price_to_book as pb_ratio,
-        enterprise_value,
-        dividend_yield,
-        book_value,
-        earnings_per_share,
-        current_ratio,
-        debt_to_equity,
-        return_on_equity_pct as return_on_equity,
-        return_on_assets_pct as return_on_assets,
-        gross_margin_pct as gross_margin,
-        operating_margin_pct as operating_margin,
-        profit_margin_pct as net_margin,
-        asset_turnover,
-        revenue_growth_pct as revenue_growth,
-        earnings_growth_pct as earnings_growth,
-        collected_date
-      FROM key_metrics
-      WHERE ticker = $1
-      ORDER BY collected_date DESC
-      LIMIT 1
-    `;
-
-    const result = await query(metricsQuery, [ticker.toUpperCase()]);
-
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching stock metrics:', error);
-    res.status(500).json({ error: 'Failed to fetch stock metrics' });
-  }
-});
-
-// Lightweight stocks endpoint for initial page load
-router.get('/quick/overview', async (req, res) => {
-  try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20; // More items since less data per item
-    const offset = (page - 1) * limit;
-    
-    // Set caching headers
-    res.set({
-      'Cache-Control': 'public, max-age=300', // 5 minutes cache
-      'Content-Type': 'application/json',
-    });
-
-    // Minimal data for quick loading
-    const quickQuery = `
-      SELECT 
-        cp.ticker,
-        cp.short_name,
-        cp.sector,
-        md.regular_market_price,
-        ((md.regular_market_price - md.regular_market_previous_close) / md.regular_market_previous_close * 100) as change_percent,
-        md.market_cap
-      FROM company_profile cp
-      LEFT JOIN market_data md ON cp.ticker = md.ticker
-      WHERE md.regular_market_price IS NOT NULL
-      ORDER BY md.market_cap DESC NULLS LAST
-      LIMIT $1 OFFSET $2
-    `;
-
-    const result = await query(quickQuery, [limit, offset]);
-    
-    // Clean up the data
-    const cleanData = result.rows.map(row => ({
-      ticker: row.ticker,
-      name: row.short_name,
-      sector: row.sector,
-      price: row.regular_market_price ? Math.round(row.regular_market_price * 100) / 100 : null,
-      changePercent: row.change_percent ? Math.round(row.change_percent * 100) / 100 : null,
-      marketCap: row.market_cap
-    }));
-
-    res.json({
-      success: true,
-      data: cleanData,
-      count: cleanData.length,
-      metadata: {
-        page,
-        limit,
-        loadingStrategy: 'quick',
-        dataSize: JSON.stringify(cleanData).length
-      }
-    });
-
-  } catch (error) {
-    console.error('Error fetching quick stocks overview:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch stocks overview',
-      message: error.message
-    });
-  }
-});
-
-// Chunked stocks loading endpoint
-router.get('/chunk/:chunkIndex', async (req, res) => {
-  try {
-    const chunkIndex = parseInt(req.params.chunkIndex) || 0;
-    const chunkSize = 5; // Load 5 stocks at a time
-    const offset = chunkIndex * chunkSize;
-    
-    // Set caching headers
-    res.set({
-      'Cache-Control': 'public, max-age=300',
-      'Content-Type': 'application/json',
-    });
-
-    // Full stock data for this chunk
-    const chunkQuery = `
-      SELECT 
-        cp.ticker,
-        cp.short_name,
-        cp.long_name,
-        cp.sector,
-        cp.industry,
-        md.market_cap,
-        cp.currency,
-        cp.exchange,
-        md.regular_market_price,
-        (md.regular_market_price - md.regular_market_previous_close) as regular_market_change,
-        ((md.regular_market_price - md.regular_market_previous_close) / md.regular_market_previous_close * 100) as regular_market_change_percent,
-        md.fifty_two_week_high,
-        md.fifty_two_week_low,
-        km.trailing_pe,
-        km.forward_pe,
-        km.price_to_book,
-        km.dividend_yield
-      FROM company_profile cp
-      LEFT JOIN market_data md ON cp.ticker = md.ticker
-      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
-      WHERE md.regular_market_price IS NOT NULL
-      ORDER BY md.market_cap DESC NULLS LAST
-      LIMIT $1 OFFSET $2
-    `;
-
-    const result = await query(chunkQuery, [chunkSize, offset]);
-    
-    // Get total count for pagination info
-    const countQuery = `
-      SELECT COUNT(*) as total 
-      FROM company_profile cp 
-      LEFT JOIN market_data md ON cp.ticker = md.ticker 
-      WHERE md.regular_market_price IS NOT NULL
-    `;
-    const countResult = await query(countQuery);    const totalStocks = parseInt(countResult.rows[0]?.total || 0);
-    const totalChunks = Math.ceil(totalStocks / chunkSize);
-
-    // Return raw data for better performance
-    res.json({
-      success: true,
-      data: result.rows,      chunk: {
-        index: chunkIndex,
-        size: chunkSize,
-        count: result.rows.length,
-        totalChunks,
-        totalStocks,
-        hasMore: chunkIndex < totalChunks - 1
-      },
-      metadata: {
-        dataSize: JSON.stringify(result.rows).length,
-        loadingStrategy: 'chunked'
-      }
-    });
-
-  } catch (error) {
-    console.error('Error fetching stocks chunk:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch stocks chunk',
-      message: error.message
-    });
-  }
-});
-
-// Full stocks data endpoint - use with caution for large datasets
-router.get('/full/data', async (req, res) => {
-  try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 5; // Very small default limit
-    const offset = (page - 1) * limit;
-    const search = req.query.search || '';
-    const sector = req.query.sector || '';
-    
-    console.log(`Full stocks data request - limit: ${limit}, page: ${page}`);
-    
-    // Warning for large requests
-    if (limit > 15) {
-      console.warn(`Large stocks data request detected: ${limit} stocks requested`);
-    }
-    
-    // Set headers
-    res.set({
-      'Cache-Control': 'public, max-age=300',
-      'Content-Type': 'application/json',
-    });
-
     let whereClause = 'WHERE 1=1';
     const params = [];
     let paramCount = 0;
@@ -782,36 +57,394 @@ router.get('/full/data', async (req, res) => {
 
     params.push(limit, offset);
 
-    const startTime = Date.now();
-    const stocksResult = await query(stocksQuery, params);
-    const queryTime = Date.now() - startTime;
-      console.log(`Stocks query completed in ${queryTime}ms, returned ${stocksResult.rows.length} rows`);
+    const result = await query(stocksQuery, params);
 
-    // Return raw data for better performance
-    const responseSize = JSON.stringify(stocksResult.rows).length;
-    console.log(`Response size: ${responseSize} bytes for ${stocksResult.rows.length} stocks`);
+    // Count query for pagination
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM company_profile cp
+      ${whereClause}
+    `;
+
+    const countResult = await query(countQuery, params.slice(0, -2)); // Remove limit and offset params
+
+    const totalStocks = parseInt(countResult.rows[0].total);
+    const totalPages = Math.ceil(totalStocks / limit);
 
     res.json({
-      success: true,
-      data: stocksResult.rows,
-      count: stocksResult.rows.length,
-      metadata: {
-        page,
-        limit,
-        queryTimeMs: queryTime,
-        dataSize: responseSize,
-        averageSizePerStock: Math.round(responseSize / stocksResult.rows.length),
-        loadingStrategy: 'full',
-        warning: limit > 10 ? `Large dataset requested (${limit} stocks)` : null
+      stocks: result.rows,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalStocks,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1
       }
     });
 
   } catch (error) {
-    console.error('Error fetching full stocks data:', error);
+    console.error('Error fetching stocks:', error);
+    res.status(500).json({ error: 'Failed to fetch stocks' });
+  }
+});
+
+// Stock screening endpoint
+router.get('/screen', async (req, res) => {
+  try {
+    console.log('Stock screening endpoint called with params:', req.query);
+    
+    const {
+      minPrice = 0,
+      maxPrice = null,
+      minMarketCap = null,
+      maxMarketCap = null,
+      minPE = null,
+      maxPE = null,
+      minDividendYield = null,
+      sector = null,
+      exchange = null,
+      limit = 50,
+      page = 1
+    } = req.query;
+
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    let whereConditions = ['1=1'];
+    const params = [];
+    let paramCount = 0;
+
+    // Price filters
+    if (minPrice && parseFloat(minPrice) > 0) {
+      paramCount++;
+      whereConditions.push(`md.regular_market_price >= $${paramCount}`);
+      params.push(parseFloat(minPrice));
+    }
+
+    if (maxPrice && parseFloat(maxPrice) > 0) {
+      paramCount++;
+      whereConditions.push(`md.regular_market_price <= $${paramCount}`);
+      params.push(parseFloat(maxPrice));
+    }
+
+    // Market cap filters
+    if (minMarketCap && parseFloat(minMarketCap) > 0) {
+      paramCount++;
+      whereConditions.push(`md.market_cap >= $${paramCount}`);
+      params.push(parseFloat(minMarketCap));
+    }
+
+    if (maxMarketCap && parseFloat(maxMarketCap) > 0) {
+      paramCount++;
+      whereConditions.push(`md.market_cap <= $${paramCount}`);
+      params.push(parseFloat(maxMarketCap));
+    }
+
+    // PE ratio filters
+    if (minPE && parseFloat(minPE) > 0) {
+      paramCount++;
+      whereConditions.push(`km.trailing_pe >= $${paramCount}`);
+      params.push(parseFloat(minPE));
+    }
+
+    if (maxPE && parseFloat(maxPE) > 0) {
+      paramCount++;
+      whereConditions.push(`km.trailing_pe <= $${paramCount}`);
+      params.push(parseFloat(maxPE));
+    }
+
+    // Dividend yield filter
+    if (minDividendYield && parseFloat(minDividendYield) > 0) {
+      paramCount++;
+      whereConditions.push(`km.dividend_yield >= $${paramCount}`);
+      params.push(parseFloat(minDividendYield));
+    }
+
+    // Sector filter
+    if (sector && sector !== 'all') {
+      paramCount++;
+      whereConditions.push(`cp.sector = $${paramCount}`);
+      params.push(sector);
+    }
+
+    // Exchange filter
+    if (exchange && exchange !== 'all') {
+      paramCount++;
+      whereConditions.push(`cp.exchange = $${paramCount}`);
+      params.push(exchange);
+    }
+
+    const whereClause = whereConditions.join(' AND ');
+
+    const screenQuery = `
+      SELECT 
+        cp.ticker,
+        cp.short_name,
+        cp.long_name,
+        cp.sector,
+        cp.industry,
+        cp.exchange,
+        md.regular_market_price,
+        md.market_cap,
+        km.trailing_pe,
+        km.forward_pe,
+        km.price_to_book,
+        km.dividend_yield,
+        (md.regular_market_price - md.regular_market_previous_close) as change,
+        ((md.regular_market_price - md.regular_market_previous_close) / md.regular_market_previous_close * 100) as change_percent
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+      WHERE ${whereClause}
+        AND md.regular_market_price IS NOT NULL
+        AND md.market_cap IS NOT NULL
+      ORDER BY md.market_cap DESC
+      LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
+    `;
+
+    params.push(parseInt(limit), offset);
+
+    console.log('Executing screen query with params:', params);
+    const result = await query(screenQuery, params);
+
+    console.log('Screen query results:', result.rows.length, 'stocks found');
+
+    res.json({
+      stocks: result.rows,
+      filters: {
+        minPrice: parseFloat(minPrice) || 0,
+        maxPrice: maxPrice ? parseFloat(maxPrice) : null,
+        minMarketCap: minMarketCap ? parseFloat(minMarketCap) : null,
+        maxMarketCap: maxMarketCap ? parseFloat(maxMarketCap) : null,
+        minPE: minPE ? parseFloat(minPE) : null,
+        maxPE: maxPE ? parseFloat(maxPE) : null,
+        minDividendYield: minDividendYield ? parseFloat(minDividendYield) : null,
+        sector: sector || 'all',
+        exchange: exchange || 'all'
+      },
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        count: result.rows.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Error in stock screening:', error);
     res.status(500).json({ 
-      error: 'Failed to fetch full stocks data',
-      message: error.message,
-      stack: error.stack
+      error: 'Failed to screen stocks',
+      message: error.message 
+    });
+  }
+});
+
+// SPECIFIC ROUTES MUST COME BEFORE /:ticker
+
+// Quick overview endpoint for dashboard
+router.get('/quick/overview', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 20;
+    
+    const quickQuery = `
+      SELECT 
+        cp.ticker,
+        cp.short_name,
+        cp.sector,
+        md.regular_market_price,
+        (md.regular_market_price - md.regular_market_previous_close) as change,
+        ((md.regular_market_price - md.regular_market_previous_close) / md.regular_market_previous_close * 100) as change_percent,
+        md.market_cap
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      WHERE md.regular_market_price IS NOT NULL
+        AND md.market_cap IS NOT NULL
+      ORDER BY md.market_cap DESC
+      LIMIT $1
+    `;
+
+    const result = await query(quickQuery, [limit]);
+
+    res.json({
+      success: true,
+      data: result.rows,
+      count: result.rows.length
+    });
+
+  } catch (error) {
+    console.error('Error fetching quick overview:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch quick overview',
+      message: error.message 
+    });
+  }
+});
+
+// Get available filter options
+router.get('/filters/sectors', async (req, res) => {
+  try {
+    const sectorsQuery = `
+      SELECT DISTINCT sector
+      FROM company_profile
+      WHERE sector IS NOT NULL
+      ORDER BY sector ASC
+    `;
+
+    const result = await query(sectorsQuery);
+
+    res.json({
+      sectors: result.rows.map(row => row.sector)
+    });
+
+  } catch (error) {
+    console.error('Error fetching sectors:', error);
+    res.status(500).json({ error: 'Failed to fetch sectors' });
+  }
+});
+
+// Chunked loading endpoint
+router.get('/chunk/:chunkIndex', async (req, res) => {
+  try {
+    const chunkIndex = parseInt(req.params.chunkIndex) || 0;
+    const chunkSize = 10;
+    const offset = chunkIndex * chunkSize;
+
+    const chunkQuery = `
+      SELECT 
+        cp.ticker,
+        cp.short_name,
+        cp.long_name,
+        cp.sector,
+        md.regular_market_price,
+        (md.regular_market_price - md.regular_market_previous_close) as change,
+        ((md.regular_market_price - md.regular_market_previous_close) / md.regular_market_previous_close * 100) as change_percent,
+        md.market_cap
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      WHERE md.regular_market_price IS NOT NULL
+      ORDER BY md.market_cap DESC
+      LIMIT $1 OFFSET $2
+    `;
+
+    const result = await query(chunkQuery, [chunkSize, offset]);
+
+    res.json({
+      success: true,
+      data: result.rows,
+      chunkIndex,
+      chunkSize,
+      count: result.rows.length
+    });
+
+  } catch (error) {
+    console.error('Error fetching stock chunk:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch stock chunk',
+      message: error.message 
+    });
+  }
+});
+
+// Full data endpoint
+router.get('/full/data', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    
+    const fullQuery = `
+      SELECT 
+        cp.ticker,
+        cp.short_name,
+        cp.long_name,
+        cp.sector,
+        cp.industry,
+        cp.exchange,
+        md.regular_market_price,
+        md.market_cap,
+        km.trailing_pe,
+        km.forward_pe,
+        km.price_to_book,
+        km.dividend_yield,
+        (md.regular_market_price - md.regular_market_previous_close) as change,
+        ((md.regular_market_price - md.regular_market_previous_close) / md.regular_market_previous_close * 100) as change_percent
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+      WHERE md.regular_market_price IS NOT NULL
+      ORDER BY md.market_cap DESC
+      LIMIT $1
+    `;
+
+    const result = await query(fullQuery, [limit]);
+
+    res.json({
+      success: true,
+      data: result.rows,
+      count: result.rows.length
+    });
+
+  } catch (error) {
+    console.error('Error fetching full stock data:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch full stock data',
+      message: error.message 
+    });
+  }
+});
+
+// Get detailed info for a specific stock - MUST BE LAST
+router.get('/:ticker', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    console.log(`Stock detail endpoint called for ticker: ${ticker}`);
+
+    const stockQuery = `
+      SELECT 
+        cp.ticker,
+        cp.short_name,
+        cp.long_name,
+        cp.sector,
+        cp.industry,
+        cp.website,
+        cp.description,
+        cp.employees,
+        cp.city,
+        cp.state,
+        cp.country,
+        cp.exchange,
+        cp.currency,
+        md.*,
+        km.*,
+        fs.*
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+      LEFT JOIN financial_summary fs ON cp.ticker = fs.ticker
+      WHERE UPPER(cp.ticker) = UPPER($1)
+    `;
+
+    const result = await query(stockQuery, [ticker]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        error: 'Stock not found',
+        ticker: ticker.toUpperCase()
+      });
+    }
+
+    const stock = result.rows[0];
+
+    res.json({
+      success: true,
+      stock,
+      metadata: {
+        ticker: ticker.toUpperCase(),
+        hasFinancialData: !!stock.total_revenue,
+        hasMarketData: !!stock.regular_market_price
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching stock details:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch stock details',
+      message: error.message 
     });
   }
 });
