@@ -127,8 +127,7 @@ def load_analyst_actions(symbols, cur, conn):
             to_grade = (row.get("To Grade") or 
                        row.get("toGrade") or 
                        row.get("To") or 
-                       None)
-              # Handle date conversion properly
+                       None)            # Handle date conversion properly
             if hasattr(dt, 'date'):
                 date_value = dt.date()
             elif hasattr(dt, 'to_pydatetime'):
@@ -139,7 +138,12 @@ def load_analyst_actions(symbols, cur, conn):
                 except:
                     date_value = None
             else:
-                date_value = None  # Default to NULL instead of invalid value
+                date_value = None
+            
+            # Skip rows with invalid/missing dates since the column is NOT NULL
+            if date_value is None:
+                logging.warning(f"Skipping {symbol} row due to invalid/missing date")
+                continue
             
             rows.append([
                 symbol,

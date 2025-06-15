@@ -416,13 +416,12 @@ Resources:
                   description: "200 response"
                   headers:
                     Access-Control-Allow-Origin:
-                      type: "string"
-      Cors:
+                      type: "string"      Cors:
         AllowMethods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         AllowOrigin: "'*'"
         AllowCredentials: false
-        AccessLogSetting:
+      AccessLogSetting:
         DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
         Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength","responseLatency":"$context.responseLatency","integrationLatency":"$context.integrationLatency","cacheHitStatus":"$context.identity.cacheHitStatus"}'
       # API Gateway Performance Configuration
