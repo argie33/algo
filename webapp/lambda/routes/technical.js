@@ -157,37 +157,22 @@ router.get('/:timeframe', async (req, res) => {  try {
       
       queryParams = [parseInt(limit), offset];
     }
-
+    
     const result = await query(sqlQuery, queryParams);
 
-    // Optimize response by rounding numbers and removing nulls
-    const optimizedData = result.rows.map(row => {
-      const optimized = {};
-      for (const [key, value] of Object.entries(row)) {
-        if (value !== null && value !== undefined) {
-          if (typeof value === 'number') {
-            // Round numbers to reduce payload size
-            optimized[key] = Math.round(value * 10000) / 10000; // 4 decimal places
-          } else {
-            optimized[key] = value;
-          }
-        }
-      }
-      return optimized;
-    });
-
+    // Skip optimization loop - return raw data for better performance
     res.json({
       success: true,
-      data: optimizedData,
+      data: result.rows,
       timeframe,
-      count: optimizedData.length,
+      count: result.rows.length,
       metadata: {
         limit: parseInt(limit),
         page: parseInt(page),
         symbol: symbol || null,
         hasSymbolFilter: !!symbol,
         totalDataPoints: tableCheck.rows[0]?.count || 0,
-        dataSize: JSON.stringify(optimizedData).length // Add size info for monitoring
+        dataSize: JSON.stringify(result.rows).length // Fixed reference
       }
     });
 
