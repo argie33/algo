@@ -63,6 +63,15 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Strip /api prefix if present (for CloudFront compatibility)
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    req.url = req.url.replace('/api', '');
+    req.path = req.path.replace('/api', '');
+  }
+  next();
+});
+
 // Logging (simplified for Lambda)
 if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('combined'));
