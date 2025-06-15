@@ -92,7 +92,8 @@ jobs:
 
 ################################################################################
 # 3) Deploy webapp infrastructure                                              #
-################################################################################  deploy_infrastructure:
+################################################################################
+  deploy_infrastructure:
     name: Deploy webapp infrastructure
     needs: [setup, filter]
     if: ${{ needs.filter.outputs.template == 'true' || needs.filter.outputs.any == 'true' }}
