@@ -237,7 +237,9 @@ jobs:
               echo "   Manual intervention may be required."
               exit 1
               ;;
-          esac      - name: Deploy webapp CloudFormation stack
+          esac
+
+      - name: Deploy webapp CloudFormation stack
         run: |
           echo "Using stack name: $STACK_NAME"
           echo "Using environment: $ENVIRONMENT_NAME"
