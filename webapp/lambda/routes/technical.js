@@ -40,7 +40,7 @@ router.get('/health', async (req, res) => {
 router.get('/:timeframe/summary', async (req, res) => {
   try {
     const { timeframe } = req.params;
-    const { limit = 50, page = 1 } = req.query; // Allow more items since less data per item
+    const { limit = 20, page = 1 } = req.query; // Increased from 50 to 20 for better balance
     
     const validTimeframes = ['daily', 'weekly', 'monthly'];
     if (!validTimeframes.includes(timeframe)) {
@@ -54,17 +54,15 @@ router.get('/:timeframe/summary', async (req, res) => {
     res.set({
       'Cache-Control': 'public, max-age=300', // 5 minutes cache
     });
-
-    // Only return essential indicators for quick overview
+    
+    // Only return 3 essential indicators for quick overview
     const sqlQuery = `
     SELECT DISTINCT ON (symbol)
         symbol,
         date,
         rsi,
         macd,
-        macd_signal,
-        adx,
-        marketwatch
+        sma_20
     FROM ${tableName}
     ORDER BY symbol ASC, date DESC
     LIMIT $1 OFFSET $2
@@ -96,7 +94,7 @@ router.get('/:timeframe/summary', async (req, res) => {
 // Get technical data by timeframe
 router.get('/:timeframe', async (req, res) => {  try {
     const { timeframe } = req.params;
-    const { limit = 10, symbol, page = 1 } = req.query; // Reduced default limit to prevent timeout
+    const { limit = 20, symbol, page = 1 } = req.query; // Increased from 10 to 20 for better performance
 
     // Validate timeframe
     const validTimeframes = ['daily', 'weekly', 'monthly'];
@@ -130,42 +128,15 @@ router.get('/:timeframe', async (req, res) => {  try {
     }
 
     let sqlQuery;
-    let queryParams;
-
-    if (symbol) {
-      // If symbol specified, get historical data for that symbol with pagination
+    let queryParams;    if (symbol) {
+      // If symbol specified, get historical data for that symbol with pagination - simplified to 3 indicators
       sqlQuery = `
         SELECT 
           symbol,
           date,
           rsi,
           macd,
-          macd_signal,
-          macd_hist,
-          mom,
-          roc,
-          adx,
-          atr,
-          ad,
-          cmf,
-          mfi,
-          td_sequential,
-          td_combo,
-          marketwatch,
-          dm,
-          sma_10,
-          sma_20,
-          sma_50,
-          sma_150,
-          sma_200,
-          ema_4,
-          ema_9,
-          ema_21,
-          bbands_lower,
-          bbands_middle,
-          bbands_upper,
-          pivot_high,
-          pivot_low
+          sma_20
         FROM ${tableName}
         WHERE symbol = $1
         ORDER BY date DESC
@@ -174,39 +145,14 @@ router.get('/:timeframe', async (req, res) => {  try {
       
       queryParams = [symbol.toUpperCase(), parseInt(limit), offset];
         } else {
-      // Get all technical data with ALL columns - same as individual symbol query
+      // Get all technical data with only 3 key indicators for better performance
       sqlQuery = `
       SELECT DISTINCT ON (symbol)
           symbol,
           date,
           rsi,
           macd,
-          macd_signal,
-          macd_hist,
-          mom,
-          roc,
-          adx,
-          atr,
-          ad,
-          cmf,
-          mfi,
-          td_sequential,
-          td_combo,
-          marketwatch,
-          dm,
-          sma_10,
-          sma_20,
-          sma_50,
-          sma_150,
-          sma_200,
-          ema_4,
-          ema_9,
-          ema_21,
-          bbands_lower,
-          bbands_middle,
-          bbands_upper,
-          pivot_high,
-          pivot_low
+          sma_20
         FROM ${tableName}
         ORDER BY symbol ASC, date DESC
         LIMIT $1 OFFSET $2
@@ -232,13 +178,20 @@ router.get('/:timeframe', async (req, res) => {  try {
         dataSize: JSON.stringify(result.rows).length // Fixed reference
       }
     });
-
   } catch (error) {
     console.error('Error fetching technical data:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      timeframe,
+      limit,
+      symbol: symbol || 'all',
+      timestamp: new Date().toISOString()
+    });
     res.status(500).json({ 
       error: 'Failed to fetch technical data',
       message: error.message,
-      details: error.stack
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
@@ -254,43 +207,16 @@ router.get('/:timeframe/:symbol', async (req, res) => {
       return res.status(400).json({ error: 'Invalid timeframe. Must be daily, weekly, or monthly' });
     }
 
-    const tableName = `technical_data_${timeframe}`;
-    const sqlQuery = `
+    const tableName = `technical_data_${timeframe}`;    const sqlQuery = `
       SELECT 
         symbol,
         date,
         rsi,
         macd,
-        macd_signal,
-        macd_hist,
-        adx,
-        mfi,
-        sma_20,
-        sma_50,
-        sma_200,
-        bbands_lower,
-        bbands_middle,
-        bbands_upper,
-        mom,
-        roc,
-        atr,
-        ad,
-        cmf,
-        td_sequential,
-        td_combo,
-        marketwatch,
-        dm,
-        sma_10,
-        sma_150,
-        ema_4,
-        ema_9,
-        ema_21,
-        pivot_high,
-        pivot_low
+        sma_20
       FROM ${tableName}
-      WHERE symbol = $1
-      ORDER BY date DESC
-      LIMIT 30
+      WHERE symbol = $1      ORDER BY date DESC
+      LIMIT 10
     `;
 
     const result = await query(sqlQuery, [symbol.toUpperCase()]);
@@ -544,6 +470,54 @@ router.get('/:timeframe/full', async (req, res) => {
       error: 'Failed to fetch full technical data',
       message: error.message,
       stack: error.stack
+    });
+  }
+});
+
+// Ultra-lightweight endpoint for emergency use - minimal data only
+router.get('/simple/:timeframe', async (req, res) => {
+  try {
+    const { timeframe } = req.params;
+    const { limit = 10 } = req.query; // Very small limit
+    
+    const validTimeframes = ['daily', 'weekly', 'monthly'];
+    if (!validTimeframes.includes(timeframe)) {
+      return res.status(400).json({ error: 'Invalid timeframe' });
+    }
+
+    const tableName = `technical_data_${timeframe}`;
+    
+    // Aggressive caching
+    res.set({
+      'Cache-Control': 'public, max-age=600', // 10 minutes cache
+    });
+
+    // Minimal query - just symbol, date, and RSI
+    const sqlQuery = `
+    SELECT DISTINCT ON (symbol)
+        symbol,
+        date,
+        rsi
+    FROM ${tableName}
+    ORDER BY symbol ASC, date DESC
+    LIMIT $1
+    `;
+    
+    const result = await query(sqlQuery, [parseInt(limit)]);
+
+    res.json({
+      success: true,
+      data: result.rows,
+      timeframe,
+      count: result.rows.length,
+      isSimple: true
+    });
+
+  } catch (error) {
+    console.error('Error fetching simple technical data:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch simple technical data',
+      message: error.message 
     });
   }
 });
