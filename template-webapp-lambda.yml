@@ -353,7 +353,8 @@ Resources:
           DB_CONNECT_TIMEOUT: '10000'
           # API response optimization
           ENABLE_COMPRESSION: 'true'
-          CACHE_HEADERS: 'true'      Events:
+          CACHE_HEADERS: 'true'
+      Events:
         ApiGatewayAny:
           Type: Api
           Properties:
