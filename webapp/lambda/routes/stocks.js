@@ -8,7 +8,7 @@ router.get('/debug', async (req, res) => {
   try {
     console.log('Stocks debug endpoint called');
     
-    const tables = ['company_profile', 'market_data', 'key_metrics'];
+    const tables = ['company_profile', 'market_data', 'key_metrics', 'price_daily', 'financial_data'];
     const results = {};
     
     for (const table of tables) {
@@ -46,13 +46,22 @@ router.get('/debug', async (req, res) => {
               ORDER BY ticker 
               LIMIT 3
             `;
-          } else {
+          } else if (table === 'key_metrics') {
             sampleQuery = `
-              SELECT ticker, trailing_pe, forward_pe
+              SELECT ticker, trailing_pe, forward_pe, dividend_yield
               FROM ${table} 
               ORDER BY ticker 
               LIMIT 3
             `;
+          } else if (table === 'price_daily') {
+            sampleQuery = `
+              SELECT symbol, date, close, volume
+              FROM ${table} 
+              ORDER BY date DESC, symbol 
+              LIMIT 3
+            `;
+          } else {
+            sampleQuery = `SELECT * FROM ${table} LIMIT 1`;
           }
           
           const sampleResult = await query(sampleQuery);
@@ -99,12 +108,15 @@ router.get('/test', async (req, res) => {
     
     const testQuery = `
       SELECT 
-        ticker,
-        short_name,
-        sector,
-        industry
-      FROM company_profile
-      ORDER BY ticker
+        cp.ticker,
+        cp.short_name,
+        cp.sector,
+        md.regular_market_price,
+        km.trailing_pe
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+      ORDER BY cp.ticker
       LIMIT 5
     `;
     
@@ -125,6 +137,15 @@ router.get('/test', async (req, res) => {
       timestamp: new Date().toISOString()
     });
   }
+});
+
+// Basic ping endpoint
+router.get('/ping', (req, res) => {
+  res.json({
+    status: 'ok',
+    endpoint: 'stocks',
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Get all stocks with basic info and pagination - simplified
