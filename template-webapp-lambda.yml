@@ -322,17 +322,6 @@ Resources:
           # API response optimization
           ENABLE_COMPRESSION: 'true'
           CACHE_HEADERS: 'true'
-      # Enhanced concurrency management
-      ReservedConcurrencyLimit: !If
-        - EnableOptimizations
-        - 20   # Higher limit for better throughput
-        - 10   # Conservative default
-      # Conditional provisioned concurrency
-      ProvisionedConcurrencyConfig: !If
-        - EnableOptimizations
-        - ProvisionedConcurrencyEnabled: true
-          ProvisionedConcurrency: 5  # Increased for better response times
-        - !Ref 'AWS::NoValue'
       Events:
         ApiGatewayAny:
           Type: Api
