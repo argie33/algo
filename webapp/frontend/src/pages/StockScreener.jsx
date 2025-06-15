@@ -111,6 +111,8 @@ const SECTORS = [
 const EXCHANGES = ['NYSE', 'NASDAQ', 'AMEX']
 
 function StockScreener() {
+  const logger = createComponentLogger('StockScreener')
+  
   const navigate = useNavigate()
   const [filters, setFilters] = useState(INITIAL_FILTERS)
   const [savedScreens, setSavedScreens] = useState([])
@@ -143,7 +145,8 @@ function StockScreener() {
     queryKey: ['stockScreener', filters, page, rowsPerPage, orderBy, order],
     queryFn: () => api.screenStocks(buildQueryParams()),
     keepPreviousData: true,
-    staleTime: 5 * 60 * 1000 // 5 minutes
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    onError: (error) => logger.queryError('stockScreener', error, { filters, page, rowsPerPage, orderBy, order })
   })
 
   const handleFilterChange = (field, value) => {
