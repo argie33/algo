@@ -1,6 +1,7 @@
 import React from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { createComponentLogger } from '../utils/errorLogger'
 import {
   Box,
   Container,
@@ -47,19 +48,7 @@ import {
 import api from '../services/api'
 import { formatCurrency, formatPercentage as formatPercent, formatNumber } from '../utils/formatters'
 
-// Enhanced error logging utility
-const logError = (operation, error, context = {}) => {
-  console.error(`❌ StockDetail - ${operation} failed:`, {
-    error: error.message,
-    status: error.response?.status,
-    statusText: error.response?.statusText,
-    data: error.response?.data,
-    url: error.config?.url,
-    method: error.config?.method,
-    context,
-    timestamp: new Date().toISOString()
-  })
-}
+// Use centralized error logging (logger will be defined in component)
 
 function TabPanel({ children, value, index, ...other }) {
   return (
@@ -80,6 +69,8 @@ function TabPanel({ children, value, index, ...other }) {
 }
 
 function StockDetail() {
+  const logger = createComponentLogger('StockDetail');
+  
   const { symbol } = useParams()
   const [tabValue, setTabValue] = React.useState(0)
   // Fetch stock profile data
@@ -87,7 +78,7 @@ function StockDetail() {
     queryKey: ['stockProfile', symbol],
     queryFn: () => api.getStockProfile(symbol),
     enabled: !!symbol,
-    onError: (error) => logError('Stock Profile', error, { symbol })
+    onError: (error) => logger.queryError('stockProfile', error, { symbol })
   })
 
   // Fetch key metrics
@@ -95,14 +86,14 @@ function StockDetail() {
     queryKey: ['stockMetrics', symbol],
     queryFn: () => api.getStockMetrics(symbol),
     enabled: !!symbol,
-    onError: (error) => logError('Stock Metrics', error, { symbol })
+    onError: (error) => logger.queryError('stockMetrics', error, { symbol })
   })
   // Fetch financial data
   const { data: financials, isLoading: financialsLoading, error: financialsError } = useQuery({
     queryKey: ['stockFinancials', symbol],
     queryFn: () => api.getStockFinancials(symbol),
     enabled: !!symbol,
-    onError: (error) => logError('Stock Financials', error, { symbol })
+    onError: (error) => logger.queryError('stockFinancials', error, { symbol })
   })
 
   // Fetch analyst recommendations
@@ -110,7 +101,7 @@ function StockDetail() {
     queryKey: ['stockRecommendations', symbol],
     queryFn: () => api.getAnalystRecommendations(symbol),
     enabled: !!symbol,
-    onError: (error) => logError('Analyst Recommendations', error, { symbol })
+    onError: (error) => logger.queryError('analystRecommendations', error, { symbol })
   })
 
   // Fetch comprehensive financial statements
@@ -118,21 +109,21 @@ function StockDetail() {
     queryKey: ['balanceSheet', symbol, 'annual'],
     queryFn: () => api.getBalanceSheet(symbol, 'annual'),
     enabled: !!symbol && tabValue === 1,
-    onError: (error) => logError('Balance Sheet', error, { symbol, period: 'annual' })
+    onError: (error) => logger.queryError('balanceSheet', error, { symbol, period: 'annual' })
   })
 
   const { data: incomeStatement, isLoading: incomeStatementLoading, error: incomeStatementError } = useQuery({
     queryKey: ['incomeStatement', symbol, 'annual'],
     queryFn: () => api.getIncomeStatement(symbol, 'annual'),
     enabled: !!symbol && tabValue === 1,
-    onError: (error) => logError('Income Statement', error, { symbol, period: 'annual' })
+    onError: (error) => logger.queryError('incomeStatement', error, { symbol, period: 'annual' })
   })
 
   const { data: cashFlowStatement, isLoading: cashFlowLoading, error: cashFlowError } = useQuery({
     queryKey: ['cashFlowStatement', symbol, 'annual'],
     queryFn: () => api.getCashFlowStatement(symbol, 'annual'),
     enabled: !!symbol && tabValue === 1,
-    onError: (error) => logError('Cash Flow Statement', error, { symbol, period: 'annual' })
+    onError: (error) => logger.queryError('cashFlowStatement', error, { symbol, period: 'annual' })
   })
 
   // Fetch comprehensive analyst data
@@ -140,7 +131,7 @@ function StockDetail() {
     queryKey: ['analystOverview', symbol],
     queryFn: () => api.getAnalystOverview(symbol),
     enabled: !!symbol && tabValue === 3,
-    onError: (error) => logError('Analyst Overview', error, { symbol })
+    onError: (error) => logger.queryError('analystOverview', error, { symbol })
   })
 
   const handleTabChange = (event, newValue) => {

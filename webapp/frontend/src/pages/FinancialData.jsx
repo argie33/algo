@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { createComponentLogger } from '../utils/errorLogger'
 import {
   Box,
   Container,
@@ -45,19 +46,7 @@ import {
   Bar
 } from 'recharts'
 
-// Enhanced error logging utility
-const logError = (operation, error, context = {}) => {
-  console.error(`❌ FinancialData - ${operation} failed:`, {
-    error: error.message,
-    status: error.response?.status,
-    statusText: error.response?.statusText,
-    data: error.response?.data,
-    url: error.config?.url,
-    method: error.config?.method,
-    context,
-    timestamp: new Date().toISOString()
-  })
-}
+// Use centralized error logging (logger will be defined in component)
 
 import {
   getBalanceSheet,
@@ -92,6 +81,8 @@ function TabPanel({ children, value, index, ...other }) {
 }
 
 function FinancialData() {
+  const logger = createComponentLogger('FinancialData');
+  
   const [tabValue, setTabValue] = useState(0)
   const [ticker, setTicker] = useState('AAPL')
   const [period, setPeriod] = useState('annual')
@@ -117,20 +108,20 @@ function FinancialData() {
     queryKey: ['balanceSheet', ticker, period],
     queryFn: () => getBalanceSheet(ticker, period),
     enabled: !!ticker && tabValue === 0,
-    onError: (error) => logError('Balance Sheet', error, { ticker, period })
+    onError: (error) => logger.queryError('balanceSheet', error, { ticker, period })
   })
 
   const { data: incomeStatement, isLoading: incomeStatementLoading, error: incomeStatementError } = useQuery({
     queryKey: ['incomeStatement', ticker, period],
     queryFn: () => getIncomeStatement(ticker, period),
     enabled: !!ticker && tabValue === 1,
-    onError: (error) => logError('Income Statement', error, { ticker, period })
+    onError: (error) => logger.queryError('incomeStatement', error, { ticker, period })
   })
   const { data: cashFlowStatement, isLoading: cashFlowLoading, error: cashFlowError } = useQuery({
     queryKey: ['cashFlowStatement', ticker, period],
     queryFn: () => getCashFlowStatement(ticker, period),
     enabled: !!ticker && tabValue === 2,
-    onError: (error) => logError('Cash Flow Statement', error, { ticker, period })
+    onError: (error) => logger.queryError('cashFlowStatement', error, { ticker, period })
   })
 
   const renderFinancialTable = (data, title, icon) => {
