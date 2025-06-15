@@ -363,7 +363,8 @@ Resources:
         ApiGatewayRoot:
           Type: Api
           Properties:
-            Path: /            Method: ANY
+            Path: /            
+            Method: ANY
 
   # CloudWatch Log Group for API Gateway
   ApiGatewayLogGroup:
