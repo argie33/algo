@@ -12,11 +12,12 @@ Parameters:
   DatabaseSecretArn:
     Type: String
     Description: ARN of the RDS database secret in Secrets Manager
-  
+    
   DatabaseEndpoint:
     Type: String
     Description: RDS database endpoint
-      FrontendDomainName:
+    
+  FrontendDomainName:
     Type: String
     Default: ''
     Description: Custom domain name for CloudFront (optional)
