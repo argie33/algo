@@ -9,9 +9,34 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  </head>
-  <body>
-    <div id="root"></div>
+  </head>  <body>
+    <div id="root">
+      <div style="padding: 20px; font-family: Arial, sans-serif;">
+        <h1>Loading Financial Dashboard...</h1>
+        <p>If you see this message, the HTML is loading but React is not starting.</p>
+        <p id="debug-info">Checking JavaScript...</p>
+      </div>
+    </div>
+    <script>
+      console.log('🚀 HTML loaded successfully');
+      document.getElementById('debug-info').textContent = 'HTML loaded, waiting for React...';
+      
+      // Log any errors
+      window.addEventListener('error', function(e) {
+        console.error('🚨 JavaScript Error:', e.error);
+        document.getElementById('debug-info').innerHTML = 
+          '<strong style="color: red;">JavaScript Error: ' + e.error.message + '</strong>';
+      });
+      
+      // Check if root element exists
+      setTimeout(() => {
+        const root = document.getElementById('root');
+        if (root && root.innerHTML.includes('Loading Financial Dashboard')) {
+          document.getElementById('debug-info').innerHTML = 
+            '<strong style="color: orange;">React failed to mount after 3 seconds</strong>';
+        }
+      }, 3000);
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

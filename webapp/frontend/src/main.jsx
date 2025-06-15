@@ -6,6 +6,8 @@ import { ThemeProvider, createTheme } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
 import App from './App'
 
+console.log('🚀 main.jsx loaded - starting React app');
+
 // Create a client
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -16,6 +18,8 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+console.log('✅ QueryClient created');
 
 // Create theme
 const theme = createTheme({
@@ -94,15 +98,34 @@ const theme = createTheme({
   },
 })
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider theme={theme}>
-          <CssBaseline />
-          <App />
-        </ThemeProvider>
-      </QueryClientProvider>
-    </BrowserRouter>
-  </React.StrictMode>,
-)
+console.log('✅ Theme created');
+console.log('🔍 Looking for root element...');
+
+const rootElement = document.getElementById('root');
+if (!rootElement) {
+  console.error('❌ Root element not found!');
+  alert('Root element not found!');
+} else {
+  console.log('✅ Root element found:', rootElement);
+}
+
+console.log('🚀 Creating React root and rendering app...');
+
+try {
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    <React.StrictMode>
+      <BrowserRouter>
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider theme={theme}>
+            <CssBaseline />
+            <App />
+          </ThemeProvider>
+        </QueryClientProvider>
+      </BrowserRouter>
+    </React.StrictMode>,
+  )
+  console.log('✅ React app rendered successfully');
+} catch (error) {
+  console.error('❌ Error rendering React app:', error);
+  alert('Error rendering React app: ' + error.message);
+}

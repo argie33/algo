@@ -474,3 +474,27 @@ export default {
   getFinancialMetrics,
   getDataValidationSummary
 }
+
+// Test API Connection
+export const testApiConnection = async (customUrl = null) => {
+  try {
+    const testUrl = customUrl || API_BASE_URL
+    const response = await api.get('/health', {
+      baseURL: testUrl,
+      timeout: 10000
+    })
+    return {
+      success: true,
+      url: testUrl,
+      status: response.status,
+      data: response.data
+    }
+  } catch (error) {
+    return {
+      success: false,
+      url: customUrl || API_BASE_URL,
+      error: error.message,
+      status: error.response?.status
+    }
+  }
+}

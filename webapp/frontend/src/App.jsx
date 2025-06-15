@@ -38,24 +38,38 @@ import {
 } from '@mui/icons-material'
 import { useNavigate, useLocation } from 'react-router-dom'
 
+// Pages
+import Dashboard from './pages/Dashboard'
+import StockDetail from './pages/StockDetail'
+import MarketOverview from './pages/MarketOverview'
+import StockExplorer from './pages/StockExplorer'
+import TradingSignals from './pages/TradingSignals'
+import TechnicalAnalysis from './pages/TechnicalAnalysis'
+import AnalystInsights from './pages/AnalystInsights'
+import EarningsCalendar from './pages/EarningsCalendar'
+import DataValidation from './pages/DataValidation'
+import FinancialData from './pages/FinancialData'
+
+// API Service
+import { testApiConnection } from './services/api'
+
 // Debug Component
 const DebugInfo = () => {
   const [apiTest, setApiTest] = useState(null)
   const [loading, setLoading] = useState(true)
-
   useEffect(() => {
     const testApi = async () => {
       try {
-        // Test with hardcoded API URL first
-        const hardcodedUrl = 'https://zytedqhltg.execute-api.us-east-1.amazonaws.com/prod'
-        console.log('Testing hardcoded API URL:', hardcodedUrl)
+        // Test with current API URL
+        const currentUrl = 'https://lzq5jfiv9b.execute-api.us-east-1.amazonaws.com/Prod'
+        console.log('Testing current API URL:', currentUrl)
         
-        const response = await fetch(`${hardcodedUrl}/health`)
+        const response = await fetch(`${currentUrl}/health`)
         const data = await response.json()
         
         setApiTest({
           success: true,
-          hardcodedUrl,
+          currentUrl,
           status: response.status,
           data: data
         })
@@ -64,7 +78,7 @@ const DebugInfo = () => {
         setApiTest({
           success: false,
           error: error.message,
-          hardcodedUrl: 'https://zytedqhltg.execute-api.us-east-1.amazonaws.com/prod'
+          currentUrl: 'https://lzq5jfiv9b.execute-api.us-east-1.amazonaws.com/Prod'
         })
       } finally {
         setLoading(false)
@@ -104,21 +118,8 @@ const DebugInfo = () => {
           </Paper>
         </AccordionDetails>
       </Accordion>
-    </Box>
-  )
+    </Box>  )
 }
-
-// Pages
-import Dashboard from './pages/Dashboard'
-import StockDetail from './pages/StockDetail'
-import MarketOverview from './pages/MarketOverview'
-import StockExplorer from './pages/StockExplorer'
-import TradingSignals from './pages/TradingSignals'
-import TechnicalAnalysis from './pages/TechnicalAnalysis'
-import AnalystInsights from './pages/AnalystInsights'
-import EarningsCalendar from './pages/EarningsCalendar'
-import DataValidation from './pages/DataValidation'
-import FinancialData from './pages/FinancialData'
 
 const drawerWidth = 240
 
@@ -174,11 +175,15 @@ class ErrorBoundary extends React.Component {
 }
 
 function App() {
+  console.log('🚀 App component loading...');
+  
   const [mobileOpen, setMobileOpen] = useState(false)
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const navigate = useNavigate()
   const location = useLocation()
+
+  console.log('✅ App component hooks initialized successfully');
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen)
