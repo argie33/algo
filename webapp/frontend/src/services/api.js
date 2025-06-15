@@ -1,8 +1,15 @@
 import axios from 'axios'
 
-// API Gateway/Lambda configuration
+// API Gateway/Lambda configuration  
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 const IS_SERVERLESS = import.meta.env.VITE_SERVERLESS === 'true'
+
+console.log('API Configuration:', {
+  API_BASE_URL,
+  IS_SERVERLESS,
+  hostname: window.location.hostname,
+  environment: import.meta.env.MODE
+})
 
 const api = axios.create({
   baseURL: API_BASE_URL,
