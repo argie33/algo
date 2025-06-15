@@ -1066,196 +1066,8 @@ def load_technicals(symbols, cur, conn):
     return total, inserted, failed
 
 # -------------------------------
-# Table validation and management functions
+# Table validation functions for DROP/CREATE operations
 # -------------------------------
-def validate_table_state(cur, table_name='technical_data_daily'):
-    """Validate table state and return comprehensive information about existing data"""
-    try:
-        # Check if table exists
-        cur.execute("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_schema = 'public' 
-                AND table_name = %s
-            );
-        """, (table_name,))
-        table_exists = cur.fetchone()[0]
-        
-        if not table_exists:
-            return {
-                'table_exists': False,
-                'row_count': 0,
-                'latest_date': None,
-                'today_count': 0,
-                'needs_creation': True,
-                'indexes_exist': False
-            }
-        
-        # Get row count
-        cur.execute(f"SELECT COUNT(*) FROM {table_name}")
-        row_count = cur.fetchone()[0]
-        
-        # Get latest date
-        cur.execute(f"""
-            SELECT MAX(date) FROM {table_name}
-            WHERE date IS NOT NULL
-        """)
-        latest_date_result = cur.fetchone()
-        latest_date = latest_date_result[0] if latest_date_result and latest_date_result[0] else None
-        
-        # Get today's data count
-        today = datetime.now().date()
-        cur.execute(f"""
-            SELECT COUNT(*) FROM {table_name}
-            WHERE date = %s
-        """, (today,))
-        today_count = cur.fetchone()[0]
-        
-        # Check for data integrity issues
-        cur.execute(f"""
-            SELECT COUNT(*) FROM {table_name}
-            WHERE symbol IS NULL OR symbol = '' OR date IS NULL
-        """)
-        invalid_rows = cur.fetchone()[0]
-        
-        # Check if indexes exist
-        cur.execute("""
-            SELECT COUNT(*) FROM pg_indexes 
-            WHERE tablename = %s AND schemaname = 'public'
-        """, (table_name,))
-        index_count = cur.fetchone()[0]
-        indexes_exist = index_count >= 2  # We expect at least 2 indexes
-        
-        return {
-            'table_exists': True,
-            'row_count': row_count,
-            'latest_date': latest_date,
-            'today_count': today_count,
-            'invalid_rows': invalid_rows,
-            'needs_creation': False,
-            'indexes_exist': indexes_exist,
-            'index_count': index_count
-        }
-        
-    except Exception as e:
-        logging.error(f"❌ Error validating table state: {e}")
-        return {
-            'table_exists': False,
-            'row_count': 0,
-            'latest_date': None,
-            'today_count': 0,
-            'needs_creation': True,
-            'error': str(e),
-            'indexes_exist': False
-        }
-
-def clean_today_data(cur, conn, table_name='technical_data_daily'):
-    """Clean today's data from the table to avoid duplicates"""
-    today = datetime.now().date()
-    try:
-        cur.execute(f"""
-            DELETE FROM {table_name}
-            WHERE date = %s
-        """, (today,))
-        deleted_count = cur.rowcount
-        conn.commit()
-        logging.info(f"🧹 Cleaned {deleted_count} existing records for {today}")
-        return deleted_count
-    except Exception as e:
-        logging.error(f"❌ Error cleaning today's data: {e}")
-        conn.rollback()
-        return 0
-
-def validate_prerequisites(cur):
-    """Validate that all prerequisites for loading technical data are met"""
-    try:
-        # Check if price_daily table exists and has data
-        cur.execute("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_schema = 'public' 
-                AND table_name = 'price_daily'
-            );
-        """)
-        price_table_exists = cur.fetchone()[0]
-        
-        if not price_table_exists:
-            logging.error("❌ price_daily table does not exist. Technical data requires price data.")
-            return False
-        
-        # Check if we have price data for symbols
-        cur.execute("SELECT COUNT(DISTINCT symbol) FROM price_daily")
-        price_symbol_count = cur.fetchone()[0]
-        
-        if price_symbol_count == 0:
-            logging.error("❌ No symbols found in price_daily table")
-            return False
-        
-        logging.info(f"✅ Found {price_symbol_count} symbols with price data")
-        return True
-        
-    except Exception as e:
-        logging.error(f"❌ Error validating prerequisites: {e}")
-        return False
-
-def create_technical_table(cur, conn, table_name='technical_data_daily'):
-    """Create the technical data table with proper structure and indexes"""
-    try:
-        logging.info(f"🔨 Creating {table_name} table...")
-        
-        # Create the table
-        cur.execute(f"""
-            CREATE TABLE {table_name} (
-                symbol          VARCHAR(50) NOT NULL,
-                date            DATE        NOT NULL,
-                rsi             DOUBLE PRECISION,
-                macd            DOUBLE PRECISION,
-                macd_signal     DOUBLE PRECISION,
-                macd_hist       DOUBLE PRECISION,
-                mom             DOUBLE PRECISION,
-                roc             DOUBLE PRECISION,
-                adx             DOUBLE PRECISION,
-                atr             DOUBLE PRECISION,
-                ad              DOUBLE PRECISION,
-                cmf             DOUBLE PRECISION,
-                mfi             DOUBLE PRECISION,
-                td_sequential   DOUBLE PRECISION,
-                td_combo        DOUBLE PRECISION,
-                marketwatch     DOUBLE PRECISION,
-                dm              DOUBLE PRECISION,
-                sma_10          DOUBLE PRECISION,
-                sma_20          DOUBLE PRECISION,
-                sma_50          DOUBLE PRECISION,
-                sma_150         DOUBLE PRECISION,
-                sma_200         DOUBLE PRECISION,
-                ema_4           DOUBLE PRECISION,
-                ema_9           DOUBLE PRECISION,
-                ema_21          DOUBLE PRECISION,
-                bbands_lower    DOUBLE PRECISION,
-                bbands_middle   DOUBLE PRECISION,
-                bbands_upper    DOUBLE PRECISION,
-                pivot_high      DOUBLE PRECISION,
-                pivot_low       DOUBLE PRECISION,
-                fetched_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(symbol, date)
-            );
-        """)
-        
-        # Create indexes for performance
-        cur.execute(f"""
-            CREATE INDEX idx_{table_name.replace('_', '')}_symbol ON {table_name}(symbol);
-            CREATE INDEX idx_{table_name.replace('_', '')}_date ON {table_name}(date);
-        """)
-        
-        conn.commit()
-        logging.info(f"✅ Created {table_name} table with indexes successfully")
-        return True
-        
-    except Exception as e:
-        logging.error(f"❌ Error creating {table_name} table: {e}")
-        conn.rollback()
-        return False
-
 def verify_table_deletion(cur, table_name='technical_data_daily'):
     """Verify that table and indexes were successfully deleted"""
     try:
@@ -1283,8 +1095,8 @@ def verify_table_deletion(cur, table_name='technical_data_daily'):
         if index_count > 0:
             logging.warning(f"⚠️ Found {index_count} orphaned indexes for {table_name}")
             # Clean up orphaned indexes
-            cur.execute(f"DROP INDEX IF EXISTS idx_{table_name.replace('_', '')}_symbol CASCADE;")
-            cur.execute(f"DROP INDEX IF EXISTS idx_{table_name.replace('_', '')}_date CASCADE;")
+            cur.execute(f"DROP INDEX IF EXISTS idx_technical_daily_symbol CASCADE;")
+            cur.execute(f"DROP INDEX IF EXISTS idx_technical_daily_date CASCADE;")
             logging.info("🧹 Cleaned up orphaned indexes")
         
         logging.info(f"✅ Table {table_name} and indexes successfully deleted")
@@ -1294,137 +1106,8 @@ def verify_table_deletion(cur, table_name='technical_data_daily'):
         logging.error(f"❌ Error verifying table deletion: {e}")
         return False
 
-# -------------------------------
-# Main loader with optimized batch processing and parallel execution
-# -------------------------------
-def load_technicals_optimized(symbols):
-    """Optimized technical indicators loader with batch processing and advanced parallelization"""
-    total = len(symbols)
-    logging.info(f"🚀 Starting ultra-optimized technical indicators calculation for {total} symbols")
-    logging.info(f"📊 Performance improvements: TA-Lib C library + Batch processing + Parallel execution")    # Dynamic chunk sizing based on total symbols for optimal memory usage and timeout prevention
-    if total <= 100:
-        CHUNK_SIZE = 12   # Increased from 8 with more resources
-        MAX_WORKERS = 3   # Increased from 2
-    elif total <= 500:
-        CHUNK_SIZE = 20   # Increased from 12 with more resources
-        MAX_WORKERS = 4   # Increased from 2 with more CPU/memory
-    else:
-        CHUNK_SIZE = 25   # Increased from 15 with more resources
-        MAX_WORKERS = 4   # Increased from 2 with more CPU/memory
-    
-    logging.info(f"⚙️  Configuration: {CHUNK_SIZE} symbols per chunk, {MAX_WORKERS} parallel workers")
-    
-    # Split symbols into optimized chunks
-    symbol_chunks = [symbols[i:i + CHUNK_SIZE] for i in range(0, len(symbols), CHUNK_SIZE)]
-    total_chunks = len(symbol_chunks)
-    
-    db_config = get_db_config()
-    all_processed_symbols = []
-    all_failed_symbols = []
-    
-    log_mem("before parallel processing")
-    start_time = time.time()
-    
-    # Process chunks with controlled parallelization and progress tracking
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        # Submit all chunk processing tasks
-        chunk_futures = {}
-        
-        for chunk_idx, chunk in enumerate(symbol_chunks):
-            future = executor.submit(process_symbol_chunk, chunk, db_config)
-            chunk_futures[future] = (chunk_idx + 1, chunk)
-            
-        logging.info(f"📋 Submitted {len(chunk_futures)} chunk processing tasks")
-        
-        # Process completed chunks as they finish with detailed progress tracking
-        completed_chunks = 0
-        
-        for future in as_completed(chunk_futures):
-            chunk_num, chunk = chunk_futures[future]
-            completed_chunks += 1
-            
-            try:
-                processed_symbols = future.result()
-                all_processed_symbols.extend(processed_symbols)
-                  # Determine failed symbols in this chunk
-                failed_in_chunk = [s for s in chunk if s not in processed_symbols]
-                all_failed_symbols.extend(failed_in_chunk)
-                
-                # Enhanced chunk completion logging with symbol details
-                success_count = len(processed_symbols)
-                fail_count = len(failed_in_chunk)
-                
-                # Calculate progress and ETA
-                progress_pct = (completed_chunks / total_chunks) * 100
-                elapsed_time = time.time() - start_time
-                
-                if completed_chunks > 1:
-                    avg_time_per_chunk = elapsed_time / completed_chunks
-                    remaining_chunks = total_chunks - completed_chunks
-                    eta_seconds = avg_time_per_chunk * remaining_chunks
-                    eta_minutes = eta_seconds / 60
-                    
-                    logging.info(f"📈 Progress: {completed_chunks}/{total_chunks} chunks ({progress_pct:.1f}%) | "
-                                f"Chunk {chunk_num}: {success_count}/{len(chunk)} symbols succeeded | "
-                                f"ETA: {eta_minutes:.1f} minutes")
-                else:
-                    logging.info(f"📊 Chunk {chunk_num}/{total_chunks} completed: "
-                                f"{success_count}/{len(chunk)} symbols processed successfully")
-                
-                # Log failed symbols if any
-                if fail_count > 0:
-                    failed_symbols_str = ', '.join(failed_in_chunk[:5]) + ('...' if fail_count > 5 else '')
-                    logging.warning(f"⚠️  Chunk {chunk_num}: {fail_count} symbols failed: {failed_symbols_str}")
-                
-                log_mem(f"after chunk {chunk_num}")
-                
-                # Force garbage collection after each chunk to maintain memory efficiency
-                gc.collect()
-                
-            except Exception as e:
-                logging.error(f"❌ Chunk {chunk_num}/{total_chunks} failed completely: {str(e)}")
-                all_failed_symbols.extend(chunk)
-      # Final performance summary
-    total_time = time.time() - start_time
-    successful_count = len(all_processed_symbols)
-    failed_count = len(all_failed_symbols)
-    logging.info(f"🎯 TA-Lib optimization complete!")
-    logging.info(f"📊 Results: {successful_count}/{total} symbols processed successfully")
-    logging.info(f"⏱️  Total time: {total_time/60:.2f} minutes ({total_time:.1f} seconds)")
-    logging.info(f"⚡ Performance: {successful_count/(total_time/60):.1f} symbols/minute")
-    
-    if failed_count > 0:
-        logging.warning(f"⚠️  {failed_count} symbols failed processing:")
-        # Show first 20 failed symbols with more detail
-        for i, symbol in enumerate(all_failed_symbols[:20]):
-            logging.warning(f"  - {symbol}")
-        if failed_count > 20:
-            logging.warning(f"  ... and {failed_count - 20} more symbols failed")
-    else:
-        logging.info("✅ All symbols processed successfully!")
-    
-    log_mem("final memory usage")
-    
-    return total, successful_count, all_failed_symbols
-
-def load_technicals(symbols, cur, conn):
-    """Legacy function maintained for compatibility - delegates to optimized version"""
-    logging.info("🔄 Using ultra-optimized batch processing with TA-Lib...")
-    
-    # Close the passed connection since we'll manage our own in the optimized version
-    cur.close()
-    conn.close()
-    
-    # Use the optimized approach
-    total, inserted, failed = load_technicals_optimized(symbols)
-    
-    return total, inserted, failed
-
-# -------------------------------
-# Table validation and management functions
-# -------------------------------
-def validate_table_state(cur, table_name='technical_data_daily'):
-    """Validate table state and return comprehensive information about existing data"""
+def verify_table_creation(cur, table_name='technical_data_daily'):
+    """Verify that table and indexes were successfully created"""
     try:
         # Check if table exists
         cur.execute("""
@@ -1437,92 +1120,40 @@ def validate_table_state(cur, table_name='technical_data_daily'):
         table_exists = cur.fetchone()[0]
         
         if not table_exists:
-            return {
-                'table_exists': False,
-                'row_count': 0,
-                'latest_date': None,
-                'today_count': 0,
-                'needs_creation': True,
-                'indexes_exist': False
-            }
+            logging.error(f"❌ Table {table_name} was not created successfully")
+            return False
         
-        # Get row count
-        cur.execute(f"SELECT COUNT(*) FROM {table_name}")
-        row_count = cur.fetchone()[0]
-        
-        # Get latest date
-        cur.execute(f"""
-            SELECT MAX(date) FROM {table_name}
-            WHERE date IS NOT NULL
-        """)
-        latest_date_result = cur.fetchone()
-        latest_date = latest_date_result[0] if latest_date_result and latest_date_result[0] else None
-        
-        # Get today's data count
-        today = datetime.now().date()
-        cur.execute(f"""
-            SELECT COUNT(*) FROM {table_name}
-            WHERE date = %s
-        """, (today,))
-        today_count = cur.fetchone()[0]
-        
-        # Check for data integrity issues
-        cur.execute(f"""
-            SELECT COUNT(*) FROM {table_name}
-            WHERE symbol IS NULL OR symbol = '' OR date IS NULL
-        """)
-        invalid_rows = cur.fetchone()[0]
-        
-        # Check if indexes exist
+        # Check if expected indexes exist
         cur.execute("""
             SELECT COUNT(*) FROM pg_indexes 
             WHERE tablename = %s AND schemaname = 'public'
         """, (table_name,))
         index_count = cur.fetchone()[0]
-        indexes_exist = index_count >= 2  # We expect at least 2 indexes
         
-        return {
-            'table_exists': True,
-            'row_count': row_count,
-            'latest_date': latest_date,
-            'today_count': today_count,
-            'invalid_rows': invalid_rows,
-            'needs_creation': False,
-            'indexes_exist': indexes_exist,
-            'index_count': index_count
-        }
+        if index_count < 2:
+            logging.warning(f"⚠️ Expected 2+ indexes, found {index_count} for {table_name}")
+            return False
         
-    except Exception as e:
-        logging.error(f"❌ Error validating table state: {e}")
-        return {
-            'table_exists': False,
-            'row_count': 0,
-            'latest_date': None,
-            'today_count': 0,
-            'needs_creation': True,
-            'error': str(e),
-            'indexes_exist': False
-        }
-
-def clean_today_data(cur, conn, table_name='technical_data_daily'):
-    """Clean today's data from the table to avoid duplicates"""
-    today = datetime.now().date()
-    try:
+        # Check table structure
         cur.execute(f"""
-            DELETE FROM {table_name}
-            WHERE date = %s
-        """, (today,))
-        deleted_count = cur.rowcount
-        conn.commit()
-        logging.info(f"🧹 Cleaned {deleted_count} existing records for {today}")
-        return deleted_count
+            SELECT COUNT(*) FROM information_schema.columns 
+            WHERE table_name = %s AND table_schema = 'public'
+        """, (table_name,))
+        column_count = cur.fetchone()[0]
+        
+        expected_columns = len(TECHNICALS_COLUMNS)  # Should match the columns we defined
+        if column_count < expected_columns:
+            logging.warning(f"⚠️ Expected {expected_columns}+ columns, found {column_count} for {table_name}")
+        
+        logging.info(f"✅ Table {table_name} successfully created with {index_count} indexes and {column_count} columns")
+        return True
+        
     except Exception as e:
-        logging.error(f"❌ Error cleaning today's data: {e}")
-        conn.rollback()
-        return 0
+        logging.error(f"❌ Error verifying table creation: {e}")
+        return False
 
 def validate_prerequisites(cur):
-    """Validate that all prerequisites for loading technical data are met"""
+    """Validate that prerequisites for loading technical data are met"""
     try:
         # Check if price_daily table exists and has data
         cur.execute("""
@@ -1546,182 +1177,31 @@ def validate_prerequisites(cur):
             logging.error("❌ No symbols found in price_daily table")
             return False
         
-        logging.info(f"✅ Found {price_symbol_count} symbols with price data")
+        logging.info(f"✅ Prerequisites met: price_daily table exists with {price_symbol_count} symbols")
         return True
         
     except Exception as e:
         logging.error(f"❌ Error validating prerequisites: {e}")
         return False
 
-def create_technical_table(cur, conn, table_name='technical_data_daily'):
-    """Create the technical data table with proper structure and indexes"""
-    try:
-        logging.info(f"🔨 Creating {table_name} table...")
-        
-        # Create the table
-        cur.execute(f"""
-            CREATE TABLE {table_name} (
-                symbol          VARCHAR(50) NOT NULL,
-                date            DATE        NOT NULL,
-                rsi             DOUBLE PRECISION,
-                macd            DOUBLE PRECISION,
-                macd_signal     DOUBLE PRECISION,
-                macd_hist       DOUBLE PRECISION,
-                mom             DOUBLE PRECISION,
-                roc             DOUBLE PRECISION,
-                adx             DOUBLE PRECISION,
-                atr             DOUBLE PRECISION,
-                ad              DOUBLE PRECISION,
-                cmf             DOUBLE PRECISION,
-                mfi             DOUBLE PRECISION,
-                td_sequential   DOUBLE PRECISION,
-                td_combo        DOUBLE PRECISION,
-                marketwatch     DOUBLE PRECISION,
-                dm              DOUBLE PRECISION,
-                sma_10          DOUBLE PRECISION,
-                sma_20          DOUBLE PRECISION,
-                sma_50          DOUBLE PRECISION,
-                sma_150         DOUBLE PRECISION,
-                sma_200         DOUBLE PRECISION,
-                ema_4           DOUBLE PRECISION,
-                ema_9           DOUBLE PRECISION,
-                ema_21          DOUBLE PRECISION,
-                bbands_lower    DOUBLE PRECISION,
-                bbands_middle   DOUBLE PRECISION,
-                bbands_upper    DOUBLE PRECISION,
-                pivot_high      DOUBLE PRECISION,
-                pivot_low       DOUBLE PRECISION,
-                fetched_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(symbol, date)
-            );
-        """)
-        
-        # Create indexes for performance
-        cur.execute(f"""
-            CREATE INDEX idx_{table_name.replace('_', '')}_symbol ON {table_name}(symbol);
-            CREATE INDEX idx_{table_name.replace('_', '')}_date ON {table_name}(date);
-        """)
-        
-        conn.commit()
-        logging.info(f"✅ Created {table_name} table with indexes successfully")
-        return True
-        
-    except Exception as e:
-        logging.error(f"❌ Error creating {table_name} table: {e}")
-        conn.rollback()
-        return False
-
-def verify_table_deletion(cur, table_name='technical_data_daily'):
-    """Verify that table and indexes were successfully deleted"""
-    try:
-        # Check if table still exists
-        cur.execute("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_schema = 'public' 
-                AND table_name = %s
-            );
-        """, (table_name,))
-        table_exists = cur.fetchone()[0]
-        
-        # Check if indexes still exist
-        cur.execute("""
-            SELECT COUNT(*) FROM pg_indexes 
-            WHERE tablename = %s AND schemaname = 'public'
-        """, (table_name,))
-        index_count = cur.fetchone()[0]
-        
-        if table_exists:
-            logging.error(f"❌ Table {table_name} still exists after deletion attempt")
-            return False
-        
-        if index_count > 0:
-            logging.warning(f"⚠️ Found {index_count} orphaned indexes for {table_name}")
-            # Clean up orphaned indexes
-            cur.execute(f"DROP INDEX IF EXISTS idx_{table_name.replace('_', '')}_symbol CASCADE;")
-            cur.execute(f"DROP INDEX IF EXISTS idx_{table_name.replace('_', '')}_date CASCADE;")
-            logging.info("🧹 Cleaned up orphaned indexes")
-        
-        logging.info(f"✅ Table {table_name} and indexes successfully deleted")
-        return True
-        
-    except Exception as e:
-        logging.error(f"❌ Error verifying table deletion: {e}")
-        return False
-
 # -------------------------------
-# Entrypoint
+# Main loader with table recreation and technical indicators calculation
 # -------------------------------
-def main():
-    """Main function with proper error handling for ECS task completion"""
-    exit_code = 0
-    conn = None
-    cur = None
+def load_technicals_with_recreate(cur, conn):
+    """Load technical indicators with table recreation and optimized processing"""
+    logging.info("🔄 Recreating technical_data_daily table and loading technical indicators...")
     
     try:
-        log_mem("startup")
-        logging.info(f"🚀 Starting {SCRIPT_NAME}")
-
-        # Connect to DB
-        cfg = get_db_config()
-        conn = psycopg2.connect(
-            host=cfg["host"], port=cfg["port"],
-            user=cfg["user"], password=cfg["password"],
-            dbname=cfg["dbname"]
-        )
-        conn.autocommit = False
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        # Validate prerequisites first
+        # Step 0: Validate prerequisites
         logging.info("🔍 Validating prerequisites...")
         if not validate_prerequisites(cur):
             logging.error("❌ Prerequisites not met for loading technical data")
-            exit_code = 1
-            return exit_code
+            return False
         
-        # Check table state and validate
-        table_state = validate_table_state(cur, 'technical_data_daily')
-        logging.info(f"📊 Table state: {table_state}")
+        # Step 1: Recreate technical_data_daily table
+        logging.info("Recreating technical_data_daily table…")
         
-        if table_state.get('error'):
-            logging.error(f"❌ Error checking table state: {table_state['error']}")
-            exit_code = 1
-            return exit_code
-        
-        # Handle table creation or validation
-        if table_state['needs_creation']:
-            if not create_technical_table(cur, conn, 'technical_data_daily'):
-                logging.error("❌ Failed to create technical_data_daily table")
-                exit_code = 1
-                return exit_code
-        else:
-            logging.info(f"📋 Table exists with {table_state['row_count']} rows, latest date: {table_state['latest_date']}")
-            
-            # Check for invalid data and clean if necessary
-            if table_state['invalid_rows'] > 0:
-                logging.warning(f"⚠️ Found {table_state['invalid_rows']} invalid rows, cleaning...")
-                cur.execute("""
-                    DELETE FROM technical_data_daily 
-                    WHERE symbol IS NULL OR symbol = '' OR date IS NULL
-                """)
-                conn.commit()
-                logging.info(f"🧹 Cleaned {cur.rowcount} invalid rows")
-            
-            # Verify indexes exist
-            if not table_state['indexes_exist']:
-                logging.warning(f"⚠️ Missing indexes (found {table_state['index_count']}/2), creating...")
-                cur.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_technicaldaily_symbol ON technical_data_daily(symbol);
-                    CREATE INDEX IF NOT EXISTS idx_technicaldaily_date ON technical_data_daily(date);
-                """)
-                conn.commit()
-                logging.info("✅ Created missing indexes")
-              # Clean today's data to avoid duplicates if rerunning
-            if table_state['today_count'] > 0:
-                logging.info(f"🧹 Found {table_state['today_count']} existing records for today, cleaning...")
-                clean_today_data(cur, conn, 'technical_data_daily')
-        
-        # Get symbols that have price data
+        # Check if table exists first
         cur.execute("""
             SELECT EXISTS (
                 SELECT FROM information_schema.tables 
@@ -1737,10 +1217,14 @@ def main():
             logging.info("Dropping indexes first...")
             cur.execute("DROP INDEX IF EXISTS idx_technical_daily_symbol CASCADE;")
             cur.execute("DROP INDEX IF EXISTS idx_technical_daily_date CASCADE;")
-            
-            # Now drop the table
+              # Now drop the table
             cur.execute("DROP TABLE technical_data_daily CASCADE;")
             logging.info("✅ Dropped existing technical_data_daily table and its indexes")
+            
+            # Validate that table was successfully deleted
+            if not verify_table_deletion(cur, 'technical_data_daily'):
+                logging.error("❌ Table deletion validation failed")
+                return False
         
         # Verify table is gone
         cur.execute("""
@@ -1802,7 +1286,16 @@ def main():
         """)
         
         conn.commit()
-
+          # Validate table creation
+        if not verify_table_creation(cur, 'technical_data_daily'):
+            logging.error("❌ Table creation verification failed")
+            return False
+        
+        logging.info("✅ technical_data_daily table recreated successfully")
+        
+        # Step 2: Load technical indicators
+        logging.info("📊 Loading technical indicators for all symbols")
+        
         # Get symbols that have price data
         cur.execute("""
             SELECT DISTINCT symbol 
@@ -1813,25 +1306,30 @@ def main():
         
         if not symbols:
             logging.error("❌ No symbols found in price_daily table")
-            exit_code = 1
-            return exit_code
+            return
         
         logging.info(f"📊 Found {len(symbols)} symbols to process")
-
+        
+        # Validate prerequisites
+        if not validate_prerequisites(cur):
+            logging.error("❌ Prerequisites validation failed")
+            return
+        
         # Process technical indicators
         total, inserted, failed = load_technicals(symbols, cur, conn)
-
-        # Ensure cursor is still valid after the optimized processing
+          # Ensure cursor is still valid after the optimized processing
         try:
             cur.execute("SELECT 1")
         except (psycopg2.InterfaceError, psycopg2.OperationalError):
             logging.info("Reconnecting to database after technical indicators processing...")
             cur.close()
             conn.close()
+            # Get database config for reconnection
+            db_cfg = get_db_config()
             conn = psycopg2.connect(
-                host=cfg["host"], port=cfg["port"],
-                user=cfg["user"], password=cfg["password"],
-                dbname=cfg["dbname"]
+                host=db_cfg["host"], port=db_cfg["port"],
+                user=db_cfg["user"], password=db_cfg["password"],
+                dbname=db_cfg["dbname"]
             )
             conn.autocommit = False
             cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -1853,11 +1351,63 @@ def main():
             logging.warning(f"⚠️ Failed symbols ({len(failed)}): {failed[:10]}...")
             if len(failed) > len(symbols) * 0.5:  # More than 50% failed
                 logging.error(f"❌ Too many failures ({len(failed)}/{total}), marking as failed")
-                exit_code = 1
             else:
                 logging.info(f"✅ Acceptable failure rate ({len(failed)}/{total})")
 
         logging.info("✅ Technical indicators processing completed successfully")
+        
+    except KeyboardInterrupt:
+        logging.warning("⚠️ Received interrupt signal, shutting down gracefully...")
+    except Exception as e:
+        logging.error(f"❌ Critical error in load_technicals_with_recreate: {str(e)}", exc_info=True)
+    finally:
+        # Clean up database connections
+        if cur:
+            try:
+                cur.close()
+            except:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+        
+        logging.info(f"🏁 {SCRIPT_NAME} finished")
+        
+# -------------------------------
+# Entrypoint
+# -------------------------------
+def main():
+    """Main function with proper error handling for ECS task completion"""
+    exit_code = 0
+    conn = None
+    cur = None
+    
+    try:
+        log_mem("startup")
+        logging.info(f"🚀 Starting {SCRIPT_NAME}")
+
+        # Connect to DB
+        cfg = get_db_config()
+        conn = psycopg2.connect(
+            host=cfg["host"], port=cfg["port"],
+            user=cfg["user"], password=cfg["password"],
+            dbname=cfg["dbname"]
+        )
+        conn.autocommit = False
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Load technical indicators with table recreation
+        load_technicals_with_recreate(cur, conn)
+        
+        # Clean up
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+        
+        logging.info("✅ Process completed successfully")
         
     except KeyboardInterrupt:
         logging.warning("⚠️ Received interrupt signal, shutting down gracefully...")
