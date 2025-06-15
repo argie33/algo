@@ -422,9 +422,22 @@ Resources:
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         AllowOrigin: "'*'"
         AllowCredentials: false
-      AccessLogSetting:
+        AccessLogSetting:
         DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
         Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength","responseLatency":"$context.responseLatency","integrationLatency":"$context.integrationLatency","cacheHitStatus":"$context.identity.cacheHitStatus"}'
+      # API Gateway Performance Configuration
+      CacheClusterEnabled: !If [EnableOptimizations, true, false]
+      CacheClusterSize: !If [EnableOptimizations, !Ref ApiGatewayCacheClusterSize, !Ref 'AWS::NoValue']
+      MethodSettings:
+        - ResourcePath: "/*"
+          HttpMethod: "*"
+          LoggingLevel: ERROR
+          DataTraceEnabled: false
+          MetricsEnabled: true
+          ThrottlingBurstLimit: !Ref ApiGatewayThrottlingBurstLimit
+          ThrottlingRateLimit: !Ref ApiGatewayThrottlingRateLimit
+          CachingEnabled: !If [EnableOptimizations, true, false]
+          CacheTtlInSeconds: 300
 
   # CloudWatch Log Group for API Gateway
   ApiGatewayLogGroup:
@@ -439,54 +452,6 @@ Resources:
     Properties:
       LogGroupName: !Sub '/aws/lambda/financial-dashboard-api-${EnvironmentName}'
       RetentionInDays: 30
-
-  # API Gateway Deployment with Caching
-  ApiGatewayDeployment:
-    Type: AWS::ApiGateway::Deployment
-    DependsOn: ApiGateway
-    Properties:
-      RestApiId: !Ref ApiGateway
-      StageName: !Ref EnvironmentName
-      StageDescription:
-        CachingEnabled: true
-        CacheClusterEnabled: true
-        CacheClusterSize: !Ref ApiGatewayCacheClusterSize
-        CacheTtlInSeconds: 300
-        MethodSettings:
-          - ResourcePath: "/*"
-            HttpMethod: "*"
-            LoggingLevel: ERROR
-            DataTraceEnabled: false
-            MetricsEnabled: true
-            ThrottlingBurstLimit: !Ref ApiGatewayThrottlingBurstLimit
-            ThrottlingRateLimit: !Ref ApiGatewayThrottlingRateLimit
-          # High-frequency endpoints (stocks, technical)
-          - ResourcePath: "/technical/*"
-            HttpMethod: "GET" 
-            CachingEnabled: !If [EnableOptimizations, true, false]
-            CacheTtlInSeconds: 300
-            ThrottlingBurstLimit: !If [EnableOptimizations, 300, 100]
-            ThrottlingRateLimit: !If [EnableOptimizations, 150, 50]
-          - ResourcePath: "/stocks/*"
-            HttpMethod: "GET"
-            CachingEnabled: !If [EnableOptimizations, true, false]
-            CacheTtlInSeconds: 180
-            ThrottlingBurstLimit: !If [EnableOptimizations, 250, 100]
-            ThrottlingRateLimit: !If [EnableOptimizations, 125, 50]
-          # Medium-frequency endpoints
-          - ResourcePath: "/metrics/*"
-            HttpMethod: "GET"
-            CachingEnabled: !If [EnableOptimizations, true, false]
-            CacheTtlInSeconds: 600
-            ThrottlingBurstLimit: !If [EnableOptimizations, 150, 75]
-            ThrottlingRateLimit: !If [EnableOptimizations, 75, 25]
-          - ResourcePath: "/calendar/*"
-            HttpMethod: "GET"
-            CachingEnabled: !If [EnableOptimizations, true, false]
-            CacheTtlInSeconds: 1800
-            ThrottlingBurstLimit: !If [EnableOptimizations, 100, 50]
-            ThrottlingRateLimit: !If [EnableOptimizations, 50, 25]
-
   # API Gateway Performance Monitoring
   ApiGatewayPerformanceAlarm:
     Type: AWS::CloudWatch::Alarm
