@@ -452,11 +452,6 @@ Resources:
         CacheClusterEnabled: true
         CacheClusterSize: !Ref ApiGatewayCacheClusterSize
         CacheTtlInSeconds: 300
-        CacheKeyParameters:
-          - method.request.querystring.symbol
-          - method.request.querystring.limit
-          - method.request.querystring.page
-          - method.request.querystring.timeframe
         MethodSettings:
           - ResourcePath: "/*"
             HttpMethod: "*"
@@ -472,21 +467,12 @@ Resources:
             CacheTtlInSeconds: 300
             ThrottlingBurstLimit: !If [EnableOptimizations, 300, 100]
             ThrottlingRateLimit: !If [EnableOptimizations, 150, 50]
-            CacheKeyParameters:
-              - method.request.querystring.symbol
-              - method.request.querystring.limit
-              - method.request.querystring.page
           - ResourcePath: "/stocks/*"
             HttpMethod: "GET"
             CachingEnabled: !If [EnableOptimizations, true, false]
             CacheTtlInSeconds: 180
             ThrottlingBurstLimit: !If [EnableOptimizations, 250, 100]
             ThrottlingRateLimit: !If [EnableOptimizations, 125, 50]
-            CacheKeyParameters:
-              - method.request.querystring.symbol
-              - method.request.querystring.limit
-              - method.request.querystring.page
-              - method.request.querystring.search
           # Medium-frequency endpoints
           - ResourcePath: "/metrics/*"
             HttpMethod: "GET"
