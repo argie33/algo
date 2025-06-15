@@ -1155,6 +1155,8 @@ def verify_table_creation(cur, table_name='technical_data_daily'):
 def validate_prerequisites(cur):
     """Validate that prerequisites for loading technical data are met"""
     try:
+        logging.info("🔍 Step 1: Checking if price_daily table exists...")
+        
         # Check if price_daily table exists and has data
         cur.execute("""
             SELECT EXISTS (
@@ -1164,24 +1166,66 @@ def validate_prerequisites(cur):
             );
         """)
         price_table_exists = cur.fetchone()[0]
+        logging.info(f"📊 price_daily table exists: {price_table_exists}")
         
         if not price_table_exists:
             logging.error("❌ price_daily table does not exist. Technical data requires price data.")
+            logging.error("💡 Hint: Run the price data loader first (pricedaily-loader) to populate price_daily table")
             return False
-          # Check if we have price data for symbols
+        
+        logging.info("🔍 Step 2: Checking if price_daily table has data...")
+        
+        # Check total number of rows first
+        cur.execute("SELECT COUNT(*) FROM price_daily")
+        total_rows = cur.fetchone()[0]
+        logging.info(f"📊 Total rows in price_daily: {total_rows}")
+        
+        if total_rows == 0:
+            logging.error("❌ price_daily table exists but is empty (0 rows)")
+            logging.error("💡 Hint: Run the price data loader first (pricedaily-loader) to populate price_daily table")
+            return False
+        
+        # Check if we have price data for symbols
+        logging.info("🔍 Step 3: Counting distinct symbols in price_daily...")
         cur.execute("SELECT COUNT(DISTINCT symbol) FROM price_daily")
         result = cur.fetchone()
         price_symbol_count = result[0] if result else 0
+        logging.info(f"📊 Distinct symbols in price_daily: {price_symbol_count}")
         
         if price_symbol_count == 0:
-            logging.error("❌ No symbols found in price_daily table")
+            logging.error("❌ No distinct symbols found in price_daily table")
+            logging.error("💡 This is unusual - table has rows but no distinct symbols")
+            # Let's see what data is actually in the table
+            cur.execute("SELECT symbol, COUNT(*) FROM price_daily GROUP BY symbol LIMIT 5")
+            sample_data = cur.fetchall()
+            logging.error(f"📊 Sample data from price_daily: {sample_data}")
             return False
         
-        logging.info(f"✅ Prerequisites met: price_daily table exists with {price_symbol_count} symbols")
+        # Check date range of price data
+        logging.info("🔍 Step 4: Checking date range of price data...")
+        cur.execute("SELECT MIN(date), MAX(date) FROM price_daily")
+        date_range = cur.fetchone()
+        min_date, max_date = date_range if date_range else (None, None)
+        logging.info(f"📊 Price data date range: {min_date} to {max_date}")
+        
+        # Check if we have recent data (within last 30 days)
+        from datetime import datetime, timedelta
+        thirty_days_ago = datetime.now() - timedelta(days=30)
+        
+        if max_date and max_date.date() < thirty_days_ago.date():
+            logging.warning(f"⚠️  Price data is old. Latest data: {max_date}, 30 days ago: {thirty_days_ago.date()}")
+            logging.warning("💡 Consider running the price data loader to get fresh data")
+        
+        logging.info(f"✅ Prerequisites met: price_daily table exists with {price_symbol_count} symbols, {total_rows} total rows")
+        logging.info(f"✅ Data range: {min_date} to {max_date}")
         return True
         
     except Exception as e:
         logging.error(f"❌ Error validating prerequisites: {str(e)}")
+        logging.error(f"❌ Exception type: {type(e).__name__}")
+        logging.error(f"❌ Exception details: {repr(e)}")
+        import traceback
+        logging.error(f"❌ Full traceback: {traceback.format_exc()}")
         return False
 
 # -------------------------------
