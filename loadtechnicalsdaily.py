@@ -601,11 +601,11 @@ def load_technicals_for_symbol(symbol, cur):
         if not insert_data:
             logging.warning(f"⚠️ No data to insert for {symbol}")
             return 0
-        
-        # Insert data with conflict resolution
+          # Insert data with conflict resolution using execute_values
+        # Note: execute_values expects a single %s placeholder that it will replace with VALUES
         insert_sql = f"""
             INSERT INTO technical_data_daily ({', '.join(columns)})
-            VALUES ({', '.join(['%s'] * len(columns))})
+            VALUES %s
             ON CONFLICT (symbol, date) DO UPDATE SET
                 open = EXCLUDED.open,
                 high = EXCLUDED.high,
@@ -636,7 +636,7 @@ def load_technicals_for_symbol(symbol, cur):
                 updated_at = CURRENT_TIMESTAMP
         """
         
-        execute_values(cur, insert_sql, insert_data, template=None, page_size=1000)
+        execute_values(cur, insert_sql, insert_data, page_size=1000)
         
         logging.info(f"✅ Loaded {len(insert_data)} technical records for {symbol}")
         return len(insert_data)
