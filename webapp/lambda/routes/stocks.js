@@ -686,38 +686,22 @@ router.get('/chunk/:chunkIndex', async (req, res) => {
       LEFT JOIN market_data md ON cp.ticker = md.ticker 
       WHERE md.regular_market_price IS NOT NULL
     `;
-    const countResult = await query(countQuery);
-    const totalStocks = parseInt(countResult.rows[0]?.total || 0);
+    const countResult = await query(countQuery);    const totalStocks = parseInt(countResult.rows[0]?.total || 0);
     const totalChunks = Math.ceil(totalStocks / chunkSize);
 
-    // Clean up numeric data
-    const cleanData = result.rows.map(row => {
-      const cleaned = {};
-      for (const [key, value] of Object.entries(row)) {
-        if (value !== null && value !== undefined) {
-          if (typeof value === 'number' && !Number.isInteger(value)) {
-            cleaned[key] = Math.round(value * 10000) / 10000;
-          } else {
-            cleaned[key] = value;
-          }
-        }
-      }
-      return cleaned;
-    });
-
+    // Return raw data for better performance
     res.json({
       success: true,
-      data: cleanData,
-      chunk: {
+      data: result.rows,      chunk: {
         index: chunkIndex,
         size: chunkSize,
-        count: cleanData.length,
+        count: result.rows.length,
         totalChunks,
         totalStocks,
         hasMore: chunkIndex < totalChunks - 1
       },
       metadata: {
-        dataSize: JSON.stringify(cleanData).length,
+        dataSize: JSON.stringify(result.rows).length,
         loadingStrategy: 'chunked'
       }
     });
@@ -801,39 +785,22 @@ router.get('/full/data', async (req, res) => {
     const startTime = Date.now();
     const stocksResult = await query(stocksQuery, params);
     const queryTime = Date.now() - startTime;
-    
-    console.log(`Stocks query completed in ${queryTime}ms, returned ${stocksResult.rows.length} rows`);
+      console.log(`Stocks query completed in ${queryTime}ms, returned ${stocksResult.rows.length} rows`);
 
-    // Process data but keep ALL columns
-    const processedData = stocksResult.rows.map(row => {
-      const processed = {};
-      for (const [key, value] of Object.entries(row)) {
-        if (value !== null && value !== undefined) {
-          if (typeof value === 'number' && !Number.isInteger(value)) {
-            processed[key] = Math.round(value * 10000) / 10000;
-          } else {
-            processed[key] = value;
-          }
-        } else {
-          processed[key] = null;
-        }
-      }
-      return processed;
-    });
-
-    const responseSize = JSON.stringify(processedData).length;
-    console.log(`Response size: ${responseSize} bytes for ${processedData.length} stocks`);
+    // Return raw data for better performance
+    const responseSize = JSON.stringify(stocksResult.rows).length;
+    console.log(`Response size: ${responseSize} bytes for ${stocksResult.rows.length} stocks`);
 
     res.json({
       success: true,
-      data: processedData,
-      count: processedData.length,
+      data: stocksResult.rows,
+      count: stocksResult.rows.length,
       metadata: {
         page,
         limit,
         queryTimeMs: queryTime,
         dataSize: responseSize,
-        averageSizePerStock: Math.round(responseSize / processedData.length),
+        averageSizePerStock: Math.round(responseSize / stocksResult.rows.length),
         loadingStrategy: 'full',
         warning: limit > 10 ? `Large dataset requested (${limit} stocks)` : null
       }
