@@ -128,6 +128,18 @@ def load_analyst_actions(symbols, cur, conn):
                        row.get("toGrade") or 
                        row.get("To") or 
                        None)
+              # Handle date conversion properly
+            if hasattr(dt, 'date'):
+                date_value = dt.date()
+            elif hasattr(dt, 'to_pydatetime'):
+                date_value = dt.to_pydatetime().date()
+            elif isinstance(dt, str):
+                try:
+                    date_value = pd.to_datetime(dt).date()
+                except:
+                    date_value = None
+            else:
+                date_value = None  # Default to NULL instead of invalid value
             
             rows.append([
                 symbol,
@@ -135,7 +147,7 @@ def load_analyst_actions(symbols, cur, conn):
                 row.get("Action"),
                 from_grade,
                 to_grade,
-                dt.date() if hasattr(dt, 'date') else dt,
+                date_value,
                 row.get("Details") if "Details" in row else None
             ])
         if not rows:
