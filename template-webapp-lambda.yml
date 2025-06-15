@@ -63,7 +63,7 @@ Globals:
         DB_ENDPOINT: !Ref DatabaseEndpoint
 
 Resources:
-  # S3 Bucket for Frontend Static Files
+  # S3 Bucket for Frontend Static Files 
   FrontendBucket:
     Type: AWS::S3::Bucket
     Properties:

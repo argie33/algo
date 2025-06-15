@@ -130,8 +130,7 @@ def load_analyst_actions(symbols, cur, conn):
                             date_value = None
                     else:
                         date_value = None
-                    
-                    # Skip rows with invalid/missing dates since the column is NOT NULL
+                      # Skip rows with invalid/missing dates since the column is NOT NULL
                     if date_value is None:
                         logging.warning(f"Skipping {orig_sym} row due to invalid/missing date")
                         continue
@@ -139,9 +138,9 @@ def load_analyst_actions(symbols, cur, conn):
                     rows_to_insert.append((
                         orig_sym,
                         row.get("Firm"),
-                        row.get("Action"),
-                        row.get("FromGrade"),  # Note: column name is FromGrade, not "From Grade"
-                        row.get("ToGrade"),    # Note: column name is ToGrade, not "To Grade"
+                        row.get("priceTargetAction"),  # Use priceTargetAction instead of Action
+                        row.get("FromGrade"),
+                        row.get("ToGrade"),
                         date_value,
                         None  # No details column in upgrades_downgrades
                     ))
