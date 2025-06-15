@@ -79,7 +79,8 @@ def load_analyst_actions(symbols, cur, conn):
             for attempt in range(1, MAX_BATCH_RETRIES+1):
                 try:
                     ticker = yf.Ticker(yq_sym)
-                    recommendations_df = ticker.recommendations
+                    # Use upgrades_downgrades instead of recommendations
+                    recommendations_df = ticker.upgrades_downgrades
                     if recommendations_df is None or recommendations_df.empty:
                         logging.info(f"No analyst upgrades/downgrades for {orig_sym}")
                         break  # No data available, not an error
@@ -101,48 +102,13 @@ def load_analyst_actions(symbols, cur, conn):
                 continue
             
             try:
-                # Check available columns and filter data
-                grade_columns = []
-                if "To Grade" in recommendations_df.columns:
-                    grade_columns.append("To Grade")
-                elif "toGrade" in recommendations_df.columns:
-                    grade_columns.append("toGrade")
-                elif "To" in recommendations_df.columns:
-                    grade_columns.append("To")
-                    
-                if "From Grade" in recommendations_df.columns:
-                    grade_columns.append("From Grade")
-                elif "fromGrade" in recommendations_df.columns:
-                    grade_columns.append("fromGrade")
-                elif "From" in recommendations_df.columns:
-                    grade_columns.append("From")
+                # upgrades_downgrades has columns: Firm, ToGrade, FromGrade, Action, priceTargetAction, currentPriceTarget
+                # The date is in the index as 'GradeDate'
                 
-                # If no grade columns found, use all recommendations
-                if not grade_columns:
-                    logging.warning(f"No grade columns found for {orig_sym}, returning all recommendations")
-                    df_filtered = recommendations_df
-                else:
-                    # Filter for rows that have grade information
-                    condition = pd.Series([False] * len(recommendations_df))
-                    for col in grade_columns:
-                        if col in recommendations_df.columns:
-                            condition = condition | recommendations_df[col].notna()
-                    df_filtered = recommendations_df[condition] if condition.any() else recommendations_df
-
                 # Process each recommendation
                 rows_to_insert = []
-                for dt, row in df_filtered.iterrows():
-                    # Handle flexible column names for grades
-                    from_grade = (row.get("From Grade") or 
-                                 row.get("fromGrade") or 
-                                 row.get("From") or 
-                                 None)
-                    to_grade = (row.get("To Grade") or 
-                               row.get("toGrade") or 
-                               row.get("To") or 
-                               None)
-                    
-                    # Handle date conversion properly
+                for dt, row in recommendations_df.iterrows():
+                    # Handle date from index (GradeDate)
                     if hasattr(dt, 'date'):
                         date_value = dt.date()
                     elif hasattr(dt, 'to_pydatetime'):
@@ -164,10 +130,10 @@ def load_analyst_actions(symbols, cur, conn):
                         orig_sym,
                         row.get("Firm"),
                         row.get("Action"),
-                        from_grade,
-                        to_grade,
+                        row.get("FromGrade"),  # Note: column name is FromGrade, not "From Grade"
+                        row.get("ToGrade"),    # Note: column name is ToGrade, not "To Grade"
                         date_value,
-                        row.get("Details") if "Details" in row else None
+                        None  # No details column in upgrades_downgrades
                     ))
                 
                 # Insert data if we have valid rows
