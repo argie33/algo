@@ -12,6 +12,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
 from datetime import datetime
 import pandas as pd
+from urllib.error import HTTPError
 
 import boto3
 import yfinance as yf
@@ -85,6 +86,16 @@ def load_analyst_actions(symbols, cur, conn):
                         logging.info(f"No analyst upgrades/downgrades for {orig_sym}")
                         break  # No data available, not an error
                     break
+                except HTTPError as e:
+                    if e.code == 404:
+                        logging.info(f"No analyst upgrades/downgrades for {orig_sym} (404)")
+                        break  # No data available for this symbol, not a retry-able error
+                    else:
+                        logging.warning(f"HTTP Error {e.code} for {orig_sym} (attempt {attempt}): {e}")
+                        if attempt == MAX_BATCH_RETRIES:
+                            failed.append(orig_sym)
+                            break
+                        time.sleep(RETRY_DELAY)
                 except Exception as e:
                     logging.warning(f"Attempt {attempt} failed for {orig_sym}: {e}")
                     if attempt == MAX_BATCH_RETRIES:
@@ -94,7 +105,6 @@ def load_analyst_actions(symbols, cur, conn):
             
             # Skip processing if recommendations were not successfully retrieved
             if recommendations_df is None:
-                logging.error(f"Skipping {orig_sym} - failed to retrieve recommendations after {MAX_BATCH_RETRIES} attempts")
                 continue
                 
             # Skip if no data
