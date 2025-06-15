@@ -33,6 +33,20 @@ import {
 import { formatNumber, formatDate } from '../utils/formatters';
 import { getTechnicalData, getTechnicalSummary } from '../services/api';
 
+// Enhanced error logging utility
+const logError = (operation, error, context = {}) => {
+  console.error(`❌ TechnicalAnalysis - ${operation} failed:`, {
+    error: error.message,
+    status: error.response?.status,
+    statusText: error.response?.statusText,
+    data: error.response?.data,
+    url: error.config?.url,
+    method: error.config?.method,
+    context,
+    timestamp: new Date().toISOString()
+  })
+}
+
 function TechnicalAnalysis() {
   const [timeframe, setTimeframe] = useState('daily');
   const [symbolFilter, setSymbolFilter] = useState('');
@@ -54,8 +68,8 @@ function TechnicalAnalysis() {
           limit: 10,
           page: page
         });
-      }
-    },
+      }    },
+    onError: (error) => logError('Technical Data', error, { timeframe, symbolFilter, page }),
     refetchInterval: 300000, // Refresh every 5 minutes
     retry: 2,
     staleTime: 60000 // Consider data fresh for 1 minute

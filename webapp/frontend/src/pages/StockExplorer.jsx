@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { createComponentLogger } from '../utils/errorLogger'
 import {
   Box,
   Container,
@@ -56,6 +57,9 @@ import {
 } from '@mui/icons-material'
 import api from '../services/api'
 import { formatCurrency, formatPercentage as formatPercent, formatNumber, getChangeColor, getChangeIcon, getMarketCapCategory } from '../utils/formatters'
+
+// Create component-specific logger
+const logger = createComponentLogger('StockExplorer');
 
 const INITIAL_FILTERS = {
   // Search and basic
@@ -126,7 +130,8 @@ function StockExplorer() {
   const [filters, setFilters] = useState(INITIAL_FILTERS)
   const [viewMode, setViewMode] = useState('simple') // 'simple' or 'advanced'
   const [page, setPage] = useState(0)
-  const [rowsPerPage, setRowsPerPage] = useState(25) // Reduced from potentially higher default  const [orderBy, setOrderBy] = useState('symbol') // Default to alphabetical
+  const [rowsPerPage, setRowsPerPage] = useState(25) // Reduced from potentially higher default
+  const [orderBy, setOrderBy] = useState('symbol') // Default to alphabetical
   const [order, setOrder] = useState('asc') // Default to ascending
   
   // Initialize from URL params only once on mount
@@ -157,16 +162,39 @@ function StockExplorer() {
     
     return params
   }
-
   // Fetch screener results with optimized settings
   const { data: stocksData, isLoading, error, refetch } = useQuery({
     queryKey: ['stockExplorer', filters, page, rowsPerPage, orderBy, order],
-    queryFn: () => api.screenStocks(buildQueryParams()),
+    queryFn: async () => {
+      try {
+        const params = buildQueryParams();
+        logger.success('buildQueryParams', null, { params: params.toString() });
+        const result = await api.screenStocks(params);
+        logger.success('screenStocks', result, { 
+          resultCount: result?.data?.length || 0,
+          total: result?.total || 0,
+          page: page + 1,
+          filters: Object.keys(filters).filter(k => filters[k] !== '' && filters[k] !== false).length
+        });
+        return result;
+      } catch (err) {
+        logger.error('screenStocks', err, {
+          params: buildQueryParams().toString(),
+          page: page + 1,
+          rowsPerPage,
+          filters: filters,
+          orderBy,
+          order
+        });
+        throw err;
+      }
+    },
     keepPreviousData: true,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes (was cacheTime)
     retry: 2, // Reduce retries to fail faster if there's an issue
-    retryDelay: 1000
+    retryDelay: 1000,
+    onError: (err) => logger.queryError('stockExplorer', err, { queryKey: ['stockExplorer', filters, page, rowsPerPage, orderBy, order] })
   })
   const handleFilterChange = (field, value) => {
     setFilters(prev => ({

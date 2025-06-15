@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { createComponentLogger } from '../utils/errorLogger';
 import {
   Box,
   Container,
@@ -30,30 +31,59 @@ import {
 } from '@mui/icons-material';
 import { formatCurrency, formatPercentage } from '../utils/formatters';
 
+// Create component-specific logger
+const logger = createComponentLogger('AnalystInsights');
+
 function AnalystInsights() {
   const [activeTab, setActiveTab] = useState(0);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
-
   const API_BASE = import.meta.env.VITE_API_URL || '';
   // Fetch analyst upgrades/downgrades
   const { data: upgradesData, isLoading: upgradesLoading, error: upgradesError } = useQuery({
     queryKey: ['analystUpgrades', page, rowsPerPage],
     queryFn: async () => {
-      const params = new URLSearchParams({
-        page: page + 1,
-        limit: rowsPerPage
-      });
-      const response = await fetch(`${API_BASE}/analysts/upgrades?${params}`);
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Failed to fetch analyst data (${response.status})`);
+      try {
+        const params = new URLSearchParams({
+          page: page + 1,
+          limit: rowsPerPage
+        });
+        const url = `${API_BASE}/analysts/upgrades?${params}`;
+        logger.success('fetchAnalystUpgrades', null, { url, params: params.toString() });
+        
+        const response = await fetch(url);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          const error = new Error(errorData.error || `Failed to fetch analyst data (${response.status})`);
+          logger.error('fetchAnalystUpgrades', error, {
+            url,
+            status: response.status,
+            statusText: response.statusText,
+            errorData
+          });
+          throw error;
+        }
+        
+        const result = await response.json();
+        logger.success('fetchAnalystUpgrades', result, {
+          resultCount: result?.data?.length || 0,
+          total: result?.total || 0,
+          page: page + 1
+        });
+        return result;
+      } catch (err) {
+        logger.error('fetchAnalystUpgrades', err, {
+          page: page + 1,
+          rowsPerPage,
+          apiBase: API_BASE
+        });
+        throw err;
       }
-      return response.json();
     },
     refetchInterval: 300000, // Refresh every 5 minutes
     retry: 2,
-    staleTime: 60000
+    staleTime: 60000,
+    onError: (err) => logger.queryError('analystUpgrades', err, { page, rowsPerPage })
   });
   const getActionChip = (action) => {
     const actionConfig = {

@@ -1,5 +1,6 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { createComponentLogger } from '../utils/errorLogger'
 import {
   Grid,
   Card,
@@ -109,12 +110,25 @@ const StockListCard = ({ title, stocks, showChange = false }) => (
   </Card>
 )
 
+// Create component-specific logger
+const logger = createComponentLogger('Dashboard');
+
 const Dashboard = () => {
   const { data: marketData, isLoading, error } = useQuery(
     'market-overview',
-    getMarketOverview,
+    async () => {
+      try {
+        const result = await getMarketOverview();
+        logger.success('getMarketOverview', result);
+        return result;
+      } catch (err) {
+        logger.error('getMarketOverview', err);
+        throw err;
+      }
+    },
     {
       refetchInterval: 60000, // Refetch every minute
+      onError: (err) => logger.queryError('market-overview', err)
     }
   )
 

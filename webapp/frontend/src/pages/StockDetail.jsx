@@ -47,6 +47,20 @@ import {
 import api from '../services/api'
 import { formatCurrency, formatPercentage as formatPercent, formatNumber } from '../utils/formatters'
 
+// Enhanced error logging utility
+const logError = (operation, error, context = {}) => {
+  console.error(`❌ StockDetail - ${operation} failed:`, {
+    error: error.message,
+    status: error.response?.status,
+    statusText: error.response?.statusText,
+    data: error.response?.data,
+    url: error.config?.url,
+    method: error.config?.method,
+    context,
+    timestamp: new Date().toISOString()
+  })
+}
+
 function TabPanel({ children, value, index, ...other }) {
   return (
     <div
@@ -68,59 +82,65 @@ function TabPanel({ children, value, index, ...other }) {
 function StockDetail() {
   const { symbol } = useParams()
   const [tabValue, setTabValue] = React.useState(0)
-
   // Fetch stock profile data
   const { data: profile, isLoading: profileLoading, error: profileError } = useQuery({
     queryKey: ['stockProfile', symbol],
     queryFn: () => api.getStockProfile(symbol),
-    enabled: !!symbol
+    enabled: !!symbol,
+    onError: (error) => logError('Stock Profile', error, { symbol })
   })
 
   // Fetch key metrics
-  const { data: metrics, isLoading: metricsLoading } = useQuery({
+  const { data: metrics, isLoading: metricsLoading, error: metricsError } = useQuery({
     queryKey: ['stockMetrics', symbol],
     queryFn: () => api.getStockMetrics(symbol),
-    enabled: !!symbol
+    enabled: !!symbol,
+    onError: (error) => logError('Stock Metrics', error, { symbol })
   })
-
   // Fetch financial data
-  const { data: financials, isLoading: financialsLoading } = useQuery({
+  const { data: financials, isLoading: financialsLoading, error: financialsError } = useQuery({
     queryKey: ['stockFinancials', symbol],
     queryFn: () => api.getStockFinancials(symbol),
-    enabled: !!symbol
+    enabled: !!symbol,
+    onError: (error) => logError('Stock Financials', error, { symbol })
   })
 
   // Fetch analyst recommendations
-  const { data: recommendations, isLoading: recLoading } = useQuery({
+  const { data: recommendations, isLoading: recLoading, error: recError } = useQuery({
     queryKey: ['stockRecommendations', symbol],
     queryFn: () => api.getAnalystRecommendations(symbol),
-    enabled: !!symbol
+    enabled: !!symbol,
+    onError: (error) => logError('Analyst Recommendations', error, { symbol })
   })
 
   // Fetch comprehensive financial statements
-  const { data: balanceSheet, isLoading: balanceSheetLoading } = useQuery({
+  const { data: balanceSheet, isLoading: balanceSheetLoading, error: balanceSheetError } = useQuery({
     queryKey: ['balanceSheet', symbol, 'annual'],
     queryFn: () => api.getBalanceSheet(symbol, 'annual'),
-    enabled: !!symbol && tabValue === 1
+    enabled: !!symbol && tabValue === 1,
+    onError: (error) => logError('Balance Sheet', error, { symbol, period: 'annual' })
   })
 
-  const { data: incomeStatement, isLoading: incomeStatementLoading } = useQuery({
+  const { data: incomeStatement, isLoading: incomeStatementLoading, error: incomeStatementError } = useQuery({
     queryKey: ['incomeStatement', symbol, 'annual'],
     queryFn: () => api.getIncomeStatement(symbol, 'annual'),
-    enabled: !!symbol && tabValue === 1
+    enabled: !!symbol && tabValue === 1,
+    onError: (error) => logError('Income Statement', error, { symbol, period: 'annual' })
   })
 
-  const { data: cashFlowStatement, isLoading: cashFlowLoading } = useQuery({
+  const { data: cashFlowStatement, isLoading: cashFlowLoading, error: cashFlowError } = useQuery({
     queryKey: ['cashFlowStatement', symbol, 'annual'],
     queryFn: () => api.getCashFlowStatement(symbol, 'annual'),
-    enabled: !!symbol && tabValue === 1
+    enabled: !!symbol && tabValue === 1,
+    onError: (error) => logError('Cash Flow Statement', error, { symbol, period: 'annual' })
   })
 
   // Fetch comprehensive analyst data
-  const { data: analystOverview, isLoading: analystOverviewLoading } = useQuery({
+  const { data: analystOverview, isLoading: analystOverviewLoading, error: analystOverviewError } = useQuery({
     queryKey: ['analystOverview', symbol],
     queryFn: () => api.getAnalystOverview(symbol),
-    enabled: !!symbol && tabValue === 3
+    enabled: !!symbol && tabValue === 3,
+    onError: (error) => logError('Analyst Overview', error, { symbol })
   })
 
   const handleTabChange = (event, newValue) => {

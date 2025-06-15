@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { createComponentLogger } from '../utils/errorLogger';
 import {
   Box,
   Container,
@@ -48,6 +49,9 @@ import {
   getFearGreedData,
   getTechnicalData
 } from '../services/api';
+
+// Create component-specific logger
+const logger = createComponentLogger('DataValidation');
 
 function DataValidation() {
   const [activeTab, setActiveTab] = useState(0);

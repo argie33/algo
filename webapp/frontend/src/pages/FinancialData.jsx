@@ -44,6 +44,21 @@ import {
   BarChart,
   Bar
 } from 'recharts'
+
+// Enhanced error logging utility
+const logError = (operation, error, context = {}) => {
+  console.error(`❌ FinancialData - ${operation} failed:`, {
+    error: error.message,
+    status: error.response?.status,
+    statusText: error.response?.statusText,
+    data: error.response?.data,
+    url: error.config?.url,
+    method: error.config?.method,
+    context,
+    timestamp: new Date().toISOString()
+  })
+}
+
 import {
   getBalanceSheet,
   getIncomeStatement,
@@ -54,8 +69,7 @@ import {
   getTickerEarningsHistory,
   getTickerEpsRevisions,
   getTickerEpsTrend,
-  getTickerGrowthEstimates,
-  getAnalystOverview
+  getTickerGrowthEstimates
 } from '../services/api'
 import { formatCurrency, formatPercentage, formatNumber } from '../utils/formatters'
 
@@ -98,30 +112,25 @@ function FinancialData() {
       setPeriod(newPeriod)
     }
   }
-
   // Comprehensive financial data queries
   const { data: balanceSheet, isLoading: balanceSheetLoading, error: balanceSheetError } = useQuery({
     queryKey: ['balanceSheet', ticker, period],
     queryFn: () => getBalanceSheet(ticker, period),
-    enabled: !!ticker && tabValue === 0
+    enabled: !!ticker && tabValue === 0,
+    onError: (error) => logError('Balance Sheet', error, { ticker, period })
   })
 
   const { data: incomeStatement, isLoading: incomeStatementLoading, error: incomeStatementError } = useQuery({
     queryKey: ['incomeStatement', ticker, period],
     queryFn: () => getIncomeStatement(ticker, period),
-    enabled: !!ticker && tabValue === 1
+    enabled: !!ticker && tabValue === 1,
+    onError: (error) => logError('Income Statement', error, { ticker, period })
   })
-
   const { data: cashFlowStatement, isLoading: cashFlowLoading, error: cashFlowError } = useQuery({
     queryKey: ['cashFlowStatement', ticker, period],
     queryFn: () => getCashFlowStatement(ticker, period),
-    enabled: !!ticker && tabValue === 2
-  })
-
-  const { data: analystOverview, isLoading: analystOverviewLoading, error: analystError } = useQuery({
-    queryKey: ['analystOverview', ticker],
-    queryFn: () => getAnalystOverview(ticker),
-    enabled: !!ticker && tabValue === 3
+    enabled: !!ticker && tabValue === 2,
+    onError: (error) => logError('Cash Flow Statement', error, { ticker, period })
   })
 
   const renderFinancialTable = (data, title, icon) => {
@@ -210,198 +219,6 @@ function FinancialData() {
       </Card>
     )
   }
-
-  const renderAnalystData = () => {
-    if (analystOverviewLoading) {
-      return (
-        <Box display="flex" justifyContent="center" p={4}>
-          <CircularProgress />
-        </Box>
-      )
-    }
-
-    if (analystError) {
-      return (
-        <Alert severity="error">
-          Failed to load analyst data: {analystError.message}
-        </Alert>
-      )
-    }
-
-    const data = analystOverview?.data
-    
-    return (
-      <Grid container spacing={3}>
-        {/* Earnings Estimates */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>Earnings Estimates</Typography>
-              <Divider sx={{ mb: 2 }} />
-              {data?.earnings_estimates?.length > 0 ? (
-                <TableContainer>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Period</TableCell>
-                        <TableCell align="right">Avg Estimate</TableCell>
-                        <TableCell align="right">Analysts</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {data.earnings_estimates.map((estimate) => (
-                        <TableRow key={estimate.period}>
-                          <TableCell>
-                            {estimate.period === '0q' ? 'Current Quarter' :
-                             estimate.period === '+1q' ? 'Next Quarter' :
-                             estimate.period === '0y' ? 'Current Year' :
-                             estimate.period === '+1y' ? 'Next Year' : estimate.period}
-                          </TableCell>
-                          <TableCell align="right">
-                            {estimate.avg_estimate ? formatCurrency(estimate.avg_estimate) : 'N/A'}
-                          </TableCell>
-                          <TableCell align="right">
-                            {estimate.number_of_analysts || 0}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              ) : (
-                <Typography color="text.secondary">No earnings estimates available</Typography>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Revenue Estimates */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>Revenue Estimates</Typography>
-              <Divider sx={{ mb: 2 }} />
-              {data?.revenue_estimates?.length > 0 ? (
-                <TableContainer>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Period</TableCell>
-                        <TableCell align="right">Avg Estimate</TableCell>
-                        <TableCell align="right">Growth</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {data.revenue_estimates.map((estimate) => (
-                        <TableRow key={estimate.period}>
-                          <TableCell>
-                            {estimate.period === '0q' ? 'Current Quarter' :
-                             estimate.period === '+1q' ? 'Next Quarter' :
-                             estimate.period === '0y' ? 'Current Year' :
-                             estimate.period === '+1y' ? 'Next Year' : estimate.period}
-                          </TableCell>
-                          <TableCell align="right">
-                            {estimate.avg_estimate ? formatCurrency(estimate.avg_estimate, 0) : 'N/A'}
-                          </TableCell>
-                          <TableCell align="right">
-                            {estimate.growth ? formatPercentage(estimate.growth / 100) : 'N/A'}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              ) : (
-                <Typography color="text.secondary">No revenue estimates available</Typography>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Earnings History */}
-        <Grid item xs={12}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>Earnings History</Typography>
-              <Divider sx={{ mb: 2 }} />
-              {data?.earnings_history?.length > 0 ? (
-                <Box>
-                  <TableContainer>
-                    <Table>
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Quarter</TableCell>
-                          <TableCell align="right">Actual EPS</TableCell>
-                          <TableCell align="right">Estimated EPS</TableCell>
-                          <TableCell align="right">Difference</TableCell>
-                          <TableCell align="right">Surprise %</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {data.earnings_history.slice(0, 8).map((history) => (
-                          <TableRow key={history.quarter}>
-                            <TableCell>
-                              {new Date(history.quarter).toLocaleDateString()}
-                            </TableCell>
-                            <TableCell align="right">
-                              {history.eps_actual ? formatCurrency(history.eps_actual) : 'N/A'}
-                            </TableCell>
-                            <TableCell align="right">
-                              {history.eps_estimate ? formatCurrency(history.eps_estimate) : 'N/A'}
-                            </TableCell>
-                            <TableCell align="right">
-                              {history.eps_difference ? formatCurrency(history.eps_difference) : 'N/A'}
-                            </TableCell>
-                            <TableCell align="right">
-                              <Chip 
-                                label={history.surprise_percent ? formatPercentage(history.surprise_percent / 100) : 'N/A'}
-                                color={history.surprise_percent > 0 ? 'success' : history.surprise_percent < 0 ? 'error' : 'default'}
-                                size="small"
-                                variant="outlined"
-                              />
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-
-                  {/* Earnings Surprise Chart */}
-                  <Box sx={{ mt: 3 }}>
-                    <Typography variant="h6" gutterBottom>Earnings Surprise Trend</Typography>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={
-                        data.earnings_history.slice(0, 8).reverse().map(history => ({
-                          quarter: new Date(history.quarter).toLocaleDateString('en-US', { year: 'numeric', month: 'short' }),
-                          surprise: history.surprise_percent || 0,
-                          actual: history.eps_actual || 0,
-                          estimate: history.eps_estimate || 0
-                        }))
-                      }>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="quarter" />
-                        <YAxis />
-                        <Tooltip 
-                          formatter={(value, name) => [
-                            name === 'surprise' ? `${value.toFixed(2)}%` : formatCurrency(value),
-                            name === 'surprise' ? 'Surprise %' : name === 'actual' ? 'Actual EPS' : 'Estimated EPS'
-                          ]}
-                        />
-                        <Bar dataKey="surprise" fill="#1976d2" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </Box>
-                </Box>
-              ) : (
-                <Typography color="text.secondary">No earnings history available</Typography>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-    )
-  }
-
   return (
     <Container maxWidth="xl">
       <Box sx={{ py: 3 }}>
@@ -452,13 +269,11 @@ function FinancialData() {
           </CardContent>
         </Card>
 
-        {/* Tabs */}
-        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        {/* Tabs */}        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
           <Tabs value={tabValue} onChange={handleTabChange}>
             <Tab label="Balance Sheet" icon={<AccountBalance />} />
             <Tab label="Income Statement" icon={<Assessment />} />
             <Tab label="Cash Flow" icon={<Timeline />} />
-            <Tab label="Analyst Data" icon={<TrendingUp />} />
           </Tabs>
         </Box>
 
@@ -493,14 +308,9 @@ function FinancialData() {
               <CircularProgress />
             </Box>
           ) : cashFlowError ? (
-            <Alert severity="error">Failed to load cash flow: {cashFlowError.message}</Alert>
-          ) : (
+            <Alert severity="error">Failed to load cash flow: {cashFlowError.message}</Alert>          ) : (
             renderFinancialTable(cashFlowStatement, 'Cash Flow Statement', <Timeline />)
           )}
-        </TabPanel>
-
-        <TabPanel value={tabValue} index={3}>
-          {renderAnalystData()}
         </TabPanel>
       </Box>
     </Container>

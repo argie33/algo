@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { createComponentLogger } from '../utils/errorLogger'
 import {
   Box,
   Container,
@@ -28,59 +29,130 @@ import {
 import { TrendingUp, TrendingDown, Assessment } from '@mui/icons-material'
 import { formatCurrency, formatPercentage } from '../utils/formatters'
 
+// Create component-specific logger
+const logger = createComponentLogger('TradingSignals');
+
 function TradingSignals() {
   const [activeTab, setActiveTab] = useState(0);
   const [signalType, setSignalType] = useState('all');
   const [timeframe, setTimeframe] = useState('daily');
   const [page, setPage] = useState(0);  const [rowsPerPage, setRowsPerPage] = useState(25);
-
   const API_BASE = import.meta.env.VITE_API_URL || '';
   // Fetch buy/sell signals
   const { data: signalsData, isLoading: signalsLoading, error: signalsError } = useQuery({
-    queryKey: ['tradingSignals', signalType, timeframe, page, rowsPerPage],    queryFn: async () => {
-      const params = new URLSearchParams({
-        signal_type: signalType === 'all' ? undefined : signalType,
-        page: page + 1,
-        limit: rowsPerPage
-      });
-      // Remove undefined values
-      [...params.entries()].forEach(([key, value]) => {
-        if (value === undefined || value === 'undefined') {
-          params.delete(key);
+    queryKey: ['tradingSignals', signalType, timeframe, page, rowsPerPage],
+    queryFn: async () => {
+      try {
+        const params = new URLSearchParams({
+          signal_type: signalType === 'all' ? undefined : signalType,
+          page: page + 1,
+          limit: rowsPerPage
+        });
+        // Remove undefined values
+        [...params.entries()].forEach(([key, value]) => {
+          if (value === undefined || value === 'undefined') {
+            params.delete(key);
+          }
+        });
+        const url = `${API_BASE}/trading/signals/${timeframe}?${params}`;
+        logger.success('fetchTradingSignals', null, { url, signalType, timeframe });
+        
+        const response = await fetch(url);
+        if (!response.ok) {
+          const error = new Error(`Failed to fetch signals (${response.status})`);
+          logger.error('fetchTradingSignals', error, {
+            url,
+            status: response.status,
+            statusText: response.statusText
+          });
+          throw error;
         }
-      });
-      const response = await fetch(`${API_BASE}/trading/signals/${timeframe}?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch signals');
-      return response.json();
+        
+        const result = await response.json();
+        logger.success('fetchTradingSignals', result, {
+          resultCount: result?.data?.length || 0,
+          signalType,
+          timeframe,
+          page: page + 1
+        });
+        return result;
+      } catch (err) {
+        logger.error('fetchTradingSignals', err, { signalType, timeframe, page: page + 1, rowsPerPage });
+        throw err;
+      }
     },
-    refetchInterval: 300000 // Refresh every 5 minutes
+    refetchInterval: 300000, // Refresh every 5 minutes
+    onError: (err) => logger.queryError('tradingSignals', err, { signalType, timeframe })
   });
 
   // Fetch swing trading signals
   const { data: swingData, isLoading: swingLoading } = useQuery({
     queryKey: ['swingSignals', page, rowsPerPage],
     queryFn: async () => {
-      const params = new URLSearchParams({
-        page: page + 1,
-        limit: rowsPerPage
-      });
-      const response = await fetch(`${API_BASE}/trading/swing-signals?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch swing signals');
-      return response.json();
+      try {
+        const params = new URLSearchParams({
+          page: page + 1,
+          limit: rowsPerPage
+        });
+        const url = `${API_BASE}/trading/swing-signals?${params}`;
+        logger.success('fetchSwingSignals', null, { url });
+        
+        const response = await fetch(url);
+        if (!response.ok) {
+          const error = new Error(`Failed to fetch swing signals (${response.status})`);
+          logger.error('fetchSwingSignals', error, {
+            url,
+            status: response.status,
+            statusText: response.statusText
+          });
+          throw error;
+        }
+        
+        const result = await response.json();
+        logger.success('fetchSwingSignals', result, {
+          resultCount: result?.data?.length || 0,
+          page: page + 1
+        });
+        return result;
+      } catch (err) {
+        logger.error('fetchSwingSignals', err, { page: page + 1, rowsPerPage });
+        throw err;
+      }
     },
     enabled: activeTab === 1,
-    refetchInterval: 300000
+    refetchInterval: 300000,
+    onError: (err) => logger.queryError('swingSignals', err)
   });
 
   // Fetch performance summary
   const { data: performanceData, isLoading: performanceLoading } = useQuery({
     queryKey: ['tradingPerformance'],
     queryFn: async () => {
-      const response = await fetch(`${API_BASE}/trading/performance`);
-      if (!response.ok) throw new Error('Failed to fetch performance');
-      return response.json();
+      try {
+        const url = `${API_BASE}/trading/performance`;
+        logger.success('fetchTradingPerformance', null, { url });
+        
+        const response = await fetch(url);
+        if (!response.ok) {
+          const error = new Error(`Failed to fetch performance (${response.status})`);
+          logger.error('fetchTradingPerformance', error, {
+            url,
+            status: response.status,
+            statusText: response.statusText
+          });
+          throw error;
+        }
+        
+        const result = await response.json();
+        logger.success('fetchTradingPerformance', result);
+        return result;
+      } catch (err) {
+        logger.error('fetchTradingPerformance', err);
+        throw err;
+      }
     },
-    refetchInterval: 600000 // Refresh every 10 minutes
+    refetchInterval: 600000, // Refresh every 10 minutes
+    onError: (err) => logger.queryError('tradingPerformance', err)
   });
   const getSignalChip = (signal) => {
     const isBuy = signal === 'Buy';

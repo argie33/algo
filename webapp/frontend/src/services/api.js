@@ -68,30 +68,51 @@ api.interceptors.response.use(
   (response) => {
     // Log Lambda execution details if available
     if (response.headers['x-amzn-requestid']) {
-      console.log(`Lambda Request ID: ${response.headers['x-amzn-requestid']}`)
+      console.log(`✅ Lambda Request ID: ${response.headers['x-amzn-requestid']}`)
     }
+    console.log(`✅ API Response: ${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`)
     return response
   },
   async (error) => {
-    console.error('API Response Error:', error.response?.data || error.message)
+    // Enhanced error logging
+    const errorDetails = {
+      message: error.message,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      url: error.config?.url,
+      method: error.config?.method,
+      headers: error.config?.headers,
+      timestamp: new Date().toISOString(),
+      requestId: error.response?.headers?.['x-amzn-requestid'],
+      code: error.code
+    }
+    
+    console.error('❌ API Response Error:', errorDetails)
     
     // Handle specific error cases
     if (error.response?.status === 401) {
-      console.warn('Unauthorized access detected')
+      console.warn('🔐 Unauthorized access detected')
+    } else if (error.response?.status === 403) {
+      console.warn('🚫 Forbidden - Check API permissions')
+    } else if (error.response?.status === 404) {
+      console.warn('🔍 Resource not found')
     } else if (error.response?.status === 429) {
-      console.warn('Rate limit exceeded')
+      console.warn('⏳ Rate limit exceeded')
     } else if (error.response?.status >= 500 || error.code === 'ECONNABORTED') {
-      console.error('Server error or timeout detected')
+      console.error('🔥 Server error or timeout detected')
       
       // Attempt retry for serverless environments
       if (IS_SERVERLESS) {
         try {
           return await retryRequest(error)
         } catch (retryError) {
-          console.error('All retry attempts failed')
+          console.error('💥 All retry attempts failed')
           return Promise.reject(retryError)
         }
       }
+    } else if (error.code === 'ERR_NETWORK') {
+      console.error('🌐 Network error - Check internet connection and API URL')
     }
     
     return Promise.reject(error)

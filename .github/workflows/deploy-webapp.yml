@@ -19,15 +19,39 @@ env:
   AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
   AWS_ROLE_SESSION: github-deploy
   NODE_VERSION: '18.x'
-  ENVIRONMENT_NAME: 'prod'
-  STACK_NAME: 'stocks-webapp-stack'
 
 jobs:
 ################################################################################
-# 1) Detect changed components                                                 #
+# 1) Determine environment based on branch                                     #
+################################################################################
+  setup:
+    name: Setup environment
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+      stack_name: ${{ steps.env.outputs.stack_name }}
+    steps:
+      - name: Determine environment
+        id: env
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.ref }}" == "refs/heads/master" ]]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+            echo "stack_name=stocks-webapp-prod" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/staging" || "${{ github.ref }}" == "refs/heads/stage" ]]; then
+            echo "environment=staging" >> $GITHUB_OUTPUT
+            echo "stack_name=stocks-webapp-staging" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+            echo "stack_name=stocks-webapp-dev" >> $GITHUB_OUTPUT
+          fi
+          echo "Deploying to environment: $(echo $GITHUB_OUTPUT | grep environment | cut -d'=' -f2)"
+
+################################################################################
+# 2) Detect changed components                                                 #
 ################################################################################
   filter:
     name: Detect changed components
+    needs: setup
     runs-on: ubuntu-latest
     outputs:
       webapp:     ${{ steps.paths.outputs.webapp }}
@@ -67,18 +91,22 @@ jobs:
           fi
 
 ################################################################################
-# 2) Deploy webapp infrastructure                                              #
-################################################################################
-  deploy_infrastructure:
+# 3) Deploy webapp infrastructure                                              #
+################################################################################  deploy_infrastructure:
     name: Deploy webapp infrastructure
-    needs: filter
+    needs: [setup, filter]
     if: ${{ needs.filter.outputs.template == 'true' || needs.filter.outputs.any == 'true' }}
     runs-on: ubuntu-latest
+    env:
+      ENVIRONMENT_NAME: ${{ needs.setup.outputs.environment }}
+      STACK_NAME: ${{ needs.setup.outputs.stack_name }}
     outputs:
       bucket_prefix: ${{ steps.stack_outputs.outputs.bucket_prefix }}
       cloudfront_id: ${{ steps.stack_outputs.outputs.cloudfront_id }}
       api_url: ${{ steps.stack_outputs.outputs.api_url }}
       website_url: ${{ steps.stack_outputs.outputs.website_url }}
+      environment: ${{ needs.setup.outputs.environment }}
+      stack_name: ${{ needs.setup.outputs.stack_name }}
 
     steps:
       - name: Checkout code
@@ -208,13 +236,10 @@ jobs:
               echo "   Manual intervention may be required."
               exit 1
               ;;
-          esac
-
-      - name: Deploy webapp CloudFormation stack
+          esac      - name: Deploy webapp CloudFormation stack
         run: |
-          # Use the environment variable for stack name
-          STACK_NAME="${{ env.STACK_NAME }}"
           echo "Using stack name: $STACK_NAME"
+          echo "Using environment: $ENVIRONMENT_NAME"
           
           # Final check that stack is in a deployable state
           FINAL_STATUS=$(aws cloudformation describe-stacks \

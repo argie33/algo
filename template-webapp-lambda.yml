@@ -61,6 +61,14 @@ Globals:
         DB_SECRET_ARN: !Ref DatabaseSecretArn
         WEBAPP_AWS_REGION: !Ref AWS::Region
         DB_ENDPOINT: !Ref DatabaseEndpoint
+  Api:
+    # Define the API Gateway stage name based on environment
+    StageName: !Ref EnvironmentName
+    # Enable CORS for all origins (can be restricted per environment)
+    Cors:
+      AllowMethods: "'GET,POST,OPTIONS'"
+      AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+      AllowOrigin: "'*''"
 
 Resources:
   # S3 Bucket for Frontend Static Files 
@@ -432,12 +440,10 @@ Outputs:
     Description: 'Website URL'
     Value: !Sub 'https://${CloudFrontDistribution.DomainName}'
     Export:
-      Name: !Sub '${AWS::StackName}-WebsiteURL'
-
-  # API
+      Name: !Sub '${AWS::StackName}-WebsiteURL'  # API
   ApiGatewayUrl:
     Description: 'API Gateway URL'
-    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod'
+    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}'
     Export:
       Name: !Sub '${AWS::StackName}-ApiUrl'
   ApiGatewayId:

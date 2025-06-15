@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { createComponentLogger } from '../utils/errorLogger';
 import {
   Box,
   Container,
@@ -37,6 +38,9 @@ import {
   ShowChart
 } from '@mui/icons-material';
 import { formatCurrency, formatPercentage, formatNumber } from '../utils/formatters';
+
+// Create component-specific logger
+const logger = createComponentLogger('EarningsCalendar');
 
 function EarningsCalendar() {
   const [activeTab, setActiveTab] = useState(0);
