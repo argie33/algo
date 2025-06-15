@@ -434,10 +434,9 @@ Outputs:
     Value: !Sub 'https://${CloudFrontDistribution.DomainName}'
     Export:
       Name: !Sub '${AWS::StackName}-WebsiteURL'
-  # API
-  ApiGatewayUrl:
+  # API  ApiGatewayUrl:
     Description: 'API Gateway URL'
-    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}'
+    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod'
     Export:
       Name: !Sub '${AWS::StackName}-ApiUrl'
   ApiGatewayId:
