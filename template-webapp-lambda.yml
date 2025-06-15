@@ -193,9 +193,7 @@ Resources:
           - ErrorCode: 403
             ResponseCode: 200
             ResponsePagePath: /index.html
-            ErrorCachingMinTTL: 300
-
-  # S3 Bucket Policy for CloudFront OAC
+            ErrorCachingMinTTL: 300  # S3 Bucket Policy for CloudFront OAC
   FrontendBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -208,8 +206,8 @@ Resources:
             Action: s3:GetObject
             Resource: !Sub '${FrontendBucket}/*'
             Condition:
-              StringEquals:
-                'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
+              StringLike:
+                'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/*'
 
   # IAM Role for Lambda Function
   LambdaExecutionRole:
