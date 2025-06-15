@@ -274,133 +274,20 @@ export const getTickerEarningsHistory = (ticker) =>
 export const getTickerRevenueEstimates = (ticker) => 
   api.get(`/analysts/${ticker}/revenue-estimates`)
 
+export const getTickerEpsRevisions = (ticker) => api.get(`/analysts/${ticker}/eps-revisions`)
+export const getTickerEpsTrend = (ticker) => api.get(`/analysts/${ticker}/eps-trend`)
+export const getTickerGrowthEstimates = (ticker) => api.get(`/analysts/${ticker}/growth-estimates`)
+export const getTickerAnalystRecommendations = (ticker) => api.get(`/analysts/${ticker}/recommendations`)
+export const getAnalystOverview = (ticker) => api.get(`/analysts/${ticker}/overview`)
+
 // Data validation endpoints
-export const getEpsRevisions = (params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-  
-  return api.get(`/data/eps-revisions?${queryParams.toString()}`)
-}
+export const getDataValidationSummary = () => api.get('/data/validation/summary')
 
-export const getEpsTrend = (params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-  
-  return api.get(`/data/eps-trend?${queryParams.toString()}`)
-}
-
-export const getGrowthEstimates = (params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-  
-  return api.get(`/data/growth-estimates?${queryParams.toString()}`)
-}
-
-export const getEconomicData = (params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-  
-  return api.get(`/data/economic?${queryParams.toString()}`)
-}
-
-export const getNaaimData = (params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-  
-  return api.get(`/data/naaim?${queryParams.toString()}`)
-}
-
-export const getFearGreedData = (params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-  
-  return api.get(`/data/fear-greed?${queryParams.toString()}`)
-}
-
-// Technical data - Updated to use optimized endpoints
-export const getTechnicalData = (timeframe, params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  // Use smaller default limit to prevent white screen
-  if (!params.limit) {
-    params.limit = 5
-  }
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-  
-  return api.get(`/technical/${timeframe}?${queryParams.toString()}`)
-}
-
-// Quick technical summary for initial page load
-export const getTechnicalSummary = (timeframe, params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-  
-  return api.get(`/technical/${timeframe}/summary?${queryParams.toString()}`)
-}
-
-// Chunked technical data loading
-export const getTechnicalChunk = (timeframe, chunkIndex = 0) => {
-  return api.get(`/technical/${timeframe}/chunk/${chunkIndex}`)
-}
-
-// Full technical data (use with caution)
-export const getTechnicalFull = (timeframe, params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  // Force small limit for safety
-  if (!params.limit || params.limit > 10) {
-    params.limit = 5
-    console.warn('Technical data limit reduced to 5 for performance')
-  }
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-  
-  return api.get(`/technical/${timeframe}/full?${queryParams.toString()}`)
-}
+// Financial statements endpoints
+export const getBalanceSheet = (ticker, period = 'annual') => api.get(`/financials/${ticker}/balance-sheet?period=${period}`)
+export const getIncomeStatement = (ticker, period = 'annual') => api.get(`/financials/${ticker}/income-statement?period=${period}`)
+export const getCashFlowStatement = (ticker, period = 'annual') => api.get(`/financials/${ticker}/cash-flow?period=${period}`)
+export const getFinancialStatements = (ticker, period = 'annual') => api.get(`/financials/${ticker}/financials?period=${period}`)
 
 // Comprehensive financial data endpoints
 export const getAllFinancialData = (symbol, params = {}) => {
@@ -416,9 +303,6 @@ export const getAllFinancialData = (symbol, params = {}) => {
 }
 
 export const getFinancialMetrics = () => api.get('/data/financial-metrics')
-
-// Data validation endpoints
-export const getDataValidationSummary = () => api.get('/data/validation/summary')
 
 // Export all methods as a default object for easier importing
 export default {
@@ -452,6 +336,15 @@ export default {
   getTickerEarningsEstimates,
   getTickerEarningsHistory,
   getTickerRevenueEstimates,
+  getTickerEpsRevisions,
+  getTickerEpsTrend,
+  getTickerGrowthEstimates,
+  getTickerAnalystRecommendations,
+  getAnalystOverview,
+  getBalanceSheet,
+  getIncomeStatement,
+  getCashFlowStatement,
+  getFinancialStatements,
   getEpsRevisions,
   getEpsTrend,
   getGrowthEstimates,

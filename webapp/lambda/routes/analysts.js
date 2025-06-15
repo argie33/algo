@@ -184,4 +184,243 @@ router.get('/:ticker/earnings-history', async (req, res) => {
   }
 });
 
+// Get EPS revisions for a ticker
+router.get('/:ticker/eps-revisions', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    
+    const revisionsQuery = `
+      SELECT 
+        symbol,
+        period,
+        up_last7days,
+        up_last30days,
+        down_last30days,
+        down_last7days,
+        fetched_at
+      FROM eps_revisions
+      WHERE UPPER(symbol) = UPPER($1)
+      ORDER BY 
+        CASE 
+          WHEN period = '0q' THEN 1
+          WHEN period = '+1q' THEN 2
+          WHEN period = '0y' THEN 3
+          WHEN period = '+1y' THEN 4
+          ELSE 5
+        END
+    `;
+    
+    const result = await query(revisionsQuery, [ticker]);
+    
+    res.json({
+      success: true,
+      ticker: ticker.toUpperCase(),
+      data: result.rows,
+      metadata: {
+        count: result.rows.length,
+        timestamp: new Date().toISOString()
+      }
+    });
+    
+  } catch (error) {
+    console.error('EPS revisions fetch error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch EPS revisions',
+      message: error.message
+    });
+  }
+});
+
+// Get EPS trend for a ticker
+router.get('/:ticker/eps-trend', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    
+    const trendQuery = `
+      SELECT 
+        symbol,
+        period,
+        current,
+        days7ago,
+        days30ago,
+        days60ago,
+        days90ago,
+        fetched_at
+      FROM eps_trend
+      WHERE UPPER(symbol) = UPPER($1)
+      ORDER BY 
+        CASE 
+          WHEN period = '0q' THEN 1
+          WHEN period = '+1q' THEN 2
+          WHEN period = '0y' THEN 3
+          WHEN period = '+1y' THEN 4
+          ELSE 5
+        END
+    `;
+    
+    const result = await query(trendQuery, [ticker]);
+    
+    res.json({
+      success: true,
+      ticker: ticker.toUpperCase(),
+      data: result.rows,
+      metadata: {
+        count: result.rows.length,
+        timestamp: new Date().toISOString()
+      }  
+    });
+    
+  } catch (error) {
+    console.error('EPS trend fetch error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch EPS trend',
+      message: error.message
+    });
+  }
+});
+
+// Get growth estimates for a ticker
+router.get('/:ticker/growth-estimates', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    
+    const growthQuery = `
+      SELECT 
+        symbol,
+        period,
+        stock_trend,
+        index_trend,
+        fetched_at
+      FROM growth_estimates
+      WHERE UPPER(symbol) = UPPER($1)
+      ORDER BY 
+        CASE 
+          WHEN period = '0q' THEN 1 
+          WHEN period = '+1q' THEN 2
+          WHEN period = '0y' THEN 3
+          WHEN period = '+1y' THEN 4
+          WHEN period = '+5y' THEN 5
+          ELSE 6
+        END
+    `;
+    
+    const result = await query(growthQuery, [ticker]);
+    
+    res.json({
+      success: true,
+      ticker: ticker.toUpperCase(),
+      data: result.rows,
+      metadata: {
+        count: result.rows.length,
+        timestamp: new Date().toISOString()
+      }
+    });
+    
+  } catch (error) {
+    console.error('Growth estimates fetch error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch growth estimates',
+      message: error.message
+    });
+  }
+});
+
+// Get analyst recommendations for a ticker
+router.get('/:ticker/recommendations', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    
+    const recommendationsQuery = `
+      SELECT 
+        symbol,
+        period,
+        strong_buy,
+        buy,
+        hold,
+        sell,
+        strong_sell,
+        collected_date,
+        created_at
+      FROM analyst_recommendations
+      WHERE UPPER(symbol) = UPPER($1)
+      ORDER BY collected_date DESC, period
+      LIMIT 10
+    `;
+    
+    const result = await query(recommendationsQuery, [ticker]);
+    
+    res.json({
+      success: true,
+      ticker: ticker.toUpperCase(),
+      data: result.rows,
+      metadata: {
+        count: result.rows.length,
+        timestamp: new Date().toISOString()
+      }
+    });
+    
+  } catch (error) {
+    console.error('Analyst recommendations fetch error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch analyst recommendations',
+      message: error.message
+    });
+  }
+});
+
+// Get comprehensive analyst overview for a ticker
+router.get('/:ticker/overview', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    
+    // Get all analyst data in parallel
+    const [
+      earningsEstimates,
+      revenueEstimates,
+      earningsHistory,
+      epsRevisions,
+      epsTrend,
+      growthEstimates,
+      recommendations
+    ] = await Promise.all([
+      query(`SELECT * FROM earnings_estimates WHERE UPPER(symbol) = UPPER($1) ORDER BY fetched_at DESC`, [ticker]),
+      query(`SELECT * FROM revenue_estimates WHERE UPPER(symbol) = UPPER($1) ORDER BY fetched_at DESC`, [ticker]),
+      query(`SELECT * FROM earnings_history WHERE UPPER(symbol) = UPPER($1) ORDER BY quarter DESC LIMIT 20`, [ticker]),
+      query(`SELECT * FROM eps_revisions WHERE UPPER(symbol) = UPPER($1) ORDER BY fetched_at DESC`, [ticker]),
+      query(`SELECT * FROM eps_trend WHERE UPPER(symbol) = UPPER($1) ORDER BY fetched_at DESC`, [ticker]),
+      query(`SELECT * FROM growth_estimates WHERE UPPER(symbol) = UPPER($1) ORDER BY fetched_at DESC`, [ticker]),
+      query(`SELECT * FROM analyst_recommendations WHERE UPPER(symbol) = UPPER($1) ORDER BY collected_date DESC LIMIT 10`, [ticker])
+    ]);
+    
+    res.json({
+      success: true,
+      ticker: ticker.toUpperCase(),
+      data: {
+        earnings_estimates: earningsEstimates.rows,
+        revenue_estimates: revenueEstimates.rows,
+        earnings_history: earningsHistory.rows,
+        eps_revisions: epsRevisions.rows,
+        eps_trend: epsTrend.rows,
+        growth_estimates: growthEstimates.rows,
+        recommendations: recommendations.rows
+      },
+      metadata: {
+        timestamp: new Date().toISOString()
+      }
+    });
+    
+  } catch (error) {
+    console.error('Analyst overview fetch error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch analyst overview',
+      message: error.message
+    });
+  }
+});
+
 module.exports = router;

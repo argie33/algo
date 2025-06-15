@@ -97,6 +97,32 @@ function StockDetail() {
     enabled: !!symbol
   })
 
+  // Fetch comprehensive financial statements
+  const { data: balanceSheet, isLoading: balanceSheetLoading } = useQuery({
+    queryKey: ['balanceSheet', symbol, 'annual'],
+    queryFn: () => api.getBalanceSheet(symbol, 'annual'),
+    enabled: !!symbol && tabValue === 1
+  })
+
+  const { data: incomeStatement, isLoading: incomeStatementLoading } = useQuery({
+    queryKey: ['incomeStatement', symbol, 'annual'],
+    queryFn: () => api.getIncomeStatement(symbol, 'annual'),
+    enabled: !!symbol && tabValue === 1
+  })
+
+  const { data: cashFlowStatement, isLoading: cashFlowLoading } = useQuery({
+    queryKey: ['cashFlowStatement', symbol, 'annual'],
+    queryFn: () => api.getCashFlowStatement(symbol, 'annual'),
+    enabled: !!symbol && tabValue === 1
+  })
+
+  // Fetch comprehensive analyst data
+  const { data: analystOverview, isLoading: analystOverviewLoading } = useQuery({
+    queryKey: ['analystOverview', symbol],
+    queryFn: () => api.getAnalystOverview(symbol),
+    enabled: !!symbol && tabValue === 3
+  })
+
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue)
   }
@@ -325,101 +351,219 @@ function StockDetail() {
             )}
           </Grid>
         </Grid>
-      </TabPanel>
-
-      <TabPanel value={tabValue} index={1}>
-        {financialsLoading ? (
+      </TabPanel>      <TabPanel value={tabValue} index={1}>
+        {(balanceSheetLoading || incomeStatementLoading || cashFlowLoading) ? (
           <Box display="flex" justifyContent="center" p={4}>
             <CircularProgress />
           </Box>
         ) : (
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Income Statement (TTM)
-                  </Typography>
-                  <TableContainer>
-                    <Table size="small">
-                      <TableBody>
-                        <TableRow>
-                          <TableCell>Revenue</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                            {formatCurrency(currentFinancials.revenue)}
-                          </TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Gross Profit</TableCell>
-                          <TableCell align="right">
-                            {formatCurrency(currentFinancials.gross_profit)}
-                          </TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Operating Income</TableCell>
-                          <TableCell align="right">
-                            {formatCurrency(currentFinancials.operating_income)}
-                          </TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Net Income</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                            {formatCurrency(currentFinancials.net_income)}
-                          </TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>EPS</TableCell>
-                          <TableCell align="right">
-                            {formatCurrency(currentFinancials.eps)}
-                          </TableCell>
-                        </TableRow>
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </CardContent>
-              </Card>
+          <Box>
+            {/* Financial Statements Header */}
+            <Typography variant="h5" gutterBottom sx={{ mb: 3 }}>
+              Financial Statements - {symbol?.toUpperCase()}
+            </Typography>
+            
+            <Grid container spacing={3}>
+              {/* Income Statement */}
+              <Grid item xs={12} lg={4}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+                      <AccountBalance sx={{ mr: 1 }} />
+                      Income Statement (Annual)
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
+                    
+                    {incomeStatement?.data?.length > 0 ? (
+                      <Box>
+                        {incomeStatement.data.slice(0, 3).map((period, periodIndex) => (
+                          <Box key={period.date} sx={{ mb: 3 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                              {new Date(period.date).getFullYear()}
+                            </Typography>
+                            <TableContainer>
+                              <Table size="small">
+                                <TableBody>
+                                  {Object.entries(period.items)
+                                    .filter(([key]) => [
+                                      'Total Revenue', 'Revenue', 'Gross Profit', 
+                                      'Operating Income', 'Net Income', 'Basic EPS'
+                                    ].some(item => key.includes(item)))
+                                    .slice(0, 6)
+                                    .map(([key, value]) => (
+                                    <TableRow key={key}>
+                                      <TableCell sx={{ py: 0.5, fontSize: '0.875rem' }}>
+                                        {key.replace(/([A-Z])/g, ' $1').trim()}
+                                      </TableCell>
+                                      <TableCell align="right" sx={{ py: 0.5, fontSize: '0.875rem' }}>
+                                        {value ? formatCurrency(value, 0) : 'N/A'}
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                            {periodIndex < 2 && <Divider sx={{ mt: 2 }} />}
+                          </Box>
+                        ))}
+                      </Box>
+                    ) : (
+                      <Typography color="text.secondary">No income statement data available</Typography>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* Balance Sheet */}
+              <Grid item xs={12} lg={4}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+                      <Analytics sx={{ mr: 1 }} />
+                      Balance Sheet (Annual)
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
+                    
+                    {balanceSheet?.data?.length > 0 ? (
+                      <Box>
+                        {balanceSheet.data.slice(0, 3).map((period, periodIndex) => (
+                          <Box key={period.date} sx={{ mb: 3 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                              {new Date(period.date).getFullYear()}
+                            </Typography>
+                            <TableContainer>
+                              <Table size="small">
+                                <TableBody>
+                                  {Object.entries(period.items)
+                                    .filter(([key]) => [
+                                      'Total Assets', 'Current Assets', 'Total Debt', 
+                                      'Total Equity', 'Cash', 'Total Liabilities'
+                                    ].some(item => key.includes(item)))
+                                    .slice(0, 6)
+                                    .map(([key, value]) => (
+                                    <TableRow key={key}>
+                                      <TableCell sx={{ py: 0.5, fontSize: '0.875rem' }}>
+                                        {key.replace(/([A-Z])/g, ' $1').trim()}
+                                      </TableCell>
+                                      <TableCell align="right" sx={{ py: 0.5, fontSize: '0.875rem' }}>
+                                        {value ? formatCurrency(value, 0) : 'N/A'}
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                            {periodIndex < 2 && <Divider sx={{ mt: 2 }} />}
+                          </Box>
+                        ))}
+                      </Box>
+                    ) : (
+                      <Typography color="text.secondary">No balance sheet data available</Typography>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* Cash Flow Statement */}
+              <Grid item xs={12} lg={4}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+                      <Timeline sx={{ mr: 1 }} />
+                      Cash Flow (Annual)
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
+                    
+                    {cashFlowStatement?.data?.length > 0 ? (
+                      <Box>
+                        {cashFlowStatement.data.slice(0, 3).map((period, periodIndex) => (
+                          <Box key={period.date} sx={{ mb: 3 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                              {new Date(period.date).getFullYear()}
+                            </Typography>
+                            <TableContainer>
+                              <Table size="small">
+                                <TableBody>
+                                  {Object.entries(period.items)
+                                    .filter(([key]) => [
+                                      'Operating Cash Flow', 'Free Cash Flow', 'Capital Expenditure',
+                                      'Dividends Paid', 'Net Cash Flow', 'Cash From Operations'
+                                    ].some(item => key.includes(item)))
+                                    .slice(0, 6)
+                                    .map(([key, value]) => (
+                                    <TableRow key={key}>
+                                      <TableCell sx={{ py: 0.5, fontSize: '0.875rem' }}>
+                                        {key.replace(/([A-Z])/g, ' $1').trim()}
+                                      </TableCell>
+                                      <TableCell align="right" sx={{ py: 0.5, fontSize: '0.875rem' }}>
+                                        {value ? formatCurrency(value, 0) : 'N/A'}
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                            {periodIndex < 2 && <Divider sx={{ mt: 2 }} />}
+                          </Box>
+                        ))}
+                      </Box>
+                    ) : (
+                      <Typography color="text.secondary">No cash flow data available</Typography>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
             </Grid>
 
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Cash Flow (TTM)
-                  </Typography>
-                  <TableContainer>
-                    <Table size="small">
-                      <TableBody>
-                        <TableRow>
-                          <TableCell>Operating Cash Flow</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                            {formatCurrency(currentFinancials.operating_cash_flow)}
-                          </TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Capital Expenditure</TableCell>
-                          <TableCell align="right">
-                            {formatCurrency(currentFinancials.capital_expenditure)}
-                          </TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Free Cash Flow</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                            {formatCurrency(currentFinancials.free_cash_flow)}
-                          </TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Dividends Paid</TableCell>
-                          <TableCell align="right">
-                            {formatCurrency(currentFinancials.dividends_paid)}
-                          </TableCell>
-                        </TableRow>
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </CardContent>
-              </Card>
+            {/* Financial Statement Summary Charts */}
+            <Grid container spacing={3} sx={{ mt: 2 }}>
+              {/* Revenue Trend */}
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>Revenue Trend</Typography>
+                    <ResponsiveContainer width="100%" height={250}>
+                      <LineChart data={
+                        incomeStatement?.data?.slice(0, 5).reverse().map(period => ({
+                          year: new Date(period.date).getFullYear(),
+                          revenue: period.items['Total Revenue'] || period.items['Revenue'] || 0
+                        })) || []
+                      }>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="year" />
+                        <YAxis tickFormatter={(value) => formatCurrency(value, 0)} />
+                        <Tooltip formatter={(value) => [formatCurrency(value, 0), 'Revenue']} />
+                        <Line type="monotone" dataKey="revenue" stroke="#1976d2" strokeWidth={2} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* Net Income Trend */}
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>Net Income Trend</Typography>
+                    <ResponsiveContainer width="100%" height={250}>
+                      <LineChart data={
+                        incomeStatement?.data?.slice(0, 5).reverse().map(period => ({
+                          year: new Date(period.date).getFullYear(),
+                          netIncome: period.items['Net Income'] || 0
+                        })) || []
+                      }>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="year" />
+                        <YAxis tickFormatter={(value) => formatCurrency(value, 0)} />
+                        <Tooltip formatter={(value) => [formatCurrency(value, 0), 'Net Income']} />
+                        <Line type="monotone" dataKey="netIncome" stroke="#4caf50" strokeWidth={2} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </Grid>
             </Grid>
-          </Grid>
+          </Box>
         )}
       </TabPanel>
 
@@ -457,102 +601,307 @@ function StockDetail() {
             </CardContent>
           </Card>
         )}
-      </TabPanel>
-
-      <TabPanel value={tabValue} index={3}>
-        {recLoading ? (
+      </TabPanel>      <TabPanel value={tabValue} index={3}>
+        {analystOverviewLoading ? (
           <Box display="flex" justifyContent="center" p={4}>
             <CircularProgress />
           </Box>
         ) : (
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={8}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Analyst Recommendations Summary
-                  </Typography>
-                  {recData.length > 0 ? (
-                    <TableContainer>
-                      <Table>
-                        <TableBody>
-                          {recData.map((rec, index) => (
-                            <TableRow key={index}>
-                              <TableCell>
-                                <Box display="flex" alignItems="center" gap={1}>
-                                  <Box 
-                                    width={16} 
-                                    height={16} 
-                                    bgcolor={rec.color} 
-                                    borderRadius={1} 
-                                  />
-                                  {rec.name}
-                                </Box>
-                              </TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                                {rec.value}
-                              </TableCell>
-                              <TableCell align="right" width="200px">
-                                <LinearProgress
-                                  variant="determinate"
-                                  value={(rec.value / Math.max(...recData.map(r => r.value))) * 100}
-                                  sx={{ 
-                                    height: 8, 
-                                    borderRadius: 1,
-                                    '& .MuiLinearProgress-bar': {
-                                      backgroundColor: rec.color
-                                    }
-                                  }}
-                                />
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  ) : (
-                    <Typography color="text.secondary">
-                      No analyst recommendations available
+          <Box>
+            <Typography variant="h5" gutterBottom sx={{ mb: 3 }}>
+              Analyst Coverage - {symbol?.toUpperCase()}
+            </Typography>
+            
+            <Grid container spacing={3}>
+              {/* Earnings Estimates */}
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
+                      Earnings Estimates
                     </Typography>
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
+                    <Divider sx={{ mb: 2 }} />
+                    
+                    {analystOverview?.data?.earnings_estimates?.length > 0 ? (
+                      <TableContainer>
+                        <Table size="small">
+                          <TableBody>
+                            {analystOverview.data.earnings_estimates.map((estimate) => (
+                              <TableRow key={estimate.period}>
+                                <TableCell sx={{ fontWeight: 'bold' }}>
+                                  {estimate.period === '0q' ? 'Current Quarter' :
+                                   estimate.period === '+1q' ? 'Next Quarter' :
+                                   estimate.period === '0y' ? 'Current Year' :
+                                   estimate.period === '+1y' ? 'Next Year' : estimate.period}
+                                </TableCell>
+                                <TableCell align="right">
+                                  {estimate.avg_estimate ? formatCurrency(estimate.avg_estimate) : 'N/A'}
+                                </TableCell>
+                                <TableCell align="right">
+                                  <Chip 
+                                    label={`${estimate.number_of_analysts || 0} analysts`} 
+                                    size="small" 
+                                    variant="outlined"
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    ) : (
+                      <Typography color="text.secondary">No earnings estimates available</Typography>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
 
-            <Grid item xs={12} md={4}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Recommendation Score
-                  </Typography>
-                  {currentRecs.recommendation_score && (
-                    <Box textAlign="center" p={2}>
-                      <Typography variant="h3" fontWeight="bold" color="primary.main">
-                        {formatNumber(currentRecs.recommendation_score, 1)}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Average Score (1-5 scale)
-                      </Typography>
-                    </Box>
-                  )}
-                  
-                  {currentRecs.target_price && (
-                    <Box mt={3}>
-                      <Typography variant="subtitle1" gutterBottom>
-                        Price Target
-                      </Typography>
-                      <Typography variant="h5" fontWeight="bold">
-                        {formatCurrency(currentRecs.target_price)}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Upside: {formatPercent((currentRecs.target_price - stockData.price) / stockData.price)}
-                      </Typography>
-                    </Box>
-                  )}
-                </CardContent>
-              </Card>
+              {/* Revenue Estimates */}
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
+                      Revenue Estimates
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
+                    
+                    {analystOverview?.data?.revenue_estimates?.length > 0 ? (
+                      <TableContainer>
+                        <Table size="small">
+                          <TableBody>
+                            {analystOverview.data.revenue_estimates.map((estimate) => (
+                              <TableRow key={estimate.period}>
+                                <TableCell sx={{ fontWeight: 'bold' }}>
+                                  {estimate.period === '0q' ? 'Current Quarter' :
+                                   estimate.period === '+1q' ? 'Next Quarter' :
+                                   estimate.period === '0y' ? 'Current Year' :
+                                   estimate.period === '+1y' ? 'Next Year' : estimate.period}
+                                </TableCell>
+                                <TableCell align="right">
+                                  {estimate.avg_estimate ? formatCurrency(estimate.avg_estimate, 0) : 'N/A'}
+                                </TableCell>
+                                <TableCell align="right">
+                                  <Chip 
+                                    label={`${estimate.number_of_analysts || 0} analysts`} 
+                                    size="small" 
+                                    variant="outlined"
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    ) : (
+                      <Typography color="text.secondary">No revenue estimates available</Typography>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* EPS Revisions */}
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
+                      EPS Revisions
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
+                    
+                    {analystOverview?.data?.eps_revisions?.length > 0 ? (
+                      <TableContainer>
+                        <Table size="small">
+                          <TableBody>
+                            {analystOverview.data.eps_revisions.map((revision) => (
+                              <TableRow key={revision.period}>
+                                <TableCell sx={{ fontWeight: 'bold' }}>
+                                  {revision.period === '0q' ? 'Current Quarter' :
+                                   revision.period === '+1q' ? 'Next Quarter' :
+                                   revision.period === '0y' ? 'Current Year' :
+                                   revision.period === '+1y' ? 'Next Year' : revision.period}
+                                </TableCell>
+                                <TableCell align="right">
+                                  <Box display="flex" gap={1}>
+                                    <Chip 
+                                      label={`↑${revision.up_last30days || 0}`} 
+                                      size="small" 
+                                      color="success"
+                                      variant="outlined"
+                                    />
+                                    <Chip 
+                                      label={`↓${revision.down_last30days || 0}`} 
+                                      size="small" 
+                                      color="error"
+                                      variant="outlined"
+                                    />
+                                  </Box>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    ) : (
+                      <Typography color="text.secondary">No EPS revisions available</Typography>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* Growth Estimates */}
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
+                      Growth Estimates
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
+                    
+                    {analystOverview?.data?.growth_estimates?.length > 0 ? (
+                      <TableContainer>
+                        <Table size="small">
+                          <TableBody>
+                            {analystOverview.data.growth_estimates.map((growth) => (
+                              <TableRow key={growth.period}>
+                                <TableCell sx={{ fontWeight: 'bold' }}>
+                                  {growth.period === '0q' ? 'Current Quarter' :
+                                   growth.period === '+1q' ? 'Next Quarter' :
+                                   growth.period === '0y' ? 'Current Year' :
+                                   growth.period === '+1y' ? 'Next Year' :
+                                   growth.period === '+5y' ? 'Next 5 Years' : growth.period}
+                                </TableCell>
+                                <TableCell align="right">
+                                  {growth.stock_trend ? formatPercent(growth.stock_trend / 100) : 'N/A'}
+                                </TableCell>
+                                <TableCell align="right" sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
+                                  vs Index: {growth.index_trend ? formatPercent(growth.index_trend / 100) : 'N/A'}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    ) : (
+                      <Typography color="text.secondary">No growth estimates available</Typography>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* Analyst Recommendations */}
+              <Grid item xs={12}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
+                      Analyst Recommendations
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
+                    
+                    {analystOverview?.data?.recommendations?.length > 0 ? (
+                      <Box>
+                        {analystOverview.data.recommendations.slice(0, 3).map((rec, index) => (
+                          <Box key={index} sx={{ mb: 2 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                              {new Date(rec.collected_date).toLocaleDateString()} - {rec.period}
+                            </Typography>
+                            <Grid container spacing={2}>
+                              <Grid item>
+                                <Chip 
+                                  label={`Strong Buy: ${rec.strong_buy || 0}`} 
+                                  color="success"
+                                  variant="outlined"
+                                  size="small"
+                                />
+                              </Grid>
+                              <Grid item>
+                                <Chip 
+                                  label={`Buy: ${rec.buy || 0}`} 
+                                  color="success"
+                                  variant="outlined"
+                                  size="small"
+                                />
+                              </Grid>
+                              <Grid item>
+                                <Chip 
+                                  label={`Hold: ${rec.hold || 0}`} 
+                                  color="warning"
+                                  variant="outlined"
+                                  size="small"
+                                />
+                              </Grid>
+                              <Grid item>
+                                <Chip 
+                                  label={`Sell: ${rec.sell || 0}`} 
+                                  color="error"
+                                  variant="outlined"
+                                  size="small"
+                                />
+                              </Grid>
+                              <Grid item>
+                                <Chip 
+                                  label={`Strong Sell: ${rec.strong_sell || 0}`} 
+                                  color="error"
+                                  variant="outlined"
+                                  size="small"
+                                />
+                              </Grid>
+                            </Grid>
+                            {index < 2 && <Divider sx={{ mt: 2 }} />}
+                          </Box>
+                        ))}
+                      </Box>
+                    ) : (
+                      <Typography color="text.secondary">No analyst recommendations available</Typography>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* Earnings History */}
+              <Grid item xs={12}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
+                      Earnings History
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
+                    
+                    {analystOverview?.data?.earnings_history?.length > 0 ? (
+                      <TableContainer>
+                        <Table>
+                          <TableBody>
+                            {analystOverview.data.earnings_history.slice(0, 8).map((history) => (
+                              <TableRow key={history.quarter}>
+                                <TableCell sx={{ fontWeight: 'bold' }}>
+                                  {new Date(history.quarter).toLocaleDateString()}
+                                </TableCell>
+                                <TableCell align="right">
+                                  Actual: {history.eps_actual ? formatCurrency(history.eps_actual) : 'N/A'}
+                                </TableCell>
+                                <TableCell align="right">
+                                  Estimate: {history.eps_estimate ? formatCurrency(history.eps_estimate) : 'N/A'}
+                                </TableCell>
+                                <TableCell align="right">
+                                  <Chip 
+                                    label={history.surprise_percent ? `${formatPercent(history.surprise_percent / 100)} surprise` : 'N/A'}
+                                    color={history.surprise_percent > 0 ? 'success' : history.surprise_percent < 0 ? 'error' : 'default'}
+                                    size="small"
+                                    variant="outlined"
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    ) : (
+                      <Typography color="text.secondary">No earnings history available</Typography>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
             </Grid>
-          </Grid>
+          </Box>
         )}
       </TabPanel>
     </Container>
