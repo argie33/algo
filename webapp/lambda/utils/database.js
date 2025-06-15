@@ -80,20 +80,34 @@ async function initializeDatabase() {
       user: credentials.user,
       useIAM: credentials.useIAM
       // Don't log password
-    });
-
-    // Create database pool with SSL required (RDS standard)
-    pool = new Pool({
+    });    // Create database pool with optimized settings
+    const poolConfig = {
       host: credentials.host,
       port: credentials.port,
       database: credentials.database,
       user: credentials.user,
       password: credentials.password,
-      max: 3,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 15000,
-      ssl: { rejectUnauthorized: false } // AWS RDS requires SSL
-    });
+      // Performance optimizations based on Lambda environment
+      max: parseInt(process.env.DB_POOL_MAX) || 5, // Max connections
+      min: 1, // Keep minimum connections alive
+      idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 30000,
+      connectionTimeoutMillis: parseInt(process.env.DB_CONNECT_TIMEOUT) || 10000,
+      acquireTimeoutMillis: 8000, // Time to wait for connection from pool
+      createTimeoutMillis: 8000, // Time to wait for new connection creation
+      destroyTimeoutMillis: 5000, // Time to wait for connection destruction
+      reapIntervalMillis: 1000, // How often to check for idle connections
+      createRetryIntervalMillis: 200, // Retry interval for connection creation
+      ssl: { rejectUnauthorized: false }, // AWS RDS requires SSL
+      // Additional PostgreSQL specific optimizations
+      statement_timeout: 25000, // 25 second query timeout
+      query_timeout: 25000,
+      application_name: `financial-dashboard-${process.env.NODE_ENV || 'production'}`,
+      // Connection keep-alive
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
+    };
+
+    pool = new Pool(poolConfig);
     
     console.log('Database pool created, testing connection...');
     

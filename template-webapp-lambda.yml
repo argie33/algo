@@ -12,7 +12,7 @@ Parameters:
   DatabaseSecretArn:
     Type: String
     Description: ARN of the RDS database secret in Secrets Manager
-    
+
   DatabaseEndpoint:
     Type: String
     Description: RDS database endpoint
@@ -27,6 +27,28 @@ Parameters:
     Default: '0.5'
     AllowedValues: ['0.5', '1.6', '6.1', '13.5', '28.4', '58.2', '118', '237']
     Description: API Gateway cache cluster size in GB (affects cost and performance)
+  EnablePerformanceOptimizations:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Enable performance optimizations (caching, provisioned concurrency, etc.)
+
+  ApiGatewayThrottlingBurstLimit:
+    Type: Number
+    Default: 200
+    MinValue: 10
+    MaxValue: 5000
+    Description: API Gateway throttling burst limit
+
+  ApiGatewayThrottlingRateLimit:
+    Type: Number
+    Default: 100
+    MinValue: 1
+    MaxValue: 10000
+    Description: API Gateway throttling rate limit (requests per second)
+
+Conditions:
+  EnableOptimizations: !Equals [!Ref EnablePerformanceOptimizations, 'true']
 
 Globals:
   Function:
@@ -274,12 +296,43 @@ Resources:
       CodeUri: webapp/lambda/
       Handler: index.handler
       Role: !GetAtt LambdaExecutionRole.Arn
+      # Enhanced performance optimizations
+      Timeout: 29  # Just under API Gateway 30s limit
+      MemorySize: !If 
+        - EnableOptimizations
+        - 1024  # Higher memory = faster execution + more CPU
+        - 512   # Conservative default
+      Runtime: nodejs18.x
+      Architectures:
+        - x86_64
+      # Advanced Environment Variables for Performance
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DatabaseSecretArn
           DB_ENDPOINT: !Ref DatabaseEndpoint
           NODE_ENV: !Ref EnvironmentName
           WEBAPP_AWS_REGION: !Ref AWS::Region
+          # Advanced Node.js performance tuning
+          NODE_OPTIONS: '--enable-source-maps --max-old-space-size=768 --optimize-for-size'
+          UV_THREADPOOL_SIZE: '8'  # Increased for better I/O concurrency
+          # Database connection optimization
+          DB_POOL_MAX: '5'
+          DB_POOL_IDLE_TIMEOUT: '30000'
+          DB_CONNECT_TIMEOUT: '10000'
+          # API response optimization
+          ENABLE_COMPRESSION: 'true'
+          CACHE_HEADERS: 'true'
+      # Enhanced concurrency management
+      ReservedConcurrencyLimit: !If
+        - EnableOptimizations
+        - 20   # Higher limit for better throughput
+        - 10   # Conservative default
+      # Conditional provisioned concurrency
+      ProvisionedConcurrencyConfig: !If
+        - EnableOptimizations
+        - ProvisionedConcurrencyEnabled: true
+          ProvisionedConcurrency: 5  # Increased for better response times
+        - !Ref 'AWS::NoValue'
       Events:
         ApiGatewayAny:
           Type: Api
@@ -292,41 +345,89 @@ Resources:
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /
-            Method: ANY
-  # API Gateway
+            Method: ANY# API Gateway
   ApiGateway:
     Type: AWS::Serverless::Api
     Properties:
       Name: !Sub 'financial-dashboard-api-${EnvironmentName}'
-      StageName: !Ref EnvironmentName      # Enable server-side caching for better performance
-      CacheClusterEnabled: true
-      CacheClusterSize: !Ref ApiGatewayCacheClusterSize
-      CachingEnabled: true
-      CacheTtlInSeconds: 300   # 5 minutes default cache TTL
-      CacheKeyParameters:
-        - method.request.querystring.symbol
-        - method.request.querystring.period
-        - method.request.querystring.limit
-      MethodSettings:
-        - ResourcePath: '/stocks/*'
-          HttpMethod: GET
-          CachingEnabled: true
-          CacheTtlInSeconds: 300  # 5 minutes for stock data
-          CacheKeyParameters:
-            - method.request.querystring.symbol
-            - method.request.querystring.period
-        - ResourcePath: '/market/*'
-          HttpMethod: GET
-          CachingEnabled: true
-          CacheTtlInSeconds: 180  # 3 minutes for market data
-        - ResourcePath: '/fundamentals/*'
-          HttpMethod: GET
-          CachingEnabled: true
-          CacheTtlInSeconds: 3600  # 1 hour for fundamentals
-        - ResourcePath: '/earnings/*'
-          HttpMethod: GET
-          CachingEnabled: true
-          CacheTtlInSeconds: 1800  # 30 minutes for earnings
+      StageName: !Ref EnvironmentName
+      # Performance optimizations
+      BinaryMediaTypes:
+        - 'application/json'
+        - 'application/octet-stream'
+      GatewayResponses:
+        DEFAULT_4XX:
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: "'*'"
+              Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        DEFAULT_5XX:
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: "'*'"
+              Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+      # Define explicit OpenAPI definition for performance
+      DefinitionBody:
+        swagger: "2.0"
+        info:
+          title: !Sub "${AWS::StackName}-api"
+          version: "1.0"
+        basePath: !Sub "/${EnvironmentName}"
+        schemes:
+          - "https"
+        x-amazon-apigateway-policy:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: "Allow"
+              Principal: "*"
+              Action: "execute-api:Invoke"
+              Resource: "*"
+        x-amazon-apigateway-request-validators:
+          params-only:
+            validateRequestParameters: true
+            validateRequestBody: false
+        x-amazon-apigateway-request-validator: "params-only"
+        paths:
+          /{proxy+}:
+            x-amazon-apigateway-any-method:
+              x-amazon-apigateway-integration:
+                type: "aws_proxy"
+                httpMethod: "POST"
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiFunction.Arn}/invocations"
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                      method.response.header.Cache-Control: "'public, max-age=300'"
+                passthroughBehavior: "when_no_match"
+                contentHandling: "CONVERT_TO_TEXT"
+              responses:
+                "200":
+                  description: "200 response"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Cache-Control:
+                      type: "string"
+          /:
+            x-amazon-apigateway-any-method:
+              x-amazon-apigateway-integration:
+                type: "aws_proxy"
+                httpMethod: "POST"
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiFunction.Arn}/invocations"
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                passthroughBehavior: "when_no_match"
+              responses:
+                "200":
+                  description: "200 response"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
       Cors:
         AllowMethods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
@@ -349,6 +450,102 @@ Resources:
     Properties:
       LogGroupName: !Sub '/aws/lambda/financial-dashboard-api-${EnvironmentName}'
       RetentionInDays: 30
+
+  # API Gateway Deployment with Caching
+  ApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn: ApiGateway
+    Properties:
+      RestApiId: !Ref ApiGateway
+      StageName: !Ref EnvironmentName
+      StageDescription:
+        CachingEnabled: true
+        CacheClusterEnabled: true
+        CacheClusterSize: !Ref ApiGatewayCacheClusterSize
+        CacheTtlInSeconds: 300
+        CacheKeyParameters:
+          - method.request.querystring.symbol
+          - method.request.querystring.limit
+          - method.request.querystring.page
+          - method.request.querystring.timeframe        MethodSettings:
+          - ResourcePath: "/*"
+            HttpMethod: "*"
+            LoggingLevel: ERROR
+            DataTraceEnabled: false
+            MetricsEnabled: true
+            ThrottlingBurstLimit: !Ref ApiGatewayThrottlingBurstLimit
+            ThrottlingRateLimit: !Ref ApiGatewayThrottlingRateLimit
+          # High-frequency endpoints (stocks, technical)
+          - ResourcePath: "/technical/*"
+            HttpMethod: "GET" 
+            CachingEnabled: !If [EnableOptimizations, true, false]
+            CacheTtlInSeconds: 300
+            ThrottlingBurstLimit: !If [EnableOptimizations, 300, 100]
+            ThrottlingRateLimit: !If [EnableOptimizations, 150, 50]
+            CacheKeyParameters:
+              - method.request.querystring.symbol
+              - method.request.querystring.limit
+              - method.request.querystring.page
+          - ResourcePath: "/stocks/*"
+            HttpMethod: "GET"
+            CachingEnabled: !If [EnableOptimizations, true, false]
+            CacheTtlInSeconds: 180
+            ThrottlingBurstLimit: !If [EnableOptimizations, 250, 100]
+            ThrottlingRateLimit: !If [EnableOptimizations, 125, 50]
+            CacheKeyParameters:
+              - method.request.querystring.symbol
+              - method.request.querystring.limit
+              - method.request.querystring.page
+              - method.request.querystring.search
+          # Medium-frequency endpoints
+          - ResourcePath: "/metrics/*"
+            HttpMethod: "GET"
+            CachingEnabled: !If [EnableOptimizations, true, false]
+            CacheTtlInSeconds: 600
+            ThrottlingBurstLimit: !If [EnableOptimizations, 150, 75]
+            ThrottlingRateLimit: !If [EnableOptimizations, 75, 25]
+          - ResourcePath: "/calendar/*"
+            HttpMethod: "GET"
+            CachingEnabled: !If [EnableOptimizations, true, false]
+            CacheTtlInSeconds: 1800
+            ThrottlingBurstLimit: !If [EnableOptimizations, 100, 50]
+            ThrottlingRateLimit: !If [EnableOptimizations, 50, 25]
+
+  # API Gateway Performance Monitoring
+  ApiGatewayPerformanceAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-api-high-latency'
+      AlarmDescription: 'Monitor API Gateway latency'
+      MetricName: Latency
+      Namespace: AWS/ApiGateway
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 5000  # 5 seconds
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: ApiName
+          Value: !Sub 'financial-dashboard-api-${EnvironmentName}'
+        - Name: Stage
+          Value: !Ref EnvironmentName
+
+  # Lambda Performance Monitoring
+  LambdaPerformanceAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-lambda-high-duration'
+      AlarmDescription: 'Monitor Lambda function duration'
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 10000  # 10 seconds
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ApiFunction
 
 Outputs:
   # Frontend
