@@ -3,81 +3,23 @@ const { query } = require('../utils/database');
 
 const router = express.Router();
 
-// Health check endpoint for analyst data tables
-router.get('/health', async (req, res) => {
-  try {
-    const tables = [
-      'analyst_upgrade_downgrade',
-      'analyst_recommendations', 
-      'earnings_estimates',
-      'revenue_estimates',
-      'earnings_history'
-    ];
-    
-    const status = {};
-    
-    for (const table of tables) {
-      try {
-        const result = await query(`SELECT COUNT(*) as count FROM ${table} LIMIT 1`);
-        status[table] = {
-          exists: true,
-          count: result.rows[0]?.count || 0
-        };
-      } catch (error) {
-        status[table] = {
-          exists: false,
-          error: error.message
-        };
-      }
-    }
-    
-    res.json({
-      status: 'OK',
-      tables: status,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: 'ERROR',
-      error: error.message
-    });
-  }
-});
-
 // Get analyst upgrades/downgrades
 router.get('/upgrades', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 25;
     const offset = (page - 1) * limit;
-    
-    // Check if table exists first
-    const tableCheckQuery = `
-      SELECT COUNT(*) as count FROM analyst_upgrade_downgrade LIMIT 1
-    `;
-    
-    let tableExists = true;
-    try {
-      await query(tableCheckQuery);
-    } catch (tableError) {
-      console.error('analyst_upgrade_downgrade table does not exist:', tableError.message);
-      return res.status(404).json({ 
-        error: 'Analyst upgrade/downgrade data not available',
-        message: 'Data table not found'
-      });
-    }
-    
-    const upgradesQuery = `
+      const upgradesQuery = `
       SELECT 
         symbol,
-        company,
         from_grade,
         to_grade,
         action,
         firm,
-        date
+        date,
+        details
       FROM analyst_upgrade_downgrade 
-      ORDER BY symbol ASC, date DESC
+      ORDER BY date DESC
       LIMIT $1 OFFSET $2
     `;
 
@@ -117,22 +59,6 @@ router.get('/:ticker/recommendations', async (req, res) => {
   try {
     const { ticker } = req.params;
 
-    // Check if table exists first
-    const tableCheckQuery = `
-      SELECT COUNT(*) as count FROM analyst_recommendations LIMIT 1
-    `;
-    
-    try {
-      await query(tableCheckQuery);
-    } catch (tableError) {
-      console.error('analyst_recommendations table does not exist:', tableError.message);
-      return res.status(404).json({ 
-        error: 'Analyst recommendations data not available',
-        message: 'Data table not found',
-        ticker: ticker.toUpperCase()
-      });
-    }
-
     const recQuery = `
       SELECT 
         period,
@@ -150,13 +76,6 @@ router.get('/:ticker/recommendations', async (req, res) => {
 
     const result = await query(recQuery, [ticker.toUpperCase()]);
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        error: 'No analyst recommendations found for this symbol',
-        ticker: ticker.toUpperCase()
-      });
-    }
-
     res.json({
       ticker: ticker.toUpperCase(),
       recommendations: result.rows
@@ -172,22 +91,6 @@ router.get('/:ticker/recommendations', async (req, res) => {
 router.get('/:ticker/earnings-estimates', async (req, res) => {
   try {
     const { ticker } = req.params;
-
-    // Check if table exists first
-    const tableCheckQuery = `
-      SELECT COUNT(*) as count FROM earnings_estimates LIMIT 1
-    `;
-    
-    try {
-      await query(tableCheckQuery);
-    } catch (tableError) {
-      console.error('earnings_estimates table does not exist:', tableError.message);
-      return res.status(404).json({ 
-        error: 'Earnings estimates data not available',
-        message: 'Data table not found',
-        ticker: ticker.toUpperCase()
-      });
-    }
 
     const estimatesQuery = `
       SELECT 
@@ -217,24 +120,9 @@ router.get('/:ticker/earnings-estimates', async (req, res) => {
 });
 
 // Get revenue estimates
-router.get('/:ticker/revenue-estimates', async (req, res) => {  try {
+router.get('/:ticker/revenue-estimates', async (req, res) => {
+  try {
     const { ticker } = req.params;
-
-    // Check if table exists first
-    const tableCheckQuery = `
-      SELECT COUNT(*) as count FROM revenue_estimates LIMIT 1
-    `;
-    
-    try {
-      await query(tableCheckQuery);
-    } catch (tableError) {
-      console.error('revenue_estimates table does not exist:', tableError.message);
-      return res.status(404).json({ 
-        error: 'Revenue estimates data not available',
-        message: 'Data table not found',
-        ticker: ticker.toUpperCase()
-      });
-    }
 
     const revenueQuery = `
       SELECT 
@@ -243,8 +131,7 @@ router.get('/:ticker/revenue-estimates', async (req, res) => {  try {
         actual,
         difference,
         surprise_percent,
-        reported_date
-      FROM revenue_estimates
+        reported_date      FROM revenue_estimates
       WHERE symbol = $1
       ORDER BY reported_date DESC
       LIMIT 8
@@ -267,22 +154,6 @@ router.get('/:ticker/revenue-estimates', async (req, res) => {  try {
 router.get('/:ticker/earnings-history', async (req, res) => {
   try {
     const { ticker } = req.params;
-
-    // Check if table exists first
-    const tableCheckQuery = `
-      SELECT COUNT(*) as count FROM earnings_history LIMIT 1
-    `;
-    
-    try {
-      await query(tableCheckQuery);
-    } catch (tableError) {
-      console.error('earnings_history table does not exist:', tableError.message);
-      return res.status(404).json({ 
-        error: 'Earnings history data not available',
-        message: 'Data table not found',
-        ticker: ticker.toUpperCase()
-      });
-    }
 
     const historyQuery = `
       SELECT 
