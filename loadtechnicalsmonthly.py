@@ -635,6 +635,224 @@ def calculate_technicals_parallel(df):
     
     return df
 
+def validate_prerequisites(cur):
+    """Validate that prerequisites for loading technical data are met"""
+    try:
+        logging.info("🔍 Step 1: Checking if price_monthly table exists...")
+        
+        # Check if price_monthly table exists and has data
+        cur.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'price_monthly'
+            ) as table_exists
+        """)
+        result = cur.fetchone()
+        price_table_exists = result['table_exists']
+        logging.info(f"📊 price_monthly table exists: {price_table_exists}")
+        
+        if not price_table_exists:
+            logging.error("❌ price_monthly table does not exist. Technical data requires price data.")
+            logging.error("💡 Hint: Run the price data loader first (pricemonthly-loader) to populate price_monthly table")
+            return False
+        
+        logging.info("🔍 Step 2: Checking if price_monthly table has data...")
+        
+        # Check total number of rows first
+        cur.execute("SELECT COUNT(*) as total_rows FROM price_monthly")
+        result = cur.fetchone()
+        total_rows = result['total_rows']
+        logging.info(f"📊 Total rows in price_monthly: {total_rows}")
+        
+        if total_rows == 0:
+            logging.error("❌ price_monthly table exists but is empty (0 rows)")
+            logging.error("💡 Hint: Run the price data loader first (pricemonthly-loader) to populate price_monthly table")
+            return False
+        
+        # Check if we have price data for symbols
+        logging.info("🔍 Step 3: Counting distinct symbols in price_monthly...")
+        cur.execute("SELECT COUNT(DISTINCT symbol) as symbol_count FROM price_monthly")
+        result = cur.fetchone()
+        price_symbol_count = result['symbol_count'] if result else 0
+        logging.info(f"📊 Distinct symbols in price_monthly: {price_symbol_count}")
+        
+        if price_symbol_count == 0:
+            logging.error("❌ No distinct symbols found in price_monthly table")
+            logging.error("💡 This is unusual - table has rows but no distinct symbols")
+            return False
+        
+        logging.info(f"✅ Prerequisites met: price_monthly table exists with {price_symbol_count} symbols")
+        return True
+        
+    except Exception as e:
+        logging.error(f"❌ Exception type: {type(e).__name__}")
+        logging.error(f"❌ Exception details: {repr(e)}")
+        logging.error(f"❌ Full traceback: {str(e)}")
+        import traceback
+        logging.error(f"❌ Full traceback: {''.join(traceback.format_exc())}")
+        return False
+
+def delete_existing_table(cur):
+    """Delete existing technical_data_monthly table and confirm deletion"""
+    try:
+        logging.info("🗑️ Step 1: Checking if technical_data_monthly table exists...")
+        
+        # Check if table exists
+        cur.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'technical_data_monthly'
+            ) as table_exists
+        """)
+        result = cur.fetchone()
+        table_exists = result['table_exists']
+        
+        if table_exists:
+            logging.info("📊 technical_data_monthly table exists, checking row count...")
+            
+            # Count existing rows
+            cur.execute("SELECT COUNT(*) as row_count FROM technical_data_monthly")
+            result = cur.fetchone()
+            existing_rows = result['row_count']
+            logging.info(f"📊 Existing table has {existing_rows} rows")
+            
+            # Drop the table
+            logging.info("🗑️ Dropping existing technical_data_monthly table...")
+            cur.execute("DROP TABLE IF EXISTS technical_data_monthly CASCADE")
+            logging.info("✅ Successfully dropped technical_data_monthly table")
+            
+            # Verify deletion
+            cur.execute("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_name = 'technical_data_monthly'
+                ) as table_exists
+            """)
+            result = cur.fetchone()
+            still_exists = result['table_exists']
+            
+            if still_exists:
+                logging.error("❌ Table still exists after DROP command!")
+                return False
+            else:
+                logging.info("✅ Confirmed: technical_data_monthly table has been deleted")
+                return True
+        else:
+            logging.info("📋 technical_data_monthly table does not exist (first run)")
+            return True
+            
+    except Exception as e:
+        logging.error(f"❌ Failed to delete existing table: {e}")
+        import traceback
+        logging.error(f"❌ Full traceback: {''.join(traceback.format_exc())}")
+        return False
+
+def create_technical_table(cur):
+    """Create technical_data_monthly table with comprehensive schema"""
+    try:
+        logging.info("🔧 Creating technical_data_monthly table...")
+        
+        create_table_sql = """
+        CREATE TABLE technical_data_monthly (
+            id SERIAL PRIMARY KEY,
+            symbol VARCHAR(10) NOT NULL,
+            date DATE NOT NULL,
+            
+            -- Price data for reference
+            open DECIMAL(12,4),
+            high DECIMAL(12,4),
+            low DECIMAL(12,4),
+            close DECIMAL(12,4),
+            volume BIGINT,
+            
+            -- Basic indicators
+            rsi DECIMAL(8,4),
+            mom DECIMAL(12,4),
+            roc DECIMAL(8,4),
+            
+            -- Moving Averages
+            sma_10 DECIMAL(12,4),
+            sma_20 DECIMAL(12,4),
+            sma_50 DECIMAL(12,4),
+            sma_150 DECIMAL(12,4),
+            sma_200 DECIMAL(12,4),
+            ema_4 DECIMAL(12,4),
+            ema_9 DECIMAL(12,4),
+            ema_21 DECIMAL(12,4),
+            
+            -- MACD
+            macd DECIMAL(12,6),
+            macd_signal DECIMAL(12,6),
+            macd_hist DECIMAL(12,6),
+            
+            -- Bollinger Bands
+            bbands_lower DECIMAL(12,4),
+            bbands_middle DECIMAL(12,4),
+            bbands_upper DECIMAL(12,4),
+            
+            -- Other indicators
+            atr DECIMAL(12,4),
+            adx DECIMAL(8,4),
+            ad DECIMAL(15,4),
+            cmf DECIMAL(8,4),
+            mfi DECIMAL(8,4),
+            dm DECIMAL(8,4),
+            marketwatch DECIMAL(8,4),
+            
+            -- Custom indicators
+            td_sequential DECIMAL(8,2),
+            td_combo DECIMAL(8,2),
+            
+            -- Pivot points
+            pivot_high DECIMAL(12,4),
+            pivot_low DECIMAL(12,4),
+            
+            -- Metadata
+            fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            
+            UNIQUE(symbol, date)
+        )
+        """
+        
+        cur.execute(create_table_sql)
+        logging.info("✅ Created technical_data_monthly table")
+        
+        # Create indexes for performance
+        indexes = [
+            "CREATE INDEX IF NOT EXISTS idx_technical_monthly_symbol ON technical_data_monthly(symbol)",
+            "CREATE INDEX IF NOT EXISTS idx_technical_monthly_date ON technical_data_monthly(date)",
+            "CREATE INDEX IF NOT EXISTS idx_technical_monthly_symbol_date ON technical_data_monthly(symbol, date)",
+            "CREATE INDEX IF NOT EXISTS idx_technical_monthly_created_at ON technical_data_monthly(created_at)"
+        ]
+        
+        for index_sql in indexes:
+            cur.execute(index_sql)
+            index_name = index_sql.split(' ')[-1].split('(')[0]
+            logging.info(f"✅ Created index: {index_name}")
+        
+        # Verify table creation
+        cur.execute("""
+            SELECT COUNT(*) as column_count 
+            FROM information_schema.columns 
+            WHERE table_name = 'technical_data_monthly'
+        """)
+        result = cur.fetchone()
+        column_count = result['column_count']
+        logging.info(f"✅ Table created successfully with {column_count} columns")
+        
+        return True
+        
+    except Exception as e:
+        logging.error(f"❌ Failed to create technical table: {e}")
+        import traceback
+        logging.error(f"❌ Full traceback: {''.join(traceback.format_exc())}")
+        return False
+
 def process_symbol_chunk(symbol_chunk, db_config):
     """Process a chunk of symbols efficiently with ULTRA-OPTIMIZED database operations and retry logic"""
     max_retries = 3
@@ -1061,7 +1279,7 @@ def load_technicals(symbols, cur, conn):
 # Entrypoint
 # -------------------------------
 def main():
-    """Main function with proper error handling for ECS task completion"""
+    """Main function with proper error handling and table management"""
     exit_code = 0
     conn = None
     cur = None
@@ -1079,90 +1297,36 @@ def main():
         )
         conn.autocommit = False
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        # Recreate technical_data_monthly table
-        logging.info("Recreating technical_data_monthly table…")
+
+        # Step 1: Validate prerequisites
+        logging.info("🔍 Validating prerequisites...")
+        if not validate_prerequisites(cur):
+            logging.error("❌ Prerequisites not met for loading technical data")
+            return 1
         
-        # Check if table exists first
-        cur.execute("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_schema = 'public' 
-                AND table_name = 'technical_data_monthly'
-            );
-        """)
-        table_exists = cur.fetchone()[0]
-        logging.info(f"Table technical_data_monthly exists: {table_exists}")
+        logging.info("✅ Prerequisites validation passed!")
         
-        if table_exists:
-            # Drop indexes first to avoid conflicts
-            logging.info("Dropping indexes first...")
-            cur.execute("DROP INDEX IF EXISTS idx_technical_monthly_symbol CASCADE;")
-            cur.execute("DROP INDEX IF EXISTS idx_technical_monthly_date CASCADE;")
-            
-            # Now drop the table
-            cur.execute("DROP TABLE technical_data_monthly CASCADE;")
-            logging.info("✅ Dropped existing technical_data_monthly table and its indexes")
+        # Step 2: Delete existing table
+        logging.info("🗑️ Deleting existing technical table...")
+        if not delete_existing_table(cur):
+            logging.error("❌ Failed to delete existing technical table")
+            return 1
         
-        # Verify table is gone
-        cur.execute("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_schema = 'public' 
-                AND table_name = 'technical_data_monthly'
-            );        """)
-        table_still_exists = cur.fetchone()[0]
-        logging.info(f"Table technical_data_monthly still exists after drop: {table_still_exists}")
-        
-        if table_still_exists:
-            logging.error("❌ Failed to drop table, trying one more time...")
-            cur.execute("DROP INDEX IF EXISTS idx_technical_monthly_symbol CASCADE;")
-            cur.execute("DROP INDEX IF EXISTS idx_technical_monthly_date CASCADE;")
-            cur.execute("DROP TABLE IF EXISTS technical_data_monthly CASCADE;")
-        
-        cur.execute("""
-            CREATE TABLE technical_data_monthly (
-                symbol          VARCHAR(50) NOT NULL,
-                date            DATE        NOT NULL,
-                rsi             DOUBLE PRECISION,
-                macd            DOUBLE PRECISION,
-                macd_signal     DOUBLE PRECISION,
-                macd_hist       DOUBLE PRECISION,
-                mom             DOUBLE PRECISION,
-                roc             DOUBLE PRECISION,
-                adx             DOUBLE PRECISION,
-                atr             DOUBLE PRECISION,
-                ad              DOUBLE PRECISION,
-                cmf             DOUBLE PRECISION,
-                mfi             DOUBLE PRECISION,
-                td_sequential   DOUBLE PRECISION,
-                td_combo        DOUBLE PRECISION,
-                marketwatch     DOUBLE PRECISION,
-                dm              DOUBLE PRECISION,
-                sma_10          DOUBLE PRECISION,
-                sma_20          DOUBLE PRECISION,
-                sma_50          DOUBLE PRECISION,
-                sma_150         DOUBLE PRECISION,
-                sma_200         DOUBLE PRECISION,
-                ema_4           DOUBLE PRECISION,
-                ema_9           DOUBLE PRECISION,
-                ema_21          DOUBLE PRECISION,
-                bbands_lower    DOUBLE PRECISION,
-                bbands_middle   DOUBLE PRECISION,
-                bbands_upper    DOUBLE PRECISION,
-                pivot_high      DOUBLE PRECISION,
-                pivot_low       DOUBLE PRECISION,
-                fetched_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(symbol, date)
-            );
-        """)
-        
-        # Create indexes for performance
-        cur.execute("""
-            CREATE INDEX idx_technical_monthly_symbol ON technical_data_monthly(symbol);
-            CREATE INDEX idx_technical_monthly_date ON technical_data_monthly(date);
-        """)
+        # Step 3: Create new table
+        logging.info("🔧 Creating new technical table...")
+        if not create_technical_table(cur):
+            logging.error("❌ Failed to create technical table")
+            return 1
         
         conn.commit()
+        logging.info("💾 Table creation committed to database")
+
+        # Continue with existing processing
+        start_time = time.time()
+        log_mem("pre_processing")
+        
+        logging.info("📊 ULTRA-FAST Monthly Technical Indicators Loading")
+        logging.info("=" * 60)
 
         # Get symbols that have price data
         cur.execute("""

@@ -207,7 +207,7 @@ Resources:
             Resource: !Sub '${FrontendBucket}/*'
             Condition:
               StringEquals:
-                'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
+                'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution.Id}'
 
   # IAM Role for Lambda Function
   LambdaExecutionRole:
