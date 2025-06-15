@@ -313,7 +313,7 @@ Resources:
           NODE_ENV: !Ref EnvironmentName
           WEBAPP_AWS_REGION: !Ref AWS::Region
           # Advanced Node.js performance tuning
-          NODE_OPTIONS: '--enable-source-maps --max-old-space-size=768 --optimize-for-size'
+          NODE_OPTIONS: '--enable-source-maps --max-old-space-size=768'
           UV_THREADPOOL_SIZE: '8'  # Increased for better I/O concurrency
           # Database connection optimization
           DB_POOL_MAX: '5'
