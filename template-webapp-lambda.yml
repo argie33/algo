@@ -456,7 +456,8 @@ Resources:
           - method.request.querystring.symbol
           - method.request.querystring.limit
           - method.request.querystring.page
-          - method.request.querystring.timeframe        MethodSettings:
+          - method.request.querystring.timeframe
+        MethodSettings:
           - ResourcePath: "/*"
             HttpMethod: "*"
             LoggingLevel: ERROR
