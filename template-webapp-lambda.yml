@@ -196,6 +196,38 @@ Resources:
             MinTTL: 180          # 3 minutes minimum
             Compress: true
           
+          # Cache for technical analysis data (frequent updates)
+          - PathPattern: '/api/technical/*'
+            TargetOriginId: APIOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachedMethods: [GET, HEAD, OPTIONS]
+            ForwardedValues:
+              QueryString: true
+              Headers: [Authorization, Content-Type]
+              Cookies:
+                Forward: none
+            DefaultTTL: 300      # 5 minutes for technical data
+            MaxTTL: 1800         # 30 minutes max
+            MinTTL: 60           # 1 minute minimum
+            Compress: true
+          
+          # Cache for analyst insights and ratings (moderate frequency)
+          - PathPattern: '/api/analysts/*'
+            TargetOriginId: APIOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachedMethods: [GET, HEAD, OPTIONS]
+            ForwardedValues:
+              QueryString: true
+              Headers: [Authorization, Content-Type]
+              Cookies:
+                Forward: none
+            DefaultTTL: 900      # 15 minutes for analyst data
+            MaxTTL: 3600         # 1 hour max
+            MinTTL: 180          # 3 minutes minimum
+            Compress: true
+          
           # General API caching (fallback for other endpoints)
           - PathPattern: '/api/*'
             TargetOriginId: APIOrigin
