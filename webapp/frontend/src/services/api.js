@@ -354,6 +354,9 @@ export const getFearGreedData = (params = {}) => {
   return api.get(`/market/fear-greed?${queryParams.toString()}`)
 }
 
+// Data validation endpoints
+export const getDataValidationSummary = () => api.get('/data/validation/summary')
+
 // Technical analysis endpoints
 export const getTechnicalData = (params = {}) => {
   const queryParams = new URLSearchParams()
