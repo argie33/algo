@@ -1,21 +1,42 @@
 import axios from 'axios'
 
-// Get API configuration
-const getApiConfig = () => {
+// Get API configuration - exported for ServiceHealth
+export const getApiConfig = () => {
   // Get API URL from environment variable (set by workflow)
   const apiUrl = import.meta.env.VITE_API_URL
   
-  if (!apiUrl) {
-    throw new Error('VITE_API_URL environment variable is not set')
-  }
-  
   return {
     baseURL: apiUrl,
-    isServerless: true // Always true for AWS Lambda
+    isServerless: true, // Always true for AWS Lambda
+    apiUrl,
+    isConfigured: !!apiUrl,
+    environment: import.meta.env.MODE,
+    isDevelopment: import.meta.env.DEV,
+    isProduction: import.meta.env.PROD,
+    baseUrl: import.meta.env.BASE_URL,
+    allEnvVars: import.meta.env
   }
 }
 
-const config = getApiConfig()
+const config = (() => {
+  try {
+    const apiConfig = getApiConfig()
+    if (!apiConfig.apiUrl) {
+      console.warn('VITE_API_URL environment variable is not set')
+      return {
+        baseURL: 'http://localhost:3001', // Fallback for development
+        isServerless: false
+      }
+    }
+    return apiConfig
+  } catch (error) {
+    console.error('Failed to get API configuration:', error)
+    return {
+      baseURL: 'http://localhost:3001', // Fallback for development
+      isServerless: false
+    }
+  }
+})()
 
 console.log('API Configuration:', {
   baseURL: config.baseURL,
@@ -75,6 +96,33 @@ api.interceptors.request.use(
   }
 )
 
+// Enhanced error handling and debugging
+const handleApiError = (error, endpoint = 'unknown') => {
+  console.error(`API Error on ${endpoint}:`, {
+    message: error.message,
+    response: error.response?.data,
+    status: error.response?.status,
+    config: error.config?.url,
+    baseURL: error.config?.baseURL
+  })
+  
+  // More specific error messages
+  if (!error.response) {
+    // Network error - can't reach server
+    if (error.code === 'ECONNABORTED') {
+      throw new Error(`Request timeout on ${endpoint}. The server may be starting up.`)
+    } else {
+      throw new Error(`Network error on ${endpoint}. Check if API server is running and accessible.`)
+    }
+  } else if (error.response.status >= 500) {
+    throw new Error(`Server error on ${endpoint}: ${error.response.data?.message || error.message}`)
+  } else if (error.response.status === 404) {
+    throw new Error(`Endpoint not found: ${endpoint}`)
+  } else {
+    throw new Error(`API error on ${endpoint}: ${error.response.data?.message || error.message}`)
+  }
+}
+
 // Response interceptor for error handling and retries
 api.interceptors.response.use(
   (response) => {
@@ -130,8 +178,15 @@ api.interceptors.response.use(
   }
 )
 
+
 // Health check
-export const healthCheck = () => api.get('/health')
+export const healthCheck = async (queryParams = '') => {
+  try {
+    return await api.get(`/health${queryParams}`)
+  } catch (error) {
+    handleApiError(error, 'health check')
+  }
+}
 
 // Market overview
 // Market data - Updated to use proper market endpoints
@@ -142,21 +197,27 @@ export const getMarketBreadth = () => api.get('/market/breadth')
 export const getEconomicIndicators = (days = 90) => api.get(`/market/economic?days=${days}`)
 
 // Stocks - Updated to use optimized endpoints
-export const getStocks = (params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  // Use smaller default limit to prevent white screen
-  if (!params.limit) {
-    params.limit = 10
-  }
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
+export const getStocks = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams()
+    
+    // Use smaller default limit to prevent white screen
+    if (!params.limit) {
+      params.limit = 10
     }
-  })
-  
-  return api.get(`/stocks?${queryParams.toString()}`)
+    
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value)
+      }
+    })
+    
+    const url = `/stocks?${queryParams.toString()}`
+    console.log('Fetching stocks from:', url)
+    return await api.get(url)
+  } catch (error) {
+    handleApiError(error, 'get stocks')
+  }
 }
 
 // Quick stocks overview for initial page load
@@ -320,7 +381,15 @@ export const getTickerAnalystRecommendations = (ticker) => api.get(`/analysts/${
 export const getAnalystOverview = (ticker) => api.get(`/analysts/${ticker}/overview`)
 
 // Financial statements endpoints
-export const getBalanceSheet = (ticker, period = 'annual') => api.get(`/financials/${ticker}/balance-sheet?period=${period}`)
+export const getBalanceSheet = async (ticker, period = 'annual') => {
+  try {
+    const url = `/financials/${ticker}/balance-sheet?period=${period}`
+    console.log('Fetching balance sheet from:', url)
+    return await api.get(url)
+  } catch (error) {
+    handleApiError(error, `get balance sheet for ${ticker}`)
+  }
+}
 export const getIncomeStatement = (ticker, period = 'annual') => api.get(`/financials/${ticker}/income-statement?period=${period}`)
 export const getCashFlowStatement = (ticker, period = 'annual') => api.get(`/financials/${ticker}/cash-flow?period=${period}`)
 export const getFinancialStatements = (ticker, period = 'annual') => api.get(`/financials/${ticker}/financials?period=${period}`)
@@ -429,16 +498,22 @@ export const getFearGreedData = (params = {}) => {
 export const getDataValidationSummary = () => api.get('/data/validation-summary')
 
 // Technical analysis endpoints
-export const getTechnicalData = (timeframe = 'daily', params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-  
-  return api.get(`/technical/${timeframe}?${queryParams.toString()}`)
+export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
+  try {
+    const queryParams = new URLSearchParams()
+    
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value)
+      }
+    })
+    
+    const url = `/technical/${timeframe}?${queryParams.toString()}`
+    console.log('Fetching technical data from:', url)
+    return await api.get(url)
+  } catch (error) {
+    handleApiError(error, `get technical data (${timeframe})`)
+  }
 }
 
 export const getTechnicalSummary = (timeframe = 'daily', params = {}) => {
@@ -536,23 +611,41 @@ export default {
 // Test API Connection
 export const testApiConnection = async (customUrl = null) => {
   try {
-    const testUrl = customUrl || API_BASE_URL
-    const response = await api.get('/health', {
+    console.log('Testing API connection...')
+    console.log('Current API URL:', config.baseURL)
+    console.log('Custom URL:', customUrl)
+    console.log('Environment:', import.meta.env.MODE)
+    console.log('VITE_API_URL:', import.meta.env.VITE_API_URL)
+    
+    const testUrl = customUrl || config.baseURL
+    const response = await api.get('/health?quick=true', {
       baseURL: testUrl,
       timeout: 10000
     })
+    
     return {
       success: true,
-      url: testUrl,
+      apiUrl: testUrl,
       status: response.status,
-      data: response.data
+      data: response.data,
+      message: 'API connection successful'
     }
   } catch (error) {
+    console.error('API connection test failed:', error)
+    
     return {
       success: false,
-      url: customUrl || API_BASE_URL,
+      apiUrl: customUrl || config.baseURL,
       error: error.message,
-      status: error.response?.status
-    }
+      details: {
+        hasResponse: !!error.response,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        responseData: error.response?.data,
+        code: error.code,
+        isNetworkError: !error.response,
+        configUrl: error.config?.url,
+        fullUrl: (customUrl || config.baseURL) + '/health?quick=true'
+      }    }
   }
 }

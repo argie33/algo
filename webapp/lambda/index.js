@@ -67,7 +67,10 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Note: API Gateway strips the /api prefix before sending to Lambda
 
 // Logging (simplified for Lambda)
-if (process.env.NODE_ENV !== 'production') {
+const nodeEnv = process.env.NODE_ENV || 'production';
+const isProduction = nodeEnv === 'production' || nodeEnv === 'prod';
+
+if (!isProduction) {
   app.use(morgan('combined'));
 }
 
@@ -126,10 +129,9 @@ app.use(async (req, res, next) => {
     
     // For other endpoints, return service unavailable
     res.status(503).json({ 
-      error: 'Service temporarily unavailable - database connection failed',
-      message: 'The database is currently unavailable. Please try again later.',
+      error: 'Service temporarily unavailable - database connection failed',      message: 'The database is currently unavailable. Please try again later.',
       timestamp: new Date().toISOString(),
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      details: !isProduction ? error.message : undefined
     });
   }
 });
@@ -154,7 +156,7 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     status: 'operational',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
+    environment: nodeEnv,
     endpoints: {
       health: {
         quick: '/health?quick=true',

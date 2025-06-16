@@ -52,7 +52,8 @@ import {
   getSellSignals,
   getEarningsEstimates,
   getNaaimData,
-  getFearGreedData
+  getFearGreedData,
+  getApiConfig
 } from '../services/api';
 
 function ServiceHealth() {
@@ -87,17 +88,15 @@ function ServiceHealth() {
         </Alert>
       </Container>
     );
-  }
-  // Comprehensive endpoint tests
+  }  // Comprehensive endpoint tests
   const endpoints = [
     { name: 'Health', fn: () => healthCheck(), critical: true },
     { name: 'Health (Quick)', fn: () => healthCheck('?quick=true'), critical: true },
+    { name: 'API Connection', fn: () => testApiConnection(), critical: true },
     { name: 'Stocks', fn: () => getStocks({ limit: 5 }), critical: true },
-    { name: 'Stocks Debug', fn: () => testApiConnection().then(r => fetch(`${r.apiUrl}/stocks/debug`).then(res => res.json())), critical: false },
     { name: 'Technical Daily', fn: () => getTechnicalData('daily', { limit: 5 }), critical: true },
     { name: 'Technical Weekly', fn: () => getTechnicalData('weekly', { limit: 5 }), critical: false },
     { name: 'Technical Monthly', fn: () => getTechnicalData('monthly', { limit: 5 }), critical: false },
-    { name: 'Technical Debug', fn: () => testApiConnection().then(r => fetch(`${r.apiUrl}/technical/debug`).then(res => res.json())), critical: false },
     { name: 'Market Overview', fn: () => getMarketOverview(), critical: true },
     { name: 'Data Validation', fn: () => getDataValidationSummary(), critical: true },
     { name: 'Stock Screener', fn: () => screenStocks({ limit: 5 }), critical: true },
@@ -147,15 +146,11 @@ function ServiceHealth() {
     
     setTestResults(results);
     setTestingInProgress(false);
-  };
-  // Gather environment information
+  };  // Gather environment information
   useEffect(() => {
+    const apiConfig = getApiConfig()
     const env = {
-      VITE_API_URL: import.meta.env.VITE_API_URL,
-      MODE: import.meta.env.MODE,
-      DEV: import.meta.env.DEV,
-      PROD: import.meta.env.PROD,
-      BASE_URL: import.meta.env.BASE_URL,
+      ...apiConfig,
       location: window.location.href,
       userAgent: navigator.userAgent,
       timestamp: new Date().toISOString()
@@ -326,14 +321,15 @@ function ServiceHealth() {
                 </Box>
               )}
               
-              <Box sx={{ mt: 2 }}>
-                <Button 
+              <Box sx={{ mt: 2 }}>                
+                <Button>
                   variant="outlined" 
                   size="small" 
                   startIcon={<Speed />}
-                  onClick={testEndpoints}
+                  onClick={testAllEndpoints}
+                  disabled={testingInProgress}
                 >
-                  Test All Endpoints
+                  {testingInProgress ? 'Testing...' : 'Test All Endpoints'}
                 </Button>
               </Box>
 

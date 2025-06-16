@@ -5,19 +5,36 @@ const { Signer } = require('@aws-sdk/rds-signer');
 let pool = null;
 
 async function getDbCredentials() {
-  if (process.env.NODE_ENV === 'development') {
-    // For local development
+  const nodeEnv = process.env.NODE_ENV || 'production';
+  const isLocalDev = nodeEnv === 'development' || nodeEnv === 'dev';
+  
+  console.log('Environment check:', {
+    NODE_ENV: nodeEnv,
+    isLocalDev,
+    DB_ENDPOINT: process.env.DB_ENDPOINT,
+    DB_SECRET_ARN: process.env.DB_SECRET_ARN ? 'SET' : 'NOT_SET',
+    WEBAPP_AWS_REGION: process.env.WEBAPP_AWS_REGION
+  });
+  
+  if (isLocalDev && !process.env.DB_SECRET_ARN) {
+    // For local development - use local env vars
+    console.log('Using local development database configuration...');
     return {
       host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT) || 5432,
-      database: process.env.DB_NAME || 'stocks',
+      database: process.env.DB_NAME || 'fundamentals',
       user: process.env.DB_USER || 'postgres',
       password: process.env.DB_PASSWORD || 'password',
       useIAM: false
     };
-  }  // For production, use Secrets Manager (same as all Python scripts)
-  // Note: IAM authentication disabled because lambda_user doesn't exist
-    // Fall back to Secrets Manager with optimized timeout
+  }  
+  // Check if we have DB_ENDPOINT but need to use Secrets Manager for credentials
+  if (!process.env.DB_SECRET_ARN) {
+    console.error('DB_SECRET_ARN not provided for production environment');
+    throw new Error('Database configuration incomplete: DB_SECRET_ARN required for production');
+  }
+  
+  // For production, use Secrets Manager (same as all Python scripts)
   console.log('Using AWS Secrets Manager for database credentials...');
   const client = new SecretsManagerClient({ 
     region: process.env.WEBAPP_AWS_REGION || 'us-east-1',
@@ -45,12 +62,11 @@ async function getDbCredentials() {
     
     console.log('Secret retrieved successfully, parsing...');
     const secret = JSON.parse(response.SecretString);
-    
-    console.log('Secret parsed, extracting database config...');
+      console.log('Secret parsed, extracting database config...');
     return {
       host: secret.host || process.env.DB_ENDPOINT,
       port: parseInt(secret.port) || 5432,
-      database: secret.dbname || 'stocks',
+      database: secret.dbname || secret.database || process.env.DB_NAME || 'stocks',
       user: secret.username,
       password: secret.password,
       useIAM: false
