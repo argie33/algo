@@ -147,9 +147,8 @@ function FinancialData() {
             <Box sx={{ ml: 1 }}>{title} - {ticker}</Box>
           </Typography>
           <Divider sx={{ mb: 2 }} />
-          
-          <Grid container spacing={3}>
-            {data.data.slice(0, 5).map((period, index) => (
+            <Grid container spacing={3}>
+            {Array.isArray(data?.data) ? data.data.slice(0, 5).map((period, index) => (
               <Grid item xs={12} md={6} lg={4} key={period.date}>
                 <Card variant="outlined">
                   <CardContent sx={{ p: 2 }}>
@@ -172,28 +171,31 @@ function FinancialData() {
                             </TableRow>
                           ))}
                         </TableBody>
-                      </Table>
-                    </TableContainer>
+                      </Table>                    </TableContainer>
                   </CardContent>
                 </Card>
               </Grid>
-            ))}
+            )) : (
+              <Grid item xs={12}>
+                <Typography variant="body2" color="text.secondary" align="center">
+                  No financial data available
+                </Typography>
+              </Grid>
+            )}
           </Grid>
 
           {/* Trend Chart */}
           <Box sx={{ mt: 4 }}>
             <Typography variant="h6" gutterBottom>Trend Analysis</Typography>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={
-                data.data.slice(0, 5).reverse().map(period => {
+            <ResponsiveContainer width="100%" height={300}>              <LineChart data={
+                Array.isArray(data?.data) ? data.data.slice(0, 5).reverse().map(period => {
                   const items = period.items
                   const firstItem = Object.entries(items)[0]
-                  return {
-                    year: new Date(period.date).getFullYear(),
+                  return {                    year: new Date(period.date).getFullYear(),
                     value: firstItem ? firstItem[1] : 0,
                     name: firstItem ? firstItem[0] : 'N/A'
                   }
-                })
+                }) : []
               }>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="year" />

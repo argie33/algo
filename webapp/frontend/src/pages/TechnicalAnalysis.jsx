@@ -152,9 +152,8 @@ function TechnicalAnalysis() {
             <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Pivot H</TableCell>
             <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Pivot L</TableCell>
           </TableRow>
-        </TableHead>
-        <TableBody>
-          {technicalData?.data?.map((row, index) => (
+        </TableHead>        <TableBody>
+          {Array.isArray(technicalData?.data) ? technicalData.data.map((row, index) => (
             <TableRow key={`${row.symbol}-${index}`} hover>
               <TableCell>
                 <Typography variant="body2" fontWeight="bold">
@@ -207,8 +206,7 @@ function TechnicalAnalysis() {
               <TableCell align="right">{row.ema_4 ? formatNumber(row.ema_4) : 'N/A'}</TableCell>
               <TableCell align="right">{row.ema_9 ? formatNumber(row.ema_9) : 'N/A'}</TableCell>
               <TableCell align="right">{row.ema_21 ? formatNumber(row.ema_21) : 'N/A'}</TableCell>
-              <TableCell align="right">{row.ad ? formatNumber(row.ad) : 'N/A'}</TableCell>
-              <TableCell align="right">{row.cmf ? formatNumber(row.cmf, 4) : 'N/A'}</TableCell>
+              <TableCell align="right">{row.ad ? formatNumber(row.ad) : 'N/A'}</TableCell>              <TableCell align="right">{row.cmf ? formatNumber(row.cmf, 4) : 'N/A'}</TableCell>
               <TableCell align="right">{row.td_sequential ? formatNumber(row.td_sequential) : 'N/A'}</TableCell>
               <TableCell align="right">{row.td_combo ? formatNumber(row.td_combo) : 'N/A'}</TableCell>
               <TableCell align="right">{row.marketwatch ? formatNumber(row.marketwatch) : 'N/A'}</TableCell>
@@ -216,7 +214,15 @@ function TechnicalAnalysis() {
               <TableCell align="right">{row.pivot_high ? formatNumber(row.pivot_high) : 'N/A'}</TableCell>
               <TableCell align="right">{row.pivot_low ? formatNumber(row.pivot_low) : 'N/A'}</TableCell>
             </TableRow>
-          ))}
+          )) : (
+            <TableRow>
+              <TableCell colSpan={26} align="center">
+                <Typography variant="body2" color="text.secondary">
+                  No technical data available
+                </Typography>
+              </TableCell>
+            </TableRow>
+          )}
         </TableBody>
       </Table>
     </TableContainer>
