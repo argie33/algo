@@ -107,6 +107,8 @@ Resources:
           - Id: S3Origin
             DomainName: !GetAtt FrontendBucket.RegionalDomainName
             OriginAccessControlId: !Ref OriginAccessControl
+            S3OriginConfig:
+              OriginAccessIdentity: ''
           # API Gateway Origin
           - Id: APIOrigin
             DomainName: !Sub '${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com'
