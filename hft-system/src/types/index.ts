@@ -489,3 +489,65 @@ export class MarketDataError extends HFTError {
     this.name = 'MarketDataError';
   }
 }
+
+// Execution Types
+export interface VenueConfig {
+  name: string;
+  type: 'exchange' | 'dark_pool' | 'ecn';
+  enabled: boolean;
+  avgLatencyMs: number;
+  liquidityScore: number;
+  fees: {
+    maker: number;
+    taker: number;
+  };
+  limits: {
+    maxOrderSize: number;
+    maxOrderValue: number;
+  };
+  connection: {
+    url: string;
+    auth: Record<string, string>;
+  };
+}
+
+export interface ExecutionReport {
+  orderId: string;
+  venue: string;
+  quantity: number;
+  filledQuantity: number;
+  price: number;
+  averagePrice: number;
+  commission: number;
+  timestamp: number;
+  status: OrderStatus;
+}
+
+export interface ExecutionAlgorithm {
+  name: string;
+  type: 'TWAP' | 'VWAP' | 'IMPLEMENTATION_SHORTFALL' | 'SMART_ROUTING' | 'DARK_POOL';
+  enabled: boolean;
+  parameters: Record<string, any>;
+}
+
+export interface OrderSlice {
+  orderId: string;
+  venue: string;
+  quantity: number;
+  price?: number;
+  delayMs: number;
+  symbol?: string;
+  side?: OrderSide;
+  type?: OrderType;
+}
+
+export interface ExecutionMetrics {
+  totalOrders: number;
+  totalVolume: number;
+  averageLatency: number;
+  fillRate: number;
+  implementationShortfall: number;
+  venueStats: Record<string, any>;
+  algorithmStats: Record<string, any>;
+  timestamp: number;
+}

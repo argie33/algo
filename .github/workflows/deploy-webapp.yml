@@ -527,7 +527,7 @@ jobs:
 ################################################################################
   verify_deployment:
     name: Verify deployment
-    needs: [deploy_infrastructure, deploy_frontend]
+    needs: [setup, deploy_infrastructure, deploy_frontend]
     if: ${{ always() && needs.deploy_infrastructure.result == 'success' }}
     runs-on: ubuntu-latest
 
@@ -570,8 +570,9 @@ jobs:
           else
             echo "⚠️  Website check failed, but deployment will continue"
           fi
-
       - name: Deployment summary
+        env:
+          STACK_NAME: ${{ needs.setup.outputs.stack_name }}
         run: |
           echo "🎉 Webapp deployment completed!"
           echo ""
@@ -582,10 +583,14 @@ jobs:
           echo "  • CloudFront ID: ${{ needs.deploy_infrastructure.outputs.cloudfront_id }}"
           echo ""
           echo "🔧 Stack Status:"
-          aws cloudformation describe-stacks \
-            --stack-name ${{ env.STACK_NAME }} \
-            --query "Stacks[0].StackStatus" \
-            --output text
+          if [ -n "$STACK_NAME" ]; then
+            aws cloudformation describe-stacks \
+              --stack-name "$STACK_NAME" \
+              --query "Stacks[0].StackStatus" \
+              --output text
+          else
+            echo "Stack name not available"
+          fi
 
 ################################################################################
 # 6) Cleanup on failure                                                        #

@@ -70,6 +70,51 @@ const AnalyticsConfigSchema = z.object({
   })
 });
 
+const ExecutionConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  venues: z.array(z.object({
+    name: z.string(),
+    type: z.enum(['exchange', 'dark_pool', 'ecn']),
+    enabled: z.boolean().default(true),
+    avgLatencyMs: z.number().positive().default(50),
+    liquidityScore: z.number().min(0).max(1).default(0.5),
+    fees: z.object({
+      maker: z.number().min(0).default(0.001),
+      taker: z.number().min(0).default(0.002)
+    }),
+    limits: z.object({
+      maxOrderSize: z.number().positive().default(1000000),
+      maxOrderValue: z.number().positive().default(1000000)
+    }),
+    connection: z.object({
+      url: z.string().url(),
+      auth: z.record(z.string())
+    })
+  })).default([]),
+  algorithms: z.object({
+    twap: z.boolean().default(true),
+    vwap: z.boolean().default(true),
+    implementation_shortfall: z.boolean().default(true),
+    smart_routing: z.boolean().default(true)
+  }),
+  darkPools: z.object({
+    enabled: z.boolean().default(true),
+    minSize: z.number().positive().default(1000),
+    venues: z.array(z.string()).default(['DARK_POOL_1', 'DARK_POOL_2'])
+  }),
+  slicing: z.object({
+    enabled: z.boolean().default(true),
+    maxSliceSize: z.number().positive().default(10000),
+    minSliceSize: z.number().positive().default(100),
+    timeSliceMs: z.number().positive().default(1000)
+  }),
+  latencyTargets: z.object({
+    orderAck: z.number().positive().default(5), // ms
+    fill: z.number().positive().default(10), // ms
+    cancel: z.number().positive().default(3) // ms
+  })
+});
+
 const ConfigSchema = z.object({
   // Environment
   environment: z.enum(['development', 'staging', 'production']),
@@ -125,7 +170,10 @@ const ConfigSchema = z.object({
       maxPositionSize: z.number().positive().default(100000),
       minSharpeRatio: z.number().default(0.5)
     })
-  })
+  }),
+
+  // Execution configuration
+  execution: ExecutionConfigSchema
 });
 
 export type TradingSymbol = z.infer<typeof TradingSymbolSchema>;
@@ -231,6 +279,33 @@ export class Config {
           maxDailyLoss: parseFloat(process.env.ALERT_MAX_DAILY_LOSS || '5000'),
           maxPositionSize: parseFloat(process.env.ALERT_MAX_POSITION_SIZE || '100000'),
           minSharpeRatio: parseFloat(process.env.ALERT_MIN_SHARPE_RATIO || '0.5')
+        }
+      },
+
+      execution: {
+        enabled: process.env.EXECUTION_ENABLED === 'true',
+        venues: [], // Default to empty, can be populated from env
+        algorithms: {
+          twap: process.env.EXECUTION_ALGO_TWAP === 'true',
+          vwap: process.env.EXECUTION_ALGO_VWAP === 'true',
+          implementation_shortfall: process.env.EXECUTION_ALGO_IMP_SF === 'true',
+          smart_routing: process.env.EXECUTION_ALGO_SMART_ROUTING === 'true'
+        },
+        darkPools: {
+          enabled: process.env.DARK_POOLS_ENABLED === 'true',
+          minSize: parseInt(process.env.DARK_POOL_MIN_SIZE || '1000'),
+          venues: process.env.DARK_POOL_VENUES ? process.env.DARK_POOL_VENUES.split(',') : ['DARK_POOL_1', 'DARK_POOL_2']
+        },
+        slicing: {
+          enabled: process.env.SLICE_ENABLED === 'true',
+          maxSliceSize: parseInt(process.env.MAX_SLICE_SIZE || '10000'),
+          minSliceSize: parseInt(process.env.MIN_SLICE_SIZE || '100'),
+          timeSliceMs: parseInt(process.env.TIME_SLICE_MS || '1000')
+        },
+        latencyTargets: {
+          orderAck: parseInt(process.env.LATENCY_TARGET_ORDER_ACK || '5'),
+          fill: parseInt(process.env.LATENCY_TARGET_FILL || '10'),
+          cancel: parseInt(process.env.LATENCY_TARGET_CANCEL || '3')
         }
       }
     };
@@ -354,6 +429,10 @@ export class Config {
   
   get analytics(): any {
     return this.config.analytics;
+  }
+  
+  get execution(): any {
+    return this.config.execution;
   }
   
   /**
