@@ -54,7 +54,8 @@ import {
   getNaaimData,
   getFearGreedData,
   getApiConfig,
-  getDiagnosticInfo
+  getDiagnosticInfo,
+  getCurrentBaseURL
 } from '../services/api';
 
 function ServiceHealth() {
@@ -93,6 +94,8 @@ function ServiceHealth() {
   const endpoints = [
     { name: 'Health', fn: () => healthCheck(), critical: true },
     { name: 'Health (Quick)', fn: () => healthCheck('?quick=true'), critical: true },
+    { name: 'Database Health', fn: () => fetch(getCurrentBaseURL() + '/api/health/database').then(r => r.json()), critical: true },
+    { name: 'Database Connection', fn: () => fetch(getCurrentBaseURL() + '/api/health/test-connection').then(r => r.json()), critical: true },
     { name: 'API Connection', fn: () => testApiConnection(), critical: true },
     { name: 'Stocks', fn: () => getStocks({ limit: 5 }), critical: true },
     { name: 'Technical Daily', fn: () => getTechnicalData('daily', { limit: 5 }), critical: true },

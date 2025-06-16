@@ -7,8 +7,7 @@ const router = express.Router();
 router.get('/debug', async (req, res) => {
   try {
     console.log('Technical debug endpoint called');
-    
-    // Check if table exists
+      // Check if table exists
     const tableExistsQuery = `
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
@@ -25,9 +24,10 @@ router.get('/debug', async (req, res) => {
       const countQuery = `SELECT COUNT(*) as total FROM technical_data_daily`;
       const countResult = await query(countQuery);
       console.log('Total technical records:', countResult.rows[0]);
-        // Get sample records
+      
+      // Get sample records
       const sampleQuery = `
-        SELECT symbol, date, rsi, macd, sma_20, sma_50
+        SELECT symbol, date, rsi, macd, sma_20, sma_50, close, volume
         FROM technical_data_daily 
         ORDER BY date DESC 
         LIMIT 5
@@ -68,11 +68,12 @@ router.get('/debug', async (req, res) => {
 router.get('/test', async (req, res) => {
   try {
     console.log('Technical test endpoint called');
-    
-    const testQuery = `
+      const testQuery = `
       SELECT 
         t.symbol,
         t.date,
+        t.close,
+        t.volume,
         t.rsi,
         t.macd,
         t.sma_20,
@@ -159,12 +160,15 @@ router.get('/:timeframe', async (req, res) => {
       params.push(req.query.end_date);
       paramIndex++;
     }    console.log('Using whereClause:', whereClause, 'params:', params);
-    console.log('Using tableName:', tableName);
-
-    const dataQuery = `
+    console.log('Using tableName:', tableName);    const dataQuery = `
       SELECT 
         t.symbol,
         t.date,
+        t.open,
+        t.high,
+        t.low,
+        t.close,
+        t.volume,
         t.rsi,
         t.macd,
         t.macd_signal,
@@ -184,8 +188,11 @@ router.get('/:timeframe', async (req, res) => {
         t.bbands_lower,
         t.bbands_middle,
         t.bbands_upper,
-        t.symbol as company_name
+        t.td_sequential,
+        t.td_combo,
+        cp.short_name as company_name
       FROM ${tableName} t
+      LEFT JOIN company_profile cp ON t.symbol = cp.ticker
       ${whereClause}
       ORDER BY t.date DESC, t.symbol ASC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}

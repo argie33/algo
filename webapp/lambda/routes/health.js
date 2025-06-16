@@ -139,4 +139,160 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Comprehensive database health check endpoint
+router.get('/database', async (req, res) => {
+  try {
+    console.log('Database health check endpoint called');
+    
+    const results = {};
+    
+    // Check all important tables
+    const tables = [
+      'technical_data_daily',
+      'technical_data_weekly', 
+      'technical_data_monthly',
+      'company_profile',
+      'market_data',
+      'key_metrics',
+      'balance_sheet',
+      'ttm_income_stmt',
+      'ttm_cashflow',
+      'quarterly_balance_sheet',
+      'quarterly_income_stmt',
+      'quarterly_cashflow',
+      'buy_sell_daily',
+      'buy_sell_weekly',
+      'buy_sell_monthly',
+      'eps_revisions',
+      'eps_trend',
+      'earnings_estimate',
+      'growth_estimates',
+      'price_daily',
+      'price_weekly',
+      'price_monthly',
+      'stock_symbols',
+      'naaim_data',
+      'fear_greed_data',
+      'economic_data'
+    ];
+    
+    for (const table of tables) {
+      try {
+        // Check if table exists
+        const tableExistsQuery = `
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = '${table}'
+          );
+        `;
+        
+        const tableExists = await query(tableExistsQuery);
+        
+        if (tableExists.rows[0].exists) {
+          // Count total records
+          const countQuery = `SELECT COUNT(*) as total FROM ${table}`;
+          const countResult = await query(countQuery);
+          
+          // Get last updated timestamp if available
+          const columns = await query(`
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = '${table}' 
+            AND column_name IN ('fetched_at', 'created_at', 'updated_at', 'date', 'period_end')
+            ORDER BY 
+              CASE column_name 
+                WHEN 'fetched_at' THEN 1
+                WHEN 'updated_at' THEN 2
+                WHEN 'created_at' THEN 3
+                WHEN 'date' THEN 4
+                WHEN 'period_end' THEN 5
+                ELSE 6
+              END
+            LIMIT 1
+          `);
+          
+          let lastUpdate = null;
+          if (columns.rows.length > 0) {
+            const timestampColumn = columns.rows[0].column_name;
+            const timestampQuery = `SELECT MAX(${timestampColumn}) as last_update FROM ${table}`;
+            const timestampResult = await query(timestampQuery);
+            lastUpdate = timestampResult.rows[0].last_update;
+          }
+          
+          results[table] = {
+            exists: true,
+            totalRecords: parseInt(countResult.rows[0].total),
+            lastUpdate: lastUpdate
+          };
+        } else {
+          results[table] = {
+            exists: false,
+            totalRecords: 0,
+            lastUpdate: null
+          };
+        }
+        
+      } catch (error) {
+        results[table] = {
+          exists: false,
+          totalRecords: 0,
+          lastUpdate: null,
+          error: error.message
+        };
+      }
+    }
+    
+    // Overall health summary
+    const totalTables = tables.length;
+    const existingTables = Object.values(results).filter(r => r.exists).length;
+    const tablesWithData = Object.values(results).filter(r => r.exists && r.totalRecords > 0).length;
+    
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      summary: {
+        totalTables,
+        existingTables,
+        tablesWithData,
+        healthPercentage: Math.round((tablesWithData / totalTables) * 100)
+      },
+      tables: results
+    });
+    
+  } catch (error) {
+    console.error('Error in database health check:', error);
+    res.status(500).json({ 
+      status: 'error',
+      error: 'Health check failed', 
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Test database connection
+router.get('/test-connection', async (req, res) => {
+  try {
+    const result = await query('SELECT NOW() as current_time, version() as postgres_version');
+    
+    res.json({
+      status: 'ok',
+      connection: 'successful',
+      currentTime: result.rows[0].current_time,
+      postgresVersion: result.rows[0].postgres_version,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error testing database connection:', error);
+    res.status(500).json({ 
+      status: 'error',
+      connection: 'failed',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 module.exports = router;

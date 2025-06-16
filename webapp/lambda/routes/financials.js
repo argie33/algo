@@ -1,6 +1,7 @@
 const express = require('express');
+const { query } = require('../utils/database');
+
 const router = express.Router();
-const pool = require('../utils/database');
 
 // Get financial statements for a ticker
 router.get('/:ticker/balance-sheet', async (req, res) => {
@@ -9,36 +10,49 @@ router.get('/:ticker/balance-sheet', async (req, res) => {
     const { period = 'annual' } = req.query;
     
     console.log(`Balance sheet request for ${ticker}, period: ${period}`);
-    
-    // Query the normalized balance_sheet table
-    const query = `
+      // Query the balance_sheet table with all key metrics
+    const balanceSheetQuery = `
       SELECT 
         ticker,
-        period_end as date,
-        'balance_sheet' as statement_type,
-        ARRAY_AGG(
-          JSON_BUILD_OBJECT(
-            'item', 'total_assets',
-            'value', total_assets
-          )
-        ) as items
+        period_end,
+        total_assets,
+        total_liabilities_net_minority_interest as total_liabilities,
+        stockholders_equity,
+        cash_and_cash_equivalents,
+        current_assets,
+        current_liabilities,
+        long_term_debt,
+        working_capital,
+        retained_earnings,
+        common_stock_equity,
+        tangible_book_value,
+        net_debt,
+        invested_capital
       FROM balance_sheet
       WHERE UPPER(ticker) = UPPER($1)
-      GROUP BY ticker, period_end
       ORDER BY period_end DESC
       LIMIT 10
     `;
     
-    const result = await pool.query(query, [ticker.toUpperCase()]);
+    const result = await query(balanceSheetQuery, [ticker.toUpperCase()]);
     
     // Transform data to match frontend expectations
     const transformedData = result.rows.map(row => ({
       symbol: row.ticker,
-      date: row.date,
-      items: {
-        'Total Assets': row.items?.[0]?.value || 0,
-        'Statement Type': 'Balance Sheet'
-      }
+      date: row.period_end,
+      totalAssets: parseFloat(row.total_assets || 0),
+      totalLiabilities: parseFloat(row.total_liabilities || 0),
+      stockholdersEquity: parseFloat(row.stockholders_equity || 0),
+      cash: parseFloat(row.cash_and_cash_equivalents || 0),
+      currentAssets: parseFloat(row.current_assets || 0),
+      currentLiabilities: parseFloat(row.current_liabilities || 0),
+      longTermDebt: parseFloat(row.long_term_debt || 0),
+      workingCapital: parseFloat(row.working_capital || 0),
+      retainedEarnings: parseFloat(row.retained_earnings || 0),
+      commonStockEquity: parseFloat(row.common_stock_equity || 0),
+      tangibleBookValue: parseFloat(row.tangible_book_value || 0),
+      netDebt: parseFloat(row.net_debt || 0),
+      investedCapital: parseFloat(row.invested_capital || 0)
     }));
     
     res.json({
@@ -65,12 +79,15 @@ router.get('/:ticker/balance-sheet', async (req, res) => {
 });
 
 // Get income statement for a ticker
-router.get('/:ticker/income-statement', async (req, res) => {  try {
+router.get('/:ticker/income-statement', async (req, res) => {
+  try {
     const { ticker } = req.params;
     const { period = 'ttm' } = req.query; // Force ttm since it's the only available table
     
+    console.log(`Income statement request for ${ticker}, period: ${period}`);
+    
     // Only ttm_income_stmt table is available
-    const query = `
+    const incomeQuery = `
       SELECT 
         symbol,
         period_ending,
@@ -92,11 +109,31 @@ router.get('/:ticker/income-statement', async (req, res) => {  try {
       ORDER BY period_ending DESC
       LIMIT 10
     `;
-      const result = await pool.query(query, [ticker]);
+    
+    const result = await query(incomeQuery, [ticker.toUpperCase()]);
+    
+    // Transform data to match frontend expectations
+    const transformedData = result.rows.map(row => ({
+      symbol: row.symbol,
+      date: row.period_ending,
+      revenue: parseFloat(row.revenue || 0),
+      costOfRevenue: parseFloat(row.cost_of_revenue || 0),
+      grossProfit: parseFloat(row.gross_profit || 0),
+      researchDevelopment: parseFloat(row.research_development || 0),
+      sellingGeneralAdmin: parseFloat(row.selling_general_administrative || 0),
+      totalOperatingExpenses: parseFloat(row.total_operating_expenses || 0),
+      operatingIncome: parseFloat(row.operating_income || 0),
+      otherIncomeExpense: parseFloat(row.total_other_income_expense_net || 0),
+      ebit: parseFloat(row.ebit || 0),
+      interestExpense: parseFloat(row.interest_expense || 0),
+      incomeBeforeTax: parseFloat(row.income_before_tax || 0),
+      incomeTaxExpense: parseFloat(row.income_tax_expense || 0),
+      netIncome: parseFloat(row.net_income || 0)
+    }));
     
     res.json({
       success: true,
-      data: result.rows,
+      data: transformedData,
       metadata: {
         ticker: ticker.toUpperCase(),
         period: 'ttm',
