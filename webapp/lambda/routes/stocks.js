@@ -224,15 +224,14 @@ router.get('/', async (req, res) => {
     const sortColumn = validSortColumns[sortBy] || 'cp.ticker';
     const sortDirection = sortOrder.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
 
-    console.log('Using whereClause:', whereClause, 'params:', params);
-
-    // Comprehensive stocks query with latest price data
+    console.log('Using whereClause:', whereClause, 'params:', params);    // Simplified stocks query without problematic LATERAL JOIN
     const stocksQuery = `
       SELECT 
         cp.ticker,
         cp.short_name,
         cp.long_name,
-        cp.sector,        cp.industry,
+        cp.sector,
+        cp.industry,
         cp.currency,
         cp.exchange,
         md.regular_market_price,
@@ -259,18 +258,11 @@ router.get('/', async (req, res) => {
         km.debt_to_equity,
         km.current_ratio,
         km.earnings_per_share,
-        pd.volume as latest_volume,
-        pd.date as latest_price_date
+        md.regular_market_volume as latest_volume,
+        md.regular_market_time as latest_price_date
       FROM company_profile cp
       LEFT JOIN market_data md ON cp.ticker = md.ticker
       LEFT JOIN key_metrics km ON cp.ticker = km.ticker
-      LEFT JOIN LATERAL (
-        SELECT volume, date 
-        FROM price_daily 
-        WHERE symbol = cp.ticker 
-        ORDER BY date DESC 
-        LIMIT 1
-      ) pd ON true
       ${whereClause}
       ORDER BY ${sortColumn} ${sortDirection}
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}

@@ -426,7 +426,7 @@ export const getFearGreedData = (params = {}) => {
 }
 
 // Data validation endpoints
-export const getDataValidationSummary = () => api.get('/data/validation/summary')
+export const getDataValidationSummary = () => api.get('/data/validation-summary')
 
 // Technical analysis endpoints
 export const getTechnicalData = (timeframe = 'daily', params = {}) => {

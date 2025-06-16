@@ -158,9 +158,10 @@ router.get('/:timeframe', async (req, res) => {
       whereClause += ` AND t.date <= $${paramIndex}`;
       params.push(req.query.end_date);
       paramIndex++;
-    }
+    }    console.log('Using whereClause:', whereClause, 'params:', params);
+    console.log('Using tableName:', tableName);
 
-    console.log('Using whereClause:', whereClause, 'params:', params);    const dataQuery = `
+    const dataQuery = `
       SELECT 
         t.symbol,
         t.date,
