@@ -170,9 +170,8 @@ router.get('/database', async (req, res) => {
       'price_daily',
       'price_weekly',
       'price_monthly',
-      'stock_symbols',
-      'naaim_data',
-      'fear_greed_data',
+      'stock_symbols',      'naaim_exposure',
+      'fear_greed_index',
       'economic_data'
     ];
     
@@ -290,6 +289,116 @@ router.get('/test-connection', async (req, res) => {
       status: 'error',
       connection: 'failed',
       error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Enhanced database diagnostics endpoint
+router.get('/database/diagnostics', async (req, res) => {
+  try {
+    console.log('Database diagnostics endpoint called');
+    
+    // Get database connection info (similar to your Python scripts)
+    const connectionInfo = {
+      environment: process.env.NODE_ENV || 'unknown',
+      dbEndpoint: process.env.DB_ENDPOINT ? 'SET' : 'NOT_SET',
+      dbSecretArn: process.env.DB_SECRET_ARN ? 'SET' : 'NOT_SET',
+      awsRegion: process.env.WEBAPP_AWS_REGION || 'unknown',
+      timestamp: new Date().toISOString()
+    };
+    
+    // Test basic database connectivity
+    const connectivityTest = await query('SELECT NOW() as current_time, version() as postgres_version');
+    
+    // Get database size information
+    const sizeQuery = `
+      SELECT 
+        pg_database.datname as database_name,
+        pg_size_pretty(pg_database_size(pg_database.datname)) as size
+      FROM pg_database 
+      WHERE datname = current_database()
+    `;
+    const sizeResult = await query(sizeQuery);
+    
+    // Get table statistics
+    const tableStatsQuery = `
+      SELECT 
+        schemaname,
+        tablename,
+        n_tup_ins as inserts,
+        n_tup_upd as updates,
+        n_tup_del as deletes,
+        n_live_tup as live_tuples,
+        n_dead_tup as dead_tuples,
+        last_vacuum,
+        last_autovacuum,
+        last_analyze,
+        last_autoanalyze
+      FROM pg_stat_user_tables 
+      WHERE schemaname = 'public'
+      ORDER BY n_live_tup DESC
+      LIMIT 10
+    `;
+    const tableStatsResult = await query(tableStatsQuery);
+    
+    // Get connection information
+    const connectionQuery = `
+      SELECT 
+        count(*) as total_connections,
+        count(*) FILTER (WHERE state = 'active') as active_connections,
+        count(*) FILTER (WHERE state = 'idle') as idle_connections
+      FROM pg_stat_activity
+    `;
+    const connectionResult = await query(connectionQuery);
+    
+    // Get recent activity
+    const activityQuery = `
+      SELECT 
+        datname,
+        usename,
+        application_name,
+        client_addr,
+        state,
+        query_start,
+        state_change
+      FROM pg_stat_activity 
+      WHERE state != 'idle' 
+      AND pid != pg_backend_pid()
+      ORDER BY query_start DESC
+      LIMIT 5
+    `;
+    const activityResult = await query(activityQuery);
+    
+    res.json({
+      status: 'ok',
+      connection: connectionInfo,
+      connectivity: {
+        successful: true,
+        currentTime: connectivityTest.rows[0].current_time,
+        postgresVersion: connectivityTest.rows[0].postgres_version
+      },
+      database: {
+        size: sizeResult.rows[0],
+        connections: connectionResult.rows[0],
+        topTables: tableStatsResult.rows,
+        recentActivity: activityResult.rows
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error in database diagnostics:', error);
+    res.status(500).json({ 
+      status: 'error',
+      error: 'Database diagnostics failed', 
+      message: error.message,
+      connection: {
+        environment: process.env.NODE_ENV || 'unknown',
+        dbEndpoint: process.env.DB_ENDPOINT ? 'SET' : 'NOT_SET',
+        dbSecretArn: process.env.DB_SECRET_ARN ? 'SET' : 'NOT_SET',
+        awsRegion: process.env.WEBAPP_AWS_REGION || 'unknown'
+      },
       timestamp: new Date().toISOString()
     });
   }

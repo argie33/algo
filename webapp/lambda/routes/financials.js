@@ -3,6 +3,84 @@ const { query } = require('../utils/database');
 
 const router = express.Router();
 
+// Debug endpoint to check table structure
+router.get('/debug/tables', async (req, res) => {
+  try {
+    console.log('Financials debug endpoint called');
+    
+    const tables = ['balance_sheet', 'ttm_income_stmt', 'ttm_cashflow', 'quarterly_balance_sheet', 'quarterly_income_stmt', 'quarterly_cashflow'];
+    const results = {};
+    
+    for (const table of tables) {
+      try {
+        // Check if table exists
+        const tableExistsQuery = `
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = '${table}'
+          );
+        `;
+        
+        const tableExists = await query(tableExistsQuery);
+        
+        if (tableExists.rows[0].exists) {
+          // Get column information
+          const columnsQuery = `
+            SELECT column_name, data_type, is_nullable
+            FROM information_schema.columns 
+            WHERE table_name = '${table}' 
+            AND table_schema = 'public'
+            ORDER BY ordinal_position
+          `;
+          
+          const columnsResult = await query(columnsQuery);
+          
+          // Count total records
+          const countQuery = `SELECT COUNT(*) as total FROM ${table}`;
+          const countResult = await query(countQuery);
+          
+          // Get sample records (first 2 rows)
+          const sampleQuery = `SELECT * FROM ${table} LIMIT 2`;
+          const sampleResult = await query(sampleQuery);
+          
+          results[table] = {
+            exists: true,
+            totalRecords: parseInt(countResult.rows[0].total),
+            columns: columnsResult.rows,
+            sampleData: sampleResult.rows
+          };
+        } else {
+          results[table] = {
+            exists: false,
+            message: `${table} table does not exist`
+          };
+        }
+        
+      } catch (error) {
+        results[table] = {
+          exists: false,
+          error: error.message
+        };
+      }
+    }
+    
+    res.json({
+      status: 'ok',
+      tables: results,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error in financials debug:', error);
+    res.status(500).json({ 
+      error: 'Debug check failed', 
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Get financial statements for a ticker
 router.get('/:ticker/balance-sheet', async (req, res) => {
   try {
@@ -82,72 +160,71 @@ router.get('/:ticker/balance-sheet', async (req, res) => {
 router.get('/:ticker/income-statement', async (req, res) => {
   try {
     const { ticker } = req.params;
-    const { period = 'ttm' } = req.query; // Force ttm since it's the only available table
+    const { period = 'ttm' } = req.query;
     
     console.log(`Income statement request for ${ticker}, period: ${period}`);
     
-    // Only ttm_income_stmt table is available
+    // Query the normalized ttm_income_stmt table
     const incomeQuery = `
       SELECT 
         symbol,
-        period_ending,
-        revenue,
-        cost_of_revenue,
-        gross_profit,
-        research_development,
-        selling_general_administrative,
-        total_operating_expenses,
-        operating_income,
-        total_other_income_expense_net,
-        ebit,
-        interest_expense,
-        income_before_tax,
-        income_tax_expense,
-        net_income
+        date,
+        item_name,
+        value
       FROM ttm_income_stmt
       WHERE UPPER(symbol) = UPPER($1)
-      ORDER BY period_ending DESC
-      LIMIT 10
+      ORDER BY date DESC, item_name
+      LIMIT 200
     `;
     
     const result = await query(incomeQuery, [ticker.toUpperCase()]);
     
-    // Transform data to match frontend expectations
-    const transformedData = result.rows.map(row => ({
-      symbol: row.symbol,
-      date: row.period_ending,
-      revenue: parseFloat(row.revenue || 0),
-      costOfRevenue: parseFloat(row.cost_of_revenue || 0),
-      grossProfit: parseFloat(row.gross_profit || 0),
-      researchDevelopment: parseFloat(row.research_development || 0),
-      sellingGeneralAdmin: parseFloat(row.selling_general_administrative || 0),
-      totalOperatingExpenses: parseFloat(row.total_operating_expenses || 0),
-      operatingIncome: parseFloat(row.operating_income || 0),
-      otherIncomeExpense: parseFloat(row.total_other_income_expense_net || 0),
-      ebit: parseFloat(row.ebit || 0),
-      interestExpense: parseFloat(row.interest_expense || 0),
-      incomeBeforeTax: parseFloat(row.income_before_tax || 0),
-      incomeTaxExpense: parseFloat(row.income_tax_expense || 0),
-      netIncome: parseFloat(row.net_income || 0)
-    }));
+    // Transform the normalized data into a structured format
+    const groupedData = {};
     
-    res.json({
+    result.rows.forEach(row => {
+      const dateKey = row.date;
+      if (!groupedData[dateKey]) {
+        groupedData[dateKey] = {
+          symbol: row.symbol,
+          date: row.date,
+          items: {}
+        };
+      }
+      groupedData[dateKey].items[row.item_name] = parseFloat(row.value || 0);
+    });
+    
+    // Convert to array and add common financial metrics
+    const transformedData = Object.values(groupedData).map(period => ({
+      symbol: period.symbol,
+      date: period.date,
+      revenue: period.items['Total Revenue'] || period.items['Revenue'] || 0,
+      costOfRevenue: period.items['Cost Of Revenue'] || 0,
+      grossProfit: period.items['Gross Profit'] || 0,
+      operatingIncome: period.items['Operating Income'] || 0,
+      netIncome: period.items['Net Income'] || 0,
+      ebit: period.items['EBIT'] || 0,
+      items: period.items // Include all raw items for debugging
+    }));
+      res.json({
       success: true,
       data: transformedData,
       metadata: {
         ticker: ticker.toUpperCase(),
         period: 'ttm',
-        count: result.rows.length,
+        count: transformedData.length,
         timestamp: new Date().toISOString()
       }
     });
     
   } catch (error) {
-    console.error('Income statement fetch error:', error);
+    console.error('Income statement fetch error:', error.message);
+    console.error('Stack:', error.stack);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch income statement data',
-      message: error.message
+      message: error.message,
+      details: 'Check if ttm_income_stmt table exists and contains data for this ticker'
     });
   }
 });
@@ -156,58 +233,70 @@ router.get('/:ticker/income-statement', async (req, res) => {
 router.get('/:ticker/cash-flow', async (req, res) => {
   try {
     const { ticker } = req.params;
-    const { period = 'annual' } = req.query; // annual, quarterly, ttm
+    const { period = 'ttm' } = req.query; // Only ttm is available
     
-    let tableName = 'cash_flow';
-    if (period === 'quarterly') tableName = 'quarterly_cashflow';
-    if (period === 'ttm') tableName = 'ttm_cashflow';
+    console.log(`Cash flow request for ${ticker}, period: ${period}`);
     
-    const query = `
+    // Query the normalized ttm_cashflow table
+    const cashFlowQuery = `
       SELECT 
+        symbol,
         date,
         item_name,
-        value,
-        fetched_at
-      FROM ${tableName}
+        value
+      FROM ttm_cashflow
       WHERE UPPER(symbol) = UPPER($1)
       ORDER BY date DESC, item_name
+      LIMIT 200
     `;
     
-    const result = await pool.query(query, [ticker]);
+    const result = await query(cashFlowQuery, [ticker.toUpperCase()]);
     
-    // Group by date for better frontend handling
+    // Transform the normalized data into a structured format
     const groupedData = {};
+    
     result.rows.forEach(row => {
-      const dateKey = row.date.toISOString().split('T')[0];
+      const dateKey = row.date;
       if (!groupedData[dateKey]) {
         groupedData[dateKey] = {
-          date: dateKey,
-          items: {},
-          fetched_at: row.fetched_at
+          symbol: row.symbol,
+          date: row.date,
+          items: {}
         };
       }
-      groupedData[dateKey].items[row.item_name] = row.value;
+      groupedData[dateKey].items[row.item_name] = parseFloat(row.value || 0);
     });
     
-    const statements = Object.values(groupedData).sort((a, b) => new Date(b.date) - new Date(a.date));
-    
-    res.json({
+    // Convert to array and add common cash flow metrics
+    const transformedData = Object.values(groupedData).map(period => ({
+      symbol: period.symbol,
+      date: period.date,
+      operatingCashFlow: period.items['Operating Cash Flow'] || period.items['Cash Flow From Operating Activities'] || 0,
+      investingCashFlow: period.items['Investing Cash Flow'] || period.items['Cash Flow From Investing Activities'] || 0,
+      financingCashFlow: period.items['Financing Cash Flow'] || period.items['Cash Flow From Financing Activities'] || 0,
+      freeCashFlow: period.items['Free Cash Flow'] || 0,
+      capitalExpenditures: period.items['Capital Expenditures'] || 0,
+      items: period.items // Include all raw items for debugging
+    }));
+      res.json({
       success: true,
-      data: statements,
+      data: transformedData,
       metadata: {
         ticker: ticker.toUpperCase(),
-        period,
-        count: statements.length,
+        period: 'ttm',
+        count: transformedData.length,
         timestamp: new Date().toISOString()
       }
     });
     
   } catch (error) {
-    console.error('Cash flow fetch error:', error);
+    console.error('Cash flow fetch error:', error.message);
+    console.error('Stack:', error.stack);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch cash flow data',
-      message: error.message
+      message: error.message,
+      details: 'Check if ttm_cashflow table exists and contains data for this ticker'
     });
   }
 });

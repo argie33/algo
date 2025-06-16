@@ -8,7 +8,7 @@ router.get('/debug', async (req, res) => {
   try {
     console.log('Market debug endpoint called');
     
-    const tables = ['fear_greed_index', 'naaim_sentiment', 'aaii_sentiment', 'economic_data'];
+    const tables = ['fear_greed_index', 'naaim_exposure', 'aaii_sentiment', 'economic_data'];
     const results = {};
     
     for (const table of tables) {
@@ -31,11 +31,10 @@ router.get('/debug', async (req, res) => {
           const countResult = await query(countQuery);
           
           // Get latest record
-          let latestQuery;
-          if (table === 'fear_greed_index') {
-            latestQuery = `SELECT value, value_text, timestamp FROM ${table} ORDER BY timestamp DESC LIMIT 1`;
-          } else if (table === 'naaim_sentiment') {
-            latestQuery = `SELECT bullish_8100, bearish, average, week_ending FROM ${table} ORDER BY week_ending DESC LIMIT 1`;
+          let latestQuery;          if (table === 'fear_greed_index') {
+            latestQuery = `SELECT index_value, rating, date FROM ${table} ORDER BY date DESC LIMIT 1`;
+          } else if (table === 'naaim_exposure') {
+            latestQuery = `SELECT mean_exposure, bearish_exposure, bullish_exposure, date FROM ${table} ORDER BY date DESC LIMIT 1`;
           } else if (table === 'aaii_sentiment') {
             latestQuery = `SELECT bullish, neutral, bearish, date FROM ${table} ORDER BY date DESC LIMIT 1`;
           } else {
@@ -127,20 +126,19 @@ router.get('/ping', (req, res) => {
 router.get('/overview', async (req, res) => {
   try {
     console.log('Market overview endpoint called');
-    
-    // Get latest Fear & Greed index
+      // Get latest Fear & Greed index
     const fearGreedQuery = `
-      SELECT value, value_text, timestamp
+      SELECT index_value, rating, date
       FROM fear_greed_index 
-      ORDER BY timestamp DESC 
+      ORDER BY date DESC 
       LIMIT 1
     `;
 
     // Get latest NAAIM sentiment
     const naaimQuery = `
-      SELECT bullish_8100, bearish, average, week_ending
-      FROM naaim_sentiment 
-      ORDER BY week_ending DESC 
+      SELECT mean_exposure, bearish_exposure, bullish_exposure, date
+      FROM naaim_exposure 
+      ORDER BY date DESC 
       LIMIT 1
     `;
 
@@ -174,27 +172,14 @@ router.get('/overview', async (req, res) => {
       WHERE md.regular_market_price IS NOT NULL 
         AND md.regular_market_previous_close IS NOT NULL 
         AND md.regular_market_previous_close > 0
-    `;    const [fearGreedResult, naaimResult, aaiiResult, econResult, marketStatsResult] = await Promise.all([
-      query(fearGreedQuery).catch(err => {
-        console.error('Fear & Greed query failed:', err);
-        return { rows: [] };
-      }),
-      query(naaimQuery).catch(err => {
-        console.error('NAAIM query failed:', err);
-        return { rows: [] };
-      }),
-      query(aaiiQuery).catch(err => {
-        console.error('AAII query failed:', err);
-        return { rows: [] };
-      }),
-      query(econQuery).catch(err => {
-        console.error('Economic data query failed:', err);
-        return { rows: [] };
-      }),
-      query(marketStatsQuery).catch(err => {
-        console.error('Market stats query failed:', err);
-        return { rows: [] };
-      })
+    `;
+
+    const [fearGreedResult, naaimResult, aaiiResult, econResult, marketStatsResult] = await Promise.all([
+      query(fearGreedQuery),
+      query(naaimQuery), 
+      query(aaiiQuery),
+      query(econQuery),
+      query(marketStatsQuery)
     ]);
 
     const marketStats = marketStatsResult.rows[0];
@@ -237,20 +222,19 @@ router.get('/sentiment/history', async (req, res) => {
   try {
     const days = parseInt(req.query.days) || 30;
     console.log(`Sentiment history endpoint called for ${days} days`);
-    
-    const fearGreedQuery = `
-      SELECT value, value_text, timestamp
+      const fearGreedQuery = `
+      SELECT index_value, rating, date
       FROM fear_greed_index 
-      WHERE timestamp >= NOW() - INTERVAL '${days} days'
-      ORDER BY timestamp DESC
+      WHERE date >= NOW() - INTERVAL '${days} days'
+      ORDER BY date DESC
       LIMIT 100
     `;
 
     const naaimQuery = `
-      SELECT bullish_8100, bearish, average, week_ending
-      FROM naaim_sentiment 
-      WHERE week_ending >= NOW() - INTERVAL '${days} days'
-      ORDER BY week_ending DESC
+      SELECT mean_exposure, bearish_exposure, bullish_exposure, date
+      FROM naaim_exposure 
+      WHERE date >= NOW() - INTERVAL '${days} days'
+      ORDER BY date DESC
       LIMIT 100
     `;
 

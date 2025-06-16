@@ -3,6 +3,79 @@ const { query } = require('../utils/database');
 
 const router = express.Router();
 
+// Debug endpoint to check technical table column structure
+router.get('/debug/columns', async (req, res) => {
+  try {
+    console.log('Technical columns debug endpoint called');
+    
+    const tables = ['technical_data_daily', 'technical_data_weekly', 'technical_data_monthly'];
+    const results = {};
+    
+    for (const table of tables) {
+      try {
+        // Check if table exists
+        const tableExistsQuery = `
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = '${table}'
+          );
+        `;
+        
+        const tableExists = await query(tableExistsQuery);
+        
+        if (tableExists.rows[0].exists) {
+          // Get column information
+          const columnsQuery = `
+            SELECT column_name, data_type, is_nullable
+            FROM information_schema.columns 
+            WHERE table_name = '${table}' 
+            AND table_schema = 'public'
+            ORDER BY ordinal_position
+          `;
+          
+          const columnsResult = await query(columnsQuery);
+          
+          // Count total records
+          const countQuery = `SELECT COUNT(*) as total FROM ${table}`;
+          const countResult = await query(countQuery);
+          
+          results[table] = {
+            exists: true,
+            totalRecords: parseInt(countResult.rows[0].total),
+            columns: columnsResult.rows
+          };
+        } else {
+          results[table] = {
+            exists: false,
+            columns: []
+          };
+        }
+        
+      } catch (error) {
+        results[table] = {
+          exists: false,
+          error: error.message,
+          columns: []
+        };
+      }
+    }
+    
+    res.json({
+      tables: results,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error in technical columns debug:', error);
+    res.status(500).json({ 
+      error: 'Columns debug check failed', 
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Debug endpoint to check technical table status
 router.get('/debug', async (req, res) => {
   try {

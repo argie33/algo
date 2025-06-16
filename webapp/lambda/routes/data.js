@@ -273,12 +273,13 @@ router.get('/economic', async (req, res) => {
 router.get('/naaim', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 50;
-
     const naaimQuery = `
       SELECT 
         date,
-        exposure_percent,
-        change_from_previous,
+        mean_exposure,
+        bearish_exposure,
+        bullish_exposure,
+        exposure_deviation,
         fetched_at
       FROM naaim_exposure
       ORDER BY date DESC
@@ -301,18 +302,11 @@ router.get('/naaim', async (req, res) => {
 // Get Fear & Greed Index data
 router.get('/fear-greed', async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 50;
-
-    const fearGreedQuery = `
+    const limit = parseInt(req.query.limit) || 50;    const fearGreedQuery = `
       SELECT 
         date,
-        value,
-        classification,
-        previous_value,
-        previous_classification,
-        one_week_ago,
-        one_month_ago,
-        one_year_ago,
+        index_value,
+        rating,
         fetched_at
       FROM fear_greed_index
       ORDER BY date DESC

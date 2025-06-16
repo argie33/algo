@@ -93,9 +93,12 @@ function ServiceHealth() {
   }  // Comprehensive endpoint tests
   const endpoints = [
     { name: 'Health', fn: () => healthCheck(), critical: true },
-    { name: 'Health (Quick)', fn: () => healthCheck('?quick=true'), critical: true },
-    { name: 'Database Health', fn: () => fetch(getCurrentBaseURL() + '/api/health/database').then(r => r.json()), critical: true },
+    { name: 'Health (Quick)', fn: () => healthCheck('?quick=true'), critical: true },    { name: 'Database Health', fn: () => fetch(getCurrentBaseURL() + '/api/health/database').then(r => r.json()), critical: true },
     { name: 'Database Connection', fn: () => fetch(getCurrentBaseURL() + '/api/health/test-connection').then(r => r.json()), critical: true },
+    { name: 'Database Diagnostics', fn: () => fetch(getCurrentBaseURL() + '/api/health/database/diagnostics').then(r => r.json()), critical: true },
+    { name: 'Financial Tables Debug', fn: () => fetch(getCurrentBaseURL() + '/api/financials/debug/tables').then(r => r.json()), critical: false },
+    { name: 'Technical Columns Debug', fn: () => fetch(getCurrentBaseURL() + '/api/technical/debug/columns').then(r => r.json()), critical: false },
+    { name: 'Financials Debug', fn: () => fetch(getCurrentBaseURL() + '/api/financials/debug/tables').then(r => r.json()), critical: false },
     { name: 'API Connection', fn: () => testApiConnection(), critical: true },
     { name: 'Stocks', fn: () => getStocks({ limit: 5 }), critical: true },
     { name: 'Technical Daily', fn: () => getTechnicalData('daily', { limit: 5 }), critical: true },
