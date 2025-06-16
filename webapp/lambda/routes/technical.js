@@ -25,12 +25,11 @@ router.get('/debug', async (req, res) => {
       const countQuery = `SELECT COUNT(*) as total FROM technical_data_daily`;
       const countResult = await query(countQuery);
       console.log('Total technical records:', countResult.rows[0]);
-      
-      // Get sample records
+        // Get sample records
       const sampleQuery = `
-        SELECT symbol, date, rsi, macd, sma_20, sma_50, fetched_at
+        SELECT symbol, date, rsi, macd, sma_20, sma_50
         FROM technical_data_daily 
-        ORDER BY fetched_at DESC 
+        ORDER BY date DESC 
         LIMIT 5
       `;
       const sampleResult = await query(sampleQuery);

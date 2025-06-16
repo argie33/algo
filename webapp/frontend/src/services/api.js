@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 // API Gateway/Lambda configuration  
-const API_BASE_URL = 'https://zytedqhltg.execute-api.us-east-1.amazonaws.com/prod'
+const API_BASE_URL = 'https://ipj77jkthd.execute-api.us-east-1.amazonaws.com/dev'
 const IS_SERVERLESS = true
 
 console.log('API Configuration:', {
