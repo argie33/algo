@@ -107,8 +107,6 @@ Resources:
           - Id: S3Origin
             DomainName: !GetAtt FrontendBucket.RegionalDomainName
             OriginAccessControlId: !Ref OriginAccessControl
-            S3OriginConfig:
-              OriginAccessIdentity: ''  # Empty when using OAC
           # API Gateway Origin
           - Id: APIOrigin
             DomainName: !Sub '${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com'
@@ -194,20 +192,20 @@ Resources:
             ErrorCachingMinTTL: 300  # S3 Bucket Policy for CloudFront OAC
   FrontendBucketPolicy:
     Type: AWS::S3::BucketPolicy  
-    DependsOn: CloudFrontDistribution
     Properties:
       Bucket: !Ref FrontendBucket
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Effect: Allow
+          - Sid: AllowCloudFrontServicePrincipal
+            Effect: Allow
             Principal:
               Service: cloudfront.amazonaws.com
             Action: s3:GetObject
             Resource: !Sub '${FrontendBucket}/*'
             Condition:
               StringEquals:
-                'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution.Id}'
+                'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
 
   # IAM Role for Lambda Function
   LambdaExecutionRole:
