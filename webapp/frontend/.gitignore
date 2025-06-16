@@ -8,15 +8,12 @@ yarn-error.log*
 dist/
 build/
 
-# Environment variables
+# Environment variables (these are handled by the workflow)
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
-
-# Runtime config (generated at build time)
-public/config.js.template
 
 # IDE
 .vscode/

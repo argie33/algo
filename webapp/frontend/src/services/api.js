@@ -1,50 +1,18 @@
 import axios from 'axios'
 
-// Runtime API configuration - gets the API URL dynamically
+// Get API configuration
 const getApiConfig = () => {
-  // Try to get API URL from various sources in order of preference
-  let apiUrl = null
-  
-  // 1. First check environment variable (build time)
-  if (import.meta.env.VITE_API_URL) {
-    apiUrl = import.meta.env.VITE_API_URL
-  }
-  
-  // 2. Check if there's a runtime config (could be injected by deployment)
-  else if (window.__APP_CONFIG__?.API_URL) {
-    apiUrl = window.__APP_CONFIG__.API_URL
-  }
-  
-  // 3. Auto-detect based on CloudFront domain pattern
-  else if (window.location.hostname.includes('cloudfront.net')) {
-    // Extract the CloudFront distribution ID and derive API Gateway URL
-    const cfDistribution = window.location.hostname.split('.')[0]
-    // This would need to be configured during deployment to map CF -> API Gateway
-    console.warn('CloudFront auto-detection not fully implemented. Using discovery method.')
-    apiUrl = discoverApiUrl()
-  }
-  
-  // 4. Try to discover the API URL by testing known patterns
-  else {
-    apiUrl = discoverApiUrl()
-  }
+  // Get API URL from environment variable (set by workflow)
+  const apiUrl = import.meta.env.VITE_API_URL
   
   if (!apiUrl) {
-    throw new Error('Could not determine API URL. Please configure VITE_API_URL or ensure proper deployment.')
+    throw new Error('VITE_API_URL environment variable is not set')
   }
   
   return {
     baseURL: apiUrl,
-    isServerless: true
+    isServerless: true // Always true for AWS Lambda
   }
-}
-
-// Discovery method - tries to find working API URL
-const discoverApiUrl = () => {
-  // This could be enhanced to actually test multiple URLs
-  // For now, we'll use the health endpoint pattern to validate
-  console.warn('API URL discovery not implemented. Manual configuration required.')
-  return null
 }
 
 const config = getApiConfig()
@@ -93,9 +61,8 @@ const retryRequest = async (error) => {
 api.interceptors.request.use(
   (config) => {
     console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`)
-    
-    // Add headers for Lambda optimization
-    if (IS_SERVERLESS) {
+      // Add headers for Lambda optimization
+    if (config.isServerless) {
       config.headers['X-Lambda-Request'] = 'true'
       config.headers['X-Request-Time'] = new Date().toISOString()
     }
@@ -146,9 +113,8 @@ api.interceptors.response.use(
       console.warn('⏳ Rate limit exceeded')
     } else if (error.response?.status >= 500 || error.code === 'ECONNABORTED') {
       console.error('🔥 Server error or timeout detected')
-      
-      // Attempt retry for serverless environments
-      if (IS_SERVERLESS) {
+        // Attempt retry for serverless environments
+      if (config.isServerless) {
         try {
           return await retryRequest(error)
         } catch (retryError) {

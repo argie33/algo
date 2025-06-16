@@ -37,14 +37,8 @@
     "vite": "^5.0.8",
     "vitest": "^1.1.0",
     "@vitest/coverage-v8": "^1.1.0"
-  },
-  "scripts": {
+  },  "scripts": {
     "build": "vite build",
-    "build:with-config": "node scripts/build-with-config.js",
-    "build:dev": "node scripts/build-with-config.js --stack=stocks-webapp-dev",
-    "build:prod": "node scripts/build-with-config.js --stack=stocks-webapp-stack",
-    "deploy:dev": "powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1 -StackName stocks-webapp-dev -Environment dev",
-    "deploy:prod": "powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1 -StackName stocks-webapp-stack -Environment prod",
     "dev": "vite",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint . --ext js,jsx --fix",

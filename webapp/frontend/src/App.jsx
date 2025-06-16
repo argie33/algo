@@ -57,12 +57,17 @@ import { testApiConnection } from './services/api'
 const DebugInfo = () => {
   const [apiTest, setApiTest] = useState(null)
   const [loading, setLoading] = useState(true)
+  
   useEffect(() => {
     const testApi = async () => {
       try {
-        // Test with current API URL
-        const currentUrl = 'https://lzq5jfiv9b.execute-api.us-east-1.amazonaws.com/Prod'
-        console.log('Testing current API URL:', currentUrl)
+        // Test with configured API URL from environment
+        const currentUrl = import.meta.env.VITE_API_URL
+        if (!currentUrl) {
+          throw new Error('VITE_API_URL not configured')
+        }
+        
+        console.log('Testing API URL:', currentUrl)
         
         const response = await fetch(`${currentUrl}/health`)
         const data = await response.json()
@@ -78,7 +83,7 @@ const DebugInfo = () => {
         setApiTest({
           success: false,
           error: error.message,
-          currentUrl: 'https://lzq5jfiv9b.execute-api.us-east-1.amazonaws.com/Prod'
+          currentUrl: import.meta.env.VITE_API_URL || 'Not configured'
         })
       } finally {
         setLoading(false)
