@@ -172,7 +172,11 @@ api.interceptors.response.use(
 // Health check
 export const healthCheck = async (queryParams = '') => {
   try {
-    return await api.get(`/health${queryParams}`)
+    // Use current config to ensure we have the right baseURL
+    const response = await api.get(`/health${queryParams}`, {
+      baseURL: currentConfig.baseURL
+    })
+    return response
   } catch (error) {
     handleApiError(error, 'health check')
   }
@@ -180,7 +184,15 @@ export const healthCheck = async (queryParams = '') => {
 
 // Market overview
 // Market data - Updated to use proper market endpoints
-export const getMarketOverview = () => api.get('/market/overview')
+export const getMarketOverview = async () => {
+  try {
+    return await api.get('/market/overview', {
+      baseURL: currentConfig.baseURL
+    })
+  } catch (error) {
+    handleApiError(error, 'market overview')
+  }
+}
 export const getMarketSentimentHistory = (days = 30) => api.get(`/market/sentiment/history?days=${days}`)
 export const getMarketSectorPerformance = () => api.get('/market/sectors/performance')
 export const getMarketBreadth = () => api.get('/market/breadth')
@@ -201,10 +213,11 @@ export const getStocks = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    
-    const url = `/stocks?${queryParams.toString()}`
+      const url = `/stocks?${queryParams.toString()}`
     console.log('Fetching stocks from:', url)
-    return await api.get(url)
+    return await api.get(url, {
+      baseURL: currentConfig.baseURL
+    })
   } catch (error) {
     handleApiError(error, 'get stocks')
   }
@@ -317,30 +330,54 @@ export const getFinancialStrengthMetrics = (params = {}) => {
 }
 
 // New method for stock screening with proper parameter handling
-export const screenStocks = (params) => {
-  return api.get(`/stocks/screen?${params.toString()}`)
+export const screenStocks = async (params) => {
+  try {
+    return await api.get(`/stocks/screen?${params.toString()}`, {
+      baseURL: currentConfig.baseURL
+    })
+  } catch (error) {
+    handleApiError(error, 'screen stocks')
+  }
 }
 
 // Trading signals endpoints
-export const getBuySignals = () => {
-  return api.get('/signals/buy')
+export const getBuySignals = async () => {
+  try {
+    return await api.get('/signals/buy', {
+      baseURL: currentConfig.baseURL
+    })
+  } catch (error) {
+    handleApiError(error, 'get buy signals')
+  }
 }
 
-export const getSellSignals = () => {
-  return api.get('/signals/sell')
+export const getSellSignals = async () => {
+  try {
+    return await api.get('/signals/sell', {
+      baseURL: currentConfig.baseURL
+    })
+  } catch (error) {
+    handleApiError(error, 'get sell signals')
+  }
 }
 
 // Earnings and analyst endpoints
-export const getEarningsEstimates = (params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-  
-  return api.get(`/calendar/earnings-estimates?${queryParams.toString()}`)
+export const getEarningsEstimates = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams()
+    
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value)
+      }
+    })
+    
+    return await api.get(`/calendar/earnings-estimates?${queryParams.toString()}`, {
+      baseURL: currentConfig.baseURL
+    })
+  } catch (error) {
+    handleApiError(error, 'get earnings estimates')
+  }
 }
 
 export const getEarningsHistory = (params = {}) => {
@@ -375,13 +412,34 @@ export const getBalanceSheet = async (ticker, period = 'annual') => {
   try {
     const url = `/financials/${ticker}/balance-sheet?period=${period}`
     console.log('Fetching balance sheet from:', url)
-    return await api.get(url)
+    return await api.get(url, {
+      baseURL: currentConfig.baseURL
+    })
   } catch (error) {
     handleApiError(error, `get balance sheet for ${ticker}`)
   }
 }
-export const getIncomeStatement = (ticker, period = 'annual') => api.get(`/financials/${ticker}/income-statement?period=${period}`)
-export const getCashFlowStatement = (ticker, period = 'annual') => api.get(`/financials/${ticker}/cash-flow?period=${period}`)
+export const getIncomeStatement = async (ticker, period = 'annual') => {
+  try {
+    const url = `/financials/${ticker}/income-statement?period=${period}`
+    return await api.get(url, {
+      baseURL: currentConfig.baseURL
+    })
+  } catch (error) {
+    handleApiError(error, `get income statement for ${ticker}`)
+  }
+}
+
+export const getCashFlowStatement = async (ticker, period = 'annual') => {
+  try {
+    const url = `/financials/${ticker}/cash-flow?period=${period}`
+    return await api.get(url, {
+      baseURL: currentConfig.baseURL
+    })
+  } catch (error) {
+    handleApiError(error, `get cash flow statement for ${ticker}`)
+  }
+}
 export const getFinancialStatements = (ticker, period = 'annual') => api.get(`/financials/${ticker}/financials?period=${period}`)
 
 // Comprehensive financial data endpoint
@@ -460,32 +518,52 @@ export const getEconomicData = (params = {}) => {
   return api.get(`/market/economic-data?${queryParams.toString()}`)
 }
 
-export const getNaaimData = (params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-  
-  return api.get(`/market/naaim?${queryParams.toString()}`)
+export const getNaaimData = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams()
+    
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value)
+      }
+    })
+    
+    return await api.get(`/market/naaim?${queryParams.toString()}`, {
+      baseURL: currentConfig.baseURL
+    })
+  } catch (error) {
+    handleApiError(error, 'get NAAIM data')
+  }
 }
 
-export const getFearGreedData = (params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-  
-  return api.get(`/market/fear-greed?${queryParams.toString()}`)
+export const getFearGreedData = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams()
+    
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value)
+      }
+    })
+    
+    return await api.get(`/market/fear-greed?${queryParams.toString()}`, {      
+      baseURL: currentConfig.baseURL
+    })
+  } catch (error) {
+    handleApiError(error, 'get Fear & Greed data')
+  }
 }
 
 // Data validation endpoints
-export const getDataValidationSummary = () => api.get('/data/validation-summary')
+export const getDataValidationSummary = async () => {
+  try {
+    return await api.get('/data/validation-summary', {
+      baseURL: currentConfig.baseURL
+    })
+  } catch (error) {
+    handleApiError(error, 'data validation summary')
+  }
+}
 
 // Technical analysis endpoints
 export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
@@ -497,10 +575,11 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
         queryParams.append(key, value)
       }
     })
-    
-    const url = `/technical/${timeframe}?${queryParams.toString()}`
+      const url = `/technical/${timeframe}?${queryParams.toString()}`
     console.log('Fetching technical data from:', url)
-    return await api.get(url)
+    return await api.get(url, {
+      baseURL: currentConfig.baseURL
+    })
   } catch (error) {
     handleApiError(error, `get technical data (${timeframe})`)
   }
@@ -622,7 +701,8 @@ export const testApiConnection = async (customUrl = null) => {
     console.error('API connection test failed:', error)
     
     return {
-      success: false,      apiUrl: customUrl || currentConfig.baseURL,
+      success: false,
+      apiUrl: customUrl || currentConfig.baseURL,
       error: error.message,
       details: {
         hasResponse: !!error.response,

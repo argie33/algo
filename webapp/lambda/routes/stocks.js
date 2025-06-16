@@ -207,9 +207,7 @@ router.get('/', async (req, res) => {
       paramCount++;
       whereClause += ` AND md.market_cap <= $${paramCount}`;
       params.push(maxMarketCap);
-    }
-
-    // Determine sort column and validate
+    }    // Determine sort column and validate
     const validSortColumns = {
       'ticker': 'cp.ticker',
       'name': 'cp.short_name',
@@ -218,13 +216,6 @@ router.get('/', async (req, res) => {
       'marketCap': 'md.market_cap',
       'peRatio': 'km.trailing_pe',
       'dividendYield': 'km.dividend_yield',
-      'volume': 'latest_volume'
-    };
-
-    const sortColumn = validSortColumns[sortBy] || 'cp.ticker';
-    const sortDirection = sortOrder.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
-
-    console.log('Using whereClause:', whereClause, 'params:', params);
       'volume': 'latest_volume'
     };
 

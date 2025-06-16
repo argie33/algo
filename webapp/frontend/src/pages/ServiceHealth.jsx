@@ -326,8 +326,7 @@ function ServiceHealth() {
                 </Box>
               )}
               
-              <Box sx={{ mt: 2 }}>                
-                <Button>
+              <Box sx={{ mt: 2 }}>                  <Button
                   variant="outlined" 
                   size="small" 
                   startIcon={<Speed />}
