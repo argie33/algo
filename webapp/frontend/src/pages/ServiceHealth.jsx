@@ -89,8 +89,9 @@ function ServiceHealth() {
           </Button>
         </Alert>
       </Container>
-    );
-  }  // Comprehensive endpoint tests
+    );  }
+
+  // Comprehensive endpoint tests
   const endpoints = [
     { name: 'Health', fn: () => healthCheck(), critical: true },
     { name: 'Health (Quick)', fn: () => healthCheck('?quick=true'), critical: true },    { name: 'Database Health', fn: () => fetch(getCurrentBaseURL() + '/api/health/database').then(r => r.json()), critical: true },
@@ -98,7 +99,6 @@ function ServiceHealth() {
     { name: 'Database Diagnostics', fn: () => fetch(getCurrentBaseURL() + '/api/health/database/diagnostics').then(r => r.json()), critical: true },
     { name: 'Financial Tables Debug', fn: () => fetch(getCurrentBaseURL() + '/api/financials/debug/tables').then(r => r.json()), critical: false },
     { name: 'Technical Columns Debug', fn: () => fetch(getCurrentBaseURL() + '/api/technical/debug/columns').then(r => r.json()), critical: false },
-    { name: 'Financials Debug', fn: () => fetch(getCurrentBaseURL() + '/api/financials/debug/tables').then(r => r.json()), critical: false },
     { name: 'API Connection', fn: () => testApiConnection(), critical: true },
     { name: 'Stocks', fn: () => getStocks({ limit: 5 }), critical: true },
     { name: 'Technical Daily', fn: () => getTechnicalData('daily', { limit: 5 }), critical: true },
@@ -150,17 +150,38 @@ function ServiceHealth() {
         };
       }
     }
-    
-    setTestResults(results);
+      setTestResults(results);
     setTestingInProgress(false);
-  };  // Gather environment information
+  };
+
+  // Health check query
+  const { data: healthData, isLoading: healthLoading, error: healthError, refetch: refetchHealth } = useQuery({
+    queryKey: ['serviceHealth'],
+    queryFn: () => healthCheck(),
+    refetchInterval: 30000, // Refresh every 30 seconds
+    retry: 3,
+    staleTime: 10000 // Consider data stale after 10 seconds
+  });
+
+  // Database diagnostics query
+  const { data: dbDiagnostics, isLoading: dbLoading, error: dbError, refetch: refetchDb } = useQuery({
+    queryKey: ['databaseDiagnostics'],
+    queryFn: () => fetch(getCurrentBaseURL() + '/api/health/database/diagnostics').then(r => r.json()),
+    refetchInterval: 60000, // Refresh every minute
+    retry: 2,
+    staleTime: 30000 // Consider data stale after 30 seconds
+  });
+
+  // Gather environment information
   useEffect(() => {
     const apiConfig = getApiConfig()
     const env = {
-      ...apiConfig,
-      location: window.location.href,
-      userAgent: navigator.userAgent,
-      timestamp: new Date().toISOString()
+      Frontend: {
+        ...apiConfig,
+        location: window.location.href,
+        userAgent: navigator.userAgent.substring(0, 100) + '...',
+        timestamp: new Date().toISOString()
+      }
     };
     setEnvironmentInfo(env);
     
@@ -168,13 +189,12 @@ function ServiceHealth() {
     testAllEndpoints();
   }, []);
 
-  // Health check query
-  const { data: healthData, isLoading: healthLoading, error: healthError, refetch: refetchHealth } = useQuery({
-    queryKey: ['serviceHealth'],
-    queryFn: () => healthCheck(),
-    refetchInterval: 30000, // Refresh every 30 seconds
-    retry: 3,    staleTime: 10000 // Consider data stale after 10 seconds
-  });
+  // Combine environment info with database diagnostics
+  const combinedEnvironmentInfo = {
+    ...environmentInfo,
+    Backend: dbDiagnostics?.diagnostics?.environment || {},
+    Database: dbDiagnostics?.summary || {}
+  };
 
   // Get diagnostic information
   const diagnosticInfo = getDiagnosticInfo()
@@ -332,7 +352,8 @@ function ServiceHealth() {
                 </Box>
               )}
               
-              <Box sx={{ mt: 2 }}>                  <Button
+              <Box sx={{ mt: 2 }}>
+                <Button
                   variant="outlined" 
                   size="small" 
                   startIcon={<Speed />}
@@ -351,9 +372,9 @@ function ServiceHealth() {
                         <TableCell>Endpoint</TableCell>
                         <TableCell>Status</TableCell>
                         <TableCell>Response Time</TableCell>
-                        <TableCell>Error</TableCell>
-                      </TableRow>
-                    </TableHead>                    <TableBody>
+                        <TableCell>Error</TableCell>                      </TableRow>
+                    </TableHead>
+                    <TableBody>
                       {testResults && typeof testResults === 'object' && Object.entries(testResults).map(([name, result]) => (
                         <TableRow key={name}>
                           <TableCell>{name}</TableCell>
@@ -391,49 +412,79 @@ function ServiceHealth() {
               </Typography>
             </AccordionSummary>
             <AccordionDetails>
-              {healthData?.database && (
+              {dbLoading && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                  <CircularProgress size={24} />
+                  <Typography sx={{ ml: 2 }}>Loading database diagnostics...</Typography>
+                </Box>
+              )}
+              
+              {dbError && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  Failed to load database diagnostics: {dbError.message}
+                </Alert>
+              )}
+
+              {dbDiagnostics?.diagnostics && (
                 <Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    {getStatusIcon(healthData.database.status)}
+                    {getStatusIcon(dbDiagnostics.diagnostics.connection.status)}
                     <Typography variant="subtitle2" sx={{ ml: 1 }}>
-                      Status: {healthData.database.status}
+                      Status: {dbDiagnostics.diagnostics.connection.status}
                     </Typography>
                   </Box>
                   
                   <Typography variant="body2" gutterBottom>
-                    Version: {healthData.database.version}
+                    Database: {dbDiagnostics.diagnostics.database.name}
+                  </Typography>
+                  
+                  <Typography variant="body2" gutterBottom>
+                    Version: {dbDiagnostics.diagnostics.database.version}
                   </Typography>
 
-                  {healthData.database.tables && (
+                  <Typography variant="body2" gutterBottom>
+                    Connection: {dbDiagnostics.diagnostics.connection.method}
+                  </Typography>
+
+                  <Typography variant="body2" gutterBottom>
+                    Environment: {dbDiagnostics.diagnostics.environment.NODE_ENV}
+                  </Typography>
+
+                  {dbDiagnostics.diagnostics.tables && (
                     <Box sx={{ mt: 2 }}>
                       <Typography variant="subtitle2" gutterBottom>
-                        Table Status:
+                        Table Status ({dbDiagnostics.diagnostics.tables.withData}/{dbDiagnostics.diagnostics.tables.total} with data):
                       </Typography>
-                      <TableContainer component={Paper}>
-                        <Table size="small">
+                      <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
+                        <Table size="small" stickyHeader>
                           <TableHead>
                             <TableRow>
                               <TableCell>Table</TableCell>
                               <TableCell align="right">Records</TableCell>
+                              <TableCell align="right">Columns</TableCell>
                               <TableCell>Status</TableCell>
                             </TableRow>
-                          </TableHead>                          <TableBody>
-                            {healthData?.data?.database?.tables && typeof healthData.data.database.tables === 'object' && Object.entries(healthData.data.database.tables).map(([table, count]) => (
-                              <TableRow key={table}>
-                                <TableCell>{table}</TableCell>
+                          </TableHead>
+                          <TableBody>
+                            {dbDiagnostics.diagnostics.tables.list?.map((table) => (
+                              <TableRow key={table.table_name}>
+                                <TableCell>{table.table_name}</TableCell>
                                 <TableCell align="right">
-                                  {typeof count === 'number' ? count.toLocaleString() : String(count)}
+                                  {typeof table.record_count === 'number' ? table.record_count.toLocaleString() : String(table.record_count)}
+                                </TableCell>
+                                <TableCell align="right">
+                                  {table.column_count}
                                 </TableCell>
                                 <TableCell>
                                   <Chip
-                                    icon={getStatusIcon(count === 'not_found' ? 'error' : 'success')}
-                                    label={count === 'not_found' ? 'Missing' : 'Available'}
-                                    color={getStatusColor(count === 'not_found' ? 'error' : 'success')}
+                                    icon={getStatusIcon(table.record_count > 0 ? 'success' : 'warning')}
+                                    label={table.record_count > 0 ? 'Has Data' : 'Empty'}
+                                    color={getStatusColor(table.record_count > 0 ? 'success' : 'warning')}
                                     size="small"
                                   />
                                 </TableCell>
                               </TableRow>
-                            ))}
+                            )) || []}
                           </TableBody>
                         </Table>
                       </TableContainer>
@@ -455,25 +506,36 @@ function ServiceHealth() {
               </Typography>
             </AccordionSummary>
             <AccordionDetails>
-              {environmentInfo && (
+              {combinedEnvironmentInfo && (
                 <TableContainer component={Paper}>
-                  <Table size="small">                    <TableBody>
-                      {environmentInfo && typeof environmentInfo === 'object' && Object.entries(environmentInfo).map(([key, value]) => (
-                        <TableRow key={key}>
-                          <TableCell component="th" scope="row" sx={{ fontWeight: 'bold' }}>
-                            {key}
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
-                              {String(value || 'undefined')}
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
+                  <Table size="small">
+                    <TableBody>
+                      {combinedEnvironmentInfo && typeof combinedEnvironmentInfo === 'object' && Object.entries(combinedEnvironmentInfo).map(([section, values]) => (
+                        <React.Fragment key={section}>
+                          <TableRow>
+                            <TableCell colSpan={2} sx={{ fontWeight: 'bold', backgroundColor: 'grey.100' }}>
+                              {section}
+                            </TableCell>
+                          </TableRow>
+                          {values && typeof values === 'object' && Object.entries(values).map(([key, value]) => (
+                            <TableRow key={`${section}-${key}`}>
+                              <TableCell component="th" scope="row" sx={{ fontWeight: 'bold', pl: 3 }}>
+                                {key}
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
+                                  {String(value || 'undefined')}
+                                </Typography>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </React.Fragment>
                       ))}
                     </TableBody>
                   </Table>
                 </TableContainer>
-              )}            </AccordionDetails>
+              )}
+            </AccordionDetails>
           </Accordion>
         </Grid>
 
@@ -569,9 +631,9 @@ function ServiceHealth() {
                 {healthError && (
                   <Alert severity="error" sx={{ mb: 2 }}>
                     <Typography variant="subtitle2">Health Check Error:</Typography>
-                    <Typography variant="body2">{healthError.message}</Typography>
-                  </Alert>
-                )}                  {testResults && typeof testResults === 'object' && Object.entries(testResults)
+                    <Typography variant="body2">{healthError.message}</Typography>                  </Alert>
+                ))}
+                {testResults && typeof testResults === 'object' && Object.entries(testResults)
                   .filter(([, result]) => result?.status === 'error')
                   .map(([name, result]) => (
                     <Alert severity="error" key={name} sx={{ mb: 1 }}>

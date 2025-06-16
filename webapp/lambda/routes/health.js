@@ -294,111 +294,143 @@ router.get('/test-connection', async (req, res) => {
   }
 });
 
-// Enhanced database diagnostics endpoint
+// Comprehensive database diagnostics endpoint using Secrets Manager
 router.get('/database/diagnostics', async (req, res) => {
   try {
     console.log('Database diagnostics endpoint called');
     
-    // Get database connection info (similar to your Python scripts)
-    const connectionInfo = {
-      environment: process.env.NODE_ENV || 'unknown',
-      dbEndpoint: process.env.DB_ENDPOINT ? 'SET' : 'NOT_SET',
-      dbSecretArn: process.env.DB_SECRET_ARN ? 'SET' : 'NOT_SET',
-      awsRegion: process.env.WEBAPP_AWS_REGION || 'unknown',
-      timestamp: new Date().toISOString()
-    };
-    
-    // Test basic database connectivity
-    const connectivityTest = await query('SELECT NOW() as current_time, version() as postgres_version');
-    
-    // Get database size information
-    const sizeQuery = `
-      SELECT 
-        pg_database.datname as database_name,
-        pg_size_pretty(pg_database_size(pg_database.datname)) as size
-      FROM pg_database 
-      WHERE datname = current_database()
-    `;
-    const sizeResult = await query(sizeQuery);
-    
-    // Get table statistics
-    const tableStatsQuery = `
-      SELECT 
-        schemaname,
-        tablename,
-        n_tup_ins as inserts,
-        n_tup_upd as updates,
-        n_tup_del as deletes,
-        n_live_tup as live_tuples,
-        n_dead_tup as dead_tuples,
-        last_vacuum,
-        last_autovacuum,
-        last_analyze,
-        last_autoanalyze
-      FROM pg_stat_user_tables 
-      WHERE schemaname = 'public'
-      ORDER BY n_live_tup DESC
-      LIMIT 10
-    `;
-    const tableStatsResult = await query(tableStatsQuery);
-    
-    // Get connection information
-    const connectionQuery = `
-      SELECT 
-        count(*) as total_connections,
-        count(*) FILTER (WHERE state = 'active') as active_connections,
-        count(*) FILTER (WHERE state = 'idle') as idle_connections
-      FROM pg_stat_activity
-    `;
-    const connectionResult = await query(connectionQuery);
-    
-    // Get recent activity
-    const activityQuery = `
-      SELECT 
-        datname,
-        usename,
-        application_name,
-        client_addr,
-        state,
-        query_start,
-        state_change
-      FROM pg_stat_activity 
-      WHERE state != 'idle' 
-      AND pid != pg_backend_pid()
-      ORDER BY query_start DESC
-      LIMIT 5
-    `;
-    const activityResult = await query(activityQuery);
-    
-    res.json({
-      status: 'ok',
-      connection: connectionInfo,
-      connectivity: {
-        successful: true,
-        currentTime: connectivityTest.rows[0].current_time,
-        postgresVersion: connectivityTest.rows[0].postgres_version
+    const diagnostics = {
+      timestamp: new Date().toISOString(),
+      environment: {
+        NODE_ENV: process.env.NODE_ENV,
+        DB_SECRET_ARN: process.env.DB_SECRET_ARN ? 'SET' : 'NOT_SET',
+        DB_ENDPOINT: process.env.DB_ENDPOINT ? 'SET' : 'NOT_SET',
+        WEBAPP_AWS_REGION: process.env.WEBAPP_AWS_REGION,
+        AWS_REGION: process.env.AWS_REGION,
+        IS_LOCAL: process.env.NODE_ENV === 'development' || !process.env.DB_SECRET_ARN,
+        RUNTIME: 'AWS Lambda Node.js'
+      },
+      connection: {
+        status: 'unknown',
+        method: 'unknown',
+        details: {}
       },
       database: {
-        size: sizeResult.rows[0],
-        connections: connectionResult.rows[0],
-        topTables: tableStatsResult.rows,
-        recentActivity: activityResult.rows
+        name: 'unknown',
+        version: 'unknown',
+        host: 'unknown',
+        schemas: []
       },
-      timestamp: new Date().toISOString()
+      tables: {
+        total: 0,
+        withData: 0,
+        list: []
+      }
+    };
+
+    try {
+      // Test basic connection
+      const connectionTest = await query('SELECT NOW() as current_time, version() as postgres_version, current_database() as db_name');
+      
+      if (connectionTest.rows.length > 0) {
+        const row = connectionTest.rows[0];
+        diagnostics.connection.status = 'connected';
+        diagnostics.connection.method = process.env.DB_SECRET_ARN ? 'AWS Secrets Manager' : 'Environment Variables';
+        diagnostics.connection.details = {
+          connectedAt: row.current_time,
+          connectionMethod: diagnostics.connection.method
+        };
+        
+        diagnostics.database.name = row.db_name;
+        diagnostics.database.version = row.postgres_version;
+        
+        // Get host info if available
+        try {
+          const hostInfo = await query("SELECT inet_server_addr() as host, inet_server_port() as port");
+          if (hostInfo.rows.length > 0) {
+            diagnostics.database.host = hostInfo.rows[0].host || 'localhost';
+            diagnostics.database.port = hostInfo.rows[0].port || 5432;
+          }
+        } catch (e) {
+          console.log('Could not get host info:', e.message);
+        }
+
+        // Get schemas
+        try {
+          const schemas = await query("SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT LIKE 'pg_%' AND schema_name != 'information_schema'");
+          diagnostics.database.schemas = schemas.rows.map(r => r.schema_name);
+        } catch (e) {
+          console.log('Could not get schemas:', e.message);
+        }
+
+        // Get table information
+        try {
+          const tables = await query(`
+            SELECT 
+              t.table_name,
+              (SELECT COUNT(*) FROM information_schema.columns WHERE table_name = t.table_name) as column_count,
+              pg_size_pretty(pg_total_relation_size(c.oid)) as size
+            FROM information_schema.tables t
+            LEFT JOIN pg_class c ON c.relname = t.table_name
+            WHERE t.table_schema = 'public' 
+            AND t.table_type = 'BASE TABLE'
+            ORDER BY t.table_name
+          `);
+          
+          diagnostics.tables.total = tables.rows.length;
+          diagnostics.tables.list = tables.rows;
+
+          // Count tables with data
+          let tablesWithData = 0;
+          for (const table of tables.rows) {
+            try {
+              const count = await query(`SELECT COUNT(*) as count FROM ${table.table_name}`);
+              const recordCount = parseInt(count.rows[0].count);
+              table.record_count = recordCount;
+              if (recordCount > 0) tablesWithData++;
+            } catch (e) {
+              table.record_count = 'Error: ' + e.message;
+            }
+          }
+          diagnostics.tables.withData = tablesWithData;
+
+        } catch (e) {
+          console.log('Could not get table info:', e.message);
+          diagnostics.tables.error = e.message;
+        }
+
+      } else {
+        diagnostics.connection.status = 'connected_no_data';
+        diagnostics.connection.details = { error: 'Connected but no data returned' };
+      }
+
+    } catch (error) {
+      console.error('Database connection failed:', error);
+      diagnostics.connection.status = 'failed';
+      diagnostics.connection.details = {
+        error: error.message,
+        code: error.code,
+        hint: error.hint
+      };
+    }
+
+    res.json({
+      status: 'ok',
+      diagnostics,
+      summary: {
+        environment: diagnostics.environment.NODE_ENV || 'unknown',
+        database: diagnostics.database.name,
+        connection: diagnostics.connection.status,
+        tablesWithData: `${diagnostics.tables.withData}/${diagnostics.tables.total}`
+      }
     });
-    
+
   } catch (error) {
     console.error('Error in database diagnostics:', error);
     res.status(500).json({ 
       status: 'error',
-      error: 'Database diagnostics failed', 
+      error: 'Diagnostics failed', 
       message: error.message,
-      connection: {
-        environment: process.env.NODE_ENV || 'unknown',
-        dbEndpoint: process.env.DB_ENDPOINT ? 'SET' : 'NOT_SET',
-        dbSecretArn: process.env.DB_SECRET_ARN ? 'SET' : 'NOT_SET',
-        awsRegion: process.env.WEBAPP_AWS_REGION || 'unknown'
-      },
       timestamp: new Date().toISOString()
     });
   }
