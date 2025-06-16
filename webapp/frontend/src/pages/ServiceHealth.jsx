@@ -279,9 +279,8 @@ function ServiceHealth() {
                         <TableCell>Response Time</TableCell>
                         <TableCell>Error</TableCell>
                       </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {Object.entries(testResults).map(([name, result]) => (
+                    </TableHead>                    <TableBody>
+                      {testResults && Object.entries(testResults).map(([name, result]) => (
                         <TableRow key={name}>
                           <TableCell>{name}</TableCell>
                           <TableCell>
@@ -344,9 +343,8 @@ function ServiceHealth() {
                               <TableCell align="right">Records</TableCell>
                               <TableCell>Status</TableCell>
                             </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {Object.entries(healthData.database.tables).map(([table, count]) => (
+                          </TableHead>                          <TableBody>
+                            {healthData?.data?.database?.tables && Object.entries(healthData.data.database.tables).map(([table, count]) => (
                               <TableRow key={table}>
                                 <TableCell>{table}</TableCell>
                                 <TableCell align="right">
@@ -385,9 +383,8 @@ function ServiceHealth() {
             <AccordionDetails>
               {environmentInfo && (
                 <TableContainer component={Paper}>
-                  <Table size="small">
-                    <TableBody>
-                      {Object.entries(environmentInfo).map(([key, value]) => (
+                  <Table size="small">                    <TableBody>
+                      {environmentInfo && Object.entries(environmentInfo).map(([key, value]) => (
                         <TableRow key={key}>
                           <TableCell component="th" scope="row" sx={{ fontWeight: 'bold' }}>
                             {key}
@@ -424,8 +421,7 @@ function ServiceHealth() {
                     <Typography variant="body2">{healthError.message}</Typography>
                   </Alert>
                 )}
-                
-                {Object.entries(testResults)
+                  {testResults && Object.entries(testResults)
                   .filter(([, result]) => result.status === 'error')
                   .map(([name, result]) => (
                     <Alert severity="error" key={name} sx={{ mb: 1 }}>
