@@ -64,8 +64,7 @@ Globals:
         WEBAPP_AWS_REGION: !Ref AWS::Region
         DB_ENDPOINT: !Ref DatabaseEndpoint
 
-Resources:
-  # S3 Bucket for Frontend Static Files 
+Resources:  # S3 Bucket for Frontend Static Files 
   FrontendBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -81,16 +80,12 @@ Resources:
               SSEAlgorithm: AES256
       VersioningConfiguration:
         Status: Enabled
-
-  # Origin Access Control for CloudFront
-  OriginAccessControl:
-    Type: AWS::CloudFront::OriginAccessControl
+  # Origin Access Identity for CloudFront (Legacy but reliable)
+  OriginAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
     Properties:
-      OriginAccessControlConfig:
-        Name: !Sub 'financial-dashboard-oac-${EnvironmentName}'
-        OriginAccessControlOriginType: s3
-        SigningBehavior: always
-        SigningProtocol: sigv4
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub 'OAI for Financial Dashboard - ${EnvironmentName}'
 
   # CloudFront Distribution
   CloudFrontDistribution:
@@ -102,13 +97,12 @@ Resources:
         Enabled: true
         HttpVersion: http2
         PriceClass: PriceClass_100
-        # S3 Origin for Frontend        
+        # S3 Origin for Frontend - Using OAI (Legacy but reliable)
         Origins:
           - Id: S3Origin
             DomainName: !GetAtt FrontendBucket.RegionalDomainName
-            OriginAccessControlId: !Ref OriginAccessControl
             S3OriginConfig:
-              OriginAccessIdentity: ''
+              OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${OriginAccessIdentity}'
           # API Gateway Origin
           - Id: APIOrigin
             DomainName: !Sub '${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com'
@@ -191,23 +185,20 @@ Resources:
           - ErrorCode: 403
             ResponseCode: 200
             ResponsePagePath: /index.html
-            ErrorCachingMinTTL: 300  # S3 Bucket Policy for CloudFront OAC
+            ErrorCachingMinTTL: 300  # S3 Bucket Policy for CloudFront OAI (Legacy but reliable)
   FrontendBucketPolicy:
-    Type: AWS::S3::BucketPolicy  
+    Type: AWS::S3::BucketPolicy
     Properties:
       Bucket: !Ref FrontendBucket
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Sid: AllowCloudFrontServicePrincipal
+          - Sid: AllowCloudFrontOriginAccessIdentity
             Effect: Allow
             Principal:
-              Service: cloudfront.amazonaws.com
+              AWS: !Sub 'arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity ${OriginAccessIdentity}'
             Action: s3:GetObject
-            Resource: !Sub '${FrontendBucket}/*'
-            Condition:
-              StringEquals:
-                'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
+            Resource: !Sub 'arn:aws:s3:::${FrontendBucket}/*'
 
   # IAM Role for Lambda Function
   LambdaExecutionRole:

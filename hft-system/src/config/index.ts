@@ -56,6 +56,20 @@ const PerformanceTargetsSchema = z.object({
   targetUptime: z.number().min(0.99).max(1).default(0.9999)
 });
 
+const AnalyticsConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  realTimeAnalytics: z.boolean().default(true),
+  historicalRetention: z.number().positive().default(30), // days
+  performanceCalculationInterval: z.number().positive().default(5000), // ms
+  riskCalculationInterval: z.number().positive().default(1000), // ms
+  alertThresholds: z.object({
+    maxDrawdown: z.number().positive().default(10000),
+    maxDailyLoss: z.number().positive().default(5000),
+    maxPositionSize: z.number().positive().default(100000),
+    minSharpeRatio: z.number().default(0.5)
+  })
+});
+
 const ConfigSchema = z.object({
   // Environment
   environment: z.enum(['development', 'staging', 'production']),
@@ -95,6 +109,21 @@ const ConfigSchema = z.object({
       latencyMs: z.number().positive().default(50),
       errorRate: z.number().min(0).max(1).default(0.01),
       memoryUsage: z.number().min(0).max(1).default(0.8)
+    })
+  }),
+
+  // Analytics configuration
+  analytics: z.object({
+    enabled: z.boolean().default(true),
+    realTimeAnalytics: z.boolean().default(true),
+    historicalRetention: z.number().positive().default(30), // days
+    performanceCalculationInterval: z.number().positive().default(5000), // ms
+    riskCalculationInterval: z.number().positive().default(1000), // ms
+    alertThresholds: z.object({
+      maxDrawdown: z.number().positive().default(10000),
+      maxDailyLoss: z.number().positive().default(5000),
+      maxPositionSize: z.number().positive().default(100000),
+      minSharpeRatio: z.number().default(0.5)
     })
   })
 });
@@ -188,6 +217,20 @@ export class Config {
           latencyMs: parseInt(process.env.ALERT_LATENCY_MS || '50'),
           errorRate: parseFloat(process.env.ALERT_ERROR_RATE || '0.01'),
           memoryUsage: parseFloat(process.env.ALERT_MEMORY_USAGE || '0.8')
+        }
+      },
+
+      analytics: {
+        enabled: process.env.ANALYTICS_ENABLED === 'true',
+        realTimeAnalytics: process.env.REAL_TIME_ANALYTICS === 'true',
+        historicalRetention: parseInt(process.env.HISTORICAL_RETENTION_DAYS || '30'),
+        performanceCalculationInterval: parseInt(process.env.PERFORMANCE_CALC_INTERVAL_MS || '5000'),
+        riskCalculationInterval: parseInt(process.env.RISK_CALC_INTERVAL_MS || '1000'),
+        alertThresholds: {
+          maxDrawdown: parseFloat(process.env.ALERT_MAX_DRAWDOWN || '10000'),
+          maxDailyLoss: parseFloat(process.env.ALERT_MAX_DAILY_LOSS || '5000'),
+          maxPositionSize: parseFloat(process.env.ALERT_MAX_POSITION_SIZE || '100000'),
+          minSharpeRatio: parseFloat(process.env.ALERT_MIN_SHARPE_RATIO || '0.5')
         }
       }
     };
@@ -307,6 +350,10 @@ export class Config {
   
   get tradingHours(): any {
     return this.config.tradingHours;
+  }
+  
+  get analytics(): any {
+    return this.config.analytics;
   }
   
   /**

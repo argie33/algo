@@ -140,6 +140,9 @@ export interface Order extends Timestamp {
   canceled_at?: number;
   rejected_reason?: string;
   fees?: number;
+  pnl?: number; // Add PnL tracking
+  createdAt?: number;
+  filledAt?: number;
 }
 
 export interface OrderFill extends Timestamp {
@@ -162,6 +165,7 @@ export interface Position {
   unrealized_pnl: number;
   realized_pnl: number;
   average_entry_price: number;
+  averagePrice: number; // Add alias for consistency
   last_price: number;
   updated_at: number;
 }
@@ -199,6 +203,17 @@ export interface RiskCheck {
 }
 
 export interface RiskMetrics {
+  totalExposure: number;
+  netExposure: number;
+  grossLeverage: number;
+  netLeverage: number;
+  largestPosition: number;
+  numberOfPositions: number;
+  concentrationRisk: number;
+  var95: number;
+  var99: number;
+  expectedShortfall: number;
+  timestamp: number;
   portfolio_value: number;
   total_exposure: number;
   net_exposure: number;
@@ -215,18 +230,25 @@ export interface RiskMetrics {
 
 // Analytics Types
 export interface PerformanceMetrics {
+  totalPnL: number;
+  realizedPnL: number;
+  unrealizedPnL: number;
+  totalTrades: number;
+  winningTrades: number;
+  losingTrades: number;
+  winRate: number;
+  avgWin: number;
+  avgLoss: number;
+  profitFactor: number;
+  sharpeRatio: number;
+  maxDrawdown: number;
+  maxDrawdownPercent: number;
+  calmarRatio: number;
+  volatility: number;
+  startTime: number;
+  lastUpdate: number;
   total_return: number;
   daily_return: number;
-  volatility: number;
-  sharpe_ratio: number;
-  max_drawdown: number;
-  win_rate: number;
-  profit_factor: number;
-  average_win: number;
-  average_loss: number;
-  total_trades: number;
-  winning_trades: number;
-  losing_trades: number;
   updated_at: number;
 }
 
@@ -236,6 +258,25 @@ export interface LatencyMetrics {
   order_processing_latency: number;
   end_to_end_latency: number;
   timestamp: number;
+}
+
+// Additional Analytics Types
+export interface PnLData extends Timestamp {
+  symbol?: string;
+  totalPnL: number;
+  realizedPnL: number;
+  unrealizedPnL: number;
+  dailyPnL: number;
+  fees: number;
+}
+
+export interface TradeStats {
+  totalTrades: number;
+  totalVolume: number;
+  avgTradeSize: number;
+  totalPnL: number;
+  avgHoldTime: number;
+  successRate: number;
 }
 
 // Fundamental Data Types (from existing infrastructure)
@@ -419,13 +460,12 @@ export class HFTError extends Error {
   public readonly code: string;
   public readonly timestamp: number;
   public readonly context?: Record<string, any>;
-
   constructor(message: string, code: string, context?: Record<string, any>) {
     super(message);
     this.name = 'HFTError';
     this.code = code;
     this.timestamp = Date.now();
-    this.context = context;
+    this.context = context || {};
   }
 }
 
