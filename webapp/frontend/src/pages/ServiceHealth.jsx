@@ -53,7 +53,8 @@ import {
   getEarningsEstimates,
   getNaaimData,
   getFearGreedData,
-  getApiConfig
+  getApiConfig,
+  getDiagnosticInfo
 } from '../services/api';
 
 function ServiceHealth() {
@@ -169,6 +170,9 @@ function ServiceHealth() {
     retry: 3,    staleTime: 10000 // Consider data stale after 10 seconds
   });
 
+  // Get diagnostic information
+  const diagnosticInfo = getDiagnosticInfo()
+
   const getStatusIcon = (status) => {
     switch (status) {
       case 'success':
@@ -245,9 +249,7 @@ function ServiceHealth() {
               </Button>
             </CardContent>
           </Card>
-        </Grid>
-
-        <Grid item xs={12} md={3}>
+        </Grid>        <Grid item xs={12} md={3}>
           <Card>
             <CardContent sx={{ textAlign: 'center' }}>
               <Api sx={{ fontSize: 40, mb: 1, color: 'primary.main' }} />
@@ -255,7 +257,10 @@ function ServiceHealth() {
                 API Gateway
               </Typography>
               <Typography variant="body2" color="textSecondary">
-                {environmentInfo?.VITE_API_URL ? 'Configured' : 'Not Configured'}
+                {diagnosticInfo?.isConfigured ? 'Configured' : 'Not Configured'}
+              </Typography>
+              <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+                {diagnosticInfo?.urlsMatch ? 'URLs Match' : 'URL Mismatch'}
               </Typography>
             </CardContent>
           </Card>
@@ -460,6 +465,83 @@ function ServiceHealth() {
                           </TableCell>
                         </TableRow>
                       ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}            </AccordionDetails>
+          </Accordion>
+        </Grid>
+
+        {/* API Configuration Diagnostics */}
+        <Grid item xs={12} lg={6}>
+          <Accordion>
+            <AccordionSummary expandIcon={<ExpandMore />}>
+              <Typography variant="h6">
+                <Api sx={{ mr: 1, verticalAlign: 'middle' }} />
+                API Configuration Diagnostics
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              {diagnosticInfo && (
+                <TableContainer component={Paper}>
+                  <Table size="small">
+                    <TableBody>
+                      <TableRow>
+                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold' }}>
+                          Current API URL
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
+                            {diagnosticInfo.currentApiUrl || 'Not set'}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold' }}>
+                          Axios Default Base URL
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
+                            {diagnosticInfo.axiosDefaultBaseUrl || 'Not set'}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold' }}>
+                          VITE_API_URL
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
+                            {diagnosticInfo.viteApiUrl || 'Not set'}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold' }}>
+                          URLs Match
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            icon={getStatusIcon(diagnosticInfo.urlsMatch ? 'success' : 'error')}
+                            label={diagnosticInfo.urlsMatch ? 'Yes' : 'No'}
+                            color={getStatusColor(diagnosticInfo.urlsMatch ? 'success' : 'error')}
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold' }}>
+                          Is Configured
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            icon={getStatusIcon(diagnosticInfo.isConfigured ? 'success' : 'error')}
+                            label={diagnosticInfo.isConfigured ? 'Yes' : 'No'}
+                            color={getStatusColor(diagnosticInfo.isConfigured ? 'success' : 'error')}
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
                     </TableBody>
                   </Table>
                 </TableContainer>

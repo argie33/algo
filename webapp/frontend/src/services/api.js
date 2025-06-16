@@ -6,9 +6,9 @@ export const getApiConfig = () => {
   const apiUrl = import.meta.env.VITE_API_URL
   
   return {
-    baseURL: apiUrl,
-    isServerless: true, // Always true for AWS Lambda
-    apiUrl,
+    baseURL: apiUrl || 'http://localhost:3001', // Fallback for development
+    isServerless: !!apiUrl, // Only true if VITE_API_URL is set
+    apiUrl: apiUrl || 'http://localhost:3001',
     isConfigured: !!apiUrl,
     environment: import.meta.env.MODE,
     isDevelopment: import.meta.env.DEV,
@@ -18,61 +18,51 @@ export const getApiConfig = () => {
   }
 }
 
-const config = (() => {
-  try {
-    const apiConfig = getApiConfig()
-    if (!apiConfig.apiUrl) {
-      console.warn('VITE_API_URL environment variable is not set')
-      return {
-        baseURL: 'http://localhost:3001', // Fallback for development
-        isServerless: false
-      }
-    }
-    return apiConfig
-  } catch (error) {
-    console.error('Failed to get API configuration:', error)
-    return {
-      baseURL: 'http://localhost:3001', // Fallback for development
-      isServerless: false
-    }
-  }
-})()
+// Create API instance that can be updated
+let currentConfig = getApiConfig()
 
 console.log('API Configuration:', {
-  baseURL: config.baseURL,
-  isServerless: config.isServerless,
+  baseURL: currentConfig.baseURL,
+  isServerless: currentConfig.isServerless,
   hostname: window.location.hostname,
-  viteMode: import.meta.env.MODE
+  viteMode: import.meta.env.MODE,
+  apiUrl: currentConfig.apiUrl
 })
 
 const api = axios.create({
-  baseURL: config.baseURL,
-  timeout: config.isServerless ? 45000 : 30000, // Longer timeout for Lambda cold starts
+  baseURL: currentConfig.baseURL,
+  timeout: currentConfig.isServerless ? 45000 : 30000, // Longer timeout for Lambda cold starts
   headers: {
     'Content-Type': 'application/json',
   },
 })
 
+// Function to update API base URL dynamically
+export const updateApiBaseUrl = (newUrl) => {
+  currentConfig = { ...currentConfig, baseURL: newUrl, apiUrl: newUrl }
+  api.defaults.baseURL = newUrl
+  console.log('API base URL updated to:', newUrl)
+}
+
 // Retry configuration for Lambda cold starts
 const retryRequest = async (error) => {
-  const { config } = error
+  const { config: requestConfig } = error
   
-  if (!config || config.retryCount >= 3) {
+  if (!requestConfig || requestConfig.retryCount >= 3) {
     return Promise.reject(error)
   }
   
-  config.retryCount = config.retryCount || 0
-  config.retryCount += 1
-  
-  // Only retry on timeout or 5xx errors (common with Lambda cold starts)
+  requestConfig.retryCount = requestConfig.retryCount || 0
+  requestConfig.retryCount += 1
+    // Only retry on timeout or 5xx errors (common with Lambda cold starts)
   if (error.code === 'ECONNABORTED' || 
       (error.response && error.response.status >= 500)) {
     
-    const delay = Math.pow(2, config.retryCount) * 1000 // Exponential backoff
-    console.log(`Retrying request (attempt ${config.retryCount}) after ${delay}ms...`)
+    const delay = Math.pow(2, requestConfig.retryCount) * 1000 // Exponential backoff
+    console.log(`Retrying request (attempt ${requestConfig.retryCount}) after ${delay}ms...`)
     
     await new Promise(resolve => setTimeout(resolve, delay))
-    return api(config)
+    return api(requestConfig)
   }
   
   return Promise.reject(error)
@@ -610,14 +600,12 @@ export default {
 
 // Test API Connection
 export const testApiConnection = async (customUrl = null) => {
-  try {
-    console.log('Testing API connection...')
-    console.log('Current API URL:', config.baseURL)
+  try {    console.log('Testing API connection...')
+    console.log('Current API URL:', currentConfig.baseURL)
     console.log('Custom URL:', customUrl)
     console.log('Environment:', import.meta.env.MODE)
     console.log('VITE_API_URL:', import.meta.env.VITE_API_URL)
-    
-    const testUrl = customUrl || config.baseURL
+      const testUrl = customUrl || currentConfig.baseURL
     const response = await api.get('/health?quick=true', {
       baseURL: testUrl,
       timeout: 10000
@@ -634,8 +622,7 @@ export const testApiConnection = async (customUrl = null) => {
     console.error('API connection test failed:', error)
     
     return {
-      success: false,
-      apiUrl: customUrl || config.baseURL,
+      success: false,      apiUrl: customUrl || currentConfig.baseURL,
       error: error.message,
       details: {
         hasResponse: !!error.response,
@@ -645,7 +632,20 @@ export const testApiConnection = async (customUrl = null) => {
         code: error.code,
         isNetworkError: !error.response,
         configUrl: error.config?.url,
-        fullUrl: (customUrl || config.baseURL) + '/health?quick=true'
+        fullUrl: (customUrl || currentConfig.baseURL) + '/health?quick=true'
       }    }
+  }
+}
+
+// Diagnostic function for ServiceHealth
+export const getDiagnosticInfo = () => {
+  return {
+    currentApiUrl: currentConfig.baseURL,
+    axiosDefaultBaseUrl: api.defaults.baseURL,
+    viteApiUrl: import.meta.env.VITE_API_URL,
+    isConfigured: currentConfig.isConfigured,
+    environment: import.meta.env.MODE,
+    urlsMatch: currentConfig.baseURL === api.defaults.baseURL,
+    timestamp: new Date().toISOString()
   }
 }
