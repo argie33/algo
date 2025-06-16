@@ -72,49 +72,56 @@ router.get('/:ticker/balance-sheet', async (req, res) => {
 });
 
 // Get income statement for a ticker
-router.get('/:ticker/income-statement', async (req, res) => {  try {
+router.get('/:ticker/income-statement', async (req, res) => {
+  try {
     const { ticker } = req.params;
-    const { period = 'ttm' } = req.query; // Force ttm since it's the only available table
+    const { period = 'ttm' } = req.query;
     
-    // Only ttm_income_stmt table is available
+    // Query the normalized ttm_income_stmt table
     const query = `
       SELECT 
         symbol,
-        period_ending,
-        revenue,
-        cost_of_revenue,
-        gross_profit,
-        research_development,
-        selling_general_administrative,
-        total_operating_expenses,
-        operating_income,
-        total_other_income_expense_net,
-        ebit,
-        interest_expense,
-        income_before_tax,
-        income_tax_expense,
-        net_income
+        date,
+        item_name,
+        value
       FROM ttm_income_stmt
       WHERE UPPER(symbol) = UPPER($1)
-      ORDER BY period_ending DESC
-      LIMIT 10
+      ORDER BY date DESC, item_name ASC
+      LIMIT 500
     `;
-      const result = await pool.query(query, [ticker]);
+    
+    const result = await pool.query(query, [ticker.toUpperCase()]);
+    
+    // Transform the normalized data into grouped format
+    const groupedData = {};
+    result.rows.forEach(row => {
+      const dateKey = row.date;
+      if (!groupedData[dateKey]) {
+        groupedData[dateKey] = {
+          symbol: row.symbol,
+          date: row.date,
+          items: {}
+        };
+      }
+      groupedData[dateKey].items[row.item_name] = row.value;
+    });
+    
+    // Convert to array format
+    const data = Object.values(groupedData);
     
     res.json({
       success: true,
-      data: result.rows,
+      data: data,
       metadata: {
         ticker: ticker.toUpperCase(),
-        period: 'ttm',
-        count: result.rows.length,
+        period,
+        count: data.length,
         timestamp: new Date().toISOString()
       }
     });
     
   } catch (error) {
-    console.error('Income statement fetch error:', error);
-    res.status(500).json({
+    console.error('Income statement fetch error:', error);    res.status(500).json({
       success: false,
       error: 'Failed to fetch income statement data',
       message: error.message
@@ -127,13 +134,13 @@ router.get('/:ticker/cash-flow', async (req, res) => {
   try {
     const { ticker } = req.params;
     const { period = 'annual' } = req.query; // annual, quarterly, ttm
-    
-    let tableName = 'cash_flow';
+      let tableName = 'cash_flow';
     if (period === 'quarterly') tableName = 'quarterly_cashflow';
     if (period === 'ttm') tableName = 'ttm_cashflow';
     
     const query = `
       SELECT 
+        symbol,
         date,
         item_name,
         value,
@@ -144,13 +151,13 @@ router.get('/:ticker/cash-flow', async (req, res) => {
     `;
     
     const result = await pool.query(query, [ticker]);
-    
-    // Group by date for better frontend handling
+      // Group by date for better frontend handling
     const groupedData = {};
     result.rows.forEach(row => {
       const dateKey = row.date.toISOString().split('T')[0];
       if (!groupedData[dateKey]) {
         groupedData[dateKey] = {
+          symbol: row.symbol,
           date: dateKey,
           items: {},
           fetched_at: row.fetched_at

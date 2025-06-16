@@ -174,14 +174,27 @@ router.get('/overview', async (req, res) => {
       WHERE md.regular_market_price IS NOT NULL 
         AND md.regular_market_previous_close IS NOT NULL 
         AND md.regular_market_previous_close > 0
-    `;
-
-    const [fearGreedResult, naaimResult, aaiiResult, econResult, marketStatsResult] = await Promise.all([
-      query(fearGreedQuery),
-      query(naaimQuery), 
-      query(aaiiQuery),
-      query(econQuery),
-      query(marketStatsQuery)
+    `;    const [fearGreedResult, naaimResult, aaiiResult, econResult, marketStatsResult] = await Promise.all([
+      query(fearGreedQuery).catch(err => {
+        console.error('Fear & Greed query failed:', err);
+        return { rows: [] };
+      }),
+      query(naaimQuery).catch(err => {
+        console.error('NAAIM query failed:', err);
+        return { rows: [] };
+      }),
+      query(aaiiQuery).catch(err => {
+        console.error('AAII query failed:', err);
+        return { rows: [] };
+      }),
+      query(econQuery).catch(err => {
+        console.error('Economic data query failed:', err);
+        return { rows: [] };
+      }),
+      query(marketStatsQuery).catch(err => {
+        console.error('Market stats query failed:', err);
+        return { rows: [] };
+      })
     ]);
 
     const marketStats = marketStatsResult.rows[0];

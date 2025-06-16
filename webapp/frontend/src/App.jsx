@@ -55,79 +55,6 @@ import ServiceHealth from './pages/ServiceHealth'
 // API Service
 import { testApiConnection } from './services/api'
 
-// Debug Component
-const DebugInfo = () => {
-  const [apiTest, setApiTest] = useState(null)
-  const [loading, setLoading] = useState(true)
-  
-  useEffect(() => {
-    const testApi = async () => {
-      try {
-        // Test with configured API URL from environment
-        const currentUrl = import.meta.env.VITE_API_URL
-        if (!currentUrl) {
-          throw new Error('VITE_API_URL not configured')
-        }
-        
-        console.log('Testing API URL:', currentUrl)
-        
-        const response = await fetch(`${currentUrl}/health`)
-        const data = await response.json()
-        
-        setApiTest({
-          success: true,
-          currentUrl,
-          status: response.status,
-          data: data
-        })
-      } catch (error) {
-        console.error('API Test Failed:', error)
-        setApiTest({
-          success: false,
-          error: error.message,
-          currentUrl: import.meta.env.VITE_API_URL || 'Not configured'
-        })
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    testApi()
-  }, [])
-
-  const envInfo = {
-    VITE_API_URL: import.meta.env.VITE_API_URL,
-    MODE: import.meta.env.MODE,
-    DEV: import.meta.env.DEV,
-    PROD: import.meta.env.PROD,
-    BASE_URL: import.meta.env.BASE_URL,
-    location: window.location.href
-  }
-
-  return (
-    <Box sx={{ position: 'fixed', top: 0, right: 0, zIndex: 9999, width: 400, m: 1 }}>
-      <Accordion>
-        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <BugReportIcon sx={{ mr: 1 }} />
-          <Typography variant="body2">
-            Debug Info {apiTest?.success ? '✅' : apiTest?.success === false ? '❌' : '⏳'}
-          </Typography>
-        </AccordionSummary>
-        <AccordionDetails>
-          <Paper sx={{ p: 2, fontSize: '12px', fontFamily: 'monospace' }}>
-            <Typography variant="subtitle2" gutterBottom>Environment:</Typography>
-            <pre>{JSON.stringify(envInfo, null, 2)}</pre>
-            
-            <Typography variant="subtitle2" gutterBottom sx={{ mt: 2 }}>API Test:</Typography>
-            <pre>
-              {loading ? 'Testing API...' : JSON.stringify(apiTest, null, 2)}
-            </pre>
-          </Paper>
-        </AccordionDetails>
-      </Accordion>
-    </Box>  )
-}
-
 const drawerWidth = 240
 
 const menuItems = [
@@ -234,13 +161,12 @@ function App() {
               <ListItemText primary={item.text} />
             </ListItemButton>
           </ListItem>
-        ))}
-      </List>
+        ))}      </List>
     </div>
   )
+  
   return (
     <ErrorBoundary>
-      <DebugInfo />
       <Box sx={{ display: 'flex' }}>
         <AppBar
           position="fixed"
