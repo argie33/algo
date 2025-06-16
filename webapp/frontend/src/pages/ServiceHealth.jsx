@@ -631,8 +631,9 @@ function ServiceHealth() {
                 {healthError && (
                   <Alert severity="error" sx={{ mb: 2 }}>
                     <Typography variant="subtitle2">Health Check Error:</Typography>
-                    <Typography variant="body2">{healthError.message}</Typography>                  </Alert>
-                ))}
+                    <Typography variant="body2">{healthError.message}</Typography>
+                  </Alert>
+                )}
                 {testResults && typeof testResults === 'object' && Object.entries(testResults)
                   .filter(([, result]) => result?.status === 'error')
                   .map(([name, result]) => (
