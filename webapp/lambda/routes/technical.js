@@ -160,8 +160,7 @@ router.get('/:timeframe', async (req, res) => {
       paramIndex++;
     }
 
-    console.log('Using whereClause:', whereClause, 'params:', params);
-    const dataQuery = `
+    console.log('Using whereClause:', whereClause, 'params:', params);    const dataQuery = `
       SELECT 
         t.symbol,
         t.date,
@@ -184,9 +183,8 @@ router.get('/:timeframe', async (req, res) => {
         t.bbands_lower,
         t.bbands_middle,
         t.bbands_upper,
-        cp.short_name as company_name
+        t.symbol as company_name
       FROM ${tableName} t
-      LEFT JOIN company_profile cp ON t.symbol = cp.ticker
       ${whereClause}
       ORDER BY t.date DESC, t.symbol ASC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}

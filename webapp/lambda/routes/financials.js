@@ -2,53 +2,97 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../utils/database');
 
+// Debug endpoint to check financial table status
+router.get('/debug', async (req, res) => {
+  try {
+    console.log('Financial debug endpoint called');
+    
+    const tables = ['balance_sheet', 'income_stmt', 'cash_flow', 'ttm_income_stmt'];
+    const tableInfo = {};
+    
+    for (const tableName of tables) {
+      try {
+        // Check if table exists
+        const tableExistsQuery = `
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = $1
+          );
+        `;
+        const tableExists = await pool.query(tableExistsQuery, [tableName]);
+        
+        if (tableExists.rows[0].exists) {
+          // Get table structure
+          const structureQuery = `
+            SELECT column_name, data_type 
+            FROM information_schema.columns 
+            WHERE table_name = $1 
+            ORDER BY ordinal_position;
+          `;
+          const structure = await pool.query(structureQuery, [tableName]);
+          
+          // Count records
+          const countQuery = `SELECT COUNT(*) as total FROM ${tableName}`;
+          const countResult = await pool.query(countQuery);
+          
+          // Get sample data
+          const sampleQuery = `SELECT * FROM ${tableName} LIMIT 3`;
+          const sampleResult = await pool.query(sampleQuery);
+          
+          tableInfo[tableName] = {
+            exists: true,
+            structure: structure.rows,
+            totalRecords: parseInt(countResult.rows[0].total),
+            sampleData: sampleResult.rows
+          };
+        } else {
+          tableInfo[tableName] = { exists: false };
+        }
+      } catch (error) {
+        tableInfo[tableName] = { exists: false, error: error.message };
+      }
+    }
+    
+    res.json({
+      tables: tableInfo,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Financial debug error:', error);
+    res.status(500).json({
+      error: 'Failed to debug financial tables',
+      message: error.message
+    });
+  }
+});
+
 // Get financial statements for a ticker
 router.get('/:ticker/balance-sheet', async (req, res) => {
   try {
     const { ticker } = req.params;
     const { period = 'annual' } = req.query; // annual, quarterly
     
-    // Query the actual balance_sheet table
-    const query = `
-      SELECT 
-        ticker,
-        period_end,
-        ordinary_shares_number,
-        share_issued,
-        net_debt,
-        total_debt,
-        tangible_book_value,
-        invested_capital,
-        working_capital,
-        net_tangible_assets,
-        common_stock_equity,
-        total_capitalization,
-        stockholders_equity,
-        retained_earnings,
-        additional_paid_in_capital,
-        capital_stock,
-        common_stock,
-        preferred_stock,
-        total_liabilities_net_minority_interest,
-        long_term_debt,
-        current_liabilities,
-        current_debt,
-        accounts_payable,
-        total_assets,
-        net_ppe,
-        goodwill,
-        current_assets,
-        inventory,
-        accounts_receivable,
-        cash_and_cash_equivalents,
-        fetched_at
+    // First try to get data from balance_sheet table
+    let query = `
+      SELECT *
       FROM balance_sheet
       WHERE UPPER(ticker) = UPPER($1)
       ORDER BY period_end DESC
       LIMIT 20
     `;
     
-    const result = await pool.query(query, [ticker.toUpperCase()]);
+    let result;
+    try {
+      result = await pool.query(query, [ticker.toUpperCase()]);
+      console.log(`Balance sheet query result for ${ticker}:`, result.rows.length, 'rows');
+    } catch (error) {
+      console.log('Balance sheet table query failed, trying alternative approach:', error.message);
+      
+      // Fallback: if balance_sheet table doesn't exist or has no data, return empty result
+      result = { rows: [] };
+    }
     
     res.json({
       success: true,

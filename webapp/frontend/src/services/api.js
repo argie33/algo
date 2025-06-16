@@ -267,7 +267,7 @@ export const getFinancialStrengthMetrics = (params = {}) => {
 
 // New method for stock screening with proper parameter handling
 export const screenStocks = (params) => {
-  return api.get(`/stocks/screen?${params.toString()}`)
+  return api.get(`/stocks?${params.toString()}`)
 }
 
 // Trading signals endpoints
