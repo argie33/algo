@@ -46,13 +46,41 @@ import {
   testApiConnection
 } from '../services/api';
 
-function ServiceHealth() {
-  const [environmentInfo, setEnvironmentInfo] = useState(null);
-  const [apiTest, setApiTest] = useState(null);
+function ServiceHealth() {  const [environmentInfo, setEnvironmentInfo] = useState({});
+  const [apiTest, setApiTest] = useState({});
   const [testResults, setTestResults] = useState({});
+  const [componentError, setComponentError] = useState(null);
 
+  // Component error handler
   useEffect(() => {
-    // Gather environment information
+    const handleError = (event) => {
+      console.error('ServiceHealth component error:', event.error);
+      setComponentError(event.error.message);
+    };
+    
+    window.addEventListener('error', handleError);
+    return () => window.removeEventListener('error', handleError);
+  }, []);
+
+  // Early return if component has error
+  if (componentError) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Alert severity="error">
+          <Typography variant="h6">Service Health Error</Typography>
+          <Typography variant="body2">
+            {componentError}
+          </Typography>
+          <Button onClick={() => window.location.reload()} sx={{ mt: 2 }}>
+            Reload Page
+          </Button>
+        </Alert>
+      </Container>
+    );
+  }
+
+  // Gather environment information
+  useEffect(() => {
     const env = {
       VITE_API_URL: import.meta.env.VITE_API_URL,
       MODE: import.meta.env.MODE,
@@ -280,14 +308,14 @@ function ServiceHealth() {
                         <TableCell>Error</TableCell>
                       </TableRow>
                     </TableHead>                    <TableBody>
-                      {testResults && Object.entries(testResults).map(([name, result]) => (
+                      {testResults && typeof testResults === 'object' && Object.entries(testResults).map(([name, result]) => (
                         <TableRow key={name}>
                           <TableCell>{name}</TableCell>
                           <TableCell>
                             <Chip
-                              icon={getStatusIcon(result.status)}
-                              label={result.status}
-                              color={getStatusColor(result.status)}
+                              icon={getStatusIcon(result?.status)}
+                              label={result?.status || 'Unknown'}
+                              color={getStatusColor(result?.status)}
                               size="small"
                             />
                           </TableCell>
@@ -344,11 +372,11 @@ function ServiceHealth() {
                               <TableCell>Status</TableCell>
                             </TableRow>
                           </TableHead>                          <TableBody>
-                            {healthData?.data?.database?.tables && Object.entries(healthData.data.database.tables).map(([table, count]) => (
+                            {healthData?.data?.database?.tables && typeof healthData.data.database.tables === 'object' && Object.entries(healthData.data.database.tables).map(([table, count]) => (
                               <TableRow key={table}>
                                 <TableCell>{table}</TableCell>
                                 <TableCell align="right">
-                                  {typeof count === 'number' ? count.toLocaleString() : count}
+                                  {typeof count === 'number' ? count.toLocaleString() : String(count)}
                                 </TableCell>
                                 <TableCell>
                                   <Chip
@@ -384,14 +412,14 @@ function ServiceHealth() {
               {environmentInfo && (
                 <TableContainer component={Paper}>
                   <Table size="small">                    <TableBody>
-                      {environmentInfo && Object.entries(environmentInfo).map(([key, value]) => (
+                      {environmentInfo && typeof environmentInfo === 'object' && Object.entries(environmentInfo).map(([key, value]) => (
                         <TableRow key={key}>
                           <TableCell component="th" scope="row" sx={{ fontWeight: 'bold' }}>
                             {key}
                           </TableCell>
                           <TableCell>
                             <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
-                              {String(value)}
+                              {String(value || 'undefined')}
                             </Typography>
                           </TableCell>
                         </TableRow>
@@ -420,13 +448,12 @@ function ServiceHealth() {
                     <Typography variant="subtitle2">Health Check Error:</Typography>
                     <Typography variant="body2">{healthError.message}</Typography>
                   </Alert>
-                )}
-                  {testResults && Object.entries(testResults)
-                  .filter(([, result]) => result.status === 'error')
+                )}                  {testResults && typeof testResults === 'object' && Object.entries(testResults)
+                  .filter(([, result]) => result?.status === 'error')
                   .map(([name, result]) => (
                     <Alert severity="error" key={name} sx={{ mb: 1 }}>
                       <Typography variant="subtitle2">{name} Endpoint Error:</Typography>
-                      <Typography variant="body2">{result.error}</Typography>
+                      <Typography variant="body2">{result?.error || 'Unknown error'}</Typography>
                     </Alert>
                   ))}
               </AccordionDetails>
