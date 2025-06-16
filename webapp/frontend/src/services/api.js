@@ -1,19 +1,64 @@
 import axios from 'axios'
 
-// API Gateway/Lambda configuration  
-const API_BASE_URL = 'https://ipj77jkthd.execute-api.us-east-1.amazonaws.com/dev'
-const IS_SERVERLESS = true
+// Runtime API configuration - gets the API URL dynamically
+const getApiConfig = () => {
+  // Try to get API URL from various sources in order of preference
+  let apiUrl = null
+  
+  // 1. First check environment variable (build time)
+  if (import.meta.env.VITE_API_URL) {
+    apiUrl = import.meta.env.VITE_API_URL
+  }
+  
+  // 2. Check if there's a runtime config (could be injected by deployment)
+  else if (window.__APP_CONFIG__?.API_URL) {
+    apiUrl = window.__APP_CONFIG__.API_URL
+  }
+  
+  // 3. Auto-detect based on CloudFront domain pattern
+  else if (window.location.hostname.includes('cloudfront.net')) {
+    // Extract the CloudFront distribution ID and derive API Gateway URL
+    const cfDistribution = window.location.hostname.split('.')[0]
+    // This would need to be configured during deployment to map CF -> API Gateway
+    console.warn('CloudFront auto-detection not fully implemented. Using discovery method.')
+    apiUrl = discoverApiUrl()
+  }
+  
+  // 4. Try to discover the API URL by testing known patterns
+  else {
+    apiUrl = discoverApiUrl()
+  }
+  
+  if (!apiUrl) {
+    throw new Error('Could not determine API URL. Please configure VITE_API_URL or ensure proper deployment.')
+  }
+  
+  return {
+    baseURL: apiUrl,
+    isServerless: true
+  }
+}
+
+// Discovery method - tries to find working API URL
+const discoverApiUrl = () => {
+  // This could be enhanced to actually test multiple URLs
+  // For now, we'll use the health endpoint pattern to validate
+  console.warn('API URL discovery not implemented. Manual configuration required.')
+  return null
+}
+
+const config = getApiConfig()
 
 console.log('API Configuration:', {
-  API_BASE_URL,
-  IS_SERVERLESS,
+  baseURL: config.baseURL,
+  isServerless: config.isServerless,
   hostname: window.location.hostname,
-  environment: import.meta.env.MODE
+  viteMode: import.meta.env.MODE
 })
 
 const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: IS_SERVERLESS ? 45000 : 30000, // Longer timeout for Lambda cold starts
+  baseURL: config.baseURL,
+  timeout: config.isServerless ? 45000 : 30000, // Longer timeout for Lambda cold starts
   headers: {
     'Content-Type': 'application/json',
   },

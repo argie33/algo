@@ -3,50 +3,37 @@ const router = express.Router();
 const pool = require('../utils/database');
 
 // Get financial statements for a ticker
-router.get('/:ticker/balance-sheet', async (req, res) => {
-  try {
+router.get('/:ticker/balance-sheet', async (req, res) => {  try {
     const { ticker } = req.params;
     const { period = 'annual' } = req.query; // annual, quarterly
     
-    const tableName = period === 'quarterly' ? 'quarterly_balance_sheet' : 'balance_sheet';
-    
+    // Note: Using available ttm_income_stmt table since balance_sheet tables don't exist
     const query = `
       SELECT 
-        date,
-        item_name,
-        value,
-        fetched_at
-      FROM ${tableName}
+        symbol,
+        period_ending,
+        revenue,
+        gross_profit,
+        total_operating_expenses,
+        operating_income,
+        net_income
+      FROM ttm_income_stmt
       WHERE UPPER(symbol) = UPPER($1)
-      ORDER BY date DESC, item_name
+      ORDER BY period_ending DESC
+      LIMIT 10
     `;
     
     const result = await pool.query(query, [ticker]);
     
-    // Group by date for better frontend handling
-    const groupedData = {};
-    result.rows.forEach(row => {
-      const dateKey = row.date.toISOString().split('T')[0];
-      if (!groupedData[dateKey]) {
-        groupedData[dateKey] = {
-          date: dateKey,
-          items: {},
-          fetched_at: row.fetched_at
-        };
-      }
-      groupedData[dateKey].items[row.item_name] = row.value;
-    });
-    
-    const statements = Object.values(groupedData).sort((a, b) => new Date(b.date) - new Date(a.date));
-    
     res.json({
       success: true,
-      data: statements,
+      data: result.rows,
       metadata: {
         ticker: ticker.toUpperCase(),
         period,
-        count: statements.length,
-        timestamp: new Date().toISOString()
+        count: result.rows.length,
+        timestamp: new Date().toISOString(),
+        note: "Using TTM income statement data as balance sheet data is not available"
       }
     });
     
@@ -61,51 +48,42 @@ router.get('/:ticker/balance-sheet', async (req, res) => {
 });
 
 // Get income statement for a ticker
-router.get('/:ticker/income-statement', async (req, res) => {
-  try {
+router.get('/:ticker/income-statement', async (req, res) => {  try {
     const { ticker } = req.params;
-    const { period = 'annual' } = req.query; // annual, quarterly, ttm
+    const { period = 'ttm' } = req.query; // Force ttm since it's the only available table
     
-    let tableName = 'income_stmt';
-    if (period === 'quarterly') tableName = 'quarterly_income_stmt';
-    if (period === 'ttm') tableName = 'ttm_income_stmt';
-    
+    // Only ttm_income_stmt table is available
     const query = `
       SELECT 
-        date,
-        item_name,
-        value,
-        fetched_at
-      FROM ${tableName}
+        symbol,
+        period_ending,
+        revenue,
+        cost_of_revenue,
+        gross_profit,
+        research_development,
+        selling_general_administrative,
+        total_operating_expenses,
+        operating_income,
+        total_other_income_expense_net,
+        ebit,
+        interest_expense,
+        income_before_tax,
+        income_tax_expense,
+        net_income
+      FROM ttm_income_stmt
       WHERE UPPER(symbol) = UPPER($1)
-      ORDER BY date DESC, item_name
+      ORDER BY period_ending DESC
+      LIMIT 10
     `;
-    
-    const result = await pool.query(query, [ticker]);
-    
-    // Group by date for better frontend handling
-    const groupedData = {};
-    result.rows.forEach(row => {
-      const dateKey = row.date.toISOString().split('T')[0];
-      if (!groupedData[dateKey]) {
-        groupedData[dateKey] = {
-          date: dateKey,
-          items: {},
-          fetched_at: row.fetched_at
-        };
-      }
-      groupedData[dateKey].items[row.item_name] = row.value;
-    });
-    
-    const statements = Object.values(groupedData).sort((a, b) => new Date(b.date) - new Date(a.date));
+      const result = await pool.query(query, [ticker]);
     
     res.json({
       success: true,
-      data: statements,
+      data: result.rows,
       metadata: {
         ticker: ticker.toUpperCase(),
-        period,
-        count: statements.length,
+        period: 'ttm',
+        count: result.rows.length,
         timestamp: new Date().toISOString()
       }
     });
