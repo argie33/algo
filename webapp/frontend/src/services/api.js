@@ -37,6 +37,11 @@ const api = axios.create({
   },
 })
 
+// Function to get current base URL
+export const getCurrentBaseURL = () => {
+  return currentConfig.baseURL
+}
+
 // Function to update API base URL dynamically
 export const updateApiBaseUrl = (newUrl) => {
   currentConfig = { ...currentConfig, baseURL: newUrl, apiUrl: newUrl }
