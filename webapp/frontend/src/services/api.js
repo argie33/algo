@@ -429,7 +429,7 @@ export const getFearGreedData = (params = {}) => {
 export const getDataValidationSummary = () => api.get('/data/validation/summary')
 
 // Technical analysis endpoints
-export const getTechnicalData = (params = {}) => {
+export const getTechnicalData = (timeframe = 'daily', params = {}) => {
   const queryParams = new URLSearchParams()
   
   Object.entries(params).forEach(([key, value]) => {
@@ -438,10 +438,10 @@ export const getTechnicalData = (params = {}) => {
     }
   })
   
-  return api.get(`/technical/data?${queryParams.toString()}`)
+  return api.get(`/technical/${timeframe}?${queryParams.toString()}`)
 }
 
-export const getTechnicalSummary = (params = {}) => {
+export const getTechnicalSummary = (timeframe = 'daily', params = {}) => {
   const queryParams = new URLSearchParams()
   
   Object.entries(params).forEach(([key, value]) => {
@@ -450,7 +450,7 @@ export const getTechnicalSummary = (params = {}) => {
     }
   })
   
-  return api.get(`/technical/summary?${queryParams.toString()}`)
+  return api.get(`/technical/${timeframe}/summary?${queryParams.toString()}`)
 }
 
 export const getTechnicalChunk = (params = {}) => {

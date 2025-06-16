@@ -34,7 +34,8 @@ import {
   Storage as StorageIcon,
   AccountBalance as AccountBalanceIcon,
   ExpandMore as ExpandMoreIcon,
-  BugReport as BugReportIcon
+  BugReport as BugReportIcon,
+  HealthAndSafety as HealthAndSafetyIcon
 } from '@mui/icons-material'
 import { useNavigate, useLocation } from 'react-router-dom'
 
@@ -49,6 +50,7 @@ import AnalystInsights from './pages/AnalystInsights'
 import EarningsCalendar from './pages/EarningsCalendar'
 import DataValidation from './pages/DataValidation'
 import FinancialData from './pages/FinancialData'
+import ServiceHealth from './pages/ServiceHealth'
 
 // API Service
 import { testApiConnection } from './services/api'
@@ -137,7 +139,7 @@ const menuItems = [
   { text: 'Technical Analysis', icon: <AssessmentIcon />, path: '/technical' },
   { text: 'Analyst Insights', icon: <PersonIcon />, path: '/analysts' },
   { text: 'Earnings Calendar', icon: <EventIcon />, path: '/earnings' },
-  { text: 'Data Validation', icon: <StorageIcon />, path: '/data-validation' },
+  { text: 'Service Health', icon: <HealthAndSafetyIcon />, path: '/service-health' },
 ]
 
 // Error boundary component
@@ -307,7 +309,7 @@ function App() {
           }}
         >
           <Toolbar />
-          <Container maxWidth="xl">          <Routes>
+          <Container maxWidth="xl">            <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/market" element={<MarketOverview />} />
               <Route path="/stocks" element={<StockExplorer />} />
@@ -319,6 +321,7 @@ function App() {
               <Route path="/technical" element={<TechnicalAnalysis />} />
               <Route path="/analysts" element={<AnalystInsights />} />
               <Route path="/earnings" element={<EarningsCalendar />} />
+              <Route path="/service-health" element={<ServiceHealth />} />
               <Route path="/data-validation" element={<DataValidation />} />
               <Route path="/financial-data" element={<FinancialData />} />
             </Routes>

@@ -32,7 +32,7 @@ import {
   Search
 } from '@mui/icons-material';
 import { formatNumber, formatDate } from '../utils/formatters';
-import { getTechnicalData, getTechnicalSummary } from '../services/api';
+import { getTechnicalData } from '../services/api';
 
 // Use centralized error logging (logger will be defined in component)
 
@@ -42,24 +42,16 @@ function TechnicalAnalysis() {
   const [timeframe, setTimeframe] = useState('daily');
   const [symbolFilter, setSymbolFilter] = useState('');
   const [page, setPage] = useState(1);
-  const [searchInput, setSearchInput] = useState('');  // Fetch technical data - use summary for quick loading, full data for specific symbols
+  const [searchInput, setSearchInput] = useState('');  // Fetch technical data - always use getTechnicalData for consistent data structure
   const { data: technicalData, isLoading, error, refetch } = useQuery({
     queryKey: ['technicalAnalysis', timeframe, symbolFilter, page],
     queryFn: () => {
-      if (symbolFilter) {
-        // For specific symbols, get full data
-        return getTechnicalData(timeframe, { 
-          symbol: symbolFilter,
-          limit: 10,
-          page: page
-        });
-      } else {
-        // For general view, use summary for faster loading
-        return getTechnicalSummary(timeframe, { 
-          limit: 10,
-          page: page
-        });
-      }    },
+      return getTechnicalData(timeframe, { 
+        symbol: symbolFilter || undefined, // Only include symbol if filtering
+        limit: symbolFilter ? 50 : 25, // More data for specific symbols
+        page: page
+      });
+    },
     onError: (error) => logger.queryError('technicalAnalysis', error, { timeframe, symbolFilter, page }),
     refetchInterval: 300000, // Refresh every 5 minutes
     retry: 2,
