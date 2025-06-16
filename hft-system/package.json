@@ -1,0 +1,83 @@
+{
+  "name": "institutional-hft-system",
+  "version": "1.0.0",
+  "description": "Ultra-low latency institutional HFT system for hedge fund competition",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "dev": "ts-node src/main.ts",
+    "hft": "ts-node src/main-hft.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "format": "prettier --write src/**/*.ts",
+    "benchmark": "ts-node src/test-hft-core.ts",
+    "docker:build": "docker build -t hft-system .",
+    "docker:run": "docker run --env-file .env -p 8080:8080 hft-system"
+  },
+  "keywords": [
+    "hft",
+    "high-frequency-trading",
+    "algorithmic-trading",
+    "market-making",
+    "scalping",
+    "ultra-low-latency",
+    "institutional"
+  ],
+  "author": "HFT Development Team",
+  "license": "PROPRIETARY",
+  "dependencies": {
+    "@alpacahq/alpaca-trade-api": "^3.0.4",
+    "ws": "^8.17.1",
+    "redis": "^4.6.13",
+    "pg": "^8.11.3",
+    "pino": "^8.19.0",
+    "pino-pretty": "^10.3.1",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.3",
+    "helmet": "^7.1.0",
+    "cors": "^2.8.5",
+    "compression": "^1.7.4",
+    "uuid": "^9.0.1",
+    "node-cron": "^3.0.3",
+    "eventemitter3": "^5.0.1",
+    "fast-json-stringify": "^5.15.0",
+    "fast-json-parse": "^1.0.3",
+    "sharp": "^0.33.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "@types/ws": "^8.5.10",
+    "@types/pg": "^8.11.2",
+    "@types/express": "^4.17.21",
+    "@types/cors": "^2.8.17",
+    "@types/compression": "^1.7.5",
+    "@types/uuid": "^9.0.8",
+    "@types/node-cron": "^3.0.11",
+    "@types/jest": "^29.5.12",
+    "@typescript-eslint/eslint-plugin": "^7.1.1",
+    "@typescript-eslint/parser": "^7.1.1",
+    "typescript": "^5.3.3",
+    "ts-node": "^10.9.2",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "eslint": "^8.57.0",
+    "prettier": "^3.2.5",
+    "nodemon": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-org/institutional-hft-system.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-org/institutional-hft-system/issues"
+  },
+  "homepage": "https://github.com/your-org/institutional-hft-system#readme"
+}

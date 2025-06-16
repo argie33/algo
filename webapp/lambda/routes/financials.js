@@ -3,27 +3,52 @@ const router = express.Router();
 const pool = require('../utils/database');
 
 // Get financial statements for a ticker
-router.get('/:ticker/balance-sheet', async (req, res) => {  try {
+router.get('/:ticker/balance-sheet', async (req, res) => {
+  try {
     const { ticker } = req.params;
     const { period = 'annual' } = req.query; // annual, quarterly
     
-    // Note: Using available ttm_income_stmt table since balance_sheet tables don't exist
+    // Query the actual balance_sheet table
     const query = `
       SELECT 
-        symbol,
-        period_ending,
-        revenue,
-        gross_profit,
-        total_operating_expenses,
-        operating_income,
-        net_income
-      FROM ttm_income_stmt
-      WHERE UPPER(symbol) = UPPER($1)
-      ORDER BY period_ending DESC
-      LIMIT 10
+        ticker,
+        period_end,
+        ordinary_shares_number,
+        share_issued,
+        net_debt,
+        total_debt,
+        tangible_book_value,
+        invested_capital,
+        working_capital,
+        net_tangible_assets,
+        common_stock_equity,
+        total_capitalization,
+        stockholders_equity,
+        retained_earnings,
+        additional_paid_in_capital,
+        capital_stock,
+        common_stock,
+        preferred_stock,
+        total_liabilities_net_minority_interest,
+        long_term_debt,
+        current_liabilities,
+        current_debt,
+        accounts_payable,
+        total_assets,
+        net_ppe,
+        goodwill,
+        current_assets,
+        inventory,
+        accounts_receivable,
+        cash_and_cash_equivalents,
+        fetched_at
+      FROM balance_sheet
+      WHERE UPPER(ticker) = UPPER($1)
+      ORDER BY period_end DESC
+      LIMIT 20
     `;
     
-    const result = await pool.query(query, [ticker]);
+    const result = await pool.query(query, [ticker.toUpperCase()]);
     
     res.json({
       success: true,
@@ -32,8 +57,7 @@ router.get('/:ticker/balance-sheet', async (req, res) => {  try {
         ticker: ticker.toUpperCase(),
         period,
         count: result.rows.length,
-        timestamp: new Date().toISOString(),
-        note: "Using TTM income statement data as balance sheet data is not available"
+        timestamp: new Date().toISOString()
       }
     });
     

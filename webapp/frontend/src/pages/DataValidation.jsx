@@ -366,15 +366,20 @@ function DataValidation() {
           InputProps={{
             startAdornment: <Search />
           }}
-        />
-        {activeTab === 4 && (
+        />        {activeTab === 4 && (
           <FormControl size="small" sx={{ minWidth: 120 }}>
             <InputLabel>Timeframe</InputLabel>
             <Select
               value={selectedTimeframe}
-              onChange={(e) => setSelectedTimeframe(e.target.value)}
-            >
-              <MenuItem value="daily">Daily</MenuItem>
+              onChange={(e) => {
+                // Only allow 'daily' for now
+                if (e.target.value !== 'daily') {
+                  console.warn(`Timeframe '${e.target.value}' not yet supported, staying on 'daily'`);
+                  return;
+                }
+                setSelectedTimeframe(e.target.value);
+              }}
+            >              <MenuItem value="daily">Daily</MenuItem>
               <MenuItem value="weekly">Weekly</MenuItem>
               <MenuItem value="monthly">Monthly</MenuItem>
             </Select>

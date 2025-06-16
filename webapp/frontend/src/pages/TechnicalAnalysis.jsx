@@ -67,9 +67,7 @@ function TechnicalAnalysis() {
     setSearchInput('');
     setSymbolFilter('');
     setPage(1);
-  };
-
-  const handleTimeframeChange = (newTimeframe) => {
+  };  const handleTimeframeChange = (newTimeframe) => {
     setTimeframe(newTimeframe);
     setPage(1); // Reset to first page when changing timeframe
   };

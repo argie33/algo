@@ -118,12 +118,13 @@ router.get('/:timeframe', async (req, res) => {
     const { timeframe } = req.params;
     console.log(`Technical data endpoint called for timeframe: ${timeframe}, params:`, req.query);
     
-    // For now, only support daily since that's what we have
-    if (timeframe !== 'daily') {
+    // Support all available timeframes
+    const validTimeframes = ['daily', 'weekly', 'monthly'];
+    if (!validTimeframes.includes(timeframe)) {
       return res.status(400).json({
         error: 'Unsupported timeframe',
-        message: `Only 'daily' timeframe is currently supported, got: ${timeframe}`,
-        availableTimeframes: ['daily']
+        message: `Supported timeframes: ${validTimeframes.join(', ')}, got: ${timeframe}`,
+        availableTimeframes: validTimeframes
       });
     }
 
@@ -131,6 +132,9 @@ router.get('/:timeframe', async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 25, 100); // Cap at 100 for performance
     const offset = (page - 1) * limit;
     const symbol = req.query.symbol;
+
+    // Use the correct table based on timeframe
+    const tableName = `technical_data_${timeframe}`;
 
     let whereClause = 'WHERE 1=1';
     const params = [];
@@ -157,7 +161,6 @@ router.get('/:timeframe', async (req, res) => {
     }
 
     console.log('Using whereClause:', whereClause, 'params:', params);
-
     const dataQuery = `
       SELECT 
         t.symbol,
@@ -182,7 +185,7 @@ router.get('/:timeframe', async (req, res) => {
         t.bbands_middle,
         t.bbands_upper,
         cp.short_name as company_name
-      FROM technical_data_daily t
+      FROM ${tableName} t
       LEFT JOIN company_profile cp ON t.symbol = cp.ticker
       ${whereClause}
       ORDER BY t.date DESC, t.symbol ASC
@@ -191,7 +194,7 @@ router.get('/:timeframe', async (req, res) => {
 
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM technical_data_daily t
+      FROM ${tableName} t
       ${whereClause}
     `;
 
@@ -239,16 +242,20 @@ router.get('/:timeframe', async (req, res) => {
 
 // Technical data summary endpoint
 router.get('/:timeframe/summary', async (req, res) => {
-  try {
-    const { timeframe } = req.params;
+  try {    const { timeframe } = req.params;
     console.log(`Technical summary endpoint called for timeframe: ${timeframe}`);
     
-    if (timeframe !== 'daily') {
+    // Support all available timeframes
+    const validTimeframes = ['daily', 'weekly', 'monthly'];
+    if (!validTimeframes.includes(timeframe)) {
       return res.status(400).json({
         error: 'Unsupported timeframe',
-        message: `Only 'daily' timeframe is currently supported, got: ${timeframe}`
+        message: `Supported timeframes: ${validTimeframes.join(', ')}, got: ${timeframe}`,
+        availableTimeframes: validTimeframes
       });
     }
+
+    const tableName = `technical_data_${timeframe}`;
 
     const summaryQuery = `
       SELECT 
@@ -261,8 +268,8 @@ router.get('/:timeframe/summary', async (req, res) => {
         COUNT(CASE WHEN macd > macd_signal THEN 1 END) as macd_bullish_count,
         AVG(rsi) as avg_rsi,
         AVG(sma_20) as avg_sma_20
-      FROM technical_data_daily t
-      WHERE date = (SELECT MAX(date) FROM technical_data_daily)
+      FROM ${tableName} t
+      WHERE date = (SELECT MAX(date) FROM ${tableName})
     `;
 
     const result = await query(summaryQuery);
