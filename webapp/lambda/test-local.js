@@ -4,30 +4,22 @@
  * Run with: node test-local.js
  */
 
-const express = require('express');
+// Load environment variables
+require('dotenv').config({ path: '.env.local' });
 
 // Mock environment for testing
 process.env.NODE_ENV = 'development';
-process.env.DB_HOST = 'localhost';
-process.env.DB_PORT = '5432';
-process.env.DB_NAME = 'stocks';
-process.env.DB_USER = 'postgres';
-process.env.DB_PASSWORD = 'password';
+process.env.DB_HOST = process.env.DB_HOST || 'localhost';
+process.env.DB_PORT = process.env.DB_PORT || '5432';
+process.env.DB_NAME = process.env.DB_NAME || 'stocks';
+process.env.DB_USER = process.env.DB_USER || 'postgres';
+process.env.DB_PASSWORD = process.env.DB_PASSWORD || 'password';
 
-// Import the app
-const app = require('./index.js');
+console.log('Starting local server...');
 
-// Test endpoints
-async function testEndpoints() {
-  const request = require('supertest');
-  
-  console.log('Testing Lambda function endpoints...\n');
-  
-  try {
-    // Test root endpoint (no DB required)
-    console.log('1. Testing root endpoint (/)...');
-    const rootResponse = await request(app).get('/');
-    console.log('✓ Root endpoint status:', rootResponse.status);
+// Start local development server
+const PORT = process.env.PORT || 3001;
+require('./index.js')
     console.log('Response:', JSON.stringify(rootResponse.body, null, 2));
     
     // Test quick health check (no DB required)

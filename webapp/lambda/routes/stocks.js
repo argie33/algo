@@ -224,14 +224,22 @@ router.get('/', async (req, res) => {
     const sortColumn = validSortColumns[sortBy] || 'cp.ticker';
     const sortDirection = sortOrder.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
 
-    console.log('Using whereClause:', whereClause, 'params:', params);    // Simplified stocks query without problematic LATERAL JOIN
+    console.log('Using whereClause:', whereClause, 'params:', params);
+      'volume': 'latest_volume'
+    };
+
+    const sortColumn = validSortColumns[sortBy] || 'cp.ticker';
+    const sortDirection = sortOrder.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+
+    console.log('Using whereClause:', whereClause, 'params:', params);
+
+    // Comprehensive stocks query with latest price data
     const stocksQuery = `
       SELECT 
         cp.ticker,
         cp.short_name,
         cp.long_name,
-        cp.sector,
-        cp.industry,
+        cp.sector,        cp.industry,
         cp.currency,
         cp.exchange,
         md.regular_market_price,
@@ -255,11 +263,10 @@ router.get('/', async (req, res) => {
         km.return_on_assets,
         km.profit_margin,
         km.operating_margin,
-        km.debt_to_equity,
-        km.current_ratio,
+        km.debt_to_equity,        km.current_ratio,
         km.earnings_per_share,
-        md.regular_market_volume as latest_volume,
-        md.regular_market_time as latest_price_date
+        NULL as latest_volume,
+        NULL as latest_price_date
       FROM company_profile cp
       LEFT JOIN market_data md ON cp.ticker = md.ticker
       LEFT JOIN key_metrics km ON cp.ticker = km.ticker

@@ -15,11 +15,7 @@ import {
   IconButton,
   useTheme,
   useMediaQuery,
-  Alert,
-  Paper,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails
+  Alert
 } from '@mui/material'
 import {
   Menu as MenuIcon,
@@ -33,8 +29,6 @@ import {
   Event as EventIcon,
   Storage as StorageIcon,
   AccountBalance as AccountBalanceIcon,
-  ExpandMore as ExpandMoreIcon,
-  BugReport as BugReportIcon,
   HealthAndSafety as HealthAndSafetyIcon
 } from '@mui/icons-material'
 import { useNavigate, useLocation } from 'react-router-dom'
@@ -51,9 +45,6 @@ import EarningsCalendar from './pages/EarningsCalendar'
 import DataValidation from './pages/DataValidation'
 import FinancialData from './pages/FinancialData'
 import ServiceHealth from './pages/ServiceHealth'
-
-// API Service
-import { testApiConnection } from './services/api'
 
 const drawerWidth = 240
 
@@ -160,11 +151,11 @@ function App() {
               <ListItemIcon>{item.icon}</ListItemIcon>
               <ListItemText primary={item.text} />
             </ListItemButton>
-          </ListItem>
-        ))}      </List>
+          </ListItem>        ))}
+      </List>
     </div>
   )
-  
+
   return (
     <ErrorBoundary>
       <Box sx={{ display: 'flex' }}>

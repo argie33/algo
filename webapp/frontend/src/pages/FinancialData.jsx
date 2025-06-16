@@ -24,7 +24,8 @@ import {
   Alert,
   Divider,
   ToggleButton,
-  ToggleButtonGroup
+  ToggleButtonGroup,
+  Autocomplete
 } from '@mui/material'
 import {
   AccountBalance,
@@ -58,7 +59,8 @@ import {
   getTickerEarningsHistory,
   getTickerEpsRevisions,
   getTickerEpsTrend,
-  getTickerGrowthEstimates
+  getTickerGrowthEstimates,
+  getStocks
 } from '../services/api'
 import { formatCurrency, formatPercentage, formatNumber } from '../utils/formatters'
 
@@ -87,6 +89,15 @@ function FinancialData() {
   const [ticker, setTicker] = useState('AAPL')
   const [period, setPeriod] = useState('annual')
   const [searchTicker, setSearchTicker] = useState('')
+
+  // Get list of companies for dropdown
+  const { data: companiesData } = useQuery({
+    queryKey: ['companies'],
+    queryFn: () => getStocks({ limit: 1000, sortBy: 'ticker' }),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  const companies = companiesData?.data?.data || [];
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue)
@@ -223,17 +234,39 @@ function FinancialData() {
         <Card sx={{ mb: 3 }}>
           <CardContent>
             <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} md={4}>
-                <TextField
-                  fullWidth
-                  label="Enter Stock Symbol"
-                  value={searchTicker}
-                  onChange={(e) => setSearchTicker(e.target.value.toUpperCase())}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                  placeholder="e.g., AAPL, MSFT, GOOGL"
-                  InputProps={{
-                    startAdornment: <Search sx={{ mr: 1, color: 'text.secondary' }} />
+                <Grid item xs={12} md={4}>
+                <Autocomplete
+                  options={companies}
+                  getOptionLabel={(option) => `${option.ticker} - ${option.short_name || option.ticker}`}
+                  value={companies.find(c => c.ticker === ticker) || null}
+                  onChange={(event, newValue) => {
+                    if (newValue) {
+                      setTicker(newValue.ticker);
+                    }
                   }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Select Company"
+                      placeholder="Search companies..."
+                      InputProps={{
+                        ...params.InputProps,
+                        startAdornment: <Search sx={{ mr: 1, color: 'text.secondary' }} />
+                      }}
+                    />
+                  )}
+                  renderOption={(props, option) => (
+                    <Box component="li" {...props}>
+                      <Box>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                          {option.ticker}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {option.short_name}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  )}
                 />
               </Grid>
               <Grid item xs={12} md={4}>
@@ -245,18 +278,7 @@ function FinancialData() {
                 >
                   <ToggleButton value="annual">Annual</ToggleButton>
                   <ToggleButton value="quarterly">Quarterly</ToggleButton>
-                  <ToggleButton value="ttm">TTM</ToggleButton>
-                </ToggleButtonGroup>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Button
-                  variant="contained"
-                  onClick={handleSearch}
-                  startIcon={<Search />}
-                  disabled={!searchTicker.trim()}
-                >
-                  Analyze
-                </Button>
+                  <ToggleButton value="ttm">TTM</ToggleButton>                </ToggleButtonGroup>
               </Grid>
             </Grid>
           </CardContent>
