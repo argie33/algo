@@ -258,6 +258,130 @@ def td_combo_vectorized(close, lookback=2):
     
     return pd.Series(result, index=close.index)
 
+def ad_line_fast(high, low, close, volume):
+    """Accumulation/Distribution Line"""
+    if len(high) == 0:
+        return pd.Series([], dtype=float)
+    
+    # Money Flow Multiplier
+    mfm = ((close - low) - (high - close)) / (high - low + 1e-10)
+    
+    # Money Flow Volume
+    mfv = mfm * volume
+    
+    # A/D Line (cumulative)
+    ad_line = mfv.cumsum()
+    return ad_line.fillna(0)
+
+def cmf_fast(high, low, close, volume, period=20):
+    """Chaikin Money Flow"""
+    if len(high) < period:
+        return pd.Series(np.full(len(high), np.nan), index=high.index)
+    
+    # Money Flow Multiplier
+    mfm = ((close - low) - (high - close)) / (high - low + 1e-10)
+    
+    # Money Flow Volume
+    mfv = mfm * volume
+    
+    # CMF calculation using rolling sums
+    mfv_sum = mfv.rolling(window=period, min_periods=period).sum()
+    volume_sum = volume.rolling(window=period, min_periods=period).sum()
+    cmf = mfv_sum / (volume_sum + 1e-10)
+    
+    return cmf.fillna(0)
+
+def mfi_fast(high, low, close, volume, period=14):
+    """Money Flow Index"""
+    if len(high) < period + 1:
+        return pd.Series(np.full(len(high), np.nan), index=high.index)
+    
+    # Typical Price
+    typical_price = (high + low + close) / 3
+    
+    # Raw Money Flow
+    raw_money_flow = typical_price * volume
+    
+    # Positive and Negative Money Flow
+    price_changes = typical_price.diff()
+    pos_money_flow = raw_money_flow.where(price_changes > 0, 0)
+    neg_money_flow = raw_money_flow.where(price_changes < 0, 0)
+    
+    # Rolling sums
+    pos_sum = pos_money_flow.rolling(window=period, min_periods=period).sum()
+    neg_sum = neg_money_flow.rolling(window=period, min_periods=period).sum()
+    
+    # MFI calculation
+    money_ratio = pos_sum / (neg_sum + 1e-10)
+    mfi = 100 - (100 / (1 + money_ratio))
+    
+    return mfi.fillna(50)
+
+def pivot_high_vectorized(high, left_bars=3, right_bars=3):
+    """Vectorized pivot high calculation"""
+    if len(high) < left_bars + right_bars + 1:
+        return pd.Series(np.full(len(high), np.nan), index=high.index)
+    
+    result = pd.Series(np.full(len(high), np.nan), index=high.index)
+    
+    for i in range(left_bars, len(high) - right_bars):
+        # Check if current high is higher than surrounding bars
+        left_window = high.iloc[i-left_bars:i]
+        right_window = high.iloc[i+1:i+right_bars+1]
+        
+        if (high.iloc[i] > left_window.max()) and (high.iloc[i] > right_window.max()):
+            result.iloc[i] = high.iloc[i]
+    
+    return result
+
+def pivot_low_vectorized(low, left_bars=3, right_bars=3):
+    """Vectorized pivot low calculation"""
+    if len(low) < left_bars + right_bars + 1:
+        return pd.Series(np.full(len(low), np.nan), index=low.index)
+    
+    result = pd.Series(np.full(len(low), np.nan), index=low.index)
+    
+    for i in range(left_bars, len(low) - right_bars):
+        # Check if current low is lower than surrounding bars
+        left_window = low.iloc[i-left_bars:i]
+        right_window = low.iloc[i+1:i+right_bars+1]
+        
+        if (low.iloc[i] < left_window.min()) and (low.iloc[i] < right_window.min()):
+            result.iloc[i] = low.iloc[i]
+    
+    return result
+
+def marketwatch_indicator_vectorized(close, open_):
+    """Vectorized MarketWatch indicator"""
+    if len(close) != len(open_):
+        return pd.Series(np.zeros(len(close)), index=close.index)
+    
+    signal = np.where(close > open_, 1, np.where(close < open_, -1, 0))
+    result = np.zeros(len(close))
+    count = 0
+    current_direction = 0
+    
+    for i in range(len(signal)):
+        if signal[i] == 1:  # Green day
+            if current_direction == 1:
+                count += 1
+            else:
+                count = 1
+                current_direction = 1
+            result[i] = count
+        elif signal[i] == -1:  # Red day
+            if current_direction == -1:
+                count -= 1
+            else:
+                count = -1
+                current_direction = -1
+            result[i] = count
+        else:  # Neutral
+            count = 0
+            current_direction = 0
+    
+    return pd.Series(result, index=close.index)
+
 def calculate_technicals_parallel(df):
     """Calculate all technical indicators using parallel processing where beneficial - COMPLETE IMPLEMENTATION"""
     logging.info(f"🔧 Starting technical calculations for {len(df)} rows of data")
@@ -286,6 +410,12 @@ def calculate_technicals_parallel(df):
         results['mom'] = momentum_fast(df['close'], period=10)
         results['roc'] = roc_fast(df['close'], period=10)
         
+        # Volume indicators (MISSING FROM ORIGINAL)
+        logging.info("🔄 Calculating volume indicators...")
+        results['ad'] = ad_line_fast(df['high'], df['low'], df['close'], df['volume'])
+        results['cmf'] = cmf_fast(df['high'], df['low'], df['close'], df['volume'], period=20)
+        results['mfi'] = mfi_fast(df['high'], df['low'], df['close'], df['volume'], period=14)
+        
         # Moving averages
         logging.info("🔄 Calculating moving averages...")
         for period in [10, 20, 50, 150, 200]:
@@ -305,7 +435,8 @@ def calculate_technicals_parallel(df):
         
         # ADX (computationally expensive)
         results['adx'] = adx_fast(df['high'], df['low'], df['close'], period=14)
-          # Bollinger Bands
+        
+        # Bollinger Bands
         bb_lower, bb_middle, bb_upper = bollinger_bands_fast(df['close'], period=20, std_multiplier=2)
         results['bbands_lower'] = bb_lower
         results['bbands_middle'] = bb_middle
@@ -314,14 +445,31 @@ def calculate_technicals_parallel(df):
         # ATR
         results['atr'] = atr_fast(df['high'], df['low'], df['close'], period=14)
         
-        # Custom indicators
+        # Custom indicators (MISSING FROM ORIGINAL)
         logging.info("🔄 Calculating custom indicators...")
         results['td_sequential'] = td_sequential_vectorized(df['close'], lookback=4)
         results['td_combo'] = td_combo_vectorized(df['close'], lookback=2)
+        results['marketwatch'] = marketwatch_indicator_vectorized(df['close'], df['open'])
+        
+        # Pivot points (MISSING FROM ORIGINAL)
+        logging.info("🔄 Calculating pivot points...")
+        results['pivot_high'] = pivot_high_vectorized(df['high'], left_bars=3, right_bars=3)
+        results['pivot_low'] = pivot_low_vectorized(df['low'], left_bars=3, right_bars=3)
+        
+        # DM calculation (MISSING FROM ORIGINAL)
+        logging.info("🔄 Calculating directional movement...")
+        dm_plus = df['high'].diff()
+        dm_minus = df['low'].shift(1) - df['low']
+        dm_plus = dm_plus.where((dm_plus>dm_minus)&(dm_plus>0), 0)
+        dm_minus = dm_minus.where((dm_minus>dm_plus)&(dm_minus>0), 0)
+        results['dm'] = dm_plus - dm_minus
         
         # Combine all results into the original dataframe
         for key, series in results.items():
             df[key] = series
+        
+        # Clean infinite values
+        df = df.replace([np.inf, -np.inf], np.nan)
         
         logging.info(f"✅ Technical calculations completed successfully for {len(results)} indicators")
         return df
@@ -493,10 +641,19 @@ def create_technical_table(cur):
             -- Other indicators
             atr DECIMAL(12,4),
             adx DECIMAL(8,4),
+            ad DECIMAL(15,4),
+            cmf DECIMAL(8,4),
+            mfi DECIMAL(8,4),
+            dm DECIMAL(8,4),
+            marketwatch DECIMAL(8,4),
             
             -- Custom indicators
             td_sequential DECIMAL(8,2),
             td_combo DECIMAL(8,2),
+            
+            -- Pivot points
+            pivot_high DECIMAL(12,4),
+            pivot_low DECIMAL(12,4),
             
             -- Metadata
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -576,14 +733,14 @@ def load_technicals_for_symbol(symbol, cur):
         # Prepare data for insertion
         df_tech = df_tech.reset_index()
         df_tech['symbol'] = symbol
-        
-        # Select columns for database (same as weekly/monthly)
+          # Select columns for database (includes all new indicators)
         columns = [
             'symbol', 'date', 'open', 'high', 'low', 'close', 'volume',
             'rsi', 'mom', 'roc', 'sma_10', 'sma_20', 'sma_50', 'sma_150', 'sma_200',
             'ema_4', 'ema_9', 'ema_21', 'macd', 'macd_signal', 'macd_hist',
             'bbands_lower', 'bbands_middle', 'bbands_upper', 'atr', 'adx',
-            'td_sequential', 'td_combo'
+            'ad', 'cmf', 'mfi', 'dm', 'marketwatch',
+            'td_sequential', 'td_combo', 'pivot_high', 'pivot_low'
         ]
         
         # Filter to existing columns and replace NaN with None
@@ -600,8 +757,7 @@ def load_technicals_for_symbol(symbol, cur):
         
         if not insert_data:
             logging.warning(f"⚠️ No data to insert for {symbol}")
-            return 0
-          # Insert data with conflict resolution using execute_values
+            return 0        # Insert data with conflict resolution using execute_values
         # Note: execute_values expects a single %s placeholder that it will replace with VALUES
         insert_sql = f"""
             INSERT INTO technical_data_daily ({', '.join(columns)})
@@ -631,8 +787,15 @@ def load_technicals_for_symbol(symbol, cur):
                 bbands_upper = EXCLUDED.bbands_upper,
                 atr = EXCLUDED.atr,
                 adx = EXCLUDED.adx,
+                ad = EXCLUDED.ad,
+                cmf = EXCLUDED.cmf,
+                mfi = EXCLUDED.mfi,
+                dm = EXCLUDED.dm,
+                marketwatch = EXCLUDED.marketwatch,
                 td_sequential = EXCLUDED.td_sequential,
                 td_combo = EXCLUDED.td_combo,
+                pivot_high = EXCLUDED.pivot_high,
+                pivot_low = EXCLUDED.pivot_low,
                 updated_at = CURRENT_TIMESTAMP
         """
         
