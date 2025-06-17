@@ -101,7 +101,8 @@ jobs:
       growthestimates:   ${{ steps.paths.outputs.growthestimates }}
       incomestmt:        ${{ steps.paths.outputs.incomestmt }}
       quarterlybalancesheet: ${{ steps.paths.outputs.quarterlybalancesheet }}
-      quarterlycashflow: ${{ steps.paths.outputs.quarterlycashflow }}      quarterlyincomestmt: ${{ steps.paths.outputs.quarterlyincomestmt }}
+      quarterlycashflow: ${{ steps.paths.outputs.quarterlycashflow }}
+      quarterlyincomestmt: ${{ steps.paths.outputs.quarterlyincomestmt }}
       analystgrade:      ${{ steps.paths.outputs.analystgrade }}
       naaim:             ${{ steps.paths.outputs.naaim }}
       aaiisentiment:     ${{ steps.paths.outputs.aaiisentiment }}
@@ -276,7 +277,8 @@ jobs:
             quarterlyincomestmt:
               - 'loadquarterlyincomestmt.py'
               - 'Dockerfile.quarterlyincomestmt'
-              - 'requirements-loadquarterlyincomestmt.txt'            analystgrade:
+              - 'requirements-loadquarterlyincomestmt.txt'
+            analystgrade:
               - 'loadanalystupgradedowngrade.py'
               - 'dockerfile.analystgrade'
               - 'requirements-loadanalystupgradedowngrade.txt'
@@ -336,7 +338,8 @@ jobs:
              [ "${{ steps.paths.outputs.growthestimates }}" = "true" ] || \
              [ "${{ steps.paths.outputs.incomestmt }}" = "true" ] || \
              [ "${{ steps.paths.outputs.quarterlybalancesheet }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.quarterlycashflow }}" = "true" ] || \             [ "${{ steps.paths.outputs.quarterlyincomestmt }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.quarterlycashflow }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.quarterlyincomestmt }}" = "true" ] || \
              [ "${{ steps.paths.outputs.analystgrade }}" = "true" ] || \
              [ "${{ steps.paths.outputs.naaim }}" = "true" ] || \
              [ "${{ steps.paths.outputs.aaiisentiment }}" = "true" ] || \
@@ -388,7 +391,8 @@ jobs:
           [ "${{ steps.paths.outputs.growthestimates }}" = "true" ] && arr="$arr,\"growthestimates\""
           [ "${{ steps.paths.outputs.incomestmt }}" = "true" ] && arr="$arr,\"incomestmt\""
           [ "${{ steps.paths.outputs.quarterlybalancesheet }}" = "true" ] && arr="$arr,\"quarterlybalancesheet\""
-          [ "${{ steps.paths.outputs.quarterlycashflow }}" = "true" ] && arr="$arr,\"quarterlycashflow\""          [ "${{ steps.paths.outputs.quarterlyincomestmt }}" = "true" ] && arr="$arr,\"quarterlyincomestmt\""
+          [ "${{ steps.paths.outputs.quarterlycashflow }}" = "true" ] && arr="$arr,\"quarterlycashflow\""
+          [ "${{ steps.paths.outputs.quarterlyincomestmt }}" = "true" ] && arr="$arr,\"quarterlyincomestmt\""
           [ "${{ steps.paths.outputs.analystgrade }}" = "true" ] && arr="$arr,\"analystgrade\""
           [ "${{ steps.paths.outputs.naaim }}" = "true" ] && arr="$arr,\"naaim\""
           [ "${{ steps.paths.outputs.aaiisentiment }}" = "true" ] && arr="$arr,\"aaiisentiment\""
@@ -471,7 +475,8 @@ jobs:
             growthestimates)   DOCKERFILE=Dockerfile.growthestimates; PARAM=GrowthEstimatesImageTag;;\
             incomestmt)        DOCKERFILE=Dockerfile.incomestmt;    PARAM=IncomeStmtImageTag;;\
             quarterlybalancesheet) DOCKERFILE=Dockerfile.quarterlybalancesheet; PARAM=QuarterlyBalanceSheetImageTag;;\
-            quarterlycashflow) DOCKERFILE=Dockerfile.quarterlycashflow; PARAM=QuarterlyCashFlowImageTag;;\            quarterlyincomestmt) DOCKERFILE=Dockerfile.quarterlyincomestmt; PARAM=QuarterlyIncomeStmtImageTag;;\
+            quarterlycashflow) DOCKERFILE=Dockerfile.quarterlycashflow; PARAM=QuarterlyCashFlowImageTag;;\
+            quarterlyincomestmt) DOCKERFILE=Dockerfile.quarterlyincomestmt; PARAM=QuarterlyIncomeStmtImageTag;;\
             analystgrade)      DOCKERFILE=dockerfile.analystgrade;  PARAM=AnalystGradeImageTag;;\
             naaim)             DOCKERFILE=Dockerfile.naaim;         PARAM=NaaimImageTag;;\
             aaiisentiment)     DOCKERFILE=Dockerfile.aaiisentiment; PARAM=AaiiSentimentImageTag;;\
