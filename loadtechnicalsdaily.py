@@ -338,38 +338,126 @@ def mfi_fast(high, low, close, volume, period=14):
         return pd.Series(np.full(len(high), 50.0), index=high.index)
 
 def pivot_high_vectorized(high, left_bars=3, right_bars=3):
-    """Vectorized pivot high calculation"""
+    """
+    Pivot high calculation based on Pine Script / TradingView logic
+    Similar to the approach in buysellload_1.py
+    """
     if len(high) < left_bars + right_bars + 1:
+        logging.warning(f"⚠️ Pivot High: Insufficient data length {len(high)}, need at least {left_bars + right_bars + 1}")
         return pd.Series(np.full(len(high), np.nan), index=high.index)
     
-    result = pd.Series(np.full(len(high), np.nan), index=high.index)
+    # Convert to numpy for easier manipulation, preserve index
+    high_values = high.values
+    result_values = np.full(len(high), np.nan)
+    pivot_count = 0
     
-    for i in range(left_bars, len(high) - right_bars):
-        # Check if current high is higher than surrounding bars
-        left_window = high.iloc[i-left_bars:i]
-        right_window = high.iloc[i+1:i+right_bars+1]
+    logging.info(f"🔧 Pivot High: Scanning {len(high)} bars with left={left_bars}, right={right_bars}")
+    logging.info(f"📊 High data range: min={np.nanmin(high_values):.4f}, max={np.nanmax(high_values):.4f}")
+    
+    # Look for pivot highs - a bar that is higher than both left and right surrounding bars
+    for i in range(left_bars, len(high_values) - right_bars):
+        current_val = high_values[i]
         
-        if (high.iloc[i] > left_window.max()) and (high.iloc[i] > right_window.max()):
-            result.iloc[i] = high.iloc[i]
+        # Check if current bar is higher than all bars to the left
+        left_check = True
+        for j in range(i - left_bars, i):
+            if high_values[j] >= current_val:
+                left_check = False
+                break
+        
+        # Check if current bar is higher than all bars to the right
+        right_check = True
+        for j in range(i + 1, i + right_bars + 1):
+            if high_values[j] >= current_val:
+                right_check = False
+                break
+        
+        # If both checks pass, it's a pivot high
+        if left_check and right_check:
+            result_values[i] = current_val
+            pivot_count += 1
+            
+            if pivot_count <= 5:  # Log first few pivots
+                logging.info(f"✅ Pivot High #{pivot_count} at bar {i}: {current_val:.4f}")
+                if pivot_count <= 2:  # Detailed info for first two
+                    left_vals = high_values[i-left_bars:i]
+                    right_vals = high_values[i+1:i+right_bars+1] 
+                    logging.info(f"📊   Left bars: {left_vals}")
+                    logging.info(f"📊   Right bars: {right_vals}")
     
-    return result
+    logging.info(f"✅ Pivot High: Found {pivot_count} pivot highs out of {len(high) - left_bars - right_bars} possible bars")
+    
+    # Diagnostic info if no pivots found
+    if pivot_count == 0:
+        logging.error("❌ No pivot highs found! Sample data analysis:")
+        sample_size = min(10, len(high))
+        logging.error(f"📊 First {sample_size} values: {high_values[:sample_size]}")
+        if len(high) > 20:
+            mid_start = len(high) // 2 - 5
+            logging.error(f"📊 Middle values: {high_values[mid_start:mid_start+10]}")
+    
+    return pd.Series(result_values, index=high.index)
 
 def pivot_low_vectorized(low, left_bars=3, right_bars=3):
-    """Vectorized pivot low calculation"""
+    """
+    Pivot low calculation based on Pine Script / TradingView logic
+    Similar to the approach in buysellload_1.py
+    """
     if len(low) < left_bars + right_bars + 1:
+        logging.warning(f"⚠️ Pivot Low: Insufficient data length {len(low)}, need at least {left_bars + right_bars + 1}")
         return pd.Series(np.full(len(low), np.nan), index=low.index)
     
-    result = pd.Series(np.full(len(low), np.nan), index=low.index)
+    # Convert to numpy for easier manipulation, preserve index
+    low_values = low.values
+    result_values = np.full(len(low), np.nan)
+    pivot_count = 0
     
-    for i in range(left_bars, len(low) - right_bars):
-        # Check if current low is lower than surrounding bars
-        left_window = low.iloc[i-left_bars:i]
-        right_window = low.iloc[i+1:i+right_bars+1]
+    logging.info(f"🔧 Pivot Low: Scanning {len(low)} bars with left={left_bars}, right={right_bars}")
+    logging.info(f"📊 Low data range: min={np.nanmin(low_values):.4f}, max={np.nanmax(low_values):.4f}")
+    
+    # Look for pivot lows - a bar that is lower than both left and right surrounding bars
+    for i in range(left_bars, len(low_values) - right_bars):
+        current_val = low_values[i]
         
-        if (low.iloc[i] < left_window.min()) and (low.iloc[i] < right_window.min()):
-            result.iloc[i] = low.iloc[i]
+        # Check if current bar is lower than all bars to the left
+        left_check = True
+        for j in range(i - left_bars, i):
+            if low_values[j] <= current_val:
+                left_check = False
+                break
+        
+        # Check if current bar is lower than all bars to the right
+        right_check = True
+        for j in range(i + 1, i + right_bars + 1):
+            if low_values[j] <= current_val:
+                right_check = False
+                break
+        
+        # If both checks pass, it's a pivot low
+        if left_check and right_check:
+            result_values[i] = current_val
+            pivot_count += 1
+            
+            if pivot_count <= 5:  # Log first few pivots
+                logging.info(f"✅ Pivot Low #{pivot_count} at bar {i}: {current_val:.4f}")
+                if pivot_count <= 2:  # Detailed info for first two
+                    left_vals = low_values[i-left_bars:i]
+                    right_vals = low_values[i+1:i+right_bars+1]
+                    logging.info(f"📊   Left bars: {left_vals}")
+                    logging.info(f"📊   Right bars: {right_vals}")
     
-    return result
+    logging.info(f"✅ Pivot Low: Found {pivot_count} pivot lows out of {len(low) - left_bars - right_bars} possible bars")
+    
+    # Diagnostic info if no pivots found
+    if pivot_count == 0:
+        logging.error("❌ No pivot lows found! Sample data analysis:")
+        sample_size = min(10, len(low))
+        logging.error(f"📊 First {sample_size} values: {low_values[:sample_size]}")
+        if len(low) > 20:
+            mid_start = len(low) // 2 - 5
+            logging.error(f"📊 Middle values: {low_values[mid_start:mid_start+10]}")
+    
+    return pd.Series(result_values, index=low.index)
 
 def marketwatch_indicator_vectorized(close, open_):
     """Vectorized MarketWatch indicator"""
@@ -1100,3 +1188,36 @@ if __name__ == "__main__":
         import traceback
         logging.error(f"❌ Full traceback: {''.join(traceback.format_exc())}")
         sys.exit(1)
+
+def test_pivot_functions():
+    """Test pivot functions with sample data to debug the logic"""
+    import pandas as pd
+    import numpy as np
+    
+    # Create sample data that should have clear pivots
+    # Pattern: 10, 12, 15, 18, 22, 20, 17, 15, 18, 21, 19, 16
+    # Should have pivot high at index 4 (value 22) and pivot low at index 7 (value 15)
+    sample_highs = pd.Series([10, 12, 15, 18, 22, 20, 17, 15, 18, 21, 19, 16])
+    sample_lows = pd.Series([8, 10, 13, 16, 20, 18, 15, 13, 16, 19, 17, 14])
+    
+    print("🔧 Testing Pivot Functions with Sample Data")
+    print(f"Sample highs: {sample_highs.tolist()}")
+    print(f"Sample lows: {sample_lows.tolist()}")
+    
+    # Test pivot highs
+    pivot_highs = pivot_high_vectorized(sample_highs, left_bars=3, right_bars=3)
+    print(f"Pivot highs result: {pivot_highs.tolist()}")
+    
+    # Test pivot lows  
+    pivot_lows = pivot_low_vectorized(sample_lows, left_bars=3, right_bars=3)
+    print(f"Pivot lows result: {pivot_lows.tolist()}")
+    
+    # Count non-NaN values
+    high_count = pivot_highs.count()
+    low_count = pivot_lows.count()
+    print(f"Found {high_count} pivot highs and {low_count} pivot lows")
+    
+    return pivot_highs, pivot_lows
+
+# Uncomment the line below to test pivot functions locally
+# test_pivot_functions()
