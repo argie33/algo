@@ -394,34 +394,64 @@ def pivot_high(df, left_bars=3, right_bars=3, shunt=1):
         right_bars: bars to look right (default 3) 
         shunt: bars to shift back after confirmation (default 1)
     """
+    # DEBUG: Check if we have the required columns and valid data
+    if 'high' not in df.columns:
+        logging.error(f"❌ PIVOT ERROR: 'high' column missing from DataFrame. Available columns: {list(df.columns)}")
+        return pd.Series(np.full(len(df), np.nan), index=df.index)
+    
+    # Check for NaN values in high column
+    nan_count = df['high'].isna().sum()
+    if nan_count > 0:
+        logging.warning(f"⚠️  PIVOT WARNING: {nan_count} NaN values found in 'high' column out of {len(df)} rows")
+    
+    # Check for zero or negative values
+    invalid_count = (df['high'] <= 0).sum()
+    if invalid_count > 0:
+        logging.warning(f"⚠️  PIVOT WARNING: {invalid_count} zero/negative values found in 'high' column")
+    
     pivot_vals = [np.nan] * len(df)
+    pivot_count = 0
     
     # First find raw pivots (like pvthi_)
     for i in range(left_bars, len(df) - right_bars):
-        current_high = df['high'].iloc[i]
-        
-        # Check left bars - current high should be higher than all left bars
-        left_higher = True
-        for j in range(i - left_bars, i):
-            if current_high <= df['high'].iloc[j]:
-                left_higher = False
-                break
-        
-        if not left_higher:
-            continue
+        try:
+            current_high = df['high'].iloc[i]
             
-        # Check right bars - current high should be higher than all right bars  
-        right_higher = True
-        for j in range(i + 1, i + right_bars + 1):
-            if current_high <= df['high'].iloc[j]:
-                right_higher = False
-                break
+            # Skip if current high is NaN or invalid
+            if pd.isna(current_high) or current_high <= 0:
+                continue
+            
+            # Check left bars - current high should be higher than all left bars
+            left_higher = True
+            for j in range(i - left_bars, i):
+                left_val = df['high'].iloc[j]
+                if pd.isna(left_val) or current_high <= left_val:
+                    left_higher = False
+                    break
+            
+            if not left_higher:
+                continue
                 
-        if left_higher and right_higher:
-            # Apply shunt - shift the pivot back by shunt bars (like pvthi_[Shunt])
-            shunted_index = i + shunt
-            if shunted_index < len(pivot_vals):
-                pivot_vals[shunted_index] = current_high
+            # Check right bars - current high should be higher than all right bars  
+            right_higher = True
+            for j in range(i + 1, i + right_bars + 1):
+                right_val = df['high'].iloc[j]
+                if pd.isna(right_val) or current_high <= right_val:
+                    right_higher = False
+                    break
+                    
+            if left_higher and right_higher:
+                # Apply shunt - shift the pivot back by shunt bars (like pvthi_[Shunt])
+                shunted_index = i + shunt
+                if shunted_index < len(pivot_vals):
+                    pivot_vals[shunted_index] = current_high
+                    pivot_count += 1
+        except Exception as e:
+            logging.error(f"❌ PIVOT ERROR at index {i}: {str(e)}")
+            continue
+    
+    if pivot_count == 0:
+        logging.warning(f"⚠️  PIVOT WARNING: No pivot highs found in {len(df)} bars of data")
     
     return pd.Series(pivot_vals, index=df.index)
 
@@ -438,34 +468,64 @@ def pivot_low(df, left_bars=3, right_bars=3, shunt=1):
         right_bars: bars to look right (default 3)
         shunt: bars to shift back after confirmation (default 1)
     """
+    # DEBUG: Check if we have the required columns and valid data
+    if 'low' not in df.columns:
+        logging.error(f"❌ PIVOT ERROR: 'low' column missing from DataFrame. Available columns: {list(df.columns)}")
+        return pd.Series(np.full(len(df), np.nan), index=df.index)
+    
+    # Check for NaN values in low column
+    nan_count = df['low'].isna().sum()
+    if nan_count > 0:
+        logging.warning(f"⚠️  PIVOT WARNING: {nan_count} NaN values found in 'low' column out of {len(df)} rows")
+    
+    # Check for zero or negative values
+    invalid_count = (df['low'] <= 0).sum()
+    if invalid_count > 0:
+        logging.warning(f"⚠️  PIVOT WARNING: {invalid_count} zero/negative values found in 'low' column")
+    
     pivot_vals = [np.nan] * len(df)
+    pivot_count = 0
     
     # First find raw pivots (like pvtlo_)
     for i in range(left_bars, len(df) - right_bars):
-        current_low = df['low'].iloc[i]
-        
-        # Check left bars - current low should be lower than all left bars
-        left_lower = True
-        for j in range(i - left_bars, i):
-            if current_low >= df['low'].iloc[j]:
-                left_lower = False
-                break
-        
-        if not left_lower:
-            continue
+        try:
+            current_low = df['low'].iloc[i]
             
-        # Check right bars - current low should be lower than all right bars
-        right_lower = True
-        for j in range(i + 1, i + right_bars + 1):
-            if current_low >= df['low'].iloc[j]:
-                right_lower = False
-                break
+            # Skip if current low is NaN or invalid
+            if pd.isna(current_low) or current_low <= 0:
+                continue
+            
+            # Check left bars - current low should be lower than all left bars
+            left_lower = True
+            for j in range(i - left_bars, i):
+                left_val = df['low'].iloc[j]
+                if pd.isna(left_val) or current_low >= left_val:
+                    left_lower = False
+                    break
+            
+            if not left_lower:
+                continue
                 
-        if left_lower and right_lower:
-            # Apply shunt - shift the pivot back by shunt bars (like pvtlo_[Shunt])
-            shunted_index = i + shunt  
-            if shunted_index < len(pivot_vals):
-                pivot_vals[shunted_index] = current_low
+            # Check right bars - current low should be lower than all right bars
+            right_lower = True
+            for j in range(i + 1, i + right_bars + 1):
+                right_val = df['low'].iloc[j]
+                if pd.isna(right_val) or current_low >= right_val:
+                    right_lower = False
+                    break
+                    
+            if left_lower and right_lower:
+                # Apply shunt - shift the pivot back by shunt bars (like pvtlo_[Shunt])
+                shunted_index = i + shunt  
+                if shunted_index < len(pivot_vals):
+                    pivot_vals[shunted_index] = current_low
+                    pivot_count += 1
+        except Exception as e:
+            logging.error(f"❌ PIVOT ERROR at index {i}: {str(e)}")
+            continue
+    
+    if pivot_count == 0:
+        logging.warning(f"⚠️  PIVOT WARNING: No pivot lows found in {len(df)} bars of data")
     
     return pd.Series(pivot_vals, index=df.index)
 
@@ -623,10 +683,10 @@ def calculate_technicals_parallel(df):
         results['macd'] = macd_line
         results['macd_signal'] = signal_line
         results['macd_hist'] = histogram
-        
-        # ADX (computationally expensive)
+          # ADX (computationally expensive)
         results['adx'] = calculate_adx(df['high'], df['low'], df['close'], period=14)
-          # Bollinger Bands
+        
+        # Bollinger Bands
         bb_lower, bb_middle, bb_upper = calculate_bollinger_bands(df['close'], period=20, std_dev=2)
         results['bbands_lower'] = bb_lower
         results['bbands_middle'] = bb_middle
@@ -641,7 +701,9 @@ def calculate_technicals_parallel(df):
         # Custom indicators
         results['td_sequential'] = td_sequential_vectorized(df['close'], lookback=4)
         results['td_combo'] = td_combo_vectorized(df['close'], lookback=2)
-        results['marketwatch'] = marketwatch_indicator_vectorized(df['close'], df['open'])        # Pivot points - Pine Script style with shunt (matches your exact Pine Script)
+        results['marketwatch'] = marketwatch_indicator_vectorized(df['close'], df['open'])
+        
+        # Pivot points - Pine Script style with shunt (matches your exact Pine Script)
         data_length = len(df)
         min_required = 7  # 3 left + 1 center + 3 right
         
