@@ -292,30 +292,50 @@ def cmf_fast(high, low, close, volume, period=20):
     return cmf.fillna(0)
 
 def mfi_fast(high, low, close, volume, period=14):
-    """Money Flow Index"""
+    """Money Flow Index - Fixed to handle edge cases"""
     if len(high) < period + 1:
         return pd.Series(np.full(len(high), np.nan), index=high.index)
     
-    # Typical Price
-    typical_price = (high + low + close) / 3
-    
-    # Raw Money Flow
-    raw_money_flow = typical_price * volume
-    
-    # Positive and Negative Money Flow
-    price_changes = typical_price.diff()
-    pos_money_flow = raw_money_flow.where(price_changes > 0, 0)
-    neg_money_flow = raw_money_flow.where(price_changes < 0, 0)
-    
-    # Rolling sums
-    pos_sum = pos_money_flow.rolling(window=period, min_periods=period).sum()
-    neg_sum = neg_money_flow.rolling(window=period, min_periods=period).sum()
-    
-    # MFI calculation
-    money_ratio = pos_sum / (neg_sum + 1e-10)
-    mfi = 100 - (100 / (1 + money_ratio))
-    
-    return mfi.fillna(50)
+    try:
+        # Ensure all inputs are numeric and not empty
+        high = pd.to_numeric(high, errors='coerce')
+        low = pd.to_numeric(low, errors='coerce')
+        close = pd.to_numeric(close, errors='coerce')
+        volume = pd.to_numeric(volume, errors='coerce')
+        
+        # Remove any rows where any value is NaN
+        mask = ~(high.isna() | low.isna() | close.isna() | volume.isna() | (volume <= 0))
+        if mask.sum() < period + 1:
+            return pd.Series(np.full(len(high), np.nan), index=high.index)
+        
+        # Typical Price
+        typical_price = (high + low + close) / 3
+        
+        # Raw Money Flow
+        raw_money_flow = typical_price * volume
+        
+        # Positive and Negative Money Flow
+        price_changes = typical_price.diff()
+        pos_money_flow = raw_money_flow.where(price_changes > 0, 0)
+        neg_money_flow = raw_money_flow.where(price_changes < 0, 0)
+        
+        # Rolling sums with minimum periods
+        pos_sum = pos_money_flow.rolling(window=period, min_periods=1).sum()
+        neg_sum = neg_money_flow.rolling(window=period, min_periods=1).sum()
+        
+        # MFI calculation with better error handling
+        neg_sum_safe = neg_sum.replace(0, 1e-10)  # Avoid division by zero
+        money_ratio = pos_sum / neg_sum_safe
+        mfi = 100 - (100 / (1 + money_ratio))
+        
+        # Ensure MFI is between 0 and 100
+        mfi = mfi.clip(0, 100)
+        
+        return mfi.fillna(50)
+        
+    except Exception as e:
+        logging.warning(f"MFI calculation failed: {e}")
+        return pd.Series(np.full(len(high), 50.0), index=high.index)
 
 def pivot_high_vectorized(high, left_bars=3, right_bars=3):
     """Vectorized pivot high calculation"""
@@ -389,8 +409,7 @@ def calculate_technicals_parallel(df):
     # Ensure proper data types
     for col in ['open', 'high', 'low', 'close', 'volume']:
         df[col] = pd.to_numeric(df[col], errors='coerce')
-    
-    # Fill gaps and drop NaN rows
+      # Fill gaps and drop NaN rows
     original_len = len(df)
     df = df.ffill().bfill().dropna()
     
@@ -400,21 +419,33 @@ def calculate_technicals_parallel(df):
     if len(df) < 50:  # Need minimum data for calculations
         logging.warning(f"⚠️ Insufficient data for technicals: {len(df)} rows (need at least 50)")
         return None
-    
+
     try:
         results = {}
         
         # Basic indicators
         logging.info("🔄 Calculating basic indicators...")
         results['rsi'] = rsi_fast(df['close'], period=14)
+        logging.info(f"✓ RSI: {results['rsi'].count()} valid values, {results['rsi'].isna().sum()} NaN")
+        
         results['mom'] = momentum_fast(df['close'], period=10)
+        logging.info(f"✓ Momentum: {results['mom'].count()} valid values, {results['mom'].isna().sum()} NaN")
+        
         results['roc'] = roc_fast(df['close'], period=10)
+        logging.info(f"✓ ROC: {results['roc'].count()} valid values, {results['roc'].isna().sum()} NaN")
         
         # Volume indicators (MISSING FROM ORIGINAL)
         logging.info("🔄 Calculating volume indicators...")
+        logging.info(f"📊 Volume data: min={df['volume'].min()}, max={df['volume'].max()}, nan_count={df['volume'].isna().sum()}")
+        
         results['ad'] = ad_line_fast(df['high'], df['low'], df['close'], df['volume'])
+        logging.info(f"✓ A/D Line: {results['ad'].count()} valid values, {results['ad'].isna().sum()} NaN")
+        
         results['cmf'] = cmf_fast(df['high'], df['low'], df['close'], df['volume'], period=20)
+        logging.info(f"✓ CMF: {results['cmf'].count()} valid values, {results['cmf'].isna().sum()} NaN")
+        
         results['mfi'] = mfi_fast(df['high'], df['low'], df['close'], df['volume'], period=14)
+        logging.info(f"✓ MFI: {results['mfi'].count()} valid values, {results['mfi'].isna().sum()} NaN")
         
         # Moving averages
         logging.info("🔄 Calculating moving averages...")
@@ -444,17 +475,27 @@ def calculate_technicals_parallel(df):
         
         # ATR
         results['atr'] = atr_fast(df['high'], df['low'], df['close'], period=14)
-        
-        # Custom indicators (MISSING FROM ORIGINAL)
+          # Custom indicators (MISSING FROM ORIGINAL)
         logging.info("🔄 Calculating custom indicators...")
         results['td_sequential'] = td_sequential_vectorized(df['close'], lookback=4)
+        logging.info(f"✓ TD Sequential: {results['td_sequential'].count()} valid values, {results['td_sequential'].isna().sum()} NaN")
+        
         results['td_combo'] = td_combo_vectorized(df['close'], lookback=2)
+        logging.info(f"✓ TD Combo: {results['td_combo'].count()} valid values, {results['td_combo'].isna().sum()} NaN")
+        
         results['marketwatch'] = marketwatch_indicator_vectorized(df['close'], df['open'])
+        logging.info(f"✓ MarketWatch: {results['marketwatch'].count()} valid values, {results['marketwatch'].isna().sum()} NaN")
         
         # Pivot points (MISSING FROM ORIGINAL)
         logging.info("🔄 Calculating pivot points...")
+        logging.info(f"📊 High data: min={df['high'].min()}, max={df['high'].max()}")
+        logging.info(f"📊 Low data: min={df['low'].min()}, max={df['low'].max()}")
+        
         results['pivot_high'] = pivot_high_vectorized(df['high'], left_bars=3, right_bars=3)
+        logging.info(f"✓ Pivot High: {results['pivot_high'].count()} valid values, {results['pivot_high'].isna().sum()} NaN")
+        
         results['pivot_low'] = pivot_low_vectorized(df['low'], left_bars=3, right_bars=3)
+        logging.info(f"✓ Pivot Low: {results['pivot_low'].count()} valid values, {results['pivot_low'].isna().sum()} NaN")
         
         # DM calculation (MISSING FROM ORIGINAL)
         logging.info("🔄 Calculating directional movement...")
@@ -463,6 +504,7 @@ def calculate_technicals_parallel(df):
         dm_plus = dm_plus.where((dm_plus>dm_minus)&(dm_plus>0), 0)
         dm_minus = dm_minus.where((dm_minus>dm_plus)&(dm_minus>0), 0)
         results['dm'] = dm_plus - dm_minus
+        logging.info(f"✓ DM: {results['dm'].count()} valid values, {results['dm'].isna().sum()} NaN")
         
         # Combine all results into the original dataframe
         for key, series in results.items():
@@ -723,12 +765,21 @@ def load_technicals_for_symbol(symbol, cur):
         df = df.set_index('date')
         
         logging.info(f"📊 Data range for {symbol}: {df.index.min()} to {df.index.max()}")
-        
-        # Calculate technical indicators
+          # Calculate technical indicators
         df_tech = calculate_technicals_parallel(df)
         if df_tech is None:
             logging.warning(f"⚠️ Failed to calculate technicals for {symbol}")
             return 0
+
+        # Log final data quality for troubleshooting indicators
+        key_indicators = ['mfi', 'ad', 'cmf', 'pivot_high', 'pivot_low', 'dm']
+        for indicator in key_indicators:
+            if indicator in df_tech.columns:
+                valid_count = df_tech[indicator].count()
+                total_count = len(df_tech)
+                logging.info(f"📊 {symbol} {indicator.upper()}: {valid_count}/{total_count} valid values ({valid_count/total_count*100:.1f}%)")
+            else:
+                logging.warning(f"⚠️ {symbol}: {indicator.upper()} column not found in calculated data")
         
         # Prepare data for insertion
         df_tech = df_tech.reset_index()
