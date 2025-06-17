@@ -580,13 +580,33 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
         queryParams.append(key, value)
       }
     })
-      const url = `/technical/${timeframe}?${queryParams.toString()}`
+    
+    const url = `/technical/${timeframe}?${queryParams.toString()}`
     console.log('Fetching technical data from:', url)
-    return await api.get(url, {
+    
+    const response = await api.get(url, {
       baseURL: currentConfig.baseURL
     })
+    
+    console.log('Technical data response:', response.data)
+    return response.data
   } catch (error) {
-    handleApiError(error, `get technical data (${timeframe})`)
+    console.error('Error fetching technical data:', error)
+    // Don't call handleApiError since it throws - just handle the error gracefully
+    console.error(`API Error on get technical data (${timeframe}):`, {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      config: error.config?.url,
+      baseURL: error.config?.baseURL
+    })
+    
+    // Return empty data structure that matches expected format
+    return { 
+      data: [], 
+      pagination: { total: 0, page: 1, limit: 50, totalPages: 0, hasNext: false, hasPrev: false },
+      error: error.message 
+    }
   }
 }
 

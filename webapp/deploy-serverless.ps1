@@ -8,8 +8,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# Configuration
-$StackName = "financial-dashboard-$Environment"
+# Configuration - Use existing stack name
+$StackName = if ($Environment -eq "prod") { "stocks-webapp-stack" } else { "stocks-webapp-$Environment" }
 
 # Logging functions
 function Write-Info {
@@ -291,7 +291,7 @@ function Test-Deployment {
 
 # Main deployment function
 function Main {
-    Write-Info "🚀 Starting Financial Dashboard serverless deployment..."
+    Write-Info "Starting Financial Dashboard serverless deployment..."
     Write-Info "Environment: $Environment"
     Write-Info "Region: $Region"
     Write-Info "Stack: $StackName"
@@ -319,18 +319,18 @@ function Main {
     Write-Host "Website: $($script:WebsiteUrl)"
     Write-Host "API: $($script:ApiUrl)"
     Write-Host ""
-    Write-Host "☁️ AWS Resources:" -ForegroundColor Blue
+    Write-Host "AWS Resources:" -ForegroundColor Blue
     Write-Host "S3 Bucket: $($script:BucketName)"
     Write-Host "CloudFront: $($script:CloudFrontId)"
     Write-Host ""
-    Write-Host "💰 Cost Savings: 85-95% reduction vs ECS (estimated `$1-5/month)" -ForegroundColor Green
+    Write-Host "Cost Savings: 85-95% reduction vs ECS (estimated $1-5/month)" -ForegroundColor Green
     Write-Host ""
-    Write-Success "✅ Financial Dashboard is now live on serverless architecture!"
+    Write-Success "Financial Dashboard is now live on serverless architecture!"
 }
 
 # Handle script parameters
 if ($args -contains "-h" -or $args -contains "--help") {
-    Write-Host "Usage: .\deploy-serverless.ps1 [-Environment <env>] [-Region <region>]"
+    Write-Host "Usage: .\deploy-serverless.ps1 [-Environment env] [-Region region]"
     Write-Host "Environments: dev, staging, prod (default: prod)"
     Write-Host "Region: AWS region (default: us-east-1)"
     exit 0
@@ -339,7 +339,7 @@ if ($args -contains "-h" -or $args -contains "--help") {
 # Validate environment
 if ($Environment -notin @("dev", "staging", "prod")) {
     Write-Error "Invalid environment: $Environment"
-    Write-Host "Valid environments: dev, staging, prod"
+    Write-Host "Valid environments: dev staging prod"
     exit 1
 }
 
