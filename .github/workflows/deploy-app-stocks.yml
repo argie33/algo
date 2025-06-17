@@ -101,9 +101,11 @@ jobs:
       growthestimates:   ${{ steps.paths.outputs.growthestimates }}
       incomestmt:        ${{ steps.paths.outputs.incomestmt }}
       quarterlybalancesheet: ${{ steps.paths.outputs.quarterlybalancesheet }}
-      quarterlycashflow: ${{ steps.paths.outputs.quarterlycashflow }}
-      quarterlyincomestmt: ${{ steps.paths.outputs.quarterlyincomestmt }}
+      quarterlycashflow: ${{ steps.paths.outputs.quarterlycashflow }}      quarterlyincomestmt: ${{ steps.paths.outputs.quarterlyincomestmt }}
       analystgrade:      ${{ steps.paths.outputs.analystgrade }}
+      naaim:             ${{ steps.paths.outputs.naaim }}
+      aaiisentiment:     ${{ steps.paths.outputs.aaiisentiment }}
+      feargreed:         ${{ steps.paths.outputs.feargreed }}
       stockscreener:     ${{ steps.paths.outputs.stockscreener }}
       any:               ${{ steps.any.outputs.any }}
       matrix:            ${{ steps.matrix.outputs.matrix }}
@@ -214,10 +216,11 @@ jobs:
               - 'loadcalendar.py'
               - 'Dockerfile.loadcalendar'
               - 'requirements-loadcalendar.txt'
+            
             buyselldaily:
-              - 'loadbuyselldaily.py'
-              - 'Dockerfile.buyselldaily'
-              - 'requirements-loadbuyselldaily.txt'
+              - 'loadbuysell.py'
+              - 'Dockerfile.buysell'
+              - 'requirements-loadbuysell.txt'
             buysellweekly:
               - 'loadbuysellweekly.py'
               - 'Dockerfile.buysellweekly'
@@ -273,11 +276,22 @@ jobs:
             quarterlyincomestmt:
               - 'loadquarterlyincomestmt.py'
               - 'Dockerfile.quarterlyincomestmt'
-              - 'requirements-loadquarterlyincomestmt.txt'
-            analystgrade:
+              - 'requirements-loadquarterlyincomestmt.txt'            analystgrade:
               - 'loadanalystupgradedowngrade.py'
               - 'dockerfile.analystgrade'
               - 'requirements-loadanalystupgradedowngrade.txt'
+            naaim:
+              - 'loadnaaim.py'
+              - 'Dockerfile.naaim'
+              - 'requirements-loadnaaim.txt'
+            aaiisentiment:
+              - 'loadaaiisentiment.py'
+              - 'Dockerfile.aaiisentiment'
+              - 'requirements-loadaaiisentiment.txt'
+            feargreed:
+              - 'loadfeargreed.py'
+              - 'Dockerfile.feargreed'
+              - 'requirements-loadfeargreed.txt'
             stockscreener:
               - 'stock_screener.py'
               - 'dockerfile-screener'
@@ -322,9 +336,11 @@ jobs:
              [ "${{ steps.paths.outputs.growthestimates }}" = "true" ] || \
              [ "${{ steps.paths.outputs.incomestmt }}" = "true" ] || \
              [ "${{ steps.paths.outputs.quarterlybalancesheet }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.quarterlycashflow }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.quarterlyincomestmt }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.quarterlycashflow }}" = "true" ] || \             [ "${{ steps.paths.outputs.quarterlyincomestmt }}" = "true" ] || \
              [ "${{ steps.paths.outputs.analystgrade }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.naaim }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.aaiisentiment }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.feargreed }}" = "true" ] || \
              [ "${{ steps.paths.outputs.stockscreener }}" = "true" ] || \
              [ "${{ steps.paths.outputs.app }}" = "true" ]; then
             echo "any=true" >> $GITHUB_OUTPUT
@@ -372,9 +388,11 @@ jobs:
           [ "${{ steps.paths.outputs.growthestimates }}" = "true" ] && arr="$arr,\"growthestimates\""
           [ "${{ steps.paths.outputs.incomestmt }}" = "true" ] && arr="$arr,\"incomestmt\""
           [ "${{ steps.paths.outputs.quarterlybalancesheet }}" = "true" ] && arr="$arr,\"quarterlybalancesheet\""
-          [ "${{ steps.paths.outputs.quarterlycashflow }}" = "true" ] && arr="$arr,\"quarterlycashflow\""
-          [ "${{ steps.paths.outputs.quarterlyincomestmt }}" = "true" ] && arr="$arr,\"quarterlyincomestmt\""
+          [ "${{ steps.paths.outputs.quarterlycashflow }}" = "true" ] && arr="$arr,\"quarterlycashflow\""          [ "${{ steps.paths.outputs.quarterlyincomestmt }}" = "true" ] && arr="$arr,\"quarterlyincomestmt\""
           [ "${{ steps.paths.outputs.analystgrade }}" = "true" ] && arr="$arr,\"analystgrade\""
+          [ "${{ steps.paths.outputs.naaim }}" = "true" ] && arr="$arr,\"naaim\""
+          [ "${{ steps.paths.outputs.aaiisentiment }}" = "true" ] && arr="$arr,\"aaiisentiment\""
+          [ "${{ steps.paths.outputs.feargreed }}" = "true" ] && arr="$arr,\"feargreed\""
           [ "${{ steps.paths.outputs.stockscreener }}" = "true" ] && arr="$arr,\"stockscreener\""
           
           echo "matrix=[${arr#,}]" >> $GITHUB_OUTPUT
@@ -434,7 +452,7 @@ jobs:
             technicalsmonthly)DOCKERFILE=Dockerfile.technicalsmonthly;PARAM=TechnicalsMonthlyImageTag;;\
             swingtrader)      DOCKERFILE=Dockerfile.swingtrader;    PARAM=SwingTraderImageTag;;\
             calendar)         DOCKERFILE=Dockerfile.loadcalendar;   PARAM=CalendarImageTag;;\
-            buyselldaily)      DOCKERFILE=Dockerfile.buyselldaily;    PARAM=BuySellDailyImageTag;;\
+            buyselldaily)      DOCKERFILE=Dockerfile.buysell;    PARAM=BuySellDailyImageTag;;\
             buysellweekly)     DOCKERFILE=Dockerfile.buysellweekly;   PARAM=BuySellWeeklyImageTag;;\
             buysellmonthly)    DOCKERFILE=Dockerfile.buysellmonthly;  PARAM=BuySellMonthlyImageTag;;\
             latesttechnicalsdaily)   DOCKERFILE=Dockerfile.latesttechnicalsdaily;   PARAM=LatestTechnicalsDailyImageTag;;\
@@ -453,9 +471,11 @@ jobs:
             growthestimates)   DOCKERFILE=Dockerfile.growthestimates; PARAM=GrowthEstimatesImageTag;;\
             incomestmt)        DOCKERFILE=Dockerfile.incomestmt;    PARAM=IncomeStmtImageTag;;\
             quarterlybalancesheet) DOCKERFILE=Dockerfile.quarterlybalancesheet; PARAM=QuarterlyBalanceSheetImageTag;;\
-            quarterlycashflow) DOCKERFILE=Dockerfile.quarterlycashflow; PARAM=QuarterlyCashFlowImageTag;;\
-            quarterlyincomestmt) DOCKERFILE=Dockerfile.quarterlyincomestmt; PARAM=QuarterlyIncomeStmtImageTag;;\
+            quarterlycashflow) DOCKERFILE=Dockerfile.quarterlycashflow; PARAM=QuarterlyCashFlowImageTag;;\            quarterlyincomestmt) DOCKERFILE=Dockerfile.quarterlyincomestmt; PARAM=QuarterlyIncomeStmtImageTag;;\
             analystgrade)      DOCKERFILE=dockerfile.analystgrade;  PARAM=AnalystGradeImageTag;;\
+            naaim)             DOCKERFILE=Dockerfile.naaim;         PARAM=NaaimImageTag;;\
+            aaiisentiment)     DOCKERFILE=Dockerfile.aaiisentiment; PARAM=AaiiSentimentImageTag;;\
+            feargreed)         DOCKERFILE=Dockerfile.feargreed;     PARAM=FearGreedImageTag;;\
             stockscreener)      DOCKERFILE=Dockerfile.stockscreener;  PARAM=StockScreenerImageTag;;\
           esac
           TAG=${{ matrix.loader }}-${{ github.sha }}
@@ -633,9 +653,8 @@ jobs:
             --settings name=containerInsights,value=enabled
 
 ################################################################################
-# 6) Run each changed loader - LIMITED TO 2 PARALLEL JOBS                      #
+# 6) Run each changed loader                                                    #
 ################################################################################
-# GROUP 1: First pair of jobs (can run in parallel)
   run_symbols:
     name: Run stock-symbols loader
     needs: deploy-tasks
@@ -811,10 +830,11 @@ jobs:
             echo "❌ econ-data failed with exit code $EXIT"
             exit $EXIT
           fi
+
   run_pricedaily:
     name: Run pricedaily loader
-    needs: [run_symbols, run_econ]  # GROUP 2: Depends on Group 1 completion
-    if: ${{ always() && needs.filter.outputs.pricedaily == 'true' && !contains(needs.*.result, 'failure') }}
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.pricedaily == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
