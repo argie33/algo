@@ -16,8 +16,7 @@ router.get('/', async (req, res) => {
         memory: process.memoryUsage(),
         uptime: process.uptime(),
         note: 'Quick health check - database not tested'
-      });
-    }// Full health check with database
+      });    }// Full health check with database
     console.log('Starting health check with database...');
     
     // Initialize database if not already done
@@ -25,7 +24,24 @@ router.get('/', async (req, res) => {
       getPool(); // This will throw if not initialized
     } catch (initError) {
       console.log('Database not initialized, initializing now...');
-      await initializeDatabase();
+      try {
+        await initializeDatabase();
+      } catch (dbInitError) {
+        console.error('Failed to initialize database:', dbInitError.message);
+        return res.status(503).json({
+          status: 'degraded',
+          service: 'Financial Dashboard API',
+          timestamp: new Date().toISOString(),
+          environment: process.env.NODE_ENV || 'development',
+          database: {
+            status: 'initialization_failed',
+            error: dbInitError.message,
+            lastAttempt: new Date().toISOString()
+          },
+          memory: process.memoryUsage(),
+          uptime: process.uptime()
+        });
+      }
     }
     
     // Check if database error was passed from middleware

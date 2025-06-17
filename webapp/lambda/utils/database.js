@@ -184,15 +184,44 @@ function getPool() {
 }
 
 async function query(text, params) {
-  const client = await getPool().connect();
+  let client = null;
   try {
+    if (!pool) {
+      console.log('Pool not initialized, initializing now...');
+      await initializeDatabase();
+    }
+    
+    console.log('Executing query:', text.substring(0, 100) + '...', 'with params:', params?.length || 0);
+    const start = Date.now();
+    
+    client = await getPool().connect();
     const result = await client.query(text, params);
+    
+    const duration = Date.now() - start;
+    console.log('Query executed successfully in', duration, 'ms, returned', result.rows?.length || 0, 'rows');
+    
     return result;
   } catch (error) {
-    console.error('Database query error:', error);
+    console.error('Database query error:', {
+      message: error.message,
+      code: error.code,
+      detail: error.detail,
+      hint: error.hint,
+      query: text.substring(0, 200) + '...',
+      paramsCount: params?.length || 0
+    });
+    
+    // If connection error, reset pool and retry once
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND' || error.message.includes('connect ETIMEDOUT')) {
+      console.log('Connection error detected, resetting pool...');
+      pool = null;
+    }
+    
     throw error;
   } finally {
-    client.release();
+    if (client) {
+      client.release();
+    }
   }
 }
 

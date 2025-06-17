@@ -123,9 +123,36 @@ router.get('/ping', (req, res) => {
 });
 
 // Get comprehensive market overview with sentiment indicators
-router.get('/overview', async (req, res) => {
-  try {
+router.get('/overview', async (req, res) => {  try {
     console.log('Market overview endpoint called');
+    
+    // Check if required tables exist
+    const requiredTables = ['fear_greed_index', 'naaim_exposure', 'stock_symbols'];
+    const missingTables = [];
+    
+    for (const table of requiredTables) {
+      try {
+        const tableCheck = await query(`
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = '${table}'
+          );
+        `);
+        
+        if (!tableCheck.rows[0].exists) {
+          missingTables.push(table);
+        }
+      } catch (checkError) {
+        console.error(`Error checking table ${table}:`, checkError);
+        missingTables.push(table);
+      }
+    }
+    
+    if (missingTables.length > 0) {
+      console.warn('Missing tables for market overview:', missingTables);
+      // Continue but return limited data
+    }
       // Get latest Fear & Greed index
     const fearGreedQuery = `
       SELECT index_value, rating, date

@@ -149,9 +149,35 @@ router.get('/ping', (req, res) => {
 });
 
 // Main stocks endpoint with comprehensive data and filters
-router.get('/', async (req, res) => {
-  try {
+router.get('/', async (req, res) => {  try {
     console.log('Stocks main endpoint called with params:', req.query);
+    
+    // First check if stock_symbols table exists
+    try {
+      const tableCheck = await query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'stock_symbols'
+        );
+      `);
+      
+      if (!tableCheck.rows[0].exists) {
+        return res.status(503).json({
+          error: 'Stock data not available',
+          message: 'The stock_symbols table does not exist. Please run the data loading scripts first.',
+          timestamp: new Date().toISOString()
+        });
+      }
+    } catch (tableCheckError) {
+      console.error('Error checking if stock_symbols table exists:', tableCheckError);
+      return res.status(500).json({
+        error: 'Database connectivity issue',
+        message: 'Unable to check database schema',
+        details: tableCheckError.message,
+        timestamp: new Date().toISOString()
+      });
+    }
     
     const page = parseInt(req.query.page) || 1;
     const limit = Math.min(parseInt(req.query.limit) || 25, 100); // Cap at 100 for performance
