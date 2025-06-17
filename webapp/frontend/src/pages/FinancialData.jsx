@@ -136,7 +136,25 @@ function FinancialData() {
   })
 
   const renderFinancialTable = (data, title, icon) => {
-    if (!data?.data || data.data.length === 0) {
+    // Access the correct nested data structure: data.data.data (axios response -> API response -> actual data array)
+    const actualData = data?.data?.data;
+    
+    // Check for API error responses
+    if (data?.data?.error) {
+      return (
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+              {icon}
+              <Box sx={{ ml: 1 }}>{title}</Box>
+            </Typography>
+            <Alert severity="error">Error loading {title.toLowerCase()}: {data.data.error}</Alert>
+          </CardContent>
+        </Card>
+      )
+    }
+    
+    if (!actualData || actualData.length === 0) {
       return (
         <Card>
           <CardContent>
@@ -159,7 +177,7 @@ function FinancialData() {
           </Typography>
           <Divider sx={{ mb: 2 }} />
             <Grid container spacing={3}>
-            {Array.isArray(data?.data) ? data.data.slice(0, 5).map((period, index) => (
+            {Array.isArray(actualData) ? actualData.slice(0, 5).map((period, index) => (
               <Grid item xs={12} md={6} lg={4} key={period.date}>
                 <Card variant="outlined">
                   <CardContent sx={{ p: 2 }}>
@@ -167,7 +185,8 @@ function FinancialData() {
                       {new Date(period.date).getFullYear()}
                     </Typography>
                     <TableContainer>
-                      <Table size="small">                        <TableBody>
+                      <Table size="small">
+                        <TableBody>
                           {period.items && Object.entries(period.items)
                             .slice(0, 10)
                             .map(([key, value]) => (
@@ -203,8 +222,10 @@ function FinancialData() {
 
           {/* Trend Chart */}
           <Box sx={{ mt: 4 }}>
-            <Typography variant="h6" gutterBottom>Trend Analysis</Typography>            <ResponsiveContainer width="100%" height={300}>              <LineChart data={
-                Array.isArray(data?.data) ? data.data.slice(0, 5).reverse().map(period => {
+            <Typography variant="h6" gutterBottom>Trend Analysis</Typography>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={
+                Array.isArray(actualData) ? actualData.slice(0, 5).reverse().map(period => {
                   const items = period.items
                   const firstItem = items && Object.keys(items).length > 0 ? Object.entries(items)[0] : null
                   return {                    year: new Date(period.date).getFullYear(),
