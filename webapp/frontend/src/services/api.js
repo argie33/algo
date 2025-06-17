@@ -105,16 +105,16 @@ const handleApiError = (error, endpoint = 'unknown') => {
   if (!error.response) {
     // Network error - can't reach server
     if (error.code === 'ECONNABORTED') {
-      throw new Error(`Request timeout on ${endpoint}. The server may be starting up.`)
+      return `Request timeout on ${endpoint}. The server may be starting up.`
     } else {
-      throw new Error(`Network error on ${endpoint}. Check if API server is running and accessible.`)
+      return `Network error on ${endpoint}. Check if API server is running and accessible.`
     }
   } else if (error.response.status >= 500) {
-    throw new Error(`Server error on ${endpoint}: ${error.response.data?.message || error.message}`)
+    return `Server error on ${endpoint}: ${error.response.data?.message || error.message}`
   } else if (error.response.status === 404) {
-    throw new Error(`Endpoint not found: ${endpoint}`)
+    return `Endpoint not found: ${endpoint}`
   } else {
-    throw new Error(`API error on ${endpoint}: ${error.response.data?.message || error.message}`)
+    return `API error on ${endpoint}: ${error.response.data?.message || error.message}`
   }
 }
 
@@ -182,10 +182,18 @@ export const healthCheck = async (queryParams = '') => {
       baseURL: currentConfig.baseURL
     })
     console.log('Health check response:', response.data)
-    return response.data
+    return response // Return full response for consistency
   } catch (error) {
     console.error('Error in health check:', error)
-    handleApiError(error, 'health check')
+    const errorMessage = handleApiError(error, 'health check')
+    // Return a consistent error response structure
+    return { 
+      data: { 
+        error: errorMessage,
+        healthy: false,
+        timestamp: new Date().toISOString()
+      } 
+    }
   }
 }
 
@@ -197,10 +205,16 @@ export const getMarketOverview = async () => {
       baseURL: currentConfig.baseURL
     })
     console.log('Market overview response:', response.data)
-    return response.data
+    return response // Return full response for consistency
   } catch (error) {
     console.error('Error fetching market overview:', error)
-    handleApiError(error, 'market overview')
+    const errorMessage = handleApiError(error, 'market overview')
+    // Return a consistent error response structure
+    return { 
+      data: { 
+        error: errorMessage
+      } 
+    }
   }
 }
 export const getMarketSentimentHistory = (days = 30) => api.get(`/market/sentiment/history?days=${days}`)
@@ -232,10 +246,17 @@ export const getStocks = async (params = {}) => {
     })
     
     console.log('Stocks response:', response.data)
-    return response.data
+    return response // Return full response for consistency
   } catch (error) {
     console.error('Error fetching stocks:', error)
-    handleApiError(error, 'get stocks')
+    const errorMessage = handleApiError(error, 'get stocks')
+    // Return a consistent error response structure
+    return { 
+      data: { 
+        data: [], 
+        error: errorMessage
+      } 
+    }
   }
 }
 
@@ -447,10 +468,17 @@ export const getBalanceSheet = async (ticker, period = 'annual') => {
     })
     
     console.log('Balance sheet response:', response.data)
-    return response.data
+    return response // Return full response for consistency
   } catch (error) {
     console.error('Error fetching balance sheet:', error)
-    handleApiError(error, `get balance sheet for ${ticker}`)
+    const errorMessage = handleApiError(error, `get balance sheet for ${ticker}`)
+    // Return a consistent error response structure
+    return { 
+      data: { 
+        data: [], 
+        error: errorMessage
+      } 
+    }
   }
 }
 export const getIncomeStatement = async (ticker, period = 'annual') => {
@@ -462,10 +490,17 @@ export const getIncomeStatement = async (ticker, period = 'annual') => {
     })
     
     console.log('Income statement response:', response.data)
-    return response.data
+    return response // Return full response for consistency
   } catch (error) {
     console.error('Error fetching income statement:', error)
-    handleApiError(error, `get income statement for ${ticker}`)
+    const errorMessage = handleApiError(error, `get income statement for ${ticker}`)
+    // Return a consistent error response structure
+    return { 
+      data: { 
+        data: [], 
+        error: errorMessage
+      } 
+    }
   }
 }
 
@@ -478,10 +513,17 @@ export const getCashFlowStatement = async (ticker, period = 'annual') => {
     })
     
     console.log('Cash flow response:', response.data)
-    return response.data
+    return response // Return full response for consistency
   } catch (error) {
     console.error('Error fetching cash flow statement:', error)
-    handleApiError(error, `get cash flow statement for ${ticker}`)
+    const errorMessage = handleApiError(error, `get cash flow statement for ${ticker}`)
+    // Return a consistent error response structure
+    return { 
+      data: { 
+        data: [], 
+        error: errorMessage
+      } 
+    }
   }
 }
 export const getFinancialStatements = (ticker, period = 'annual') => api.get(`/financials/${ticker}/financials?period=${period}`)
@@ -628,23 +670,16 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
     })
     
     console.log('Technical data response:', response.data)
-    return response.data
+    return response // Return full response for consistency with other components
   } catch (error) {
     console.error('Error fetching technical data:', error)
-    // Don't call handleApiError since it throws - just handle the error gracefully
-    console.error(`API Error on get technical data (${timeframe}):`, {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-      config: error.config?.url,
-      baseURL: error.config?.baseURL
-    })
-    
-    // Return empty data structure that matches expected format
+    const errorMessage = handleApiError(error, `get technical data (${timeframe})`)
+    // Return a consistent error response structure
     return { 
-      data: [], 
-      pagination: { total: 0, page: 1, limit: 50, totalPages: 0, hasNext: false, hasPrev: false },
-      error: error.message 
+      data: { 
+        data: [], 
+        error: errorMessage
+      } 
     }
   }
 }

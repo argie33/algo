@@ -113,24 +113,25 @@ router.get('/:ticker/balance-sheet', async (req, res) => {
     `;
     
     const result = await query(balanceSheetQuery, [ticker.toUpperCase()]);
-    
-    // Transform data to match frontend expectations
+      // Transform data to match frontend expectations (same structure as income statement)
     const transformedData = result.rows.map(row => ({
       symbol: row.ticker,
       date: row.period_end,
-      totalAssets: parseFloat(row.total_assets || 0),
-      totalLiabilities: parseFloat(row.total_liabilities || 0),
-      stockholdersEquity: parseFloat(row.stockholders_equity || 0),
-      cash: parseFloat(row.cash_and_cash_equivalents || 0),
-      currentAssets: parseFloat(row.current_assets || 0),
-      currentLiabilities: parseFloat(row.current_liabilities || 0),
-      longTermDebt: parseFloat(row.long_term_debt || 0),
-      workingCapital: parseFloat(row.working_capital || 0),
-      retainedEarnings: parseFloat(row.retained_earnings || 0),
-      commonStockEquity: parseFloat(row.common_stock_equity || 0),
-      tangibleBookValue: parseFloat(row.tangible_book_value || 0),
-      netDebt: parseFloat(row.net_debt || 0),
-      investedCapital: parseFloat(row.invested_capital || 0)
+      items: {
+        'Total Assets': parseFloat(row.total_assets || 0),
+        'Total Liabilities': parseFloat(row.total_liabilities || 0),
+        'Stockholders Equity': parseFloat(row.stockholders_equity || 0),
+        'Cash and Cash Equivalents': parseFloat(row.cash_and_cash_equivalents || 0),
+        'Current Assets': parseFloat(row.current_assets || 0),
+        'Current Liabilities': parseFloat(row.current_liabilities || 0),
+        'Long Term Debt': parseFloat(row.long_term_debt || 0),
+        'Working Capital': parseFloat(row.working_capital || 0),
+        'Retained Earnings': parseFloat(row.retained_earnings || 0),
+        'Common Stock Equity': parseFloat(row.common_stock_equity || 0),
+        'Tangible Book Value': parseFloat(row.tangible_book_value || 0),
+        'Net Debt': parseFloat(row.net_debt || 0),
+        'Invested Capital': parseFloat(row.invested_capital || 0)
+      }
     }));
     
     res.json({
