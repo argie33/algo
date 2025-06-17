@@ -167,9 +167,8 @@ function FinancialData() {
                       {new Date(period.date).getFullYear()}
                     </Typography>
                     <TableContainer>
-                      <Table size="small">
-                        <TableBody>
-                          {Object.entries(period.items)
+                      <Table size="small">                        <TableBody>
+                          {period.items && Object.entries(period.items)
                             .slice(0, 10)
                             .map(([key, value]) => (
                             <TableRow key={key}>
@@ -181,6 +180,13 @@ function FinancialData() {
                               </TableCell>
                             </TableRow>
                           ))}
+                          {!period.items && (
+                            <TableRow>
+                              <TableCell colSpan={2} sx={{ py: 1, fontSize: '0.875rem', border: 'none', textAlign: 'center', color: 'text.secondary' }}>
+                                No financial data available for this period
+                              </TableCell>
+                            </TableRow>
+                          )}
                         </TableBody>
                       </Table>                    </TableContainer>
                   </CardContent>
@@ -197,11 +203,10 @@ function FinancialData() {
 
           {/* Trend Chart */}
           <Box sx={{ mt: 4 }}>
-            <Typography variant="h6" gutterBottom>Trend Analysis</Typography>
-            <ResponsiveContainer width="100%" height={300}>              <LineChart data={
+            <Typography variant="h6" gutterBottom>Trend Analysis</Typography>            <ResponsiveContainer width="100%" height={300}>              <LineChart data={
                 Array.isArray(data?.data) ? data.data.slice(0, 5).reverse().map(period => {
                   const items = period.items
-                  const firstItem = Object.entries(items)[0]
+                  const firstItem = items && Object.keys(items).length > 0 ? Object.entries(items)[0] : null
                   return {                    year: new Date(period.date).getFullYear(),
                     value: firstItem ? firstItem[1] : 0,
                     name: firstItem ? firstItem[0] : 'N/A'
