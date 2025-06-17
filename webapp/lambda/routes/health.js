@@ -16,7 +16,8 @@ router.get('/', async (req, res) => {
         memory: process.memoryUsage(),
         uptime: process.uptime(),
         note: 'Quick health check - database not tested'
-      });    }// Full health check with database
+      });
+    }// Full health check with database
     console.log('Starting health check with database...');
     
     // Initialize database if not already done
@@ -71,8 +72,7 @@ router.get('/', async (req, res) => {
     ]);
     const dbTime = Date.now() - dbStart;
     
-    console.log(`Database connection test completed in ${dbTime}ms`);
-      // Get table information (check existence first)
+    console.log(`Database connection test completed in ${dbTime}ms`);      // Get table information (check existence first)
     let tables = {};
     try {
       const tableExistenceCheck = await Promise.race([
@@ -80,7 +80,7 @@ router.get('/', async (req, res) => {
           SELECT table_name 
           FROM information_schema.tables 
           WHERE table_schema = 'public' 
-          AND table_name IN ('company_profile', 'key_metrics', 'market_data', 'ttm_income_stmt', 'ttm_cash_flow')
+          AND table_name IN ('stock_symbols', 'fear_greed_index', 'naaim_exposure', 'technical_data_daily', 'earnings_estimates')
         `),
         new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Table existence check timeout')), 2000)
@@ -116,7 +116,7 @@ router.get('/', async (req, res) => {
       }
 
       // Add missing tables as "not_found"
-      ['company_profile', 'key_metrics', 'market_data', 'ttm_income_stmt', 'ttm_cash_flow'].forEach(tableName => {
+      ['stock_symbols', 'fear_greed_index', 'naaim_exposure', 'technical_data_daily', 'earnings_estimates'].forEach(tableName => {
         if (!existingTables.includes(tableName)) {
           tables[tableName] = 'not_found';
         }
@@ -161,15 +161,14 @@ router.get('/database', async (req, res) => {
     console.log('Database health check endpoint called');
     
     const results = {};
-    
-    // Check all important tables
+      // Check all important tables
     const tables = [
       'technical_data_daily',
       'technical_data_weekly', 
       'technical_data_monthly',
-      'company_profile',
-      'market_data',
-      'key_metrics',
+      'stock_symbols',
+      'fear_greed_index',
+      'naaim_exposure',
       'balance_sheet',
       'ttm_income_stmt',
       'ttm_cashflow',
@@ -186,7 +185,8 @@ router.get('/database', async (req, res) => {
       'price_daily',
       'price_weekly',
       'price_monthly',
-      'stock_symbols',      'naaim_exposure',
+      'stock_symbols',
+      'naaim_exposure',
       'fear_greed_index',
       'economic_data'
     ];

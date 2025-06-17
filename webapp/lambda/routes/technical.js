@@ -140,8 +140,7 @@ router.get('/debug', async (req, res) => {
 // Simple test endpoint that returns raw data
 router.get('/test', async (req, res) => {
   try {
-    console.log('Technical test endpoint called');
-      const testQuery = `
+    console.log('Technical test endpoint called');    const testQuery = `
       SELECT 
         t.symbol,
         t.date,
@@ -151,9 +150,9 @@ router.get('/test', async (req, res) => {
         t.macd,
         t.sma_20,
         t.sma_50,
-        cp.short_name as company_name
+        ss.security_name as company_name
       FROM technical_data_daily t
-      LEFT JOIN company_profile cp ON t.symbol = cp.ticker
+      LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
       ORDER BY t.date DESC
       LIMIT 10
     `;
@@ -263,9 +262,9 @@ router.get('/:timeframe', async (req, res) => {
         t.bbands_upper,
         t.td_sequential,
         t.td_combo,
-        cp.short_name as company_name
+        ss.security_name as company_name
       FROM ${tableName} t
-      LEFT JOIN company_profile cp ON t.symbol = cp.ticker
+      LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
       ${whereClause}
       ORDER BY t.date DESC, t.symbol ASC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -402,15 +401,14 @@ router.get('/:timeframe/chunk/:chunkIndex', async (req, res) => {
 
     const dataQuery = `
       SELECT 
-        t.symbol,
-        t.date,
+        t.symbol,        t.date,
         t.rsi,
         t.macd,
         t.sma_20,
         t.sma_50,
-        cp.short_name as company_name
+        ss.security_name as company_name
       FROM technical_data_daily t
-      LEFT JOIN company_profile cp ON t.symbol = cp.ticker
+      LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
       ORDER BY t.date DESC, t.symbol ASC
       LIMIT $1 OFFSET $2
     `;
@@ -483,12 +481,11 @@ router.get('/:timeframe/full', async (req, res) => {
         t.ema_4,
         t.ema_9,
         t.ema_21,
-        t.bbands_lower,
-        t.bbands_middle,
+        t.bbands_lower,        t.bbands_middle,
         t.bbands_upper,
-        cp.short_name as company_name
+        ss.security_name as company_name
       FROM technical_data_daily t
-      LEFT JOIN company_profile cp ON t.symbol = cp.ticker
+      LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
       ${whereClause}
       ORDER BY t.date DESC, t.symbol ASC
       LIMIT $${paramIndex}
