@@ -87,14 +87,16 @@ function ServiceHealth() {
           <Button onClick={() => window.location.reload()} sx={{ mt: 2 }}>
             Reload Page
           </Button>
-        </Alert>
+          </Alert>
       </Container>
-    );  }
+    );
+  }
 
   // Comprehensive endpoint tests
   const endpoints = [
     { name: 'Health', fn: () => healthCheck(), critical: true },
-    { name: 'Health (Quick)', fn: () => healthCheck('?quick=true'), critical: true },    { name: 'Database Health', fn: () => fetch(getCurrentBaseURL() + '/api/health/database').then(r => r.json()), critical: true },
+    { name: 'Health (Quick)', fn: () => healthCheck('?quick=true'), critical: true },
+    { name: 'Database Health', fn: () => fetch(getCurrentBaseURL() + '/api/health/database').then(r => r.json()), critical: true },
     { name: 'Database Connection', fn: () => fetch(getCurrentBaseURL() + '/api/health/test-connection').then(r => r.json()), critical: true },
     { name: 'Database Diagnostics', fn: () => fetch(getCurrentBaseURL() + '/api/health/database/diagnostics').then(r => r.json()), critical: true },
     { name: 'Financial Tables Debug', fn: () => fetch(getCurrentBaseURL() + '/api/financials/debug/tables').then(r => r.json()), critical: false },
@@ -162,11 +164,20 @@ function ServiceHealth() {
     retry: 3,
     staleTime: 10000 // Consider data stale after 10 seconds
   });
-
   // Database diagnostics query
   const { data: dbDiagnostics, isLoading: dbLoading, error: dbError, refetch: refetchDb } = useQuery({
     queryKey: ['databaseDiagnostics'],
-    queryFn: () => fetch(getCurrentBaseURL() + '/api/health/database/diagnostics').then(r => r.json()),
+    queryFn: async () => {
+      const url = getCurrentBaseURL() + '/api/health/database/diagnostics';
+      console.log('Fetching database diagnostics from:', url);
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      const data = await response.json();
+      console.log('Database diagnostics data:', data);
+      return data;
+    },
     refetchInterval: 60000, // Refresh every minute
     retry: 2,
     staleTime: 30000 // Consider data stale after 30 seconds
@@ -298,10 +309,16 @@ function ServiceHealth() {
               <Storage sx={{ fontSize: 40, mb: 1, color: 'primary.main' }} />
               <Typography variant="h6">
                 Database
+              </Typography>              <Typography variant="body2" color="textSecondary">
+                {dbDiagnostics?.diagnostics?.connection?.status === 'connected' ? 'Connected' : 
+                 healthData?.database?.status === 'connected' ? 'Connected' : 
+                 dbLoading ? 'Checking...' : 'Unknown'}
               </Typography>
-              <Typography variant="body2" color="textSecondary">
-                {healthData?.database?.status === 'connected' ? 'Connected' : 'Unknown'}
-              </Typography>
+              {dbDiagnostics?.diagnostics?.database?.name && (
+                <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+                  {dbDiagnostics.diagnostics.database.name}
+                </Typography>
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -410,6 +427,16 @@ function ServiceHealth() {
                 <Storage sx={{ mr: 1, verticalAlign: 'middle' }} />
                 Database Health
               </Typography>
+              <Button 
+                variant="outlined" 
+                size="small" 
+                startIcon={<Refresh />}
+                onClick={refetchDb}
+                sx={{ ml: 'auto', mr: 2 }}
+                disabled={dbLoading}
+              >
+                {dbLoading ? 'Loading...' : 'Refresh'}
+              </Button>
             </AccordionSummary>
             <AccordionDetails>
               {dbLoading && (
@@ -423,9 +450,7 @@ function ServiceHealth() {
                 <Alert severity="error" sx={{ mb: 2 }}>
                   Failed to load database diagnostics: {dbError.message}
                 </Alert>
-              )}
-
-              {dbDiagnostics?.diagnostics && (
+              )}              {dbDiagnostics?.diagnostics && (
                 <Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                     {getStatusIcon(dbDiagnostics.diagnostics.connection.status)}
@@ -489,6 +514,36 @@ function ServiceHealth() {
                         </Table>
                       </TableContainer>
                     </Box>
+                  )}
+                </Box>
+              )}
+              
+              {!dbDiagnostics?.diagnostics && !dbLoading && !dbError && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Database diagnostics not available. Check if backend is properly deployed.
+                </Alert>
+              )}
+              
+              {healthData?.database && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Basic Database Status:
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    {getStatusIcon(healthData.database.status)}
+                    <Typography variant="body2" sx={{ ml: 1 }}>
+                      Status: {healthData.database.status}
+                    </Typography>
+                  </Box>
+                  {healthData.database.responseTime && (
+                    <Typography variant="body2">
+                      Response Time: {healthData.database.responseTime}ms
+                    </Typography>
+                  )}
+                  {healthData.database.error && (
+                    <Typography variant="body2" color="error">
+                      Error: {healthData.database.error}
+                    </Typography>
                   )}
                 </Box>
               )}

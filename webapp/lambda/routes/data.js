@@ -331,10 +331,10 @@ router.get('/validation-summary', async (req, res) => {
   try {
     const summaryQuery = `
       SELECT 
-        'company_profile' as table_name,
+        'stock_symbols' as table_name,
         COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM company_profile
+        NULL as last_updated
+      FROM stock_symbols
       UNION ALL
       SELECT 
         'earnings_estimates' as table_name,

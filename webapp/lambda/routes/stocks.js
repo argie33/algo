@@ -167,99 +167,44 @@ router.get('/', async (req, res) => {
     
     let whereClause = 'WHERE 1=1';
     const params = [];
-    let paramCount = 0;
-
-    // Add search filter
+    let paramCount = 0;    // Add search filter
     if (search) {
       paramCount++;
-      whereClause += ` AND (cp.ticker ILIKE $${paramCount} OR cp.short_name ILIKE $${paramCount})`;
+      whereClause += ` AND (ss.symbol ILIKE $${paramCount} OR ss.security_name ILIKE $${paramCount})`;
       params.push(`%${search}%`);
     }
 
-    // Add sector filter
+    // Add exchange filter (instead of sector)
     if (sector) {
       paramCount++;
-      whereClause += ` AND cp.sector = $${paramCount}`;
+      whereClause += ` AND ss.exchange = $${paramCount}`;
       params.push(sector);
-    }
-
-    // Add price filters
-    if (minPrice !== null) {
-      paramCount++;
-      whereClause += ` AND md.regular_market_price >= $${paramCount}`;
-      params.push(minPrice);
-    }
-
-    if (maxPrice !== null) {
-      paramCount++;
-      whereClause += ` AND md.regular_market_price <= $${paramCount}`;
-      params.push(maxPrice);
-    }
-
-    // Add market cap filters
-    if (minMarketCap !== null) {
-      paramCount++;
-      whereClause += ` AND md.market_cap >= $${paramCount}`;
-      params.push(minMarketCap);
-    }
-
-    if (maxMarketCap !== null) {
-      paramCount++;
-      whereClause += ` AND md.market_cap <= $${paramCount}`;
-      params.push(maxMarketCap);
-    }    // Determine sort column and validate
+    }    // Remove price and market cap filters since we don't have that data in stock_symbols
+    // These filters are removed because stock_symbols only contains basic symbol info    // Determine sort column and validate (adjusted for stock_symbols table)
     const validSortColumns = {
-      'ticker': 'cp.ticker',
-      'name': 'cp.short_name',
-      'sector': 'cp.sector',
-      'price': 'md.regular_market_price',
-      'marketCap': 'md.market_cap',
-      'peRatio': 'km.trailing_pe',
-      'dividendYield': 'km.dividend_yield',
-      'volume': 'latest_volume'
+      'ticker': 'ss.symbol',
+      'symbol': 'ss.symbol',
+      'name': 'ss.security_name',
+      'exchange': 'ss.exchange',
+      'market_category': 'ss.market_category'
     };
 
-    const sortColumn = validSortColumns[sortBy] || 'cp.ticker';
+    const sortColumn = validSortColumns[sortBy] || 'ss.symbol';
     const sortDirection = sortOrder.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
 
-    console.log('Using whereClause:', whereClause, 'params:', params);
-
-    // Comprehensive stocks query with latest price data
+    console.log('Using whereClause:', whereClause, 'params:', params);    // Simple stocks query using actual stock_symbols table
     const stocksQuery = `
       SELECT 
-        cp.ticker,
-        cp.short_name,
-        cp.long_name,
-        cp.sector,        cp.industry,
-        cp.currency,
-        cp.exchange,
-        md.regular_market_price,
-        md.regular_market_previous_close,
-        (md.regular_market_price - md.regular_market_previous_close) as price_change,
-        CASE 
-          WHEN md.regular_market_previous_close > 0 
-          THEN ((md.regular_market_price - md.regular_market_previous_close) / md.regular_market_previous_close * 100)
-          ELSE 0
-        END as price_change_percent,
-        md.market_cap,
-        md.fifty_two_week_high,
-        md.fifty_two_week_low,
-        km.trailing_pe,
-        km.forward_pe,
-        km.price_to_book,
-        km.dividend_yield,
-        km.dividend_rate,        km.beta,
-        km.return_on_equity_pct as return_on_equity,
-        km.return_on_assets_pct as return_on_assets,
-        km.profit_margin_pct as profit_margin,
-        km.operating_margin_pct as operating_margin,
-        km.debt_to_equity,        km.current_ratio,
-        km.eps_trailing as earnings_per_share,
-        NULL as latest_volume,
-        NULL as latest_price_date
-      FROM company_profile cp
-      LEFT JOIN market_data md ON cp.ticker = md.ticker
-      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+        ss.symbol,
+        ss.security_name,
+        ss.exchange,
+        ss.market_category,
+        ss.cqs_symbol,
+        ss.financial_status,
+        ss.round_lot_size,
+        ss.etf,
+        ss.secondary_symbol
+      FROM stock_symbols ss
       ${whereClause}
       ORDER BY ${sortColumn} ${sortDirection}
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
@@ -269,9 +214,7 @@ router.get('/', async (req, res) => {
 
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM company_profile cp
-      LEFT JOIN market_data md ON cp.ticker = md.ticker
-      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+      FROM stock_symbols ss
       ${whereClause}
     `;
 
@@ -283,51 +226,52 @@ router.get('/', async (req, res) => {
     ]);
 
     const total = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(total / limit);
-
-    // Format the response with better data structure
-    const formattedStocks = stocksResult.rows.map(stock => ({
-      ticker: stock.ticker,
-      name: stock.short_name,
-      fullName: stock.long_name,
-      sector: stock.sector,
-      industry: stock.industry,
+    const totalPages = Math.ceil(total / limit);    // Format the response with available data from stock_symbols table    const formattedStocks = stocksResult.rows.map(stock => ({
+      ticker: stock.symbol,
+      symbol: stock.symbol,
+      name: stock.security_name,
+      fullName: stock.security_name,
       exchange: stock.exchange,
-      currency: stock.currency,
-      website: stock.website,
+      marketCategory: stock.market_category,
+      cqsSymbol: stock.cqs_symbol,
+      financialStatus: stock.financial_status,
+      roundLotSize: stock.round_lot_size,
+      isEtf: stock.etf === 'Y',
+      secondarySymbol: stock.secondary_symbol,
+      // Placeholder values for missing financial data
       price: {
-        current: parseFloat(stock.regular_market_price || 0),
-        previous: parseFloat(stock.regular_market_previous_close || 0),
-        change: parseFloat(stock.price_change || 0),
-        changePercent: parseFloat(stock.price_change_percent || 0),
-        fiftyTwoWeekHigh: parseFloat(stock.fifty_two_week_high || 0),
-        fiftyTwoWeekLow: parseFloat(stock.fifty_two_week_low || 0)
+        current: null,
+        previous: null,
+        change: null,
+        changePercent: null,
+        fiftyTwoWeekHigh: null,
+        fiftyTwoWeekLow: null
       },
       marketData: {
-        marketCap: parseFloat(stock.market_cap || 0),
-        volume: parseInt(stock.latest_volume || 0),
-        lastPriceDate: stock.latest_price_date
+        marketCap: null,
+        volume: null,
+        lastPriceDate: null
       },
       valuation: {
-        trailingPE: parseFloat(stock.trailing_pe || 0) || null,
-        forwardPE: parseFloat(stock.forward_pe || 0) || null,
-        priceToBook: parseFloat(stock.price_to_book || 0) || null,
-        beta: parseFloat(stock.beta || 0) || null
+        trailingPE: null,
+        forwardPE: null,
+        priceToBook: null,
+        beta: null
       },
       dividends: {
-        yield: parseFloat(stock.dividend_yield || 0) || null,
-        rate: parseFloat(stock.dividend_rate || 0) || null
+        yield: null,
+        rate: null
       },
       profitability: {
-        returnOnEquity: parseFloat(stock.return_on_equity || 0) || null,
-        returnOnAssets: parseFloat(stock.return_on_assets || 0) || null,
-        profitMargin: parseFloat(stock.profit_margin || 0) || null,
-        operatingMargin: parseFloat(stock.operating_margin || 0) || null,
-        earningsPerShare: parseFloat(stock.earnings_per_share || 0) || null
+        returnOnEquity: null,
+        returnOnAssets: null,
+        profitMargin: null,
+        operatingMargin: null,
+        earningsPerShare: null
       },
       financialHealth: {
-        debtToEquity: parseFloat(stock.debt_to_equity || 0) || null,
-        currentRatio: parseFloat(stock.current_ratio || 0) || null
+        debtToEquity: null,
+        currentRatio: null
       }
     }));
 
@@ -954,6 +898,132 @@ router.get('/movers/active', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to fetch most active stocks',
       details: error.message 
+    });
+  }
+});
+
+// Stock screening endpoint
+router.get('/screen', async (req, res) => {
+  try {
+    console.log('Stock screener endpoint called with params:', req.query);
+    
+    const page = parseInt(req.query.page) || 1;
+    const limit = Math.min(parseInt(req.query.limit) || 25, 100);
+    const offset = (page - 1) * limit;
+    const search = req.query.search || '';
+    const exchange = req.query.exchange || '';
+    const marketCategory = req.query.marketCategory || '';
+    const sortBy = req.query.sortBy || 'symbol';
+    const sortOrder = req.query.sortOrder || 'asc';
+    
+    let whereClause = 'WHERE etf = \'N\''; // Only stocks, not ETFs
+    const params = [];
+    let paramCount = 0;
+
+    // Add search filter
+    if (search) {
+      paramCount++;
+      whereClause += ` AND (symbol ILIKE $${paramCount} OR security_name ILIKE $${paramCount})`;
+      params.push(`%${search}%`);
+    }
+
+    // Add exchange filter
+    if (exchange) {
+      paramCount++;
+      whereClause += ` AND exchange = $${paramCount}`;
+      params.push(exchange);
+    }
+
+    // Add market category filter
+    if (marketCategory) {
+      paramCount++;
+      whereClause += ` AND market_category = $${paramCount}`;
+      params.push(marketCategory);
+    }
+
+    // Determine sort column
+    const validSortColumns = {
+      'symbol': 'symbol',
+      'name': 'security_name',
+      'exchange': 'exchange',
+      'marketCategory': 'market_category'
+    };
+
+    const sortColumn = validSortColumns[sortBy] || 'symbol';
+    const sortDirection = sortOrder.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+
+    // Screen stocks query
+    const screenQuery = `
+      SELECT 
+        symbol,
+        security_name,
+        exchange,
+        market_category,
+        financial_status,
+        round_lot_size
+      FROM stock_symbols
+      ${whereClause}
+      ORDER BY ${sortColumn} ${sortDirection}
+      LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
+    `;
+
+    params.push(limit, offset);
+
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM stock_symbols
+      ${whereClause}
+    `;
+
+    const [screenResult, countResult] = await Promise.all([
+      query(screenQuery, params),
+      query(countQuery, params.slice(0, -2))
+    ]);
+
+    const total = parseInt(countResult.rows[0].total);
+    const totalPages = Math.ceil(total / limit);
+
+    res.json({
+      data: screenResult.rows.map(stock => ({
+        symbol: stock.symbol,
+        name: stock.security_name,
+        exchange: stock.exchange,
+        marketCategory: stock.market_category,
+        financialStatus: stock.financial_status,
+        roundLotSize: stock.round_lot_size,
+        // Placeholder for screening metrics that would come from other tables
+        metrics: {
+          price: null,
+          marketCap: null,
+          peRatio: null,
+          dividendYield: null,
+          volume: null
+        }
+      })),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      },
+      filters: {
+        search: search || null,
+        exchange: exchange || null,
+        marketCategory: marketCategory || null,
+        sortBy,
+        sortOrder
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error screening stocks:', error);
+    res.status(500).json({ 
+      error: 'Failed to screen stocks',
+      details: error.message,
+      timestamp: new Date().toISOString()
     });
   }
 });

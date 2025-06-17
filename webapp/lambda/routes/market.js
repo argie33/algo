@@ -140,56 +140,29 @@ router.get('/overview', async (req, res) => {
       FROM naaim_exposure 
       ORDER BY date DESC 
       LIMIT 1
-    `;
-
-    // Get latest AAII sentiment  
-    const aaiiQuery = `
-      SELECT bullish, neutral, bearish, date
-      FROM aaii_sentiment 
-      ORDER BY date DESC 
-      LIMIT 1
-    `;
-
-    // Get economic indicators if available
-    const econQuery = `
-      SELECT indicator_name, value, date, description
-      FROM economic_data 
-      WHERE date >= CURRENT_DATE - INTERVAL '30 days'
-      ORDER BY date DESC 
-      LIMIT 10
-    `;
-
-    // Get overall market statistics
+    `;    // Get overall market statistics from available data
     const marketStatsQuery = `
       SELECT 
         COUNT(*) as total_stocks,
-        COUNT(CASE WHEN md.regular_market_price > md.regular_market_previous_close THEN 1 END) as advancing_stocks,
-        COUNT(CASE WHEN md.regular_market_price < md.regular_market_previous_close THEN 1 END) as declining_stocks,
-        COUNT(CASE WHEN md.regular_market_price = md.regular_market_previous_close THEN 1 END) as unchanged_stocks,
-        AVG((md.regular_market_price - md.regular_market_previous_close) / md.regular_market_previous_close * 100) as avg_change_percent,
-        SUM(md.market_cap) as total_market_cap
-      FROM market_data md
-      WHERE md.regular_market_price IS NOT NULL 
-        AND md.regular_market_previous_close IS NOT NULL 
-        AND md.regular_market_previous_close > 0
-    `;
-
-    const [fearGreedResult, naaimResult, aaiiResult, econResult, marketStatsResult] = await Promise.all([
+        0 as advancing_stocks,
+        0 as declining_stocks,
+        0 as unchanged_stocks,
+        0 as avg_change_percent,
+        0 as total_market_cap
+      FROM stock_symbols
+      WHERE etf = 'N'
+    `;    const [fearGreedResult, naaimResult, marketStatsResult] = await Promise.all([
       query(fearGreedQuery),
       query(naaimQuery), 
-      query(aaiiQuery),
-      query(econQuery),
       query(marketStatsQuery)
     ]);
 
     const marketStats = marketStatsResult.rows[0];
-    const advanceDeclineRatio = marketStats.advancing_stocks / Math.max(marketStats.declining_stocks, 1);
-
-    res.json({
+    const advanceDeclineRatio = marketStats.advancing_stocks / Math.max(marketStats.declining_stocks, 1);    res.json({
       sentiment_indicators: {
         fear_greed: fearGreedResult.rows[0] || null,
         naaim: naaimResult.rows[0] || null,
-        aaii: aaiiResult.rows[0] || null
+        aaii: null // Not available
       },
       market_breadth: {
         total_stocks: parseInt(marketStats.total_stocks),
@@ -202,7 +175,7 @@ router.get('/overview', async (req, res) => {
       market_cap: {
         total: parseFloat(marketStats.total_market_cap || 0)
       },
-      economic_indicators: econResult.rows,
+      economic_indicators: [], // Not available
       timestamp: new Date().toISOString()
     });
 
