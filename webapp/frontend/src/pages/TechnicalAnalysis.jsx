@@ -67,7 +67,9 @@ function TechnicalAnalysis() {
     setSearchInput('');
     setSymbolFilter('');
     setPage(1);
-  };  const handleTimeframeChange = (newTimeframe) => {
+  };
+
+  const handleTimeframeChange = (newTimeframe) => {
     setTimeframe(newTimeframe);
     setPage(1); // Reset to first page when changing timeframe
   };
@@ -151,7 +153,7 @@ function TechnicalAnalysis() {
             <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Pivot L</TableCell>
           </TableRow>
         </TableHead>        <TableBody>
-          {Array.isArray(technicalData?.data) ? technicalData.data.map((row, index) => (
+          {Array.isArray(technicalData?.data?.data) ? technicalData.data.data.map((row, index) => (
             <TableRow key={`${row.symbol}-${index}`} hover>
               <TableCell>
                 <Typography variant="body2" fontWeight="bold">
@@ -244,7 +246,7 @@ function TechnicalAnalysis() {
   }
 
   // Get sample data for overview cards
-  const sampleData = technicalData?.data?.[0] || {};
+  const sampleData = technicalData?.data?.data?.[0] || {};
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       <Typography variant="h4" gutterBottom>
@@ -318,7 +320,7 @@ function TechnicalAnalysis() {
             </Typography>            <Button
               size="small"
               onClick={() => setPage(page + 1)}
-              disabled={isLoading || (technicalData?.data?.length || 0) < 25}
+              disabled={isLoading || (technicalData?.data?.data?.length || 0) < 25}
             >
               Next
             </Button>
@@ -544,7 +546,7 @@ function TechnicalAnalysis() {
           )}
         </Typography>
         
-        {technicalData?.data?.length === 0 && !isLoading && (
+        {technicalData?.data?.data?.length === 0 && !isLoading && (
           <Alert severity="warning" sx={{ mb: 2 }}>
             No technical data found. {symbolFilter ? `Try a different symbol or timeframe.` : `No data available for this timeframe.`}
           </Alert>
@@ -564,7 +566,7 @@ function TechnicalAnalysis() {
         )}
 
         {/* Pagination for historical data */}
-        {symbolFilter && technicalData?.data?.length > 0 && (
+        {symbolFilter && technicalData?.data?.data?.length > 0 && (
           <Box display="flex" justifyContent="center" mt={2}>
             <Button
               onClick={() => setPage(Math.max(1, page - 1))}
@@ -577,7 +579,7 @@ function TechnicalAnalysis() {
               Page {page}
             </Typography>            <Button
               onClick={() => setPage(page + 1)}
-              disabled={isLoading || (technicalData?.data?.length || 0) < 25}
+              disabled={isLoading || (technicalData?.data?.data?.length || 0) < 25}
             >
               Next
             </Button>
