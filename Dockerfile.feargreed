@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies including Chrome
+# Install system dependencies including Chrome (direct .deb method - most reliable)
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
@@ -10,12 +10,9 @@ RUN apt-get update && apt-get install -y \
     curl \
     gnupg \
     ca-certificates \
-    apt-transport-https \
-    software-properties-common \
-    && curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome-keyring.gpg \
-    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | tee /etc/apt/sources.list.d/google-chrome.list \
-    && apt-get update \
-    && apt-get install -y google-chrome-stable \
+    && wget -q -O google-chrome-stable.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+    && apt-get install -y ./google-chrome-stable.deb \
+    && rm google-chrome-stable.deb \
     && google-chrome --version \
     && rm -rf /var/lib/apt/lists/*
 
