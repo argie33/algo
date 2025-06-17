@@ -192,8 +192,7 @@ router.get('/', async (req, res) => {
     console.log('OPTIMIZED query params:', { whereClause, params, limit, offset });
 
     // SUPER FAST QUERY: Just stock_symbols table first to avoid timeout
-    const stocksQuery = `
-      SELECT 
+    const stocksQuery = `      SELECT 
         ss.symbol,
         ss.security_name,
         ss.exchange,
@@ -203,8 +202,7 @@ router.get('/', async (req, res) => {
         ss.round_lot_size,
         ss.etf,
         ss.secondary_symbol,
-        ss.test_issue,
-        ss.nasdaq_symbol
+        ss.test_issue
       FROM stock_symbols ss
       ${whereClause}
       ORDER BY ${sortColumn} ${sortDirection}
@@ -243,10 +241,8 @@ router.get('/', async (req, res) => {
       // Exchange & categorization 
       exchange: stock.exchange,
       marketCategory: stock.market_category,
-      
-      // Additional identifiers
+        // Additional identifiers
       cqsSymbol: stock.cqs_symbol,
-      nasdaqSymbol: stock.nasdaq_symbol,
       secondarySymbol: stock.secondary_symbol,
       
       // Status & type
@@ -297,10 +293,9 @@ router.get('/', async (req, res) => {
       metadata: {
         totalStocks: total,
         currentPage: page,
-        showingRecords: stocksResult.rows.length,
-        dataFields: [
+        showingRecords: stocksResult.rows.length,        dataFields: [
           'symbol', 'security_name', 'exchange', 'market_category',
-          'cqs_symbol', 'nasdaq_symbol', 'financial_status', 'etf',
+          'cqs_symbol', 'financial_status', 'etf',
           'round_lot_size', 'test_issue', 'secondary_symbol'
         ]
       },
@@ -326,13 +321,11 @@ router.get('/quick/overview', async (req, res) => {
     
     // LIGHTNING FAST query - no joins, just stock_symbols
     const quickQuery = `
-      SELECT 
-        symbol,
+      SELECT        symbol,
         security_name,
         exchange,
         market_category,
         cqs_symbol,
-        nasdaq_symbol,
         financial_status,
         etf,
         round_lot_size,
@@ -358,10 +351,8 @@ router.get('/quick/overview', async (req, res) => {
       exchange: row.exchange,
       category: row.market_category,
       type: row.etf === 'Y' ? 'ETF' : 'Stock',
-      
-      // Identifiers
+        // Identifiers
       cqsSymbol: row.cqs_symbol,
-      nasdaqSymbol: row.nasdaq_symbol,
       secondarySymbol: row.secondary_symbol,
       
       // Status
