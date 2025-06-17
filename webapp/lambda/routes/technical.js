@@ -515,60 +515,78 @@ router.get('/:timeframe/full', async (req, res) => {
   }
 });
 
-// Root technical endpoint - defaults to daily timeframe
+// Root technical endpoint - returns daily technical data by default (like calendar)
 router.get('/', async (req, res) => {
   try {
-    console.log('Root technical endpoint called - redirecting to daily');
+    console.log('Root technical endpoint called with params:', req.query);
     
-    // Check if we have technical_data_daily table
-    const tableExistsQuery = `
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name = 'technical_data_daily'
-      );
-    `;
-    
-    const tableExists = await query(tableExistsQuery);
-    
-    if (!tableExists.rows[0].exists) {
-      return res.status(503).json({
-        error: 'Technical data not available',
-        message: 'The technical_data_daily table does not exist. Please run the technical data loading scripts first.',
-        timestamp: new Date().toISOString()
-      });
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 25;
+    const offset = (page - 1) * limit;
+    const symbol = req.query.symbol;
+
+    let whereClause = 'WHERE 1=1';
+    const params = [];
+    let paramIndex = 1;
+
+    // Add symbol filter if provided
+    if (symbol) {
+      whereClause += ` AND t.symbol = $${paramIndex}`;
+      params.push(symbol.toUpperCase());
+      paramIndex++;
     }
 
-    // Get a sample of recent technical data
-    const sampleQuery = `
+    console.log('Using whereClause:', whereClause);
+
+    const dataQuery = `
       SELECT 
         t.symbol,
         t.date,
         t.close,
+        t.volume,
         t.rsi,
         t.macd,
         t.sma_20,
         t.sma_50,
-        ss.security_name
+        ss.security_name as company_name
       FROM technical_data_daily t
       LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
+      ${whereClause}
       ORDER BY t.date DESC, t.symbol ASC
-      LIMIT 20
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
-    const result = await query(sampleQuery);
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM technical_data_daily t
+      ${whereClause}
+    `;
+
+    console.log('Executing queries with limit:', limit, 'offset:', offset);
+
+    const [dataResult, countResult] = await Promise.all([
+      query(dataQuery, [...params, limit, offset]),
+      query(countQuery, params)
+    ]);
+
+    console.log('Query results - data:', dataResult.rows.length, 'total:', countResult.rows[0].total);
+
+    const total = parseInt(countResult.rows[0].total);
+    const totalPages = Math.ceil(total / limit);
 
     res.json({
-      message: 'Technical data available',
-      defaultTimeframe: 'daily',
-      availableTimeframes: ['daily', 'weekly', 'monthly'],
-      sampleData: result.rows,
-      totalRecords: result.rows.length,
-      endpoints: {
-        daily: '/technical/daily',
-        weekly: '/technical/weekly',
-        monthly: '/technical/monthly',
-        debug: '/technical/debug'
+      data: dataResult.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      },
+      summary: {
+        timeframe: 'daily',
+        total_records: total
       },
       timestamp: new Date().toISOString()
     });
@@ -577,6 +595,97 @@ router.get('/', async (req, res) => {
     console.error('Error in root technical endpoint:', error);
     res.status(500).json({ 
       error: 'Failed to fetch technical data overview',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Get technical data (simple endpoint like calendar/events)
+router.get('/data', async (req, res) => {
+  try {
+    console.log('Technical data endpoint called with params:', req.query);
+    
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 25;
+    const offset = (page - 1) * limit;
+    const symbol = req.query.symbol;
+    const timeframe = req.query.timeframe || 'daily';
+
+    // Use the correct table based on timeframe
+    const tableName = `technical_data_${timeframe}`;
+
+    let whereClause = 'WHERE 1=1';
+    const params = [];
+    let paramIndex = 1;
+
+    // Add symbol filter if provided
+    if (symbol) {
+      whereClause += ` AND t.symbol = $${paramIndex}`;
+      params.push(symbol.toUpperCase());
+      paramIndex++;
+    }
+
+    console.log('Using whereClause:', whereClause);
+
+    const dataQuery = `
+      SELECT 
+        t.symbol,
+        t.date,
+        t.close,
+        t.volume,
+        t.rsi,
+        t.macd,
+        t.sma_20,
+        t.sma_50,
+        ss.security_name as company_name
+      FROM ${tableName} t
+      LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
+      ${whereClause}
+      ORDER BY t.date DESC, t.symbol ASC
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM ${tableName} t
+      ${whereClause}
+    `;
+
+    console.log('Executing queries with limit:', limit, 'offset:', offset);
+
+    const [dataResult, countResult] = await Promise.all([
+      query(dataQuery, [...params, limit, offset]),
+      query(countQuery, params)
+    ]);
+
+    console.log('Query results - data:', dataResult.rows.length, 'total:', countResult.rows[0].total);
+
+    const total = parseInt(countResult.rows[0].total);
+    const totalPages = Math.ceil(total / limit);
+
+    res.json({
+      data: dataResult.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      },
+      summary: {
+        timeframe: timeframe,
+        total_records: total
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error fetching technical data:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ 
+      error: 'Failed to fetch technical data', 
       details: error.message,
       timestamp: new Date().toISOString()
     });
