@@ -140,7 +140,9 @@ router.get('/debug', async (req, res) => {
 // Simple test endpoint that returns raw data
 router.get('/test', async (req, res) => {
   try {
-    console.log('Technical test endpoint called');    const testQuery = `
+    console.log('Technical test endpoint called');
+    
+    const testQuery = `
       SELECT 
         t.symbol,
         t.date,
@@ -401,7 +403,8 @@ router.get('/:timeframe/chunk/:chunkIndex', async (req, res) => {
 
     const dataQuery = `
       SELECT 
-        t.symbol,        t.date,
+        t.symbol,
+        t.date,
         t.rsi,
         t.macd,
         t.sma_20,
@@ -481,7 +484,8 @@ router.get('/:timeframe/full', async (req, res) => {
         t.ema_4,
         t.ema_9,
         t.ema_21,
-        t.bbands_lower,        t.bbands_middle,
+        t.bbands_lower,
+        t.bbands_middle,
         t.bbands_upper,
         ss.security_name as company_name
       FROM technical_data_daily t
@@ -505,6 +509,74 @@ router.get('/:timeframe/full', async (req, res) => {
     console.error('Error fetching full technical data:', error);
     res.status(500).json({ 
       error: 'Failed to fetch full technical data', 
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Root technical endpoint - defaults to daily timeframe
+router.get('/', async (req, res) => {
+  try {
+    console.log('Root technical endpoint called - redirecting to daily');
+    
+    // Check if we have technical_data_daily table
+    const tableExistsQuery = `
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'technical_data_daily'
+      );
+    `;
+    
+    const tableExists = await query(tableExistsQuery);
+    
+    if (!tableExists.rows[0].exists) {
+      return res.status(503).json({
+        error: 'Technical data not available',
+        message: 'The technical_data_daily table does not exist. Please run the technical data loading scripts first.',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Get a sample of recent technical data
+    const sampleQuery = `
+      SELECT 
+        t.symbol,
+        t.date,
+        t.close,
+        t.rsi,
+        t.macd,
+        t.sma_20,
+        t.sma_50,
+        ss.security_name
+      FROM technical_data_daily t
+      LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
+      ORDER BY t.date DESC, t.symbol ASC
+      LIMIT 20
+    `;
+
+    const result = await query(sampleQuery);
+
+    res.json({
+      message: 'Technical data available',
+      defaultTimeframe: 'daily',
+      availableTimeframes: ['daily', 'weekly', 'monthly'],
+      sampleData: result.rows,
+      totalRecords: result.rows.length,
+      endpoints: {
+        daily: '/technical/daily',
+        weekly: '/technical/weekly',
+        monthly: '/technical/monthly',
+        debug: '/technical/debug'
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error in root technical endpoint:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch technical data overview',
       details: error.message,
       timestamp: new Date().toISOString()
     });
