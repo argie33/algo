@@ -381,93 +381,39 @@ def calculate_mfi(high, low, close, volume, period=14):
 # Custom Indicators (Pure NumPy/Pandas implementations)
 # -------------------------------
 
-def pivot_high(df, left_bars=3, right_bars=3, shunt=1):
-    """
-    Pine Script style pivot high calculation with shunt
-    This matches your Pine Script exactly:
-    pvthi_ = pivothigh(high, pvtLenL, pvtLenR) 
-    pvthi = pvthi_[Shunt]
+def pivot_high_vectorized(high, left_bars=3, right_bars=3):
+    """Vectorized pivot high calculation"""
+    if len(high) < left_bars + right_bars + 1:
+        return pd.Series(np.full(len(high), np.nan), index=high.index)
     
-    Args:
-        df: DataFrame with OHLC data
-        left_bars: bars to look left (default 3)
-        right_bars: bars to look right (default 3) 
-        shunt: bars to shift back after confirmation (default 1)
-    """
-    pivot_vals = [np.nan] * len(df)
+    result = pd.Series(np.full(len(high), np.nan), index=high.index)
     
-    # First find raw pivots (like pvthi_)
-    for i in range(left_bars, len(df) - right_bars):
-        current_high = df['high'].iloc[i]
+    for i in range(left_bars, len(high) - right_bars):
+        # Check if current high is higher than surrounding bars
+        left_window = high.iloc[i-left_bars:i]
+        right_window = high.iloc[i+1:i+right_bars+1]
         
-        # Check left bars - current high should be higher than all left bars
-        left_higher = True
-        for j in range(i - left_bars, i):
-            if current_high <= df['high'].iloc[j]:
-                left_higher = False
-                break
-        
-        if not left_higher:
-            continue
-            
-        # Check right bars - current high should be higher than all right bars  
-        right_higher = True
-        for j in range(i + 1, i + right_bars + 1):
-            if current_high <= df['high'].iloc[j]:
-                right_higher = False
-                break
-                
-        if left_higher and right_higher:
-            # Apply shunt - shift the pivot back by shunt bars (like pvthi_[Shunt])
-            shunted_index = i + shunt
-            if shunted_index < len(pivot_vals):
-                pivot_vals[shunted_index] = current_high
+        if (high.iloc[i] > left_window.max()) and (high.iloc[i] > right_window.max()):
+            result.iloc[i] = high.iloc[i]
     
-    return pd.Series(pivot_vals, index=df.index)
+    return result
 
-def pivot_low(df, left_bars=3, right_bars=3, shunt=1):
-    """
-    Pine Script style pivot low calculation with shunt
-    This matches your Pine Script exactly:
-    pvtlo_ = pivotlow(low, pvtLenL, pvtLenR)
-    pvtlo = pvtlo_[Shunt]
+def pivot_low_vectorized(low, left_bars=3, right_bars=3):
+    """Vectorized pivot low calculation"""
+    if len(low) < left_bars + right_bars + 1:
+        return pd.Series(np.full(len(low), np.nan), index=low.index)
     
-    Args:
-        df: DataFrame with OHLC data  
-        left_bars: bars to look left (default 3)
-        right_bars: bars to look right (default 3)
-        shunt: bars to shift back after confirmation (default 1)
-    """
-    pivot_vals = [np.nan] * len(df)
+    result = pd.Series(np.full(len(low), np.nan), index=low.index)
     
-    # First find raw pivots (like pvtlo_)
-    for i in range(left_bars, len(df) - right_bars):
-        current_low = df['low'].iloc[i]
+    for i in range(left_bars, len(low) - right_bars):
+        # Check if current low is lower than surrounding bars
+        left_window = low.iloc[i-left_bars:i]
+        right_window = low.iloc[i+1:i+right_bars+1]
         
-        # Check left bars - current low should be lower than all left bars
-        left_lower = True
-        for j in range(i - left_bars, i):
-            if current_low >= df['low'].iloc[j]:
-                left_lower = False
-                break
-        
-        if not left_lower:
-            continue
-            
-        # Check right bars - current low should be lower than all right bars
-        right_lower = True
-        for j in range(i + 1, i + right_bars + 1):
-            if current_low >= df['low'].iloc[j]:
-                right_lower = False
-                break
-                
-        if left_lower and right_lower:
-            # Apply shunt - shift the pivot back by shunt bars (like pvtlo_[Shunt])
-            shunted_index = i + shunt  
-            if shunted_index < len(pivot_vals):
-                pivot_vals[shunted_index] = current_low
+        if (low.iloc[i] < left_window.min()) and (low.iloc[i] < right_window.min()):
+            result.iloc[i] = low.iloc[i]
     
-    return pd.Series(pivot_vals, index=df.index)
+    return result
 
 def td_sequential_vectorized(close, lookback=4):
     """Vectorized TD Sequential indicator"""
@@ -626,7 +572,8 @@ def calculate_technicals_parallel(df):
         
         # ADX (computationally expensive)
         results['adx'] = calculate_adx(df['high'], df['low'], df['close'], period=14)
-          # Bollinger Bands
+        
+        # Bollinger Bands
         bb_lower, bb_middle, bb_upper = calculate_bollinger_bands(df['close'], period=20, std_dev=2)
         results['bbands_lower'] = bb_lower
         results['bbands_middle'] = bb_middle
@@ -641,27 +588,10 @@ def calculate_technicals_parallel(df):
         # Custom indicators
         results['td_sequential'] = td_sequential_vectorized(df['close'], lookback=4)
         results['td_combo'] = td_combo_vectorized(df['close'], lookback=2)
-        results['marketwatch'] = marketwatch_indicator_vectorized(df['close'], df['open'])        # Pivot points - Pine Script style with shunt (matches your exact Pine Script)
-        data_length = len(df)
-        min_required = 7  # 3 left + 1 center + 3 right
-        
-        if data_length >= min_required:
-            # Use shunt=1 to match your Pine Script: pvthi = pvthi_[Shunt]
-            results['pivot_high'] = pivot_high(df, left_bars=3, right_bars=3, shunt=1)
-            results['pivot_low'] = pivot_low(df, left_bars=3, right_bars=3, shunt=1)
-            
-            # Count non-NaN pivots for logging
-            pivot_high_count = results['pivot_high'].notna().sum()
-            pivot_low_count = results['pivot_low'].notna().sum()
-            
-            # Log results - Pine Script style with shunt gives more recent pivot data
-            if data_length > 20 or pivot_high_count > 0 or pivot_low_count > 0:
-                logging.info(f"📍 Pine Script pivots (with shunt): {pivot_high_count} highs, {pivot_low_count} lows from {data_length} bars")
-        else:
-            # Insufficient data - return NaN series
-            results['pivot_high'] = pd.Series(np.full(len(df), np.nan), index=df.index)
-            results['pivot_low'] = pd.Series(np.full(len(df), np.nan), index=df.index)
-            logging.warning(f"⚠️  Insufficient data for pivots: {data_length} bars (need {min_required}+)")
+        results['marketwatch'] = marketwatch_indicator_vectorized(df['close'], df['open'])
+          # Pivot points
+        results['pivot_high'] = pivot_high_vectorized(df['high'], left_bars=3, right_bars=3)
+        results['pivot_low'] = pivot_low_vectorized(df['low'], left_bars=3, right_bars=3)
         
         # DM calculation
         dm_plus = df['high'].diff()
@@ -670,7 +600,7 @@ def calculate_technicals_parallel(df):
         dm_minus = dm_minus.where((dm_minus>dm_plus)&(dm_minus>0), 0)
         results['dm'] = dm_plus - dm_minus
         
-        return results
+        return results    
     # Execute calculations in parallel (limited to 2 jobs for ECS safety)
     try:
         with ThreadPoolExecutor(max_workers=2) as executor:
@@ -1058,19 +988,13 @@ def process_symbol_chunk(symbol_chunk, db_config):
                     continue
                 
                 # Log every symbol for enhanced visibility
-                logging.info(f"🔄 Processing {symbol} ({i+1}/{len(symbol_chunk)}) - daily technicals...")                # ULTRA-FAST data extraction
-                symbol_data = price_df.loc[symbol].copy()
+                logging.info(f"🔄 Processing {symbol} ({i+1}/{len(symbol_chunk)}) - daily technicals...")
                 
-                # For Pine Script pivot calculations, we need minimum 7 bars (3 left + 1 center + 3 right)
-                # This matches the buysellload approach exactly
-                min_bars_for_pivots = 7
-                if len(symbol_data) < 1:
+                # ULTRA-FAST data extraction
+                symbol_data = price_df.loc[symbol].copy()                  # Skip if insufficient data - use minimal requirement to process maximum data available
+                if len(symbol_data) < 1:  # Process ALL available data - even single data points for maximum backtesting data
                     logging.warning(f"⚠️  No data available for {symbol}, skipping")
                     continue
-                elif len(symbol_data) < min_bars_for_pivots:
-                    logging.warning(f"⚠️  {symbol}: Only {len(symbol_data)} bars available - pivots will be NULL (need {min_bars_for_pivots}+ for Pine Script pivot calculations)")
-                else:
-                    logging.info(f"✅ {symbol}: {len(symbol_data)} bars available - sufficient for Pine Script pivots and all indicators")
                 
                 logging.info(f"📊 {symbol}: Found {len(symbol_data)} price records for technical analysis")
                 
