@@ -62,8 +62,6 @@ function ServiceHealth() {  const [environmentInfo, setEnvironmentInfo] = useSta
   const [testResults, setTestResults] = useState({});
   const [testingInProgress, setTestingInProgress] = useState(false);
   const [componentError, setComponentError] = useState(null);
-  const [connectivityTest, setConnectivityTest] = useState({});
-  const [testingConnectivity, setTestingConnectivity] = useState(false);
 
   // Component error handler
   useEffect(() => {
@@ -153,69 +151,8 @@ function ServiceHealth() {  const [environmentInfo, setEnvironmentInfo] = useSta
       }
     }
       setTestResults(results);
-    setTestingInProgress(false);
-  };
+    setTestingInProgress(false);  };
 
-  // Test connectivity to different potential API endpoints
-  const testConnectivity = async () => {
-    setTestingConnectivity(true);
-    const results = {};
-    
-    // Different potential API URLs to test
-    const potentialUrls = [
-      getCurrentBaseURL(),
-      import.meta.env.VITE_API_URL,
-      'http://localhost:3001',
-      'https://api.yourdomain.com', // Replace with your actual domain
-      window.location.origin + '/api'
-    ].filter(url => url && url !== 'undefined');
-    
-    console.log('=== CONNECTIVITY TEST ===');
-    console.log('Testing URLs:', potentialUrls);
-    
-    for (const url of potentialUrls) {
-      const startTime = Date.now();
-      try {
-        console.log(`Testing connectivity to: ${url}`);
-        
-        // Test basic connectivity
-        const response = await fetch(`${url}/api/health?quick=true`, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-          timeout: 10000
-        });
-        
-        const responseTime = Date.now() - startTime;
-        const data = await response.json();
-        
-        results[url] = {
-          status: response.ok ? 'success' : 'error',
-          responseTime: responseTime,
-          httpStatus: response.status,
-          data: data,
-          error: null
-        };
-        
-        console.log(`✅ ${url} - SUCCESS (${responseTime}ms)`, data);
-        
-      } catch (error) {
-        const responseTime = Date.now() - startTime;
-        results[url] = {
-          status: 'error',
-          responseTime: responseTime,
-          httpStatus: null,
-          data: null,
-          error: error.message
-        };
-        
-        console.log(`❌ ${url} - FAILED (${responseTime}ms)`, error.message);
-      }
-    }
-    
-    setConnectivityTest(results);
-    setTestingConnectivity(false);
-    console.log('=== CONNECTIVITY TEST COMPLETE ===', results);
-  };
   // Health check query
   const { data: healthData, isLoading: healthLoading, error: healthError, refetch: refetchHealth } = useQuery({
     queryKey: ['serviceHealth'],
@@ -794,88 +731,7 @@ function ServiceHealth() {  const [environmentInfo, setEnvironmentInfo] = useSta
             </Accordion>
           </Grid>
         )}
-      </Grid>
-
-      {/* Connectivity Test Section */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                <Typography variant="h6">
-                  <Api sx={{ mr: 1, verticalAlign: 'middle' }} />
-                  API Connectivity Test
-                </Typography>
-                <Button 
-                  variant="contained" 
-                  startIcon={<Speed />}
-                  onClick={testConnectivity}
-                  disabled={testingConnectivity}
-                  color="warning"
-                >
-                  {testingConnectivity ? 'Testing...' : 'Test Connectivity'}
-                </Button>
-              </Box>
-              
-              <Alert severity="info" sx={{ mb: 2 }}>
-                <Typography variant="body2">
-                  <strong>Current API URL:</strong> {getCurrentBaseURL()}<br/>
-                  <strong>VITE_API_URL:</strong> {import.meta.env.VITE_API_URL || 'Not set'}<br/>
-                  <strong>Environment:</strong> {import.meta.env.MODE}
-                </Typography>
-              </Alert>
-
-              {Object.keys(connectivityTest).length > 0 && (
-                <TableContainer component={Paper}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>API URL</TableCell>
-                        <TableCell>Status</TableCell>
-                        <TableCell>Response Time</TableCell>
-                        <TableCell>HTTP Status</TableCell>
-                        <TableCell>Error</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {Object.entries(connectivityTest).map(([url, result]) => (
-                        <TableRow key={url}>
-                          <TableCell sx={{ wordBreak: 'break-all', maxWidth: 300 }}>
-                            {url}
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              icon={getStatusIcon(result.status)}
-                              label={result.status}
-                              color={getStatusColor(result.status)}
-                              size="small"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            {result.responseTime ? `${result.responseTime}ms` : '-'}
-                          </TableCell>
-                          <TableCell>
-                            {result.httpStatus || '-'}
-                          </TableCell>
-                          <TableCell sx={{ maxWidth: 200, wordBreak: 'break-word' }}>
-                            {result.error || '-'}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              )}
-
-              {Object.keys(connectivityTest).length === 0 && !testingConnectivity && (
-                <Alert severity="warning">
-                  Click "Test Connectivity" to diagnose API connection issues. This will test different potential API endpoints.
-                </Alert>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+      </Grid>      {/* Redundant API connectivity test removed */}
     </Container>
   );
 }
