@@ -376,7 +376,14 @@ export const screenStocks = async (params) => {
     return response.data
   } catch (error) {
     console.error('Error screening stocks:', error)
-    handleApiError(error, 'screen stocks')
+    const errorMessage = handleApiError(error, 'screen stocks')
+    // Return a consistent error response structure
+    return { 
+      data: [], 
+      error: errorMessage,
+      count: 0,
+      timestamp: new Date().toISOString()
+    }
   }
 }
 
@@ -390,7 +397,8 @@ export const getBuySignals = async () => {
     return response.data
   } catch (error) {
     console.error('Error fetching buy signals:', error)
-    handleApiError(error, 'get buy signals')
+    const errorMessage = handleApiError(error, 'get buy signals')
+    return { data: [], error: errorMessage }
   }
 }
 
@@ -403,7 +411,8 @@ export const getSellSignals = async () => {
     return response.data
   } catch (error) {
     console.error('Error fetching sell signals:', error)
-    handleApiError(error, 'get sell signals')
+    const errorMessage = handleApiError(error, 'get sell signals')
+    return { data: [], error: errorMessage }
   }
 }
 
@@ -421,12 +430,12 @@ export const getEarningsEstimates = async (params = {}) => {
     const response = await api.get(`/calendar/earnings-estimates?${queryParams.toString()}`, {
       baseURL: currentConfig.baseURL
     })
-    
-    console.log('Earnings estimates response:', response.data)
+      console.log('Earnings estimates response:', response.data)
     return response.data
   } catch (error) {
     console.error('Error fetching earnings estimates:', error)
-    handleApiError(error, 'get earnings estimates')
+    const errorMessage = handleApiError(error, 'get earnings estimates')
+    return { data: [], error: errorMessage }
   }
 }
 
@@ -613,12 +622,12 @@ export const getNaaimData = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    
-    return await api.get(`/market/naaim?${queryParams.toString()}`, {
+      return await api.get(`/market/naaim?${queryParams.toString()}`, {
       baseURL: currentConfig.baseURL
     })
   } catch (error) {
-    handleApiError(error, 'get NAAIM data')
+    const errorMessage = handleApiError(error, 'get NAAIM data')
+    return { data: { data: [] }, error: errorMessage }
   }
 }
 
@@ -631,12 +640,12 @@ export const getFearGreedData = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    
-    return await api.get(`/market/fear-greed?${queryParams.toString()}`, {      
+      return await api.get(`/market/fear-greed?${queryParams.toString()}`, {      
       baseURL: currentConfig.baseURL
     })
   } catch (error) {
-    handleApiError(error, 'get Fear & Greed data')
+    const errorMessage = handleApiError(error, 'get Fear & Greed data')
+    return { data: { data: [] }, error: errorMessage }
   }
 }
 
@@ -647,7 +656,8 @@ export const getDataValidationSummary = async () => {
       baseURL: currentConfig.baseURL
     })
   } catch (error) {
-    handleApiError(error, 'data validation summary')
+    const errorMessage = handleApiError(error, 'data validation summary')
+    return { data: { data: [] }, error: errorMessage }
   }
 }
 

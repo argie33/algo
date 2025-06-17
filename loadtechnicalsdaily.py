@@ -433,19 +433,60 @@ def calculate_technicals_parallel(df):
         
         results['roc'] = roc_fast(df['close'], period=10)
         logging.info(f"✓ ROC: {results['roc'].count()} valid values, {results['roc'].isna().sum()} NaN")
-        
-        # Volume indicators (MISSING FROM ORIGINAL)
+          # Volume indicators (MISSING FROM ORIGINAL)
         logging.info("🔄 Calculating volume indicators...")
         logging.info(f"📊 Volume data: min={df['volume'].min()}, max={df['volume'].max()}, nan_count={df['volume'].isna().sum()}")
+        logging.info(f"📊 Sample volume values: {df['volume'].head(5).tolist()}")
+        logging.info(f"📊 High-Low-Close sample: H={df['high'].head(3).tolist()}, L={df['low'].head(3).tolist()}, C={df['close'].head(3).tolist()}")
         
-        results['ad'] = ad_line_fast(df['high'], df['low'], df['close'], df['volume'])
-        logging.info(f"✓ A/D Line: {results['ad'].count()} valid values, {results['ad'].isna().sum()} NaN")
+        # A/D Line with detailed logging
+        logging.info("🔧 Calculating A/D Line...")
+        try:
+            results['ad'] = ad_line_fast(df['high'], df['low'], df['close'], df['volume'])
+            sample_ad = results['ad'].dropna().head(3)
+            logging.info(f"✓ A/D Line: {results['ad'].count()} valid values, {results['ad'].isna().sum()} NaN")
+            logging.info(f"📊 A/D Sample values: {sample_ad.tolist()}")
+            if results['ad'].count() == 0:
+                logging.error("❌ A/D Line: ALL VALUES ARE NaN! Investigating...")
+                # Check intermediate calculations
+                mfm_sample = ((df['close'].head(3) - df['low'].head(3)) - (df['high'].head(3) - df['close'].head(3))) / (df['high'].head(3) - df['low'].head(3) + 1e-10)
+                logging.error(f"📊 MFM sample: {mfm_sample.tolist()}")
+                mfv_sample = mfm_sample * df['volume'].head(3)
+                logging.error(f"📊 MFV sample: {mfv_sample.tolist()}")
+        except Exception as e:
+            logging.error(f"❌ A/D Line calculation failed: {e}")
+            results['ad'] = pd.Series(np.full(len(df), np.nan), index=df.index)
         
-        results['cmf'] = cmf_fast(df['high'], df['low'], df['close'], df['volume'], period=20)
-        logging.info(f"✓ CMF: {results['cmf'].count()} valid values, {results['cmf'].isna().sum()} NaN")
+        # CMF with detailed logging
+        logging.info("🔧 Calculating CMF...")
+        try:
+            results['cmf'] = cmf_fast(df['high'], df['low'], df['close'], df['volume'], period=20)
+            sample_cmf = results['cmf'].dropna().head(3)
+            logging.info(f"✓ CMF: {results['cmf'].count()} valid values, {results['cmf'].isna().sum()} NaN")
+            logging.info(f"📊 CMF Sample values: {sample_cmf.tolist()}")
+            if results['cmf'].count() == 0:
+                logging.error("❌ CMF: ALL VALUES ARE NaN! Need at least 20 periods for CMF calculation")
+        except Exception as e:
+            logging.error(f"❌ CMF calculation failed: {e}")
+            results['cmf'] = pd.Series(np.full(len(df), np.nan), index=df.index)
         
-        results['mfi'] = mfi_fast(df['high'], df['low'], df['close'], df['volume'], period=14)
-        logging.info(f"✓ MFI: {results['mfi'].count()} valid values, {results['mfi'].isna().sum()} NaN")
+        # MFI with detailed logging
+        logging.info("🔧 Calculating MFI...")
+        try:
+            results['mfi'] = mfi_fast(df['high'], df['low'], df['close'], df['volume'], period=14)
+            sample_mfi = results['mfi'].dropna().head(3)
+            logging.info(f"✓ MFI: {results['mfi'].count()} valid values, {results['mfi'].isna().sum()} NaN")
+            logging.info(f"📊 MFI Sample values: {sample_mfi.tolist()}")
+            if results['mfi'].count() == 0:
+                logging.error("❌ MFI: ALL VALUES ARE NaN! Investigating...")
+                # Check typical price calculation
+                tp_sample = (df['high'].head(3) + df['low'].head(3) + df['close'].head(3)) / 3
+                logging.error(f"📊 Typical Price sample: {tp_sample.tolist()}")
+                rmf_sample = tp_sample * df['volume'].head(3)
+                logging.error(f"📊 Raw Money Flow sample: {rmf_sample.tolist()}")
+        except Exception as e:
+            logging.error(f"❌ MFI calculation failed: {e}")
+            results['mfi'] = pd.Series(np.full(len(df), 50.0), index=df.index)
         
         # Moving averages
         logging.info("🔄 Calculating moving averages...")
@@ -485,26 +526,72 @@ def calculate_technicals_parallel(df):
         
         results['marketwatch'] = marketwatch_indicator_vectorized(df['close'], df['open'])
         logging.info(f"✓ MarketWatch: {results['marketwatch'].count()} valid values, {results['marketwatch'].isna().sum()} NaN")
-        
-        # Pivot points (MISSING FROM ORIGINAL)
+          # Pivot points (MISSING FROM ORIGINAL)
         logging.info("🔄 Calculating pivot points...")
         logging.info(f"📊 High data: min={df['high'].min()}, max={df['high'].max()}")
         logging.info(f"📊 Low data: min={df['low'].min()}, max={df['low'].max()}")
+        logging.info(f"📊 Data length: {len(df)} rows (need at least 7 for 3+3 bars)")
         
-        results['pivot_high'] = pivot_high_vectorized(df['high'], left_bars=3, right_bars=3)
-        logging.info(f"✓ Pivot High: {results['pivot_high'].count()} valid values, {results['pivot_high'].isna().sum()} NaN")
+        # Pivot High with detailed logging
+        logging.info("🔧 Calculating Pivot High...")
+        try:
+            results['pivot_high'] = pivot_high_vectorized(df['high'], left_bars=3, right_bars=3)
+            pivot_high_count = results['pivot_high'].count()
+            logging.info(f"✓ Pivot High: {pivot_high_count} valid values, {results['pivot_high'].isna().sum()} NaN")
+            if pivot_high_count > 0:
+                sample_pivots = results['pivot_high'].dropna().head(3)
+                logging.info(f"📊 Pivot High Sample values: {sample_pivots.tolist()}")
+            else:
+                logging.warning("⚠️ No pivot highs found - this may be normal if data doesn't have clear pivot points")
+                # Show some high values for context
+                logging.info(f"📊 Recent high values: {df['high'].tail(10).tolist()}")
+        except Exception as e:
+            logging.error(f"❌ Pivot High calculation failed: {e}")
+            results['pivot_high'] = pd.Series(np.full(len(df), np.nan), index=df.index)
         
-        results['pivot_low'] = pivot_low_vectorized(df['low'], left_bars=3, right_bars=3)
-        logging.info(f"✓ Pivot Low: {results['pivot_low'].count()} valid values, {results['pivot_low'].isna().sum()} NaN")
-        
-        # DM calculation (MISSING FROM ORIGINAL)
+        # Pivot Low with detailed logging
+        logging.info("🔧 Calculating Pivot Low...")
+        try:
+            results['pivot_low'] = pivot_low_vectorized(df['low'], left_bars=3, right_bars=3)
+            pivot_low_count = results['pivot_low'].count()
+            logging.info(f"✓ Pivot Low: {pivot_low_count} valid values, {results['pivot_low'].isna().sum()} NaN")
+            if pivot_low_count > 0:
+                sample_pivots = results['pivot_low'].dropna().head(3)
+                logging.info(f"📊 Pivot Low Sample values: {sample_pivots.tolist()}")
+            else:
+                logging.warning("⚠️ No pivot lows found - this may be normal if data doesn't have clear pivot points")
+                # Show some low values for context
+                logging.info(f"📊 Recent low values: {df['low'].tail(10).tolist()}")
+        except Exception as e:
+            logging.error(f"❌ Pivot Low calculation failed: {e}")
+            results['pivot_low'] = pd.Series(np.full(len(df), np.nan), index=df.index)
+          # DM calculation (MISSING FROM ORIGINAL)
         logging.info("🔄 Calculating directional movement...")
-        dm_plus = df['high'].diff()
-        dm_minus = df['low'].shift(1) - df['low']
-        dm_plus = dm_plus.where((dm_plus>dm_minus)&(dm_plus>0), 0)
-        dm_minus = dm_minus.where((dm_minus>dm_plus)&(dm_minus>0), 0)
-        results['dm'] = dm_plus - dm_minus
-        logging.info(f"✓ DM: {results['dm'].count()} valid values, {results['dm'].isna().sum()} NaN")
+        try:
+            dm_plus = df['high'].diff()
+            dm_minus = df['low'].shift(1) - df['low']
+            logging.info(f"📊 DM+ sample (raw): {dm_plus.head(5).tolist()}")
+            logging.info(f"📊 DM- sample (raw): {dm_minus.head(5).tolist()}")
+            
+            dm_plus = dm_plus.where((dm_plus>dm_minus)&(dm_plus>0), 0)
+            dm_minus = dm_minus.where((dm_minus>dm_plus)&(dm_minus>0), 0)
+            
+            logging.info(f"📊 DM+ sample (filtered): {dm_plus.head(5).tolist()}")
+            logging.info(f"📊 DM- sample (filtered): {dm_minus.head(5).tolist()}")
+            
+            results['dm'] = dm_plus - dm_minus
+            dm_count = results['dm'].count()
+            logging.info(f"✓ DM: {dm_count} valid values, {results['dm'].isna().sum()} NaN")
+            if dm_count > 0:
+                sample_dm = results['dm'].dropna().head(5)
+                logging.info(f"📊 DM Sample values: {sample_dm.tolist()}")
+            else:
+                logging.error("❌ DM: ALL VALUES ARE NaN!")
+        except Exception as e:
+            logging.error(f"❌ DM calculation failed: {e}")
+            import traceback
+            logging.error(f"❌ DM traceback: {traceback.format_exc()}")
+            results['dm'] = pd.Series(np.full(len(df), 0), index=df.index)
         
         # Combine all results into the original dataframe
         for key, series in results.items():
@@ -769,17 +856,29 @@ def load_technicals_for_symbol(symbol, cur):
         df_tech = calculate_technicals_parallel(df)
         if df_tech is None:
             logging.warning(f"⚠️ Failed to calculate technicals for {symbol}")
-            return 0
-
-        # Log final data quality for troubleshooting indicators
+            return 0        # Log final data quality for troubleshooting indicators
         key_indicators = ['mfi', 'ad', 'cmf', 'pivot_high', 'pivot_low', 'dm']
         for indicator in key_indicators:
             if indicator in df_tech.columns:
                 valid_count = df_tech[indicator].count()
                 total_count = len(df_tech)
-                logging.info(f"📊 {symbol} {indicator.upper()}: {valid_count}/{total_count} valid values ({valid_count/total_count*100:.1f}%)")
+                na_count = df_tech[indicator].isna().sum()
+                logging.info(f"📊 {symbol} {indicator.upper()}: {valid_count}/{total_count} valid values ({valid_count/total_count*100:.1f}%), {na_count} NaN")
+                
+                # For failing indicators, show sample values
+                if valid_count == 0:
+                    logging.error(f"❌ {symbol} {indicator.upper()}: COMPLETELY FAILED - all values are NaN")
+                elif valid_count < total_count * 0.1:  # Less than 10% valid
+                    logging.warning(f"⚠️ {symbol} {indicator.upper()}: LOW SUCCESS RATE - only {valid_count/total_count*100:.1f}% valid")
+                    sample_valid = df_tech[indicator].dropna().head(3)
+                    if len(sample_valid) > 0:
+                        logging.info(f"📊 {symbol} {indicator.upper()} valid sample: {sample_valid.tolist()}")
+                else:
+                    # Show sample of valid values for successful indicators
+                    sample_valid = df_tech[indicator].dropna().head(3)
+                    logging.info(f"📊 {symbol} {indicator.upper()} sample: {sample_valid.tolist()}")
             else:
-                logging.warning(f"⚠️ {symbol}: {indicator.upper()} column not found in calculated data")
+                logging.error(f"❌ {symbol}: {indicator.upper()} column not found in calculated data")
         
         # Prepare data for insertion
         df_tech = df_tech.reset_index()
