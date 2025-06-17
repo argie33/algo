@@ -181,8 +181,10 @@ export const healthCheck = async (queryParams = '') => {
     const response = await api.get(`/health${queryParams}`, {
       baseURL: currentConfig.baseURL
     })
-    return response
+    console.log('Health check response:', response.data)
+    return response.data
   } catch (error) {
+    console.error('Error in health check:', error)
     handleApiError(error, 'health check')
   }
 }
@@ -191,10 +193,13 @@ export const healthCheck = async (queryParams = '') => {
 // Market data - Updated to use proper market endpoints
 export const getMarketOverview = async () => {
   try {
-    return await api.get('/market/overview', {
+    const response = await api.get('/market/overview', {
       baseURL: currentConfig.baseURL
     })
+    console.log('Market overview response:', response.data)
+    return response.data
   } catch (error) {
+    console.error('Error fetching market overview:', error)
     handleApiError(error, 'market overview')
   }
 }
@@ -218,12 +223,18 @@ export const getStocks = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-      const url = `/stocks?${queryParams.toString()}`
+    
+    const url = `/stocks?${queryParams.toString()}`
     console.log('Fetching stocks from:', url)
-    return await api.get(url, {
+    
+    const response = await api.get(url, {
       baseURL: currentConfig.baseURL
     })
+    
+    console.log('Stocks response:', response.data)
+    return response.data
   } catch (error) {
+    console.error('Error fetching stocks:', error)
     handleApiError(error, 'get stocks')
   }
 }
@@ -337,10 +348,13 @@ export const getFinancialStrengthMetrics = (params = {}) => {
 // New method for stock screening with proper parameter handling
 export const screenStocks = async (params) => {
   try {
-    return await api.get(`/stocks/screen?${params.toString()}`, {
+    const response = await api.get(`/stocks/screen?${params.toString()}`, {
       baseURL: currentConfig.baseURL
     })
+    console.log('Screen stocks response:', response.data)
+    return response.data
   } catch (error) {
+    console.error('Error screening stocks:', error)
     handleApiError(error, 'screen stocks')
   }
 }
@@ -348,20 +362,26 @@ export const screenStocks = async (params) => {
 // Trading signals endpoints
 export const getBuySignals = async () => {
   try {
-    return await api.get('/signals/buy', {
+    const response = await api.get('/signals/buy', {
       baseURL: currentConfig.baseURL
     })
+    console.log('Buy signals response:', response.data)
+    return response.data
   } catch (error) {
+    console.error('Error fetching buy signals:', error)
     handleApiError(error, 'get buy signals')
   }
 }
 
 export const getSellSignals = async () => {
   try {
-    return await api.get('/signals/sell', {
+    const response = await api.get('/signals/sell', {
       baseURL: currentConfig.baseURL
     })
+    console.log('Sell signals response:', response.data)
+    return response.data
   } catch (error) {
+    console.error('Error fetching sell signals:', error)
     handleApiError(error, 'get sell signals')
   }
 }
@@ -377,10 +397,14 @@ export const getEarningsEstimates = async (params = {}) => {
       }
     })
     
-    return await api.get(`/calendar/earnings-estimates?${queryParams.toString()}`, {
+    const response = await api.get(`/calendar/earnings-estimates?${queryParams.toString()}`, {
       baseURL: currentConfig.baseURL
     })
+    
+    console.log('Earnings estimates response:', response.data)
+    return response.data
   } catch (error) {
+    console.error('Error fetching earnings estimates:', error)
     handleApiError(error, 'get earnings estimates')
   }
 }
@@ -417,20 +441,30 @@ export const getBalanceSheet = async (ticker, period = 'annual') => {
   try {
     const url = `/financials/${ticker}/balance-sheet?period=${period}`
     console.log('Fetching balance sheet from:', url)
-    return await api.get(url, {
+    
+    const response = await api.get(url, {
       baseURL: currentConfig.baseURL
     })
+    
+    console.log('Balance sheet response:', response.data)
+    return response.data
   } catch (error) {
+    console.error('Error fetching balance sheet:', error)
     handleApiError(error, `get balance sheet for ${ticker}`)
   }
 }
 export const getIncomeStatement = async (ticker, period = 'annual') => {
   try {
     const url = `/financials/${ticker}/income-statement?period=${period}`
-    return await api.get(url, {
+    
+    const response = await api.get(url, {
       baseURL: currentConfig.baseURL
     })
+    
+    console.log('Income statement response:', response.data)
+    return response.data
   } catch (error) {
+    console.error('Error fetching income statement:', error)
     handleApiError(error, `get income statement for ${ticker}`)
   }
 }
@@ -438,10 +472,15 @@ export const getIncomeStatement = async (ticker, period = 'annual') => {
 export const getCashFlowStatement = async (ticker, period = 'annual') => {
   try {
     const url = `/financials/${ticker}/cash-flow?period=${period}`
-    return await api.get(url, {
+    
+    const response = await api.get(url, {
       baseURL: currentConfig.baseURL
     })
+    
+    console.log('Cash flow response:', response.data)
+    return response.data
   } catch (error) {
+    console.error('Error fetching cash flow statement:', error)
     handleApiError(error, `get cash flow statement for ${ticker}`)
   }
 }
