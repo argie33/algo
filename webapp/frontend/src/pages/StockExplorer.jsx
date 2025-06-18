@@ -867,24 +867,33 @@ function StockExplorer() {
                                   </Typography>
                                   <Grid container spacing={2}>                                    <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">Full Name</Typography>
-                                      <Typography variant="body2">{stock.fullName || stock.name || 'N/A'}</Typography>
+                                      <Typography variant="body2">
+                                        {stock.fullName || stock.name || stock.shortName || stock.displayName || 'N/A'}
+                                      </Typography>
                                     </Grid>
                                     <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">Website</Typography>
                                       <Typography variant="body2">
                                         {stock.website ? (
                                           <a href={stock.website} target="_blank" rel="noopener noreferrer">
-                                            {new URL(stock.website).hostname}
+                                            {(() => { try { return new URL(stock.website).hostname; } catch { return stock.website; } })()}
                                           </a>
                                         ) : 'N/A'}
                                       </Typography>
                                     </Grid>
                                     <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">Employees</Typography>
-                                      <Typography variant="body2">{stock.employeeCount ? formatNumber(stock.employeeCount) : 'N/A'}</Typography>
-                                    </Grid>                                    <Grid item xs={6}>
+                                      <Typography variant="body2">
+                                        {stock.employeeCount !== undefined && stock.employeeCount !== null && stock.employeeCount !== ''
+                                          ? (typeof stock.employeeCount === 'number' ? formatNumber(stock.employeeCount) : stock.employeeCount)
+                                          : 'N/A'}
+                                      </Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">Country</Typography>
-                                      <Typography variant="body2">{stock.address?.country || 'N/A'}</Typography>
+                                      <Typography variant="body2">
+                                        {stock.address?.country || stock.country || 'N/A'}
+                                      </Typography>
                                     </Grid>
                                     <Grid item xs={12}>
                                       <Typography variant="body2" color="text.secondary">Business Summary</Typography>
@@ -912,36 +921,50 @@ function StockExplorer() {
                                   <Grid container spacing={2}>                                    <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">Current Price</Typography>
                                       <Typography variant="body2" fontWeight="bold">
-                                        {stock.price?.current ? formatCurrency(stock.price.current) : 'N/A'}
+                                        {stock.price?.current !== undefined && stock.price?.current !== null && stock.price?.current !== ''
+                                          ? formatCurrency(stock.price.current)
+                                          : 'N/A'}
                                       </Typography>
                                     </Grid>
                                     <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">Previous Close</Typography>
-                                      <Typography variant="body2">{stock.price?.previousClose ? formatCurrency(stock.price.previousClose) : 'N/A'}</Typography>
+                                      <Typography variant="body2">
+                                        {stock.price?.previousClose !== undefined && stock.price?.previousClose !== null && stock.price?.previousClose !== ''
+                                          ? formatCurrency(stock.price.previousClose)
+                                          : 'N/A'}
+                                      </Typography>
                                     </Grid>
                                     <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">Day Range</Typography>
                                       <Typography variant="body2">
-                                        {stock.price?.dayLow && stock.price?.dayHigh ? 
-                                          `${formatCurrency(stock.price.dayLow)} - ${formatCurrency(stock.price.dayHigh)}` : 'N/A'
-                                        }
+                                        {stock.price?.dayLow !== undefined && stock.price?.dayHigh !== undefined && stock.price?.dayLow !== null && stock.price?.dayHigh !== null && stock.price?.dayLow !== '' && stock.price?.dayHigh !== ''
+                                          ? `${formatCurrency(stock.price.dayLow)} - ${formatCurrency(stock.price.dayHigh)}`
+                                          : 'N/A'}
                                       </Typography>
                                     </Grid>
                                     <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">52W Range</Typography>
                                       <Typography variant="body2">
-                                        {stock.price?.fiftyTwoWeekLow && stock.price?.fiftyTwoWeekHigh ? 
-                                          `${formatCurrency(stock.price.fiftyTwoWeekLow)} - ${formatCurrency(stock.price.fiftyTwoWeekHigh)}` : 'N/A'
-                                        }
+                                        {stock.price?.fiftyTwoWeekLow !== undefined && stock.price?.fiftyTwoWeekHigh !== undefined && stock.price?.fiftyTwoWeekLow !== null && stock.price?.fiftyTwoWeekHigh !== null && stock.price?.fiftyTwoWeekLow !== '' && stock.price?.fiftyTwoWeekHigh !== ''
+                                          ? `${formatCurrency(stock.price.fiftyTwoWeekLow)} - ${formatCurrency(stock.price.fiftyTwoWeekHigh)}`
+                                          : 'N/A'}
                                       </Typography>
                                     </Grid>
                                     <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">Volume</Typography>
-                                      <Typography variant="body2">{stock.volume ? formatNumber(stock.volume) : 'N/A'}</Typography>
+                                      <Typography variant="body2">
+                                        {stock.volume !== undefined && stock.volume !== null && stock.volume !== ''
+                                          ? formatNumber(stock.volume)
+                                          : 'N/A'}
+                                      </Typography>
                                     </Grid>
                                     <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">Avg Volume</Typography>
-                                      <Typography variant="body2">{stock.averageVolume ? formatNumber(stock.averageVolume) : 'N/A'}</Typography>
+                                      <Typography variant="body2">
+                                        {stock.averageVolume !== undefined && stock.averageVolume !== null && stock.averageVolume !== ''
+                                          ? formatNumber(stock.averageVolume)
+                                          : 'N/A'}
+                                      </Typography>
                                     </Grid>
                                   </Grid>
                                 </CardContent>
@@ -957,26 +980,51 @@ function StockExplorer() {
                                   </Typography>
                                   <Grid container spacing={2}>                                    <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">P/E Ratio</Typography>
-                                      <Typography variant="body2">{stock.financialMetrics?.trailingPE ? formatNumber(stock.financialMetrics.trailingPE, 2) : 'N/A'}</Typography>
+                                      <Typography variant="body2">
+                                        {stock.financialMetrics?.trailingPE !== undefined && stock.financialMetrics?.trailingPE !== null && stock.financialMetrics?.trailingPE !== ''
+                                          ? formatNumber(stock.financialMetrics.trailingPE, 2)
+                                          : 'N/A'}
+                                      </Typography>
                                     </Grid>
                                     <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">PEG Ratio</Typography>
-                                      <Typography variant="body2">{stock.financialMetrics?.pegRatio ? formatNumber(stock.financialMetrics.pegRatio, 2) : 'N/A'}</Typography>
+                                      <Typography variant="body2">
+                                        {stock.financialMetrics?.pegRatio !== undefined && stock.financialMetrics?.pegRatio !== null && stock.financialMetrics?.pegRatio !== ''
+                                          ? formatNumber(stock.financialMetrics.pegRatio, 2)
+                                          : 'N/A'}
+                                      </Typography>
                                     </Grid>
                                     <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">P/B Ratio</Typography>
-                                      <Typography variant="body2">{stock.financialMetrics?.priceToBook ? formatNumber(stock.financialMetrics.priceToBook, 2) : 'N/A'}</Typography>
+                                      <Typography variant="body2">
+                                        {stock.financialMetrics?.priceToBook !== undefined && stock.financialMetrics?.priceToBook !== null && stock.financialMetrics?.priceToBook !== ''
+                                          ? formatNumber(stock.financialMetrics.priceToBook, 2)
+                                          : 'N/A'}
+                                      </Typography>
                                     </Grid>
                                     <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">EPS</Typography>
-                                      <Typography variant="body2">{stock.financialMetrics?.epsTrailing ? formatCurrency(stock.financialMetrics.epsTrailing) : 'N/A'}</Typography>
+                                      <Typography variant="body2">
+                                        {stock.financialMetrics?.epsTrailing !== undefined && stock.financialMetrics?.epsTrailing !== null && stock.financialMetrics?.epsTrailing !== ''
+                                          ? formatCurrency(stock.financialMetrics.epsTrailing)
+                                          : 'N/A'}
+                                      </Typography>
                                     </Grid>
                                     <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">Revenue Growth</Typography>
-                                      <Typography variant="body2">{stock.financialMetrics?.revenueGrowth ? formatPercent(stock.financialMetrics.revenueGrowth) : 'N/A'}</Typography>
-                                    </Grid>                                    <Grid item xs={6}>
+                                      <Typography variant="body2">
+                                        {stock.financialMetrics?.revenueGrowth !== undefined && stock.financialMetrics?.revenueGrowth !== null && stock.financialMetrics?.revenueGrowth !== ''
+                                          ? formatPercent(stock.financialMetrics.revenueGrowth)
+                                          : 'N/A'}
+                                      </Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">Profit Margin</Typography>
-                                      <Typography variant="body2">{stock.financialMetrics?.profitMargin ? formatPercent(stock.financialMetrics.profitMargin) : 'N/A'}</Typography>
+                                      <Typography variant="body2">
+                                        {stock.financialMetrics?.profitMargin !== undefined && stock.financialMetrics?.profitMargin !== null && stock.financialMetrics?.profitMargin !== ''
+                                          ? formatPercent(stock.financialMetrics.profitMargin)
+                                          : 'N/A'}
+                                      </Typography>
                                     </Grid>
                                   </Grid>
                                 </CardContent>
