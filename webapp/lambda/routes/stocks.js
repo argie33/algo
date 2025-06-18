@@ -1201,71 +1201,254 @@ router.get('/:ticker/profile', async (req, res) => {
   }
 });
 
-// Stock metrics endpoint - returns financial metrics
+// Comprehensive financial metrics endpoint - uses loadinfo data
 router.get('/:ticker/metrics', async (req, res) => {
   try {
     const { ticker } = req.params;
     const tickerUpper = ticker.toUpperCase();
     
-    console.log(`Stock metrics endpoint called for: ${tickerUpper}`);
+    console.log(`Comprehensive financial metrics endpoint called for: ${tickerUpper}`);
     
-    // Try to get fundamental data
-    let fundamentalData = null;
-    try {
-      const fundamentalQuery = `
-        SELECT 
-          market_cap,
-          pe_ratio,
-          eps,
-          dividend_yield,
-          book_value,
-          revenue,
-          profit_margin,
-          debt_to_equity,
-          return_on_equity,
-          price_to_book,
-          updated_at
-        FROM fundamentals 
-        WHERE symbol = $1 
-        ORDER BY updated_at DESC 
-        LIMIT 1
-      `;
+    // Get all financial data from loadinfo tables
+    const financialQuery = `
+      SELECT 
+        -- Company Profile
+        cp.short_name,
+        cp.long_name,
+        cp.sector,
+        cp.sector_disp,
+        cp.industry,
+        cp.industry_disp,
+        cp.business_summary,
+        cp.employee_count,
+        cp.exchange,
+        cp.full_exchange_name,
+        
+        -- Market Data
+        md.current_price,
+        md.previous_close,
+        md.day_low,
+        md.day_high,
+        md.volume,
+        md.average_volume,
+        md.market_cap,
+        md.fifty_two_week_low,
+        md.fifty_two_week_high,
+        md.fifty_day_avg,
+        md.two_hundred_day_avg,
+        md.bid_price,
+        md.ask_price,
+        
+        -- Key Metrics  
+        km.trailing_pe,
+        km.forward_pe,
+        km.price_to_sales_ttm,
+        km.price_to_book,
+        km.book_value,
+        km.peg_ratio,
+        km.enterprise_value,
+        km.ev_to_revenue,
+        km.ev_to_ebitda,
+        km.total_revenue,
+        km.net_income,
+        km.ebitda,
+        km.gross_profit,
+        km.eps_trailing,
+        km.eps_forward,
+        km.total_cash,
+        km.cash_per_share,
+        km.operating_cashflow,
+        km.free_cashflow,
+        km.total_debt,
+        km.debt_to_equity,
+        km.quick_ratio,
+        km.current_ratio,
+        km.profit_margin_pct,
+        km.gross_margin_pct,
+        km.ebitda_margin_pct,
+        km.operating_margin_pct,
+        km.return_on_assets_pct,
+        km.return_on_equity_pct,
+        km.revenue_growth_pct,
+        km.earnings_growth_pct,
+        km.dividend_rate,
+        km.dividend_yield,
+        km.five_year_avg_dividend_yield,
+        km.payout_ratio,
+        
+        -- Analyst Estimates
+        ae.target_high_price,
+        ae.target_low_price,
+        ae.target_mean_price,
+        ae.target_median_price,
+        ae.recommendation_key,
+        ae.recommendation_mean,
+        ae.analyst_opinion_count,
+        ae.average_analyst_rating,
+        
+        -- Governance Scores
+        gs.audit_risk,
+        gs.board_risk,
+        gs.compensation_risk,
+        gs.shareholder_rights_risk,
+        gs.overall_risk
+        
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker  
+      LEFT JOIN analyst_estimates ae ON cp.ticker = ae.ticker
+      LEFT JOIN governance_scores gs ON cp.ticker = gs.ticker
+      WHERE cp.ticker = $1
+    `;
+    
+    const result = await query(financialQuery, [tickerUpper]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Stock not found',
+        symbol: tickerUpper,
+        message: 'No financial data available for this symbol',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const data = result.rows[0];
+    
+    // Structure comprehensive financial response
+    const financialMetrics = {
+      symbol: tickerUpper,
+      companyInfo: {
+        name: data.long_name || data.short_name,
+        shortName: data.short_name,
+        sector: data.sector_disp || data.sector,
+        industry: data.industry_disp || data.industry,
+        businessSummary: data.business_summary,
+        employeeCount: data.employee_count,
+        exchange: data.full_exchange_name || data.exchange
+      },
       
-      const fundamentalResult = await query(fundamentalQuery, [tickerUpper]);
-      fundamentalData = fundamentalResult.rows.length > 0 ? fundamentalResult.rows[0] : null;
-    } catch (error) {
-      console.log(`Fundamental data not available for ${tickerUpper}:`, error.message);
-    }
+      pricing: {
+        currentPrice: parseFloat(data.current_price || 0),
+        previousClose: parseFloat(data.previous_close || 0),
+        dayRange: {
+          low: parseFloat(data.day_low || 0),
+          high: parseFloat(data.day_high || 0)
+        },
+        fiftyTwoWeekRange: {
+          low: parseFloat(data.fifty_two_week_low || 0),
+          high: parseFloat(data.fifty_two_week_high || 0)
+        },
+        movingAverages: {
+          fiftyDay: parseFloat(data.fifty_day_avg || 0),
+          twoHundredDay: parseFloat(data.two_hundred_day_avg || 0)
+        },
+        bidAsk: {
+          bid: parseFloat(data.bid_price || 0),
+          ask: parseFloat(data.ask_price || 0)
+        }
+      },
+      
+      marketData: {
+        marketCap: parseInt(data.market_cap || 0),
+        volume: parseInt(data.volume || 0),
+        averageVolume: parseInt(data.average_volume || 0),
+        enterpriseValue: parseInt(data.enterprise_value || 0)
+      },
+      
+      valuationRatios: {
+        trailingPE: parseFloat(data.trailing_pe || 0),
+        forwardPE: parseFloat(data.forward_pe || 0),
+        priceToSales: parseFloat(data.price_to_sales_ttm || 0),
+        priceToBook: parseFloat(data.price_to_book || 0),
+        pegRatio: parseFloat(data.peg_ratio || 0),
+        evToRevenue: parseFloat(data.ev_to_revenue || 0),
+        evToEbitda: parseFloat(data.ev_to_ebitda || 0)
+      },
+      
+      profitability: {
+        profitMargin: parseFloat(data.profit_margin_pct || 0),
+        grossMargin: parseFloat(data.gross_margin_pct || 0),
+        ebitdaMargin: parseFloat(data.ebitda_margin_pct || 0),
+        operatingMargin: parseFloat(data.operating_margin_pct || 0),
+        returnOnAssets: parseFloat(data.return_on_assets_pct || 0),
+        returnOnEquity: parseFloat(data.return_on_equity_pct || 0)
+      },
+      
+      growth: {
+        revenueGrowth: parseFloat(data.revenue_growth_pct || 0),
+        earningsGrowth: parseFloat(data.earnings_growth_pct || 0)
+      },
+      
+      financial: {
+        totalRevenue: parseInt(data.total_revenue || 0),
+        netIncome: parseInt(data.net_income || 0),
+        ebitda: parseInt(data.ebitda || 0),
+        grossProfit: parseInt(data.gross_profit || 0),
+        totalCash: parseInt(data.total_cash || 0),
+        cashPerShare: parseFloat(data.cash_per_share || 0),
+        operatingCashflow: parseInt(data.operating_cashflow || 0),
+        freeCashflow: parseInt(data.free_cashflow || 0),
+        totalDebt: parseInt(data.total_debt || 0),
+        bookValue: parseFloat(data.book_value || 0)
+      },
+      
+      ratios: {
+        debtToEquity: parseFloat(data.debt_to_equity || 0),
+        quickRatio: parseFloat(data.quick_ratio || 0),
+        currentRatio: parseFloat(data.current_ratio || 0)
+      },
+      
+      earnings: {
+        epsTrailing: parseFloat(data.eps_trailing || 0),
+        epsForward: parseFloat(data.eps_forward || 0)
+      },
+      
+      dividends: {
+        dividendRate: parseFloat(data.dividend_rate || 0),
+        dividendYield: parseFloat(data.dividend_yield || 0),
+        fiveYearAvgDividendYield: parseFloat(data.five_year_avg_dividend_yield || 0),
+        payoutRatio: parseFloat(data.payout_ratio || 0)
+      },
+      
+      analystEstimates: {
+        targetPrices: {
+          high: parseFloat(data.target_high_price || 0),
+          low: parseFloat(data.target_low_price || 0),
+          mean: parseFloat(data.target_mean_price || 0),
+          median: parseFloat(data.target_median_price || 0)
+        },
+        recommendation: {
+          key: data.recommendation_key,
+          mean: parseFloat(data.recommendation_mean || 0),
+          analystCount: parseInt(data.analyst_opinion_count || 0),
+          averageRating: parseFloat(data.average_analyst_rating || 0)
+        }
+      },
+      
+      governance: {
+        auditRisk: parseInt(data.audit_risk || 0),
+        boardRisk: parseInt(data.board_risk || 0),
+        compensationRisk: parseInt(data.compensation_risk || 0),
+        shareholderRightsRisk: parseInt(data.shareholder_rights_risk || 0),
+        overallRisk: parseInt(data.overall_risk || 0)
+      },
+      
+      dataAvailability: {
+        hasMarketData: !!data.current_price,
+        hasKeyMetrics: !!data.trailing_pe,
+        hasAnalystEstimates: !!data.target_mean_price,
+        hasGovernanceData: !!data.overall_risk
+      },
+      
+      timestamp: new Date().toISOString()
+    };
     
-    if (fundamentalData) {
-      res.json({
-        symbol: tickerUpper,
-        marketCap: fundamentalData.market_cap,
-        peRatio: fundamentalData.pe_ratio,
-        eps: fundamentalData.eps,
-        dividendYield: fundamentalData.dividend_yield,
-        bookValue: fundamentalData.book_value,
-        revenue: fundamentalData.revenue,
-        profitMargin: fundamentalData.profit_margin,
-        debtToEquity: fundamentalData.debt_to_equity,
-        returnOnEquity: fundamentalData.return_on_equity,
-        priceToBook: fundamentalData.price_to_book,
-        lastUpdated: fundamentalData.updated_at,
-        timestamp: new Date().toISOString()
-      });
-    } else {
-      res.json({
-        symbol: tickerUpper,
-        available: false,
-        message: 'Financial metrics not available for this symbol',
-        timestamp: new Date().toISOString()
-      });
-    }
+    res.json(financialMetrics);
     
   } catch (error) {
-    console.error('Error in stock metrics endpoint:', error);
+    console.error('Error in comprehensive financial metrics endpoint:', error);
     res.status(500).json({ 
-      error: 'Failed to fetch stock metrics', 
+      error: 'Failed to fetch financial metrics', 
       symbol: req.params.ticker,
       message: error.message,
       timestamp: new Date().toISOString()
@@ -1273,34 +1456,231 @@ router.get('/:ticker/metrics', async (req, res) => {
   }
 });
 
-// Stock financials endpoint - returns financial statements
-router.get('/:ticker/financials', async (req, res) => {
+// Comprehensive financial overview endpoint - perfect for frontend financial pages
+router.get('/:ticker/financial-overview', async (req, res) => {
   try {
     const { ticker } = req.params;
-    const type = req.query.type || 'income';
     const tickerUpper = ticker.toUpperCase();
     
-    console.log(`Stock financials endpoint called for: ${tickerUpper}, type: ${type}`);
+    console.log(`Financial overview endpoint called for: ${tickerUpper}`);
     
-    res.json({
+    // Get comprehensive financial overview
+    const overviewQuery = `
+      SELECT 
+        -- Company basics
+        cp.short_name,
+        cp.long_name,
+        cp.sector_disp,
+        cp.industry_disp,
+        cp.business_summary,
+        cp.employee_count,
+        cp.website_url,
+        
+        -- Current market data
+        md.current_price,
+        md.previous_close,
+        md.market_cap,
+        md.volume,
+        md.fifty_two_week_low,
+        md.fifty_two_week_high,
+        
+        -- Key financial metrics
+        km.trailing_pe,
+        km.forward_pe,
+        km.price_to_book,
+        km.dividend_yield,
+        km.eps_trailing,
+        km.eps_forward,
+        km.total_revenue,
+        km.net_income,
+        km.profit_margin_pct,
+        km.return_on_equity_pct,
+        km.debt_to_equity,
+        km.revenue_growth_pct,
+        km.earnings_growth_pct,
+        
+        -- Analyst data
+        ae.target_mean_price,
+        ae.recommendation_key,
+        ae.analyst_opinion_count,
+        
+        -- Governance
+        gs.overall_risk
+        
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+      LEFT JOIN analyst_estimates ae ON cp.ticker = ae.ticker
+      LEFT JOIN governance_scores gs ON cp.ticker = gs.ticker
+      WHERE cp.ticker = $1
+    `;
+    
+    const result = await query(overviewQuery, [tickerUpper]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Stock not found',
+        symbol: tickerUpper,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const data = result.rows[0];
+    
+    // Calculate derived metrics
+    const currentPrice = parseFloat(data.current_price || 0);
+    const previousClose = parseFloat(data.previous_close || 0);
+    const priceChange = currentPrice - previousClose;
+    const priceChangePercent = previousClose > 0 ? (priceChange / previousClose) * 100 : 0;
+    
+    const fiftyTwoWeekLow = parseFloat(data.fifty_two_week_low || 0);
+    const fiftyTwoWeekHigh = parseFloat(data.fifty_two_week_high || 0);
+    const fiftyTwoWeekPosition = fiftyTwoWeekHigh > fiftyTwoWeekLow ? 
+      ((currentPrice - fiftyTwoWeekLow) / (fiftyTwoWeekHigh - fiftyTwoWeekLow)) * 100 : 0;
+    
+    // Format response for easy frontend consumption
+    const overview = {
       symbol: tickerUpper,
-      type: type,
-      available: false,
-      message: 'Financial statements data not available - use the main stock endpoint for available fundamental data',
-      note: 'Try /stocks/' + tickerUpper + ' for basic fundamental metrics',
+      
+      // Company Information
+      company: {
+        name: data.long_name || data.short_name,
+        sector: data.sector_disp,
+        industry: data.industry_disp,
+        description: data.business_summary,
+        employees: parseInt(data.employee_count || 0),
+        website: data.website_url
+      },
+      
+      // Stock Price
+      price: {
+        current: currentPrice,
+        change: parseFloat(priceChange.toFixed(2)),
+        changePercent: parseFloat(priceChangePercent.toFixed(2)),
+        previousClose: previousClose,
+        fiftyTwoWeekRange: {
+          low: fiftyTwoWeekLow,
+          high: fiftyTwoWeekHigh,
+          position: parseFloat(fiftyTwoWeekPosition.toFixed(1))
+        }
+      },
+      
+      // Market Data
+      market: {
+        marketCap: {
+          value: parseInt(data.market_cap || 0),
+          formatted: formatMarketCap(parseInt(data.market_cap || 0))
+        },
+        volume: parseInt(data.volume || 0),
+        avgVolume: null // Could add from market_data if needed
+      },
+      
+      // Valuation
+      valuation: {
+        peRatio: parseFloat(data.trailing_pe || 0),
+        forwardPE: parseFloat(data.forward_pe || 0),
+        priceToBook: parseFloat(data.price_to_book || 0),
+        eps: parseFloat(data.eps_trailing || 0),
+        forwardEPS: parseFloat(data.eps_forward || 0)
+      },
+      
+      // Financial Health
+      financial: {
+        revenue: {
+          value: parseInt(data.total_revenue || 0),
+          formatted: formatLargeNumber(parseInt(data.total_revenue || 0))
+        },
+        netIncome: {
+          value: parseInt(data.net_income || 0),
+          formatted: formatLargeNumber(parseInt(data.net_income || 0))
+        },
+        profitMargin: parseFloat(data.profit_margin_pct || 0),
+        roe: parseFloat(data.return_on_equity_pct || 0),
+        debtToEquity: parseFloat(data.debt_to_equity || 0)
+      },
+      
+      // Growth
+      growth: {
+        revenueGrowth: parseFloat(data.revenue_growth_pct || 0),
+        earningsGrowth: parseFloat(data.earnings_growth_pct || 0)
+      },
+      
+      // Dividends
+      dividends: {
+        yield: parseFloat(data.dividend_yield || 0),
+        hasDividend: parseFloat(data.dividend_yield || 0) > 0
+      },
+      
+      // Analyst Opinion
+      analysts: {
+        targetPrice: parseFloat(data.target_mean_price || 0),
+        recommendation: data.recommendation_key,
+        analystCount: parseInt(data.analyst_opinion_count || 0),
+        hasEstimates: !!data.target_mean_price
+      },
+      
+      // Risk Assessment
+      risk: {
+        overallRisk: parseInt(data.overall_risk || 0),
+        riskLevel: getRiskLevel(parseInt(data.overall_risk || 0))
+      },
+      
+      // Data Quality Indicators
+      dataQuality: {
+        hasPrice: !!data.current_price,
+        hasFinancials: !!data.total_revenue,
+        hasAnalysts: !!data.target_mean_price,
+        completeness: calculateCompleteness(data)
+      },
+      
       timestamp: new Date().toISOString()
-    });
+    };
+    
+    res.json(overview);
     
   } catch (error) {
-    console.error('Error in stock financials endpoint:', error);
+    console.error('Error in financial overview endpoint:', error);
     res.status(500).json({ 
-      error: 'Failed to fetch stock financials', 
+      error: 'Failed to fetch financial overview', 
       symbol: req.params.ticker,
       message: error.message,
       timestamp: new Date().toISOString()
     });
   }
 });
+
+// Helper functions for financial overview
+function formatMarketCap(value) {
+  if (value >= 1e12) return `$${(value / 1e12).toFixed(1)}T`;
+  if (value >= 1e9) return `$${(value / 1e9).toFixed(1)}B`;
+  if (value >= 1e6) return `$${(value / 1e6).toFixed(1)}M`;
+  if (value >= 1e3) return `$${(value / 1e3).toFixed(1)}K`;
+  return `$${value}`;
+}
+
+function formatLargeNumber(value) {
+  if (value >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
+  if (value >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
+  if (value >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
+  if (value >= 1e3) return `$${(value / 1e3).toFixed(2)}K`;
+  return `$${value}`;
+}
+
+function getRiskLevel(riskScore) {
+  if (riskScore <= 3) return 'Low';
+  if (riskScore <= 6) return 'Medium';
+  if (riskScore <= 8) return 'High';
+  return 'Very High';
+}
+
+function calculateCompleteness(data) {
+  const fields = [
+    'current_price', 'market_cap', 'trailing_pe', 'total_revenue', 
+    'net_income', 'eps_trailing', 'target_mean_price'
+  ];
+  const available = fields.filter(field => data[field] != null).length;
+  return Math.round((available / fields.length) * 100);
+}
 
 // Stock recommendations endpoint - returns analyst recommendations
 router.get('/:ticker/recommendations', async (req, res) => {
