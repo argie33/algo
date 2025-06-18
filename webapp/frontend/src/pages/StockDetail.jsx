@@ -136,13 +136,20 @@ function StockDetail() {
     enabled: !!symbol,
     onError: (error) => logger.queryError('stockData', error, { symbol })
   })
-
   // Fetch price history for charts
   const { data: priceHistory, isLoading: priceHistoryLoading, error: priceHistoryError } = useQuery({
     queryKey: ['stockPrices', symbol, 'daily'],
     queryFn: () => api.getStockPrices(symbol, 'daily', 252), // 1 year of daily data
     enabled: !!symbol,
     onError: (error) => logger.queryError('stockPrices', error, { symbol })
+  })
+
+  // Fetch technical indicators data
+  const { data: technicalData, isLoading: technicalLoading, error: technicalError } = useQuery({
+    queryKey: ['technicalData', symbol],
+    queryFn: () => api.getTechnicalData('daily', { symbol }),
+    enabled: !!symbol,
+    onError: (error) => logger.queryError('technicalData', error, { symbol })
   })
 
   const handleTabChange = (event, newValue) => {
@@ -285,7 +292,8 @@ function StockDetail() {
             </Typography>
           </CardContent>
         </Card>
-      )}      {/* Tab Navigation */}
+      )}
+      {/* Tab Navigation */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={tabValue} onChange={handleTabChange} aria-label="stock detail tabs">
           <Tab label="Overview" icon={<Analytics />} />
@@ -555,20 +563,52 @@ function StockDetail() {
               </CardContent>
             </Card>
           </Grid>
-        </Grid>
-
-        {/* Technical Indicators from Comprehensive Data */}
-        {comprehensiveData && comprehensiveData.data && comprehensiveData.data.technicals && (
-          <Grid container spacing={3}>
-            <Grid item xs={12}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Technical Indicators
-                  </Typography>
+        </Grid>        {/* Technical Indicators */}
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Technical Indicators
+                </Typography>
+                {technicalLoading ? (
+                  <Box display="flex" justifyContent="center" alignItems="center" height={200}>
+                    <CircularProgress />
+                  </Box>                ) : technicalData && technicalData.data && technicalData.data.length > 0 ? (
+                  <Grid container spacing={2}>
+                    {technicalData.data
+                      .filter(item => item.symbol === symbol)
+                      .slice(0, 1)
+                      .map((stockTechnicals, index) => (
+                        <React.Fragment key={index}>
+                          {Object.entries(stockTechnicals)
+                            .filter(([key, value]) => 
+                              key !== 'symbol' && 
+                              key !== 'date' && 
+                              value !== null && 
+                              value !== 'N/A' && 
+                              value !== undefined &&
+                              typeof value === 'number'
+                            )
+                            .map(([key, value]) => (
+                              <Grid item xs={6} sm={4} md={3} key={key}>
+                                <Box>
+                                  <Typography variant="body2" color="text.secondary">
+                                    {key.toUpperCase().replace(/_/g, ' ')}
+                                  </Typography>
+                                  <Typography variant="body1" fontWeight="bold">
+                                    {typeof value === 'number' ? value.toFixed(4) : value}
+                                  </Typography>
+                                </Box>
+                              </Grid>
+                            ))}
+                        </React.Fragment>
+                      ))}
+                  </Grid>
+                ) : comprehensiveData && comprehensiveData.data && comprehensiveData.data.technicals ? (
                   <Grid container spacing={2}>
                     {Object.entries(comprehensiveData.data.technicals)
-                      .filter(([key, value]) => value !== null && value !== 'N/A')
+                      .filter(([key, value]) => value !== null && value !== 'N/A' && value !== undefined)
                       .map(([key, value]) => (
                         <Grid item xs={6} sm={4} md={3} key={key}>
                           <Box>
@@ -582,11 +622,17 @@ function StockDetail() {
                         </Grid>
                       ))}
                   </Grid>
-                </CardContent>
-              </Card>
-            </Grid>
+                ) : (
+                  <Box display="flex" justifyContent="center" alignItems="center" height={200}>
+                    <Typography color="text.secondary">
+                      Technical indicators not available for this symbol
+                    </Typography>
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
           </Grid>
-        )}
+        </Grid>
       </TabPanel>      <TabPanel value={tabValue} index={2}>
         {(balanceSheetLoading || incomeStatementLoading || cashFlowLoading) ? (
           <Box display="flex" justifyContent="center" p={4}>
@@ -800,7 +846,8 @@ function StockDetail() {
               </Grid>
             </Grid>
           </Box>
-        )}      </TabPanel>
+        )}
+        </TabPanel>
 
       <TabPanel value={tabValue} index={3}>
         {metricsLoading ? (
@@ -835,7 +882,8 @@ function StockDetail() {
               </Grid>
             </CardContent>
           </Card>
-        )}      </TabPanel>
+        )}
+        </TabPanel>
 
       <TabPanel value={tabValue} index={4}>
         {analystOverviewLoading ? (
