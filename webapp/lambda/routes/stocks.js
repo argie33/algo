@@ -55,7 +55,7 @@ router.get('/', async (req, res) => {
     const sortColumn = validSortColumns[sortBy] || 'ss.symbol';
     const sortDirection = sortOrder.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
 
-    console.log('OPTIMIZED query params:', { whereClause, params, limit, offset });    // COMPREHENSIVE QUERY: Include all data from loadinfo script
+    console.log('OPTIMIZED query params:', { whereClause, params, limit, offset });    // COMPREHENSIVE QUERY: Include ALL data from loadinfo script
     const stocksQuery = `
       SELECT 
         -- Stock symbols data
@@ -110,16 +110,77 @@ router.get('/', async (req, res) => {
         md.ask_price,
         md.market_state,
         
+        -- Key financial metrics from loadinfo
+        km.trailing_pe,
+        km.forward_pe,
+        km.price_to_sales_ttm,
+        km.price_to_book,
+        km.book_value,
+        km.peg_ratio,
+        km.enterprise_value,
+        km.ev_to_revenue,
+        km.ev_to_ebitda,
+        km.total_revenue,
+        km.net_income,
+        km.ebitda,
+        km.gross_profit,
+        km.eps_trailing,
+        km.eps_forward,
+        km.eps_current_year,
+        km.price_eps_current_year,
+        km.earnings_q_growth_pct,
+        km.total_cash,
+        km.cash_per_share,
+        km.operating_cashflow,
+        km.free_cashflow,
+        km.total_debt,
+        km.debt_to_equity,
+        km.quick_ratio,
+        km.current_ratio,
+        km.profit_margin_pct,
+        km.gross_margin_pct,
+        km.ebitda_margin_pct,
+        km.operating_margin_pct,
+        km.return_on_assets_pct,
+        km.return_on_equity_pct,
+        km.revenue_growth_pct,
+        km.earnings_growth_pct,
+        km.dividend_rate,
+        km.dividend_yield,
+        km.five_year_avg_dividend_yield,
+        km.payout_ratio,
+        
+        -- Analyst estimates from loadinfo
+        ae.target_high_price,
+        ae.target_low_price,
+        ae.target_mean_price,
+        ae.target_median_price,
+        ae.recommendation_key,
+        ae.recommendation_mean,
+        ae.analyst_opinion_count,
+        ae.average_analyst_rating,
+        
         -- Governance scores from loadinfo
         gs.audit_risk,
         gs.board_risk,
         gs.compensation_risk,
-        gs.overall_risk
+        gs.shareholder_rights_risk,
+        gs.overall_risk,
+        
+        -- Leadership team count (subquery)
+        COALESCE(lt_count.executive_count, 0) as leadership_count
         
       FROM stock_symbols ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
       LEFT JOIN market_data md ON ss.symbol = md.ticker
+      LEFT JOIN key_metrics km ON ss.symbol = km.ticker
+      LEFT JOIN analyst_estimates ae ON ss.symbol = ae.ticker
       LEFT JOIN governance_scores gs ON ss.symbol = gs.ticker
+      LEFT JOIN (
+        SELECT ticker, COUNT(*) as executive_count 
+        FROM leadership_team 
+        GROUP BY ticker
+      ) lt_count ON ss.symbol = lt_count.ticker
       ${whereClause}
       ORDER BY ${sortColumn} ${sortDirection}
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
@@ -144,7 +205,7 @@ router.get('/', async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
-    console.log(`FAST query results: ${stocksResult.rows.length} stocks, ${total} total`);    // Professional formatting with ALL available data fields from loadinfo
+    console.log(`FAST query results: ${stocksResult.rows.length} stocks, ${total} total`);    // Professional formatting with ALL comprehensive data from loadinfo
     const formattedStocks = stocksResult.rows.map(stock => ({
       // Core identification
       ticker: stock.symbol,
@@ -205,12 +266,97 @@ router.get('/', async (req, res) => {
       averageVolume: stock.average_volume,
       marketCap: stock.market_cap,
       
-      // Governance data
+      // Comprehensive financial metrics
+      financialMetrics: {
+        // Valuation ratios
+        trailingPE: stock.trailing_pe,
+        forwardPE: stock.forward_pe,
+        priceToSales: stock.price_to_sales_ttm,
+        priceToBook: stock.price_to_book,
+        pegRatio: stock.peg_ratio,
+        bookValue: stock.book_value,
+        
+        // Enterprise metrics
+        enterpriseValue: stock.enterprise_value,
+        evToRevenue: stock.ev_to_revenue,
+        evToEbitda: stock.ev_to_ebitda,
+        
+        // Financial results
+        totalRevenue: stock.total_revenue,
+        netIncome: stock.net_income,
+        ebitda: stock.ebitda,
+        grossProfit: stock.gross_profit,
+        
+        // Earnings per share
+        epsTrailing: stock.eps_trailing,
+        epsForward: stock.eps_forward,
+        epsCurrent: stock.eps_current_year,
+        priceEpsCurrent: stock.price_eps_current_year,
+        
+        // Growth metrics
+        earningsGrowthQuarterly: stock.earnings_q_growth_pct,
+        revenueGrowth: stock.revenue_growth_pct,
+        earningsGrowth: stock.earnings_growth_pct,
+        
+        // Cash & debt
+        totalCash: stock.total_cash,
+        cashPerShare: stock.cash_per_share,
+        operatingCashflow: stock.operating_cashflow,
+        freeCashflow: stock.free_cashflow,
+        totalDebt: stock.total_debt,
+        debtToEquity: stock.debt_to_equity,
+        
+        // Liquidity ratios
+        quickRatio: stock.quick_ratio,
+        currentRatio: stock.current_ratio,
+        
+        // Profitability margins
+        profitMargin: stock.profit_margin_pct,
+        grossMargin: stock.gross_margin_pct,
+        ebitdaMargin: stock.ebitda_margin_pct,
+        operatingMargin: stock.operating_margin_pct,
+        
+        // Return metrics
+        returnOnAssets: stock.return_on_assets_pct,
+        returnOnEquity: stock.return_on_equity_pct,
+        
+        // Dividend information
+        dividendRate: stock.dividend_rate,
+        dividendYield: stock.dividend_yield,
+        fiveYearAvgDividendYield: stock.five_year_avg_dividend_yield,
+        payoutRatio: stock.payout_ratio
+      },
+      
+      // Analyst estimates and recommendations
+      analystData: {
+        targetPrices: {
+          high: stock.target_high_price,
+          low: stock.target_low_price,
+          mean: stock.target_mean_price,
+          median: stock.target_median_price
+        },
+        recommendation: {
+          key: stock.recommendation_key,
+          mean: stock.recommendation_mean,
+          rating: stock.average_analyst_rating
+        },
+        analystCount: stock.analyst_opinion_count
+      },
+        // Governance data
       governance: {
         auditRisk: stock.audit_risk,
         boardRisk: stock.board_risk,
         compensationRisk: stock.compensation_risk,
+        shareholderRightsRisk: stock.shareholder_rights_risk,
         overallRisk: stock.overall_risk
+      },
+      
+      // Leadership team summary
+      leadership: {
+        executiveCount: stock.leadership_count,
+        hasLeadershipData: stock.leadership_count > 0,
+        // Full leadership data available via /leadership/:ticker endpoint
+        detailsAvailable: true
       },
       
       // Additional identifiers
@@ -222,28 +368,47 @@ router.get('/', async (req, res) => {
       isEtf: stock.etf === 'Y',
       testIssue: stock.test_issue === 'Y',
       roundLotSize: stock.round_lot_size,
-      
-      // Data quality indicators
+        // Comprehensive data availability indicators
       hasData: true,
-      dataSource: 'comprehensive_query',
+      dataSource: 'comprehensive_loadinfo_query',
       hasCompanyProfile: !!stock.long_name,
       hasMarketData: !!stock.current_price,
+      hasFinancialMetrics: !!stock.trailing_pe || !!stock.total_revenue,
+      hasAnalystData: !!stock.target_mean_price || !!stock.recommendation_key,
       hasGovernanceData: !!stock.overall_risk,
+      hasLeadershipData: stock.leadership_count > 0,
       
-      // Professional presentation
+      // Professional presentation with rich data
       displayData: {
         primaryExchange: stock.full_exchange_name || stock.exchange || 'Unknown',
         category: stock.market_category || 'Standard',
         type: stock.etf === 'Y' ? 'ETF' : 'Stock',
         tradeable: stock.financial_status !== 'D' && stock.test_issue !== 'Y',
         sector: stock.sector_disp || stock.sector || 'Unknown',
-        industry: stock.industry_disp || stock.industry || 'Unknown'
+        industry: stock.industry_disp || stock.industry || 'Unknown',
+        
+        // Key financial highlights for quick view
+        keyMetrics: {
+          pe: stock.trailing_pe,
+          marketCap: stock.market_cap,
+          revenue: stock.total_revenue,
+          profitMargin: stock.profit_margin_pct,
+          dividendYield: stock.dividend_yield,
+          analystRating: stock.recommendation_key,
+          targetPrice: stock.target_mean_price
+        },
+        
+        // Risk summary
+        riskProfile: {
+          overall: stock.overall_risk,
+          hasHighRisk: (stock.overall_risk && stock.overall_risk >= 8),
+          hasModerateRisk: (stock.overall_risk && stock.overall_risk >= 5 && stock.overall_risk < 8),
+          hasLowRisk: (stock.overall_risk && stock.overall_risk < 5)
+        }
       }
-    }));
-
-    res.json({
+    }));    res.json({
       success: true,
-      performance: 'COMPREHENSIVE - Full loadinfo data with company profiles, market data, and governance scores',
+      performance: 'COMPREHENSIVE LOADINFO DATA - All company profiles, market data, financial metrics, analyst estimates, and governance scores from loadinfo tables',
       data: formattedStocks,
       pagination: {
         page,
@@ -282,12 +447,42 @@ router.get('/', async (req, res) => {
           'fifty_two_week_high', 'fifty_day_avg', 'two_hundred_day_avg',
           'bid_price', 'ask_price', 'market_state',
           
+          // Financial metrics
+          'trailing_pe', 'forward_pe', 'price_to_sales_ttm', 'price_to_book',
+          'book_value', 'peg_ratio', 'enterprise_value', 'ev_to_revenue',
+          'ev_to_ebitda', 'total_revenue', 'net_income', 'ebitda', 'gross_profit',
+          'eps_trailing', 'eps_forward', 'eps_current_year', 'earnings_q_growth_pct',
+          'total_cash', 'cash_per_share', 'operating_cashflow', 'free_cashflow',
+          'total_debt', 'debt_to_equity', 'quick_ratio', 'current_ratio',
+          'profit_margin_pct', 'gross_margin_pct', 'ebitda_margin_pct',
+          'operating_margin_pct', 'return_on_assets_pct', 'return_on_equity_pct',
+          'revenue_growth_pct', 'earnings_growth_pct', 'dividend_rate',
+          'dividend_yield', 'five_year_avg_dividend_yield', 'payout_ratio',
+          
+          // Analyst estimates
+          'target_high_price', 'target_low_price', 'target_mean_price',
+          'target_median_price', 'recommendation_key', 'recommendation_mean',
+          'analyst_opinion_count', 'average_analyst_rating',
+          
           // Governance data
-          'audit_risk', 'board_risk', 'compensation_risk', 'overall_risk'
+          'audit_risk', 'board_risk', 'compensation_risk', 'shareholder_rights_risk',
+          'overall_risk'
+        ],        dataSources: [
+          'stock_symbols', 'company_profile', 'market_data', 'key_metrics',
+          'analyst_estimates', 'governance_scores', 'leadership_team'
         ],
-        dataSources: [
-          'stock_symbols', 'company_profile', 'market_data', 'governance_scores'
-        ]
+        comprehensiveData: {
+          includesCompanyProfiles: true,
+          includesMarketData: true,
+          includesFinancialMetrics: true,
+          includesAnalystEstimates: true,
+          includesGovernanceScores: true,
+          includesLeadershipTeam: true // Count included, details via /leadership/:ticker
+        },
+        endpoints: {
+          leadershipDetails: '/api/stocks/leadership/:ticker',
+          leadershipSummary: '/api/stocks/leadership'
+        }
       },
       timestamp: new Date().toISOString()
     });
@@ -1704,6 +1899,98 @@ router.get('/:ticker/recommendations', async (req, res) => {
       error: 'Failed to fetch stock recommendations', 
       symbol: req.params.ticker,
       message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Leadership team data endpoint - provides executive/leadership information
+router.get('/leadership/:ticker?', async (req, res) => {
+  try {
+    const ticker = req.params.ticker;
+    
+    let leadershipQuery;
+    let params = [];
+    
+    if (ticker) {
+      // Get leadership for specific ticker
+      leadershipQuery = `
+        SELECT 
+          lt.ticker,
+          lt.person_name,
+          lt.age,
+          lt.title,
+          lt.birth_year,
+          lt.fiscal_year,
+          lt.total_pay,
+          lt.exercised_value,
+          lt.unexercised_value,
+          lt.role_source,
+          cp.short_name as company_name
+        FROM leadership_team lt
+        LEFT JOIN company_profile cp ON lt.ticker = cp.ticker
+        WHERE UPPER(lt.ticker) = UPPER($1)
+        ORDER BY lt.total_pay DESC NULLS LAST, lt.person_name
+      `;
+      params = [ticker.toUpperCase()];
+    } else {
+      // Get leadership summary - top executives across all companies
+      const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+      leadershipQuery = `
+        SELECT 
+          lt.ticker,
+          lt.person_name,
+          lt.age,
+          lt.title,
+          lt.birth_year,
+          lt.fiscal_year,
+          lt.total_pay,
+          lt.exercised_value,
+          lt.unexercised_value,
+          lt.role_source,
+          cp.short_name as company_name
+        FROM leadership_team lt
+        LEFT JOIN company_profile cp ON lt.ticker = cp.ticker
+        ORDER BY lt.total_pay DESC NULLS LAST
+        LIMIT $1
+      `;
+      params = [limit];
+    }
+    
+    const result = await query(leadershipQuery, params);
+    
+    const formattedLeadership = result.rows.map(exec => ({
+      ticker: exec.ticker,
+      companyName: exec.company_name,
+      executiveInfo: {
+        name: exec.person_name,
+        title: exec.title,
+        age: exec.age,
+        birthYear: exec.birth_year
+      },
+      compensation: {
+        totalPay: exec.total_pay,
+        exercisedValue: exec.exercised_value,
+        unexercisedValue: exec.unexercised_value,
+        fiscalYear: exec.fiscal_year
+      },
+      roleSource: exec.role_source
+    }));
+    
+    res.json({
+      success: true,
+      ticker: ticker || 'ALL',
+      data: formattedLeadership,
+      count: formattedLeadership.length,
+      endpoint: ticker ? 'leadership_by_ticker' : 'leadership_summary',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Leadership endpoint error:', error);
+    res.status(500).json({ 
+      error: 'Leadership data query failed',
+      details: error.message,
       timestamp: new Date().toISOString()
     });
   }
