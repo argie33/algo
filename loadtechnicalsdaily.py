@@ -622,10 +622,10 @@ def pivot_high(df, left_bars=3, right_bars=3, shunt=1):
         logging.error(f"❌ PIVOT ERROR: 'high' column missing from DataFrame. Available columns: {list(df.columns)}")
         return pd.Series(np.full(len(df), np.nan), index=df.index)
     
-    # CRITICAL: Verify data is sorted by date for pivot calculations
-    if hasattr(df.index, 'is_monotonic_increasing') and not df.index.is_monotonic_increasing:
-        logging.error(f"❌ PIVOT ERROR: Data is not sorted by date! Pivot calculations require chronological order.")
-        return pd.Series(np.full(len(df), np.nan), index=df.index)
+    # CRITICAL: FORCE SORT DATA BY DATE - This is essential for pivot calculations
+    if not df.index.is_monotonic_increasing:
+        logging.warning(f"⚠️  PIVOT WARNING: Data not sorted, forcing sort by date index for pivot calculations")
+        df = df.sort_index()
     
     # Check for NaN values in high column
     nan_count = df['high'].isna().sum()
@@ -703,10 +703,10 @@ def pivot_low(df, left_bars=3, right_bars=3, shunt=1):
         logging.error(f"❌ PIVOT ERROR: 'low' column missing from DataFrame. Available columns: {list(df.columns)}")
         return pd.Series(np.full(len(df), np.nan), index=df.index)
     
-    # CRITICAL: Verify data is sorted by date for pivot calculations
-    if hasattr(df.index, 'is_monotonic_increasing') and not df.index.is_monotonic_increasing:
-        logging.error(f"❌ PIVOT ERROR: Data is not sorted by date! Pivot calculations require chronological order.")
-        return pd.Series(np.full(len(df), np.nan), index=df.index)
+    # CRITICAL: FORCE SORT DATA BY DATE - This is essential for pivot calculations
+    if not df.index.is_monotonic_increasing:
+        logging.warning(f"⚠️  PIVOT WARNING: Data not sorted, forcing sort by date index for pivot calculations")
+        df = df.sort_index()
     
     # Check for NaN values in low column
     nan_count = df['low'].isna().sum()
@@ -1092,9 +1092,7 @@ def calculate_technicals_parallel(df):
         # Custom indicators
         results['td_sequential'] = td_sequential_vectorized(df['close'], lookback=4)
         results['td_combo'] = td_combo_vectorized(df['close'], lookback=2)
-        results['marketwatch'] = marketwatch_indicator_vectorized(df['close'], df['open'])
-        
-        # Pivot points - Pine Script style with shunt (matches your exact Pine Script)
+        results['marketwatch'] = marketwatch_indicator_vectorized(df['close'], df['open'])        # Pivot points - Pine Script style with shunt (matches your exact Pine Script)
         data_length = len(df)
         min_required = 7  # 3 left + 1 center + 3 right
         
@@ -1110,6 +1108,10 @@ def calculate_technicals_parallel(df):
             # Log results - Pine Script style with shunt gives more recent pivot data
             if data_length > 20 or pivot_high_count > 0 or pivot_low_count > 0:
                 logging.info(f"📍 Pine Script pivots (with shunt): {pivot_high_count} highs, {pivot_low_count} lows from {data_length} bars")
+            
+            # Additional debug logging if no pivots found
+            if pivot_high_count == 0 and pivot_low_count == 0 and data_length >= 20:
+                logging.warning(f"⚠️  PIVOT WARNING: No pivots found in {data_length} bars of data - possible data quality issue")
         else:
             # Insufficient data - return NaN series
             results['pivot_high'] = pd.Series(np.full(len(df), np.nan), index=df.index)

@@ -522,38 +522,44 @@ router.get('/full/data', async (req, res) => {
 });
 
 // Get comprehensive stock details by ticker
-// COMPREHENSIVE Individual Stock Endpoint - Detailed stock information with price history
+// SIMPLIFIED Individual Stock Endpoint - Fast and reliable
 router.get('/:ticker', async (req, res) => {
   try {
     const { ticker } = req.params;
     const tickerUpper = ticker.toUpperCase();
     
-    console.log(`Individual stock endpoint called for: ${tickerUpper}`);
+    console.log(`SIMPLIFIED stock endpoint called for: ${tickerUpper}`);
     
-    // Get days of price history (default 90 days, max 365)
-    const days = Math.min(parseInt(req.query.days) || 90, 365);
-    const includeTechnicals = req.query.technicals !== 'false'; // Default true
-    
-    // 1. GET BASIC STOCK INFO
-    const stockInfoQuery = `
+    // SINGLE OPTIMIZED QUERY - Get everything we need in one go
+    const stockQuery = `
       SELECT 
-        symbol,
-        security_name,
-        exchange,
-        market_category,
-        cqs_symbol,
-        financial_status,
-        round_lot_size,
-        etf,
-        test_issue,
-        nasdaq_symbol
-      FROM stock_symbols 
-      WHERE symbol = $1
+        ss.symbol,
+        ss.security_name,
+        ss.exchange,
+        ss.market_category,
+        ss.financial_status,
+        ss.etf,
+        pd.date as latest_date,
+        pd.open,
+        pd.high,
+        pd.low,
+        pd.close,
+        pd.volume,
+        pd.adj_close
+      FROM stock_symbols ss
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol) 
+          symbol, date, open, high, low, close, volume, adj_close
+        FROM price_daily
+        WHERE symbol = $1
+        ORDER BY symbol, date DESC
+      ) pd ON ss.symbol = pd.symbol
+      WHERE ss.symbol = $1
     `;
     
-    const stockInfo = await query(stockInfoQuery, [tickerUpper]);
+    const result = await query(stockQuery, [tickerUpper]);
     
-    if (stockInfo.rows.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(404).json({
         error: 'Stock not found',
         symbol: tickerUpper,
@@ -562,225 +568,47 @@ router.get('/:ticker', async (req, res) => {
       });
     }
     
-    const stockData = stockInfo.rows[0];
+    const stock = result.rows[0];
     
-    // 2. GET RECENT PRICE HISTORY (OHLCV)
-    const priceHistoryQuery = `
-      SELECT 
-        date,
-        open,
-        high, 
-        low,
-        close,
-        volume,
-        adj_close
-      FROM price_daily 
-      WHERE symbol = $1 
-        AND date >= CURRENT_DATE - INTERVAL '${days} days'
-      ORDER BY date DESC
-      LIMIT 500
-    `;
-    
-    const priceHistory = await query(priceHistoryQuery, [tickerUpper]);
-    
-    // 3. GET LATEST PRICE DATA FOR SUMMARY
-    const latestPrice = priceHistory.rows.length > 0 ? priceHistory.rows[0] : null;
-    
-    // 4. GET TECHNICAL INDICATORS (if requested)
-    let technicalData = null;
-    if (includeTechnicals && priceHistory.rows.length > 0) {
-      try {
-        const technicalQuery = `
-          SELECT 
-            date,
-            rsi,
-            macd,
-            macd_signal,
-            macd_hist,
-            mom,
-            roc,
-            adx,
-            atr,
-            ad,
-            cmf,
-            mfi,
-            dm,
-            marketwatch,
-            sma_10,
-            sma_20,
-            sma_50,
-            sma_150,
-            sma_200,
-            ema_4,
-            ema_9,
-            ema_21,
-            bbands_lower,
-            bbands_middle,
-            bbands_upper,
-            td_sequential,
-            td_combo,
-            pivot_high,
-            pivot_low
-          FROM technical_data_daily 
-          WHERE symbol = $1 
-            AND date >= CURRENT_DATE - INTERVAL '${Math.min(days, 90)} days'
-          ORDER BY date DESC
-          LIMIT 200
-        `;
-        
-        const technicalResult = await query(technicalQuery, [tickerUpper]);
-        technicalData = technicalResult.rows;
-        console.log(`Found ${technicalData.length} technical indicator records for ${tickerUpper}`);
-      } catch (error) {
-        console.error(`Error fetching technical data for ${tickerUpper}:`, error.message);
-        technicalData = [];
-      }
-    }
-    
-    // 5. GET FUNDAMENTAL DATA (if available)
-    let fundamentalData = null;
-    try {
-      const fundamentalQuery = `
-        SELECT 
-          market_cap,
-          pe_ratio,
-          eps,
-          dividend_yield,
-          book_value,
-          revenue,
-          profit_margin,
-          debt_to_equity,
-          return_on_equity,
-          price_to_book,
-          updated_at
-        FROM fundamentals 
-        WHERE symbol = $1 
-        ORDER BY updated_at DESC 
-        LIMIT 1
-      `;
-      
-      const fundamentalResult = await query(fundamentalQuery, [tickerUpper]);
-      fundamentalData = fundamentalResult.rows.length > 0 ? fundamentalResult.rows[0] : null;
-    } catch (error) {
-      console.log(`Fundamental data not available for ${tickerUpper}:`, error.message);
-      fundamentalData = null;
-    }
-    
-    // 6. CALCULATE PRICE STATISTICS
-    let priceStats = null;
-    if (priceHistory.rows.length > 0) {
-      const prices = priceHistory.rows.map(row => parseFloat(row.close));
-      const volumes = priceHistory.rows.map(row => parseInt(row.volume || 0));
-      const highs = priceHistory.rows.map(row => parseFloat(row.high));
-      const lows = priceHistory.rows.map(row => parseFloat(row.low));
-      
-      const currentPrice = prices[0];
-      const oldestPrice = prices[prices.length - 1];
-      const change = currentPrice - oldestPrice;
-      const changePercent = ((change / oldestPrice) * 100);
-      
-      priceStats = {
-        currentPrice: currentPrice,
-        change: change,
-        changePercent: changePercent,
-        high52Week: Math.max(...highs),
-        low52Week: Math.min(...lows),
-        avgVolume: Math.round(volumes.reduce((a, b) => a + b, 0) / volumes.length),
-        maxVolume: Math.max(...volumes),
-        minVolume: Math.min(...volumes),
-        dataPoints: priceHistory.rows.length,
-        dateRange: {
-          latest: priceHistory.rows[0].date,
-          earliest: priceHistory.rows[priceHistory.rows.length - 1].date
-        }
-      };
-    }
-    
-    // 7. BUILD COMPREHENSIVE RESPONSE
+    // SIMPLE RESPONSE - Just the essential data
     const response = {
       symbol: tickerUpper,
-      ticker: tickerUpper, // For backward compatibility
+      ticker: tickerUpper,
       companyInfo: {
-        name: stockData.security_name,
-        exchange: stockData.exchange,
-        marketCategory: stockData.market_category,
-        cqsSymbol: stockData.cqs_symbol,
-        financialStatus: stockData.financial_status,
-        roundLotSize: stockData.round_lot_size,
-        isETF: stockData.etf === 't' || stockData.etf === true,
-        isTestIssue: stockData.test_issue === 't' || stockData.test_issue === true,
-        nasdaqSymbol: stockData.nasdaq_symbol
+        name: stock.security_name,
+        exchange: stock.exchange,
+        marketCategory: stock.market_category,
+        financialStatus: stock.financial_status,
+        isETF: stock.etf === 't' || stock.etf === true
       },
-      currentPrice: latestPrice ? {
-        date: latestPrice.date,
-        open: parseFloat(latestPrice.open || 0),
-        high: parseFloat(latestPrice.high || 0),
-        low: parseFloat(latestPrice.low || 0),
-        close: parseFloat(latestPrice.close || 0),
-        adjClose: parseFloat(latestPrice.adj_close || latestPrice.close || 0),
-        volume: parseInt(latestPrice.volume || 0)
+      currentPrice: stock.close ? {
+        date: stock.latest_date,
+        open: parseFloat(stock.open || 0),
+        high: parseFloat(stock.high || 0),
+        low: parseFloat(stock.low || 0),
+        close: parseFloat(stock.close || 0),
+        adjClose: parseFloat(stock.adj_close || stock.close || 0),
+        volume: parseInt(stock.volume || 0)
       } : null,
-      priceStats: priceStats,
-      priceHistory: {
-        requestedDays: days,
-        actualDays: priceHistory.rows.length,
-        data: priceHistory.rows.map(row => ({
-          date: row.date,
-          open: parseFloat(row.open || 0),
-          high: parseFloat(row.high || 0),
-          low: parseFloat(row.low || 0),
-          close: parseFloat(row.close || 0),
-          adjClose: parseFloat(row.adj_close || row.close || 0),
-          volume: parseInt(row.volume || 0)
-        }))
-      },
-      technicalIndicators: includeTechnicals ? {
-        available: technicalData !== null && technicalData.length > 0,
-        count: technicalData ? technicalData.length : 0,
-        data: technicalData || [],
-        note: technicalData && technicalData.length === 0 ? 'Technical indicators calculated but no recent data found' : null
-      } : { available: false, note: 'Technical indicators excluded from request' },
-      fundamentals: fundamentalData ? {
-        available: true,
-        data: {
-          marketCap: fundamentalData.market_cap,
-          peRatio: fundamentalData.pe_ratio,
-          eps: fundamentalData.eps,
-          dividendYield: fundamentalData.dividend_yield,
-          bookValue: fundamentalData.book_value,
-          revenue: fundamentalData.revenue,
-          profitMargin: fundamentalData.profit_margin,
-          debtToEquity: fundamentalData.debt_to_equity,
-          returnOnEquity: fundamentalData.return_on_equity,
-          priceToBook: fundamentalData.price_to_book,
-          lastUpdated: fundamentalData.updated_at
-        }
-      } : { available: false, note: 'Fundamental data not available' },
       metadata: {
         requestedSymbol: ticker,
         resolvedSymbol: tickerUpper,
-        includedTechnicals: includeTechnicals,
-        requestedDays: days,
         dataAvailability: {
           basicInfo: true,
-          priceHistory: priceHistory.rows.length > 0,
-          technicalIndicators: technicalData !== null && technicalData.length > 0,
-          fundamentals: fundamentalData !== null
+          priceData: stock.close !== null,
+          technicalIndicators: false, // Disabled for speed
+          fundamentals: false // Disabled for speed
         },
         timestamp: new Date().toISOString()
       }
     };
     
-    console.log(`Successfully compiled comprehensive data for ${tickerUpper}:`, {
-      pricePoints: priceHistory.rows.length,
-      technicalPoints: technicalData ? technicalData.length : 0,
-      hasFundamentals: fundamentalData !== null
-    });
+    console.log(`✅ SIMPLIFIED: Successfully returned basic data for ${tickerUpper}`);
     
     res.json(response);
     
   } catch (error) {
-    console.error('Error in individual stock endpoint:', error);
+    console.error('Error in simplified stock endpoint:', error);
     res.status(500).json({ 
       error: 'Failed to fetch stock data', 
       symbol: req.params.ticker,
@@ -791,38 +619,17 @@ router.get('/:ticker', async (req, res) => {
 });
 
 // Get stock price history
+// SIMPLIFIED Get stock price history
 router.get('/:ticker/prices', async (req, res) => {
   try {
     const { ticker } = req.params;
-    const period = req.query.period || '1M'; // Default to 1 month
-    const interval = req.query.interval || 'daily';
+    const limit = Math.min(parseInt(req.query.limit) || 30, 90); // Max 90 days for performance
     
-    console.log(`Stock prices endpoint called for ticker: ${ticker}, period: ${period}, interval: ${interval}`);
-    
-    // Determine how many days to fetch based on period
-    let limit = 30; // Default 1 month
-    switch(period) {
-      case '1W': limit = 7; break;
-      case '1M': limit = 30; break;
-      case '3M': limit = 90; break;
-      case '6M': limit = 180; break;
-      case '1Y': limit = 365; break;
-      case 'YTD': limit = 365; break; // Approximate
-      default: limit = 30;
-    }
-    
-    // Select appropriate price table based on interval
-    let table = 'price_daily';
-    switch(interval) {
-      case 'daily': table = 'price_daily'; break;
-      case 'weekly': table = 'price_weekly'; break;
-      case 'monthly': table = 'price_monthly'; break;
-      default: table = 'price_daily';
-    }
+    console.log(`SIMPLIFIED prices endpoint called for ticker: ${ticker}, limit: ${limit}`);
     
     const pricesQuery = `
       SELECT date, open, high, low, close, adj_close, volume
-      FROM ${table}
+      FROM price_daily
       WHERE UPPER(symbol) = UPPER($1)
       ORDER BY date DESC
       LIMIT $2
@@ -833,14 +640,13 @@ router.get('/:ticker/prices', async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({
         error: 'No price data found',
-        ticker: ticker,
-        period: period,
-        interval: interval,
+        ticker: ticker.toUpperCase(),
+        message: 'Price data not available for this symbol',
         timestamp: new Date().toISOString()
       });
     }
     
-    // Calculate some basic metrics
+    // Simple response
     const prices = result.rows;
     const latest = prices[0];
     const oldest = prices[prices.length - 1];
@@ -848,22 +654,24 @@ router.get('/:ticker/prices', async (req, res) => {
     const periodReturn = oldest.close > 0 ? 
       ((latest.close - oldest.close) / oldest.close * 100) : 0;
     
-    const high52Week = Math.max(...prices.map(p => p.high));
-    const low52Week = Math.min(...prices.map(p => p.low));
-    
     res.json({
+      success: true,
       ticker: ticker.toUpperCase(),
-      period: period,
-      interval: interval,
       dataPoints: result.rows.length,
-      priceData: prices,
+      data: prices.map(price => ({
+        date: price.date,
+        open: parseFloat(price.open),
+        high: parseFloat(price.high),
+        low: parseFloat(price.low),
+        close: parseFloat(price.close),
+        adjClose: parseFloat(price.adj_close),
+        volume: parseInt(price.volume) || 0
+      })),
       summary: {
-        latest_price: latest.close,
-        latest_date: latest.date,
-        period_return_percent: periodReturn,
-        high_52_week: high52Week,
-        low_52_week: low52Week,
-        latest_volume: latest.volume
+        latestPrice: parseFloat(latest.close),
+        latestDate: latest.date,
+        periodReturn: parseFloat(periodReturn.toFixed(2)),
+        latestVolume: parseInt(latest.volume) || 0
       },
       timestamp: new Date().toISOString()
     });
@@ -873,6 +681,7 @@ router.get('/:ticker/prices', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to fetch stock prices', 
       details: error.message,
+      ticker: req.params.ticker,
       timestamp: new Date().toISOString()
     });
   }
