@@ -73,6 +73,32 @@ export interface MarketTick extends Timestamp {
   conditions?: string[];
 }
 
+export interface OrderBookLevel {
+  price: number;
+  size: number;
+  count?: number;
+}
+
+export interface OrderBook {
+  symbol: string;
+  exchange: string;
+  timestamp: number;
+  bid: OrderBookLevel;
+  ask: OrderBookLevel;
+  bids?: OrderBookLevel[];
+  asks?: OrderBookLevel[];
+}
+
+export interface MarketData {
+  symbol: string;
+  timestamp: number;
+  price: number;
+  volume: number;
+  bid?: number;
+  ask?: number;
+  spread?: number;
+}
+
 export interface Quote extends Timestamp {
   symbol: string;
   exchange: string;
@@ -191,8 +217,27 @@ export interface Portfolio {
   updated_at: number;
 }
 
-// Risk Types
-export interface RiskCheck {
+// Strategy Configuration Types
+export interface StrategyConfig {
+  name: string;
+  symbols: string[];
+  enabled: boolean;
+  maxPositionSize: number;
+  maxDailyLoss: number;
+  riskParameters: RiskParameters;
+  parameters?: Record<string, any>;
+}
+
+export interface RiskParameters {
+  maxPositionSize: number;
+  maxDailyLoss: number;
+  maxDrawdown: number;
+  positionSizeLimit: number;
+  leverageLimit: number;
+  correlationLimit: number;
+  var95Limit: number;
+  concentrationLimit: number;
+}
   approved: boolean;
   risk_level: RiskLevel;
   violations: string[];

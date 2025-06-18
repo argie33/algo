@@ -101,37 +101,48 @@ function StockDetail() {
     queryKey: ['stockRecommendations', symbol],
     queryFn: () => api.getAnalystRecommendations(symbol),
     enabled: !!symbol,
-    onError: (error) => logger.queryError('analystRecommendations', error, { symbol })
-  })
+    onError: (error) => logger.queryError('analystRecommendations', error, { symbol })  })
 
   // Fetch comprehensive financial statements
   const { data: balanceSheet, isLoading: balanceSheetLoading, error: balanceSheetError } = useQuery({
     queryKey: ['balanceSheet', symbol, 'annual'],
     queryFn: () => api.getBalanceSheet(symbol, 'annual'),
-    enabled: !!symbol && tabValue === 1,
+    enabled: !!symbol && tabValue === 2,
     onError: (error) => logger.queryError('balanceSheet', error, { symbol, period: 'annual' })
   })
-
   const { data: incomeStatement, isLoading: incomeStatementLoading, error: incomeStatementError } = useQuery({
     queryKey: ['incomeStatement', symbol, 'annual'],
     queryFn: () => api.getIncomeStatement(symbol, 'annual'),
-    enabled: !!symbol && tabValue === 1,
+    enabled: !!symbol && tabValue === 2,
     onError: (error) => logger.queryError('incomeStatement', error, { symbol, period: 'annual' })
   })
-
   const { data: cashFlowStatement, isLoading: cashFlowLoading, error: cashFlowError } = useQuery({
     queryKey: ['cashFlowStatement', symbol, 'annual'],
     queryFn: () => api.getCashFlowStatement(symbol, 'annual'),
-    enabled: !!symbol && tabValue === 1,
+    enabled: !!symbol && tabValue === 2,
     onError: (error) => logger.queryError('cashFlowStatement', error, { symbol, period: 'annual' })
-  })
-
-  // Fetch comprehensive analyst data
+  })  // Fetch comprehensive analyst data
   const { data: analystOverview, isLoading: analystOverviewLoading, error: analystOverviewError } = useQuery({
     queryKey: ['analystOverview', symbol],
     queryFn: () => api.getAnalystOverview(symbol),
-    enabled: !!symbol && tabValue === 3,
+    enabled: !!symbol && tabValue === 4,
     onError: (error) => logger.queryError('analystOverview', error, { symbol })
+  })
+
+  // Fetch comprehensive stock data (includes price history, OHLCV, technicals)
+  const { data: comprehensiveData, isLoading: comprehensiveLoading, error: comprehensiveError } = useQuery({
+    queryKey: ['stockData', symbol],
+    queryFn: () => api.getStock(symbol),
+    enabled: !!symbol,
+    onError: (error) => logger.queryError('stockData', error, { symbol })
+  })
+
+  // Fetch price history for charts
+  const { data: priceHistory, isLoading: priceHistoryLoading, error: priceHistoryError } = useQuery({
+    queryKey: ['stockPrices', symbol, 'daily'],
+    queryFn: () => api.getStockPrices(symbol, 'daily', 252), // 1 year of daily data
+    enabled: !!symbol,
+    onError: (error) => logger.queryError('stockPrices', error, { symbol })
   })
 
   const handleTabChange = (event, newValue) => {
@@ -274,20 +285,102 @@ function StockDetail() {
             </Typography>
           </CardContent>
         </Card>
-      )}
-
-      {/* Tab Navigation */}
+      )}      {/* Tab Navigation */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={tabValue} onChange={handleTabChange} aria-label="stock detail tabs">
           <Tab label="Overview" icon={<Analytics />} />
+          <Tab label="Price & Volume" icon={<Timeline />} />
           <Tab label="Financials" icon={<AccountBalance />} />
           <Tab label="Ratios" icon={<Timeline />} />
           <Tab label="Recommendations" icon={<TrendingUp />} />
         </Tabs>
-      </Box>
-
-      {/* Tab Panels */}
+      </Box>{/* Tab Panels */}
       <TabPanel value={tabValue} index={0}>
+        {/* Price Chart Section */}
+        <Grid container spacing={3} sx={{ mb: 3 }}>
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Price Chart (1 Year)
+                </Typography>
+                {priceHistoryLoading ? (
+                  <Box display="flex" justifyContent="center" alignItems="center" height={300}>
+                    <CircularProgress />
+                  </Box>
+                ) : priceHistory && priceHistory.data && priceHistory.data.length > 0 ? (
+                  <Box height={300}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={priceHistory.data.slice(-252)} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis 
+                          dataKey="date" 
+                          tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        />
+                        <YAxis 
+                          domain={['dataMin - 5', 'dataMax + 5']}
+                          tickFormatter={(value) => `$${value.toFixed(2)}`}
+                        />
+                        <Tooltip 
+                          labelFormatter={(value) => new Date(value).toLocaleDateString()}
+                          formatter={(value, name) => [`$${value.toFixed(2)}`, name === 'close' ? 'Close Price' : name]}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="close" 
+                          stroke="#2196f3" 
+                          strokeWidth={2}
+                          dot={false}
+                          name="Close Price"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </Box>
+                ) : (
+                  <Box display="flex" justifyContent="center" alignItems="center" height={300}>
+                    <Typography color="text.secondary">
+                      Price chart data not available
+                    </Typography>
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+
+        {/* OHLCV Data Section */}
+        {comprehensiveData && comprehensiveData.data && comprehensiveData.data.priceHistory && (
+          <Grid container spacing={3} sx={{ mb: 3 }}>
+            <Grid item xs={12}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Recent Price & Volume Data
+                  </Typography>
+                  <TableContainer>
+                    <Table size="small">
+                      <TableBody>
+                        {comprehensiveData.data.priceHistory.slice(0, 10).map((dayData, index) => (
+                          <TableRow key={index}>
+                            <TableCell>{new Date(dayData.date).toLocaleDateString()}</TableCell>
+                            <TableCell align="right">{formatCurrency(dayData.open)}</TableCell>
+                            <TableCell align="right">{formatCurrency(dayData.high)}</TableCell>
+                            <TableCell align="right">{formatCurrency(dayData.low)}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                              {formatCurrency(dayData.close)}
+                            </TableCell>
+                            <TableCell align="right">{formatNumber(dayData.volume)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        )}
+
         <Grid container spacing={3}>
           <Grid item xs={12} md={8}>
             <Card>
@@ -360,9 +453,141 @@ function StockDetail() {
                 </CardContent>
               </Card>
             )}
+          </Grid>        </Grid>
+      </TabPanel>
+
+      {/* Price & Volume Tab */}
+      <TabPanel value={tabValue} index={1}>
+        {/* Price Chart Section */}
+        <Grid container spacing={3} sx={{ mb: 3 }}>
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Price Chart (1 Year)
+                </Typography>
+                {priceHistoryLoading ? (
+                  <Box display="flex" justifyContent="center" alignItems="center" height={300}>
+                    <CircularProgress />
+                  </Box>
+                ) : priceHistory && priceHistory.data && priceHistory.data.length > 0 ? (
+                  <Box height={300}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={priceHistory.data.slice(-252)} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis 
+                          dataKey="date" 
+                          tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        />
+                        <YAxis 
+                          domain={['dataMin - 5', 'dataMax + 5']}
+                          tickFormatter={(value) => `$${value.toFixed(2)}`}
+                        />
+                        <Tooltip 
+                          labelFormatter={(value) => new Date(value).toLocaleDateString()}
+                          formatter={(value, name) => [`$${value.toFixed(2)}`, name === 'close' ? 'Close Price' : name]}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="close" 
+                          stroke="#2196f3" 
+                          strokeWidth={2}
+                          dot={false}
+                          name="Close Price"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </Box>
+                ) : (
+                  <Box display="flex" justifyContent="center" alignItems="center" height={300}>
+                    <Typography color="text.secondary">
+                      Price chart data not available
+                    </Typography>
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
           </Grid>
         </Grid>
-      </TabPanel>      <TabPanel value={tabValue} index={1}>
+
+        {/* OHLCV Data Section */}
+        <Grid container spacing={3} sx={{ mb: 3 }}>
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Recent Price & Volume Data (OHLCV)
+                </Typography>
+                {priceHistory && priceHistory.data && priceHistory.data.length > 0 ? (
+                  <TableContainer>
+                    <Table size="small">
+                      <TableBody>
+                        <TableRow>
+                          <TableCell><strong>Date</strong></TableCell>
+                          <TableCell align="right"><strong>Open</strong></TableCell>
+                          <TableCell align="right"><strong>High</strong></TableCell>
+                          <TableCell align="right"><strong>Low</strong></TableCell>
+                          <TableCell align="right"><strong>Close</strong></TableCell>
+                          <TableCell align="right"><strong>Volume</strong></TableCell>
+                        </TableRow>
+                        {priceHistory.data.slice(0, 10).map((dayData, index) => (
+                          <TableRow key={index}>
+                            <TableCell>{new Date(dayData.date).toLocaleDateString()}</TableCell>
+                            <TableCell align="right">{formatCurrency(dayData.open)}</TableCell>
+                            <TableCell align="right">{formatCurrency(dayData.high)}</TableCell>
+                            <TableCell align="right">{formatCurrency(dayData.low)}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                              {formatCurrency(dayData.close)}
+                            </TableCell>
+                            <TableCell align="right">{formatNumber(dayData.volume)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                ) : (
+                  <Box display="flex" justifyContent="center" alignItems="center" height={200}>
+                    <Typography color="text.secondary">
+                      OHLCV data not available
+                    </Typography>
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+
+        {/* Technical Indicators from Comprehensive Data */}
+        {comprehensiveData && comprehensiveData.data && comprehensiveData.data.technicals && (
+          <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Technical Indicators
+                  </Typography>
+                  <Grid container spacing={2}>
+                    {Object.entries(comprehensiveData.data.technicals)
+                      .filter(([key, value]) => value !== null && value !== 'N/A')
+                      .map(([key, value]) => (
+                        <Grid item xs={6} sm={4} md={3} key={key}>
+                          <Box>
+                            <Typography variant="body2" color="text.secondary">
+                              {key.toUpperCase().replace(/_/g, ' ')}
+                            </Typography>
+                            <Typography variant="body1" fontWeight="bold">
+                              {typeof value === 'number' ? value.toFixed(4) : value}
+                            </Typography>
+                          </Box>
+                        </Grid>
+                      ))}
+                  </Grid>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        )}
+      </TabPanel>      <TabPanel value={tabValue} index={2}>
         {(balanceSheetLoading || incomeStatementLoading || cashFlowLoading) ? (
           <Box display="flex" justifyContent="center" p={4}>
             <CircularProgress />
@@ -575,10 +800,9 @@ function StockDetail() {
               </Grid>
             </Grid>
           </Box>
-        )}
-      </TabPanel>
+        )}      </TabPanel>
 
-      <TabPanel value={tabValue} index={2}>
+      <TabPanel value={tabValue} index={3}>
         {metricsLoading ? (
           <Box display="flex" justifyContent="center" p={4}>
             <CircularProgress />
@@ -611,8 +835,9 @@ function StockDetail() {
               </Grid>
             </CardContent>
           </Card>
-        )}
-      </TabPanel>      <TabPanel value={tabValue} index={3}>
+        )}      </TabPanel>
+
+      <TabPanel value={tabValue} index={4}>
         {analystOverviewLoading ? (
           <Box display="flex" justifyContent="center" p={4}>
             <CircularProgress />

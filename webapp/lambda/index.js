@@ -203,7 +203,7 @@ module.exports.app = app;
 
 // For local testing
 if (require.main === module) {
-  const PORT = process.env.PORT || 3001;
+  const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
     console.log(`Financial Dashboard API server running on port ${PORT} (local mode)`);
     console.log(`Health check: http://localhost:${PORT}/health`);

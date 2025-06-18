@@ -4,11 +4,10 @@ import axios from 'axios'
 export const getApiConfig = () => {
   // Get API URL from environment variable (set by workflow)
   const apiUrl = import.meta.env.VITE_API_URL
-  
-  return {
-    baseURL: apiUrl || 'http://localhost:3001', // Fallback for development
+    return {
+    baseURL: apiUrl || 'http://localhost:3002', // Fallback for development
     isServerless: !!apiUrl, // Only true if VITE_API_URL is set
-    apiUrl: apiUrl || 'http://localhost:3001',
+    apiUrl: apiUrl || 'http://localhost:3002',
     isConfigured: !!apiUrl,
     environment: import.meta.env.MODE,
     isDevelopment: import.meta.env.DEV,
