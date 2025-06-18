@@ -100,9 +100,7 @@ router.get('/:timeframe', async (req, res) => {
         message: `Supported timeframes: ${validTimeframes.join(', ')}, got: ${timeframe}`,
         availableTimeframes: validTimeframes
       });
-    }
-
-    const page = parseInt(req.query.page) || 1;
+    }    const page = parseInt(req.query.page) || 1;
     const limit = Math.min(parseInt(req.query.limit) || 25, 100); // Cap at 100 for performance
     const offset = (page - 1) * limit;
     const symbol = req.query.symbol;
@@ -121,18 +119,27 @@ router.get('/:timeframe', async (req, res) => {
       paramIndex++;
     }
 
-    // Add date filters
+    // Add date filters - with default recent data limits for performance
     if (req.query.start_date) {
       whereClause += ` AND t.date >= $${paramIndex}`;
       params.push(req.query.start_date);
       paramIndex++;
+    } else {
+      // Default: Only get recent data to prevent timeouts
+      if (timeframe === 'daily') {
+        whereClause += ` AND t.date >= CURRENT_DATE - INTERVAL '30 days'`; // Last 30 days for daily
+      } else if (timeframe === 'weekly') {
+        whereClause += ` AND t.date >= CURRENT_DATE - INTERVAL '90 days'`; // Last ~13 weeks for weekly
+      } else if (timeframe === 'monthly') {
+        whereClause += ` AND t.date >= CURRENT_DATE - INTERVAL '365 days'`; // Last 12 months for monthly
+      }
     }
 
     if (req.query.end_date) {
       whereClause += ` AND t.date <= $${paramIndex}`;
       params.push(req.query.end_date);
       paramIndex++;
-    }    console.log('Using whereClause:', whereClause, 'params:', params);
+    }console.log('Using whereClause:', whereClause, 'params:', params);
     console.log('Using tableName:', tableName);    const dataQuery = `
       SELECT 
         t.symbol,
@@ -307,10 +314,20 @@ router.get('/:timeframe/chunk/:chunkIndex', async (req, res) => {
         message: `Supported timeframes: ${validTimeframes.join(', ')}, got: ${timeframe}`,
         availableTimeframes: validTimeframes
       });
-    }
-
-    const offset = chunk * chunkSize;
+    }    const offset = chunk * chunkSize;
     const tableName = `technical_data_${timeframe}`;
+
+    // Add default date restrictions for performance
+    let dateFilter = '';
+    if (timeframe === 'daily') {
+      dateFilter = `WHERE t.date >= CURRENT_DATE - INTERVAL '30 days'`; // Last 30 days for daily
+    } else if (timeframe === 'weekly') {
+      dateFilter = `WHERE t.date >= CURRENT_DATE - INTERVAL '90 days'`; // Last ~13 weeks for weekly
+    } else if (timeframe === 'monthly') {
+      dateFilter = `WHERE t.date >= CURRENT_DATE - INTERVAL '365 days'`; // Last 12 months for monthly
+    } else {
+      dateFilter = 'WHERE 1=1';
+    }
 
     const dataQuery = `
       SELECT 
@@ -348,11 +365,11 @@ router.get('/:timeframe/chunk/:chunkIndex', async (req, res) => {
         t.marketwatch,
         t.dm,
         t.pivot_high,
-        t.pivot_low,
-        ss.security_name as company_name
+        t.pivot_low,        ss.security_name as company_name
       FROM ${tableName} t
       LEFT JOIN price_${timeframe} p ON t.symbol = p.symbol AND t.date = p.date
       LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
+      ${dateFilter}
       ORDER BY t.date DESC, t.symbol ASC
       LIMIT $1 OFFSET $2
     `;
@@ -393,9 +410,7 @@ router.get('/:timeframe/full', async (req, res) => {
         message: `Supported timeframes: ${validTimeframes.join(', ')}, got: ${timeframe}`,
         availableTimeframes: validTimeframes
       });
-    }
-
-    // Force small limit for safety
+    }    // Force small limit for safety and add date restrictions
     const limit = Math.min(parseInt(req.query.limit) || 10, 50);
     const symbol = req.query.symbol;
     const tableName = `technical_data_${timeframe}`;
@@ -407,6 +422,27 @@ router.get('/:timeframe/full', async (req, res) => {
     if (symbol) {
       whereClause += ` AND t.symbol = $${paramIndex}`;
       params.push(symbol.toUpperCase());
+      paramIndex++;
+    }
+
+    // Add default date restrictions for performance - same as main endpoint
+    if (!req.query.start_date) {
+      if (timeframe === 'daily') {
+        whereClause += ` AND t.date >= CURRENT_DATE - INTERVAL '30 days'`; // Last 30 days for daily
+      } else if (timeframe === 'weekly') {
+        whereClause += ` AND t.date >= CURRENT_DATE - INTERVAL '90 days'`; // Last ~13 weeks for weekly
+      } else if (timeframe === 'monthly') {
+        whereClause += ` AND t.date >= CURRENT_DATE - INTERVAL '365 days'`; // Last 12 months for monthly
+      }
+    } else {
+      whereClause += ` AND t.date >= $${paramIndex}`;
+      params.push(req.query.start_date);
+      paramIndex++;
+    }
+
+    if (req.query.end_date) {
+      whereClause += ` AND t.date <= $${paramIndex}`;
+      params.push(req.query.end_date);
       paramIndex++;
     }
 
@@ -481,8 +517,7 @@ router.get('/:timeframe/full', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     console.log('Root technical endpoint called with params:', req.query);
-    
-    const page = parseInt(req.query.page) || 1;
+      const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 25;
     const offset = (page - 1) * limit;
     const symbol = req.query.symbol;
@@ -498,7 +533,22 @@ router.get('/', async (req, res) => {
       paramIndex++;
     }
 
-    console.log('Using whereClause:', whereClause);    const dataQuery = `
+    // Add default date restriction for performance - daily data, last 30 days
+    if (!req.query.start_date) {
+      whereClause += ` AND t.date >= CURRENT_DATE - INTERVAL '30 days'`;
+    } else {
+      whereClause += ` AND t.date >= $${paramIndex}`;
+      params.push(req.query.start_date);
+      paramIndex++;
+    }
+
+    if (req.query.end_date) {
+      whereClause += ` AND t.date <= $${paramIndex}`;
+      params.push(req.query.end_date);
+      paramIndex++;
+    }
+
+    console.log('Using whereClause:', whereClause);const dataQuery = `
       SELECT 
         t.symbol,
         t.date,
