@@ -18,10 +18,10 @@
     "dotenv": "^16.3.1",
     "@aws-sdk/client-secrets-manager": "^3.454.0",
     "@aws-sdk/rds-signer": "^3.454.0"
-  },
-  "devDependencies": {
+  },  "devDependencies": {
     "jest": "^29.7.0",
-    "supertest": "^6.3.3"
+    "supertest": "^6.3.3",
+    "axios": "^1.6.0"
   },
   "engines": {
     "node": ">=18.0.0"

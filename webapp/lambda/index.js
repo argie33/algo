@@ -21,6 +21,7 @@ const technicalRoutes = require('./routes/technical');
 const calendarRoutes = require('./routes/calendar');
 const signalsRoutes = require('./routes/signals');
 const dataRoutes = require('./routes/data');
+const backtestRoutes = require('./routes/backtest');
 
 const app = express();
 
@@ -148,6 +149,7 @@ app.use('/technical', technicalRoutes);
 app.use('/calendar', calendarRoutes);
 app.use('/signals', signalsRoutes);
 app.use('/data', dataRoutes);
+app.use('/backtest', backtestRoutes);
 
 // Default route
 app.get('/', (req, res) => {
@@ -203,7 +205,7 @@ module.exports.app = app;
 
 // For local testing
 if (require.main === module) {
-  const PORT = process.env.PORT || 3000;
+  const PORT = process.env.PORT || 3001;
   app.listen(PORT, () => {
     console.log(`Financial Dashboard API server running on port ${PORT} (local mode)`);
     console.log(`Health check: http://localhost:${PORT}/health`);

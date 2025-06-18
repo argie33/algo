@@ -2305,4 +2305,35 @@ router.get('/bulk/price-data', async (req, res) => {  try {
   }
 });
 
+// Debug endpoint: fetch raw joined data for a symbol
+router.get('/debug/raw/:symbol', async (req, res) => {
+  const symbol = req.params.symbol;
+  try {
+    const debugQuery = `
+      SELECT 
+        ss.symbol,
+        ss.security_name,
+        cp.ticker as cp_ticker,
+        cp.short_name, cp.long_name, cp.business_summary, cp.employee_count, cp.website_url, cp.country,
+        md.ticker as md_ticker,
+        md.current_price, md.previous_close, md.day_low, md.day_high, md.volume, md.average_volume,
+        km.ticker as km_ticker,
+        km.trailing_pe, km.peg_ratio, km.price_to_book, km.eps_trailing, km.profit_margin_pct
+      FROM stock_symbols ss
+      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN market_data md ON ss.symbol = md.ticker
+      LEFT JOIN key_metrics km ON ss.symbol = km.ticker
+      WHERE ss.symbol = $1
+      LIMIT 1
+    `;
+    const result = await query(debugQuery, [symbol]);
+    res.json({
+      symbol,
+      row: result.rows[0] || null
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

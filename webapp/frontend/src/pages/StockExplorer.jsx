@@ -387,7 +387,7 @@ function StockExplorer() {
     { id: 'currentPrice', label: 'Current Price', sortable: true, format: formatCurrency, align: 'right', minWidth: 100, accessor: (row) => row.price?.current },
     { id: 'previousClose', label: 'Prev Close', sortable: true, format: formatCurrency, align: 'right', minWidth: 100, accessor: (row) => row.price?.previousClose },
     { id: 'volume', label: 'Volume', sortable: true, format: formatNumber, align: 'right', minWidth: 100 },
-    { id: 'marketCap', label: 'Market Cap', sortable: true, format: formatCurrency, align: 'right', minWidth: 120 },
+    { id: 'marketCap', label: 'Market Cap', sortable: true, format: formatCurrency, align: 'right', minWidth: 120, accessor: (row) => row.marketCap || row.financialMetrics?.marketCap || row.displayData?.keyMetrics?.marketCap },
     
     // Exchange & categorization 
     { id: 'exchange', label: 'Exchange', sortable: true, minWidth: 100 },
@@ -821,7 +821,7 @@ function StockExplorer() {
                             </Grid>
                             <Grid item xs={4}>
                               <Typography variant="body1" fontWeight="medium">
-                                {stock.companyName || stock.security_name || 'N/A'}
+                                {stock.displayName || stock.shortName || stock.name || stock.fullName || 'N/A'}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
                                 {stock.sector} • {stock.industry}
@@ -829,15 +829,17 @@ function StockExplorer() {
                             </Grid>
                             <Grid item xs={2}>
                               <Typography variant="body2" fontWeight="bold">
-                                {stock.currentPrice ? formatCurrency(stock.currentPrice) : 'N/A'}
+                                {stock.price?.current ? formatCurrency(stock.price.current) : 'N/A'}
                               </Typography>
-                              <Typography variant="caption" color={getChangeColor(stock.priceChange)}>
-                                {stock.priceChange ? `${stock.priceChange > 0 ? '+' : ''}${formatPercent(stock.priceChange)}` : 'N/A'}
+                              <Typography variant="caption" color={getChangeColor(stock.price?.current - stock.price?.previousClose)}>
+                                {stock.price?.current && stock.price?.previousClose
+                                  ? `${stock.price.current - stock.price.previousClose > 0 ? '+' : ''}${formatPercent((stock.price.current - stock.price.previousClose) / stock.price.previousClose)}`
+                                  : 'N/A'}
                               </Typography>
                             </Grid>
                             <Grid item xs={2}>
                               <Typography variant="body2">
-                                {stock.marketCap ? formatCurrency(stock.marketCap) : 'N/A'}
+                                {stock.marketCap ? formatCurrency(stock.marketCap) : (stock.financialMetrics?.marketCap ? formatCurrency(stock.financialMetrics.marketCap) : 'N/A')}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
                                 Market Cap
@@ -845,7 +847,7 @@ function StockExplorer() {
                             </Grid>
                             <Grid item xs={2}>
                               <Typography variant="body2">
-                                {stock.peRatio ? formatNumber(stock.peRatio, 2) : 'N/A'}
+                                {stock.financialMetrics?.trailingPE ? formatNumber(stock.financialMetrics.trailingPE, 2) : (stock.displayData?.keyMetrics?.pe ? formatNumber(stock.displayData.keyMetrics.pe, 2) : 'N/A')}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
                                 P/E Ratio

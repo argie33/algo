@@ -1,0 +1,149 @@
+{
+  "info": {
+    "name": "Backtesting API",
+    "description": "Professional backtesting API for quantitative trading strategies",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Run Backtest",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"strategy\": \"// Simple Buy and Hold Strategy\\nconst symbols = ['AAPL', 'GOOGL', 'MSFT'];\\n\\nfor (const symbol of symbols) {\\n  if (data[symbol] && !getPosition(symbol)) {\\n    const price = data[symbol].close;\\n    const quantity = Math.floor(cash / (price * symbols.length));\\n    \\n    if (quantity > 0) {\\n      buy(symbol, quantity, price);\\n      log(`Bought ${quantity} shares of ${symbol} at $${price.toFixed(2)}`);\\n    }\\n  }\\n}\",\n  \"config\": {\n    \"initialCapital\": 100000,\n    \"commission\": 0.001,\n    \"slippage\": 0.001,\n    \"maxPositions\": 10\n  },\n  \"symbols\": [\"AAPL\", \"GOOGL\", \"MSFT\"],\n  \"startDate\": \"2023-01-01\",\n  \"endDate\": \"2023-12-31\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/backtest/run",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "backtest", "run"]
+        },
+        "description": "Execute a backtesting strategy against historical market data"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Symbols",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/backtest/symbols?search=AA&limit=10",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "backtest", "symbols"],
+          "query": [
+            {
+              "key": "search",
+              "value": "AA",
+              "description": "Search term to filter symbols"
+            },
+            {
+              "key": "limit",
+              "value": "10",
+              "description": "Maximum number of results"
+            }
+          ]
+        },
+        "description": "Get list of available symbols for backtesting"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Strategy Templates",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/backtest/templates",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "backtest", "templates"]
+        },
+        "description": "Get pre-built strategy templates"
+      },
+      "response": []
+    },
+    {
+      "name": "Validate Strategy",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"strategy\": \"// Valid strategy code\\nconst price = data['AAPL'].close;\\nif (price > 150) {\\n  buy('AAPL', 100, price);\\n}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/backtest/validate",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "backtest", "validate"]
+        },
+        "description": "Validate strategy code syntax before running backtest"
+      },
+      "response": []
+    },
+    {
+      "name": "Moving Average Crossover Strategy",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"strategy\": \"// Moving Average Crossover Strategy\\n// This is a simplified example - in practice you'd need price history\\n\\nconst symbols = ['AAPL', 'GOOGL', 'MSFT'];\\nconst shortPeriod = 20;\\nconst longPeriod = 50;\\n\\nfor (const symbol of symbols) {\\n  if (data[symbol]) {\\n    const price = data[symbol].close;\\n    const position = getPosition(symbol);\\n    \\n    // Simplified buy logic (you'd calculate actual MAs with price history)\\n    if (!position) {\\n      const quantity = Math.floor(cash / (price * symbols.length));\\n      if (quantity > 0) {\\n        buy(symbol, quantity, price);\\n        log(`MA Buy: ${symbol} at $${price.toFixed(2)}`);\\n      }\\n    }\\n  }\\n}\",\n  \"config\": {\n    \"initialCapital\": 50000,\n    \"commission\": 0.0005,\n    \"slippage\": 0.0005\n  },\n  \"symbols\": [\"AAPL\", \"GOOGL\", \"MSFT\"],\n  \"startDate\": \"2023-06-01\",\n  \"endDate\": \"2023-12-31\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/backtest/run",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "backtest", "run"]
+        },
+        "description": "Example of a moving average crossover strategy"
+      },
+      "response": []
+    },
+    {
+      "name": "Multi-Symbol Momentum Strategy",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"strategy\": \"// Multi-Symbol Momentum Strategy\\n// Buy top performers, sell underperformers\\n\\nconst symbols = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA'];\\nconst maxPositions = 3;\\n\\n// Simple momentum logic (in practice, you'd calculate returns over periods)\\nfor (const symbol of symbols) {\\n  if (data[symbol]) {\\n    const price = data[symbol].close;\\n    const position = getPosition(symbol);\\n    \\n    // Count current positions\\n    const currentPositions = Array.from(positions.keys()).length;\\n    \\n    if (!position && currentPositions < maxPositions) {\\n      // Buy logic - simplified momentum\\n      const quantity = Math.floor(cash / (price * maxPositions));\\n      if (quantity > 0) {\\n        buy(symbol, quantity, price);\\n        log(`Momentum Buy: ${symbol} at $${price.toFixed(2)}`);\\n      }\\n    }\\n  }\\n}\",\n  \"config\": {\n    \"initialCapital\": 100000,\n    \"commission\": 0.001,\n    \"slippage\": 0.0005,\n    \"maxPositions\": 3\n  },\n  \"symbols\": [\"AAPL\", \"GOOGL\", \"MSFT\", \"AMZN\", \"TSLA\"],\n  \"startDate\": \"2023-01-01\",\n  \"endDate\": \"2023-12-31\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/backtest/run",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "backtest", "run"]
+        },
+        "description": "Example of a multi-symbol momentum strategy with position limits"
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://your-api-domain.com",
+      "description": "Base URL for the API"
+    }
+  ]
+}
