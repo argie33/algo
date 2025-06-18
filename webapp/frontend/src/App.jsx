@@ -29,7 +29,8 @@ import {
   Event as EventIcon,
   Storage as StorageIcon,
   AccountBalance as AccountBalanceIcon,
-  HealthAndSafety as HealthAndSafetyIcon
+  HealthAndSafety as HealthAndSafetyIcon,
+  PlayArrow
 } from '@mui/icons-material'
 import { useNavigate, useLocation } from 'react-router-dom'
 
@@ -45,6 +46,7 @@ import EarningsCalendar from './pages/EarningsCalendar'
 import DataValidation from './pages/DataValidation'
 import FinancialData from './pages/FinancialData'
 import ServiceHealth from './pages/ServiceHealth'
+import Backtest from './pages/Backtest'
 
 const drawerWidth = 240
 
@@ -55,6 +57,7 @@ const menuItems = [
   { text: 'Financial Data', icon: <AccountBalanceIcon />, path: '/financial-data' },
   { text: 'Trading Signals', icon: <TimelineIcon />, path: '/trading' },
   { text: 'Technical Analysis', icon: <AssessmentIcon />, path: '/technical' },
+  { text: 'Backtester', icon: <PlayArrow />, path: '/backtest' },
   { text: 'Analyst Insights', icon: <PersonIcon />, path: '/analysts' },
   { text: 'Earnings Calendar', icon: <EventIcon />, path: '/earnings' },
   { text: 'Service Health', icon: <HealthAndSafetyIcon />, path: '/service-health' },
@@ -234,6 +237,7 @@ function App() {
               <Route path="/screener" element={<StockExplorer />} />
               <Route path="/trading" element={<TradingSignals />} />
               <Route path="/technical" element={<TechnicalAnalysis />} />
+              <Route path="/backtest" element={<Backtest />} />
               <Route path="/analysts" element={<AnalystInsights />} />
               <Route path="/earnings" element={<EarningsCalendar />} />
               <Route path="/service-health" element={<ServiceHealth />} />
