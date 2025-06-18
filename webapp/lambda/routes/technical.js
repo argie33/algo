@@ -141,13 +141,15 @@ router.get('/debug', async (req, res) => {
 router.get('/test', async (req, res) => {
   try {
     console.log('Technical test endpoint called');
-    
-    const testQuery = `
+      const testQuery = `
       SELECT 
         t.symbol,
         t.date,
-        t.close,
-        t.volume,
+        p.close,
+        p.volume,
+        p.open,
+        p.high,
+        p.low,
         t.rsi,
         t.macd,
         t.macd_signal,
@@ -178,6 +180,7 @@ router.get('/test', async (req, res) => {
         t.pivot_low,
         ss.security_name as company_name
       FROM technical_data_daily t
+      LEFT JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
       LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
       ORDER BY t.date DESC
       LIMIT 10
@@ -560,13 +563,15 @@ router.get('/', async (req, res) => {
       paramIndex++;
     }
 
-    console.log('Using whereClause:', whereClause);
-    const dataQuery = `
+    console.log('Using whereClause:', whereClause);    const dataQuery = `
       SELECT 
         t.symbol,
         t.date,
-        t.close,
-        t.volume,
+        p.close,
+        p.volume,
+        p.open,
+        p.high,
+        p.low,
         t.rsi,
         t.macd,
         t.macd_signal,
@@ -597,6 +602,7 @@ router.get('/', async (req, res) => {
         t.pivot_low,
         ss.security_name as company_name
       FROM technical_data_daily t
+      LEFT JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
       LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
       ${whereClause}
       ORDER BY t.date DESC, t.symbol ASC
