@@ -77,134 +77,6 @@ router.get('/debug/columns', async (req, res) => {
 });
 
 // Debug endpoint to check technical table status
-router.get('/debug', async (req, res) => {
-  try {
-    console.log('Technical debug endpoint called');
-      // Check if table exists
-    const tableExistsQuery = `
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name = 'technical_data_daily'
-      );
-    `;
-    
-    const tableExists = await query(tableExistsQuery);
-    console.log('Table exists check:', tableExists.rows[0]);
-    
-    if (tableExists.rows[0].exists) {
-      // Count total records
-      const countQuery = `SELECT COUNT(*) as total FROM technical_data_daily`;
-      const countResult = await query(countQuery);
-      console.log('Total technical records:', countResult.rows[0]);
-      
-      // Get sample records
-      const sampleQuery = `
-        SELECT symbol, date, rsi, macd, sma_20, sma_50, close, volume
-        FROM technical_data_daily 
-        ORDER BY date DESC 
-        LIMIT 5
-      `;
-      const sampleResult = await query(sampleQuery);
-      console.log('Sample records:', sampleResult.rows);
-      
-      // Check distinct symbols
-      const symbolsQuery = `SELECT COUNT(DISTINCT symbol) as unique_symbols FROM technical_data_daily`;
-      const symbolsResult = await query(symbolsQuery);
-      
-      res.json({
-        tableExists: true,
-        totalRecords: parseInt(countResult.rows[0].total),
-        uniqueSymbols: parseInt(symbolsResult.rows[0].unique_symbols),
-        sampleRecords: sampleResult.rows,
-        timestamp: new Date().toISOString()
-      });
-    } else {
-      res.json({
-        tableExists: false,
-        message: 'technical_data_daily table does not exist',
-        timestamp: new Date().toISOString()
-      });
-    }
-    
-  } catch (error) {
-    console.error('Error in technical debug:', error);
-    res.status(500).json({ 
-      error: 'Debug check failed', 
-      message: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// Simple test endpoint that returns raw data
-router.get('/test', async (req, res) => {
-  try {
-    console.log('Technical test endpoint called');
-      const testQuery = `
-      SELECT 
-        t.symbol,
-        t.date,
-        p.close,
-        p.volume,
-        p.open,
-        p.high,
-        p.low,
-        t.rsi,
-        t.macd,
-        t.macd_signal,
-        t.macd_hist,
-        t.adx,
-        t.atr,
-        t.mfi,
-        t.roc,
-        t.mom,
-        t.sma_10,
-        t.sma_20,
-        t.sma_50,
-        t.sma_150,
-        t.sma_200,
-        t.ema_4,
-        t.ema_9,
-        t.ema_21,
-        t.bbands_upper,
-        t.bbands_middle,
-        t.bbands_lower,
-        t.ad,
-        t.cmf,
-        t.td_sequential,
-        t.td_combo,
-        t.marketwatch,
-        t.dm,
-        t.pivot_high,
-        t.pivot_low,
-        ss.security_name as company_name
-      FROM technical_data_daily t
-      LEFT JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
-      LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
-      ORDER BY t.date DESC
-      LIMIT 10
-    `;
-    
-    const result = await query(testQuery);
-    
-    res.json({
-      success: true,
-      count: result.rows.length,
-      data: result.rows,
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('Error in technical test:', error);
-    res.status(500).json({ 
-      error: 'Test failed', 
-      message: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
 // Basic ping endpoint
 router.get('/ping', (req, res) => {
   res.json({
@@ -265,19 +137,20 @@ router.get('/:timeframe', async (req, res) => {
       SELECT 
         t.symbol,
         t.date,
-        t.open,
-        t.high,
-        t.low,
-        t.close,
-        t.volume,
+        p.close,
+        p.volume,
+        p.open,
+        p.high,
+        p.low,
         t.rsi,
         t.macd,
         t.macd_signal,
         t.macd_hist,
-        t.mom,
-        t.roc,
         t.adx,
         t.atr,
+        t.mfi,
+        t.roc,
+        t.mom,
         t.sma_10,
         t.sma_20,
         t.sma_50,
@@ -286,13 +159,20 @@ router.get('/:timeframe', async (req, res) => {
         t.ema_4,
         t.ema_9,
         t.ema_21,
-        t.bbands_lower,
-        t.bbands_middle,
         t.bbands_upper,
+        t.bbands_middle,
+        t.bbands_lower,
+        t.ad,
+        t.cmf,
         t.td_sequential,
         t.td_combo,
+        t.marketwatch,
+        t.dm,
+        t.pivot_high,
+        t.pivot_low,
         ss.security_name as company_name
       FROM ${tableName} t
+      LEFT JOIN price_${timeframe} p ON t.symbol = p.symbol AND t.date = p.date
       LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
       ${whereClause}
       ORDER BY t.date DESC, t.symbol ASC
@@ -419,25 +299,59 @@ router.get('/:timeframe/chunk/:chunkIndex', async (req, res) => {
     
     console.log(`Technical chunk endpoint called for timeframe: ${timeframe}, chunk: ${chunk}`);
     
-    if (timeframe !== 'daily') {
+    // Support all available timeframes
+    const validTimeframes = ['daily', 'weekly', 'monthly'];
+    if (!validTimeframes.includes(timeframe)) {
       return res.status(400).json({
         error: 'Unsupported timeframe',
-        message: `Only 'daily' timeframe is currently supported, got: ${timeframe}`
+        message: `Supported timeframes: ${validTimeframes.join(', ')}, got: ${timeframe}`,
+        availableTimeframes: validTimeframes
       });
     }
 
     const offset = chunk * chunkSize;
+    const tableName = `technical_data_${timeframe}`;
 
     const dataQuery = `
       SELECT 
         t.symbol,
         t.date,
+        p.close,
+        p.volume,
+        p.open,
+        p.high,
+        p.low,
         t.rsi,
         t.macd,
+        t.macd_signal,
+        t.macd_hist,
+        t.adx,
+        t.atr,
+        t.mfi,
+        t.roc,
+        t.mom,
+        t.sma_10,
         t.sma_20,
         t.sma_50,
+        t.sma_150,
+        t.sma_200,
+        t.ema_4,
+        t.ema_9,
+        t.ema_21,
+        t.bbands_upper,
+        t.bbands_middle,
+        t.bbands_lower,
+        t.ad,
+        t.cmf,
+        t.td_sequential,
+        t.td_combo,
+        t.marketwatch,
+        t.dm,
+        t.pivot_high,
+        t.pivot_low,
         ss.security_name as company_name
-      FROM technical_data_daily t
+      FROM ${tableName} t
+      LEFT JOIN price_${timeframe} p ON t.symbol = p.symbol AND t.date = p.date
       LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
       ORDER BY t.date DESC, t.symbol ASC
       LIMIT $1 OFFSET $2
@@ -446,6 +360,7 @@ router.get('/:timeframe/chunk/:chunkIndex', async (req, res) => {
     const result = await query(dataQuery, [chunkSize, offset]);
 
     res.json({
+      timeframe,
       chunk: chunk,
       chunkSize: chunkSize,
       dataCount: result.rows.length,
@@ -470,16 +385,20 @@ router.get('/:timeframe/full', async (req, res) => {
     const { timeframe } = req.params;
     console.log(`Technical full endpoint called for timeframe: ${timeframe}, params:`, req.query);
     
-    if (timeframe !== 'daily') {
+    // Support all available timeframes
+    const validTimeframes = ['daily', 'weekly', 'monthly'];
+    if (!validTimeframes.includes(timeframe)) {
       return res.status(400).json({
         error: 'Unsupported timeframe',
-        message: `Only 'daily' timeframe is currently supported, got: ${timeframe}`
+        message: `Supported timeframes: ${validTimeframes.join(', ')}, got: ${timeframe}`,
+        availableTimeframes: validTimeframes
       });
     }
 
     // Force small limit for safety
-    const limit = Math.min(parseInt(req.query.limit) || 10, 10);
+    const limit = Math.min(parseInt(req.query.limit) || 10, 50);
     const symbol = req.query.symbol;
+    const tableName = `technical_data_${timeframe}`;
 
     let whereClause = 'WHERE 1=1';
     const params = [];
@@ -495,14 +414,20 @@ router.get('/:timeframe/full', async (req, res) => {
       SELECT 
         t.symbol,
         t.date,
+        p.close,
+        p.volume,
+        p.open,
+        p.high,
+        p.low,
         t.rsi,
         t.macd,
         t.macd_signal,
         t.macd_hist,
-        t.mom,
-        t.roc,
         t.adx,
         t.atr,
+        t.mfi,
+        t.roc,
+        t.mom,
         t.sma_10,
         t.sma_20,
         t.sma_50,
@@ -511,11 +436,20 @@ router.get('/:timeframe/full', async (req, res) => {
         t.ema_4,
         t.ema_9,
         t.ema_21,
-        t.bbands_lower,
-        t.bbands_middle,
         t.bbands_upper,
+        t.bbands_middle,
+        t.bbands_lower,
+        t.ad,
+        t.cmf,
+        t.td_sequential,
+        t.td_combo,
+        t.marketwatch,
+        t.dm,
+        t.pivot_high,
+        t.pivot_low,
         ss.security_name as company_name
-      FROM technical_data_daily t
+      FROM ${tableName} t
+      LEFT JOIN price_${timeframe} p ON t.symbol = p.symbol AND t.date = p.date
       LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
       ${whereClause}
       ORDER BY t.date DESC, t.symbol ASC
@@ -525,6 +459,7 @@ router.get('/:timeframe/full', async (req, res) => {
     const result = await query(dataQuery, [...params, limit]);
 
     res.json({
+      timeframe,
       warning: 'This endpoint returns limited data for performance reasons',
       actualLimit: limit,
       data: result.rows,
@@ -655,151 +590,4 @@ router.get('/', async (req, res) => {
 });
 
 // Get technical data (simple endpoint like calendar/events)
-router.get('/data', async (req, res) => {
-  try {
-    console.log('Technical data endpoint called with params:', req.query);
-    
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 25;
-    const offset = (page - 1) * limit;
-    const symbol = req.query.symbol;
-    const timeframe = req.query.timeframe || 'daily';
-
-    // Use the correct table based on timeframe
-    const tableName = `technical_data_${timeframe}`;
-
-    let whereClause = 'WHERE 1=1';
-    const params = [];
-    let paramIndex = 1;
-
-    // Add symbol filter if provided
-    if (symbol) {
-      whereClause += ` AND t.symbol = $${paramIndex}`;
-      params.push(symbol.toUpperCase());
-      paramIndex++;
-    }
-
-    console.log('Using whereClause:', whereClause);
-
-    const dataQuery = `
-      SELECT 
-        t.symbol,
-        t.date,
-        t.close,
-        t.volume,
-        t.rsi,
-        t.macd,
-        t.sma_20,
-        t.sma_50,
-        ss.security_name as company_name
-      FROM ${tableName} t
-      LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
-      ${whereClause}
-      ORDER BY t.date DESC, t.symbol ASC
-      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
-    `;
-
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM ${tableName} t
-      ${whereClause}
-    `;
-
-    console.log('Executing queries with limit:', limit, 'offset:', offset);
-
-    const [dataResult, countResult] = await Promise.all([
-      query(dataQuery, [...params, limit, offset]),
-      query(countQuery, params)
-    ]);
-
-    console.log('Query results - data:', dataResult.rows.length, 'total:', countResult.rows[0].total);
-
-    const total = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(total / limit);
-
-    res.json({
-      data: dataResult.rows,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
-      },
-      summary: {
-        timeframe: timeframe,
-        total_records: total
-      },
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('Error fetching technical data:', error);
-    console.error('Error stack:', error.stack);
-    res.status(500).json({ 
-      error: 'Failed to fetch technical data', 
-      details: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// Debug endpoint to check actual data values
-router.get('/debug/data', async (req, res) => {
-  try {
-    console.log('Technical data debug endpoint called');
-    
-    // Check what columns actually exist and have data
-    const dataQuery = `
-      SELECT *
-      FROM technical_data_daily 
-      WHERE symbol = 'A'
-      ORDER BY date DESC 
-      LIMIT 1
-    `;
-    
-    const result = await query(dataQuery);
-    
-    if (result.rows.length > 0) {
-      const row = result.rows[0];
-      const columnInfo = {};
-      
-      // Analyze each column
-      Object.keys(row).forEach(column => {
-        const value = row[column];
-        columnInfo[column] = {
-          value: value,
-          type: typeof value,
-          isNull: value === null,
-          isEmpty: value === '' || value === undefined
-        };
-      });
-      
-      res.json({
-        success: true,
-        symbol: 'A',
-        totalColumns: Object.keys(row).length,
-        columnAnalysis: columnInfo,
-        rawData: row,
-        timestamp: new Date().toISOString()
-      });
-    } else {
-      res.json({
-        success: false,
-        message: 'No data found for symbol A',
-        timestamp: new Date().toISOString()
-      });
-    }
-    
-  } catch (error) {
-    console.error('Error in technical data debug:', error);
-    res.status(500).json({ 
-      error: 'Debug failed', 
-      message: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
 module.exports = router;
