@@ -717,15 +717,15 @@ router.get('/full/data', async (req, res) => {
 });
 
 // Get comprehensive stock details by ticker
-// SIMPLIFIED Individual Stock Endpoint - Fast and reliable
+// ULTRA-FAST Individual Stock Endpoint - Just essential data, everything else on-demand
 router.get('/:ticker', async (req, res) => {
   try {
     const { ticker } = req.params;
     const tickerUpper = ticker.toUpperCase();
     
-    console.log(`SIMPLIFIED stock endpoint called for: ${tickerUpper}`);
+    console.log(`⚡ ULTRA-FAST stock endpoint called for: ${tickerUpper}`);
     
-    // SINGLE OPTIMIZED QUERY - Get everything we need in one go
+    // LIGHTNING FAST query - minimal essential data only
     const stockQuery = `
       SELECT 
         ss.symbol,
@@ -734,27 +734,20 @@ router.get('/:ticker', async (req, res) => {
         ss.market_category,
         ss.financial_status,
         ss.etf,
-        pd.date as latest_date,
-        pd.open,
-        pd.high,
-        pd.low,
-        pd.close,
-        pd.volume,
-        pd.adj_close
+        cp.short_name,
+        cp.long_name,
+        cp.sector,
+        cp.industry
       FROM stock_symbols ss
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol) 
-          symbol, date, open, high, low, close, volume, adj_close
-        FROM price_daily
-        WHERE symbol = $1
-        ORDER BY symbol, date DESC
-      ) pd ON ss.symbol = pd.symbol
+      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
       WHERE ss.symbol = $1
     `;
     
+    console.log(`Executing ultra-fast query for ${tickerUpper}`);
     const result = await query(stockQuery, [tickerUpper]);
     
     if (result.rows.length === 0) {
+      console.log(`Stock ${tickerUpper} not found`);
       return res.status(404).json({
         error: 'Stock not found',
         symbol: tickerUpper,
@@ -764,56 +757,69 @@ router.get('/:ticker', async (req, res) => {
     }
     
     const stock = result.rows[0];
+    console.log(`✅ Stock ${tickerUpper} found, returning essential data instantly`);
     
-    // SIMPLE RESPONSE - Just the essential data
+    // INSTANT RESPONSE - Just essential data + on-demand endpoints
     const response = {
       symbol: tickerUpper,
       ticker: tickerUpper,
-      companyInfo: {
+      loadStrategy: 'instant_core_with_on_demand_sections',
+      
+      // Essential data loaded immediately
+      coreData: {
         name: stock.security_name,
+        fullName: stock.long_name || stock.security_name,
+        shortName: stock.short_name,
         exchange: stock.exchange,
+        sector: stock.sector || 'N/A',
+        industry: stock.industry || 'N/A',
         marketCategory: stock.market_category,
         financialStatus: stock.financial_status,
-        isETF: stock.etf === 't' || stock.etf === true
+        isETF: stock.etf === 'Y',
+        tradeable: stock.financial_status !== 'D'
       },
-      currentPrice: stock.close ? {
-        date: stock.latest_date,
-        open: parseFloat(stock.open || 0),
-        high: parseFloat(stock.high || 0),
-        low: parseFloat(stock.low || 0),
-        close: parseFloat(stock.close || 0),
-        adjClose: parseFloat(stock.adj_close || stock.close || 0),
-        volume: parseInt(stock.volume || 0)
-      } : null,
+      
+      // On-demand data endpoints for progressive loading
+      onDemandEndpoints: {
+        marketData: `/api/stocks/${tickerUpper}/market`,
+        financialMetrics: `/api/stocks/${tickerUpper}/financials`, 
+        technicalIndicators: `/api/stocks/${tickerUpper}/technical`,
+        analystData: `/api/stocks/${tickerUpper}/analyst`,
+        governanceScores: `/api/stocks/${tickerUpper}/governance`,
+        leadershipTeam: `/api/stocks/leadership/${tickerUpper}`,
+        priceHistory: `/api/stocks/${tickerUpper}/prices`,
+        coreDataOnly: `/api/stocks/${tickerUpper}/core`
+      },
+      
+      // Performance info
+      performance: {
+        loadTime: 'instant',
+        strategy: 'Load essential data immediately, fetch additional sections on demand',
+        coreDataSize: 'minimal',
+        additionalDataAvailable: true
+      },
+      
       metadata: {
         requestedSymbol: ticker,
         resolvedSymbol: tickerUpper,
-        dataAvailability: {
-          basicInfo: true,
-          priceData: stock.close !== null,
-          technicalIndicators: false, // Disabled for speed
-          fundamentals: false // Disabled for speed
-        },
+        queryType: 'ultra_fast_core_only',
+        dataLoadingPattern: 'progressive_on_demand',
         timestamp: new Date().toISOString()
       }
     };
     
-    console.log(`✅ SIMPLIFIED: Successfully returned basic data for ${tickerUpper}`);
-    
     res.json(response);
     
   } catch (error) {
-    console.error('Error in simplified stock endpoint:', error);
+    console.error(`ULTRA-FAST stock endpoint error for ${req.params.ticker}:`, error);
     res.status(500).json({ 
-      error: 'Failed to fetch stock data', 
-      symbol: req.params.ticker,
-      message: error.message,
-      timestamp: new Date().toISOString()
-    });
+      error: 'Database query failed',
+      symbol: req.params.ticker?.toUpperCase(),
+      details: error.message,
+      timestamp: new Date().toISOString()    });
   }
 });
 
-// Get stock price history
 // SIMPLIFIED Get stock price history
 router.get('/:ticker/prices', async (req, res) => {
   try {
@@ -1992,6 +1998,445 @@ router.get('/leadership/:ticker?', async (req, res) => {
       error: 'Leadership data query failed',
       details: error.message,
       timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// ===== ON-DEMAND DATA LOADING ENDPOINTS =====
+// These endpoints allow loading different data sections separately for fast page loads
+
+// 1. CORE DATA - Lightning fast essential info (always loads first)
+router.get('/:ticker/core', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    const tickerUpper = ticker.toUpperCase();
+    
+    console.log(`⚡ CORE data requested for: ${tickerUpper}`);
+    
+    // Super fast query - just essential data
+    const coreQuery = `
+      SELECT 
+        ss.symbol,
+        ss.security_name,
+        ss.exchange,
+        ss.market_category,
+        ss.financial_status,
+        ss.etf,
+        cp.short_name,
+        cp.long_name,
+        cp.sector,
+        cp.industry,
+        cp.business_summary
+      FROM stock_symbols ss
+      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      WHERE ss.symbol = $1
+    `;
+    
+    const result = await query(coreQuery, [tickerUpper]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Stock not found',
+        symbol: tickerUpper,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const stock = result.rows[0];
+    
+    res.json({
+      success: true,
+      loadTime: 'instant',
+      data: {
+        symbol: tickerUpper,
+        basicInfo: {
+          name: stock.security_name,
+          fullName: stock.long_name || stock.security_name,
+          shortName: stock.short_name,
+          exchange: stock.exchange,
+          sector: stock.sector,
+          industry: stock.industry,
+          isETF: stock.etf === 'Y',
+          financialStatus: stock.financial_status
+        },
+        businessSummary: stock.business_summary || 'No business summary available',
+        availableDataSections: {
+          marketData: '/api/stocks/' + tickerUpper + '/market',
+          financialMetrics: '/api/stocks/' + tickerUpper + '/financials',
+          technicalIndicators: '/api/stocks/' + tickerUpper + '/technical',
+          analystData: '/api/stocks/' + tickerUpper + '/analyst',
+          governance: '/api/stocks/' + tickerUpper + '/governance',
+          leadership: '/api/stocks/' + tickerUpper + '/leadership',
+          priceHistory: '/api/stocks/' + tickerUpper + '/prices'
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error in core data endpoint:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch core data',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// 2. MARKET DATA - Current prices, volume, market cap
+router.get('/:ticker/market', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    const tickerUpper = ticker.toUpperCase();
+    
+    console.log(`📊 MARKET data requested for: ${tickerUpper}`);
+    
+    const marketQuery = `
+      SELECT 
+        md.*,
+        pd.date as price_date,
+        pd.close as latest_close,
+        pd.volume as latest_volume
+      FROM market_data md
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol) symbol, date, close, volume
+        FROM price_daily
+        WHERE symbol = $1
+        ORDER BY symbol, date DESC
+      ) pd ON md.ticker = pd.symbol
+      WHERE md.ticker = $1
+    `;
+    
+    const result = await query(marketQuery, [tickerUpper]);
+    
+    if (result.rows.length === 0) {
+      return res.json({
+        success: false,
+        message: 'No market data available',
+        data: null
+      });
+    }
+    
+    const market = result.rows[0];
+    
+    res.json({
+      success: true,
+      loadTime: 'fast',
+      data: {
+        currentPrice: market.current_price || market.latest_close,
+        priceData: {
+          open: market.open_price,
+          high: market.day_high,
+          low: market.day_low,
+          close: market.latest_close,
+          previousClose: market.previous_close,
+          volume: market.latest_volume || market.volume
+        },
+        ranges: {
+          fiftyTwoWeekLow: market.fifty_two_week_low,
+          fiftyTwoWeekHigh: market.fifty_two_week_high,
+          fiftyDayAvg: market.fifty_day_avg,
+          twoHundredDayAvg: market.two_hundred_day_avg
+        },
+        marketInfo: {
+          marketCap: market.market_cap,
+          averageVolume: market.average_volume,
+          bidPrice: market.bid_price,
+          askPrice: market.ask_price,
+          marketState: market.market_state
+        },
+        lastUpdated: market.price_date
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error in market data endpoint:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch market data',
+      details: error.message
+    });
+  }
+});
+
+// 3. FINANCIAL METRICS - P/E ratios, margins, financial health
+router.get('/:ticker/financials', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    const tickerUpper = ticker.toUpperCase();
+    
+    console.log(`💰 FINANCIAL data requested for: ${tickerUpper}`);
+    
+    const financialQuery = `
+      SELECT * FROM key_metrics WHERE ticker = $1
+    `;
+    
+    const result = await query(financialQuery, [tickerUpper]);
+    
+    if (result.rows.length === 0) {
+      return res.json({
+        success: false,
+        message: 'No financial metrics available',
+        data: null
+      });
+    }
+    
+    const metrics = result.rows[0];
+    
+    res.json({
+      success: true,
+      loadTime: 'medium',
+      data: {
+        valuationRatios: {
+          trailingPE: metrics.trailing_pe,
+          forwardPE: metrics.forward_pe,
+          priceToSales: metrics.price_to_sales_ttm,
+          priceToBook: metrics.price_to_book,
+          pegRatio: metrics.peg_ratio,
+          bookValue: metrics.book_value
+        },
+        profitabilityMetrics: {
+          profitMargin: metrics.profit_margin_pct,
+          grossMargin: metrics.gross_margin_pct,
+          ebitdaMargin: metrics.ebitda_margin_pct,
+          operatingMargin: metrics.operating_margin_pct,
+          returnOnAssets: metrics.return_on_assets_pct,
+          returnOnEquity: metrics.return_on_equity_pct
+        },
+        financialHealth: {
+          totalRevenue: metrics.total_revenue,
+          netIncome: metrics.net_income,
+          totalCash: metrics.total_cash,
+          totalDebt: metrics.total_debt,
+          debtToEquity: metrics.debt_to_equity,
+          currentRatio: metrics.current_ratio,
+          quickRatio: metrics.quick_ratio
+        },
+        cashFlow: {
+          operatingCashflow: metrics.operating_cashflow,
+          freeCashflow: metrics.free_cashflow,
+          cashPerShare: metrics.cash_per_share
+        },
+        dividends: {
+          dividendRate: metrics.dividend_rate,
+          dividendYield: metrics.dividend_yield,
+          payoutRatio: metrics.payout_ratio,
+          fiveYearAvgYield: metrics.five_year_avg_dividend_yield
+        },
+        growth: {
+          revenueGrowth: metrics.revenue_growth_pct,
+          earningsGrowth: metrics.earnings_growth_pct,
+          earningsQuarterlyGrowth: metrics.earnings_q_growth_pct
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error in financial data endpoint:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch financial data',
+      details: error.message
+    });
+  }
+});
+
+// 4. ANALYST DATA - Recommendations, price targets
+router.get('/:ticker/analyst', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    const tickerUpper = ticker.toUpperCase();
+    
+    console.log(`🎯 ANALYST data requested for: ${tickerUpper}`);
+    
+    const analystQuery = `
+      SELECT * FROM analyst_estimates WHERE ticker = $1
+    `;
+    
+    const result = await query(analystQuery, [tickerUpper]);
+    
+    if (result.rows.length === 0) {
+      return res.json({
+        success: false,
+        message: 'No analyst data available',
+        data: null
+      });
+    }
+    
+    const analyst = result.rows[0];
+    
+    res.json({
+      success: true,
+      loadTime: 'fast',
+      data: {
+        priceTargets: {
+          high: analyst.target_high_price,
+          low: analyst.target_low_price,
+          mean: analyst.target_mean_price,
+          median: analyst.target_median_price
+        },
+        recommendations: {
+          key: analyst.recommendation_key,
+          mean: analyst.recommendation_mean,
+          rating: analyst.average_analyst_rating
+        },
+        coverage: {
+          analystCount: analyst.analyst_opinion_count
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error in analyst data endpoint:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch analyst data',
+      details: error.message
+    });
+  }
+});
+
+// 5. GOVERNANCE DATA - ESG scores, risk metrics
+router.get('/:ticker/governance', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    const tickerUpper = ticker.toUpperCase();
+    
+    console.log(`🏛️ GOVERNANCE data requested for: ${tickerUpper}`);
+    
+    const governanceQuery = `
+      SELECT * FROM governance_scores WHERE ticker = $1
+    `;
+    
+    const result = await query(governanceQuery, [tickerUpper]);
+    
+    if (result.rows.length === 0) {
+      return res.json({
+        success: false,
+        message: 'No governance data available',
+        data: null
+      });
+    }
+    
+    const governance = result.rows[0];
+    
+    res.json({
+      success: true,
+      loadTime: 'fast',
+      data: {
+        riskScores: {
+          audit: governance.audit_risk,
+          board: governance.board_risk,
+          compensation: governance.compensation_risk,
+          shareholderRights: governance.shareholder_rights_risk,
+          overall: governance.overall_risk
+        },
+        riskLevel: governance.overall_risk >= 8 ? 'High' : 
+                  governance.overall_risk >= 5 ? 'Medium' : 'Low',
+        lastUpdated: governance.governance_epoch_ms
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error in governance data endpoint:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch governance data',
+      details: error.message
+    });
+  }
+});
+
+// 6. TECHNICAL INDICATORS - RSI, MACD, pivot points, etc.
+router.get('/:ticker/technical', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    const tickerUpper = ticker.toUpperCase();
+    const limit = Math.min(parseInt(req.query.limit) || 30, 100);
+    
+    console.log(`📈 TECHNICAL data requested for: ${tickerUpper}, limit: ${limit}`);
+    
+    const technicalQuery = `
+      SELECT 
+        date, close, volume,
+        rsi, macd, macd_signal, macd_hist,
+        sma_20, sma_50, sma_200,
+        ema_9, ema_21,
+        bbands_lower, bbands_middle, bbands_upper,
+        atr, adx, mfi, cmf,
+        pivot_high, pivot_low
+      FROM technical_data_daily 
+      WHERE symbol = $1 
+      ORDER BY date DESC 
+      LIMIT $2
+    `;
+    
+    const result = await query(technicalQuery, [tickerUpper, limit]);
+    
+    if (result.rows.length === 0) {
+      return res.json({
+        success: false,
+        message: 'No technical data available',
+        data: null
+      });
+    }
+    
+    const latest = result.rows[0];
+    
+    res.json({
+      success: true,
+      loadTime: 'medium',
+      data: {
+        currentIndicators: {
+          rsi: latest.rsi,
+          macd: {
+            line: latest.macd,
+            signal: latest.macd_signal,
+            histogram: latest.macd_hist
+          },
+          movingAverages: {
+            sma20: latest.sma_20,
+            sma50: latest.sma_50,
+            sma200: latest.sma_200,
+            ema9: latest.ema_9,
+            ema21: latest.ema_21
+          },
+          bollinger: {
+            upper: latest.bbands_upper,
+            middle: latest.bbands_middle,
+            lower: latest.bbands_lower
+          },
+          other: {
+            atr: latest.atr,
+            adx: latest.adx,
+            mfi: latest.mfi,
+            cmf: latest.cmf
+          },
+          pivots: {
+            high: latest.pivot_high,
+            low: latest.pivot_low
+          }
+        },
+        historicalData: result.rows.map(row => ({
+          date: row.date,
+          close: row.close,
+          rsi: row.rsi,
+          macd: row.macd,
+          sma20: row.sma_20,
+          pivotHigh: row.pivot_high,
+          pivotLow: row.pivot_low
+        })),
+        dataPoints: result.rows.length,
+        lastUpdated: latest.date
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error in technical data endpoint:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch technical data',
+      details: error.message
     });
   }
 });

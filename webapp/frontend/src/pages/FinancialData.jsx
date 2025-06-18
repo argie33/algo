@@ -33,7 +33,8 @@ import {
   Timeline,
   TrendingUp,
   Search,
-  BusinessCenter
+  BusinessCenter,
+  ShowChart
 } from '@mui/icons-material'
 import {
   LineChart,
@@ -54,6 +55,7 @@ import {
   getIncomeStatement,
   getCashFlowStatement,
   getFinancialStatements,
+  getKeyMetrics,
   getTickerEarningsEstimates,
   getTickerRevenueEstimates,
   getTickerEarningsHistory,
@@ -134,8 +136,104 @@ function FinancialData() {
     enabled: !!ticker && tabValue === 2,
     onError: (error) => logger.queryError('cashFlowStatement', error, { ticker, period })
   })
+
+  const { data: keyMetrics, isLoading: keyMetricsLoading, error: keyMetricsError } = useQuery({
+    queryKey: ['keyMetrics', ticker],
+    queryFn: () => getKeyMetrics(ticker),
+    enabled: !!ticker && tabValue === 3,
+    onError: (error) => logger.queryError('keyMetrics', error, { ticker })
+  })
+
+  const renderKeyMetrics = (data) => {
+    // Access the correct nested data structure for key metrics
+    const metricsData = data?.data?.data;
+    
+    // Check for API error responses
+    if (data?.data?.error) {
+      return (
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+              <ShowChart />
+              <Box sx={{ ml: 1 }}>Key Metrics</Box>
+            </Typography>
+            <Alert severity="error">Error loading key metrics: {data.data.error}</Alert>
+          </CardContent>
+        </Card>
+      )
+    }
+    
+    if (!metricsData) {
+      return (
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+              <ShowChart />
+              <Box sx={{ ml: 1 }}>Key Metrics</Box>
+            </Typography>
+            <Alert severity="info">No key metrics data available for {ticker}</Alert>
+          </CardContent>
+        </Card>
+      )
+    }
+
+    // The API returns organized categories, render each category as a separate card
+    return (
+      <Box>
+        <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+          <ShowChart />
+          <Box sx={{ ml: 1 }}>Key Metrics - {ticker}</Box>
+        </Typography>
+        
+        <Grid container spacing={3}>
+          {Object.entries(metricsData).map(([categoryKey, category]) => (
+            <Grid item xs={12} md={6} lg={4} key={categoryKey}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+                    {/* We can add icons based on category later */}
+                    <Box sx={{ ml: 0 }}>{category.title}</Box>
+                  </Typography>
+                  <Divider sx={{ mb: 2 }} />
+                  <TableContainer>
+                    <Table size="small">
+                      <TableBody>
+                        {Object.entries(category.metrics).map(([metricName, value]) => (
+                          <TableRow key={metricName}>
+                            <TableCell component="th" scope="row" sx={{ py: 1, fontSize: '0.875rem' }}>
+                              {metricName}
+                            </TableCell>
+                            <TableCell align="right" sx={{ py: 1, fontSize: '0.875rem', fontWeight: 'medium' }}>
+                              {value !== null && value !== undefined ? (
+                                typeof value === 'number' ? (
+                                  metricName.includes('%') || metricName.includes('Margin') || 
+                                  metricName.includes('Growth') || metricName.includes('Yield') || 
+                                  metricName.includes('Return') ? 
+                                    formatPercentage(value) :
+                                  metricName.includes('$') || metricName.includes('Revenue') || 
+                                  metricName.includes('Income') || metricName.includes('Cash') || 
+                                  metricName.includes('Value') || metricName.includes('Debt') ? 
+                                    formatCurrency(value) :
+                                    formatNumber(value)
+                                ) : value
+                              ) : 'N/A'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      </Box>
+    )
+  }
+
   const renderFinancialTable = (data, title, icon) => {
-    // Access the correct data structure: data.data (axios response -> API response)
+    // Access the correct nested data structure: data.data.data (axios response -> API response -> actual data array)
     const actualData = data?.data?.data;
     
     // Check for API error responses
@@ -314,6 +412,7 @@ function FinancialData() {
             <Tab label="Balance Sheet" icon={<AccountBalance />} />
             <Tab label="Income Statement" icon={<Assessment />} />
             <Tab label="Cash Flow" icon={<Timeline />} />
+            <Tab label="Key Metrics" icon={<ShowChart />} />
           </Tabs>
         </Box>
 
@@ -350,6 +449,17 @@ function FinancialData() {
           ) : cashFlowError ? (
             <Alert severity="error">Failed to load cash flow: {cashFlowError.message}</Alert>          ) : (
             renderFinancialTable(cashFlowStatement, 'Cash Flow Statement', <Timeline />)
+          )}
+        </TabPanel>
+        <TabPanel value={tabValue} index={3}>
+          {keyMetricsLoading ? (
+            <Box display="flex" justifyContent="center" p={4}>
+              <CircularProgress />
+            </Box>
+          ) : keyMetricsError ? (
+            <Alert severity="error">Failed to load key metrics: {keyMetricsError.message}</Alert>
+          ) : (
+            renderKeyMetrics(keyMetrics)
           )}
         </TabPanel>
       </Box>

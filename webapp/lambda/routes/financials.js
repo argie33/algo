@@ -385,4 +385,240 @@ router.get('/ping', (req, res) => {
   res.json({ success: true, service: 'financials', timestamp: new Date().toISOString() });
 });
 
+// Get key metrics for a ticker (comprehensive financial ratios and metrics)
+router.get('/:ticker/key-metrics', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    
+    console.log(`Key metrics request for ${ticker}`);
+    
+    // Query the key_metrics table from loadinfo
+    const keyMetricsQuery = `
+      SELECT 
+        ticker,
+        -- Valuation ratios
+        trailing_pe,
+        forward_pe,
+        price_to_sales_ttm,
+        price_to_book,
+        book_value,
+        peg_ratio,
+        
+        -- Enterprise metrics
+        enterprise_value,
+        ev_to_revenue,
+        ev_to_ebitda,
+        
+        -- Financial results
+        total_revenue,
+        net_income,
+        ebitda,
+        gross_profit,
+        
+        -- Earnings per share
+        eps_trailing,
+        eps_forward,
+        eps_current_year,
+        price_eps_current_year,
+        
+        -- Growth metrics
+        earnings_q_growth_pct,
+        revenue_growth_pct,
+        earnings_growth_pct,
+        
+        -- Cash & debt
+        total_cash,
+        cash_per_share,
+        operating_cashflow,
+        free_cashflow,
+        total_debt,
+        debt_to_equity,
+        
+        -- Liquidity ratios
+        quick_ratio,
+        current_ratio,
+        
+        -- Profitability margins
+        profit_margin_pct,
+        gross_margin_pct,
+        ebitda_margin_pct,
+        operating_margin_pct,
+        
+        -- Return metrics
+        return_on_assets_pct,
+        return_on_equity_pct,
+        
+        -- Dividend information
+        dividend_rate,
+        dividend_yield,
+        five_year_avg_dividend_yield,
+        payout_ratio
+        
+      FROM key_metrics
+      WHERE UPPER(ticker) = UPPER($1)
+    `;
+    
+    const result = await query(keyMetricsQuery, [ticker.toUpperCase()]);
+    
+    if (result.rows.length === 0) {
+      return res.json({
+        success: false,
+        error: 'No key metrics data found',
+        data: null,
+        metadata: {
+          ticker: ticker.toUpperCase(),
+          message: 'Key metrics data not available for this ticker'
+        }
+      });
+    }
+    
+    const metrics = result.rows[0];
+    
+    // Organize metrics into logical categories for better presentation
+    const organizedMetrics = {
+      valuation: {
+        title: 'Valuation Ratios',
+        icon: 'TrendingUp',
+        metrics: {
+          'P/E Ratio (Trailing)': metrics.trailing_pe,
+          'P/E Ratio (Forward)': metrics.forward_pe,
+          'Price/Sales (TTM)': metrics.price_to_sales_ttm,
+          'Price/Book': metrics.price_to_book,
+          'PEG Ratio': metrics.peg_ratio,
+          'Book Value': metrics.book_value
+        }
+      },
+      
+      enterprise: {
+        title: 'Enterprise Metrics',
+        icon: 'BusinessCenter',
+        metrics: {
+          'Enterprise Value': metrics.enterprise_value,
+          'EV/Revenue': metrics.ev_to_revenue,
+          'EV/EBITDA': metrics.ev_to_ebitda
+        }
+      },
+      
+      financial_performance: {
+        title: 'Financial Performance',
+        icon: 'Assessment',
+        metrics: {
+          'Total Revenue': metrics.total_revenue,
+          'Net Income': metrics.net_income,
+          'EBITDA': metrics.ebitda,
+          'Gross Profit': metrics.gross_profit
+        }
+      },
+      
+      earnings: {
+        title: 'Earnings Per Share',
+        icon: 'MonetizationOn',
+        metrics: {
+          'EPS (Trailing)': metrics.eps_trailing,
+          'EPS (Forward)': metrics.eps_forward,
+          'EPS (Current Year)': metrics.eps_current_year,
+          'Price/EPS Current Year': metrics.price_eps_current_year
+        }
+      },
+      
+      growth: {
+        title: 'Growth Metrics',
+        icon: 'ShowChart',
+        metrics: {
+          'Earnings Growth (Quarterly)': metrics.earnings_q_growth_pct,
+          'Revenue Growth': metrics.revenue_growth_pct,
+          'Earnings Growth': metrics.earnings_growth_pct
+        }
+      },
+      
+      cash_and_debt: {
+        title: 'Cash & Debt',
+        icon: 'AccountBalance',
+        metrics: {
+          'Total Cash': metrics.total_cash,
+          'Cash per Share': metrics.cash_per_share,
+          'Operating Cash Flow': metrics.operating_cashflow,
+          'Free Cash Flow': metrics.free_cashflow,
+          'Total Debt': metrics.total_debt,
+          'Debt to Equity': metrics.debt_to_equity
+        }
+      },
+      
+      liquidity: {
+        title: 'Liquidity Ratios',
+        icon: 'WaterDrop',
+        metrics: {
+          'Quick Ratio': metrics.quick_ratio,
+          'Current Ratio': metrics.current_ratio
+        }
+      },
+      
+      profitability: {
+        title: 'Profitability Margins',
+        icon: 'Percent',
+        metrics: {
+          'Profit Margin': metrics.profit_margin_pct,
+          'Gross Margin': metrics.gross_margin_pct,
+          'EBITDA Margin': metrics.ebitda_margin_pct,
+          'Operating Margin': metrics.operating_margin_pct
+        }
+      },
+      
+      returns: {
+        title: 'Return Metrics',
+        icon: 'TrendingUp',
+        metrics: {
+          'Return on Assets': metrics.return_on_assets_pct,
+          'Return on Equity': metrics.return_on_equity_pct
+        }
+      },
+      
+      dividends: {
+        title: 'Dividend Information',
+        icon: 'Savings',
+        metrics: {
+          'Dividend Rate': metrics.dividend_rate,
+          'Dividend Yield': metrics.dividend_yield,
+          '5-Year Avg Dividend Yield': metrics.five_year_avg_dividend_yield,
+          'Payout Ratio': metrics.payout_ratio
+        }
+      }
+    };
+    
+    // Calculate data quality score
+    const totalFields = Object.values(organizedMetrics).reduce((sum, category) => {
+      return sum + Object.keys(category.metrics).length;
+    }, 0);
+    
+    const populatedFields = Object.values(organizedMetrics).reduce((sum, category) => {
+      return sum + Object.values(category.metrics).filter(value => value !== null && value !== undefined).length;
+    }, 0);
+    
+    const dataQuality = totalFields > 0 ? (populatedFields / totalFields * 100).toFixed(1) : 0;
+    
+    res.json({
+      success: true,
+      data: organizedMetrics,
+      metadata: {
+        ticker: ticker.toUpperCase(),
+        dataQuality: `${dataQuality}%`,
+        totalMetrics: totalFields,
+        populatedMetrics: populatedFields,
+        lastUpdated: new Date().toISOString(),
+        source: 'key_metrics table via loadinfo'
+      }
+    });
+    
+  } catch (error) {
+    console.error('Key metrics fetch error:', error.message);
+    console.error('Stack:', error.stack);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch key metrics data',
+      message: error.message,
+      details: 'Check if key_metrics table exists and contains data for this ticker'
+    });
+  }
+});
+
 module.exports = router;

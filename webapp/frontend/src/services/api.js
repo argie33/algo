@@ -543,6 +543,31 @@ export const getCashFlowStatement = async (ticker, period = 'annual') => {
 }
 export const getFinancialStatements = (ticker, period = 'annual') => api.get(`/financials/${ticker}/financials?period=${period}`)
 
+// Key metrics endpoint
+export const getKeyMetrics = async (ticker) => {
+  try {
+    const url = `/financials/${ticker}/key-metrics`
+    console.log('Fetching key metrics from:', url)
+    
+    const response = await api.get(url, {
+      baseURL: currentConfig.baseURL
+    })
+    
+    console.log('Key metrics response:', response.data)
+    return response // Return full response for consistency
+  } catch (error) {
+    console.error('Error fetching key metrics:', error)
+    const errorMessage = handleApiError(error, `get key metrics for ${ticker}`)
+    // Return a consistent error response structure
+    return { 
+      data: { 
+        data: null, 
+        error: errorMessage
+      } 
+    }
+  }
+}
+
 // Comprehensive financial data endpoint
 export const getAllFinancialData = (params = {}) => {
   const queryParams = new URLSearchParams()
@@ -712,30 +737,6 @@ export const getTechnicalSummary = (timeframe = 'daily', params = {}) => {
   return api.get(`/technical/${timeframe}/summary?${queryParams.toString()}`)
 }
 
-export const getTechnicalChunk = (params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-  
-  return api.get(`/technical/chunk?${queryParams.toString()}`)
-}
-
-export const getTechnicalFull = (params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-  
-  return api.get(`/technical/full?${queryParams.toString()}`)
-}
-
 // Export all methods as a default object for easier importing
 export default {
   healthCheck,
@@ -778,18 +779,16 @@ export default {
   getIncomeStatement,
   getCashFlowStatement,
   getFinancialStatements,
+  getKeyMetrics,
   getAllFinancialData,
   getFinancialMetrics,
   getEpsRevisions,
   getEpsTrend,
   getGrowthEstimates,
   getEconomicData,
-  getNaaimData,
-  getFearGreedData,
+  getNaaimData,  getFearGreedData,
   getTechnicalData,
   getTechnicalSummary,
-  getTechnicalChunk,
-  getTechnicalFull,
   getDataValidationSummary
 }
 

@@ -153,7 +153,7 @@ function TechnicalAnalysis() {
             <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Pivot L</TableCell>
           </TableRow>
         </TableHead>        <TableBody>
-          {Array.isArray(technicalData?.data?.data) ? technicalData.data.data.map((row, index) => (
+          {Array.isArray(technicalData?.data) ? technicalData.data.map((row, index) => (
             <TableRow key={`${row.symbol}-${index}`} hover>
               <TableCell>
                 <Typography variant="body2" fontWeight="bold">
