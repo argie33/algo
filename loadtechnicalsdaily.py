@@ -111,7 +111,7 @@ def sanitize_value(x):
     elif isinstance(x, np.floating):
         return float(x)
     elif isinstance(x, np.bool_):
-        return bool(x)    
+        return bool(x)
     return x
 
 def enhanced_indicator_validation(df, symbol):
@@ -328,7 +328,7 @@ def roc_fast(values, period=10):
     return roc.fillna(0)
 
 def ad_line_fast(high, low, close, volume):
-    """Accumulation/Distribution Line - improved implementation with detailed logging"""
+    """Accumulation/Distribution Line - improved implementation with detailed logging and better error handling"""
     logging.debug(f"🔍 A/D: Starting calculation")
     logging.debug(f"🔍 A/D: Input lengths - high:{len(high)}, low:{len(low)}, close:{len(close)}, volume:{len(volume)}")
     
@@ -336,34 +336,87 @@ def ad_line_fast(high, low, close, volume):
         logging.warning(f"⚠️  A/D: No data provided")
         return pd.Series([], dtype=float)
     
-    # Check for volume data quality
-    volume_valid = (volume > 0).sum()
-    logging.debug(f"🔍 A/D: Volume data - total:{len(volume)}, valid:{volume_valid}, zero:{(volume == 0).sum()}")
+    # Check for volume data quality - More lenient approach
+    volume_stats = {
+        'total': len(volume),
+        'positive': (volume > 0).sum(),
+        'zero': (volume == 0).sum(),
+        'negative': (volume < 0).sum(),
+        'mean': volume.mean() if volume.notna().sum() > 0 else 0
+    }
+    logging.debug(f"🔍 A/D: Volume data - total:{volume_stats['total']}, valid:{volume_stats['positive']}, zero:{volume_stats['zero']}, negative:{volume_stats['negative']}")
     
-    if volume_valid == 0:
+    # More lenient volume handling - work with partial data
+    if volume_stats['positive'] == 0:
         logging.error(f"❌ A/D: No valid volume data - cannot calculate A/D line")
         return pd.Series(np.full(len(high), np.nan), index=high.index)
+    elif volume_stats['positive'] < volume_stats['total'] * 0.5:
+        logging.warning(f"⚠️  A/D: Low volume data quality - only {volume_stats['positive']}/{volume_stats['total']} valid volumes")
+        # Replace invalid volume with median to allow calculation
+        volume_clean = volume.copy()
+        median_vol = volume[volume > 0].median()
+        volume_clean = volume_clean.where(volume_clean > 0, median_vol * 0.01)  # Use 1% of median for zero volume days
+        logging.warning(f"⚠️  A/D: Replaced {volume_stats['zero'] + volume_stats['negative']} invalid volumes with {median_vol * 0.01:.0f}")
+    else:
+        volume_clean = volume
+        logging.debug(f"✅ A/D: Good volume data quality")
     
     # Money Flow Multiplier - handle edge cases where high == low
     high_low_diff = high - low
     doji_count = (high_low_diff == 0).sum()
     logging.debug(f"🔍 A/D: Price ranges - min:{high_low_diff.min():.4f}, max:{high_low_diff.max():.4f}, doji_days:{doji_count}")
     
-    high_low_diff = high_low_diff.replace(0, 1e-10)  # Avoid division by zero
+    # Better handling of doji days (high == low)
+    if doji_count > 0:
+        logging.debug(f"🔍 A/D: Found {doji_count} doji days, using alternative calculation")
+        # For doji days, MFM should be 0 (no price movement = no money flow bias)
+        high_low_diff_clean = high_low_diff.where(high_low_diff != 0, np.nan)
+    else:
+        high_low_diff_clean = high_low_diff
     
-    mfm = ((close - low) - (high - close)) / high_low_diff
-    logging.debug(f"🔍 A/D: Money Flow Multiplier - min:{mfm.min():.4f}, max:{mfm.max():.4f}")
+    # Calculate Money Flow Multiplier with proper NaN handling
+    mfm = ((close - low) - (high - close)) / high_low_diff_clean
+    
+    # Handle doji days - set MFM to 0 for days where high == low
+    mfm = mfm.fillna(0)
+    
+    logging.debug(f"🔍 A/D: Money Flow Multiplier - min:{mfm.min():.4f}, max:{mfm.max():.4f}, mean:{mfm.mean():.4f}")
+    
+    # Check for extreme MFM values that might indicate data issues
+    extreme_mfm = ((mfm > 5) | (mfm < -5)).sum()
+    if extreme_mfm > 0:
+        logging.warning(f"⚠️  A/D: {extreme_mfm} extreme MFM values found (may indicate data quality issues)")
+        # Cap extreme values to prevent overflow
+        mfm = mfm.clip(-2, 2)
+        logging.warning(f"⚠️  A/D: Capped extreme MFM values to [-2, 2] range")
     
     # Money Flow Volume
-    mfv = mfm * volume
-    logging.debug(f"🔍 A/D: Money Flow Volume - min:{mfv.min():.2f}, max:{mfv.max():.2f}")
+    mfv = mfm * volume_clean
+    logging.debug(f"🔍 A/D: Money Flow Volume - min:{mfv.min():.2f}, max:{mfv.max():.2f}, sum:{mfv.sum():.2f}")
     
-    # A/D Line (cumulative) - handle NaN values properly
-    ad_line = mfv.fillna(0).cumsum()
+    # A/D Line (cumulative) - with overflow protection
+    mfv_clean = mfv.fillna(0)
+    ad_line = mfv_clean.cumsum()
+    
+    # Check for potential database overflow (DECIMAL(15,4) limit is ~100 billion)
+    max_ad = ad_line.abs().max()
+    db_limit = 99999999999.9999  # DECIMAL(15,4) limit
+    
+    if max_ad > db_limit:
+        logging.error(f"❌ A/D: Values exceed database limit - max:{max_ad:.0f}, limit:{db_limit:.0f}")
+        # Normalize A/D line to fit within database constraints
+        scale_factor = db_limit / (max_ad * 1.1)  # 10% safety margin
+        ad_line = ad_line * scale_factor
+        logging.warning(f"⚠️  A/D: Scaled values by {scale_factor:.6f} to fit database constraints")
     
     valid_count = ad_line.notna().sum()
     logging.debug(f"🔍 A/D: Final A/D line - valid:{valid_count}/{len(ad_line)}")
-    logging.debug(f"🔍 A/D: Sample values: {ad_line.tail(5).tolist()}")
+    
+    if valid_count > 0:
+        logging.debug(f"🔍 A/D: A/D range: {ad_line.min():.2f} to {ad_line.max():.2f}")
+        logging.debug(f"🔍 A/D: Sample values: {ad_line.tail(5).tolist()}")
+    else:
+        logging.error(f"❌ A/D: All values are NaN - calculation failed")
     
     return ad_line
 
@@ -1386,11 +1439,10 @@ def create_technical_table(cur):
             bbands_lower DECIMAL(12,4),
             bbands_middle DECIMAL(12,4),
             bbands_upper DECIMAL(12,4),
-            
-            -- Other indicators
+              -- Other indicators
             atr DECIMAL(12,4),
             adx DECIMAL(8,4),
-            ad DECIMAL(15,4),
+            ad DECIMAL(20,4),  -- Increased from 15,4 to handle larger cumulative A/D values
             cmf DECIMAL(8,4),
             mfi DECIMAL(8,4),
             dm DECIMAL(8,4),

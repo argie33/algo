@@ -392,7 +392,8 @@ router.get('/', async (req, res) => {
         exchange: exchange || null,
         sortBy,
         sortOrder
-      },      metadata: {
+      },
+      metadata: {
         totalStocks: total,
         currentPage: page,
         showingRecords: stocksResult.rows.length,
@@ -1245,12 +1246,275 @@ router.get('/screen', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to screen stocks', 
       details: error.message,
+      timestamp: new Date().toISOString()    });
+  }
+});
+
+// COMPREHENSIVE Individual Stock Endpoint - Detailed stock information with price history
+router.get('/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const symbolUpper = symbol.toUpperCase();
+    
+    console.log(`Individual stock endpoint called for: ${symbolUpper}`);
+    
+    // Get days of price history (default 90 days, max 365)
+    const days = Math.min(parseInt(req.query.days) || 90, 365);
+    const includeTechnicals = req.query.technicals !== 'false'; // Default true
+    
+    // 1. GET BASIC STOCK INFO
+    const stockInfoQuery = `
+      SELECT 
+        symbol,
+        security_name,
+        exchange,
+        market_category,
+        cqs_symbol,
+        financial_status,
+        round_lot_size,
+        etf,
+        test_issue,
+        nasdaq_symbol
+      FROM stock_symbols 
+      WHERE symbol = $1
+    `;
+    
+    const stockInfo = await query(stockInfoQuery, [symbolUpper]);
+    
+    if (stockInfo.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Stock not found',
+        symbol: symbolUpper,
+        message: `Symbol '${symbolUpper}' not found in database`,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const stockData = stockInfo.rows[0];
+    
+    // 2. GET RECENT PRICE HISTORY (OHLCV)
+    const priceHistoryQuery = `
+      SELECT 
+        date,
+        open,
+        high, 
+        low,
+        close,
+        volume,
+        adj_close
+      FROM price_daily 
+      WHERE symbol = $1 
+        AND date >= CURRENT_DATE - INTERVAL '${days} days'
+      ORDER BY date DESC
+      LIMIT 500
+    `;
+    
+    const priceHistory = await query(priceHistoryQuery, [symbolUpper]);
+    
+    // 3. GET LATEST PRICE DATA FOR SUMMARY
+    const latestPrice = priceHistory.rows.length > 0 ? priceHistory.rows[0] : null;
+    
+    // 4. GET TECHNICAL INDICATORS (if requested)
+    let technicalData = null;
+    if (includeTechnicals && priceHistory.rows.length > 0) {
+      try {
+        const technicalQuery = `
+          SELECT 
+            date,
+            rsi,
+            macd,
+            macd_signal,
+            macd_hist,
+            mom,
+            roc,
+            adx,
+            atr,
+            ad,
+            cmf,
+            mfi,
+            dm,
+            marketwatch,
+            sma_10,
+            sma_20,
+            sma_50,
+            sma_150,
+            sma_200,
+            ema_4,
+            ema_9,
+            ema_21,
+            bbands_lower,
+            bbands_middle,
+            bbands_upper,
+            td_sequential,
+            td_combo,
+            pivot_high,
+            pivot_low
+          FROM technical_data_daily 
+          WHERE symbol = $1 
+            AND date >= CURRENT_DATE - INTERVAL '${Math.min(days, 90)} days'
+          ORDER BY date DESC
+          LIMIT 200
+        `;
+        
+        const technicalResult = await query(technicalQuery, [symbolUpper]);
+        technicalData = technicalResult.rows;
+        console.log(`Found ${technicalData.length} technical indicator records for ${symbolUpper}`);
+      } catch (error) {
+        console.error(`Error fetching technical data for ${symbolUpper}:`, error.message);
+        technicalData = [];
+      }
+    }
+    
+    // 5. GET FUNDAMENTAL DATA (if available)
+    let fundamentalData = null;
+    try {
+      const fundamentalQuery = `
+        SELECT 
+          market_cap,
+          pe_ratio,
+          eps,
+          dividend_yield,
+          book_value,
+          revenue,
+          profit_margin,
+          debt_to_equity,
+          return_on_equity,
+          price_to_book,
+          updated_at
+        FROM fundamentals 
+        WHERE symbol = $1 
+        ORDER BY updated_at DESC 
+        LIMIT 1
+      `;
+      
+      const fundamentalResult = await query(fundamentalQuery, [symbolUpper]);
+      fundamentalData = fundamentalResult.rows.length > 0 ? fundamentalResult.rows[0] : null;
+    } catch (error) {
+      console.log(`Fundamental data not available for ${symbolUpper}:`, error.message);
+      fundamentalData = null;
+    }
+    
+    // 6. CALCULATE PRICE STATISTICS
+    let priceStats = null;
+    if (priceHistory.rows.length > 0) {
+      const prices = priceHistory.rows.map(row => parseFloat(row.close));
+      const volumes = priceHistory.rows.map(row => parseInt(row.volume || 0));
+      const highs = priceHistory.rows.map(row => parseFloat(row.high));
+      const lows = priceHistory.rows.map(row => parseFloat(row.low));
+      
+      const currentPrice = prices[0];
+      const oldestPrice = prices[prices.length - 1];
+      const change = currentPrice - oldestPrice;
+      const changePercent = ((change / oldestPrice) * 100);
+      
+      priceStats = {
+        currentPrice: currentPrice,
+        change: change,
+        changePercent: changePercent,
+        high52Week: Math.max(...highs),
+        low52Week: Math.min(...lows),
+        avgVolume: Math.round(volumes.reduce((a, b) => a + b, 0) / volumes.length),
+        maxVolume: Math.max(...volumes),
+        minVolume: Math.min(...volumes),
+        dataPoints: priceHistory.rows.length,
+        dateRange: {
+          latest: priceHistory.rows[0].date,
+          earliest: priceHistory.rows[priceHistory.rows.length - 1].date
+        }
+      };
+    }
+    
+    // 7. BUILD COMPREHENSIVE RESPONSE
+    const response = {
+      symbol: symbolUpper,
+      companyInfo: {
+        name: stockData.security_name,
+        exchange: stockData.exchange,
+        marketCategory: stockData.market_category,
+        cqsSymbol: stockData.cqs_symbol,
+        financialStatus: stockData.financial_status,
+        roundLotSize: stockData.round_lot_size,
+        isETF: stockData.etf === 't' || stockData.etf === true,
+        isTestIssue: stockData.test_issue === 't' || stockData.test_issue === true,
+        nasdaqSymbol: stockData.nasdaq_symbol
+      },
+      currentPrice: latestPrice ? {
+        date: latestPrice.date,
+        open: parseFloat(latestPrice.open || 0),
+        high: parseFloat(latestPrice.high || 0),
+        low: parseFloat(latestPrice.low || 0),
+        close: parseFloat(latestPrice.close || 0),
+        adjClose: parseFloat(latestPrice.adj_close || latestPrice.close || 0),
+        volume: parseInt(latestPrice.volume || 0)
+      } : null,
+      priceStats: priceStats,
+      priceHistory: {
+        requestedDays: days,
+        actualDays: priceHistory.rows.length,
+        data: priceHistory.rows.map(row => ({
+          date: row.date,
+          open: parseFloat(row.open || 0),
+          high: parseFloat(row.high || 0),
+          low: parseFloat(row.low || 0),
+          close: parseFloat(row.close || 0),
+          adjClose: parseFloat(row.adj_close || row.close || 0),
+          volume: parseInt(row.volume || 0)
+        }))
+      },
+      technicalIndicators: includeTechnicals ? {
+        available: technicalData !== null && technicalData.length > 0,
+        count: technicalData ? technicalData.length : 0,
+        data: technicalData || [],
+        note: technicalData && technicalData.length === 0 ? 'Technical indicators calculated but no recent data found' : null
+      } : { available: false, note: 'Technical indicators excluded from request' },
+      fundamentals: fundamentalData ? {
+        available: true,
+        data: {
+          marketCap: fundamentalData.market_cap,
+          peRatio: fundamentalData.pe_ratio,
+          eps: fundamentalData.eps,
+          dividendYield: fundamentalData.dividend_yield,
+          bookValue: fundamentalData.book_value,
+          revenue: fundamentalData.revenue,
+          profitMargin: fundamentalData.profit_margin,
+          debtToEquity: fundamentalData.debt_to_equity,
+          returnOnEquity: fundamentalData.return_on_equity,
+          priceToBook: fundamentalData.price_to_book,
+          lastUpdated: fundamentalData.updated_at
+        }
+      } : { available: false, note: 'Fundamental data not available' },
+      metadata: {
+        requestedSymbol: symbol,
+        resolvedSymbol: symbolUpper,
+        includedTechnicals: includeTechnicals,
+        requestedDays: days,
+        dataAvailability: {
+          basicInfo: true,
+          priceHistory: priceHistory.rows.length > 0,
+          technicalIndicators: technicalData !== null && technicalData.length > 0,
+          fundamentals: fundamentalData !== null
+        },
+        timestamp: new Date().toISOString()
+      }
+    };
+    
+    console.log(`Successfully compiled comprehensive data for ${symbolUpper}:`, {
+      pricePoints: priceHistory.rows.length,
+      technicalPoints: technicalData ? technicalData.length : 0,
+      hasFundamentals: fundamentalData !== null
+    });
+    
+    res.json(response);
+    
+  } catch (error) {
+    console.error('Error in individual stock endpoint:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch stock data', 
+      symbol: req.params.symbol,
+      message: error.message,
       timestamp: new Date().toISOString()
     });
   }
 });
-
-module.exports = router;
-
 
 module.exports = router;
