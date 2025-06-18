@@ -1517,4 +1517,72 @@ router.get('/:symbol', async (req, res) => {
   }
 });
 
+// Lightweight endpoint for recent price data only
+router.get('/:ticker/price-recent', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    const limit = Math.min(parseInt(req.query.limit) || 30, 60); // Max 60 days for performance
+    
+    console.log(`Recent price endpoint called for ticker: ${ticker}, limit: ${limit}`);
+    
+    const pricesQuery = `
+      SELECT date, open, high, low, close, adj_close, volume
+      FROM price_daily
+      WHERE UPPER(symbol) = UPPER($1)
+      ORDER BY date DESC
+      LIMIT $2
+    `;
+    
+    const result = await query(pricesQuery, [ticker, limit]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'No price data found',
+        ticker: ticker.toUpperCase(),
+        message: 'Price data not available for this symbol',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Calculate basic metrics
+    const prices = result.rows;
+    const latest = prices[0];
+    const oldest = prices[prices.length - 1];
+    
+    const periodReturn = oldest.close > 0 ? 
+      ((latest.close - oldest.close) / oldest.close * 100) : 0;
+    
+    res.json({
+      success: true,
+      ticker: ticker.toUpperCase(),
+      dataPoints: result.rows.length,
+      data: prices.map(price => ({
+        date: price.date,
+        open: parseFloat(price.open),
+        high: parseFloat(price.high),
+        low: parseFloat(price.low),
+        close: parseFloat(price.close),
+        adjClose: parseFloat(price.adj_close),
+        volume: parseInt(price.volume) || 0
+      })),
+      summary: {
+        latestPrice: parseFloat(latest.close),
+        latestDate: latest.date,
+        periodReturn: parseFloat(periodReturn.toFixed(2)),
+        latestVolume: parseInt(latest.volume) || 0
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error fetching recent prices:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch recent price data', 
+      details: error.message,
+      ticker: req.params.ticker,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 module.exports = router;

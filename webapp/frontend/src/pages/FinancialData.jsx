@@ -134,9 +134,8 @@ function FinancialData() {
     enabled: !!ticker && tabValue === 2,
     onError: (error) => logger.queryError('cashFlowStatement', error, { ticker, period })
   })
-
   const renderFinancialTable = (data, title, icon) => {
-    // Access the correct nested data structure: data.data.data (axios response -> API response -> actual data array)
+    // Access the correct data structure: data.data (axios response -> API response)
     const actualData = data?.data?.data;
     
     // Check for API error responses

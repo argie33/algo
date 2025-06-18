@@ -128,28 +128,12 @@ function StockDetail() {
     enabled: !!symbol && tabValue === 4,
     onError: (error) => logger.queryError('analystOverview', error, { symbol })
   })
-
-  // Fetch comprehensive stock data (includes price history, OHLCV, technicals)
-  const { data: comprehensiveData, isLoading: comprehensiveLoading, error: comprehensiveError } = useQuery({
-    queryKey: ['stockData', symbol],
-    queryFn: () => api.getStock(symbol),
-    enabled: !!symbol,
-    onError: (error) => logger.queryError('stockData', error, { symbol })
-  })
-  // Fetch price history for charts
-  const { data: priceHistory, isLoading: priceHistoryLoading, error: priceHistoryError } = useQuery({
-    queryKey: ['stockPrices', symbol, 'daily'],
-    queryFn: () => api.getStockPrices(symbol, 'daily', 252), // 1 year of daily data
-    enabled: !!symbol,
-    onError: (error) => logger.queryError('stockPrices', error, { symbol })
-  })
-
-  // Fetch technical indicators data
-  const { data: technicalData, isLoading: technicalLoading, error: technicalError } = useQuery({
-    queryKey: ['technicalData', symbol],
-    queryFn: () => api.getTechnicalData('daily', { symbol }),
-    enabled: !!symbol,
-    onError: (error) => logger.queryError('technicalData', error, { symbol })
+  // Fetch recent price data only when Price tab is selected - lightweight and fast
+  const { data: recentPrices, isLoading: recentPricesLoading, error: recentPricesError } = useQuery({
+    queryKey: ['stockPricesRecent', symbol],
+    queryFn: () => api.getStockPricesRecent(symbol, 30), // Only 30 days for performance
+    enabled: !!symbol && tabValue === 1, // Only load when Price tab is selected
+    onError: (error) => logger.queryError('stockPricesRecent', error, { symbol })
   })
 
   const handleTabChange = (event, newValue) => {
@@ -302,93 +286,8 @@ function StockDetail() {
           <Tab label="Ratios" icon={<Timeline />} />
           <Tab label="Recommendations" icon={<TrendingUp />} />
         </Tabs>
-      </Box>{/* Tab Panels */}
-      <TabPanel value={tabValue} index={0}>
-        {/* Price Chart Section */}
-        <Grid container spacing={3} sx={{ mb: 3 }}>
-          <Grid item xs={12}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Price Chart (1 Year)
-                </Typography>
-                {priceHistoryLoading ? (
-                  <Box display="flex" justifyContent="center" alignItems="center" height={300}>
-                    <CircularProgress />
-                  </Box>
-                ) : priceHistory && priceHistory.data && priceHistory.data.length > 0 ? (
-                  <Box height={300}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={priceHistory.data.slice(-252)} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis 
-                          dataKey="date" 
-                          tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        />
-                        <YAxis 
-                          domain={['dataMin - 5', 'dataMax + 5']}
-                          tickFormatter={(value) => `$${value.toFixed(2)}`}
-                        />
-                        <Tooltip 
-                          labelFormatter={(value) => new Date(value).toLocaleDateString()}
-                          formatter={(value, name) => [`$${value.toFixed(2)}`, name === 'close' ? 'Close Price' : name]}
-                        />
-                        <Line 
-                          type="monotone" 
-                          dataKey="close" 
-                          stroke="#2196f3" 
-                          strokeWidth={2}
-                          dot={false}
-                          name="Close Price"
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </Box>
-                ) : (
-                  <Box display="flex" justifyContent="center" alignItems="center" height={300}>
-                    <Typography color="text.secondary">
-                      Price chart data not available
-                    </Typography>
-                  </Box>
-                )}
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-
-        {/* OHLCV Data Section */}
-        {comprehensiveData && comprehensiveData.data && comprehensiveData.data.priceHistory && (
-          <Grid container spacing={3} sx={{ mb: 3 }}>
-            <Grid item xs={12}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Recent Price & Volume Data
-                  </Typography>
-                  <TableContainer>
-                    <Table size="small">
-                      <TableBody>
-                        {comprehensiveData.data.priceHistory.slice(0, 10).map((dayData, index) => (
-                          <TableRow key={index}>
-                            <TableCell>{new Date(dayData.date).toLocaleDateString()}</TableCell>
-                            <TableCell align="right">{formatCurrency(dayData.open)}</TableCell>
-                            <TableCell align="right">{formatCurrency(dayData.high)}</TableCell>
-                            <TableCell align="right">{formatCurrency(dayData.low)}</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                              {formatCurrency(dayData.close)}
-                            </TableCell>
-                            <TableCell align="right">{formatNumber(dayData.volume)}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
-        )}
-
+      </Box>{/* Tab Panels */}      <TabPanel value={tabValue} index={0}>
+        {/* Company Overview and Key Metrics - No Price Chart */}
         <Grid container spacing={3}>
           <Grid item xs={12} md={8}>
             <Card>
@@ -461,10 +360,9 @@ function StockDetail() {
                 </CardContent>
               </Card>
             )}
-          </Grid>        </Grid>
-      </TabPanel>
-
-      {/* Price & Volume Tab */}
+          </Grid>
+        </Grid>
+      </TabPanel>      {/* Price & Volume Tab - Lightweight, no technical indicators */}
       <TabPanel value={tabValue} index={1}>
         {/* Price Chart Section */}
         <Grid container spacing={3} sx={{ mb: 3 }}>
@@ -472,16 +370,16 @@ function StockDetail() {
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
-                  Price Chart (1 Year)
+                  Recent Price Chart (30 Days)
                 </Typography>
-                {priceHistoryLoading ? (
+                {recentPricesLoading ? (
                   <Box display="flex" justifyContent="center" alignItems="center" height={300}>
                     <CircularProgress />
                   </Box>
-                ) : priceHistory && priceHistory.data && priceHistory.data.length > 0 ? (
+                ) : recentPrices && recentPrices.data && recentPrices.data.data && recentPrices.data.data.length > 0 ? (
                   <Box height={300}>
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={priceHistory.data.slice(-252)} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                      <LineChart data={recentPrices.data.data.reverse()} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis 
                           dataKey="date" 
@@ -509,7 +407,7 @@ function StockDetail() {
                 ) : (
                   <Box display="flex" justifyContent="center" alignItems="center" height={300}>
                     <Typography color="text.secondary">
-                      Price chart data not available
+                      {recentPricesError ? `Error loading price data: ${recentPricesError.message}` : 'Price chart data not available'}
                     </Typography>
                   </Box>
                 )}
@@ -518,15 +416,68 @@ function StockDetail() {
           </Grid>
         </Grid>
 
-        {/* OHLCV Data Section */}
-        <Grid container spacing={3} sx={{ mb: 3 }}>
+        {/* Price Summary */}
+        {recentPrices && recentPrices.data && recentPrices.data.summary && (
+          <Grid container spacing={3} sx={{ mb: 3 }}>
+            <Grid item xs={12}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Price Summary (Last 30 Days)
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={6} sm={3}>
+                      <Box textAlign="center">
+                        <Typography variant="body2" color="text.secondary">Latest Price</Typography>
+                        <Typography variant="h6" fontWeight="bold">
+                          {formatCurrency(recentPrices.data.summary.latestPrice)}
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={6} sm={3}>
+                      <Box textAlign="center">
+                        <Typography variant="body2" color="text.secondary">Period Return</Typography>
+                        <Typography 
+                          variant="h6" 
+                          fontWeight="bold"
+                          color={recentPrices.data.summary.periodReturn >= 0 ? 'success.main' : 'error.main'}
+                        >
+                          {recentPrices.data.summary.periodReturn.toFixed(2)}%
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={6} sm={3}>
+                      <Box textAlign="center">
+                        <Typography variant="body2" color="text.secondary">Latest Volume</Typography>
+                        <Typography variant="h6" fontWeight="bold">
+                          {formatNumber(recentPrices.data.summary.latestVolume)}
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={6} sm={3}>
+                      <Box textAlign="center">
+                        <Typography variant="body2" color="text.secondary">Data Points</Typography>
+                        <Typography variant="h6" fontWeight="bold">
+                          {recentPrices.data.dataPoints} days
+                        </Typography>
+                      </Box>
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        )}
+
+        {/* OHLCV Data Table */}
+        <Grid container spacing={3}>
           <Grid item xs={12}>
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
                   Recent Price & Volume Data (OHLCV)
                 </Typography>
-                {priceHistory && priceHistory.data && priceHistory.data.length > 0 ? (
+                {recentPrices && recentPrices.data && recentPrices.data.data && recentPrices.data.data.length > 0 ? (
                   <TableContainer>
                     <Table size="small">
                       <TableBody>
@@ -538,7 +489,7 @@ function StockDetail() {
                           <TableCell align="right"><strong>Close</strong></TableCell>
                           <TableCell align="right"><strong>Volume</strong></TableCell>
                         </TableRow>
-                        {priceHistory.data.slice(0, 10).map((dayData, index) => (
+                        {recentPrices.data.data.slice(0, 15).map((dayData, index) => (
                           <TableRow key={index}>
                             <TableCell>{new Date(dayData.date).toLocaleDateString()}</TableCell>
                             <TableCell align="right">{formatCurrency(dayData.open)}</TableCell>
@@ -556,76 +507,7 @@ function StockDetail() {
                 ) : (
                   <Box display="flex" justifyContent="center" alignItems="center" height={200}>
                     <Typography color="text.secondary">
-                      OHLCV data not available
-                    </Typography>
-                  </Box>
-                )}
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>        {/* Technical Indicators */}
-        <Grid container spacing={3}>
-          <Grid item xs={12}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Technical Indicators
-                </Typography>
-                {technicalLoading ? (
-                  <Box display="flex" justifyContent="center" alignItems="center" height={200}>
-                    <CircularProgress />
-                  </Box>                ) : technicalData && technicalData.data && technicalData.data.length > 0 ? (
-                  <Grid container spacing={2}>
-                    {technicalData.data
-                      .filter(item => item.symbol === symbol)
-                      .slice(0, 1)
-                      .map((stockTechnicals, index) => (
-                        <React.Fragment key={index}>
-                          {Object.entries(stockTechnicals)
-                            .filter(([key, value]) => 
-                              key !== 'symbol' && 
-                              key !== 'date' && 
-                              value !== null && 
-                              value !== 'N/A' && 
-                              value !== undefined &&
-                              typeof value === 'number'
-                            )
-                            .map(([key, value]) => (
-                              <Grid item xs={6} sm={4} md={3} key={key}>
-                                <Box>
-                                  <Typography variant="body2" color="text.secondary">
-                                    {key.toUpperCase().replace(/_/g, ' ')}
-                                  </Typography>
-                                  <Typography variant="body1" fontWeight="bold">
-                                    {typeof value === 'number' ? value.toFixed(4) : value}
-                                  </Typography>
-                                </Box>
-                              </Grid>
-                            ))}
-                        </React.Fragment>
-                      ))}
-                  </Grid>
-                ) : comprehensiveData && comprehensiveData.data && comprehensiveData.data.technicals ? (
-                  <Grid container spacing={2}>
-                    {Object.entries(comprehensiveData.data.technicals)
-                      .filter(([key, value]) => value !== null && value !== 'N/A' && value !== undefined)
-                      .map(([key, value]) => (
-                        <Grid item xs={6} sm={4} md={3} key={key}>
-                          <Box>
-                            <Typography variant="body2" color="text.secondary">
-                              {key.toUpperCase().replace(/_/g, ' ')}
-                            </Typography>
-                            <Typography variant="body1" fontWeight="bold">
-                              {typeof value === 'number' ? value.toFixed(4) : value}
-                            </Typography>
-                          </Box>
-                        </Grid>
-                      ))}
-                  </Grid>
-                ) : (
-                  <Box display="flex" justifyContent="center" alignItems="center" height={200}>
-                    <Typography color="text.secondary">
-                      Technical indicators not available for this symbol
+                      {recentPricesError ? `Error: ${recentPricesError.message}` : 'OHLCV data not available'}
                     </Typography>
                   </Box>
                 )}
@@ -633,7 +515,7 @@ function StockDetail() {
             </Card>
           </Grid>
         </Grid>
-      </TabPanel>      <TabPanel value={tabValue} index={2}>
+      </TabPanel><TabPanel value={tabValue} index={2}>
         {(balanceSheetLoading || incomeStatementLoading || cashFlowLoading) ? (
           <Box display="flex" justifyContent="center" p={4}>
             <CircularProgress />
