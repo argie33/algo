@@ -150,8 +150,32 @@ router.get('/test', async (req, res) => {
         t.volume,
         t.rsi,
         t.macd,
+        t.macd_signal,
+        t.macd_hist,
+        t.adx,
+        t.atr,
+        t.mfi,
+        t.roc,
+        t.mom,
+        t.sma_10,
         t.sma_20,
         t.sma_50,
+        t.sma_150,
+        t.sma_200,
+        t.ema_4,
+        t.ema_9,
+        t.ema_21,
+        t.bbands_upper,
+        t.bbands_middle,
+        t.bbands_lower,
+        t.ad,
+        t.cmf,
+        t.td_sequential,
+        t.td_combo,
+        t.marketwatch,
+        t.dm,
+        t.pivot_high,
+        t.pivot_low,
         ss.security_name as company_name
       FROM technical_data_daily t
       LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
@@ -537,7 +561,6 @@ router.get('/', async (req, res) => {
     }
 
     console.log('Using whereClause:', whereClause);
-
     const dataQuery = `
       SELECT 
         t.symbol,
@@ -546,8 +569,32 @@ router.get('/', async (req, res) => {
         t.volume,
         t.rsi,
         t.macd,
+        t.macd_signal,
+        t.macd_hist,
+        t.adx,
+        t.atr,
+        t.mfi,
+        t.roc,
+        t.mom,
+        t.sma_10,
         t.sma_20,
         t.sma_50,
+        t.sma_150,
+        t.sma_200,
+        t.ema_4,
+        t.ema_9,
+        t.ema_21,
+        t.bbands_upper,
+        t.bbands_middle,
+        t.bbands_lower,
+        t.ad,
+        t.cmf,
+        t.td_sequential,
+        t.td_combo,
+        t.marketwatch,
+        t.dm,
+        t.pivot_high,
+        t.pivot_low,
         ss.security_name as company_name
       FROM technical_data_daily t
       LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol

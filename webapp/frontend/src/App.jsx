@@ -33,9 +33,9 @@ import {
 } from '@mui/icons-material'
 import { useNavigate, useLocation } from 'react-router-dom'
 
-// Pages
+// Pages - Updated to remove StockDetailLite references
 import Dashboard from './pages/Dashboard'
-import StockDetailLite from './pages/StockDetailLite'
+import StockDetail from './pages/StockDetail' // Main stock detail page only
 import MarketOverview from './pages/MarketOverview'
 import StockExplorer from './pages/StockExplorer'
 import TradingSignals from './pages/TradingSignals'
@@ -230,8 +230,7 @@ function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/market" element={<MarketOverview />} />
               <Route path="/stocks" element={<StockExplorer />} />
-              <Route path="/stocks/screen" element={<StockExplorer />} />              <Route path="/stocks/:ticker" element={<StockDetailLite />} />
-              <Route path="/stock/:ticker" element={<StockDetailLite />} />
+              <Route path="/stocks/:ticker" element={<StockDetail />} />
               <Route path="/screener" element={<StockExplorer />} />
               <Route path="/trading" element={<TradingSignals />} />
               <Route path="/technical" element={<TechnicalAnalysis />} />
