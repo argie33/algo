@@ -100,7 +100,8 @@ router.get('/:timeframe', async (req, res) => {
         message: `Supported timeframes: ${validTimeframes.join(', ')}, got: ${timeframe}`,
         availableTimeframes: validTimeframes
       });
-    }    const page = parseInt(req.query.page) || 1;
+    }
+    const page = parseInt(req.query.page) || 1;
     const limit = Math.min(parseInt(req.query.limit) || 25, 100); // Cap at 100 for performance
     const offset = (page - 1) * limit;
     const symbol = req.query.symbol;
@@ -139,57 +140,52 @@ router.get('/:timeframe', async (req, res) => {
       whereClause += ` AND t.date <= $${paramIndex}`;
       params.push(req.query.end_date);
       paramIndex++;
-    }console.log('Using whereClause:', whereClause, 'params:', params);
-    console.log('Using tableName:', tableName);    const dataQuery = `
+    }    console.log('Using whereClause:', whereClause, 'params:', params);
+    console.log('Using tableName:', tableName);
+
+    // SIMPLIFIED: Only get technical data, no price joins for performance
+    const dataQuery = `
       SELECT 
-        t.symbol,
-        t.date,
-        p.close,
-        p.volume,
-        p.open,
-        p.high,
-        p.low,
-        t.rsi,
-        t.macd,
-        t.macd_signal,
-        t.macd_hist,
-        t.adx,
-        t.atr,
-        t.mfi,
-        t.roc,
-        t.mom,
-        t.sma_10,
-        t.sma_20,
-        t.sma_50,
-        t.sma_150,
-        t.sma_200,
-        t.ema_4,
-        t.ema_9,
-        t.ema_21,
-        t.bbands_upper,
-        t.bbands_middle,
-        t.bbands_lower,
-        t.ad,
-        t.cmf,
-        t.td_sequential,
-        t.td_combo,
-        t.marketwatch,
-        t.dm,
-        t.pivot_high,
-        t.pivot_low,
-        ss.security_name as company_name
-      FROM ${tableName} t
-      LEFT JOIN price_${timeframe} p ON t.symbol = p.symbol AND t.date = p.date
-      LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
+        symbol,
+        date,
+        rsi,
+        macd,
+        macd_signal,
+        macd_hist,
+        adx,
+        atr,
+        mfi,
+        roc,
+        mom,
+        sma_10,
+        sma_20,
+        sma_50,
+        sma_150,
+        sma_200,
+        ema_4,
+        ema_9,
+        ema_21,
+        bbands_upper,
+        bbands_middle,
+        bbands_lower,
+        ad,
+        cmf,
+        td_sequential,
+        td_combo,
+        marketwatch,
+        dm,
+        pivot_high,
+        pivot_low
+      FROM ${tableName}
       ${whereClause}
-      ORDER BY t.date DESC, t.symbol ASC
+      ORDER BY date DESC, symbol ASC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM ${tableName} t
-      ${whereClause}
+      FROM ${tableName}
+      ${whereClause.replace('t.', '')}
     `;
 
     console.log('Executing queries with limit:', limit, 'offset:', offset);
@@ -314,7 +310,8 @@ router.get('/:timeframe/chunk/:chunkIndex', async (req, res) => {
         message: `Supported timeframes: ${validTimeframes.join(', ')}, got: ${timeframe}`,
         availableTimeframes: validTimeframes
       });
-    }    const offset = chunk * chunkSize;
+    }
+    const offset = chunk * chunkSize;
     const tableName = `technical_data_${timeframe}`;
 
     // Add default date restrictions for performance
@@ -365,7 +362,8 @@ router.get('/:timeframe/chunk/:chunkIndex', async (req, res) => {
         t.marketwatch,
         t.dm,
         t.pivot_high,
-        t.pivot_low,        ss.security_name as company_name
+        t.pivot_low,
+        ss.security_name as company_name
       FROM ${tableName} t
       LEFT JOIN price_${timeframe} p ON t.symbol = p.symbol AND t.date = p.date
       LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol

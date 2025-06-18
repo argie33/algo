@@ -622,6 +622,11 @@ def pivot_high(df, left_bars=3, right_bars=3, shunt=1):
         logging.error(f"❌ PIVOT ERROR: 'high' column missing from DataFrame. Available columns: {list(df.columns)}")
         return pd.Series(np.full(len(df), np.nan), index=df.index)
     
+    # CRITICAL: Verify data is sorted by date for pivot calculations
+    if hasattr(df.index, 'is_monotonic_increasing') and not df.index.is_monotonic_increasing:
+        logging.error(f"❌ PIVOT ERROR: Data is not sorted by date! Pivot calculations require chronological order.")
+        return pd.Series(np.full(len(df), np.nan), index=df.index)
+    
     # Check for NaN values in high column
     nan_count = df['high'].isna().sum()
     if nan_count > 0:
@@ -696,6 +701,11 @@ def pivot_low(df, left_bars=3, right_bars=3, shunt=1):
     # DEBUG: Check if we have the required columns and valid data
     if 'low' not in df.columns:
         logging.error(f"❌ PIVOT ERROR: 'low' column missing from DataFrame. Available columns: {list(df.columns)}")
+        return pd.Series(np.full(len(df), np.nan), index=df.index)
+    
+    # CRITICAL: Verify data is sorted by date for pivot calculations
+    if hasattr(df.index, 'is_monotonic_increasing') and not df.index.is_monotonic_increasing:
+        logging.error(f"❌ PIVOT ERROR: Data is not sorted by date! Pivot calculations require chronological order.")
         return pd.Series(np.full(len(df), np.nan), index=df.index)
     
     # Check for NaN values in low column
@@ -1582,11 +1592,17 @@ def process_symbol_chunk(symbol_chunk, db_config):
                 if symbol not in price_df.index.get_level_values('symbol'):
                     logging.warning(f"⚠️  No price data for {symbol}, skipping")
                     continue
+                  # Log every symbol for enhanced visibility
+                logging.info(f"🔄 Processing {symbol} ({i+1}/{len(symbol_chunk)}) - daily technicals...")                
                 
-                # Log every symbol for enhanced visibility
-                logging.info(f"🔄 Processing {symbol} ({i+1}/{len(symbol_chunk)}) - daily technicals...")                # ULTRA-FAST data extraction
+                # ULTRA-FAST data extraction
                 symbol_data = price_df.loc[symbol].copy()
-                  # For Pine Script pivot calculations, we need minimum 7 bars (3 left + 1 center + 3 right)
+                
+                # CRITICAL: Ensure data is sorted by date for pivot calculations
+                # Pivot calculations require consecutive date-ordered data to work correctly
+                symbol_data = symbol_data.sort_index()  # Sort by date index
+                
+                # For Pine Script pivot calculations, we need minimum 7 bars (3 left + 1 center + 3 right)
                 # This matches the buysellload approach exactly
                 min_bars_for_pivots = 7
                 if len(symbol_data) < 1:
@@ -1594,10 +1610,14 @@ def process_symbol_chunk(symbol_chunk, db_config):
                     continue
                 elif len(symbol_data) < min_bars_for_pivots:
                     logging.warning(f"⚠️  {symbol}: Only {len(symbol_data)} bars available - pivots will be NULL (need {min_bars_for_pivots}+ for Pine Script pivot calculations)")
-                else:
-                    logging.info(f"✅ {symbol}: {len(symbol_data)} bars available - sufficient for Pine Script pivots and all indicators")
+                else:                    logging.info(f"✅ {symbol}: {len(symbol_data)} bars available - sufficient for Pine Script pivots and all indicators")
                 
                 logging.info(f"📊 {symbol}: Found {len(symbol_data)} price records for technical analysis")
+                
+                # Debug: Check date ordering for pivot calculations
+                if len(symbol_data) >= min_bars_for_pivots:
+                    date_range = f"{symbol_data.index.min()} to {symbol_data.index.max()}"
+                    logging.info(f"📅 {symbol}: Date range: {date_range} (sorted for pivots)")
                 
                 # ULTRA-FAST technical indicators calculation using vectorized operations
                 tech_start = time.time()
