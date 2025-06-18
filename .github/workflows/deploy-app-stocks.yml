@@ -179,8 +179,8 @@ jobs:
               - 'requirements-loadlatestbuysellweekly.txt'
             latestbuysellmonthly:
               - 'loadlatestbuysellmonthly.py'
-              - 'Dockerfile.latestbuysellmonthly'
-              - 'requirements-loadlatestbuysellmonthly.txt'
+              - 'Dockerfile.latestbuyselldaily'
+              - 'requirements-loadlatestbuyselldaily.txt'
             technicalsdaily:
               - 'loadtechnicalsdaily.py'
               - 'Dockerfile.technicalsdaily'
@@ -464,7 +464,7 @@ jobs:
             latesttechnicalsmonthly) DOCKERFILE=Dockerfile.latesttechnicalsmonthly; PARAM=LatestTechnicalsMonthlyImageTag;;\
             latestbuyselldaily)   DOCKERFILE=Dockerfile.latestbuyselldaily;   PARAM=LatestBuySellDailyImageTag;;\
             latestbuysellweekly)  DOCKERFILE=Dockerfile.latestbuysellweekly;  PARAM=LatestBuySellWeeklyImageTag;;\
-            latestbuysellmonthly) DOCKERFILE=Dockerfile.latestbuysellmonthly; PARAM=LatestBuySellMonthlyImageTag;;\
+            latestbuysellmonthly) DOCKERFILE=Dockerfile.latestbuyselldaily; PARAM=LatestBuySellMonthlyImageTag;;\
             ttmcashflow)       DOCKERFILE=Dockerfile.ttmcashflow;   PARAM=TTMCashFlowImageTag;;\
             ttmincomestmt)     DOCKERFILE=Dockerfile.ttmincomestmt; PARAM=TTMIncomeStmtImageTag;;\
             recommendations)   DOCKERFILE=Dockerfile.recommendations; PARAM=RecommendationsImageTag;;\
@@ -704,7 +704,7 @@ jobs:
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
           echo "SG=$SG" >> $GITHUB_OUTPUT
 
-      - name: Run buy-sell Fargate task
+      - name: Run stock-symbols Fargate task
         id: run
         run: |
           TASK_ARN=$(aws ecs run-task \
@@ -716,7 +716,7 @@ jobs:
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
-          echo "🟢 Started buy-sell task $TASK_ARN"
+          echo "🟢 Started stock-symbols task $TASK_ARN"
 
       - name: Wait up to 60m for task to stop
         run: |
@@ -1373,7 +1373,7 @@ jobs:
 
     steps:
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v
         with:
           aws-region:        ${{ env.AWS_REGION }}
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
@@ -3908,8 +3908,60 @@ jobs:
             --tasks "${{ steps.run.outputs.TASK_ARN }}" \
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
-          echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          echo "→ Exit code: $EXIT"          if [ "$EXIT" -ne 0 ]; then
             echo "❌ calendar task failed with exit code $EXIT"
             exit 1
           fi
+
+################################################################################
+# ECR Repository Cleanup - Keep only what's needed                            #
+################################################################################
+  ecr_cleanup:
+    name: ECR Repository Cleanup
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: always() # Run even if some builds failed
+    
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Cleanup old ECR images
+        run: |
+          echo "🧹 Starting ECR repository cleanup..."
+          
+          # Get all our ECR repositories
+          REPOS=$(aws ecr describe-repositories \
+            --query 'repositories[?starts_with(repositoryName, `stocks-`)].repositoryName' \
+            --output text)
+          
+          for REPO in $REPOS; do
+            echo "📦 Cleaning repository: $REPO"
+            
+            # Get image count
+            TOTAL=$(aws ecr describe-images --repository-name "$REPO" \
+              --query 'length(imageDetails)' --output text 2>/dev/null || echo "0")
+            
+            if [ "$TOTAL" -gt 10 ]; then
+              echo "  🗑️  Repository has $TOTAL images, keeping latest 10"
+              
+              # Delete old images, keep latest 10
+              aws ecr list-images --repository-name "$REPO" \
+                --filter tagStatus=UNTAGGED \
+                --query 'imageIds[?type(@) == `object`]' \
+                --output json | \
+              jq '.[:($TOTAL-10)]' | \
+              aws ecr batch-delete-image --repository-name "$REPO" \
+                --image-ids file:///dev/stdin || echo "  ⚠️  No untagged images to delete"
+              
+              echo "  ✅ Cleanup completed for $REPO"
+            else
+              echo "  ✅ Repository $REPO has $TOTAL images (≤10), no cleanup needed"
+            fi
+          done
+          
+          echo "🎉 ECR cleanup completed!"

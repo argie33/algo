@@ -117,7 +117,6 @@ Resources:
     Type: AWS::ECS::Cluster
     Properties:
       ClusterName: stocks-cluster
-
   ### 6) ECS Task Execution Role ###
   EcsTaskExecutionRole:
     Type: AWS::IAM::Role
@@ -140,6 +139,103 @@ Resources:
               - Effect: Allow
                 Action: secretsmanager:GetSecretValue
                 Resource: !Ref DBCredentialsSecret
+
+  ### 7) ECR Lifecycle Policy for Automatic Cleanup ###
+  ECRLifecycleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ECRLifecyclePolicyManagement
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:DescribeRepositories
+                  - ecr:PutLifecyclePolicy
+                  - ecr:GetLifecyclePolicy
+                Resource: '*'
+
+  ECRLifecyclePolicyFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-ecr-lifecycle-policy'
+      Runtime: python3.11
+      Handler: index.lambda_handler
+      Role: !GetAtt ECRLifecycleRole.Arn
+      Timeout: 60
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import cfnresponse
+
+          def lambda_handler(event, context):
+              ecr = boto3.client('ecr')
+              
+              # Standard lifecycle policy to keep latest 10 images
+              lifecycle_policy = {
+                  "rules": [
+                      {
+                          "rulePriority": 1,
+                          "description": "Keep latest 3 images",
+                          "selection": {
+                              "tagStatus": "any",
+                              "countType": "imageCountMoreThan",
+                              "countNumber": 3
+                          },
+                          "action": {
+                              "type": "expire"
+                          }
+                      }
+                  ]
+              }
+              
+              try:
+                  if event['RequestType'] == 'Delete':
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+                      return
+                  
+                  # Get all repositories that start with 'stocks-'
+                  repositories = ecr.describe_repositories()['repositories']
+                  stocks_repos = [repo['repositoryName'] for repo in repositories if repo['repositoryName'].startswith('stocks-')]
+                  
+                  results = []
+                  for repo_name in stocks_repos:
+                      try:
+                          ecr.put_lifecycle_policy(
+                              repositoryName=repo_name,
+                              lifecyclePolicyText=json.dumps(lifecycle_policy)
+                          )
+                          results.append(f"Applied lifecycle policy to {repo_name}")
+                      except Exception as e:
+                          results.append(f"Failed to apply policy to {repo_name}: {str(e)}")
+                  
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {
+                      'Message': f'Applied lifecycle policies to {len(stocks_repos)} repositories',
+                      'Results': results
+                  })
+                  
+              except Exception as e:
+                  print(f"Error: {str(e)}")
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {
+                      'Error': str(e)
+                  })
+
+  ECRLifecyclePolicyTrigger:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !GetAtt ECRLifecyclePolicyFunction.Arn
+      # This will trigger the Lambda to apply policies to all existing ECR repositories
 
 Outputs:
   DBEndpoint:
