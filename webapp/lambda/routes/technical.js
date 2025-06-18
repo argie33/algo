@@ -739,4 +739,61 @@ router.get('/data', async (req, res) => {
   }
 });
 
+// Debug endpoint to check actual data values
+router.get('/debug/data', async (req, res) => {
+  try {
+    console.log('Technical data debug endpoint called');
+    
+    // Check what columns actually exist and have data
+    const dataQuery = `
+      SELECT *
+      FROM technical_data_daily 
+      WHERE symbol = 'A'
+      ORDER BY date DESC 
+      LIMIT 1
+    `;
+    
+    const result = await query(dataQuery);
+    
+    if (result.rows.length > 0) {
+      const row = result.rows[0];
+      const columnInfo = {};
+      
+      // Analyze each column
+      Object.keys(row).forEach(column => {
+        const value = row[column];
+        columnInfo[column] = {
+          value: value,
+          type: typeof value,
+          isNull: value === null,
+          isEmpty: value === '' || value === undefined
+        };
+      });
+      
+      res.json({
+        success: true,
+        symbol: 'A',
+        totalColumns: Object.keys(row).length,
+        columnAnalysis: columnInfo,
+        rawData: row,
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.json({
+        success: false,
+        message: 'No data found for symbol A',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+  } catch (error) {
+    console.error('Error in technical data debug:', error);
+    res.status(500).json({ 
+      error: 'Debug failed', 
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 module.exports = router;
