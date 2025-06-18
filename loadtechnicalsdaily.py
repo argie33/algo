@@ -644,36 +644,28 @@ def pivot_high(df, left_bars=3, right_bars=3, shunt=1):
     for i in range(left_bars, len(df) - right_bars):
         try:
             current_high = df['high'].iloc[i]
-              # FIXED: Only skip NaN values, allow all positive prices including penny stocks
             if pd.isna(current_high):
                 logging.debug(f"🔍 Skipping NaN high at index {i}")
                 continue
-            
-            # Check left bars - current high should be higher than all left bars
             left_higher = True
             for j in range(i - left_bars, i):
                 left_val = df['high'].iloc[j]
                 if pd.isna(left_val) or current_high <= left_val:
                     left_higher = False
                     break
-            
             if not left_higher:
                 continue
-                  # Check right bars - current high should be higher than all right bars  
             right_higher = True
             for j in range(i + 1, i + right_bars + 1):
                 right_val = df['high'].iloc[j]
                 if pd.isna(right_val) or current_high <= right_val:
                     right_higher = False
-                    break                    
+                    break
             if left_higher and right_higher:
-                # FIXED: Correct Pine Script shunt logic
-                # In Pine Script: pvthi_[Shunt] means "look back Shunt bars from current bar"
-                # The pivot is detected at bar i, but we want to place it at the actual pivot bar
-                # For pivot detection, we place the pivot value at the actual pivot bar (i)
-                pivot_vals[i] = current_high
+                idx = i - shunt if (i - shunt) >= 0 else i
+                pivot_vals[idx] = current_high
                 pivot_count += 1
-                logging.debug(f"🔍 Pivot high found at bar {i}, value: {current_high:.4f}")
+                logging.debug(f"🔍 Pivot high found at bar {i}, value: {current_high:.4f}, assigned to idx {idx}")
         except Exception as e:
             logging.error(f"❌ PIVOT ERROR at index {i}: {str(e)}")
             continue
@@ -723,22 +715,17 @@ def pivot_low(df, left_bars=3, right_bars=3, shunt=1):
     for i in range(left_bars, len(df) - right_bars):
         try:
             current_low = df['low'].iloc[i]
-              # FIXED: Only skip NaN values, allow all positive prices including penny stocks
             if pd.isna(current_low):
                 logging.debug(f"🔍 Skipping NaN low at index {i}")
                 continue
-            
-            # Check left bars - current low should be lower than all left bars
             left_lower = True
             for j in range(i - left_bars, i):
                 left_val = df['low'].iloc[j]
                 if pd.isna(left_val) or current_low >= left_val:
                     left_lower = False
                     break
-            
             if not left_lower:
                 continue
-                  # Check right bars - current low should be lower than all right bars
             right_lower = True
             for j in range(i + 1, i + right_bars + 1):
                 right_val = df['low'].iloc[j]
@@ -747,11 +734,10 @@ def pivot_low(df, left_bars=3, right_bars=3, shunt=1):
                     break
                     
             if left_lower and right_lower:
-                # FIXED: Correct Pine Script shunt logic for pivot lows
-                # Place the pivot value at the actual pivot bar (i)
-                pivot_vals[i] = current_low
+                idx = i - shunt if (i - shunt) >= 0 else i
+                pivot_vals[idx] = current_low
                 pivot_count += 1
-                logging.debug(f"🔍 Pivot low found at bar {i}, value: {current_low:.4f}")
+                logging.debug(f"🔍 Pivot low found at bar {i}, value: {current_low:.4f}, assigned to idx {idx}")
         except Exception as e:
             logging.error(f"❌ PIVOT ERROR at index {i}: {str(e)}")
             continue
