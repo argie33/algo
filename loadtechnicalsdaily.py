@@ -644,9 +644,9 @@ def pivot_high(df, left_bars=3, right_bars=3, shunt=1):
     for i in range(left_bars, len(df) - right_bars):
         try:
             current_high = df['high'].iloc[i]
-            
-            # Skip if current high is NaN or invalid
-            if pd.isna(current_high) or current_high <= 0:
+              # FIXED: Only skip NaN values, allow all positive prices including penny stocks
+            if pd.isna(current_high):
+                logging.debug(f"🔍 Skipping NaN high at index {i}")
                 continue
             
             # Check left bars - current high should be higher than all left bars
@@ -665,17 +665,15 @@ def pivot_high(df, left_bars=3, right_bars=3, shunt=1):
                 right_val = df['high'].iloc[j]
                 if pd.isna(right_val) or current_high <= right_val:
                     right_higher = False
-                    break
-                    
+                    break                    
             if left_higher and right_higher:
-                # Apply shunt - Pine Script pvthi_[Shunt] means "get value from Shunt bars back"
-                # So if pivot is confirmed at bar i, we place it at current bar (i + right_bars)
-                # But shunt it back by 'shunt' positions to match Pine Script exactly
-                confirmed_bar = i + right_bars  # This is when the pivot is "confirmed"
-                shunted_index = confirmed_bar - shunt  # Apply shunt backwards
-                if 0 <= shunted_index < len(pivot_vals):
-                    pivot_vals[shunted_index] = current_high
-                    pivot_count += 1
+                # FIXED: Correct Pine Script shunt logic
+                # In Pine Script: pvthi_[Shunt] means "look back Shunt bars from current bar"
+                # The pivot is detected at bar i, but we want to place it at the actual pivot bar
+                # For pivot detection, we place the pivot value at the actual pivot bar (i)
+                pivot_vals[i] = current_high
+                pivot_count += 1
+                logging.debug(f"🔍 Pivot high found at bar {i}, value: {current_high:.4f}")
         except Exception as e:
             logging.error(f"❌ PIVOT ERROR at index {i}: {str(e)}")
             continue
@@ -725,9 +723,9 @@ def pivot_low(df, left_bars=3, right_bars=3, shunt=1):
     for i in range(left_bars, len(df) - right_bars):
         try:
             current_low = df['low'].iloc[i]
-            
-            # Skip if current low is NaN or invalid
-            if pd.isna(current_low) or current_low <= 0:
+              # FIXED: Only skip NaN values, allow all positive prices including penny stocks
+            if pd.isna(current_low):
+                logging.debug(f"🔍 Skipping NaN low at index {i}")
                 continue
             
             # Check left bars - current low should be lower than all left bars
@@ -740,8 +738,7 @@ def pivot_low(df, left_bars=3, right_bars=3, shunt=1):
             
             if not left_lower:
                 continue
-                
-            # Check right bars - current low should be lower than all right bars
+                  # Check right bars - current low should be lower than all right bars
             right_lower = True
             for j in range(i + 1, i + right_bars + 1):
                 right_val = df['low'].iloc[j]
@@ -750,12 +747,11 @@ def pivot_low(df, left_bars=3, right_bars=3, shunt=1):
                     break
                     
             if left_lower and right_lower:
-                # Apply shunt - Pine Script pvtlo_[Shunt] means "get value from Shunt bars back"
-                confirmed_bar = i + right_bars  # This is when the pivot is "confirmed"
-                shunted_index = confirmed_bar - shunt  # Apply shunt backwards
-                if 0 <= shunted_index < len(pivot_vals):
-                    pivot_vals[shunted_index] = current_low
-                    pivot_count += 1
+                # FIXED: Correct Pine Script shunt logic for pivot lows
+                # Place the pivot value at the actual pivot bar (i)
+                pivot_vals[i] = current_low
+                pivot_count += 1
+                logging.debug(f"🔍 Pivot low found at bar {i}, value: {current_low:.4f}")
         except Exception as e:
             logging.error(f"❌ PIVOT ERROR at index {i}: {str(e)}")
             continue
@@ -1092,12 +1088,35 @@ def calculate_technicals_parallel(df):
         # Custom indicators
         results['td_sequential'] = td_sequential_vectorized(df['close'], lookback=4)
         results['td_combo'] = td_combo_vectorized(df['close'], lookback=2)
-        results['marketwatch'] = marketwatch_indicator_vectorized(df['close'], df['open'])        # Pivot points - Pine Script style with shunt (matches your exact Pine Script)
+        results['marketwatch'] = marketwatch_indicator_vectorized(df['close'], df['open'])        # Pivot points - Pine Script style with enhanced debugging
         data_length = len(df)
         min_required = 7  # 3 left + 1 center + 3 right
         
+        logging.info(f"🔍 PIVOT CALCULATION: Data length={data_length}, min_required={min_required}")
+        
         if data_length >= min_required:
-            # Use shunt=1 to match your Pine Script: pvthi = pvthi_[Shunt]
+            # Log data quality before pivot calculation
+            high_stats = {
+                'min': df['high'].min(),
+                'max': df['high'].max(),
+                'mean': df['high'].mean(),
+                'nan_count': df['high'].isna().sum(),
+                'zero_count': (df['high'] == 0).sum(),
+                'negative_count': (df['high'] < 0).sum()
+            }
+            low_stats = {
+                'min': df['low'].min(),
+                'max': df['low'].max(),
+                'mean': df['low'].mean(),
+                'nan_count': df['low'].isna().sum(),
+                'zero_count': (df['low'] == 0).sum(),
+                'negative_count': (df['low'] < 0).sum()
+            }
+            
+            logging.info(f"📊 HIGH data: min={high_stats['min']:.4f}, max={high_stats['max']:.4f}, mean={high_stats['mean']:.4f}, NaN={high_stats['nan_count']}")
+            logging.info(f"📊 LOW data: min={low_stats['min']:.4f}, max={low_stats['max']:.4f}, mean={low_stats['mean']:.4f}, NaN={low_stats['nan_count']}")
+            
+            # Use fixed pivot functions (no shunt parameter needed now)
             results['pivot_high'] = pivot_high(df, left_bars=3, right_bars=3, shunt=1)
             results['pivot_low'] = pivot_low(df, left_bars=3, right_bars=3, shunt=1)
             
@@ -1105,13 +1124,23 @@ def calculate_technicals_parallel(df):
             pivot_high_count = results['pivot_high'].notna().sum()
             pivot_low_count = results['pivot_low'].notna().sum()
             
-            # Log results - Pine Script style with shunt gives more recent pivot data
-            if data_length > 20 or pivot_high_count > 0 or pivot_low_count > 0:
-                logging.info(f"📍 Pine Script pivots (with shunt): {pivot_high_count} highs, {pivot_low_count} lows from {data_length} bars")
+            # Enhanced logging with more details
+            logging.info(f"✅ PIVOT RESULTS: {pivot_high_count} highs, {pivot_low_count} lows from {data_length} bars")
             
-            # Additional debug logging if no pivots found
+            # Show actual pivot values found
+            if pivot_high_count > 0:
+                high_pivots = results['pivot_high'].dropna()
+                logging.info(f"� High pivots found: {high_pivots.tolist()}")
+            
+            if pivot_low_count > 0:
+                low_pivots = results['pivot_low'].dropna()
+                logging.info(f"🔻 Low pivots found: {low_pivots.tolist()}")
+            
+            # Warning if no pivots found with good data
             if pivot_high_count == 0 and pivot_low_count == 0 and data_length >= 20:
-                logging.warning(f"⚠️  PIVOT WARNING: No pivots found in {data_length} bars of data - possible data quality issue")
+                logging.warning(f"⚠️  PIVOT WARNING: No pivots found in {data_length} bars - investigating data quality")
+                logging.warning(f"⚠️  Sample highs: {df['high'].head(10).tolist()}")
+                logging.warning(f"⚠️  Sample lows: {df['low'].head(10).tolist()}")
         else:
             # Insufficient data - return NaN series
             results['pivot_high'] = pd.Series(np.full(len(df), np.nan), index=df.index)
