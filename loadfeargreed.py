@@ -43,10 +43,50 @@ def timestamp_to_date(ts):
 async def get_fear_greed_data():
     """Fetch Fear & Greed index data from CNN."""
     logging.info("Launching headless browser...")
-    browser = await launch(
-        args=['--no-sandbox', '--disable-setuid-sandbox'],
-        headless=True
-    )
+    
+    # Enhanced browser launch with better container compatibility
+    launch_args = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',  # Overcome limited resource problems
+        '--disable-gpu',
+        '--disable-web-security',
+        '--disable-features=VizDisplayCompositor',
+        '--disable-extensions',
+        '--disable-plugins',
+        '--disable-images',  # Faster loading
+        '--disable-javascript',  # Not needed for this specific task
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--single-process',  # Reduce memory usage
+    ]
+    
+    try:
+        # Try Chrome first
+        browser = await launch(
+            args=launch_args,
+            headless=True,
+            executablePath='/usr/bin/google-chrome'  # Explicit path
+        )
+        logging.info("Successfully launched Chrome browser")
+    except Exception as e:
+        logging.warning(f"Chrome launch failed: {e}, trying Chromium...")
+        try:
+            # Fallback to Chromium
+            browser = await launch(
+                args=launch_args,
+                headless=True,
+                executablePath='/usr/bin/chromium-browser'  # Chromium path
+            )
+            logging.info("Successfully launched Chromium browser")
+        except Exception as e2:
+            logging.warning(f"Chromium launch failed: {e2}, trying auto-detection...")
+            # Final fallback - let pyppeteer auto-detect
+            browser = await launch(
+                args=launch_args,
+                headless=True
+            )
+            logging.info("Successfully launched browser (auto-detected)")
     
     try:
         page = await browser.newPage()
