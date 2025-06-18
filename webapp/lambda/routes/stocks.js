@@ -189,10 +189,10 @@ router.get('/', async (req, res) => {
     const sortColumn = validSortColumns[sortBy] || 'ss.symbol';
     const sortDirection = sortOrder.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
 
-    console.log('OPTIMIZED query params:', { whereClause, params, limit, offset });
-
-    // SUPER FAST QUERY: Just stock_symbols table first to avoid timeout
-    const stocksQuery = `      SELECT 
+    console.log('OPTIMIZED query params:', { whereClause, params, limit, offset });    // COMPREHENSIVE QUERY: Include all data from loadinfo script
+    const stocksQuery = `
+      SELECT 
+        -- Stock symbols data
         ss.symbol,
         ss.security_name,
         ss.exchange,
@@ -202,8 +202,58 @@ router.get('/', async (req, res) => {
         ss.round_lot_size,
         ss.etf,
         ss.secondary_symbol,
-        ss.test_issue
+        ss.test_issue,
+        
+        -- Company profile data from loadinfo
+        cp.short_name,
+        cp.long_name,
+        cp.display_name,
+        cp.quote_type,
+        cp.sector,
+        cp.sector_disp,
+        cp.industry,
+        cp.industry_disp,
+        cp.business_summary,
+        cp.employee_count,
+        cp.website_url,
+        cp.ir_website_url,
+        cp.address1,
+        cp.city,
+        cp.state,
+        cp.postal_code,
+        cp.country,
+        cp.phone_number,
+        cp.currency,
+        cp.market,
+        cp.full_exchange_name,
+        
+        -- Market data from loadinfo
+        md.current_price,
+        md.previous_close,
+        md.open_price,
+        md.day_low,
+        md.day_high,
+        md.volume,
+        md.average_volume,
+        md.market_cap,
+        md.fifty_two_week_low,
+        md.fifty_two_week_high,
+        md.fifty_day_avg,
+        md.two_hundred_day_avg,
+        md.bid_price,
+        md.ask_price,
+        md.market_state,
+        
+        -- Governance scores from loadinfo
+        gs.audit_risk,
+        gs.board_risk,
+        gs.compensation_risk,
+        gs.overall_risk
+        
       FROM stock_symbols ss
+      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN market_data md ON ss.symbol = md.ticker
+      LEFT JOIN governance_scores gs ON ss.symbol = gs.ticker
       ${whereClause}
       ORDER BY ${sortColumn} ${sortDirection}
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
@@ -228,20 +278,76 @@ router.get('/', async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
-    console.log(`FAST query results: ${stocksResult.rows.length} stocks, ${total} total`);
-
-    // Professional formatting with ALL available data fields visible
+    console.log(`FAST query results: ${stocksResult.rows.length} stocks, ${total} total`);    // Professional formatting with ALL available data fields from loadinfo
     const formattedStocks = stocksResult.rows.map(stock => ({
       // Core identification
       ticker: stock.symbol,
       symbol: stock.symbol,
       name: stock.security_name,
-      fullName: stock.security_name,
+      fullName: stock.long_name || stock.security_name,
+      shortName: stock.short_name,
+      displayName: stock.display_name,
       
       // Exchange & categorization 
       exchange: stock.exchange,
+      fullExchangeName: stock.full_exchange_name,
       marketCategory: stock.market_category,
-        // Additional identifiers
+      market: stock.market,
+      
+      // Business information
+      sector: stock.sector,
+      sectorDisplay: stock.sector_disp,
+      industry: stock.industry,
+      industryDisplay: stock.industry_disp,
+      businessSummary: stock.business_summary,
+      employeeCount: stock.employee_count,
+      
+      // Contact information
+      website: stock.website_url,
+      investorRelationsWebsite: stock.ir_website_url,
+      address: {
+        street: stock.address1,
+        city: stock.city,
+        state: stock.state,
+        postalCode: stock.postal_code,
+        country: stock.country
+      },
+      phoneNumber: stock.phone_number,
+      
+      // Financial details
+      currency: stock.currency,
+      quoteType: stock.quote_type,
+      
+      // Current market data
+      price: {
+        current: stock.current_price,
+        previousClose: stock.previous_close,
+        open: stock.open_price,
+        dayLow: stock.day_low,
+        dayHigh: stock.day_high,
+        fiftyTwoWeekLow: stock.fifty_two_week_low,
+        fiftyTwoWeekHigh: stock.fifty_two_week_high,
+        fiftyDayAverage: stock.fifty_day_avg,
+        twoHundredDayAverage: stock.two_hundred_day_avg,
+        bid: stock.bid_price,
+        ask: stock.ask_price,
+        marketState: stock.market_state
+      },
+      
+      // Volume data
+      volume: stock.volume,
+      averageVolume: stock.average_volume,
+      marketCap: stock.market_cap,
+      
+      // Governance data
+      governance: {
+        auditRisk: stock.audit_risk,
+        boardRisk: stock.board_risk,
+        compensationRisk: stock.compensation_risk,
+        overallRisk: stock.overall_risk
+      },
+      
+      // Additional identifiers
       cqsSymbol: stock.cqs_symbol,
       secondarySymbol: stock.secondary_symbol,
       
@@ -253,28 +359,25 @@ router.get('/', async (req, res) => {
       
       // Data quality indicators
       hasData: true,
-      dataSource: 'stock_symbols',
-      
-      // Placeholder for price data (to be loaded separately for performance)
-      price: {
-        status: 'Available separately via /stocks/:ticker/prices',
-        current: null,
-        volume: null,
-        date: null
-      },
+      dataSource: 'comprehensive_query',
+      hasCompanyProfile: !!stock.long_name,
+      hasMarketData: !!stock.current_price,
+      hasGovernanceData: !!stock.overall_risk,
       
       // Professional presentation
       displayData: {
-        primaryExchange: stock.exchange || 'Unknown',
+        primaryExchange: stock.full_exchange_name || stock.exchange || 'Unknown',
         category: stock.market_category || 'Standard',
         type: stock.etf === 'Y' ? 'ETF' : 'Stock',
-        tradeable: stock.financial_status !== 'D' && stock.test_issue !== 'Y'
+        tradeable: stock.financial_status !== 'D' && stock.test_issue !== 'Y',
+        sector: stock.sector_disp || stock.sector || 'Unknown',
+        industry: stock.industry_disp || stock.industry || 'Unknown'
       }
     }));
 
     res.json({
       success: true,
-      performance: 'OPTIMIZED - Fast stock_symbols only query',
+      performance: 'COMPREHENSIVE - Full loadinfo data with company profiles, market data, and governance scores',
       data: formattedStocks,
       pagination: {
         page,
@@ -289,14 +392,34 @@ router.get('/', async (req, res) => {
         exchange: exchange || null,
         sortBy,
         sortOrder
-      },
-      metadata: {
+      },      metadata: {
         totalStocks: total,
         currentPage: page,
-        showingRecords: stocksResult.rows.length,        dataFields: [
+        showingRecords: stocksResult.rows.length,
+        dataFields: [
+          // Basic stock symbol data
           'symbol', 'security_name', 'exchange', 'market_category',
-          'cqs_symbol', 'financial_status', 'etf',
-          'round_lot_size', 'test_issue', 'secondary_symbol'
+          'cqs_symbol', 'financial_status', 'etf', 'round_lot_size', 
+          'test_issue', 'secondary_symbol',
+          
+          // Company profile data
+          'short_name', 'long_name', 'display_name', 'quote_type',
+          'sector', 'sector_disp', 'industry', 'industry_disp',
+          'business_summary', 'employee_count', 'website_url', 
+          'ir_website_url', 'address1', 'city', 'state', 'postal_code',
+          'country', 'phone_number', 'currency', 'market', 'full_exchange_name',
+          
+          // Market data
+          'current_price', 'previous_close', 'open_price', 'day_low', 'day_high',
+          'volume', 'average_volume', 'market_cap', 'fifty_two_week_low',
+          'fifty_two_week_high', 'fifty_day_avg', 'two_hundred_day_avg',
+          'bid_price', 'ask_price', 'market_state',
+          
+          // Governance data
+          'audit_risk', 'board_risk', 'compensation_risk', 'overall_risk'
+        ],
+        dataSources: [
+          'stock_symbols', 'company_profile', 'market_data', 'governance_scores'
         ]
       },
       timestamp: new Date().toISOString()

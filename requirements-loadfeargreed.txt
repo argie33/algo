@@ -1,3 +1,5 @@
 boto3>=1.26.137
 psycopg2-binary>=2.9.6
 pyppeteer>=1.0.2
+websockets>=10.0
+aiofiles>=23.0.0

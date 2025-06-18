@@ -317,18 +317,60 @@ function StockExplorer() {
       </Box>
     )
   }
-
   const columns = [
+    // Core identification
     { id: 'symbol', label: 'Symbol', sortable: true, minWidth: 80 },
-    { id: 'security_name', label: 'Security Name', sortable: true, minWidth: 250 },
+    { id: 'shortName', label: 'Short Name', sortable: true, minWidth: 150, accessor: (row) => row.shortName || row.name },
+    { id: 'fullName', label: 'Full Name', sortable: true, minWidth: 250 },
+    
+    // Current market data
+    { id: 'currentPrice', label: 'Current Price', sortable: true, format: formatCurrency, align: 'right', minWidth: 100, accessor: (row) => row.price?.current },
+    { id: 'previousClose', label: 'Prev Close', sortable: true, format: formatCurrency, align: 'right', minWidth: 100, accessor: (row) => row.price?.previousClose },
+    { id: 'volume', label: 'Volume', sortable: true, format: formatNumber, align: 'right', minWidth: 100 },
+    { id: 'marketCap', label: 'Market Cap', sortable: true, format: formatCurrency, align: 'right', minWidth: 120 },
+    
+    // Exchange & categorization 
     { id: 'exchange', label: 'Exchange', sortable: true, minWidth: 100 },
-    { id: 'market_category', label: 'Market Category', sortable: true, minWidth: 120 },
-    { id: 'cqs_symbol', label: 'CQS Symbol', sortable: false, minWidth: 100 },
-    { id: 'financial_status', label: 'Financial Status', sortable: true, minWidth: 120 },
-    { id: 'round_lot_size', label: 'Round Lot Size', sortable: true, format: formatNumber, align: 'right', minWidth: 120 },
-    { id: 'etf', label: 'ETF', sortable: true, minWidth: 80 },
-    { id: 'secondary_symbol', label: 'Secondary Symbol', sortable: false, minWidth: 140 },
-    { id: 'test_issue', label: 'Test Issue', sortable: true, minWidth: 100 }
+    { id: 'fullExchangeName', label: 'Full Exchange', sortable: true, minWidth: 150 },
+    { id: 'marketCategory', label: 'Market Category', sortable: true, minWidth: 120 },
+    
+    // Business information
+    { id: 'sector', label: 'Sector', sortable: true, minWidth: 120 },
+    { id: 'industry', label: 'Industry', sortable: true, minWidth: 150 },
+    { id: 'employeeCount', label: 'Employees', sortable: true, format: formatNumber, align: 'right', minWidth: 100 },
+    
+    // Price ranges
+    { id: 'dayLow', label: 'Day Low', sortable: true, format: formatCurrency, align: 'right', minWidth: 90, accessor: (row) => row.price?.dayLow },
+    { id: 'dayHigh', label: 'Day High', sortable: true, format: formatCurrency, align: 'right', minWidth: 90, accessor: (row) => row.price?.dayHigh },
+    { id: 'fiftyTwoWeekLow', label: '52W Low', sortable: true, format: formatCurrency, align: 'right', minWidth: 90, accessor: (row) => row.price?.fiftyTwoWeekLow },
+    { id: 'fiftyTwoWeekHigh', label: '52W High', sortable: true, format: formatCurrency, align: 'right', minWidth: 90, accessor: (row) => row.price?.fiftyTwoWeekHigh },
+    
+    // Moving averages
+    { id: 'fiftyDayAverage', label: '50D Avg', sortable: true, format: formatCurrency, align: 'right', minWidth: 90, accessor: (row) => row.price?.fiftyDayAverage },
+    { id: 'twoHundredDayAverage', label: '200D Avg', sortable: true, format: formatCurrency, align: 'right', minWidth: 90, accessor: (row) => row.price?.twoHundredDayAverage },
+    
+    // Contact and corporate info
+    { id: 'website', label: 'Website', sortable: false, minWidth: 120, format: (value) => value ? <a href={value} target="_blank" rel="noopener noreferrer">{new URL(value).hostname}</a> : 'N/A' },
+    { id: 'country', label: 'Country', sortable: true, minWidth: 100, accessor: (row) => row.address?.country },
+    { id: 'city', label: 'City', sortable: true, minWidth: 100, accessor: (row) => row.address?.city },
+    { id: 'state', label: 'State', sortable: true, minWidth: 80, accessor: (row) => row.address?.state },
+    
+    // Financial details
+    { id: 'currency', label: 'Currency', sortable: true, minWidth: 80 },
+    { id: 'quoteType', label: 'Quote Type', sortable: true, minWidth: 100 },
+    
+    // Governance scores
+    { id: 'auditRisk', label: 'Audit Risk', sortable: true, align: 'right', minWidth: 90, accessor: (row) => row.governance?.auditRisk },
+    { id: 'boardRisk', label: 'Board Risk', sortable: true, align: 'right', minWidth: 90, accessor: (row) => row.governance?.boardRisk },
+    { id: 'compensationRisk', label: 'Comp Risk', sortable: true, align: 'right', minWidth: 90, accessor: (row) => row.governance?.compensationRisk },
+    { id: 'overallRisk', label: 'Overall Risk', sortable: true, align: 'right', minWidth: 100, accessor: (row) => row.governance?.overallRisk },
+    
+    // Additional identifiers and status
+    { id: 'cqsSymbol', label: 'CQS Symbol', sortable: false, minWidth: 100 },
+    { id: 'financialStatus', label: 'Financial Status', sortable: true, minWidth: 120 },
+    { id: 'roundLotSize', label: 'Round Lot Size', sortable: true, format: formatNumber, align: 'right', minWidth: 120 },
+    { id: 'isEtf', label: 'ETF', sortable: true, minWidth: 80, format: (value) => value ? 'Yes' : 'No' },
+    { id: 'testIssue', label: 'Test Issue', sortable: true, minWidth: 100, format: (value) => value ? 'Yes' : 'No' }
   ]
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
@@ -754,25 +796,46 @@ function StockExplorer() {
                             }}
                             onClick={() => handleRowClick(stock.symbol)}
                           >
-                            {columns.map((column) => (
-                              <TableCell 
+                            {columns.map((column) => (                              <TableCell 
                                 key={column.id}
                                 align={column.align || 'left'}
                                 sx={{ whiteSpace: 'nowrap' }}
                               >
-                                {column.id === 'symbol' ? (
-                                  <Typography variant="body2" fontWeight="bold">
-                                    {stock[column.id] || 'N/A'}
-                                  </Typography>
-                                ) : column.id === 'etf' ? (
-                                  stock[column.id] === 'Y' ? 'Yes' : stock[column.id] === 'N' ? 'No' : (stock[column.id] || 'N/A')
-                                ) : column.id === 'test_issue' ? (
-                                  stock[column.id] === 'Y' ? 'Yes' : stock[column.id] === 'N' ? 'No' : (stock[column.id] || 'N/A')
-                                ) : column.format ? (
-                                  stock[column.id] ? column.format(stock[column.id]) : 'N/A'
-                                ) : (
-                                  stock[column.id] || 'N/A'
-                                )}
+                                {(() => {
+                                  // Get the value using accessor if available, otherwise use column.id
+                                  let value = column.accessor ? column.accessor(stock) : stock[column.id];
+                                  
+                                  // Special handling for symbol column
+                                  if (column.id === 'symbol') {
+                                    return (
+                                      <Typography variant="body2" fontWeight="bold">
+                                        {value || 'N/A'}
+                                      </Typography>
+                                    );
+                                  }
+                                  
+                                  // Special handling for boolean values
+                                  if (column.id === 'isEtf' || column.id === 'testIssue') {
+                                    return value ? 'Yes' : 'No';
+                                  }
+                                  
+                                  // Special handling for website links
+                                  if (column.id === 'website' && value) {
+                                    return (
+                                      <a href={value} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
+                                        {new URL(value).hostname}
+                                      </a>
+                                    );
+                                  }
+                                  
+                                  // Apply formatting if specified
+                                  if (column.format && value !== null && value !== undefined) {
+                                    return column.format(value);
+                                  }
+                                  
+                                  // Default case
+                                  return value ?? 'N/A';
+                                })()}
                               </TableCell>
                             ))}
                             <TableCell onClick={(e) => e.stopPropagation()}>
