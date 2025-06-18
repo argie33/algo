@@ -317,16 +317,17 @@ function StockExplorer() {
         </Box>      </Box>
     )
   }
-
   const columns = [
     { id: 'symbol', label: 'Symbol', sortable: true },
-    { id: 'name', label: 'Company', sortable: true },
+    { id: 'security_name', label: 'Security Name', sortable: true },
     { id: 'exchange', label: 'Exchange', sortable: true },
-    { id: 'market_category', label: 'Category', sortable: true },
-    { id: 'financial_status', label: 'Status', sortable: true },
-    { id: 'type', label: 'Type', sortable: true },
+    { id: 'market_category', label: 'Market Category', sortable: true },
     { id: 'cqs_symbol', label: 'CQS Symbol', sortable: false },
-    { id: 'round_lot_size', label: 'Lot Size', sortable: true, format: formatNumber }
+    { id: 'financial_status', label: 'Financial Status', sortable: true },
+    { id: 'round_lot_size', label: 'Round Lot Size', sortable: true, format: formatNumber },
+    { id: 'etf', label: 'ETF', sortable: true },
+    { id: 'secondary_symbol', label: 'Secondary Symbol', sortable: false },
+    { id: 'test_issue', label: 'Test Issue', sortable: true }
   ]
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
