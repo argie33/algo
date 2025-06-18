@@ -59,50 +59,102 @@ async def get_fear_greed_data():
         '--no-first-run',
         '--no-default-browser-check',
         '--single-process',  # Reduce memory usage
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding',
+        '--virtual-time-budget=30000',  # 30 second timeout
     ]
     
-    try:
-        # Try Chrome first
-        browser = await launch(
-            args=launch_args,
-            headless=True,
-            executablePath='/usr/bin/google-chrome'  # Explicit path
-        )
-        logging.info("Successfully launched Chrome browser")
-    except Exception as e:
-        logging.warning(f"Chrome launch failed: {e}, trying Chromium...")
+    browser = None
+    try:        # Try system Chromium first (most reliable in containers)
         try:
-            # Fallback to Chromium
             browser = await launch(
                 args=launch_args,
                 headless=True,
-                executablePath='/usr/bin/chromium-browser'  # Chromium path
+                executablePath='/usr/bin/google-chrome-stable'
             )
-            logging.info("Successfully launched Chromium browser")
-        except Exception as e2:
-            logging.warning(f"Chromium launch failed: {e2}, trying auto-detection...")
-            # Final fallback - let pyppeteer auto-detect
-            browser = await launch(
-                args=launch_args,
-                headless=True
-            )
-            logging.info("Successfully launched browser (auto-detected)")
+            logging.info("Successfully launched Google Chrome browser")
+        except Exception as e:
+            logging.warning(f"Google Chrome launch failed: {e}, trying alternative paths...")
+            
+            # Try alternative browser paths
+            browser_paths = [
+                '/usr/bin/google-chrome',
+                '/usr/bin/chromium-browser',
+                '/usr/bin/chromium',
+            ]
+            
+            browser_launched = False
+            for path in browser_paths:
+                try:
+                    browser = await launch(
+                        args=launch_args,
+                        headless=True,
+                        executablePath=path
+                    )
+                    logging.info(f"Successfully launched browser at {path}")
+                    browser_launched = True
+                    break
+                except Exception as alt_e:
+                    logging.debug(f"Failed to launch browser at {path}: {alt_e}")
+                    continue
+            
+            if not browser_launched:
+                # Final fallback - let pyppeteer auto-detect and download
+                logging.info("Trying pyppeteer auto-detection...")
+                browser = await launch(
+                    args=launch_args,
+                    headless=True
+                )
+                logging.info("Successfully launched browser (auto-detected)")
     
-    try:
+        # Set up page with timeout and error handling
         page = await browser.newPage()
-        await page.goto('https://production.dataviz.cnn.io/index/fearandgreed/graphdata')
-        await page.waitForSelector('pre')
         
+        # Set longer timeout for slow networks
+        page.setDefaultTimeout(30000)  # 30 seconds
+        
+        # Navigate to the data source
+        logging.info("Navigating to Fear & Greed data source...")
+        await page.goto('https://production.dataviz.cnn.io/index/fearandgreed/graphdata', {
+            'waitUntil': 'networkidle0',
+            'timeout': 30000
+        })
+        
+        # Wait for the data element
+        logging.info("Waiting for data element...")
+        await page.waitForSelector('pre', {'timeout': 15000})
+        
+        # Extract the data
         element = await page.querySelector('pre')
-        data = await page.evaluate('(element) => element.textContent', element)
-        data_json = json.loads(data)
+        if not element:
+            raise Exception("Could not find data element on page")
+        
+        data_text = await page.evaluate('(element) => element.textContent', element)
+        if not data_text:
+            raise Exception("No data found in element")
+        
+        logging.info(f"Retrieved data: {len(data_text)} characters")
+        
+        # Parse JSON data
+        data_json = json.loads(data_text)
+        
+        if 'fear_and_greed_historical' not in data_json:
+            raise Exception("Expected data structure not found in response")
         
         data_array = data_json['fear_and_greed_historical']['data']
+        logging.info(f"Parsed {len(data_array)} historical data points")
+        
         return data_array
+        
+    except Exception as e:
+        logging.error(f"Error during browser operation: {str(e)}")
+        raise
     
     finally:
-        await browser.close()
-        logging.info("Browser closed")
+        if browser:
+            await browser.close()
+            logging.info("Browser closed")
 
 async def main():
     logging.info("Starting Fear & Greed index data load")

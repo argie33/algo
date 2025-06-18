@@ -1528,8 +1528,7 @@ def process_symbol_chunk(symbol_chunk, db_config):
                 # Log every symbol for enhanced visibility
                 logging.info(f"🔄 Processing {symbol} ({i+1}/{len(symbol_chunk)}) - daily technicals...")                # ULTRA-FAST data extraction
                 symbol_data = price_df.loc[symbol].copy()
-                
-                # For Pine Script pivot calculations, we need minimum 7 bars (3 left + 1 center + 3 right)
+                  # For Pine Script pivot calculations, we need minimum 7 bars (3 left + 1 center + 3 right)
                 # This matches the buysellload approach exactly
                 min_bars_for_pivots = 7
                 if len(symbol_data) < 1:
@@ -1541,7 +1540,8 @@ def process_symbol_chunk(symbol_chunk, db_config):
                     logging.info(f"✅ {symbol}: {len(symbol_data)} bars available - sufficient for Pine Script pivots and all indicators")
                 
                 logging.info(f"📊 {symbol}: Found {len(symbol_data)} price records for technical analysis")
-                  # ULTRA-FAST technical indicators calculation using vectorized operations
+                
+                # ULTRA-FAST technical indicators calculation using vectorized operations
                 tech_start = time.time()
                 df_tech = calculate_technicals_parallel(symbol_data.copy())  # Use existing optimized function
                 tech_time = time.time() - tech_start
@@ -1551,14 +1551,6 @@ def process_symbol_chunk(symbol_chunk, db_config):
                     continue
                 
                 logging.info(f"⚡ {symbol}: Calculated {len(df_tech)} technical indicator rows in {tech_time:.2f}s")
-                
-                # Enhanced validation for debugging N/A values
-                try:
-                    na_strings, problematic = enhanced_indicator_validation(df_tech, symbol)
-                    if na_strings or problematic:
-                        logging.error(f"🐛 {symbol}: Data quality issues detected - N/A strings: {len(na_strings)}, Problematic: {len(problematic)}")
-                except Exception as e:
-                    logging.warning(f"🐛 {symbol}: Enhanced validation failed: {e}")
                 
                 # ULTRA-FAST data preparation for insertion - vectorized approach
                 insert_start = time.time()
