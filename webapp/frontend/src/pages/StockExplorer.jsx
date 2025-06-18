@@ -122,6 +122,11 @@ const SECTORS = [
   'Utilities', 'Real Estate', 'Basic Materials'
 ]
 
+// Market categories that actually exist in the backend data
+const MARKET_CATEGORIES = [
+  'Q', 'G', 'S', 'N'  // These are typical NASDAQ market categories
+]
+
 // Updated to match backend exchange data
 const EXCHANGES = ['NYSE', 'NASDAQ', 'AMEX', 'NYSEArca', 'BATS']
 
@@ -309,20 +314,19 @@ function StockExplorer() {
             onChange={(e) => handleFilterChange(maxKey, e.target.value)}
             sx={{ width: '100px' }}
           />
-        </Box>
-      </Box>
+        </Box>      </Box>
     )
   }
+
   const columns = [
     { id: 'symbol', label: 'Symbol', sortable: true },
     { id: 'name', label: 'Company', sortable: true },
-    { id: 'current_price', label: 'Price', sortable: true, format: formatCurrency },
-    { id: 'market_cap', label: 'Market Cap', sortable: true, format: formatCurrency },
-    { id: 'pe_ratio', label: 'P/E', sortable: true, format: (val) => val ? formatNumber(val, 2) : 'N/A' },
-    { id: 'dividend_yield', label: 'Div Yield', sortable: true, format: (val) => val ? formatPercent(val) : 'N/A' },
-    { id: 'return_on_equity', label: 'ROE', sortable: true, format: (val) => val ? formatPercent(val) : 'N/A' },
-    { id: 'revenue_growth', label: 'Rev Growth', sortable: true, format: (val) => val ? formatPercent(val) : 'N/A' },
-    { id: 'exchange', label: 'Exchange', sortable: true }
+    { id: 'exchange', label: 'Exchange', sortable: true },
+    { id: 'market_category', label: 'Category', sortable: true },
+    { id: 'financial_status', label: 'Status', sortable: true },
+    { id: 'type', label: 'Type', sortable: true },
+    { id: 'cqs_symbol', label: 'CQS Symbol', sortable: false },
+    { id: 'round_lot_size', label: 'Lot Size', sortable: true, format: formatNumber }
   ]
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
@@ -331,9 +335,11 @@ function StockExplorer() {
         <Box>
           <Typography variant="h4" component="h1" fontWeight="bold" gutterBottom>
             Stock Explorer
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
+          </Typography>          <Typography variant="body1" color="text.secondary">
             Browse and filter stocks with simple search or advanced screening criteria
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            <strong>Note:</strong> Currently showing basic stock information. Financial metrics (price, P/E, etc.) require additional data integration.
           </Typography>
         </Box>        <Box display="flex" gap={2} alignItems="center">
           {/* Debug button in development */}
@@ -534,9 +540,8 @@ function StockExplorer() {
                       </TextField>
                     </Box>
                   </AccordionDetails>
-                </Accordion>
-
-                {/* Price & Market Cap */}
+                </Accordion>                {/* Price & Market Cap - Hidden until financial data is available */}
+                {false && (
                 <Accordion>
                   <AccordionSummary expandIcon={<ExpandMore />}>
                     <Typography variant="subtitle1">Price & Market Cap</Typography>
@@ -546,8 +551,10 @@ function StockExplorer() {
                     {renderSliderFilter('Market Cap ($B)', 'marketCapMin', 'marketCapMax', 0, 1000, 1, (val) => `$${val}B`)}
                   </AccordionDetails>
                 </Accordion>
+                )}
 
-                {/* Valuation */}
+                {/* Valuation - Hidden until financial data is available */}
+                {false && (
                 <Accordion>
                   <AccordionSummary expandIcon={<ExpandMore />}>
                     <Typography variant="subtitle1">Valuation</Typography>
@@ -558,8 +565,52 @@ function StockExplorer() {
                     {renderSliderFilter('P/B Ratio', 'pbRatioMin', 'pbRatioMax', 0, 10, 0.1)}
                   </AccordionDetails>
                 </Accordion>
+                )}
 
-                {/* Additional filter accordions can be added here */}
+                {/* Additional Filters */}
+                <Accordion>
+                  <AccordionSummary expandIcon={<ExpandMore />}>
+                    <Typography variant="subtitle1">Additional Options</Typography>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <Box display="flex" flexDirection="column" gap={2}>
+                      <TextField
+                        select
+                        label="Financial Status"
+                        value={filters.financialStatus || ''}
+                        onChange={(e) => handleFilterChange('financialStatus', e.target.value)}
+                        size="small"
+                        fullWidth
+                      >
+                        <MenuItem value="">All Statuses</MenuItem>
+                        <MenuItem value="N">Normal</MenuItem>
+                        <MenuItem value="D">Deficient</MenuItem>
+                        <MenuItem value="Q">Bankruptcy</MenuItem>
+                        <MenuItem value="S">Suspended</MenuItem>
+                      </TextField>
+
+                      <TextField
+                        select
+                        label="Security Type"
+                        value={filters.securityType || ''}
+                        onChange={(e) => handleFilterChange('securityType', e.target.value)}
+                        size="small"
+                        fullWidth
+                      >
+                        <MenuItem value="">All Types</MenuItem>
+                        <MenuItem value="stock">Stocks Only</MenuItem>
+                        <MenuItem value="etf">ETFs Only</MenuItem>
+                      </TextField>
+                    </Box>
+                  </AccordionDetails>
+                </Accordion>
+
+                {/* Note about future features */}
+                <Alert severity="info" sx={{ mt: 2 }}>
+                  <Typography variant="body2">
+                    <strong>Coming Soon:</strong> Price, valuation, and financial metric filters will be available once market data integration is complete.
+                  </Typography>
+                </Alert>
 
               </CardContent>
             </Card>
@@ -591,7 +642,8 @@ function StockExplorer() {
                   )}
                 </Typography>
                 
-                <Box display="flex" gap={2}>                  <TextField
+                <Box display="flex" gap={2}>
+                  <TextField
                     select
                     label="Sort By"
                     value={orderBy}
@@ -614,7 +666,8 @@ function StockExplorer() {
                     {order === 'desc' ? 'Desc' : 'Asc'}
                   </Button>
                 </Box>
-              </Box>              {/* Loading State */}
+              </Box>
+              {/* Loading State */}
               {isLoading && (
                 <Box display="flex" justifyContent="center" p={4}>
                   <CircularProgress size={60} />
@@ -691,22 +744,30 @@ function StockExplorer() {
                               '&:hover': { backgroundColor: 'action.hover' }
                             }}
                             onClick={() => handleRowClick(stock.ticker || stock.symbol)}
-                          >
-                            {columns.map((column) => {
+                          >                            {columns.map((column) => {
                               // Map backend field names to frontend column IDs
                               let value = stock[column.id];
                               
-                              // Handle field name mapping from backend
+                              // Handle field name mapping from backend API response
                               if (column.id === 'symbol' && !value) {
                                 value = stock.ticker || stock.symbol;
                               } else if (column.id === 'name' && !value) {
-                                value = stock.short_name || stock.security_name || stock.name;
-                              } else if (column.id === 'current_price' && !value) {
-                                value = stock.regular_market_price || stock.price || stock.current_price;
-                              } else if (column.id === 'market_cap' && !value) {
-                                value = stock.market_capitalization || stock.market_cap;
+                                value = stock.short_name || stock.security_name || stock.name || stock.fullName;
                               } else if (column.id === 'exchange' && !value) {
-                                value = stock.sector || stock.exchange;
+                                value = stock.exchange || stock.primaryExchange;
+                              } else if (column.id === 'market_category' && !value) {
+                                value = stock.market_category || stock.marketCategory || stock.category;
+                              } else if (column.id === 'financial_status' && !value) {
+                                value = stock.financial_status || stock.financialStatus;
+                              } else if (column.id === 'type' && !value) {
+                                value = stock.isEtf ? 'ETF' : 'Stock';
+                                if (!value && stock.displayData?.type) {
+                                  value = stock.displayData.type;
+                                }
+                              } else if (column.id === 'cqs_symbol' && !value) {
+                                value = stock.cqs_symbol || stock.cqsSymbol;
+                              } else if (column.id === 'round_lot_size' && !value) {
+                                value = stock.round_lot_size || stock.roundLotSize;
                               }
                               
                               return (
@@ -732,7 +793,8 @@ function StockExplorer() {
                         ))}
                       </TableBody>
                     </Table>
-                  </TableContainer>                  {/* Pagination */}
+                  </TableContainer>
+                  {/* Pagination */}
                   <TablePagination
                     rowsPerPageOptions={[10, 25, 50, 100]}
                     component="div"
