@@ -49,34 +49,6 @@ export const updateApiBaseUrl = (newUrl) => {
   console.log('API base URL updated to:', newUrl)
 }
 
-// Function to manually set the API URL for production
-export const setProductionApiUrl = () => {
-  const prodUrl = 'https://81ciepbmm9.execute-api.us-east-1.amazonaws.com/dev'
-  updateApiBaseUrl(prodUrl)
-  console.log('Production API URL set:', prodUrl)
-}
-
-// Auto-detect and set production URL if needed
-if (typeof window !== 'undefined' && !currentConfig.isConfigured) {
-  console.log('No VITE_API_URL configured, checking hostname...')
-  if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-    console.log('Not localhost, setting production API URL')
-    setProductionApiUrl()
-  }
-}
-
-// Debug: Always try to set the production URL for now
-if (typeof window !== 'undefined') {
-  console.log('DEBUG: Current window location:', window.location.href)
-  console.log('DEBUG: Current API config:', currentConfig)
-  
-  // Force production URL for testing
-  if (!currentConfig.apiUrl?.includes('amazonaws.com')) {
-    console.log('DEBUG: Forcing production API URL')
-    setProductionApiUrl()
-  }
-}
-
 // Retry configuration for Lambda cold starts
 const retryRequest = async (error) => {
   const { config: requestConfig } = error
@@ -732,18 +704,36 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
     })
     
     const url = `/technical/${timeframe}?${queryParams.toString()}`
-    const response = await api.get(url)
+    console.log('Fetching technical data from:', url)
     
-    // Backend returns: { success: true, data: [...], pagination: {...}, metadata: {...} }
-    // Frontend expects: technicalData.data = array
-    // So we return the backend response as-is (axios wraps it in response.data)
-    return response.data
+    const response = await api.get(url, {
+      baseURL: currentConfig.baseURL
+    })
+    
+    console.log('Technical data response:', response.data)
+    
+    // Return consistent structure: { data: [...], pagination: {...}, metadata: {...} }
+    if (response.data.success) {
+      return {
+        data: response.data.data, // The actual array of technical data
+        pagination: response.data.pagination,
+        metadata: response.data.metadata
+      }
+    } else {
+      return { 
+        data: [], 
+        error: response.data.error || 'Unknown error',
+        pagination: null,
+        metadata: null
+      }
+    }
   } catch (error) {
     console.error('Error fetching technical data:', error)
+    const errorMessage = handleApiError(error, `get technical data (${timeframe})`)
+    // Return a consistent error response structure
     return { 
-      success: false,
       data: [], 
-      error: handleApiError(error, `get technical data (${timeframe})`),
+      error: errorMessage,
       pagination: null,
       metadata: null
     }
@@ -761,13 +751,26 @@ export const getTechnicalSummary = async (timeframe = 'daily', params = {}) => {
     })
     
     const response = await api.get(`/technical/${timeframe}/summary?${queryParams.toString()}`)
-    return response.data
+    
+    // Return consistent structure
+    if (response.data.success) {
+      return {
+        data: response.data.data,
+        metadata: response.data.metadata
+      }
+    } else {
+      return { 
+        data: null, 
+        error: response.data.error || 'Unknown error',
+        metadata: null
+      }
+    }
   } catch (error) {
     console.error('Error fetching technical summary:', error)
+    const errorMessage = handleApiError(error, `get technical summary (${timeframe})`)
     return { 
-      success: false,
       data: null, 
-      error: handleApiError(error, `get technical summary (${timeframe})`),
+      error: errorMessage,
       metadata: null
     }
   }
