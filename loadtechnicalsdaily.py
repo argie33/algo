@@ -45,8 +45,8 @@ warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
 # -------------------------------
 SCRIPT_NAME = "loadtechnicalsdaily.py"
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.DEBUG,  # Changed to DEBUG for maximum verbosity
+    format="%(asctime)s - %(levelname)s - [%(funcName)s:%(lineno)d] - %(message)s",
     stream=sys.stdout
 )
 
@@ -286,36 +286,80 @@ def roc_fast(values, period=10):
     return roc.fillna(0)
 
 def ad_line_fast(high, low, close, volume):
-    """Accumulation/Distribution Line - improved implementation"""
+    """Accumulation/Distribution Line - improved implementation with detailed logging"""
+    logging.debug(f"🔍 A/D: Starting calculation")
+    logging.debug(f"🔍 A/D: Input lengths - high:{len(high)}, low:{len(low)}, close:{len(close)}, volume:{len(volume)}")
+    
     if len(high) == 0:
+        logging.warning(f"⚠️  A/D: No data provided")
         return pd.Series([], dtype=float)
     
-    # Money Flow Multiplier - handle edge cases where high == low
-    high_low_diff = high - low
-    high_low_diff = high_low_diff.replace(0, 1e-10)  # Avoid division by zero
+    # Check for volume data quality
+    volume_valid = (volume > 0).sum()
+    logging.debug(f"🔍 A/D: Volume data - total:{len(volume)}, valid:{volume_valid}, zero:{(volume == 0).sum()}")
     
-    mfm = ((close - low) - (high - close)) / high_low_diff
-    
-    # Money Flow Volume
-    mfv = mfm * volume
-    
-    # A/D Line (cumulative) - handle NaN values properly
-    ad_line = mfv.fillna(0).cumsum()
-    return ad_line
-
-def cmf_fast(high, low, close, volume, period=20):
-    """Chaikin Money Flow - improved implementation"""
-    if len(high) < period:
+    if volume_valid == 0:
+        logging.error(f"❌ A/D: No valid volume data - cannot calculate A/D line")
         return pd.Series(np.full(len(high), np.nan), index=high.index)
     
     # Money Flow Multiplier - handle edge cases where high == low
     high_low_diff = high - low
+    doji_count = (high_low_diff == 0).sum()
+    logging.debug(f"🔍 A/D: Price ranges - min:{high_low_diff.min():.4f}, max:{high_low_diff.max():.4f}, doji_days:{doji_count}")
+    
     high_low_diff = high_low_diff.replace(0, 1e-10)  # Avoid division by zero
     
     mfm = ((close - low) - (high - close)) / high_low_diff
+    logging.debug(f"🔍 A/D: Money Flow Multiplier - min:{mfm.min():.4f}, max:{mfm.max():.4f}")
     
     # Money Flow Volume
     mfv = mfm * volume
+    logging.debug(f"🔍 A/D: Money Flow Volume - min:{mfv.min():.2f}, max:{mfv.max():.2f}")
+    
+    # A/D Line (cumulative) - handle NaN values properly
+    ad_line = mfv.fillna(0).cumsum()
+    
+    valid_count = ad_line.notna().sum()
+    logging.debug(f"🔍 A/D: Final A/D line - valid:{valid_count}/{len(ad_line)}")
+    logging.debug(f"🔍 A/D: Sample values: {ad_line.tail(5).tolist()}")
+    
+    return ad_line
+
+def cmf_fast(high, low, close, volume, period=20):
+    """Chaikin Money Flow - improved implementation with detailed logging"""
+    logging.debug(f"🔍 CMF: Starting calculation with period={period}")
+    logging.debug(f"🔍 CMF: Input lengths - high:{len(high)}, low:{len(low)}, close:{len(close)}, volume:{len(volume)}")
+    
+    if len(high) < period:
+        logging.warning(f"⚠️  CMF: Insufficient data - need {period}, got {len(high)}")
+        return pd.Series(np.full(len(high), np.nan), index=high.index)
+    
+    # Check volume data
+    volume_stats = {
+        'positive': (volume > 0).sum(),
+        'zero': (volume == 0).sum(),
+        'negative': (volume < 0).sum(),
+        'sum': volume.sum()
+    }
+    logging.debug(f"🔍 CMF: Volume stats = {volume_stats}")
+    
+    if volume_stats['positive'] == 0:
+        logging.error(f"❌ CMF: No positive volume values found")
+        return pd.Series(np.full(len(high), np.nan), index=high.index)
+    
+    # Money Flow Multiplier - handle edge cases where high == low
+    high_low_diff = high - low
+    doji_count = (high_low_diff == 0).sum()
+    logging.debug(f"🔍 CMF: Price ranges - doji_days:{doji_count}, min_range:{high_low_diff.min():.4f}")
+    
+    high_low_diff = high_low_diff.replace(0, 1e-10)  # Avoid division by zero
+    
+    mfm = ((close - low) - (high - close)) / high_low_diff
+    logging.debug(f"🔍 CMF: Money Flow Multiplier range: {mfm.min():.4f} to {mfm.max():.4f}")
+    
+    # Money Flow Volume
+    mfv = mfm * volume
+    logging.debug(f"🔍 CMF: Money Flow Volume sum: {mfv.sum():.2f}")
     
     # CMF calculation using rolling sums
     mfv_sum = mfv.rolling(window=period, min_periods=period).sum()
@@ -323,21 +367,37 @@ def cmf_fast(high, low, close, volume, period=20):
     
     # Avoid division by zero in volume sum
     cmf = mfv_sum / (volume_sum + 1e-10)
+    result = cmf.fillna(0)
     
-    return cmf.fillna(0)
+    valid_count = result.notna().sum()
+    logging.debug(f"🔍 CMF: Final results - valid:{valid_count}/{len(result)}, mean:{result.mean():.4f}")
+    logging.debug(f"🔍 CMF: Sample values: {result.dropna().tail(5).tolist()}")
+    
+    return result
 
 def dm_fast(high, low, period=14):
-    """Directional Movement calculation - properly implemented"""
+    """Directional Movement calculation - properly implemented with detailed logging"""
+    logging.debug(f"🔍 DM: Starting calculation with period={period}")
+    logging.debug(f"🔍 DM: Input lengths - high:{len(high)}, low:{len(low)}")
+    
     if len(high) < 2:
+        logging.warning(f"⚠️  DM: Insufficient data - need at least 2 points, got {len(high)}")
         return pd.Series(np.full(len(high), np.nan), index=high.index)
     
     # Calculate high and low differences
     high_diff = high.diff()
     low_diff = low.shift(1) - low
     
+    logging.debug(f"🔍 DM: High diff stats - min:{high_diff.min():.4f}, max:{high_diff.max():.4f}")
+    logging.debug(f"🔍 DM: Low diff stats - min:{low_diff.min():.4f}, max:{low_diff.max():.4f}")
+    
     # Calculate +DM and -DM
     plus_dm = pd.Series(np.where((high_diff > low_diff) & (high_diff > 0), high_diff, 0), index=high.index)
     minus_dm = pd.Series(np.where((low_diff > high_diff) & (low_diff > 0), low_diff, 0), index=high.index)
+    
+    plus_dm_count = (plus_dm > 0).sum()
+    minus_dm_count = (minus_dm > 0).sum()
+    logging.debug(f"🔍 DM: +DM signals: {plus_dm_count}, -DM signals: {minus_dm_count}")
     
     # Smooth the DM values with EMA
     plus_dm_smooth = plus_dm.ewm(span=period, adjust=False).mean()
@@ -345,23 +405,54 @@ def dm_fast(high, low, period=14):
     
     # Return the difference (can also return plus_dm_smooth or minus_dm_smooth separately)
     dm = plus_dm_smooth - minus_dm_smooth
-    return dm.fillna(0)
+    result = dm.fillna(0)
+    
+    valid_count = result.notna().sum()
+    logging.debug(f"🔍 DM: Final results - valid:{valid_count}/{len(result)}, mean:{result.mean():.4f}")
+    logging.debug(f"🔍 DM: Sample values: {result.tail(5).tolist()}")
+    
+    return result
 
 def mfi_fast(high, low, close, volume, period=14):
-    """Money Flow Index - improved implementation"""
+    """Money Flow Index - improved implementation with detailed logging"""
+    logging.debug(f"🔍 MFI: Starting calculation with period={period}")
+    logging.debug(f"🔍 MFI: Input lengths - high:{len(high)}, low:{len(low)}, close:{len(close)}, volume:{len(volume)}")
+    
     if len(high) < period + 1:
+        logging.warning(f"⚠️  MFI: Insufficient data - need {period + 1}, got {len(high)}")
+        return pd.Series(np.full(len(high), np.nan), index=high.index)
+    
+    # Check volume data quality
+    volume_stats = {
+        'total_rows': len(volume),
+        'non_null': volume.notna().sum(),
+        'positive': (volume > 0).sum(),
+        'zero': (volume == 0).sum(),
+        'negative': (volume < 0).sum(),
+        'mean': volume.mean() if volume.notna().sum() > 0 else 0,
+        'max': volume.max() if volume.notna().sum() > 0 else 0
+    }
+    logging.debug(f"🔍 MFI: Volume stats = {volume_stats}")
+    
+    if volume_stats['positive'] == 0:
+        logging.error(f"❌ MFI: No positive volume values found - cannot calculate MFI")
         return pd.Series(np.full(len(high), np.nan), index=high.index)
     
     # Typical Price
     typical_price = (high + low + close) / 3
+    logging.debug(f"🔍 MFI: Typical price - min:{typical_price.min():.4f}, max:{typical_price.max():.4f}")
     
     # Raw Money Flow
     raw_money_flow = typical_price * volume
+    logging.debug(f"🔍 MFI: Raw money flow - min:{raw_money_flow.min():.2f}, max:{raw_money_flow.max():.2f}")
     
     # Positive and Negative Money Flow
     price_changes = typical_price.diff()
     pos_money_flow = raw_money_flow.where(price_changes > 0, 0)
     neg_money_flow = raw_money_flow.where(price_changes < 0, 0)
+    
+    logging.debug(f"🔍 MFI: Positive money flow sum: {pos_money_flow.sum():.2f}")
+    logging.debug(f"🔍 MFI: Negative money flow sum: {neg_money_flow.sum():.2f}")
     
     # Rolling sums
     pos_sum = pos_money_flow.rolling(window=period, min_periods=period).sum()
@@ -372,7 +463,14 @@ def mfi_fast(high, low, close, volume, period=14):
     mfi = 100 - (100 / (1 + money_ratio))
     
     # Fill NaN values with neutral MFI of 50
-    return mfi.fillna(50)
+    result = mfi.fillna(50)
+    
+    # Log final results
+    valid_count = result.notna().sum()
+    logging.debug(f"🔍 MFI: Final results - valid:{valid_count}/{len(result)}, mean:{result.mean():.2f}")
+    logging.debug(f"🔍 MFI: Sample values: {result.dropna().tail(5).tolist()}")
+    
+    return result
 
 # -------------------------------
 # Updated function calls to use new implementations
@@ -691,20 +789,69 @@ def marketwatch_indicator_vectorized(close, open_):
 # Main technical indicators calculator with parallel processing
 # -------------------------------
 def calculate_technicals_parallel(df):
-    """Calculate all technical indicators using parallel processing where beneficial"""    # Ensure proper data types and validate data quality
-    for col in ['open', 'high', 'low', 'close', 'volume']:
+    """Calculate all technical indicators using parallel processing where beneficial"""
+    
+    logging.info("🚀 STARTING TECHNICAL INDICATORS CALCULATION")
+    logging.info("=" * 60)
+    
+    # COMPREHENSIVE INPUT DATA VALIDATION
+    logging.info("📋 INPUT DATA VALIDATION")
+    logging.info(f"📏 DataFrame shape: {df.shape} (rows x cols)")
+    logging.info(f"📅 Date range: {df.index.min() if hasattr(df.index, 'min') else 'N/A'} to {df.index.max() if hasattr(df.index, 'max') else 'N/A'}")
+    
+    # Check all required columns
+    required_columns = ['open', 'high', 'low', 'close', 'volume']
+    column_analysis = {}
+    
+    for col in required_columns:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
-            # Log data quality before processing
-            original_count = len(df)
-            nan_count = df[col].isna().sum()
-            if nan_count > 0:
-                logging.warning(f"⚠️  {col}: {nan_count}/{original_count} NaN values detected")
+            
+            # Comprehensive column analysis
+            col_stats = {
+                'total': len(df),
+                'non_null': df[col].notna().sum(),
+                'null': df[col].isna().sum(),
+                'positive': (df[col] > 0).sum() if col != 'open' else (df[col] != 0).sum(),
+                'zero': (df[col] == 0).sum(),
+                'negative': (df[col] < 0).sum(),
+                'min': df[col].min() if df[col].notna().sum() > 0 else None,
+                'max': df[col].max() if df[col].notna().sum() > 0 else None,
+                'mean': df[col].mean() if df[col].notna().sum() > 0 else None
+            }
+            column_analysis[col] = col_stats
+            
+            # Log detailed column stats
+            logging.info(f"  📊 {col:6} | {col_stats['non_null']:4}/{col_stats['total']:4} valid | "
+                        f"{col_stats['positive']:4} pos | {col_stats['zero']:3} zero | {col_stats['negative']:3} neg | "
+                        f"range: {col_stats['min']:.2f} - {col_stats['max']:.2f}")
+            
+            # Special validation for volume
+            if col == 'volume':
+                if col_stats['positive'] == 0:
+                    logging.error(f"❌ CRITICAL: No positive volume values found! Volume indicators will fail.")
+                elif col_stats['positive'] < col_stats['total'] * 0.8:
+                    logging.warning(f"⚠️  WARNING: Only {col_stats['positive']}/{col_stats['total']} positive volume values")
+                else:
+                    logging.info(f"✅ Volume data looks good: {col_stats['positive']} positive values")
+                    
         else:
-            logging.error(f"❌ Required column '{col}' missing from DataFrame")
+            logging.error(f"❌ CRITICAL: Required column '{col}' missing from DataFrame")
             return df  # Return original df if essential columns are missing
     
+    # Check data consistency (high >= low, etc.)
+    if 'high' in df.columns and 'low' in df.columns:
+        invalid_hl = (df['high'] < df['low']).sum()
+        if invalid_hl > 0:
+            logging.warning(f"⚠️  {invalid_hl} rows where high < low (data quality issue)")
+    
+    if 'high' in df.columns and 'close' in df.columns and 'low' in df.columns:
+        close_out_of_range = ((df['close'] > df['high']) | (df['close'] < df['low'])).sum()
+        if close_out_of_range > 0:
+            logging.warning(f"⚠️  {close_out_of_range} rows where close is outside high-low range")
+    
     # Fill any gaps and drop rows where all OHLC values are NaN
+    original_length = len(df)
     df = df.ffill().bfill()
     
     # Check for completely invalid rows (all OHLC are NaN)
@@ -732,22 +879,66 @@ def calculate_technicals_parallel(df):
         
         # Momentum indicators
         results['mom'] = calculate_momentum(df['close'], period=10)
-        results['roc'] = calculate_roc(df['close'], period=10)
-          # Volume indicators - with improved error handling
+        results['roc'] = calculate_roc(df['close'], period=10)        # Volume indicators - with comprehensive error handling and debugging
         results['atr'] = calculate_atr(df['high'], df['low'], df['close'], period=14)
         
+        # Comprehensive volume data validation
+        volume_analysis = {
+            'has_volume_column': 'volume' in df.columns,
+            'total_rows': len(df),
+            'volume_not_null': df['volume'].notna().sum() if 'volume' in df.columns else 0,
+            'volume_positive': (df['volume'] > 0).sum() if 'volume' in df.columns else 0,
+            'volume_zero': (df['volume'] == 0).sum() if 'volume' in df.columns else 0,
+            'volume_negative': (df['volume'] < 0).sum() if 'volume' in df.columns else 0,
+            'volume_mean': df['volume'].mean() if 'volume' in df.columns and df['volume'].notna().sum() > 0 else 0,
+            'volume_max': df['volume'].max() if 'volume' in df.columns and df['volume'].notna().sum() > 0 else 0,
+            'volume_min': df['volume'].min() if 'volume' in df.columns and df['volume'].notna().sum() > 0 else 0
+        }
+        
+        logging.info(f"📊 VOLUME ANALYSIS: {volume_analysis}")
+        
         # Check if volume data is available and valid
-        if 'volume' in df.columns and df['volume'].notna().sum() > 0 and (df['volume'] > 0).sum() > 0:
-            results['ad'] = calculate_accumulation_distribution(df['high'], df['low'], df['close'], df['volume'])
-            results['cmf'] = calculate_cmf(df['high'], df['low'], df['close'], df['volume'], period=20)
-            results['mfi'] = calculate_mfi(df['high'], df['low'], df['close'], df['volume'], period=14)
-            logging.info(f"✅ Volume indicators calculated with {(df['volume'] > 0).sum()} valid volume records")
+        if (volume_analysis['has_volume_column'] and 
+            volume_analysis['volume_not_null'] > 0 and 
+            volume_analysis['volume_positive'] > 0):
+            
+            logging.info(f"✅ Calculating volume indicators with {volume_analysis['volume_positive']} valid volume records")
+            
+            # Calculate each volume indicator separately with individual error handling
+            try:
+                logging.debug("🔍 Starting A/D calculation...")
+                results['ad'] = calculate_accumulation_distribution(df['high'], df['low'], df['close'], df['volume'])
+                logging.info(f"✅ A/D calculated: {results['ad'].notna().sum()}/{len(results['ad'])} valid values")
+            except Exception as e:
+                logging.error(f"❌ A/D calculation failed: {e}")
+                results['ad'] = pd.Series(np.full(len(df), np.nan), index=df.index)
+            
+            try:
+                logging.debug("🔍 Starting CMF calculation...")
+                results['cmf'] = calculate_cmf(df['high'], df['low'], df['close'], df['volume'], period=20)
+                logging.info(f"✅ CMF calculated: {results['cmf'].notna().sum()}/{len(results['cmf'])} valid values")
+            except Exception as e:
+                logging.error(f"❌ CMF calculation failed: {e}")
+                results['cmf'] = pd.Series(np.full(len(df), np.nan), index=df.index)
+            
+            try:
+                logging.debug("🔍 Starting MFI calculation...")
+                results['mfi'] = calculate_mfi(df['high'], df['low'], df['close'], df['volume'], period=14)
+                logging.info(f"✅ MFI calculated: {results['mfi'].notna().sum()}/{len(results['mfi'])} valid values")
+            except Exception as e:
+                logging.error(f"❌ MFI calculation failed: {e}")
+                results['mfi'] = pd.Series(np.full(len(df), np.nan), index=df.index)
+                
         else:
             # Fill with NaN if no valid volume data
+            logging.error(f"❌ VOLUME DATA INVALID - cannot calculate volume indicators")
+            logging.error(f"   - has_volume_column: {volume_analysis['has_volume_column']}")
+            logging.error(f"   - volume_not_null: {volume_analysis['volume_not_null']}")
+            logging.error(f"   - volume_positive: {volume_analysis['volume_positive']}")
+            
             results['ad'] = pd.Series(np.full(len(df), np.nan), index=df.index)
             results['cmf'] = pd.Series(np.full(len(df), np.nan), index=df.index)
             results['mfi'] = pd.Series(np.full(len(df), np.nan), index=df.index)
-            logging.warning(f"⚠️  No valid volume data - volume indicators set to NaN")
         
         return results
     
@@ -813,8 +1004,19 @@ def calculate_technicals_parallel(df):
             # Insufficient data - return NaN series
             results['pivot_high'] = pd.Series(np.full(len(df), np.nan), index=df.index)
             results['pivot_low'] = pd.Series(np.full(len(df), np.nan), index=df.index)
-            logging.warning(f"⚠️  Insufficient data for pivots: {data_length} bars (need {min_required}+)")        # DM calculation - Use the proper DM function
-        results['dm'] = calculate_dm(df['high'], df['low'], period=14)
+            logging.warning(f"⚠️  Insufficient data for pivots: {data_length} bars (need {min_required}+)")
+        
+        # DM calculation - Use the proper DM function with detailed logging
+        try:
+            logging.debug("🔍 Starting DM calculation...")
+            results['dm'] = calculate_dm(df['high'], df['low'], period=14)
+            dm_valid = results['dm'].notna().sum()
+            logging.info(f"✅ DM calculated: {dm_valid}/{len(results['dm'])} valid values")
+            if dm_valid > 0:
+                logging.debug(f"🔍 DM sample values: {results['dm'].dropna().tail(5).tolist()}")
+        except Exception as e:
+            logging.error(f"❌ DM calculation failed: {e}")
+            results['dm'] = pd.Series(np.full(len(df), np.nan), index=df.index)
         
         return results
     # Execute calculations in parallel (limited to 2 jobs for ECS safety)
@@ -844,30 +1046,86 @@ def calculate_technicals_parallel(df):
             df[key] = value
     
     # Critical: Clean infinite values and ensure proper NaN handling for database insertion
-    df = df.replace([np.inf, -np.inf], np.nan)
-      # Log data quality for debugging - extended logging for key indicators
-    technical_columns = ['rsi', 'macd', 'ad', 'cmf', 'mfi', 'marketwatch', 'dm', 'pivot_high', 'pivot_low']
-    for col in technical_columns:
+    df = df.replace([np.inf, -np.inf], np.nan)    # Log data quality for debugging - COMPREHENSIVE logging for ALL indicators
+    all_technical_columns = [
+        'rsi', 'macd', 'macd_signal', 'macd_hist',
+        'mom', 'roc', 'adx', 'atr', 'ad', 'cmf', 'mfi',
+        'td_sequential', 'td_combo', 'marketwatch', 'dm',
+        'sma_10', 'sma_20', 'sma_50', 'sma_150', 'sma_200',
+        'ema_4', 'ema_9', 'ema_21',
+        'bbands_lower', 'bbands_middle', 'bbands_upper',
+        'pivot_high', 'pivot_low'
+    ]
+    
+    logging.info("=" * 80)
+    logging.info("📊 COMPREHENSIVE TECHNICAL INDICATORS SUMMARY")
+    logging.info("=" * 80)
+    
+    indicator_summary = {
+        'working': [],
+        'empty': [],
+        'missing': [],
+        'problematic': []
+    }
+    
+    for col in all_technical_columns:
         if col in df.columns:
             non_null_count = df[col].notna().sum()
             total_count = len(df)
             null_count = df[col].isna().sum()
             inf_count = np.isinf(df[col]).sum()
+            percentage = (non_null_count/total_count*100) if total_count > 0 else 0
             
-            logging.info(f"📊 {col}: {non_null_count}/{total_count} valid values ({non_null_count/total_count*100:.1f}%), {null_count} NaN, {inf_count} inf")
+            # Categorize indicators
+            if non_null_count == 0:
+                indicator_summary['empty'].append(col)
+                status = "❌ EMPTY"
+            elif inf_count > 0:
+                indicator_summary['problematic'].append(col)
+                status = "⚠️  HAS_INF"
+            elif percentage > 80:
+                indicator_summary['working'].append(col)
+                status = "✅ WORKING"
+            else:
+                indicator_summary['problematic'].append(col)
+                status = "⚠️  PARTIAL"
             
-            # Log sample values for debugging
+            logging.info(f"{status} {col:15} | {non_null_count:4}/{total_count:4} valid ({percentage:5.1f}%) | {null_count:4} NaN | {inf_count:2} inf")
+            
+            # Log sample values for working indicators
             if non_null_count > 0:
-                sample_values = df[col].dropna().head(3).tolist()
-                logging.info(f"🔍 {col} sample values: {sample_values}")
+                sample_values = df[col].dropna().tail(3).tolist()
+                mean_val = df[col].mean() if non_null_count > 0 else 0
+                logging.debug(f"    � {col} samples: {sample_values}, mean: {mean_val:.4f}")
+            
+            # Special handling for volume indicators
+            if col in ['ad', 'cmf', 'mfi'] and non_null_count == 0:
+                logging.error(f"    💡 {col} failed - likely volume data issue")
             
             # Special handling for pivot debugging
             if col in ['pivot_high', 'pivot_low'] and non_null_count > 0:
                 pivot_values = df[col].dropna()
                 if len(pivot_values) > 0:
-                    logging.info(f"🎯 {col}: min={pivot_values.min():.4f}, max={pivot_values.max():.4f}, count={len(pivot_values)}")
+                    logging.info(f"    🎯 {col}: min={pivot_values.min():.4f}, max={pivot_values.max():.4f}, count={len(pivot_values)}")
         else:
-            logging.warning(f"⚠️  Column {col} missing from DataFrame")
+            indicator_summary['missing'].append(col)
+            logging.error(f"❌ MISSING {col:15} | Column not found in DataFrame")
+    
+    # Summary report
+    logging.info("-" * 80)
+    logging.info(f"📊 SUMMARY: ✅ {len(indicator_summary['working'])} working | "
+                f"❌ {len(indicator_summary['empty'])} empty | "
+                f"⚠️  {len(indicator_summary['problematic'])} problematic | "
+                f"🚫 {len(indicator_summary['missing'])} missing")
+    
+    if indicator_summary['empty']:
+        logging.error(f"❌ EMPTY INDICATORS: {', '.join(indicator_summary['empty'])}")
+    if indicator_summary['problematic']:
+        logging.warning(f"⚠️  PROBLEMATIC INDICATORS: {', '.join(indicator_summary['problematic'])}")
+    if indicator_summary['missing']:
+        logging.error(f"🚫 MISSING INDICATORS: {', '.join(indicator_summary['missing'])}")
+        
+    logging.info("=" * 80)
     
     return df
 
