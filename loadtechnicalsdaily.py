@@ -456,15 +456,21 @@ def dm_fast(high, low, period=14):
     return result
 
 def mfi_fast(high, low, close, volume, period=14):
-    """Money Flow Index - improved implementation with detailed logging"""
+    """Money Flow Index - improved implementation with detailed logging and better error handling"""
     logging.debug(f"🔍 MFI: Starting calculation with period={period}")
     logging.debug(f"🔍 MFI: Input lengths - high:{len(high)}, low:{len(low)}, close:{len(close)}, volume:{len(volume)}")
     
+    # More lenient data requirement - allow calculation with less data but warn
     if len(high) < period + 1:
-        logging.warning(f"⚠️  MFI: Insufficient data - need {period + 1}, got {len(high)}")
-        return pd.Series(np.full(len(high), np.nan), index=high.index)
+        if len(high) >= 10:  # Allow with at least 10 days but use shorter period
+            adjusted_period = max(5, len(high) - 5)  # Use shorter period
+            logging.warning(f"⚠️  MFI: Using adjusted period {adjusted_period} instead of {period} (insufficient data: {len(high)} days)")
+            period = adjusted_period
+        else:
+            logging.warning(f"⚠️  MFI: Insufficient data - need at least 10 days, got {len(high)}")
+            return pd.Series(np.full(len(high), np.nan), index=high.index)
     
-    # Check volume data quality
+    # Check volume data quality with more detailed analysis
     volume_stats = {
         'total_rows': len(volume),
         'non_null': volume.notna().sum(),
@@ -472,20 +478,33 @@ def mfi_fast(high, low, close, volume, period=14):
         'zero': (volume == 0).sum(),
         'negative': (volume < 0).sum(),
         'mean': volume.mean() if volume.notna().sum() > 0 else 0,
-        'max': volume.max() if volume.notna().sum() > 0 else 0
+        'max': volume.max() if volume.notna().sum() > 0 else 0,
+        'min': volume.min() if volume.notna().sum() > 0 else 0
     }
     logging.debug(f"🔍 MFI: Volume stats = {volume_stats}")
+    
+    # More lenient volume check - allow if at least 50% of data has positive volume
+    positive_ratio = volume_stats['positive'] / volume_stats['total_rows'] if volume_stats['total_rows'] > 0 else 0
     
     if volume_stats['positive'] == 0:
         logging.error(f"❌ MFI: No positive volume values found - cannot calculate MFI")
         return pd.Series(np.full(len(high), np.nan), index=high.index)
+    elif positive_ratio < 0.5:
+        logging.warning(f"⚠️  MFI: Low volume data quality - only {positive_ratio:.1%} positive volume values")
+        # Replace zero/negative volume with small positive value to allow calculation
+        volume_clean = volume.copy()
+        volume_clean = volume_clean.where(volume_clean > 0, volume_clean.median() * 0.01)
+        logging.warning(f"⚠️  MFI: Replacing {volume_stats['zero'] + volume_stats['negative']} invalid volume values with minimal volume")
+    else:
+        volume_clean = volume
+        logging.info(f"✅ MFI: Good volume data quality - {positive_ratio:.1%} positive volume values")
     
     # Typical Price
     typical_price = (high + low + close) / 3
     logging.debug(f"🔍 MFI: Typical price - min:{typical_price.min():.4f}, max:{typical_price.max():.4f}")
     
     # Raw Money Flow
-    raw_money_flow = typical_price * volume
+    raw_money_flow = typical_price * volume_clean
     logging.debug(f"🔍 MFI: Raw money flow - min:{raw_money_flow.min():.2f}, max:{raw_money_flow.max():.2f}")
     
     # Positive and Negative Money Flow
@@ -496,21 +515,32 @@ def mfi_fast(high, low, close, volume, period=14):
     logging.debug(f"🔍 MFI: Positive money flow sum: {pos_money_flow.sum():.2f}")
     logging.debug(f"🔍 MFI: Negative money flow sum: {neg_money_flow.sum():.2f}")
     
-    # Rolling sums
-    pos_sum = pos_money_flow.rolling(window=period, min_periods=period).sum()
-    neg_sum = neg_money_flow.rolling(window=period, min_periods=period).sum()
+    # Rolling sums with reduced min_periods for edge cases
+    min_periods_mfi = max(5, period // 2)  # Allow calculation with less data
+    pos_sum = pos_money_flow.rolling(window=period, min_periods=min_periods_mfi).sum()
+    neg_sum = neg_money_flow.rolling(window=period, min_periods=min_periods_mfi).sum()
     
     # MFI calculation with better handling of edge cases
     money_ratio = pos_sum / (neg_sum + 1e-10)  # Avoid division by zero
     mfi = 100 - (100 / (1 + money_ratio))
     
-    # Fill NaN values with neutral MFI of 50
-    result = mfi.fillna(50)
+    # Better NaN handling - only fill obvious invalid values
+    # Keep NaN for initial periods where calculation isn't possible
+    result = mfi.copy()
     
-    # Log final results
+    # Fill infinite or invalid values with neutral MFI
+    result = result.replace([np.inf, -np.inf], 50)
+    
+    # Log final results with more detail
     valid_count = result.notna().sum()
-    logging.debug(f"🔍 MFI: Final results - valid:{valid_count}/{len(result)}, mean:{result.mean():.2f}")
-    logging.debug(f"🔍 MFI: Sample values: {result.dropna().tail(5).tolist()}")
+    nan_count = result.isna().sum()
+    logging.debug(f"🔍 MFI: Final results - valid:{valid_count}/{len(result)}, NaN:{nan_count}")
+    
+    if valid_count > 0:
+        logging.debug(f"🔍 MFI: Stats - mean:{result.mean():.2f}, min:{result.min():.2f}, max:{result.max():.2f}")
+        logging.debug(f"🔍 MFI: Sample values: {result.dropna().tail(5).tolist()}")
+    else:
+        logging.error(f"❌ MFI: All values are NaN - calculation failed completely")
     
     return result
 
@@ -938,19 +968,25 @@ def calculate_technicals_parallel(df):
         }
         
         logging.info(f"📊 VOLUME ANALYSIS: {volume_analysis}")
+          # Check if volume data is available and valid - More lenient validation
+        volume_usable = (volume_analysis['has_volume_column'] and 
+                        volume_analysis['volume_not_null'] > 0 and 
+                        volume_analysis['volume_positive'] > 0)
         
-        # Check if volume data is available and valid
-        if (volume_analysis['has_volume_column'] and 
-            volume_analysis['volume_not_null'] > 0 and 
-            volume_analysis['volume_positive'] > 0):
-            
-            logging.info(f"✅ Calculating volume indicators with {volume_analysis['volume_positive']} valid volume records")
+        # Calculate volume data quality ratio
+        volume_quality = 0
+        if volume_analysis['volume_not_null'] > 0:
+            volume_quality = volume_analysis['volume_positive'] / volume_analysis['volume_not_null']
+        
+        if volume_usable:
+            logging.info(f"✅ Calculating volume indicators with {volume_analysis['volume_positive']} valid volume records ({volume_quality:.1%} quality)")
             
             # Calculate each volume indicator separately with individual error handling
             try:
                 logging.debug("🔍 Starting A/D calculation...")
                 results['ad'] = calculate_accumulation_distribution(df['high'], df['low'], df['close'], df['volume'])
-                logging.info(f"✅ A/D calculated: {results['ad'].notna().sum()}/{len(results['ad'])} valid values")
+                valid_ad = results['ad'].notna().sum()
+                logging.info(f"✅ A/D calculated: {valid_ad}/{len(results['ad'])} valid values")
             except Exception as e:
                 logging.error(f"❌ A/D calculation failed: {e}")
                 results['ad'] = pd.Series(np.full(len(df), np.nan), index=df.index)
@@ -958,7 +994,8 @@ def calculate_technicals_parallel(df):
             try:
                 logging.debug("🔍 Starting CMF calculation...")
                 results['cmf'] = calculate_cmf(df['high'], df['low'], df['close'], df['volume'], period=20)
-                logging.info(f"✅ CMF calculated: {results['cmf'].notna().sum()}/{len(results['cmf'])} valid values")
+                valid_cmf = results['cmf'].notna().sum()
+                logging.info(f"✅ CMF calculated: {valid_cmf}/{len(results['cmf'])} valid values")
             except Exception as e:
                 logging.error(f"❌ CMF calculation failed: {e}")
                 results['cmf'] = pd.Series(np.full(len(df), np.nan), index=df.index)
@@ -966,17 +1003,38 @@ def calculate_technicals_parallel(df):
             try:
                 logging.debug("🔍 Starting MFI calculation...")
                 results['mfi'] = calculate_mfi(df['high'], df['low'], df['close'], df['volume'], period=14)
-                logging.info(f"✅ MFI calculated: {results['mfi'].notna().sum()}/{len(results['mfi'])} valid values")
+                valid_mfi = results['mfi'].notna().sum()
+                logging.info(f"✅ MFI calculated: {valid_mfi}/{len(results['mfi'])} valid values")
+                
+                # Additional MFI validation
+                if valid_mfi == 0:
+                    logging.error(f"❌ MFI: All values are NaN - check data quality")
+                elif valid_mfi < len(results['mfi']) * 0.5:
+                    logging.warning(f"⚠️  MFI: Low success rate - {valid_mfi}/{len(results['mfi'])} valid ({valid_mfi/len(results['mfi']):.1%})")
+                else:
+                    logging.info(f"✅ MFI: Good success rate - {valid_mfi}/{len(results['mfi'])} valid ({valid_mfi/len(results['mfi']):.1%})")
+                    
             except Exception as e:
                 logging.error(f"❌ MFI calculation failed: {e}")
                 results['mfi'] = pd.Series(np.full(len(df), np.nan), index=df.index)
                 
         else:
-            # Fill with NaN if no valid volume data
+            # Fill with NaN if no valid volume data, but provide more detailed diagnosis
             logging.error(f"❌ VOLUME DATA INVALID - cannot calculate volume indicators")
             logging.error(f"   - has_volume_column: {volume_analysis['has_volume_column']}")
             logging.error(f"   - volume_not_null: {volume_analysis['volume_not_null']}")
             logging.error(f"   - volume_positive: {volume_analysis['volume_positive']}")
+            logging.error(f"   - volume_quality: {volume_quality:.1%}")
+            
+            # Provide actionable diagnosis
+            if not volume_analysis['has_volume_column']:
+                logging.error(f"   ISSUE: 'volume' column missing from DataFrame")
+            elif volume_analysis['volume_not_null'] == 0:
+                logging.error(f"   ISSUE: All volume values are NULL")  
+            elif volume_analysis['volume_positive'] == 0:
+                logging.error(f"   ISSUE: All volume values are zero or negative")
+            else:
+                logging.error(f"   ISSUE: Unknown volume data problem")
             
             results['ad'] = pd.Series(np.full(len(df), np.nan), index=df.index)
             results['cmf'] = pd.Series(np.full(len(df), np.nan), index=df.index)
