@@ -143,7 +143,8 @@ function StockExplorer() {
   const [page, setPage] = useState(0)
   const [rowsPerPage, setRowsPerPage] = useState(25) // Reduced from potentially higher default
   const [orderBy, setOrderBy] = useState('symbol') // Default to alphabetical
-  const [order, setOrder] = useState('asc') // Default to ascending  const [expandedStock, setExpandedStock] = useState(null) // Track which stock accordion is expanded
+  const [order, setOrder] = useState('asc') // Default to ascending
+  const [expandedStock, setExpandedStock] = useState(null) // Track which stock accordion is expanded
   const [priceHistoryData, setPriceHistoryData] = useState({}) // Cache price history data
   const [priceHistoryModal, setPriceHistoryModal] = useState({ open: false, symbol: '', data: [], loading: false }) // Price history modal state
   
