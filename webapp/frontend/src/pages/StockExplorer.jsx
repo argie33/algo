@@ -55,7 +55,7 @@ import {
   Tune,
   InfoOutlined
 } from '@mui/icons-material'
-import api, { screenStocks } from '../services/api'
+import api, { screenStocks, getStockPrices, getStockPricesRecent } from '../services/api'
 import { formatCurrency, formatPercentage as formatPercent, formatNumber, getChangeColor, getChangeIcon, getMarketCapCategory } from '../utils/formatters'
 
 // Create component-specific logger
@@ -134,11 +134,12 @@ function StockExplorer() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [filters, setFilters] = useState(INITIAL_FILTERS)
-  const [viewMode, setViewMode] = useState('simple') // 'simple' or 'advanced'
-  const [page, setPage] = useState(0)
+  const [viewMode, setViewMode] = useState('simple') // 'simple' or 'advanced'  const [page, setPage] = useState(0)
   const [rowsPerPage, setRowsPerPage] = useState(25) // Reduced from potentially higher default
   const [orderBy, setOrderBy] = useState('symbol') // Default to alphabetical
   const [order, setOrder] = useState('asc') // Default to ascending
+  const [expandedStock, setExpandedStock] = useState(null) // Track which stock accordion is expanded
+  const [priceHistoryData, setPriceHistoryData] = useState({}) // Cache price history data
   
   // Initialize from URL params only once on mount
   useEffect(() => {
@@ -253,6 +254,38 @@ function StockExplorer() {
 
   const handleRowClick = (symbol) => {
     navigate(`/stocks/${symbol}`)
+  }
+
+  // Handle accordion expansion/collapse
+  const handleAccordionToggle = (symbol) => {
+    setExpandedStock(expandedStock === symbol ? null : symbol)
+  }
+
+  // Fetch price history for a stock
+  const handleFetchPriceHistory = async (symbol) => {
+    if (priceHistoryData[symbol]) {
+      // Data already loaded, navigate to a price history view or show in modal
+      console.log('Price history for', symbol, priceHistoryData[symbol])
+      // For now, let's navigate to the detailed stock page
+      navigate(`/stocks/${symbol}`)
+      return
+    }
+
+    try {
+      console.log('Fetching price history for', symbol)
+      const response = await getStockPricesRecent(symbol, 100) // Get last 100 days
+      setPriceHistoryData(prev => ({
+        ...prev,
+        [symbol]: response.data
+      }))
+      console.log('Price history loaded for', symbol, response.data)
+      // Navigate to detailed view with price data
+      navigate(`/stocks/${symbol}`)
+    } catch (error) {
+      console.error('Error fetching price history for', symbol, error)
+      // Still navigate to stock detail page even if price history fails
+      navigate(`/stocks/${symbol}`)
+    }
   }
 
   const handleViewModeChange = (event, newMode) => {
@@ -747,122 +780,268 @@ function StockExplorer() {
                       {stocksData.data?.[0] && (
                         <><br/>First item keys: {JSON.stringify(Object.keys(stocksData.data[0]), null, 2)}</>
                       )}
-                    </Alert>
-                  )}                    <TableContainer 
-                      component={Paper} 
-                      variant="outlined" 
-                      sx={{ 
-                        maxHeight: 600, 
-                        overflow: 'auto',
-                        '& .MuiTableHead-root .MuiTableRow-root .MuiTableCell-root': {
-                          position: 'sticky',
-                          top: 0,
-                          zIndex: 2,
-                          backgroundColor: '#f5f5f5'
-                        }
-                      }}
-                    >
-                    <Table size="small" stickyHeader sx={{ minWidth: 1200 }}>
-                      <TableHead>
-                        <TableRow>
-                          {columns.map((column) => (
-                            <TableCell 
-                              key={column.id}
-                              align={column.align || 'left'}
-                              sx={{ 
-                                backgroundColor: 'grey.50', 
-                                fontWeight: 'bold',
-                                minWidth: column.minWidth || 120,
-                                whiteSpace: 'nowrap'
-                              }}
-                            >
-                              {column.label}
-                            </TableCell>
-                          ))}
-                          <TableCell sx={{ backgroundColor: 'grey.50', fontWeight: 'bold', minWidth: 80 }}>
-                            Actions
-                          </TableCell>
-                        </TableRow>
-                      </TableHead>
+                    </Alert>                  )}
 
-                      <TableBody>
-                        {stocksData.data?.map((stock) => (
-                          <TableRow
-                            key={stock.symbol}
-                            hover
-                            sx={{ 
-                              cursor: 'pointer',
-                              '&:hover': { backgroundColor: 'action.hover' }
-                            }}
-                            onClick={() => handleRowClick(stock.symbol)}
-                          >
-                            {columns.map((column) => (                              <TableCell 
-                                key={column.id}
-                                align={column.align || 'left'}
-                                sx={{ whiteSpace: 'nowrap' }}
-                              >
-                                {(() => {
-                                  // Get the value using accessor if available, otherwise use column.id
-                                  let value = column.accessor ? column.accessor(stock) : stock[column.id];
-                                  
-                                  // Special handling for symbol column
-                                  if (column.id === 'symbol') {
-                                    return (
-                                      <Typography variant="body2" fontWeight="bold">
-                                        {value || 'N/A'}
+                  {/* Stock Accordions */}
+                  <Box sx={{ width: '100%' }}>
+                    {stocksData.data?.map((stock) => (
+                      <Accordion
+                        key={stock.symbol}
+                        expanded={expandedStock === stock.symbol}
+                        onChange={() => handleAccordionToggle(stock.symbol)}
+                        sx={{ mb: 1 }}
+                      >
+                        <AccordionSummary
+                          expandIcon={<ExpandMore />}
+                          sx={{ 
+                            backgroundColor: 'grey.50',
+                            '&:hover': { backgroundColor: 'grey.100' }
+                          }}
+                        >
+                          <Grid container alignItems="center" spacing={2}>
+                            <Grid item xs={2}>
+                              <Typography variant="h6" fontWeight="bold">
+                                {stock.symbol}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {stock.exchange}
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={4}>
+                              <Typography variant="body1" fontWeight="medium">
+                                {stock.companyName || stock.security_name || 'N/A'}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {stock.sector} • {stock.industry}
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={2}>
+                              <Typography variant="body2" fontWeight="bold">
+                                {stock.currentPrice ? formatCurrency(stock.currentPrice) : 'N/A'}
+                              </Typography>
+                              <Typography variant="caption" color={getChangeColor(stock.priceChange)}>
+                                {stock.priceChange ? `${stock.priceChange > 0 ? '+' : ''}${formatPercent(stock.priceChange)}` : 'N/A'}
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={2}>
+                              <Typography variant="body2">
+                                {stock.marketCap ? formatCurrency(stock.marketCap) : 'N/A'}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                Market Cap
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={2}>
+                              <Typography variant="body2">
+                                {stock.peRatio ? formatNumber(stock.peRatio, 2) : 'N/A'}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                P/E Ratio
+                              </Typography>
+                            </Grid>
+                          </Grid>
+                        </AccordionSummary>
+                        
+                        <AccordionDetails>
+                          <Grid container spacing={3}>
+                            {/* Company Information */}
+                            <Grid item xs={12} md={6}>
+                              <Card variant="outlined">
+                                <CardContent>
+                                  <Typography variant="h6" gutterBottom>
+                                    Company Information
+                                  </Typography>
+                                  <Grid container spacing={2}>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">Full Name</Typography>
+                                      <Typography variant="body2">{stock.longName || stock.companyName || 'N/A'}</Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">Website</Typography>
+                                      <Typography variant="body2">
+                                        {stock.website ? (
+                                          <a href={stock.website} target="_blank" rel="noopener noreferrer">
+                                            {new URL(stock.website).hostname}
+                                          </a>
+                                        ) : 'N/A'}
                                       </Typography>
-                                    );
-                                  }
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">Employees</Typography>
+                                      <Typography variant="body2">{stock.employeeCount ? formatNumber(stock.employeeCount) : 'N/A'}</Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">Country</Typography>
+                                      <Typography variant="body2">{stock.country || 'N/A'}</Typography>
+                                    </Grid>
+                                    <Grid item xs={12}>
+                                      <Typography variant="body2" color="text.secondary">Business Summary</Typography>
+                                      <Typography variant="body2" sx={{ mt: 0.5 }}>
+                                        {stock.businessSummary ? 
+                                          (stock.businessSummary.length > 200 ? 
+                                            `${stock.businessSummary.substring(0, 200)}...` : 
+                                            stock.businessSummary
+                                          ) : 'N/A'
+                                        }
+                                      </Typography>
+                                    </Grid>
+                                  </Grid>
+                                </CardContent>
+                              </Card>
+                            </Grid>
+
+                            {/* Market Data */}
+                            <Grid item xs={12} md={6}>
+                              <Card variant="outlined">
+                                <CardContent>
+                                  <Typography variant="h6" gutterBottom>
+                                    Market Data
+                                  </Typography>
+                                  <Grid container spacing={2}>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">Current Price</Typography>
+                                      <Typography variant="body2" fontWeight="bold">
+                                        {stock.currentPrice ? formatCurrency(stock.currentPrice) : 'N/A'}
+                                      </Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">Previous Close</Typography>
+                                      <Typography variant="body2">{stock.previousClose ? formatCurrency(stock.previousClose) : 'N/A'}</Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">Day Range</Typography>
+                                      <Typography variant="body2">
+                                        {stock.dayLow && stock.dayHigh ? 
+                                          `${formatCurrency(stock.dayLow)} - ${formatCurrency(stock.dayHigh)}` : 'N/A'
+                                        }
+                                      </Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">52W Range</Typography>
+                                      <Typography variant="body2">
+                                        {stock.fiftyTwoWeekLow && stock.fiftyTwoWeekHigh ? 
+                                          `${formatCurrency(stock.fiftyTwoWeekLow)} - ${formatCurrency(stock.fiftyTwoWeekHigh)}` : 'N/A'
+                                        }
+                                      </Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">Volume</Typography>
+                                      <Typography variant="body2">{stock.volume ? formatNumber(stock.volume) : 'N/A'}</Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">Avg Volume</Typography>
+                                      <Typography variant="body2">{stock.averageVolume ? formatNumber(stock.averageVolume) : 'N/A'}</Typography>
+                                    </Grid>
+                                  </Grid>
+                                </CardContent>
+                              </Card>
+                            </Grid>
+
+                            {/* Financial Metrics */}
+                            <Grid item xs={12} md={6}>
+                              <Card variant="outlined">
+                                <CardContent>
+                                  <Typography variant="h6" gutterBottom>
+                                    Financial Metrics
+                                  </Typography>
+                                  <Grid container spacing={2}>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">P/E Ratio</Typography>
+                                      <Typography variant="body2">{stock.peRatio ? formatNumber(stock.peRatio, 2) : 'N/A'}</Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">PEG Ratio</Typography>
+                                      <Typography variant="body2">{stock.pegRatio ? formatNumber(stock.pegRatio, 2) : 'N/A'}</Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">P/B Ratio</Typography>
+                                      <Typography variant="body2">{stock.pbRatio ? formatNumber(stock.pbRatio, 2) : 'N/A'}</Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">EPS</Typography>
+                                      <Typography variant="body2">{stock.eps ? formatCurrency(stock.eps) : 'N/A'}</Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">Revenue Growth</Typography>
+                                      <Typography variant="body2">{stock.revenueGrowth ? formatPercent(stock.revenueGrowth) : 'N/A'}</Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">Profit Margin</Typography>
+                                      <Typography variant="body2">{stock.profitMargin ? formatPercent(stock.profitMargin) : 'N/A'}</Typography>
+                                    </Grid>
+                                  </Grid>
+                                </CardContent>
+                              </Card>
+                            </Grid>
+
+                            {/* Actions */}
+                            <Grid item xs={12} md={6}>
+                              <Card variant="outlined">
+                                <CardContent>
+                                  <Typography variant="h6" gutterBottom>
+                                    Actions
+                                  </Typography>
+                                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                    <Button
+                                      variant="contained"
+                                      startIcon={<ShowChart />}
+                                      onClick={() => handleFetchPriceHistory(stock.symbol)}
+                                      size="small"
+                                    >
+                                      View Price History
+                                    </Button>
+                                    <Button
+                                      variant="outlined"
+                                      onClick={() => navigate(`/stocks/${stock.symbol}`)}
+                                      size="small"
+                                    >
+                                      Full Details
+                                    </Button>
+                                    {stock.website && (
+                                      <Button
+                                        variant="outlined"
+                                        href={stock.website}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        size="small"
+                                      >
+                                        Company Website
+                                      </Button>
+                                    )}
+                                  </Box>
                                   
-                                  // Special handling for boolean values
-                                  if (column.id === 'isEtf' || column.id === 'testIssue') {
-                                    return value ? 'Yes' : 'No';
-                                  }
-                                  
-                                  // Special handling for website links
-                                  if (column.id === 'website' && value) {
-                                    return (
-                                      <a href={value} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
-                                        {new URL(value).hostname}
-                                      </a>
-                                    );
-                                  }
-                                  
-                                  // Apply formatting if specified
-                                  if (column.format && value !== null && value !== undefined) {
-                                    return column.format(value);
-                                  }
-                                  
-                                  // Default case
-                                  return value ?? 'N/A';
-                                })()}
-                              </TableCell>
-                            ))}
-                            <TableCell onClick={(e) => e.stopPropagation()}>
-                              <Tooltip title="View Details">
-                                <IconButton 
-                                  size="small"
-                                  onClick={() => handleRowClick(stock.symbol)}
-                                >
-                                  <ShowChart />
-                                </IconButton>
-                              </Tooltip>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
+                                  {/* Show price history data if loaded */}
+                                  {priceHistoryData[stock.symbol] && (
+                                    <Box sx={{ mt: 2 }}>
+                                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                                        Recent Price Data Loaded ({priceHistoryData[stock.symbol]?.length || 0} records)
+                                      </Typography>
+                                      <Typography variant="caption" color="success.main">
+                                        Click "View Price History" again to see detailed view
+                                      </Typography>
+                                    </Box>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            </Grid>
+                          </Grid>
+                        </AccordionDetails>
+                      </Accordion>
+                    ))}
+                  </Box>
+
                   {/* Pagination */}
-                  <TablePagination
-                    rowsPerPageOptions={[10, 25, 50, 100]}
-                    component="div"
-                    count={stocksData?.pagination?.total || stocksData?.total || 0}
-                    rowsPerPage={rowsPerPage}
-                    page={page}
-                    onPageChange={handlePageChange}
-                    onRowsPerPageChange={handleRowsPerPageChange}
-                  />
+                  <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
+                    <TablePagination
+                      rowsPerPageOptions={[10, 25, 50, 100]}
+                      component="div"
+                      count={stocksData?.pagination?.total || stocksData?.total || 0}
+                      rowsPerPage={rowsPerPage}
+                      page={page}
+                      onPageChange={handlePageChange}
+                      onRowsPerPageChange={handleRowsPerPageChange}
+                    />
+                  </Box>
                 </>
               )}              {/* No Results */}
               {stocksData && (!stocksData.data || stocksData.data?.length === 0) && !isLoading && (

@@ -711,30 +711,69 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
     })
     
     console.log('Technical data response:', response.data)
-    return response // Return full response for consistency with other components
+    
+    // Return consistent structure: { data: [...], pagination: {...}, metadata: {...} }
+    if (response.data.success) {
+      return {
+        data: response.data.data, // The actual array of technical data
+        pagination: response.data.pagination,
+        metadata: response.data.metadata
+      }
+    } else {
+      return { 
+        data: [], 
+        error: response.data.error || 'Unknown error',
+        pagination: null,
+        metadata: null
+      }
+    }
   } catch (error) {
     console.error('Error fetching technical data:', error)
     const errorMessage = handleApiError(error, `get technical data (${timeframe})`)
     // Return a consistent error response structure
     return { 
-      data: { 
-        data: [], 
-        error: errorMessage
-      } 
+      data: [], 
+      error: errorMessage,
+      pagination: null,
+      metadata: null
     }
   }
 }
 
-export const getTechnicalSummary = (timeframe = 'daily', params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
+export const getTechnicalSummary = async (timeframe = 'daily', params = {}) => {
+  try {
+    const queryParams = new URLSearchParams()
+    
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value)
+      }
+    })
+    
+    const response = await api.get(`/technical/${timeframe}/summary?${queryParams.toString()}`)
+    
+    // Return consistent structure
+    if (response.data.success) {
+      return {
+        data: response.data.data,
+        metadata: response.data.metadata
+      }
+    } else {
+      return { 
+        data: null, 
+        error: response.data.error || 'Unknown error',
+        metadata: null
+      }
     }
-  })
-  
-  return api.get(`/technical/${timeframe}/summary?${queryParams.toString()}`)
+  } catch (error) {
+    console.error('Error fetching technical summary:', error)
+    const errorMessage = handleApiError(error, `get technical summary (${timeframe})`)
+    return { 
+      data: null, 
+      error: errorMessage,
+      metadata: null
+    }
+  }
 }
 
 // Export all methods as a default object for easier importing
@@ -786,7 +825,8 @@ export default {
   getEpsTrend,
   getGrowthEstimates,
   getEconomicData,
-  getNaaimData,  getFearGreedData,
+  getNaaimData,
+  getFearGreedData,
   getTechnicalData,
   getTechnicalSummary,
   getDataValidationSummary
