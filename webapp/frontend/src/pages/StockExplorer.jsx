@@ -36,10 +36,15 @@ import {
   CircularProgress,
   Divider,
   InputAdornment,
-  ToggleButton,
-  ToggleButtonGroup,
+  ToggleButton,  ToggleButtonGroup,
   Tabs,
-  Tab
+  Tab,
+  Modal,
+  Backdrop,
+  Fade,
+  Table,
+  TableBody,
+  TableCell
 } from '@mui/material'
 import {
   ExpandMore,
@@ -134,13 +139,13 @@ function StockExplorer() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [filters, setFilters] = useState(INITIAL_FILTERS)
-  const [viewMode, setViewMode] = useState('simple') // 'simple' or 'advanced'
+  const [viewMode] = useState('advanced') // Always use advanced view with full table
   const [page, setPage] = useState(0)
   const [rowsPerPage, setRowsPerPage] = useState(25) // Reduced from potentially higher default
   const [orderBy, setOrderBy] = useState('symbol') // Default to alphabetical
-  const [order, setOrder] = useState('asc') // Default to ascending
-  const [expandedStock, setExpandedStock] = useState(null) // Track which stock accordion is expanded
+  const [order, setOrder] = useState('asc') // Default to ascending  const [expandedStock, setExpandedStock] = useState(null) // Track which stock accordion is expanded
   const [priceHistoryData, setPriceHistoryData] = useState({}) // Cache price history data
+  const [priceHistoryModal, setPriceHistoryModal] = useState({ open: false, symbol: '', data: [], loading: false }) // Price history modal state
   
   // Initialize from URL params only once on mount
   useEffect(() => {
@@ -261,42 +266,63 @@ function StockExplorer() {
   const handleAccordionToggle = (symbol) => {
     setExpandedStock(expandedStock === symbol ? null : symbol)
   }
-
-  // Fetch price history for a stock
+  // Fetch comprehensive price history for a stock
   const handleFetchPriceHistory = async (symbol) => {
-    if (priceHistoryData[symbol]) {
-      // Data already loaded, navigate to a price history view or show in modal
-      console.log('Price history for', symbol, priceHistoryData[symbol])
-      // For now, let's navigate to the detailed stock page
-      navigate(`/stocks/${symbol}`)
-      return
-    }
-
     try {
-      console.log('Fetching price history for', symbol)
-      const response = await getStockPricesRecent(symbol, 100) // Get last 100 days
-      setPriceHistoryData(prev => ({
-        ...prev,
-        [symbol]: response.data
-      }))
-      console.log('Price history loaded for', symbol, response.data)
-      // Navigate to detailed view with price data
-      navigate(`/stocks/${symbol}`)
+      // Open modal immediately with loading state
+      setPriceHistoryModal({ open: true, symbol, data: [], loading: true })
+      
+      console.log('Fetching comprehensive price history for', symbol)
+      
+      // Call the new price API endpoint for comprehensive data
+      const response = await fetch(`/api/stocks/${symbol}/price-data?period=max&interval=daily`)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const result = await response.json()
+      
+      if (result.success && result.data) {
+        console.log('Comprehensive price history loaded for', symbol, result.data.length, 'records')
+        
+        // Update modal with data
+        setPriceHistoryModal({ 
+          open: true, 
+          symbol, 
+          data: result.data, 
+          loading: false,
+          summary: result.summary 
+        })
+        
+        // Also cache the data for quick access
+        setPriceHistoryData(prev => ({
+          ...prev,
+          [symbol]: result.data
+        }))
+      } else {
+        throw new Error(result.error || 'Failed to fetch price data')
+      }
     } catch (error) {
-      console.error('Error fetching price history for', symbol, error)
-      // Still navigate to stock detail page even if price history fails
-      navigate(`/stocks/${symbol}`)
+      console.error('Error fetching comprehensive price history for', symbol, error)
+      
+      // Show error in modal
+      setPriceHistoryModal({ 
+        open: true, 
+        symbol, 
+        data: [], 
+        loading: false, 
+        error: error.message 
+      })
     }
   }
 
-  const handleViewModeChange = (event, newMode) => {
-    if (newMode !== null) {
-      setViewMode(newMode)
-      const newParams = new URLSearchParams(searchParams)
-      newParams.set('viewMode', newMode)
-      setSearchParams(newParams)
-    }
+  // Close price history modal
+  const handleClosePriceModal = () => {
+    setPriceHistoryModal({ open: false, symbol: '', data: [], loading: false })
   }
+
+  // Removed viewMode handler - always use advanced view
 
   const getActiveFiltersCount = () => {
     return Object.values(filters).filter(value => 
@@ -434,24 +460,9 @@ function StockExplorer() {
               }}
             >
               Test API
-            </Button>
-          )}
+            </Button>          )}
           
-          <ToggleButtonGroup
-            value={viewMode}
-            exclusive
-            onChange={handleViewModeChange}
-            size="small"
-          >
-            <ToggleButton value="simple">
-              <ViewList sx={{ mr: 1 }} />
-              Simple
-            </ToggleButton>
-            <ToggleButton value="advanced">
-              <Tune sx={{ mr: 1 }} />
-              Advanced
-            </ToggleButton>
-          </ToggleButtonGroup>
+          {/* Removed view mode toggle - always use advanced table view */}
           
           <Button
             variant="outlined"
@@ -852,10 +863,9 @@ function StockExplorer() {
                                   <Typography variant="h6" gutterBottom>
                                     Company Information
                                   </Typography>
-                                  <Grid container spacing={2}>
-                                    <Grid item xs={6}>
+                                  <Grid container spacing={2}>                                    <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">Full Name</Typography>
-                                      <Typography variant="body2">{stock.longName || stock.companyName || 'N/A'}</Typography>
+                                      <Typography variant="body2">{stock.fullName || stock.name || 'N/A'}</Typography>
                                     </Grid>
                                     <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">Website</Typography>
@@ -870,10 +880,9 @@ function StockExplorer() {
                                     <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">Employees</Typography>
                                       <Typography variant="body2">{stock.employeeCount ? formatNumber(stock.employeeCount) : 'N/A'}</Typography>
-                                    </Grid>
-                                    <Grid item xs={6}>
+                                    </Grid>                                    <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">Country</Typography>
-                                      <Typography variant="body2">{stock.country || 'N/A'}</Typography>
+                                      <Typography variant="body2">{stock.address?.country || 'N/A'}</Typography>
                                     </Grid>
                                     <Grid item xs={12}>
                                       <Typography variant="body2" color="text.secondary">Business Summary</Typography>
@@ -898,30 +907,29 @@ function StockExplorer() {
                                   <Typography variant="h6" gutterBottom>
                                     Market Data
                                   </Typography>
-                                  <Grid container spacing={2}>
-                                    <Grid item xs={6}>
+                                  <Grid container spacing={2}>                                    <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">Current Price</Typography>
                                       <Typography variant="body2" fontWeight="bold">
-                                        {stock.currentPrice ? formatCurrency(stock.currentPrice) : 'N/A'}
+                                        {stock.price?.current ? formatCurrency(stock.price.current) : 'N/A'}
                                       </Typography>
                                     </Grid>
                                     <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">Previous Close</Typography>
-                                      <Typography variant="body2">{stock.previousClose ? formatCurrency(stock.previousClose) : 'N/A'}</Typography>
+                                      <Typography variant="body2">{stock.price?.previousClose ? formatCurrency(stock.price.previousClose) : 'N/A'}</Typography>
                                     </Grid>
                                     <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">Day Range</Typography>
                                       <Typography variant="body2">
-                                        {stock.dayLow && stock.dayHigh ? 
-                                          `${formatCurrency(stock.dayLow)} - ${formatCurrency(stock.dayHigh)}` : 'N/A'
+                                        {stock.price?.dayLow && stock.price?.dayHigh ? 
+                                          `${formatCurrency(stock.price.dayLow)} - ${formatCurrency(stock.price.dayHigh)}` : 'N/A'
                                         }
                                       </Typography>
                                     </Grid>
                                     <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">52W Range</Typography>
                                       <Typography variant="body2">
-                                        {stock.fiftyTwoWeekLow && stock.fiftyTwoWeekHigh ? 
-                                          `${formatCurrency(stock.fiftyTwoWeekLow)} - ${formatCurrency(stock.fiftyTwoWeekHigh)}` : 'N/A'
+                                        {stock.price?.fiftyTwoWeekLow && stock.price?.fiftyTwoWeekHigh ? 
+                                          `${formatCurrency(stock.price.fiftyTwoWeekLow)} - ${formatCurrency(stock.price.fiftyTwoWeekHigh)}` : 'N/A'
                                         }
                                       </Typography>
                                     </Grid>
@@ -945,30 +953,28 @@ function StockExplorer() {
                                   <Typography variant="h6" gutterBottom>
                                     Financial Metrics
                                   </Typography>
-                                  <Grid container spacing={2}>
-                                    <Grid item xs={6}>
+                                  <Grid container spacing={2}>                                    <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">P/E Ratio</Typography>
-                                      <Typography variant="body2">{stock.peRatio ? formatNumber(stock.peRatio, 2) : 'N/A'}</Typography>
+                                      <Typography variant="body2">{stock.financialMetrics?.trailingPE ? formatNumber(stock.financialMetrics.trailingPE, 2) : 'N/A'}</Typography>
                                     </Grid>
                                     <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">PEG Ratio</Typography>
-                                      <Typography variant="body2">{stock.pegRatio ? formatNumber(stock.pegRatio, 2) : 'N/A'}</Typography>
+                                      <Typography variant="body2">{stock.financialMetrics?.pegRatio ? formatNumber(stock.financialMetrics.pegRatio, 2) : 'N/A'}</Typography>
                                     </Grid>
                                     <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">P/B Ratio</Typography>
-                                      <Typography variant="body2">{stock.pbRatio ? formatNumber(stock.pbRatio, 2) : 'N/A'}</Typography>
+                                      <Typography variant="body2">{stock.financialMetrics?.priceToBook ? formatNumber(stock.financialMetrics.priceToBook, 2) : 'N/A'}</Typography>
                                     </Grid>
                                     <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">EPS</Typography>
-                                      <Typography variant="body2">{stock.eps ? formatCurrency(stock.eps) : 'N/A'}</Typography>
+                                      <Typography variant="body2">{stock.financialMetrics?.epsTrailing ? formatCurrency(stock.financialMetrics.epsTrailing) : 'N/A'}</Typography>
                                     </Grid>
                                     <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">Revenue Growth</Typography>
-                                      <Typography variant="body2">{stock.revenueGrowth ? formatPercent(stock.revenueGrowth) : 'N/A'}</Typography>
-                                    </Grid>
-                                    <Grid item xs={6}>
+                                      <Typography variant="body2">{stock.financialMetrics?.revenueGrowth ? formatPercent(stock.financialMetrics.revenueGrowth) : 'N/A'}</Typography>
+                                    </Grid>                                    <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">Profit Margin</Typography>
-                                      <Typography variant="body2">{stock.profitMargin ? formatPercent(stock.profitMargin) : 'N/A'}</Typography>
+                                      <Typography variant="body2">{stock.financialMetrics?.profitMargin ? formatPercent(stock.financialMetrics.profitMargin) : 'N/A'}</Typography>
                                     </Grid>
                                   </Grid>
                                 </CardContent>
@@ -982,14 +988,13 @@ function StockExplorer() {
                                   <Typography variant="h6" gutterBottom>
                                     Actions
                                   </Typography>
-                                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                                    <Button
+                                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>                                    <Button
                                       variant="contained"
                                       startIcon={<ShowChart />}
                                       onClick={() => handleFetchPriceHistory(stock.symbol)}
                                       size="small"
                                     >
-                                      View Price History
+                                      Complete Price History
                                     </Button>
                                     <Button
                                       variant="outlined"
@@ -1068,9 +1073,133 @@ function StockExplorer() {
                 </Box>
               )}
             </CardContent>
-          </Card>
-        </Grid>
+          </Card>        </Grid>
       </Grid>
+
+      {/* Price History Modal */}
+      <Modal
+        open={priceHistoryModal.open}
+        onClose={handleClosePriceModal}
+        closeAfterTransition
+        BackdropComponent={Backdrop}
+        BackdropProps={{
+          timeout: 500,
+        }}
+      >
+        <Fade in={priceHistoryModal.open}>
+          <Box sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: '90%',
+            maxWidth: 1200,
+            maxHeight: '90vh',
+            bgcolor: 'background.paper',
+            border: 'none',
+            borderRadius: 2,
+            boxShadow: 24,
+            overflow: 'auto'
+          }}>
+            <Box sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h5" component="h2">
+                  Complete Price History - {priceHistoryModal.symbol}
+                </Typography>
+                <IconButton onClick={handleClosePriceModal}>
+                  <Clear />
+                </IconButton>
+              </Box>
+
+              {priceHistoryModal.loading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                  <CircularProgress />
+                  <Typography sx={{ ml: 2 }}>Loading comprehensive price data...</Typography>
+                </Box>
+              ) : priceHistoryModal.error ? (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  Error loading price data: {priceHistoryModal.error}
+                </Alert>
+              ) : priceHistoryModal.data.length > 0 ? (
+                <>
+                  {/* Summary Statistics */}
+                  {priceHistoryModal.summary && (
+                    <Card variant="outlined" sx={{ mb: 3 }}>
+                      <CardContent>
+                        <Typography variant="h6" gutterBottom>Price Summary</Typography>
+                        <Grid container spacing={2}>
+                          <Grid item xs={6} sm={3}>
+                            <Typography variant="body2" color="text.secondary">Current Price</Typography>
+                            <Typography variant="h6">{formatCurrency(priceHistoryModal.summary.priceStats?.current)}</Typography>
+                          </Grid>
+                          <Grid item xs={6} sm={3}>
+                            <Typography variant="body2" color="text.secondary">Period High</Typography>
+                            <Typography variant="h6" color="success.main">{formatCurrency(priceHistoryModal.summary.priceStats?.periodHigh)}</Typography>
+                          </Grid>
+                          <Grid item xs={6} sm={3}>
+                            <Typography variant="body2" color="text.secondary">Period Low</Typography>
+                            <Typography variant="h6" color="error.main">{formatCurrency(priceHistoryModal.summary.priceStats?.periodLow)}</Typography>
+                          </Grid>
+                          <Grid item xs={6} sm={3}>
+                            <Typography variant="body2" color="text.secondary">Total Records</Typography>
+                            <Typography variant="h6">{priceHistoryModal.summary.dataPoints}</Typography>
+                          </Grid>
+                        </Grid>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Price Data Table */}
+                  <Paper sx={{ width: '100%', overflow: 'hidden' }}>
+                    <Table stickyHeader>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell><strong>Date</strong></TableCell>
+                          <TableCell align="right"><strong>Open</strong></TableCell>
+                          <TableCell align="right"><strong>High</strong></TableCell>
+                          <TableCell align="right"><strong>Low</strong></TableCell>
+                          <TableCell align="right"><strong>Close</strong></TableCell>
+                          <TableCell align="right"><strong>Adj Close</strong></TableCell>
+                          <TableCell align="right"><strong>Volume</strong></TableCell>
+                          <TableCell align="right"><strong>Change</strong></TableCell>
+                          <TableCell align="right"><strong>Change %</strong></TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {priceHistoryModal.data.map((row, index) => (
+                          <TableRow key={index} hover>
+                            <TableCell>{new Date(row.date).toLocaleDateString()}</TableCell>
+                            <TableCell align="right">{formatCurrency(row.open)}</TableCell>
+                            <TableCell align="right" sx={{ color: 'success.main' }}>{formatCurrency(row.high)}</TableCell>
+                            <TableCell align="right" sx={{ color: 'error.main' }}>{formatCurrency(row.low)}</TableCell>
+                            <TableCell align="right"><strong>{formatCurrency(row.close)}</strong></TableCell>
+                            <TableCell align="right">{formatCurrency(row.adjClose)}</TableCell>
+                            <TableCell align="right">{formatNumber(row.volume)}</TableCell>
+                            <TableCell align="right" sx={{ color: getChangeColor(row.priceChange) }}>
+                              {row.priceChange ? formatCurrency(row.priceChange) : 'N/A'}
+                            </TableCell>
+                            <TableCell align="right" sx={{ color: getChangeColor(row.priceChangePct) }}>
+                              {row.priceChangePct ? formatPercent(row.priceChangePct) : 'N/A'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </Paper>
+
+                  <Typography variant="caption" sx={{ mt: 2, display: 'block', textAlign: 'center', color: 'text.secondary' }}>
+                    Showing {priceHistoryModal.data.length} price records from your database tables
+                  </Typography>
+                </>
+              ) : (
+                <Alert severity="info">
+                  No price data available for {priceHistoryModal.symbol}
+                </Alert>
+              )}
+            </Box>
+          </Box>
+        </Fade>
+      </Modal>
     </Container>
   )
 }

@@ -1518,7 +1518,7 @@ def process_symbol_chunk(symbol_chunk, db_config):
         # CRITICAL: Reduce the amount of data loaded dramatically
         symbols_placeholder = ','.join(['%s'] * len(symbol_chunk))
         
-        logging.info(f"🚀 ULTRA-FAST loading price data for {len(symbol_chunk)} symbols...")        
+        logging.info(f"🚀 ULTRA-FAST loading price data for {len(symbol_chunk)} symbols...")
         # OPTIMIZED query with retry logic for timeout handling
         max_retries = 3
         retry_count = 0
