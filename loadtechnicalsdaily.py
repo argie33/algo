@@ -111,9 +111,51 @@ def sanitize_value(x):
     elif isinstance(x, np.floating):
         return float(x)
     elif isinstance(x, np.bool_):
-        return bool(x)
-    
+        return bool(x)    
     return x
+
+def enhanced_indicator_validation(df, symbol):
+    """Enhanced validation to catch N/A values and symbol-specific issues"""
+    logging.info(f"🔍 ENHANCED VALIDATION for {symbol}")
+    
+    # Check for any string "N/A" values that might have been inserted
+    na_string_columns = []
+    for col in df.columns:
+        if col in ['symbol', 'date']:
+            continue
+        if df[col].dtype == 'object':
+            na_strings = df[col].astype(str).str.contains('N/A', na=False).sum()
+            if na_strings > 0:
+                na_string_columns.append((col, na_strings))
+                logging.warning(f"    ⚠️ {col}: Found {na_strings} 'N/A' string values")
+    
+    # Check for potential data quality issues
+    problematic_indicators = []
+    for col in df.columns:
+        if col in ['symbol', 'date']:
+            continue
+        
+        # Check for all-zero values (suspicious)
+        if df[col].dtype in ['float64', 'int64']:
+            zero_count = (df[col] == 0).sum()
+            if zero_count == len(df) and len(df) > 0:
+                problematic_indicators.append((col, 'all_zeros'))
+                logging.warning(f"    ⚠️ {col}: ALL VALUES ARE ZERO (suspicious)")
+    
+    # Log symbol-specific statistics for key indicators
+    key_indicators = ['mfi', 'ad', 'cmf', 'pivot_high', 'pivot_low']
+    for indicator in key_indicators:
+        if indicator in df.columns:
+            valid_count = df[indicator].notna().sum()
+            total_count = len(df)
+            if valid_count == 0:
+                logging.error(f"    ❌ {symbol}: {indicator} has NO valid values")
+            elif valid_count < total_count * 0.5:
+                logging.warning(f"    ⚠️ {symbol}: {indicator} has only {valid_count}/{total_count} valid values")
+            else:
+                logging.info(f"    ✅ {symbol}: {indicator} has {valid_count}/{total_count} valid values")
+    
+    return na_string_columns, problematic_indicators
 
 # -------------------------------
 # ULTRA-FAST PURE NUMPY TECHNICAL INDICATORS
@@ -1499,8 +1541,7 @@ def process_symbol_chunk(symbol_chunk, db_config):
                     logging.info(f"✅ {symbol}: {len(symbol_data)} bars available - sufficient for Pine Script pivots and all indicators")
                 
                 logging.info(f"📊 {symbol}: Found {len(symbol_data)} price records for technical analysis")
-                
-                # ULTRA-FAST technical indicators calculation using vectorized operations
+                  # ULTRA-FAST technical indicators calculation using vectorized operations
                 tech_start = time.time()
                 df_tech = calculate_technicals_parallel(symbol_data.copy())  # Use existing optimized function
                 tech_time = time.time() - tech_start
@@ -1510,6 +1551,14 @@ def process_symbol_chunk(symbol_chunk, db_config):
                     continue
                 
                 logging.info(f"⚡ {symbol}: Calculated {len(df_tech)} technical indicator rows in {tech_time:.2f}s")
+                
+                # Enhanced validation for debugging N/A values
+                try:
+                    na_strings, problematic = enhanced_indicator_validation(df_tech, symbol)
+                    if na_strings or problematic:
+                        logging.error(f"🐛 {symbol}: Data quality issues detected - N/A strings: {len(na_strings)}, Problematic: {len(problematic)}")
+                except Exception as e:
+                    logging.warning(f"🐛 {symbol}: Enhanced validation failed: {e}")
                 
                 # ULTRA-FAST data preparation for insertion - vectorized approach
                 insert_start = time.time()

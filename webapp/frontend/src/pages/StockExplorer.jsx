@@ -313,21 +313,22 @@ function StockExplorer() {
             value={filters[maxKey]}
             onChange={(e) => handleFilterChange(maxKey, e.target.value)}
             sx={{ width: '100px' }}
-          />
-        </Box>      </Box>
+          />        </Box>
+      </Box>
     )
   }
+
   const columns = [
-    { id: 'symbol', label: 'Symbol', sortable: true },
-    { id: 'security_name', label: 'Security Name', sortable: true },
-    { id: 'exchange', label: 'Exchange', sortable: true },
-    { id: 'market_category', label: 'Market Category', sortable: true },
-    { id: 'cqs_symbol', label: 'CQS Symbol', sortable: false },
-    { id: 'financial_status', label: 'Financial Status', sortable: true },
-    { id: 'round_lot_size', label: 'Round Lot Size', sortable: true, format: formatNumber },
-    { id: 'etf', label: 'ETF', sortable: true },
-    { id: 'secondary_symbol', label: 'Secondary Symbol', sortable: false },
-    { id: 'test_issue', label: 'Test Issue', sortable: true }
+    { id: 'symbol', label: 'Symbol', sortable: true, minWidth: 80 },
+    { id: 'security_name', label: 'Security Name', sortable: true, minWidth: 250 },
+    { id: 'exchange', label: 'Exchange', sortable: true, minWidth: 100 },
+    { id: 'market_category', label: 'Market Category', sortable: true, minWidth: 120 },
+    { id: 'cqs_symbol', label: 'CQS Symbol', sortable: false, minWidth: 100 },
+    { id: 'financial_status', label: 'Financial Status', sortable: true, minWidth: 120 },
+    { id: 'round_lot_size', label: 'Round Lot Size', sortable: true, format: formatNumber, align: 'right', minWidth: 120 },
+    { id: 'etf', label: 'ETF', sortable: true, minWidth: 80 },
+    { id: 'secondary_symbol', label: 'Secondary Symbol', sortable: false, minWidth: 140 },
+    { id: 'test_issue', label: 'Test Issue', sortable: true, minWidth: 100 }
   ]
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
@@ -337,10 +338,7 @@ function StockExplorer() {
           <Typography variant="h4" component="h1" fontWeight="bold" gutterBottom>
             Stock Explorer
           </Typography>          <Typography variant="body1" color="text.secondary">
-            Browse and filter stocks with simple search or advanced screening criteria
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            <strong>Note:</strong> Currently showing basic stock information. Financial metrics (price, P/E, etc.) require additional data integration.
+            Browse and filter stocks with comprehensive stock information and screening criteria
           </Typography>
         </Box>        <Box display="flex" gap={2} alignItems="center">
           {/* Debug button in development */}
@@ -708,22 +706,40 @@ function StockExplorer() {
                         <><br/>First item keys: {JSON.stringify(Object.keys(stocksData.data[0]), null, 2)}</>
                       )}
                     </Alert>
-                  )}
-                    <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 600, overflow: 'auto' }}>
-                    <Table size="small" stickyHeader>
+                  )}                    <TableContainer 
+                      component={Paper} 
+                      variant="outlined" 
+                      sx={{ 
+                        maxHeight: 600, 
+                        overflow: 'auto',
+                        '& .MuiTableHead-root .MuiTableRow-root .MuiTableCell-root': {
+                          position: 'sticky',
+                          top: 0,
+                          zIndex: 2,
+                          backgroundColor: '#f5f5f5'
+                        }
+                      }}
+                    >
+                    <Table size="small" stickyHeader sx={{ minWidth: 1200 }}>
                       <TableHead>
                         <TableRow>
-                          <TableCell sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Symbol</TableCell>
-                          <TableCell sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Security Name</TableCell>
-                          <TableCell sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Exchange</TableCell>
-                          <TableCell sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Market Category</TableCell>
-                          <TableCell sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>CQS Symbol</TableCell>
-                          <TableCell sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Financial Status</TableCell>
-                          <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Round Lot Size</TableCell>
-                          <TableCell sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>ETF</TableCell>
-                          <TableCell sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Secondary Symbol</TableCell>
-                          <TableCell sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Test Issue</TableCell>
-                          <TableCell sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Actions</TableCell>
+                          {columns.map((column) => (
+                            <TableCell 
+                              key={column.id}
+                              align={column.align || 'left'}
+                              sx={{ 
+                                backgroundColor: 'grey.50', 
+                                fontWeight: 'bold',
+                                minWidth: column.minWidth || 120,
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              {column.label}
+                            </TableCell>
+                          ))}
+                          <TableCell sx={{ backgroundColor: 'grey.50', fontWeight: 'bold', minWidth: 80 }}>
+                            Actions
+                          </TableCell>
                         </TableRow>
                       </TableHead>
 
@@ -738,20 +754,27 @@ function StockExplorer() {
                             }}
                             onClick={() => handleRowClick(stock.symbol)}
                           >
-                            <TableCell>
-                              <Typography variant="body2" fontWeight="bold">
-                                {stock.symbol || 'N/A'}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>{stock.security_name || 'N/A'}</TableCell>
-                            <TableCell>{stock.exchange || 'N/A'}</TableCell>
-                            <TableCell>{stock.market_category || 'N/A'}</TableCell>
-                            <TableCell>{stock.cqs_symbol || 'N/A'}</TableCell>
-                            <TableCell>{stock.financial_status || 'N/A'}</TableCell>
-                            <TableCell align="right">{stock.round_lot_size ? formatNumber(stock.round_lot_size) : 'N/A'}</TableCell>
-                            <TableCell>{stock.etf === 'Y' ? 'Yes' : stock.etf === 'N' ? 'No' : (stock.etf || 'N/A')}</TableCell>
-                            <TableCell>{stock.secondary_symbol || 'N/A'}</TableCell>
-                            <TableCell>{stock.test_issue === 'Y' ? 'Yes' : stock.test_issue === 'N' ? 'No' : (stock.test_issue || 'N/A')}</TableCell>
+                            {columns.map((column) => (
+                              <TableCell 
+                                key={column.id}
+                                align={column.align || 'left'}
+                                sx={{ whiteSpace: 'nowrap' }}
+                              >
+                                {column.id === 'symbol' ? (
+                                  <Typography variant="body2" fontWeight="bold">
+                                    {stock[column.id] || 'N/A'}
+                                  </Typography>
+                                ) : column.id === 'etf' ? (
+                                  stock[column.id] === 'Y' ? 'Yes' : stock[column.id] === 'N' ? 'No' : (stock[column.id] || 'N/A')
+                                ) : column.id === 'test_issue' ? (
+                                  stock[column.id] === 'Y' ? 'Yes' : stock[column.id] === 'N' ? 'No' : (stock[column.id] || 'N/A')
+                                ) : column.format ? (
+                                  stock[column.id] ? column.format(stock[column.id]) : 'N/A'
+                                ) : (
+                                  stock[column.id] || 'N/A'
+                                )}
+                              </TableCell>
+                            ))}
                             <TableCell onClick={(e) => e.stopPropagation()}>
                               <Tooltip title="View Details">
                                 <IconButton 
