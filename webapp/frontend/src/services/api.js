@@ -369,7 +369,8 @@ export const getFinancialStrengthMetrics = (params = {}) => {
 // New method for stock screening with proper parameter handling
 export const screenStocks = async (params) => {
   try {
-    const response = await api.get(`/stocks/screen?${params.toString()}`, {
+    // Use the main stocks endpoint instead of /stocks/screen
+    const response = await api.get(`/stocks?${params.toString()}`, {
       baseURL: currentConfig.baseURL
     })
     console.log('Screen stocks response:', response.data)
@@ -382,6 +383,7 @@ export const screenStocks = async (params) => {
       data: [], 
       error: errorMessage,
       count: 0,
+      total: 0,
       timestamp: new Date().toISOString()
     }
   }

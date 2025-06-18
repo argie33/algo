@@ -55,7 +55,7 @@ import {
   Tune,
   InfoOutlined
 } from '@mui/icons-material'
-import api from '../services/api'
+import api, { screenStocks } from '../services/api'
 import { formatCurrency, formatPercentage as formatPercent, formatNumber, getChangeColor, getChangeIcon, getMarketCapCategory } from '../utils/formatters'
 
 // Create component-specific logger
@@ -122,7 +122,8 @@ const SECTORS = [
   'Utilities', 'Real Estate', 'Basic Materials'
 ]
 
-const EXCHANGES = ['NYSE', 'NASDAQ', 'AMEX']
+// Updated to match backend exchange data
+const EXCHANGES = ['NYSE', 'NASDAQ', 'AMEX', 'NYSEArca', 'BATS']
 
 function StockExplorer() {
   const navigate = useNavigate()
@@ -161,15 +162,20 @@ function StockExplorer() {
     params.append('sortOrder', order)
     
     return params
-  }
-  // Fetch screener results with optimized settings
+  }  // Fetch screener results with optimized settings
   const { data: stocksData, isLoading, error, refetch } = useQuery({
     queryKey: ['stockExplorer', filters, page, rowsPerPage, orderBy, order],
     queryFn: async () => {
       try {
         const params = buildQueryParams();
         logger.success('buildQueryParams', null, { params: params.toString() });
-        const result = await api.screenStocks(params);
+        const result = await screenStocks(params);
+        
+        // Add debug logging to see the actual response structure
+        console.log('StockExplorer: Raw API response:', result);
+        console.log('StockExplorer: Data array:', result?.data);
+        console.log('StockExplorer: First item structure:', result?.data?.[0]);
+        
         logger.success('screenStocks', result, { 
           resultCount: result?.data?.length || 0,
           total: result?.total || 0,
@@ -178,6 +184,7 @@ function StockExplorer() {
         });
         return result;
       } catch (err) {
+        console.error('StockExplorer: API Error:', err);
         logger.error('screenStocks', err, {
           params: buildQueryParams().toString(),
           page: page + 1,
@@ -306,17 +313,16 @@ function StockExplorer() {
       </Box>
     )
   }
-
   const columns = [
     { id: 'symbol', label: 'Symbol', sortable: true },
-    { id: 'company_name', label: 'Company', sortable: true },
-    { id: 'price', label: 'Price', sortable: true, format: formatCurrency },
-    { id: 'market_capitalization', label: 'Market Cap', sortable: true, format: formatCurrency },
+    { id: 'name', label: 'Company', sortable: true },
+    { id: 'current_price', label: 'Price', sortable: true, format: formatCurrency },
+    { id: 'market_cap', label: 'Market Cap', sortable: true, format: formatCurrency },
     { id: 'pe_ratio', label: 'P/E', sortable: true, format: (val) => val ? formatNumber(val, 2) : 'N/A' },
     { id: 'dividend_yield', label: 'Div Yield', sortable: true, format: (val) => val ? formatPercent(val) : 'N/A' },
     { id: 'return_on_equity', label: 'ROE', sortable: true, format: (val) => val ? formatPercent(val) : 'N/A' },
     { id: 'revenue_growth', label: 'Rev Growth', sortable: true, format: (val) => val ? formatPercent(val) : 'N/A' },
-    { id: 'sector', label: 'Sector', sortable: true }
+    { id: 'exchange', label: 'Exchange', sortable: true }
   ]
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
@@ -329,8 +335,27 @@ function StockExplorer() {
           <Typography variant="body1" color="text.secondary">
             Browse and filter stocks with simple search or advanced screening criteria
           </Typography>
-        </Box>
-        <Box display="flex" gap={2} alignItems="center">
+        </Box>        <Box display="flex" gap={2} alignItems="center">
+          {/* Debug button in development */}
+          {import.meta.env.DEV && (
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={async () => {
+                try {
+                  const response = await screenStocks(new URLSearchParams());
+                  console.log('Test API response:', response);
+                  alert('API test successful! Check console for details.');
+                } catch (err) {
+                  console.error('API test failed:', err);
+                  alert('API test failed! Check console for details.');
+                }
+              }}
+            >
+              Test API
+            </Button>
+          )}
+          
           <ToggleButtonGroup
             value={viewMode}
             exclusive
@@ -546,21 +571,27 @@ function StockExplorer() {
           <Card>
             <CardContent>
               {/* Results Header */}
-              <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
-                <Typography variant="h6">
+              <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>                <Typography variant="h6">
                   {viewMode === 'simple' ? 'Stock List' : 'Screening Results'}
-                  {stocksData?.total && (
+                  {(stocksData?.pagination?.total || stocksData?.total) && (
                     <Chip 
-                      label={`${stocksData.total} stocks found`} 
+                      label={`${stocksData?.pagination?.total || stocksData?.total} stocks found`} 
                       color="primary" 
                       variant="outlined" 
                       sx={{ ml: 2 }} 
                     />
                   )}
+                  {stocksData?.data?.length && (
+                    <Chip 
+                      label={`Showing ${stocksData.data.length}`} 
+                      color="secondary" 
+                      variant="outlined" 
+                      sx={{ ml: 1 }} 
+                    />
+                  )}
                 </Typography>
                 
-                <Box display="flex" gap={2}>
-                  <TextField
+                <Box display="flex" gap={2}>                  <TextField
                     select
                     label="Sort By"
                     value={orderBy}
@@ -568,12 +599,10 @@ function StockExplorer() {
                     size="small"
                     sx={{ minWidth: 150 }}
                   >
-                    <MenuItem value="market_capitalization">Market Cap</MenuItem>
-                    <MenuItem value="price">Price</MenuItem>
-                    <MenuItem value="pe_ratio">P/E Ratio</MenuItem>
-                    <MenuItem value="dividend_yield">Dividend Yield</MenuItem>
-                    <MenuItem value="return_on_equity">ROE</MenuItem>
-                    <MenuItem value="revenue_growth">Revenue Growth</MenuItem>
+                    <MenuItem value="symbol">Symbol</MenuItem>
+                    <MenuItem value="security_name">Company Name</MenuItem>
+                    <MenuItem value="exchange">Exchange</MenuItem>
+                    <MenuItem value="market_category">Category</MenuItem>
                   </TextField>
                   
                   <Button
@@ -585,25 +614,48 @@ function StockExplorer() {
                     {order === 'desc' ? 'Desc' : 'Asc'}
                   </Button>
                 </Box>
-              </Box>
-
-              {/* Loading State */}
+              </Box>              {/* Loading State */}
               {isLoading && (
                 <Box display="flex" justifyContent="center" p={4}>
                   <CircularProgress size={60} />
+                  <Box ml={2}>
+                    <Typography variant="body2" color="text.secondary">
+                      Loading stocks data...
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      API: {import.meta.env.VITE_API_URL || 'http://localhost:3001'}
+                    </Typography>
+                  </Box>
                 </Box>
-              )}
-
-              {/* Error State */}
+              )}{/* Error State */}
               {error && (
                 <Alert severity="error" sx={{ mb: 3 }}>
-                  Error loading stocks: {error.message}
+                  <strong>Error loading stocks:</strong> {error.message}
+                  <br />
+                  <small>
+                    This could be due to:
+                    <ul>
+                      <li>Backend API not running or accessible</li>
+                      <li>Database connection issues</li>
+                      <li>Incorrect API endpoint configuration</li>
+                    </ul>
+                    Current API URL: {import.meta.env.VITE_API_URL || 'http://localhost:3001'}
+                  </small>
                 </Alert>
-              )}
-
-              {/* Results Table */}
+              )}{/* Results Table */}
               {stocksData && !isLoading && (
                 <>
+                  {/* Debug Info in Development */}
+                  {import.meta.env.DEV && (
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                      <strong>Debug Info:</strong> Found {stocksData.data?.length || 0} items. 
+                      Response structure: {JSON.stringify(Object.keys(stocksData || {}), null, 2)}
+                      {stocksData.data?.[0] && (
+                        <><br/>First item keys: {JSON.stringify(Object.keys(stocksData.data[0]), null, 2)}</>
+                      )}
+                    </Alert>
+                  )}
+                  
                   <TableContainer component={Paper} variant="outlined">
                     <Table size="small" stickyHeader>
                       <TableHead>
@@ -629,31 +681,48 @@ function StockExplorer() {
                           ))}
                           <TableCell>Actions</TableCell>
                         </TableRow>
-                      </TableHead>
-                      <TableBody>
+                      </TableHead><TableBody>
                         {stocksData.data?.map((stock) => (
                           <TableRow
-                            key={stock.symbol}
+                            key={stock.ticker || stock.symbol}
                             hover
                             sx={{ 
                               cursor: 'pointer',
                               '&:hover': { backgroundColor: 'action.hover' }
                             }}
-                            onClick={() => handleRowClick(stock.symbol)}
+                            onClick={() => handleRowClick(stock.ticker || stock.symbol)}
                           >
-                            {columns.map((column) => (
-                              <TableCell key={column.id}>
-                                {column.format 
-                                  ? column.format(stock[column.id])
-                                  : stock[column.id] || 'N/A'
-                                }
-                              </TableCell>
-                            ))}
+                            {columns.map((column) => {
+                              // Map backend field names to frontend column IDs
+                              let value = stock[column.id];
+                              
+                              // Handle field name mapping from backend
+                              if (column.id === 'symbol' && !value) {
+                                value = stock.ticker || stock.symbol;
+                              } else if (column.id === 'name' && !value) {
+                                value = stock.short_name || stock.security_name || stock.name;
+                              } else if (column.id === 'current_price' && !value) {
+                                value = stock.regular_market_price || stock.price || stock.current_price;
+                              } else if (column.id === 'market_cap' && !value) {
+                                value = stock.market_capitalization || stock.market_cap;
+                              } else if (column.id === 'exchange' && !value) {
+                                value = stock.sector || stock.exchange;
+                              }
+                              
+                              return (
+                                <TableCell key={column.id}>
+                                  {column.format 
+                                    ? column.format(value)
+                                    : value || 'N/A'
+                                  }
+                                </TableCell>
+                              );
+                            })}
                             <TableCell onClick={(e) => e.stopPropagation()}>
                               <Tooltip title="View Details">
                                 <IconButton 
                                   size="small"
-                                  onClick={() => handleRowClick(stock.symbol)}
+                                  onClick={() => handleRowClick(stock.ticker || stock.symbol)}
                                 >
                                   <ShowChart />
                                 </IconButton>
@@ -663,23 +732,19 @@ function StockExplorer() {
                         ))}
                       </TableBody>
                     </Table>
-                  </TableContainer>
-
-                  {/* Pagination */}
+                  </TableContainer>                  {/* Pagination */}
                   <TablePagination
                     rowsPerPageOptions={[10, 25, 50, 100]}
                     component="div"
-                    count={stocksData.total || 0}
+                    count={stocksData?.pagination?.total || stocksData?.total || 0}
                     rowsPerPage={rowsPerPage}
                     page={page}
                     onPageChange={handlePageChange}
                     onRowsPerPageChange={handleRowsPerPageChange}
                   />
                 </>
-              )}
-
-              {/* No Results */}
-              {stocksData && stocksData.data?.length === 0 && !isLoading && (
+              )}              {/* No Results */}
+              {stocksData && (!stocksData.data || stocksData.data?.length === 0) && !isLoading && (
                 <Box textAlign="center" py={6}>
                   <Typography variant="h6" color="text.secondary" gutterBottom>
                     No stocks match your criteria
@@ -687,6 +752,11 @@ function StockExplorer() {
                   <Typography variant="body2" color="text.secondary" mb={3}>
                     Try adjusting your search or filter criteria
                   </Typography>
+                  {import.meta.env.DEV && (
+                    <Typography variant="caption" display="block" color="text.secondary" mb={2}>
+                      Debug: Response structure = {JSON.stringify(stocksData, null, 2)}
+                    </Typography>
+                  )}
                   <Button 
                     variant="outlined" 
                     onClick={handleClearFilters}
