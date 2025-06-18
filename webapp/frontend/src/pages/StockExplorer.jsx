@@ -709,82 +709,54 @@ function StockExplorer() {
                       )}
                     </Alert>
                   )}
-                  
-                  <TableContainer component={Paper} variant="outlined">
+                    <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 600, overflow: 'auto' }}>
                     <Table size="small" stickyHeader>
                       <TableHead>
                         <TableRow>
-                          {columns.map((column) => (
-                            <TableCell
-                              key={column.id}
-                              sortDirection={orderBy === column.id ? order : false}
-                              sx={{ 
-                                fontWeight: 'bold',
-                                cursor: column.sortable ? 'pointer' : 'default',
-                                '&:hover': column.sortable ? { backgroundColor: 'action.hover' } : {}
-                              }}
-                              onClick={() => column.sortable && handleSort(column.id)}
-                            >
-                              {column.label}
-                              {orderBy === column.id && (
-                                <Box component="span" ml={1}>
-                                  {order === 'desc' ? '↓' : '↑'}
-                                </Box>
-                              )}
-                            </TableCell>
-                          ))}
-                          <TableCell>Actions</TableCell>
+                          <TableCell sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Symbol</TableCell>
+                          <TableCell sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Security Name</TableCell>
+                          <TableCell sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Exchange</TableCell>
+                          <TableCell sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Market Category</TableCell>
+                          <TableCell sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>CQS Symbol</TableCell>
+                          <TableCell sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Financial Status</TableCell>
+                          <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Round Lot Size</TableCell>
+                          <TableCell sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>ETF</TableCell>
+                          <TableCell sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Secondary Symbol</TableCell>
+                          <TableCell sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Test Issue</TableCell>
+                          <TableCell sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Actions</TableCell>
                         </TableRow>
-                      </TableHead><TableBody>
+                      </TableHead>
+
+                      <TableBody>
                         {stocksData.data?.map((stock) => (
                           <TableRow
-                            key={stock.ticker || stock.symbol}
+                            key={stock.symbol}
                             hover
                             sx={{ 
                               cursor: 'pointer',
                               '&:hover': { backgroundColor: 'action.hover' }
                             }}
-                            onClick={() => handleRowClick(stock.ticker || stock.symbol)}
-                          >                            {columns.map((column) => {
-                              // Map backend field names to frontend column IDs
-                              let value = stock[column.id];
-                              
-                              // Handle field name mapping from backend API response
-                              if (column.id === 'symbol' && !value) {
-                                value = stock.ticker || stock.symbol;
-                              } else if (column.id === 'name' && !value) {
-                                value = stock.short_name || stock.security_name || stock.name || stock.fullName;
-                              } else if (column.id === 'exchange' && !value) {
-                                value = stock.exchange || stock.primaryExchange;
-                              } else if (column.id === 'market_category' && !value) {
-                                value = stock.market_category || stock.marketCategory || stock.category;
-                              } else if (column.id === 'financial_status' && !value) {
-                                value = stock.financial_status || stock.financialStatus;
-                              } else if (column.id === 'type' && !value) {
-                                value = stock.isEtf ? 'ETF' : 'Stock';
-                                if (!value && stock.displayData?.type) {
-                                  value = stock.displayData.type;
-                                }
-                              } else if (column.id === 'cqs_symbol' && !value) {
-                                value = stock.cqs_symbol || stock.cqsSymbol;
-                              } else if (column.id === 'round_lot_size' && !value) {
-                                value = stock.round_lot_size || stock.roundLotSize;
-                              }
-                              
-                              return (
-                                <TableCell key={column.id}>
-                                  {column.format 
-                                    ? column.format(value)
-                                    : value || 'N/A'
-                                  }
-                                </TableCell>
-                              );
-                            })}
+                            onClick={() => handleRowClick(stock.symbol)}
+                          >
+                            <TableCell>
+                              <Typography variant="body2" fontWeight="bold">
+                                {stock.symbol || 'N/A'}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>{stock.security_name || 'N/A'}</TableCell>
+                            <TableCell>{stock.exchange || 'N/A'}</TableCell>
+                            <TableCell>{stock.market_category || 'N/A'}</TableCell>
+                            <TableCell>{stock.cqs_symbol || 'N/A'}</TableCell>
+                            <TableCell>{stock.financial_status || 'N/A'}</TableCell>
+                            <TableCell align="right">{stock.round_lot_size ? formatNumber(stock.round_lot_size) : 'N/A'}</TableCell>
+                            <TableCell>{stock.etf === 'Y' ? 'Yes' : stock.etf === 'N' ? 'No' : (stock.etf || 'N/A')}</TableCell>
+                            <TableCell>{stock.secondary_symbol || 'N/A'}</TableCell>
+                            <TableCell>{stock.test_issue === 'Y' ? 'Yes' : stock.test_issue === 'N' ? 'No' : (stock.test_issue || 'N/A')}</TableCell>
                             <TableCell onClick={(e) => e.stopPropagation()}>
                               <Tooltip title="View Details">
                                 <IconButton 
                                   size="small"
-                                  onClick={() => handleRowClick(stock.ticker || stock.symbol)}
+                                  onClick={() => handleRowClick(stock.symbol)}
                                 >
                                   <ShowChart />
                                 </IconButton>
