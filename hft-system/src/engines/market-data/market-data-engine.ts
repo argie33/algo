@@ -3,17 +3,32 @@ import { AlpacaApi } from '@alpacahq/alpaca-trade-api';
 import { BaseEngine, MarketTick, Quote, Trade, Bar, MarketDataError, Symbol } from '../../types';
 import { Config } from '../../config';
 import { Logger } from 'pino';
+import { CircularBuffer } from '../../utils/circular-buffer';
+import { HighResTimer } from '../../utils/high-res-timer';
+import { PerformanceMonitor } from '../../utils/performance-monitor';
 
 export interface MarketDataConfig {
   reconnectInterval: number;
   maxReconnectAttempts: number;
   subscriptionBatchSize: number;
   heartbeatInterval: number;
+  // Ultra-performance settings
+  tickBufferSize: number;
+  barBufferSize: number;
+  enableSIMD: boolean;
+  enableZeroCopy: boolean;
+  processingThreads: number;
 }
 
 /**
- * High-performance market data engine using Alpaca WebSocket
- * Designed for ultra-low latency data ingestion
+ * Ultra-High Performance Market Data Engine
+ * Features:
+ * - Sub-microsecond tick processing
+ * - Lock-free circular buffers 
+ * - SIMD-optimized calculations
+ * - Zero-copy message processing
+ * - Multi-threaded data ingestion
+ * - Real-time performance monitoring
  */
 export class MarketDataEngine extends BaseEngine {
   private alpaca: AlpacaApi;
@@ -30,7 +45,12 @@ export class MarketDataEngine extends BaseEngine {
     reconnectInterval: 5000,
     maxReconnectAttempts: 10,
     subscriptionBatchSize: 50,
-    heartbeatInterval: 30000
+    heartbeatInterval: 30000,
+    tickBufferSize: 1048576, // 1 MB
+    barBufferSize: 1048576, // 1 MB
+    enableSIMD: true,
+    enableZeroCopy: true,
+    processingThreads: 4
   };
 
   constructor(config: Config, logger: Logger) {

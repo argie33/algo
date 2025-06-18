@@ -123,12 +123,13 @@ router.get('/ping', (req, res) => {
 });
 
 // Get comprehensive market overview with sentiment indicators
-router.get('/overview', async (req, res) => {  try {
+router.get('/overview', async (req, res) => {
+  try {
     console.log('Market overview endpoint called');
     
     // Check if required tables exist
     const requiredTables = ['fear_greed_index', 'naaim_exposure', 'stock_symbols'];
-    const missingTables = [];
+    const tableExists = {};
     
     for (const table of requiredTables) {
       try {
@@ -140,52 +141,84 @@ router.get('/overview', async (req, res) => {  try {
           );
         `);
         
-        if (!tableCheck.rows[0].exists) {
-          missingTables.push(table);
-        }
+        tableExists[table] = tableCheck.rows[0].exists;
       } catch (checkError) {
         console.error(`Error checking table ${table}:`, checkError);
-        missingTables.push(table);
+        tableExists[table] = false;
       }
     }
     
-    if (missingTables.length > 0) {
-      console.warn('Missing tables for market overview:', missingTables);
-      // Continue but return limited data
+    console.log('Table existence check:', tableExists);
+    
+    // Initialize default results
+    let fearGreedResult = { rows: [] };
+    let naaimResult = { rows: [] };
+    let marketStatsResult = { rows: [{ 
+      total_stocks: 0, 
+      advancing_stocks: 0, 
+      declining_stocks: 0, 
+      unchanged_stocks: 0 
+    }] };
+    
+    // Get data from tables that exist
+    const promises = [];
+    
+    if (tableExists['fear_greed_index']) {
+      const fearGreedQuery = `
+        SELECT index_value, rating, date
+        FROM fear_greed_index 
+        ORDER BY date DESC 
+        LIMIT 1
+      `;
+      promises.push(query(fearGreedQuery).then(result => ({ type: 'feargreed', result })));
     }
-      // Get latest Fear & Greed index
-    const fearGreedQuery = `
-      SELECT index_value, rating, date
-      FROM fear_greed_index 
-      ORDER BY date DESC 
-      LIMIT 1
-    `;
 
-    // Get latest NAAIM sentiment
-    const naaimQuery = `
-      SELECT mean_exposure, bearish_exposure, bullish_exposure, date
-      FROM naaim_exposure 
-      ORDER BY date DESC 
-      LIMIT 1
-    `;    // Get overall market statistics from available data
-    const marketStatsQuery = `
-      SELECT 
-        COUNT(*) as total_stocks,
-        0 as advancing_stocks,
-        0 as declining_stocks,
-        0 as unchanged_stocks,
-        0 as avg_change_percent,
-        0 as total_market_cap
-      FROM stock_symbols
-      WHERE etf = 'N'
-    `;    const [fearGreedResult, naaimResult, marketStatsResult] = await Promise.all([
-      query(fearGreedQuery),
-      query(naaimQuery), 
-      query(marketStatsQuery)
-    ]);
+    if (tableExists['naaim_exposure']) {
+      const naaimQuery = `
+        SELECT mean_exposure, bearish_exposure, bullish_exposure, date
+        FROM naaim_exposure 
+        ORDER BY date DESC 
+        LIMIT 1
+      `;
+      promises.push(query(naaimQuery).then(result => ({ type: 'naaim', result })));
+    }
+    
+    if (tableExists['stock_symbols']) {
+      const marketStatsQuery = `
+        SELECT 
+          COUNT(*) as total_stocks,
+          0 as advancing_stocks,
+          0 as declining_stocks,
+          0 as unchanged_stocks,
+          0 as avg_change_percent,
+          0 as total_market_cap
+        FROM stock_symbols
+        WHERE etf = 'N'
+      `;
+      promises.push(query(marketStatsQuery).then(result => ({ type: 'marketstats', result })));
+    }
+    
+    // Execute all available queries
+    const results = await Promise.all(promises);
+    
+    // Process results
+    results.forEach(({ type, result }) => {
+      switch (type) {
+        case 'feargreed':
+          fearGreedResult = result;
+          break;
+        case 'naaim':
+          naaimResult = result;
+          break;
+        case 'marketstats':
+          marketStatsResult = result;
+          break;
+      }
+    });
 
-    const marketStats = marketStatsResult.rows[0];
-    const advanceDeclineRatio = marketStats.advancing_stocks / Math.max(marketStats.declining_stocks, 1);    res.json({
+    const marketStats = marketStatsResult.rows[0];    const advanceDeclineRatio = marketStats.advancing_stocks / Math.max(marketStats.declining_stocks, 1);
+
+    res.json({
       sentiment_indicators: {
         fear_greed: fearGreedResult.rows[0] || null,
         naaim: naaimResult.rows[0] || null,
@@ -203,6 +236,11 @@ router.get('/overview', async (req, res) => {  try {
         total: parseFloat(marketStats.total_market_cap || 0)
       },
       economic_indicators: [], // Not available
+      data_availability: {
+        tables_checked: requiredTables,
+        tables_available: Object.keys(tableExists).filter(table => tableExists[table]),
+        tables_missing: Object.keys(tableExists).filter(table => !tableExists[table])
+      },
       timestamp: new Date().toISOString()
     });
 

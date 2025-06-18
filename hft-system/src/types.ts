@@ -1,4 +1,103 @@
 // Core Types for HFT System
+
+// Market data types
+export interface MarketTick {
+  symbol: string;
+  timestamp: number;
+  price?: number;
+  size?: number;
+  bid?: number;
+  ask?: number;
+  bidSize?: number;
+  askSize?: number;
+  exchange?: string;
+  conditions?: string[];
+  type: 'trade' | 'quote';
+}
+
+export interface QuoteData {
+  bid: number;
+  ask: number;
+  bidSize: number;
+  askSize: number;
+  timestamp: number;
+  spread: number;
+}
+
+export interface TradeData {
+  price: number;
+  size: number;
+  timestamp: number;
+  exchange: string;
+}
+
+export interface OHLCVBar {
+  symbol: string;
+  timestamp: number;
+  timeframe: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  vwap?: number;
+}
+
+// Order types
+export type OrderSide = 'buy' | 'sell';
+export type OrderType = 'market' | 'limit' | 'stop' | 'stop_limit';
+export type OrderStatus = 'pending' | 'filled' | 'partially_filled' | 'cancelled' | 'rejected';
+
+export interface OrderRequest {
+  symbol: string;
+  side: OrderSide;
+  type: OrderType;
+  quantity: number;
+  price?: number;
+  stopPrice?: number;
+  timeInForce?: 'day' | 'gtc' | 'ioc' | 'fok';
+  clientOrderId?: string;
+}
+
+// Market data configuration
+export interface MarketDataConfig {
+  symbols: string[];
+  isPaper: boolean;
+  reconnectAttempts: number;
+  heartbeatInterval: number;
+  bufferSizes: {
+    ticks: number;
+    bars: number;
+  };
+}
+
+// Event handler types
+export type TickHandler = (tick: MarketTick) => void;
+export type BarHandler = (bar: OHLCVBar) => void;
+
+// Error types
+export class MarketDataError extends Error {
+  constructor(message: string, public metadata?: any) {
+    super(message);
+    this.name = 'MarketDataError';
+  }
+}
+
+export class OrderError extends Error {
+  constructor(message: string, public metadata?: any) {
+    super(message);
+    this.name = 'OrderError';
+  }
+}
+
+export class RiskError extends Error {
+  constructor(message: string, public metadata?: any) {
+    super(message);
+    this.name = 'RiskError';
+  }
+}
+
+// Core Types for HFT System
 export interface MarketData {
   symbol: string;
   price: number;
