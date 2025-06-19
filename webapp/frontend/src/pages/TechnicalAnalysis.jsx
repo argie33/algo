@@ -296,9 +296,6 @@ function TechnicalAnalysis() {
     </Box>
   );
 
-  // Overview card (first row)
-  const sampleData = technicalData?.data?.[0] || {};
-
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       <Box display="flex" alignItems="flex-start" gap={4}>
@@ -377,30 +374,6 @@ function TechnicalAnalysis() {
         <Box flex={1}>
           <Typography variant="h4" gutterBottom sx={{ mb: 2, mt: 1, textAlign: 'left' }}>Technical Analysis</Typography>
           <Divider sx={{ mb: 2 }} />
-          {/* Overview summary */}
-          {sampleData.symbol && (
-            <Accordion sx={{ mb: 3 }}>
-              <AccordionSummary expandIcon={<ExpandMore />}>
-                <Typography variant="h6">Technical Overview - {sampleData.symbol}</Typography>
-              </AccordionSummary>
-              <AccordionDetails>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <Card><CardContent><Typography variant="subtitle2">RSI</Typography><Typography variant="h6">{formatNumber(sampleData.rsi)}</Typography></CardContent></Card>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <Card><CardContent><Typography variant="subtitle2">MACD</Typography><Typography variant="h6">{formatNumber(sampleData.macd)}</Typography></CardContent></Card>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <Card><CardContent><Typography variant="subtitle2">ADX</Typography><Typography variant="h6">{formatNumber(sampleData.adx)}</Typography></CardContent></Card>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <Card><CardContent><Typography variant="subtitle2">ATR</Typography><Typography variant="h6">{formatNumber(sampleData.atr)}</Typography></CardContent></Card>
-                  </Grid>
-                </Grid>
-              </AccordionDetails>
-            </Accordion>
-          )}
           {/* Error/Loading/Empty states */}
           {error && (
             <Alert severity="error" sx={{ mb: 2 }}>Error loading technical data: {error.message}</Alert>
