@@ -1618,6 +1618,7 @@ def process_symbol_chunk(symbol_chunk, db_config):
         symbol_process_start = time.time()
         for i, symbol in enumerate(symbol_chunk):
             symbol_start_time = time.time()
+            symbol_insert_data = []  # <-- FIX: initialize per-symbol insert list
             try:
                 if symbol not in price_df.index.get_level_values('symbol'):
                     logging.warning(f"⚠️  No price data for {symbol}, skipping")
