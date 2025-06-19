@@ -7,6 +7,9 @@ import Autocomplete from '@mui/material/Autocomplete';
 import { Line } from 'react-chartjs-2';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import TextareaAutosize from '@mui/material/TextareaAutosize';
+import DownloadIcon from '@mui/icons-material/Download';
+import SaveIcon from '@mui/icons-material/Save';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -28,6 +31,9 @@ export default function Backtest() {
   const [strategyCode, setStrategyCode] = useState('');
   const [pythonCode, setPythonCode] = useState('');
   const [useCustomCode, setUseCustomCode] = useState(false);
+  const [logs, setLogs] = useState('');
+  const [savedStrategies, setSavedStrategies] = useState([]);
+  const [showApiExample, setShowApiExample] = useState(false);
 
   // Helper: get param config for selected strategy (could be from backend or hardcoded)
   const paramConfig = useMemo(() => {
@@ -67,6 +73,12 @@ export default function Backtest() {
     }
   }, [params.strategy, strategies, paramConfig]);
 
+  // Save/load strategies in localStorage
+  useEffect(() => {
+    const saved = JSON.parse(localStorage.getItem('backtest_strategies') || '[]');
+    setSavedStrategies(saved);
+  }, []);
+
   const handleChange = (field, value) => {
     setParams(prev => ({ ...prev, [field]: value }));
   };
@@ -79,6 +91,7 @@ export default function Backtest() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setLogs('');
     try {
       const body = useCustomCode
         ? { ...params, strategy_code: pythonCode, language: 'python' }
@@ -91,6 +104,7 @@ export default function Backtest() {
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Backtest failed');
       setResult(data);
+      setLogs(data.logs || data.stdout || '');
     } catch (e) {
       setError(e.message);
     } finally {
@@ -109,10 +123,57 @@ export default function Backtest() {
     URL.revokeObjectURL(url);
   };
 
+  const handleDownloadLogs = () => {
+    if (!logs) return;
+    const blob = new Blob([logs], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `backtest_logs_${params.symbol}_${params.strategy || 'custom'}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleStrategyChange = (id) => {
     const strat = strategies.find(s => s.id === id);
     handleChange('strategy', id);
     // Optionally parse params from strat.code or add UI for params
+  };
+
+  const handleSaveStrategy = () => {
+    if (!pythonCode.trim()) return;
+    const name = prompt('Enter a name for this strategy:');
+    if (!name) return;
+    const newStrategy = { name, code: pythonCode };
+    const updated = [...savedStrategies, newStrategy];
+    setSavedStrategies(updated);
+    localStorage.setItem('backtest_strategies', JSON.stringify(updated));
+  };
+
+  const handleLoadStrategy = (code) => {
+    setPythonCode(code);
+    setUseCustomCode(true);
+  };
+
+  const handleExportTrades = () => {
+    if (!result?.trades?.length) return;
+    const csv = [
+      'Date,Action,Price,Shares,PnL',
+      ...result.trades.map(t => `${t.date},${t.action},${t.price},${t.shares},${t.pnl}`)
+    ].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `backtest_trades_${params.symbol}_${params.strategy || 'custom'}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const apiExample = `import requests\n\nurl = '${API_BASE}/backtest/run'\npayload = {\n    'symbol': '${params.symbol}',\n    'strategy_code': '''\n${pythonCode.replace(/'/g, "''")}\n''',\n    'language': 'python'\n}\nresponse = requests.post(url, json=payload)\nprint(response.json())`;
+
+  const handleCopyApiExample = () => {
+    navigator.clipboard.writeText(apiExample);
   };
 
   return (
@@ -212,7 +273,24 @@ export default function Backtest() {
       {result && (
         <Paper sx={{ p: 3 }}>
           <Typography variant="h6" gutterBottom>Backtest Results</Typography>
-          <Button variant="outlined" startIcon={<FileDownloadIcon />} sx={{ mb: 2 }} onClick={handleExport}>Export Results</Button>
+          <Button variant="outlined" startIcon={<FileDownloadIcon />} sx={{ mb: 2, mr: 2 }} onClick={handleExport}>Export Results</Button>
+          <Button variant="outlined" startIcon={<DownloadIcon />} sx={{ mb: 2, mr: 2 }} onClick={handleDownloadLogs}>Download Logs</Button>
+          {result.trades?.length > 0 && (
+            <Button variant="outlined" sx={{ mb: 2 }} onClick={handleExportTrades}>Export Trades (CSV)</Button>
+          )}
+          {/* API Example */}
+          <Button variant="text" startIcon={<ContentCopyIcon />} sx={{ mb: 2, ml: 2 }} onClick={() => setShowApiExample(v => !v)}>
+            {showApiExample ? 'Hide' : 'Show'} API Example
+          </Button>
+          {showApiExample && (
+            <Paper sx={{ p: 2, fontFamily: 'monospace', fontSize: 13, whiteSpace: 'pre', overflowX: 'auto', background: '#f7f7f7', mb: 2 }}>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <span>Python API Example</span>
+                <Button size="small" startIcon={<ContentCopyIcon />} onClick={handleCopyApiExample}>Copy</Button>
+              </Box>
+              {apiExample}
+            </Paper>
+          )}
           {/* Performance Chart */}
           {result.equityCurve && (
             <Box mb={2}>
@@ -228,6 +306,15 @@ export default function Backtest() {
                 }}
                 options={{ responsive: true, plugins: { legend: { display: false } } }}
               />
+            </Box>
+          )}
+          {/* Show logs/output if present */}
+          {logs && (
+            <Box mt={2}>
+              <Typography variant="subtitle2" color="text.secondary">Backtest Logs / Output</Typography>
+              <Paper sx={{ p: 2, fontFamily: 'monospace', fontSize: 13, whiteSpace: 'pre', overflowX: 'auto', background: '#f7f7f7' }}>
+                {logs}
+              </Paper>
             </Box>
           )}
           {result.performance && (
