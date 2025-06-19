@@ -689,13 +689,6 @@ function StockExplorer() {
                   </AccordionDetails>
                 </Accordion>
 
-                {/* Note about future features */}
-                <Alert severity="info" sx={{ mt: 2 }}>
-                  <Typography variant="body2">
-                    <strong>Coming Soon:</strong> Price, valuation, and financial metric filters will be available once market data integration is complete.
-                  </Typography>
-                </Alert>
-
               </CardContent>
             </Card>
           )}
@@ -1036,7 +1029,8 @@ function StockExplorer() {
                                   <Typography variant="h6" gutterBottom>
                                     Actions
                                   </Typography>
-                                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>                                    <Button
+                                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                    <Button
                                       variant="contained"
                                       startIcon={<ShowChart />}
                                       onClick={() => handleFetchPriceHistory(stock.symbol)}

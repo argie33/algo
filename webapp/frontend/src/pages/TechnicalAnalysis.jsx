@@ -22,10 +22,12 @@ import {
   CircularProgress,
   Alert,
   TextField,
-  Button,  Accordion,
+  Button,
+  Accordion,
   AccordionSummary,
   AccordionDetails,
-  Pagination
+  Chip,
+  Divider
 } from '@mui/material';
 import {
   ExpandMore,
@@ -34,233 +36,171 @@ import {
 import { formatNumber, formatDate } from '../utils/formatters';
 import { getTechnicalData } from '../services/api';
 
-// Use centralized error logging (logger will be defined in component)
+function getSignalColor(value, type) {
+  if (value === null || value === undefined) return 'default';
+  switch (type) {
+    case 'rsi':
+      if (value > 70) return 'error';
+      if (value < 30) return 'success';
+      return 'warning';
+    case 'macd':
+      return value > 0 ? 'success' : 'error';
+    case 'adx':
+      if (value > 25) return 'success';
+      return 'warning';
+    default:
+      return 'default';
+  }
+}
 
-function TechnicalAnalysis() {
+export default function TechnicalAnalysis() {
   const logger = createComponentLogger('TechnicalAnalysis');
-  
   const [timeframe, setTimeframe] = useState('daily');
   const [symbolFilter, setSymbolFilter] = useState('');
   const [page, setPage] = useState(1);
-  const [searchInput, setSearchInput] = useState('');  // Fetch technical data - always use getTechnicalData for consistent data structure
+  const [searchInput, setSearchInput] = useState('');
   const { data: technicalData, isLoading, error, refetch } = useQuery({
     queryKey: ['technicalAnalysis', timeframe, symbolFilter, page],
     queryFn: async () => {
-      const result = await getTechnicalData(timeframe, { 
-        symbol: symbolFilter || undefined, // Only include symbol if filtering
-        limit: symbolFilter ? 50 : 25, // More data for specific symbols
+      const result = await getTechnicalData(timeframe, {
+        symbol: symbolFilter || undefined,
+        limit: symbolFilter ? 50 : 25,
         page: page
       });
-      // Patch: If result.data is undefined but result itself is an array, wrap it
-      if (Array.isArray(result)) {
-        return { data: result };
-      }
-      // Patch: If result.data is not an array, fallback to empty array
-      if (!Array.isArray(result.data)) {
-        return { ...result, data: [] };
-      }
+      if (Array.isArray(result)) return { data: result };
+      if (!Array.isArray(result.data)) return { ...result, data: [] };
       return result;
     },
     onError: (error) => logger.queryError('technicalAnalysis', error, { timeframe, symbolFilter, page }),
-    refetchInterval: 300000, // Refresh every 5 minutes
+    refetchInterval: 300000,
     retry: 2,
-    staleTime: 60000 // Consider data fresh for 1 minute
+    staleTime: 60000
   });
 
   const handleSearch = () => {
     setSymbolFilter(searchInput.trim());
-    setPage(1); // Reset to first page when searching
+    setPage(1);
   };
-
   const handleClearSearch = () => {
     setSearchInput('');
     setSymbolFilter('');
     setPage(1);
   };
-
-  const handleTimeframeChange = (newTimeframe) => {
-    setTimeframe(newTimeframe);
-    setPage(1); // Reset to first page when changing timeframe
+  const handleTimeframeChange = (e) => {
+    setTimeframe(e.target.value);
+    setPage(1);
   };
 
-  const getSignalColor = (value, type) => {
-    if (value === null || value === undefined) return 'grey.500';
-    
-    switch (type) {
-      case 'rsi':
-        if (value > 70) return 'error.main'; // Overbought
-        if (value < 30) return 'success.main'; // Oversold
-        return 'warning.main';
-      case 'macd':
-        return value > 0 ? 'success.main' : 'error.main';
-      case 'adx':
-        if (value > 25) return 'success.main'; // Strong trend
-        return 'warning.main';
-      default:
-        return 'grey.500';
-    }
-  };
+  // --- Summary Chips ---
+  const sample = technicalData?.data?.[0] || {};
+  const summaryChips = [
+    { label: 'RSI', value: sample.rsi, type: 'rsi' },
+    { label: 'MACD', value: sample.macd, type: 'macd' },
+    { label: 'ADX', value: sample.adx, type: 'adx' },
+    { label: 'ATR', value: sample.atr, type: 'default' },
+    { label: 'MFI', value: sample.mfi, type: 'rsi' },
+    { label: 'SMA 50', value: sample.sma_50, type: 'default' },
+    { label: 'EMA 21', value: sample.ema_21, type: 'default' },
+    { label: 'Pivot High', value: sample.pivot_high, type: 'default' },
+    { label: 'Pivot Low', value: sample.pivot_low, type: 'default' }
+  ];
 
-  const TechnicalIndicatorCard = ({ title, value, description, type, unit = '' }) => (
-    <Card sx={{ height: '100%' }}>
-      <CardContent>
-        <Typography variant="h6" component="h3" gutterBottom>
-          {title}
-        </Typography>
-        <Typography 
-          variant="h4" 
-          component="p" 
-          sx={{ 
-            color: getSignalColor(value, type),
-            fontWeight: 'bold',
-            mb: 1
-          }}
-        >
-          {value !== null && value !== undefined ? `${formatNumber(value)}${unit}` : 'N/A'}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {description}
-        </Typography>
-      </CardContent>
-    </Card>
-  );
+  // --- Table ---
+  const columns = [
+    { key: 'symbol', label: 'Symbol' },
+    { key: 'date', label: 'Date', render: (v) => formatDate(v) },
+    { key: 'rsi', label: 'RSI', render: (v) => v != null ? formatNumber(v) : 'N/A' },
+    { key: 'macd', label: 'MACD', render: (v) => v != null ? formatNumber(v, 4) : 'N/A' },
+    { key: 'macd_signal', label: 'MACD Signal', render: (v) => v != null ? formatNumber(v, 4) : 'N/A' },
+    { key: 'macd_hist', label: 'MACD Hist', render: (v) => v != null ? formatNumber(v, 4) : 'N/A' },
+    { key: 'adx', label: 'ADX', render: (v) => v != null ? formatNumber(v) : 'N/A' },
+    { key: 'atr', label: 'ATR', render: (v) => v != null ? formatNumber(v) : 'N/A' },
+    { key: 'mfi', label: 'MFI', render: (v) => v != null ? formatNumber(v) : 'N/A' },
+    { key: 'roc', label: 'ROC', render: (v) => v != null ? formatNumber(v) : 'N/A' },
+    { key: 'mom', label: 'MOM', render: (v) => v != null ? formatNumber(v) : 'N/A' },
+    { key: 'bbands_upper', label: 'BB Upper', render: (v) => v != null ? formatNumber(v) : 'N/A' },
+    { key: 'bbands_middle', label: 'BB Middle', render: (v) => v != null ? formatNumber(v) : 'N/A' },
+    { key: 'bbands_lower', label: 'BB Lower', render: (v) => v != null ? formatNumber(v) : 'N/A' },
+    { key: 'sma_10', label: 'SMA 10', render: (v) => v != null ? formatNumber(v) : 'N/A' },
+    { key: 'sma_20', label: 'SMA 20', render: (v) => v != null ? formatNumber(v) : 'N/A' },
+    { key: 'sma_50', label: 'SMA 50', render: (v) => v != null ? formatNumber(v) : 'N/A' },
+    { key: 'sma_150', label: 'SMA 150', render: (v) => v != null ? formatNumber(v) : 'N/A' },
+    { key: 'sma_200', label: 'SMA 200', render: (v) => v != null ? formatNumber(v) : 'N/A' },
+    { key: 'ema_4', label: 'EMA 4', render: (v) => v != null ? formatNumber(v) : 'N/A' },
+    { key: 'ema_9', label: 'EMA 9', render: (v) => v != null ? formatNumber(v) : 'N/A' },
+    { key: 'ema_21', label: 'EMA 21', render: (v) => v != null ? formatNumber(v) : 'N/A' },
+    { key: 'ad', label: 'A/D', render: (v) => v != null ? formatNumber(v) : 'N/A' },
+    { key: 'cmf', label: 'CMF', render: (v) => v != null ? formatNumber(v, 4) : 'N/A' },
+    { key: 'td_sequential', label: 'TD Seq', render: (v) => v != null ? formatNumber(v) : 'N/A' },
+    { key: 'td_combo', label: 'TD Combo', render: (v) => v != null ? formatNumber(v) : 'N/A' },
+    { key: 'marketwatch', label: 'MW', render: (v) => v != null ? formatNumber(v) : 'N/A' },
+    { key: 'dm', label: 'DM', render: (v) => v != null ? formatNumber(v) : 'N/A' },
+    { key: 'pivot_high', label: 'Pivot H', render: (v) => v != null ? formatNumber(v) : 'N/A' },
+    { key: 'pivot_low', label: 'Pivot L', render: (v) => v != null ? formatNumber(v) : 'N/A' }
+  ];
 
-  const ComprehensiveTechnicalTable = () => (
-    <TableContainer component={Paper} elevation={0} sx={{ maxHeight: 600, overflow: 'auto' }}>
-      <Table stickyHeader>
-        <TableHead>
-          <TableRow>
-            <TableCell sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Symbol</TableCell>
-            <TableCell sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Date</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>RSI</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>MACD</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>MACD Signal</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>MACD Hist</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>ADX</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>ATR</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>MFI</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>ROC</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>MOM</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>BB Upper</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>BB Middle</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>BB Lower</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>SMA 10</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>SMA 20</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>SMA 50</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>SMA 150</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>SMA 200</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>EMA 4</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>EMA 9</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>EMA 21</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>A/D</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>CMF</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>TD Seq</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>TD Combo</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>MW</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>DM</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Pivot H</TableCell>
-            <TableCell align="right" sx={{ backgroundColor: 'grey.50', fontWeight: 'bold' }}>Pivot L</TableCell>
-          </TableRow>
-        </TableHead>        <TableBody>
-          {Array.isArray(technicalData?.data) ? technicalData.data.map((row, index) => (
-            <TableRow key={`${row.symbol}-${index}`} hover>
-              <TableCell>
-                <Typography variant="body2" fontWeight="bold">
-                  {row.symbol}
-                </Typography>
-              </TableCell>
-              <TableCell>
-                <Typography variant="body2">
-                  {formatDate(row.date)}
-                </Typography>
-              </TableCell>
-              <TableCell align="right">
-                <Typography 
-                  variant="body2" 
-                  sx={{ color: getSignalColor(row.rsi, 'rsi') }}
-                >
-                  {row.rsi ? formatNumber(row.rsi) : 'N/A'}
-                </Typography>
-              </TableCell>
-              <TableCell align="right">
-                <Typography 
-                  variant="body2"
-                  sx={{ color: getSignalColor(row.macd, 'macd') }}
-                >
-                  {row.macd ? formatNumber(row.macd, 4) : 'N/A'}
-                </Typography>
-              </TableCell>
-              <TableCell align="right">{row.macd_signal ? formatNumber(row.macd_signal, 4) : 'N/A'}</TableCell>
-              <TableCell align="right">{row.macd_hist ? formatNumber(row.macd_hist, 4) : 'N/A'}</TableCell>
-              <TableCell align="right">
-                <Typography 
-                  variant="body2"
-                  sx={{ color: getSignalColor(row.adx, 'adx') }}
-                >
-                  {row.adx ? formatNumber(row.adx) : 'N/A'}
-                </Typography>
-              </TableCell>
-              <TableCell align="right">{row.atr ? formatNumber(row.atr) : 'N/A'}</TableCell>
-              <TableCell align="right">{row.mfi ? formatNumber(row.mfi) : 'N/A'}</TableCell>
-              <TableCell align="right">{row.roc ? formatNumber(row.roc) : 'N/A'}</TableCell>
-              <TableCell align="right">{row.mom ? formatNumber(row.mom) : 'N/A'}</TableCell>
-              <TableCell align="right">{row.bbands_upper ? formatNumber(row.bbands_upper) : 'N/A'}</TableCell>
-              <TableCell align="right">{row.bbands_middle ? formatNumber(row.bbands_middle) : 'N/A'}</TableCell>
-              <TableCell align="right">{row.bbands_lower ? formatNumber(row.bbands_lower) : 'N/A'}</TableCell>
-              <TableCell align="right">{row.sma_10 ? formatNumber(row.sma_10) : 'N/A'}</TableCell>
-              <TableCell align="right">{row.sma_20 ? formatNumber(row.sma_20) : 'N/A'}</TableCell>
-              <TableCell align="right">{row.sma_50 ? formatNumber(row.sma_50) : 'N/A'}</TableCell>
-              <TableCell align="right">{row.sma_150 ? formatNumber(row.sma_150) : 'N/A'}</TableCell>
-              <TableCell align="right">{row.sma_200 ? formatNumber(row.sma_200) : 'N/A'}</TableCell>
-              <TableCell align="right">{row.ema_4 ? formatNumber(row.ema_4) : 'N/A'}</TableCell>
-              <TableCell align="right">{row.ema_9 ? formatNumber(row.ema_9) : 'N/A'}</TableCell>
-              <TableCell align="right">{row.ema_21 ? formatNumber(row.ema_21) : 'N/A'}</TableCell>
-              <TableCell align="right">{row.ad ? formatNumber(row.ad) : 'N/A'}</TableCell>              <TableCell align="right">{row.cmf ? formatNumber(row.cmf, 4) : 'N/A'}</TableCell>
-              <TableCell align="right">{row.td_sequential ? formatNumber(row.td_sequential) : 'N/A'}</TableCell>
-              <TableCell align="right">{row.td_combo ? formatNumber(row.td_combo) : 'N/A'}</TableCell>
-              <TableCell align="right">{row.marketwatch ? formatNumber(row.marketwatch) : 'N/A'}</TableCell>
-              <TableCell align="right">{row.dm ? formatNumber(row.dm) : 'N/A'}</TableCell>
-              <TableCell align="right">{row.pivot_high ? formatNumber(row.pivot_high) : 'N/A'}</TableCell>
-              <TableCell align="right">{row.pivot_low ? formatNumber(row.pivot_low) : 'N/A'}</TableCell>
-            </TableRow>
-          )) : (
-            <TableRow>
-              <TableCell colSpan={26} align="center">
-                <Typography variant="body2" color="text.secondary">
-                  No technical data available
-                </Typography>
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
-    </TableContainer>
-  );
-  if (error) {
-    return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Alert severity="error" sx={{ mb: 2 }}>
-          Error loading technical data: {error.message}
-        </Alert>
-        <Box display="flex" gap={2}>
-          <Button variant="outlined" onClick={() => refetch()}>
-            Retry
-          </Button>
-          <Button variant="text" onClick={() => window.location.reload()}>
-            Refresh Page
-          </Button>
-        </Box>
-      </Container>
-    );
-  }
-  // Get sample data for overview cards
-  const sampleData = technicalData?.data?.[0] || {};
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
-      <Typography variant="h4" gutterBottom>
-        Technical Analysis - All Indicators
+      <Typography variant="h4" fontWeight="bold" gutterBottom>
+        Technical Analysis
       </Typography>
-      
+      <Card sx={{ mb: 3, p: 2 }}>
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={12} sm={3} md={2}>
+            <FormControl size="small" fullWidth>
+              <InputLabel>Timeframe</InputLabel>
+              <Select value={timeframe} label="Timeframe" onChange={handleTimeframeChange}>
+                <MenuItem value="daily">Daily</MenuItem>
+                <MenuItem value="weekly">Weekly</MenuItem>
+                <MenuItem value="monthly">Monthly</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} sm={5} md={3}>
+            <TextField
+              size="small"
+              label="Search Symbol"
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value.toUpperCase())}
+              onKeyPress={e => e.key === 'Enter' && handleSearch()}
+              fullWidth
+              placeholder="e.g., AAPL"
+            />
+          </Grid>
+          <Grid item xs={12} sm={2} md={2}>
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<Search />}
+              onClick={handleSearch}
+              fullWidth
+              disabled={isLoading}
+            >
+              {symbolFilter ? 'Search' : 'Filter'}
+            </Button>
+          </Grid>
+          {symbolFilter && (
+            <Grid item xs={12} sm={2} md={2}>
+              <Button variant="text" onClick={handleClearSearch} fullWidth disabled={isLoading}>
+                Show All
+              </Button>
+            </Grid>
+          )}
+        </Grid>
+      </Card>
+      {/* Summary Chips */}
+      <Box mb={2} display="flex" flexWrap="wrap" gap={1}>
+        {summaryChips.map((chip, i) => (
+          <Chip
+            key={chip.label}
+            label={`${chip.label}: ${chip.value != null ? formatNumber(chip.value) : 'N/A'}`}
+            color={getSignalColor(chip.value, chip.type)}
+            variant="outlined"
+            sx={{ fontWeight: 'bold', fontSize: 16, px: 2, py: 1 }}
+          />
+        ))}
+      </Box>
+      <Divider sx={{ mb: 2 }} />
       {/* Info Alert about data display */}
       <Alert severity="info" sx={{ mb: 3 }}>
         {symbolFilter ? (
@@ -269,333 +209,109 @@ function TechnicalAnalysis() {
           `Showing latest ${timeframe} technical data for all symbols. Search for a specific symbol to view its historical data.`
         )}
       </Alert>
-      
-      {/* Controls */}
-      <Box display="flex" gap={2} mb={3} alignItems="center" flexWrap="wrap">
-        <FormControl size="small" sx={{ minWidth: 120 }}>
-          <InputLabel>Timeframe</InputLabel>
-          <Select
-            value={timeframe}
-            onChange={(e) => handleTimeframeChange(e.target.value)}
-          >
-            <MenuItem value="daily">Daily</MenuItem>
-            <MenuItem value="weekly">Weekly</MenuItem>
-            <MenuItem value="monthly">Monthly</MenuItem>
-          </Select>
-        </FormControl>
-        
-        <TextField
-          label="Search Symbol"
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value.toUpperCase())}
-          onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-          size="small"
-          sx={{ minWidth: 150 }}
-          placeholder="e.g., AAPL"
-        />
-        
-        <Button
-          variant="outlined"
-          onClick={handleSearch}
-          startIcon={<Search />}
-          disabled={isLoading}
-        >
-          {symbolFilter ? 'Search' : 'Filter'}
-        </Button>
-
-        {symbolFilter && (
+      {/* Error State */}
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          Error loading technical data: {error.message}
+        </Alert>
+      )}
+      {/* Loading State */}
+      {isLoading ? (
+        <Box display="flex" flexDirection="column" alignItems="center" p={4}>
+          <CircularProgress sx={{ mb: 2 }} />
+          <Typography variant="body2" color="text.secondary">
+            {symbolFilter ?
+              `Loading historical data for ${symbolFilter.toUpperCase()}...` :
+              `Loading latest technical data for all symbols...`
+            }
+          </Typography>
+        </Box>
+      ) : (
+        <Paper elevation={1} sx={{ width: '100%', overflow: 'auto', mb: 3 }}>
+          <TableContainer sx={{ maxHeight: 600 }}>
+            <Table stickyHeader size="small">
+              <TableHead>
+                <TableRow>
+                  {columns.map(col => (
+                    <TableCell key={col.key} sx={{ fontWeight: 'bold', background: '#f5f5f5' }}>{col.label}</TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {Array.isArray(technicalData?.data) && technicalData.data.length > 0 ? technicalData.data.map((row, idx) => (
+                  <TableRow key={row.symbol + '-' + idx} hover>
+                    {columns.map(col => (
+                      <TableCell key={col.key} align={col.key === 'symbol' ? 'left' : 'right'}>
+                        {col.render ? col.render(row[col.key]) : row[col.key]}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                )) : (
+                  <TableRow>
+                    <TableCell colSpan={columns.length} align="center">
+                      <Typography variant="body2" color="text.secondary">
+                        No technical data available
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+      )}
+      {/* Pagination for historical data */}
+      {symbolFilter && technicalData?.data?.length > 0 && (
+        <Box display="flex" justifyContent="center" mt={2}>
           <Button
-            variant="text"
-            onClick={handleClearSearch}
-            disabled={isLoading}
+            onClick={() => setPage(Math.max(1, page - 1))}
+            disabled={page === 1 || isLoading}
+            sx={{ mr: 2 }}
           >
-            Show All Symbols
+            Previous
           </Button>
-        )}
-
-        {/* Pagination Controls */}
-        {!symbolFilter && (
-          <Box sx={{ ml: 'auto', display: 'flex', gap: 1, alignItems: 'center' }}>
-            <Button
-              size="small"
-              onClick={() => setPage(Math.max(1, page - 1))}
-              disabled={page === 1 || isLoading}
-            >
-              Previous
-            </Button>
-            <Typography variant="body2">
-              Page {page}
-            </Typography>            <Button
-              size="small"
-              onClick={() => setPage(page + 1)}
-              disabled={isLoading || (technicalData?.data?.length || 0) < 25}
-            >
-              Next
-            </Button>
-          </Box>
-        )}
-      </Box>
-
-      {/* Technical Indicators Overview */}
-      {sampleData.symbol && (
-        <Accordion sx={{ mb: 3 }}>
+          <Typography variant="body2" sx={{ alignSelf: 'center', mx: 2 }}>
+            Page {page}
+          </Typography>
+          <Button
+            onClick={() => setPage(page + 1)}
+            disabled={isLoading || (technicalData?.data?.length || 0) < 25}
+          >
+            Next
+          </Button>
+        </Box>
+      )}
+      {/* Overview Accordion for selected symbol */}
+      {sample.symbol && (
+        <Accordion sx={{ mt: 3 }}>
           <AccordionSummary expandIcon={<ExpandMore />}>
             <Typography variant="h6">
-              Technical Indicators Overview - {sampleData.symbol}
+              Technical Overview - {sample.symbol}
             </Typography>
           </AccordionSummary>
           <AccordionDetails>
             <Grid container spacing={2}>
-              {/* Oscillators */}
-              <Grid item xs={12}>
-                <Typography variant="h6" gutterBottom color="primary">
-                  Oscillators
-                </Typography>
+              <Grid item xs={12} sm={6} md={3}>
+                <Typography variant="subtitle2">RSI</Typography>
+                <Typography variant="body1" fontWeight="bold">{sample.rsi != null ? formatNumber(sample.rsi) : 'N/A'}</Typography>
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
-                <TechnicalIndicatorCard
-                  title="RSI (14)"
-                  value={sampleData.rsi}
-                  description="Relative Strength Index - Momentum oscillator"
-                  type="rsi"
-                />
+                <Typography variant="subtitle2">MACD</Typography>
+                <Typography variant="body1" fontWeight="bold">{sample.macd != null ? formatNumber(sample.macd, 4) : 'N/A'}</Typography>
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
-                <TechnicalIndicatorCard
-                  title="MFI"
-                  value={sampleData.mfi}
-                  description="Money Flow Index - Volume-weighted RSI"
-                  type="rsi"
-                />
+                <Typography variant="subtitle2">ADX</Typography>
+                <Typography variant="body1" fontWeight="bold">{sample.adx != null ? formatNumber(sample.adx) : 'N/A'}</Typography>
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
-                <TechnicalIndicatorCard
-                  title="ADX"
-                  value={sampleData.adx}
-                  description="Average Directional Index - Trend strength"
-                  type="adx"
-                />
+                <Typography variant="subtitle2">ATR</Typography>
+                <Typography variant="body1" fontWeight="bold">{sample.atr != null ? formatNumber(sample.atr) : 'N/A'}</Typography>
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <TechnicalIndicatorCard
-                  title="ATR"
-                  value={sampleData.atr}
-                  description="Average True Range - Volatility measure"
-                  type="default"
-                />
-              </Grid>
-
-              {/* MACD Group */}
-              <Grid item xs={12}>
-                <Typography variant="h6" gutterBottom color="primary" sx={{ mt: 2 }}>
-                  MACD Indicators
-                </Typography>
-              </Grid>
-              <Grid item xs={12} sm={6} md={4}>
-                <TechnicalIndicatorCard
-                  title="MACD Line"
-                  value={sampleData.macd}
-                  description="Moving Average Convergence Divergence"
-                  type="macd"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6} md={4}>
-                <TechnicalIndicatorCard
-                  title="MACD Signal"
-                  value={sampleData.macd_signal}
-                  description="MACD Signal Line"
-                  type="default"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6} md={4}>
-                <TechnicalIndicatorCard
-                  title="MACD Histogram"
-                  value={sampleData.macd_hist}
-                  description="MACD - MACD Signal"
-                  type="macd"
-                />
-              </Grid>
-
-              {/* Moving Averages */}
-              <Grid item xs={12}>
-                <Typography variant="h6" gutterBottom color="primary" sx={{ mt: 2 }}>
-                  Moving Averages
-                </Typography>
-              </Grid>
-              <Grid item xs={12} sm={6} md={2}>
-                <TechnicalIndicatorCard
-                  title="SMA 10"
-                  value={sampleData.sma_10}
-                  description="Simple Moving Average"
-                  type="default"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6} md={2}>
-                <TechnicalIndicatorCard
-                  title="SMA 20"
-                  value={sampleData.sma_20}
-                  description="Simple Moving Average"
-                  type="default"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6} md={2}>
-                <TechnicalIndicatorCard
-                  title="SMA 50"
-                  value={sampleData.sma_50}
-                  description="Simple Moving Average"
-                  type="default"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6} md={2}>
-                <TechnicalIndicatorCard
-                  title="SMA 150"
-                  value={sampleData.sma_150}
-                  description="Simple Moving Average"
-                  type="default"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6} md={2}>
-                <TechnicalIndicatorCard
-                  title="SMA 200"
-                  value={sampleData.sma_200}
-                  description="Simple Moving Average"
-                  type="default"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6} md={2}>
-                <TechnicalIndicatorCard
-                  title="EMA 21"
-                  value={sampleData.ema_21}
-                  description="Exponential Moving Average"
-                  type="default"
-                />
-              </Grid>
-
-              {/* Bollinger Bands */}
-              <Grid item xs={12}>
-                <Typography variant="h6" gutterBottom color="primary" sx={{ mt: 2 }}>
-                  Bollinger Bands
-                </Typography>
-              </Grid>
-              <Grid item xs={12} sm={6} md={4}>
-                <TechnicalIndicatorCard
-                  title="BB Upper"
-                  value={sampleData.bbands_upper}
-                  description="Bollinger Band Upper"
-                  type="default"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6} md={4}>
-                <TechnicalIndicatorCard
-                  title="BB Middle"
-                  value={sampleData.bbands_middle}
-                  description="Bollinger Band Middle (SMA 20)"
-                  type="default"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6} md={4}>
-                <TechnicalIndicatorCard
-                  title="BB Lower"
-                  value={sampleData.bbands_lower}
-                  description="Bollinger Band Lower"
-                  type="default"
-                />
-              </Grid>
-
-              {/* Momentum & Volume */}
-              <Grid item xs={12}>
-                <Typography variant="h6" gutterBottom color="primary" sx={{ mt: 2 }}>
-                  Momentum & Volume Indicators
-                </Typography>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <TechnicalIndicatorCard
-                  title="Momentum"
-                  value={sampleData.mom}
-                  description="Price momentum indicator"
-                  type="default"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <TechnicalIndicatorCard
-                  title="ROC"
-                  value={sampleData.roc}
-                  description="Rate of Change"
-                  type="default"
-                  unit="%"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <TechnicalIndicatorCard
-                  title="A/D Line"
-                  value={sampleData.ad}
-                  description="Accumulation/Distribution Line"
-                  type="default"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <TechnicalIndicatorCard
-                  title="CMF"
-                  value={sampleData.cmf}
-                  description="Chaikin Money Flow"
-                  type="default"
-                />
-              </Grid>
+              {/* Add more details as needed */}
             </Grid>
           </AccordionDetails>
         </Accordion>
-      )}      {/* Comprehensive Data Table */}
-      <Box mb={3}>
-        <Typography variant="h6" gutterBottom>
-          {symbolFilter ? (
-            `${symbolFilter.toUpperCase()} Technical Data (${timeframe.charAt(0).toUpperCase() + timeframe.slice(1)})`
-          ) : (
-            `Latest Technical Data for All Symbols (${timeframe.charAt(0).toUpperCase() + timeframe.slice(1)})`
-          )}
-        </Typography>
-        
-        {technicalData?.data?.length === 0 && !isLoading && (
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            No technical data found. {symbolFilter ? `Try a different symbol or timeframe.` : `No data available for this timeframe.`}
-          </Alert>
-        )}
-          {isLoading ? (
-          <Box display="flex" flexDirection="column" alignItems="center" p={4}>
-            <CircularProgress sx={{ mb: 2 }} />
-            <Typography variant="body2" color="text.secondary">
-              {symbolFilter ? 
-                `Loading historical data for ${symbolFilter.toUpperCase()}...` : 
-                `Loading latest technical data for all symbols...`
-              }
-            </Typography>
-          </Box>
-        ) : (
-          <ComprehensiveTechnicalTable />
-        )}
-
-        {/* Pagination for historical data */}
-        {symbolFilter && technicalData?.data?.length > 0 && (
-          <Box display="flex" justifyContent="center" mt={2}>
-            <Button
-              onClick={() => setPage(Math.max(1, page - 1))}
-              disabled={page === 1 || isLoading}
-              sx={{ mr: 2 }}
-            >
-              Previous
-            </Button>
-            <Typography variant="body2" sx={{ alignSelf: 'center', mx: 2 }}>
-              Page {page}
-            </Typography>            <Button
-              onClick={() => setPage(page + 1)}
-              disabled={isLoading || (technicalData?.data?.length || 0) < 25}
-            >
-              Next
-            </Button>
-          </Box>
-        )}
-      </Box>
+      )}
     </Container>
   );
 }
-
-export default TechnicalAnalysis;
