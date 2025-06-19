@@ -59,7 +59,7 @@ const menuItems = [
   { text: 'Technical Analysis', icon: <AssessmentIcon />, path: '/technical' },
   { text: 'Backtester', icon: <PlayArrow />, path: '/backtest' },
   { text: 'Analyst Insights', icon: <PersonIcon />, path: '/analysts' },
-  { text: 'Earnings Calendar', icon: <EventIcon />, path: '/earnings' },
+  { text: 'Earnings', icon: <EventIcon />, path: '/earnings' },
   { text: 'Service Health', icon: <HealthAndSafetyIcon />, path: '/service-health' },
 ]
 

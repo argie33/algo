@@ -20,7 +20,9 @@ import {
   Chip,
   TablePagination,
   Tabs,
-  Tab
+  Tab,
+  TextField,
+  Button
 } from '@mui/material';
 import {
   TrendingUp,
@@ -38,6 +40,9 @@ function AnalystInsights() {
   const [activeTab, setActiveTab] = useState(0);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
+  // EPS Revisions state
+  const [epsSymbol, setEpsSymbol] = useState('AAPL');
+  const [epsInput, setEpsInput] = useState('AAPL');
   const API_BASE = import.meta.env.VITE_API_URL || '';
   // Fetch analyst upgrades/downgrades
   const { data: upgradesData, isLoading: upgradesLoading, error: upgradesError } = useQuery({
@@ -224,6 +229,19 @@ function AnalystInsights() {
     </Card>
   );
 
+  // EPS Revisions fetch
+  const { data: epsRevisionsData, isLoading: epsRevisionsLoading, error: epsRevisionsError, refetch: refetchEps } = useQuery({
+    queryKey: ['epsRevisions', epsSymbol],
+    queryFn: async () => {
+      const url = `${API_BASE}/analysts/${encodeURIComponent(epsSymbol)}/eps-revisions`;
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to fetch EPS revisions');
+      return response.json();
+    },
+    enabled: !!epsSymbol,
+    staleTime: 60000
+  });
+
   if (upgradesLoading && !upgradesData) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -310,8 +328,73 @@ function AnalystInsights() {
           />
         </CardContent>
       </Card>
+
+      {/* EPS Revisions Section */}
+      <Card sx={{ mt: 4 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            EPS Revisions Lookup
+          </Typography>
+          <Box display="flex" alignItems="center" gap={2} mb={2}>
+            <TextField
+              label="Symbol"
+              value={epsInput}
+              onChange={e => setEpsInput(e.target.value.toUpperCase())}
+              size="small"
+              sx={{ width: 120 }}
+              inputProps={{ maxLength: 8 }}
+            />
+            <Button
+              variant="contained"
+              onClick={() => {
+                setEpsSymbol(epsInput);
+                refetchEps();
+              }}
+              disabled={epsRevisionsLoading || !epsInput}
+            >
+              Lookup
+            </Button>
+          </Box>
+          {epsRevisionsLoading ? (
+            <Box display="flex" justifyContent="center" my={3}><CircularProgress size={28} /></Box>
+          ) : epsRevisionsError ? (
+            <Alert severity="error">Failed to load EPS revisions: {epsRevisionsError.message}</Alert>
+          ) : epsRevisionsData?.data?.length ? (
+            <TableContainer component={Paper} sx={{ mt: 2 }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Period</TableCell>
+                    <TableCell align="right">Up Last 7d</TableCell>
+                    <TableCell align="right">Up Last 30d</TableCell>
+                    <TableCell align="right">Down Last 7d</TableCell>
+                    <TableCell align="right">Down Last 30d</TableCell>
+                    <TableCell align="right">Fetched At</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {epsRevisionsData.data.map((row, idx) => (
+                    <TableRow key={row.period + idx}>
+                      <TableCell>{row.period}</TableCell>
+                      <TableCell align="right">{row.up_last7days ?? '-'}</TableCell>
+                      <TableCell align="right">{row.up_last30days ?? '-'}</TableCell>
+                      <TableCell align="right">{row.down_last7days ?? '-'}</TableCell>
+                      <TableCell align="right">{row.down_last30days ?? '-'}</TableCell>
+                      <TableCell align="right">{row.fetched_at ? new Date(row.fetched_at).toLocaleString() : '-'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          ) : (
+            <Typography variant="body2" color="text.secondary" mt={2}>
+              No EPS revisions data found for <b>{epsSymbol}</b>.
+            </Typography>
+          )}
+        </CardContent>
+      </Card>
     </Container>
   );
-};
+}
 
 export default AnalystInsights;
