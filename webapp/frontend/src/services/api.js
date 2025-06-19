@@ -658,7 +658,7 @@ export const getNaaimData = async (params = {}) => {
     })
   } catch (error) {
     const errorMessage = handleApiError(error, 'get NAAIM data')
-    return { data: { data: [] }, error: errorMessage }
+    return { data: [], error: errorMessage }
   }
 }
 
@@ -676,7 +676,7 @@ export const getFearGreedData = async (params = {}) => {
     })
   } catch (error) {
     const errorMessage = handleApiError(error, 'get Fear & Greed data')
-    return { data: { data: [] }, error: errorMessage }
+    return { data: [], error: errorMessage }
   }
 }
 
@@ -688,7 +688,7 @@ export const getDataValidationSummary = async () => {
     })
   } catch (error) {
     const errorMessage = handleApiError(error, 'data validation summary')
-    return { data: { data: [] }, error: errorMessage }
+    return { data: [], error: errorMessage }
   }
 }
 
