@@ -72,7 +72,8 @@ router.get('/', async (req, res) => {
     ]);
     const dbTime = Date.now() - dbStart;
     
-    console.log(`Database connection test completed in ${dbTime}ms`);      // Get table information (check existence first)
+    console.log(`Database connection test completed in ${dbTime}ms`);
+    // Get table information (check existence first)
     let tables = {};
     try {
       const tableExistenceCheck = await Promise.race([
@@ -310,145 +311,162 @@ router.get('/test-connection', async (req, res) => {
   }
 });
 
-// Comprehensive database diagnostics endpoint using Secrets Manager
+// Enhanced comprehensive database diagnostics endpoint
 router.get('/database/diagnostics', async (req, res) => {
+  const diagnostics = {
+    timestamp: new Date().toISOString(),
+    environment: {
+      NODE_ENV: process.env.NODE_ENV,
+      DB_SECRET_ARN: process.env.DB_SECRET_ARN ? 'SET' : 'NOT_SET',
+      DB_ENDPOINT: process.env.DB_ENDPOINT ? 'SET' : 'NOT_SET',
+      WEBAPP_AWS_REGION: process.env.WEBAPP_AWS_REGION,
+      AWS_REGION: process.env.AWS_REGION,
+      IS_LOCAL: process.env.NODE_ENV === 'development' || !process.env.DB_SECRET_ARN,
+      RUNTIME: 'AWS Lambda Node.js'
+    },
+    connection: {
+      status: 'unknown',
+      method: 'unknown',
+      details: {},
+      durationMs: null
+    },
+    database: {
+      name: 'unknown',
+      version: 'unknown',
+      host: 'unknown',
+      schemas: []
+    },
+    tables: {
+      total: 0,
+      withData: 0,
+      list: [],
+      errors: [],
+      durationMs: null
+    },
+    errors: [],
+    recommendations: []
+  };
+  let overallStatus = 'healthy';
   try {
-    console.log('Database diagnostics endpoint called');
-    
-    const diagnostics = {
-      timestamp: new Date().toISOString(),
-      environment: {
-        NODE_ENV: process.env.NODE_ENV,
-        DB_SECRET_ARN: process.env.DB_SECRET_ARN ? 'SET' : 'NOT_SET',
-        DB_ENDPOINT: process.env.DB_ENDPOINT ? 'SET' : 'NOT_SET',
-        WEBAPP_AWS_REGION: process.env.WEBAPP_AWS_REGION,
-        AWS_REGION: process.env.AWS_REGION,
-        IS_LOCAL: process.env.NODE_ENV === 'development' || !process.env.DB_SECRET_ARN,
-        RUNTIME: 'AWS Lambda Node.js'
-      },
-      connection: {
-        status: 'unknown',
-        method: 'unknown',
-        details: {}
-      },
-      database: {
-        name: 'unknown',
-        version: 'unknown',
-        host: 'unknown',
-        schemas: []
-      },
-      tables: {
-        total: 0,
-        withData: 0,
-        list: []
-      }
-    };
-
+    // Connection step
+    let connectionTest, connectStart = Date.now();
     try {
-      // Test basic connection
-      const connectionTest = await query('SELECT NOW() as current_time, version() as postgres_version, current_database() as db_name');
-      
+      connectionTest = await query('SELECT NOW() as current_time, version() as postgres_version, current_database() as db_name');
+      diagnostics.connection.durationMs = Date.now() - connectStart;
       if (connectionTest.rows.length > 0) {
         const row = connectionTest.rows[0];
         diagnostics.connection.status = 'connected';
         diagnostics.connection.method = process.env.DB_SECRET_ARN ? 'AWS Secrets Manager' : 'Environment Variables';
-        diagnostics.connection.details = {
-          connectedAt: row.current_time,
-          connectionMethod: diagnostics.connection.method
-        };
-        
+        diagnostics.connection.details = { connectedAt: row.current_time };
         diagnostics.database.name = row.db_name;
         diagnostics.database.version = row.postgres_version;
-        
-        // Get host info if available
-        try {
-          const hostInfo = await query("SELECT inet_server_addr() as host, inet_server_port() as port");
-          if (hostInfo.rows.length > 0) {
-            diagnostics.database.host = hostInfo.rows[0].host || 'localhost';
-            diagnostics.database.port = hostInfo.rows[0].port || 5432;
-          }
-        } catch (e) {
-          console.log('Could not get host info:', e.message);
-        }
-
-        // Get schemas
-        try {
-          const schemas = await query("SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT LIKE 'pg_%' AND schema_name != 'information_schema'");
-          diagnostics.database.schemas = schemas.rows.map(r => r.schema_name);
-        } catch (e) {
-          console.log('Could not get schemas:', e.message);
-        }
-
-        // Get table information
-        try {
-          const tables = await query(`
-            SELECT 
-              t.table_name,
-              (SELECT COUNT(*) FROM information_schema.columns WHERE table_name = t.table_name) as column_count,
-              pg_size_pretty(pg_total_relation_size(c.oid)) as size
-            FROM information_schema.tables t
-            LEFT JOIN pg_class c ON c.relname = t.table_name
-            WHERE t.table_schema = 'public' 
-            AND t.table_type = 'BASE TABLE'
-            ORDER BY t.table_name
-          `);
-          
-          diagnostics.tables.total = tables.rows.length;
-          diagnostics.tables.list = tables.rows;
-
-          // Count tables with data
-          let tablesWithData = 0;
-          for (const table of tables.rows) {
-            try {
-              const count = await query(`SELECT COUNT(*) as count FROM ${table.table_name}`);
-              const recordCount = parseInt(count.rows[0].count);
-              table.record_count = recordCount;
-              if (recordCount > 0) tablesWithData++;
-            } catch (e) {
-              table.record_count = 'Error: ' + e.message;
-            }
-          }
-          diagnostics.tables.withData = tablesWithData;
-
-        } catch (e) {
-          console.log('Could not get table info:', e.message);
-          diagnostics.tables.error = e.message;
-        }
-
       } else {
         diagnostics.connection.status = 'connected_no_data';
         diagnostics.connection.details = { error: 'Connected but no data returned' };
+        overallStatus = 'degraded';
+        diagnostics.recommendations.push('Database connection established but no data returned. Check DB user permissions and schema.');
       }
-
-    } catch (error) {
-      console.error('Database connection failed:', error);
+    } catch (err) {
       diagnostics.connection.status = 'failed';
-      diagnostics.connection.details = {
-        error: error.message,
-        code: error.code,
-        hint: error.hint
-      };
+      diagnostics.connection.details = { error: err.message };
+      diagnostics.errors.push({ step: 'connection', error: err.message });
+      overallStatus = 'unhealthy';
+      diagnostics.recommendations.push('Database connection failed. Check credentials, network, and DB status.');
+      return res.status(500).json({ status: 'error', overallStatus, diagnostics });
     }
-
+    // Host info
+    try {
+      const hostInfo = await query("SELECT inet_server_addr() as host, inet_server_port() as port");
+      if (hostInfo.rows.length > 0) {
+        diagnostics.database.host = hostInfo.rows[0].host || 'localhost';
+        diagnostics.database.port = hostInfo.rows[0].port || 5432;
+      }
+    } catch (e) {
+      diagnostics.errors.push({ step: 'host', error: e.message });
+    }
+    // Schemas
+    try {
+      const schemas = await query("SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT LIKE 'pg_%' AND schema_name != 'information_schema'");
+      diagnostics.database.schemas = schemas.rows.map(r => r.schema_name);
+    } catch (e) {
+      diagnostics.errors.push({ step: 'schemas', error: e.message });
+    }
+    // Table info and record counts
+    let tables = [], tableStart = Date.now();
+    try {
+      const tablesResult = await query(`
+        SELECT 
+          t.table_name,
+          (SELECT COUNT(*) FROM information_schema.columns WHERE table_name = t.table_name) as column_count,
+          pg_size_pretty(pg_total_relation_size(c.oid)) as size
+        FROM information_schema.tables t
+        LEFT JOIN pg_class c ON c.relname = t.table_name
+        WHERE t.table_schema = 'public' 
+        AND t.table_type = 'BASE TABLE'
+        ORDER BY t.table_name
+      `);
+      tables = tablesResult.rows;
+      diagnostics.tables.total = tables.length;
+      let tablesWithData = 0;
+      for (const table of tables) {
+        try {
+          const count = await query(`SELECT COUNT(*) as count FROM ${table.table_name}`);
+          const recordCount = parseInt(count.rows[0].count);
+          table.record_count = recordCount;
+          // Try to get last updated timestamp
+          let lastUpdate = null;
+          try {
+            const tsCol = await query(`SELECT column_name FROM information_schema.columns WHERE table_name = '${table.table_name}' AND column_name IN ('fetched_at','updated_at','created_at','date','period_end') LIMIT 1`);
+            if (tsCol.rows.length > 0) {
+              const col = tsCol.rows[0].column_name;
+              const tsRes = await query(`SELECT MAX(${col}) as last_update FROM ${table.table_name}`);
+              lastUpdate = tsRes.rows[0].last_update;
+            }
+          } catch (e) { /* ignore */ }
+          table.last_update = lastUpdate;
+          if (recordCount > 0) tablesWithData++;
+        } catch (e) {
+          table.record_count = null;
+          diagnostics.tables.errors.push({ table: table.table_name, error: e.message });
+        }
+      }
+      diagnostics.tables.withData = tablesWithData;
+      diagnostics.tables.list = tables;
+      diagnostics.tables.durationMs = Date.now() - tableStart;
+      if (tablesWithData === 0) {
+        overallStatus = 'degraded';
+        diagnostics.recommendations.push('No tables have data. Check ETL/loader jobs and DB population.');
+      } else if (tablesWithData < tables.length) {
+        overallStatus = 'degraded';
+        diagnostics.recommendations.push('Some tables are empty. Review loader jobs and data sources.');
+      }
+    } catch (e) {
+      diagnostics.errors.push({ step: 'tables', error: e.message });
+      overallStatus = 'degraded';
+      diagnostics.recommendations.push('Failed to fetch table info. Check DB permissions and schema.');
+    }
+    // Final summary
+    if (diagnostics.errors.length > 0 || diagnostics.tables.errors.length > 0) {
+      overallStatus = 'degraded';
+    }
     res.json({
-      status: 'ok',
+      status: diagnostics.connection.status === 'connected' ? 'ok' : 'error',
+      overallStatus,
       diagnostics,
       summary: {
         environment: diagnostics.environment.NODE_ENV || 'unknown',
         database: diagnostics.database.name,
         connection: diagnostics.connection.status,
-        tablesWithData: `${diagnostics.tables.withData}/${diagnostics.tables.total}`
+        tablesWithData: `${diagnostics.tables.withData}/${diagnostics.tables.total}`,
+        errors: diagnostics.errors.concat(diagnostics.tables.errors),
+        recommendations: diagnostics.recommendations
       }
     });
-
   } catch (error) {
-    console.error('Error in database diagnostics:', error);
-    res.status(500).json({ 
-      status: 'error',
-      error: 'Diagnostics failed', 
-      message: error.message,
-      timestamp: new Date().toISOString()
-    });
+    diagnostics.errors.push({ step: 'fatal', error: error.message });
+    overallStatus = 'unhealthy';
+    diagnostics.recommendations.push('Fatal error in diagnostics. Check backend logs.');
+    res.status(500).json({ status: 'error', overallStatus, diagnostics });
   }
 });
 
