@@ -278,6 +278,7 @@ function EarningsCalendar() {
         <TableHead>
           <TableRow sx={{ backgroundColor: 'grey.50' }}>
             <TableCell>Symbol</TableCell>
+            <TableCell>Company</TableCell>
             <TableCell>Quarter</TableCell>
             <TableCell align="right">Actual EPS</TableCell>
             <TableCell align="right">Estimated EPS</TableCell>
@@ -286,52 +287,57 @@ function EarningsCalendar() {
           </TableRow>
         </TableHead>
         <TableBody>
-          {historyData?.data?.map((history, index) => (
-            <TableRow key={`${history.symbol}-${index}`} hover>
-              <TableCell>
-                <Typography variant="body2" fontWeight="bold">
-                  {history.symbol}
-                </Typography>
-              </TableCell>
-              <TableCell>
-                <Typography variant="body2">
-                  {new Date(history.quarter).toLocaleDateString()}
-                </Typography>
-              </TableCell>
-              <TableCell align="right">
-                <Typography variant="body2" fontWeight="bold">
-                  {formatCurrency(history.eps_actual)}
-                </Typography>
-              </TableCell>
-              <TableCell align="right">
-                {formatCurrency(history.eps_estimate)}
-              </TableCell>
-              <TableCell align="right">
-                <Typography 
-                  variant="body2"
-                  sx={{ color: history.eps_difference >= 0 ? 'success.main' : 'error.main' }}
-                >
-                  {formatCurrency(history.eps_difference)}
-                </Typography>
-              </TableCell>
-              <TableCell align="right">
-                <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
-                  <Avatar sx={{ 
-                    bgcolor: getSurpriseColor(history.surprise_percent), 
-                    width: 24, 
-                    height: 24 
-                  }}>
-                    {getSurpriseIcon(history.surprise_percent)}
-                  </Avatar>
-                  <Typography 
-                    variant="body2" 
-                    sx={{ color: getSurpriseColor(history.surprise_percent) }}
-                  >
-                    {formatPercentage(history.surprise_percent / 100)}
+          {Object.entries(historyData?.data || {}).map(([symbol, group]) => (
+            group.history.map((history, index) => (
+              <TableRow key={`${symbol}-${history.quarter}-${index}`} hover>
+                <TableCell>
+                  <Typography variant="body2" fontWeight="bold">
+                    {symbol}
                   </Typography>
-                </Box>
-              </TableCell>
-            </TableRow>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2">{group.company_name}</Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2">
+                    {new Date(history.quarter).toLocaleDateString()}
+                  </Typography>
+                </TableCell>
+                <TableCell align="right">
+                  <Typography variant="body2" fontWeight="bold">
+                    {formatCurrency(history.eps_actual)}
+                  </Typography>
+                </TableCell>
+                <TableCell align="right">
+                  {formatCurrency(history.eps_estimate)}
+                </TableCell>
+                <TableCell align="right">
+                  <Typography 
+                    variant="body2"
+                    sx={{ color: history.eps_difference >= 0 ? 'success.main' : 'error.main' }}
+                  >
+                    {formatCurrency(history.eps_difference)}
+                  </Typography>
+                </TableCell>
+                <TableCell align="right">
+                  <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
+                    <Avatar sx={{ 
+                      bgcolor: getSurpriseColor(history.surprise_percent), 
+                      width: 24, 
+                      height: 24 
+                    }}>
+                      {getSurpriseIcon(history.surprise_percent)}
+                    </Avatar>
+                    <Typography 
+                      variant="body2" 
+                      sx={{ color: getSurpriseColor(history.surprise_percent) }}
+                    >
+                      {formatPercentage(history.surprise_percent / 100)}
+                    </Typography>
+                  </Box>
+                </TableCell>
+              </TableRow>
+            ))
           ))}
         </TableBody>
       </Table>
