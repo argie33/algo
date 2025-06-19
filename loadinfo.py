@@ -253,6 +253,8 @@ def load_company_info(symbols, cur, conn):
                 ))
 
                 # Insert key metrics
+                # Log key metrics values before insert for diagnostics
+                logging.info(f"[KEY_METRICS] {orig_sym} peg_ratio: {info.get('pegRatio')}, net_income: {info.get('netIncome')}, gross_profit: {info.get('grossProfit')}")
                 cur.execute("""
                     INSERT INTO key_metrics (
                         ticker, trailing_pe, forward_pe, price_to_sales_ttm,
