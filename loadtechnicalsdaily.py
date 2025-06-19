@@ -1127,19 +1127,14 @@ def calculate_technicals_parallel(df):
             # Enhanced logging with more details
             logging.info(f"✅ PIVOT RESULTS: {pivot_high_count} highs, {pivot_low_count} lows from {data_length} bars")
             
-            # Show actual pivot values found (sample)
+            # Show actual pivot values found
             if pivot_high_count > 0:
                 high_pivots = results['pivot_high'].dropna()
-                logging.info(f"🎯 High pivots found: {high_pivots.tolist()}")
-                logging.info(f"🎯 High pivots sample (first 10): {high_pivots.head(10).tolist()}")
-            else:
-                logging.warning(f"⚠️  No non-NaN pivot_high values found. Sample: {results['pivot_high'].head(10).tolist()}")
+                logging.info(f"� High pivots found: {high_pivots.tolist()}")
+            
             if pivot_low_count > 0:
                 low_pivots = results['pivot_low'].dropna()
                 logging.info(f"🔻 Low pivots found: {low_pivots.tolist()}")
-                logging.info(f"🔻 Low pivots sample (first 10): {low_pivots.head(10).tolist()}")
-            else:
-                logging.warning(f"⚠️  No non-NaN pivot_low values found. Sample: {results['pivot_low'].head(10).tolist()}")
             
             # Warning if no pivots found with good data
             if pivot_high_count == 0 and pivot_low_count == 0 and data_length >= 20:
@@ -1550,7 +1545,6 @@ def process_symbol_chunk(symbol_chunk, db_config):
             except psycopg2.OperationalError as e:
                 retry_count += 1
                 if 'canceling statement due to statement timeout' in str(e).lower():
-                   
                     logging.warning(f"⚠️  Query timeout on attempt {retry_count}/{max_retries}. Retrying with smaller timeout...")
                     if retry_count < max_retries:
                         # Progressive timeout reduction for retries
@@ -1672,6 +1666,14 @@ def process_symbol_chunk(symbol_chunk, db_config):
                 df_tech['pivot_low'] = pivot_low(df_tech, left_bars=3, right_bars=3, shunt=1)
                 
                 logging.info(f"⚡ {symbol}: Calculated {len(df_tech)} technical indicator rows in {tech_time:.2f}s")
+                
+                # LOGGING: Check DataFrame columns and sample pivot values before insert
+                logging.info(f"[DEBUG] Columns in df_tech before insert: {list(df_tech.columns)}")
+                if 'pivot_high' in df_tech.columns and 'pivot_low' in df_tech.columns:
+                    logging.info(f"[DEBUG] Sample pivot_high values: {df_tech['pivot_high'].dropna().head(10).tolist()}")
+                    logging.info(f"[DEBUG] Sample pivot_low values: {df_tech['pivot_low'].dropna().head(10).tolist()}")
+                else:
+                    logging.warning(f"[DEBUG] pivot_high or pivot_low column missing in df_tech before insert!")
                 
                 # ULTRA-FAST data preparation for insertion - vectorized approach
                 insert_start = time.time()
@@ -2058,6 +2060,12 @@ def main():
         
     except KeyboardInterrupt:
         logging.warning("⚠️ Received interrupt signal, shutting down gracefully...")
+        exit_code = 130
+    except Exception as e:
+        logging.error(f"❌ Critical error in {SCRIPT_NAME}: {str(e)}", exc_info=True)
+        exit_code = 1
+    finally:
+        # Clean up database connections
         if cur:
             try:
                 cur.close()
