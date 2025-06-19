@@ -111,9 +111,6 @@ async def get_fear_greed_data():
         # Set up page with timeout and error handling
         page = await browser.newPage()
         
-        # Set longer timeout for slow networks
-        page.setDefaultTimeout(30000)  # 30 seconds
-        
         # Navigate to the data source
         logging.info("Navigating to Fear & Greed data source...")
         await page.goto('https://production.dataviz.cnn.io/index/fearandgreed/graphdata', {

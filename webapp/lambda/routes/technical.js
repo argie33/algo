@@ -63,6 +63,26 @@ router.get('/:timeframe', async (req, res) => {
       paramIndex++;
     }
 
+    // Add indicator value range filter if provided
+    const indicator = req.query.indicator;
+    const indicatorMin = req.query.indicatorMin;
+    const indicatorMax = req.query.indicatorMax;
+    const allowedIndicators = [
+      'rsi','macd','macd_signal','macd_hist','adx','atr','mfi','roc','mom','sma_10','sma_20','sma_50','sma_150','sma_200','ema_4','ema_9','ema_21','bbands_upper','bbands_middle','bbands_lower','ad','cmf','td_sequential','td_combo','marketwatch','dm','pivot_high','pivot_low'
+    ];
+    if (indicator && allowedIndicators.includes(indicator)) {
+      if (indicatorMin !== undefined && indicatorMin !== '') {
+        whereClause += ` AND t.${indicator} >= $${paramIndex}`;
+        params.push(Number(indicatorMin));
+        paramIndex++;
+      }
+      if (indicatorMax !== undefined && indicatorMax !== '') {
+        whereClause += ` AND t.${indicator} <= $${paramIndex}`;
+        params.push(Number(indicatorMax));
+        paramIndex++;
+      }
+    }
+
     // Add sorting support
     let sortBy = req.query.sortBy || 'date';
     let sortOrder = req.query.sortOrder === 'asc' ? 'ASC' : 'DESC';

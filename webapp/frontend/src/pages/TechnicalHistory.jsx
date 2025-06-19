@@ -2,8 +2,26 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getTechnicalData } from '../services/api';
 import {
-  Container, Typography, Box, Table, TableHead, TableRow, TableCell, TableBody, TablePagination, Paper, TextField, Button, CircularProgress, Alert, Divider
+  Container, Typography, Box, Card, CardContent, Divider, Button, Paper, Table, TableHead, TableRow, TableCell, TableBody, TablePagination, TextField, CircularProgress, Alert, Chip
 } from '@mui/material';
+import { TrendingUp, TrendingDown, ShowChart, InfoOutlined } from '@mui/icons-material';
+import { formatNumber, formatDate } from '../utils/formatters';
+
+// Helper for icon/color/label for indicators (copied from TechnicalAnalysis)
+const getTechStatus = (indicator, value) => {
+  if (value === null || value === undefined) return { icon: <InfoOutlined color="disabled" />, color: 'text.secondary', label: 'N/A' };
+  if (indicator === 'rsi') {
+    if (value > 70) return { icon: <TrendingUp color="error" />, color: 'error.main', label: 'Overbought' };
+    if (value < 30) return { icon: <TrendingDown color="primary" />, color: 'primary.main', label: 'Oversold' };
+    return { icon: <ShowChart color="success" />, color: 'success.main', label: 'Neutral' };
+  }
+  if (indicator === 'macd') {
+    if (value > 0) return { icon: <TrendingUp color="success" />, color: 'success.main', label: 'Bullish' };
+    if (value < 0) return { icon: <TrendingDown color="error" />, color: 'error.main', label: 'Bearish' };
+    return { icon: <ShowChart color="warning" />, color: 'warning.main', label: 'Flat' };
+  }
+  return { icon: <ShowChart color="info" />, color: 'info.main', label: '' };
+};
 
 function TechnicalHistory() {
   const { symbol } = useParams();
@@ -16,6 +34,15 @@ function TechnicalHistory() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [total, setTotal] = useState(0);
+
+  // --- Summary/overview ---
+  const latest = data && data.length > 0 ? data[0] : null;
+  const summaryIndicators = [
+    { id: 'rsi', label: 'RSI' },
+    { id: 'macd', label: 'MACD' },
+    { id: 'pivot_high', label: 'Pivot H' },
+    { id: 'pivot_low', label: 'Pivot L' }
+  ];
 
   const fetchData = async () => {
     setLoading(true);
@@ -48,88 +75,107 @@ function TechnicalHistory() {
     setPage(0);
   };
 
+  // --- Table columns (match TechnicalAnalysis) ---
+  const columns = [
+    { id: 'date', label: 'Date', format: formatDate },
+    { id: 'rsi', label: 'RSI' },
+    { id: 'macd', label: 'MACD' },
+    { id: 'macd_signal', label: 'MACD Signal' },
+    { id: 'macd_hist', label: 'MACD Hist' },
+    { id: 'adx', label: 'ADX' },
+    { id: 'atr', label: 'ATR' },
+    { id: 'mfi', label: 'MFI' },
+    { id: 'roc', label: 'ROC' },
+    { id: 'mom', label: 'MOM' },
+    { id: 'bbands_upper', label: 'BB Upper' },
+    { id: 'bbands_middle', label: 'BB Middle' },
+    { id: 'bbands_lower', label: 'BB Lower' },
+    { id: 'sma_10', label: 'SMA 10' },
+    { id: 'sma_20', label: 'SMA 20' },
+    { id: 'sma_50', label: 'SMA 50' },
+    { id: 'sma_150', label: 'SMA 150' },
+    { id: 'sma_200', label: 'SMA 200' },
+    { id: 'ema_4', label: 'EMA 4' },
+    { id: 'ema_9', label: 'EMA 9' },
+    { id: 'ema_21', label: 'EMA 21' },
+    { id: 'ad', label: 'A/D' },
+    { id: 'cmf', label: 'CMF' },
+    { id: 'td_sequential', label: 'TD Seq' },
+    { id: 'td_combo', label: 'TD Combo' },
+    { id: 'marketwatch', label: 'MW' },
+    { id: 'dm', label: 'DM' },
+    { id: 'pivot_high', label: 'Pivot H' },
+    { id: 'pivot_low', label: 'Pivot L' }
+  ];
+
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       <Button variant="outlined" onClick={() => navigate(-1)} sx={{ mb: 2 }}>Back</Button>
       <Typography variant="h4" gutterBottom>Technical History for {symbol}</Typography>
       <Divider sx={{ mb: 2 }} />
+      {/* --- Summary/Overview --- */}
+      {latest && (
+        <Card sx={{ mb: 3, background: 'linear-gradient(90deg, #f5f7fa 0%, #c3cfe2 100%)', boxShadow: 2 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>Latest Technicals ({formatDate(latest.date)})</Typography>
+            <Box display="flex" gap={3} flexWrap="wrap">
+              {summaryIndicators.map(({ id, label }) => (
+                <Box key={id} minWidth={120} display="flex" alignItems="center" gap={1}>
+                  {getTechStatus(id, latest[id]).icon}
+                  <Typography variant="subtitle2" color={getTechStatus(id, latest[id]).color} fontWeight="bold">
+                    {label}:
+                  </Typography>
+                  <Typography variant="h6" color={getTechStatus(id, latest[id]).color} fontWeight="bold">
+                    {latest[id] !== undefined && latest[id] !== null ? formatNumber(latest[id]) : 'N/A'}
+                  </Typography>
+                  {getTechStatus(id, latest[id]).label && (
+                    <Chip label={getTechStatus(id, latest[id]).label} size="small" sx={{ ml: 1 }} color={getTechStatus(id, latest[id]).color.replace('.main','') || 'default'} />
+                  )}
+                </Box>
+              ))}
+            </Box>
+          </CardContent>
+        </Card>
+      )}
+      {/* --- Date filter --- */}
       <Box display="flex" gap={2} mb={2}>
         <TextField label="Date From" type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} size="small" InputLabelProps={{ shrink: true }} />
         <TextField label="Date To" type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} size="small" InputLabelProps={{ shrink: true }} />
         <Button variant="contained" onClick={() => { setPage(0); fetchData(); }}>Apply</Button>
       </Box>
+      {/* --- Main Table --- */}
       {loading ? (
         <Box display="flex" alignItems="center" justifyContent="center" minHeight={120}><CircularProgress /></Box>
       ) : error ? (
         <Alert severity="error">{error}</Alert>
       ) : (
-        <Paper>
-          <Table size="small">
+        <Paper sx={{ width: '100%', overflowX: 'auto', boxShadow: 2 }}>
+          <Table size="small" stickyHeader sx={{ minWidth: 1200 }}>
             <TableHead>
               <TableRow>
-                <TableCell>Date</TableCell>
-                <TableCell>RSI</TableCell>
-                <TableCell>MACD</TableCell>
-                <TableCell>MACD Signal</TableCell>
-                <TableCell>MACD Hist</TableCell>
-                <TableCell>ADX</TableCell>
-                <TableCell>ATR</TableCell>
-                <TableCell>MFI</TableCell>
-                <TableCell>ROC</TableCell>
-                <TableCell>MOM</TableCell>
-                <TableCell>BB Upper</TableCell>
-                <TableCell>BB Middle</TableCell>
-                <TableCell>BB Lower</TableCell>
-                <TableCell>SMA 10</TableCell>
-                <TableCell>SMA 20</TableCell>
-                <TableCell>SMA 50</TableCell>
-                <TableCell>SMA 150</TableCell>
-                <TableCell>SMA 200</TableCell>
-                <TableCell>EMA 4</TableCell>
-                <TableCell>EMA 9</TableCell>
-                <TableCell>EMA 21</TableCell>
-                <TableCell>A/D</TableCell>
-                <TableCell>CMF</TableCell>
-                <TableCell>TD Seq</TableCell>
-                <TableCell>TD Combo</TableCell>
-                <TableCell>MW</TableCell>
-                <TableCell>DM</TableCell>
-                <TableCell>Pivot H</TableCell>
-                <TableCell>Pivot L</TableCell>
+                {columns.map(col => (
+                  <TableCell key={col.id} sx={{ fontWeight: 700, background: '#f5f7fa', position: 'sticky', top: 0, zIndex: 1 }}>
+                    {col.label}
+                  </TableCell>
+                ))}
               </TableRow>
             </TableHead>
             <TableBody>
               {data.map((row, i) => (
-                <TableRow key={row.date + '-' + i}>
-                  <TableCell>{row.date}</TableCell>
-                  <TableCell>{row.rsi}</TableCell>
-                  <TableCell>{row.macd}</TableCell>
-                  <TableCell>{row.macd_signal}</TableCell>
-                  <TableCell>{row.macd_hist}</TableCell>
-                  <TableCell>{row.adx}</TableCell>
-                  <TableCell>{row.atr}</TableCell>
-                  <TableCell>{row.mfi}</TableCell>
-                  <TableCell>{row.roc}</TableCell>
-                  <TableCell>{row.mom}</TableCell>
-                  <TableCell>{row.bbands_upper}</TableCell>
-                  <TableCell>{row.bbands_middle}</TableCell>
-                  <TableCell>{row.bbands_lower}</TableCell>
-                  <TableCell>{row.sma_10}</TableCell>
-                  <TableCell>{row.sma_20}</TableCell>
-                  <TableCell>{row.sma_50}</TableCell>
-                  <TableCell>{row.sma_150}</TableCell>
-                  <TableCell>{row.sma_200}</TableCell>
-                  <TableCell>{row.ema_4}</TableCell>
-                  <TableCell>{row.ema_9}</TableCell>
-                  <TableCell>{row.ema_21}</TableCell>
-                  <TableCell>{row.ad}</TableCell>
-                  <TableCell>{row.cmf}</TableCell>
-                  <TableCell>{row.td_sequential}</TableCell>
-                  <TableCell>{row.td_combo}</TableCell>
-                  <TableCell>{row.marketwatch}</TableCell>
-                  <TableCell>{row.dm}</TableCell>
-                  <TableCell>{row.pivot_high}</TableCell>
-                  <TableCell>{row.pivot_low}</TableCell>
+                <TableRow key={row.date + '-' + i} hover sx={{ '&:hover': { background: '#f0f4ff' } }}>
+                  {columns.map(col => (
+                    <TableCell key={col.id} align={typeof row[col.id] === 'number' ? 'right' : 'left'} sx={{ whiteSpace: 'nowrap', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', color: getTechStatus(col.id, row[col.id]).color }}>
+                      <Box display="flex" alignItems="center" gap={1}>
+                        {['rsi','macd','pivot_high','pivot_low'].includes(col.id) && getTechStatus(col.id, row[col.id]).icon}
+                        <Typography variant="body2" fontWeight={['rsi','macd','pivot_high','pivot_low'].includes(col.id) ? 'bold' : 'medium'}>
+                          {col.format ? col.format(row[col.id]) : (row[col.id] !== undefined && row[col.id] !== null ? formatNumber(row[col.id]) : 'N/A')}
+                        </Typography>
+                        {['rsi','macd','pivot_high','pivot_low'].includes(col.id) && getTechStatus(col.id, row[col.id]).label && (
+                          <Chip label={getTechStatus(col.id, row[col.id]).label} size="small" sx={{ ml: 0.5 }} color={getTechStatus(col.id, row[col.id]).color.replace('.main','') || 'default'} />
+                        )}
+                      </Box>
+                    </TableCell>
+                  ))}
                 </TableRow>
               ))}
             </TableBody>
