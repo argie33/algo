@@ -18,11 +18,15 @@ RUN apt-get update && apt-get install -y \
 RUN apt-get update && apt-get install -y \
     chromium \
     chromium-driver \
+    --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/bin/chromium /usr/bin/google-chrome \
     && chromium --version
 
-# Set environment variable for pyppeteer to use system Chromium
+# Set environment variable for pyppeteer/Playwright to use system Chromium
 ENV PYPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+ENV PLAYWRIGHT_BROWSERS_PATH=/usr/bin/chromium
+ENV CHROME_BIN=/usr/bin/chromium
 
 # Copy requirements and install Python dependencies
 COPY requirements-loadfeargreed.txt .

@@ -884,30 +884,3 @@ export const getDiagnosticInfo = () => {
     timestamp: new Date().toISOString()
   }
 }
-
-// If no symbol is provided and this is for the main overview, use the optimized endpoint
-  if (!params.symbol && params.overview) {
-    const url = `/technical`;
-    console.log('Fetching technical overview from:', url);
-    const response = await api.get(url, { baseURL: currentConfig.baseURL });
-    // Always return consistent structure
-    if (Array.isArray(response.data.data)) {
-      return {
-        data: response.data.data,
-        pagination: response.data.pagination || null,
-        metadata: response.data.metadata || null
-      };
-    } else if (Array.isArray(response.data)) {
-      return {
-        data: response.data,
-        pagination: null,
-        metadata: null
-      };
-    } else {
-      return {
-        data: [],
-        pagination: null,
-        metadata: null
-      };
-    }
-  }
