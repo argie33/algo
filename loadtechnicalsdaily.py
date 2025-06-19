@@ -1658,6 +1658,13 @@ def process_symbol_chunk(symbol_chunk, db_config):
                     logging.warning(f"❌ {symbol}: Failed to calculate technicals - empty result")
                     continue
                 
+                # Ensure data is sorted by date for pivot calculations
+                if not df_tech.index.is_monotonic_increasing:
+                    df_tech = df_tech.sort_index()
+                # Calculate pivots using Pine Script logic
+                df_tech['pivot_high'] = pivot_high(df_tech, left_bars=3, right_bars=3, shunt=1)
+                df_tech['pivot_low'] = pivot_low(df_tech, left_bars=3, right_bars=3, shunt=1)
+                
                 logging.info(f"⚡ {symbol}: Calculated {len(df_tech)} technical indicator rows in {tech_time:.2f}s")
                 
                 # ULTRA-FAST data preparation for insertion - vectorized approach
@@ -1676,21 +1683,14 @@ def process_symbol_chunk(symbol_chunk, db_config):
                     record = (
                         symbol,
                         row['date'].to_pydatetime() if hasattr(row['date'], 'to_pydatetime') else row['date'],
+                        sanitize_value(row.get('open')),
+                        sanitize_value(row.get('high')),
+                        sanitize_value(row.get('low')),
+                        sanitize_value(row.get('close')),
+                        sanitize_value(row.get('volume')),
                         sanitize_value(row.get('rsi')),
-                        sanitize_value(row.get('macd')),
-                        sanitize_value(row.get('macd_signal')),
-                        sanitize_value(row.get('macd_hist')),
                         sanitize_value(row.get('mom')),
                         sanitize_value(row.get('roc')),
-                        sanitize_value(row.get('adx')),
-                        sanitize_value(row.get('atr')),
-                        sanitize_value(row.get('ad')),
-                        sanitize_value(row.get('cmf')),
-                        sanitize_value(row.get('mfi')),
-                        sanitize_value(row.get('td_sequential')),
-                        sanitize_value(row.get('td_combo')),
-                        sanitize_value(row.get('marketwatch')),
-                        sanitize_value(row.get('dm')),
                         sanitize_value(row.get('sma_10')),
                         sanitize_value(row.get('sma_20')),
                         sanitize_value(row.get('sma_50')),
@@ -1699,9 +1699,21 @@ def process_symbol_chunk(symbol_chunk, db_config):
                         sanitize_value(row.get('ema_4')),
                         sanitize_value(row.get('ema_9')),
                         sanitize_value(row.get('ema_21')),
+                        sanitize_value(row.get('macd')),
+                        sanitize_value(row.get('macd_signal')),
+                        sanitize_value(row.get('macd_hist')),
                         sanitize_value(row.get('bbands_lower')),
                         sanitize_value(row.get('bbands_middle')),
                         sanitize_value(row.get('bbands_upper')),
+                        sanitize_value(row.get('atr')),
+                        sanitize_value(row.get('adx')),
+                        sanitize_value(row.get('ad')),
+                        sanitize_value(row.get('cmf')),
+                        sanitize_value(row.get('mfi')),
+                        sanitize_value(row.get('dm')),
+                        sanitize_value(row.get('marketwatch')),
+                        sanitize_value(row.get('td_sequential')),
+                        sanitize_value(row.get('td_combo')),
                         sanitize_value(row.get('pivot_high')),
                         sanitize_value(row.get('pivot_low')),
                         run_timestamp
@@ -1731,32 +1743,26 @@ def process_symbol_chunk(symbol_chunk, db_config):
             bulk_insert_start = time.time()
             insert_query = """
             INSERT INTO technical_data_daily (
-                symbol, date,
-                rsi, macd, macd_signal, macd_hist,
-                mom, roc, adx, atr, ad, cmf, mfi,
-                td_sequential, td_combo, marketwatch, dm,
+                symbol, date, open, high, low, close, volume,
+                rsi, mom, roc,
                 sma_10, sma_20, sma_50, sma_150, sma_200,
                 ema_4, ema_9, ema_21,
+                macd, macd_signal, macd_hist,
                 bbands_lower, bbands_middle, bbands_upper,
+                atr, adx, ad, cmf, mfi, dm, marketwatch,
+                td_sequential, td_combo,
                 pivot_high, pivot_low,
                 fetched_at
             ) VALUES %s
             ON CONFLICT (symbol, date) DO UPDATE SET
+                open = EXCLUDED.open,
+                high = EXCLUDED.high,
+                low = EXCLUDED.low,
+                close = EXCLUDED.close,
+                volume = EXCLUDED.volume,
                 rsi = EXCLUDED.rsi,
-                macd = EXCLUDED.macd,
-                macd_signal = EXCLUDED.macd_signal,
-                macd_hist = EXCLUDED.macd_hist,
                 mom = EXCLUDED.mom,
                 roc = EXCLUDED.roc,
-                adx = EXCLUDED.adx,
-                atr = EXCLUDED.atr,
-                ad = EXCLUDED.ad,
-                cmf = EXCLUDED.cmf,
-                mfi = EXCLUDED.mfi,
-                td_sequential = EXCLUDED.td_sequential,
-                td_combo = EXCLUDED.td_combo,
-                marketwatch = EXCLUDED.marketwatch,
-                dm = EXCLUDED.dm,
                 sma_10 = EXCLUDED.sma_10,
                 sma_20 = EXCLUDED.sma_20,
                 sma_50 = EXCLUDED.sma_50,
@@ -1765,9 +1771,21 @@ def process_symbol_chunk(symbol_chunk, db_config):
                 ema_4 = EXCLUDED.ema_4,
                 ema_9 = EXCLUDED.ema_9,
                 ema_21 = EXCLUDED.ema_21,
+                macd = EXCLUDED.macd,
+                macd_signal = EXCLUDED.macd_signal,
+                macd_hist = EXCLUDED.macd_hist,
                 bbands_lower = EXCLUDED.bbands_lower,
                 bbands_middle = EXCLUDED.bbands_middle,
                 bbands_upper = EXCLUDED.bbands_upper,
+                atr = EXCLUDED.atr,
+                adx = EXCLUDED.adx,
+                ad = EXCLUDED.ad,
+                cmf = EXCLUDED.cmf,
+                mfi = EXCLUDED.mfi,
+                dm = EXCLUDED.dm,
+                marketwatch = EXCLUDED.marketwatch,
+                td_sequential = EXCLUDED.td_sequential,
+                td_combo = EXCLUDED.td_combo,
                 pivot_high = EXCLUDED.pivot_high,
                 pivot_low = EXCLUDED.pivot_low,
                 fetched_at = EXCLUDED.fetched_at
