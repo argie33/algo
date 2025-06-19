@@ -1042,7 +1042,7 @@ function StockExplorer() {
                                       onClick={() => handleFetchPriceHistory(stock.symbol)}
                                       size="small"
                                     >
-                                      Complete Price History
+                                      Price History
                                     </Button>
                                     <Button
                                       variant="outlined"
@@ -1152,7 +1152,7 @@ function StockExplorer() {
             <Box sx={{ p: 3 }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                 <Typography variant="h5" component="h2">
-                  Complete Price History - {priceHistoryModal.symbol}
+                  Price History - {priceHistoryModal.symbol}
                 </Typography>
                 <IconButton onClick={handleClosePriceModal}>
                   <Clear />
@@ -1166,7 +1166,15 @@ function StockExplorer() {
                 </Box>
               ) : priceHistoryModal.error ? (
                 <Alert severity="error" sx={{ mb: 2 }}>
-                  Error loading price data: {priceHistoryModal.error}
+                  {priceHistoryModal.error.includes('Unexpected token') || priceHistoryModal.error.includes('DOCTYPE')
+                    ? (
+                      <>
+                        Error loading price data: The server returned an invalid response (likely HTML instead of JSON).<br />
+                        This usually means the backend route is missing, misconfigured, or the API server is down.<br />
+                        Please check your backend logs and ensure the /api/stocks/[symbol]/price-data endpoint is available and returns JSON.
+                      </>
+                    )
+                    : `Error loading price data: ${priceHistoryModal.error}`}
                 </Alert>
               ) : priceHistoryModal.data.length > 0 ? (
                 <>
