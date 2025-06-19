@@ -1670,8 +1670,8 @@ def process_symbol_chunk(symbol_chunk, db_config):
                 # LOGGING: Check DataFrame columns and sample pivot values before insert
                 logging.info(f"[DEBUG] Columns in df_tech before insert: {list(df_tech.columns)}")
                 if 'pivot_high' in df_tech.columns and 'pivot_low' in df_tech.columns:
-                    logging.info(f"[DEBUG] Sample pivot_high values: {df_tech['pivot_high'].dropna().head(10).tolist()}")
-                    logging.info(f"[DEBUG] Sample pivot_low values: {df_tech['pivot_low'].dropna().head(10).tolist()}")
+                    logging.info(f"[DEBUG] Sample pivot_high values (first 5): {df_tech['pivot_high'].head(5).tolist()}")
+                    logging.info(f"[DEBUG] Sample pivot_low values (first 5): {df_tech['pivot_low'].head(5).tolist()}")
                 else:
                     logging.warning(f"[DEBUG] pivot_high or pivot_low column missing in df_tech before insert!")
                 
@@ -1727,6 +1727,9 @@ def process_symbol_chunk(symbol_chunk, db_config):
                         run_timestamp
                     )
                     symbol_insert_data.append(record)
+                # Enhanced logging: show first 2 insert records and their pivot values
+                for i, rec in enumerate(symbol_insert_data[:2]):
+                    logging.info(f"[DEBUG] Insert record {i+1}: pivot_high={rec[-3]}, pivot_low={rec[-2]}, full={rec}")
                 
                 insert_prep_time = time.time() - insert_start
                 all_insert_data.extend(symbol_insert_data)
