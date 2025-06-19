@@ -257,142 +257,152 @@ function AnalystInsights() {
       <Typography variant="h4" gutterBottom>
         Analyst Insights
       </Typography>
-
-      {/* Summary Cards */}
-      <Grid container spacing={3} mb={4}>
-        <Grid item xs={12} md={3}>
-          <SummaryCard
-            title="Upgrades"
-            value={upgrades.length}
-            subtitle="Recent upgrades"
-            icon={<TrendingUp />}
-            color="#10B981"
-          />
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <SummaryCard
-            title="Downgrades"
-            value={downgrades.length}
-            subtitle="Recent downgrades"
-            icon={<TrendingDown />}
-            color="#DC2626"
-          />
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <SummaryCard
-            title="Initiates"
-            value={initiates.length}
-            subtitle="New coverage"
-            icon={<Assessment />}
-            color="#8B5CF6"
-          />
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <SummaryCard
-            title="Total Actions"
-            value={upgradesData?.data?.length || 0}
-            subtitle="All analyst actions"
-            icon={<Person />}
-            color="#3B82F6"
-          />
-        </Grid>
-      </Grid>      {/* Error Handling */}
-      {upgradesError && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          Failed to load analyst data: {upgradesError.message}
-          <br />
-          <small>This may indicate that analyst data tables are not yet populated or there's a database connectivity issue.</small>
-        </Alert>
-      )}
-
-      {/* Main Content */}
-      <Card>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Recent Analyst Actions
-          </Typography>
-          
-          <UpgradesDowngradesTable />
-          
-          <TablePagination
-            component="div"
-            count={upgradesData?.pagination?.total || 0}
-            page={page}
-            onPageChange={(e, newPage) => setPage(newPage)}
-            rowsPerPage={rowsPerPage}
-            onRowsPerPageChange={(e) => {
-              setRowsPerPage(parseInt(e.target.value, 10));
-              setPage(0);
-            }}
-            rowsPerPageOptions={[10, 25, 50, 100]}
-          />
-        </CardContent>
-      </Card>
-
-      {/* EPS Revisions Section */}
-      <Card sx={{ mt: 4 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            EPS Revisions Lookup
-          </Typography>
-          <Box display="flex" alignItems="center" gap={2} mb={2}>
-            <TextField
-              label="Symbol"
-              value={epsInput}
-              onChange={e => setEpsInput(e.target.value.toUpperCase())}
-              size="small"
-              sx={{ width: 120 }}
-              inputProps={{ maxLength: 8 }}
-            />
-            <Button
-              variant="contained"
-              onClick={() => {
-                setEpsSymbol(epsInput);
-                refetchEps();
-              }}
-              disabled={epsRevisionsLoading || !epsInput}
-            >
-              Lookup
-            </Button>
-          </Box>
-          {epsRevisionsLoading ? (
-            <Box display="flex" justifyContent="center" my={3}><CircularProgress size={28} /></Box>
-          ) : epsRevisionsError ? (
-            <Alert severity="error">Failed to load EPS revisions: {epsRevisionsError.message}</Alert>
-          ) : epsRevisionsData?.data?.length ? (
-            <TableContainer component={Paper} sx={{ mt: 2 }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Period</TableCell>
-                    <TableCell align="right">Up Last 7d</TableCell>
-                    <TableCell align="right">Up Last 30d</TableCell>
-                    <TableCell align="right">Down Last 7d</TableCell>
-                    <TableCell align="right">Down Last 30d</TableCell>
-                    <TableCell align="right">Fetched At</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {epsRevisionsData.data.map((row, idx) => (
-                    <TableRow key={row.period + idx}>
-                      <TableCell>{row.period}</TableCell>
-                      <TableCell align="right">{row.up_last7days ?? '-'}</TableCell>
-                      <TableCell align="right">{row.up_last30days ?? '-'}</TableCell>
-                      <TableCell align="right">{row.down_last7days ?? '-'}</TableCell>
-                      <TableCell align="right">{row.down_last30days ?? '-'}</TableCell>
-                      <TableCell align="right">{row.fetched_at ? new Date(row.fetched_at).toLocaleString() : '-'}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          ) : (
-            <Typography variant="body2" color="text.secondary" mt={2}>
-              No EPS revisions data found for <b>{epsSymbol}</b>.
-            </Typography>
+      <Tabs
+        value={activeTab}
+        onChange={(_, v) => setActiveTab(v)}
+        sx={{ mb: 3 }}
+        indicatorColor="primary"
+        textColor="primary"
+        variant="scrollable"
+      >
+        <Tab label="Analyst Actions" />
+        <Tab label="EPS Revisions" />
+      </Tabs>
+      {activeTab === 0 && (
+        <>
+          {/* Summary Cards */}
+          <Grid container spacing={3} mb={4}>
+            <Grid item xs={12} md={3}>
+              <SummaryCard
+                title="Upgrades"
+                value={upgrades.length}
+                subtitle="Recent upgrades"
+                icon={<TrendingUp />}
+                color="#10B981"
+              />
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <SummaryCard
+                title="Downgrades"
+                value={downgrades.length}
+                subtitle="Recent downgrades"
+                icon={<TrendingDown />}
+                color="#DC2626"
+              />
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <SummaryCard
+                title="Initiates"
+                value={initiates.length}
+                subtitle="New coverage"
+                icon={<Assessment />}
+                color="#8B5CF6"
+              />
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <SummaryCard
+                title="Total Actions"
+                value={upgradesData?.data?.length || 0}
+                subtitle="All analyst actions"
+                icon={<Person />}
+                color="#3B82F6"
+              />
+            </Grid>
+          </Grid>
+          {upgradesError && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              Failed to load analyst data: {upgradesError.message}
+              <br />
+              <small>This may indicate that analyst data tables are not yet populated or there's a database connectivity issue.</small>
+            </Alert>
           )}
-        </CardContent>
-      </Card>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Recent Analyst Actions
+              </Typography>
+              <UpgradesDowngradesTable />
+              <TablePagination
+                component="div"
+                count={upgradesData?.pagination?.total || 0}
+                page={page}
+                onPageChange={(e, newPage) => setPage(newPage)}
+                rowsPerPage={rowsPerPage}
+                onRowsPerPageChange={(e) => {
+                  setRowsPerPage(parseInt(e.target.value, 10));
+                  setPage(0);
+                }}
+                rowsPerPageOptions={[10, 25, 50, 100]}
+              />
+            </CardContent>
+          </Card>
+        </>
+      )}
+      {activeTab === 1 && (
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              EPS Revisions Lookup
+            </Typography>
+            <Box display="flex" alignItems="center" gap={2} mb={2}>
+              <TextField
+                label="Symbol"
+                value={epsInput}
+                onChange={e => setEpsInput(e.target.value.toUpperCase())}
+                size="small"
+                sx={{ width: 120 }}
+                inputProps={{ maxLength: 8 }}
+              />
+              <Button
+                variant="contained"
+                onClick={() => {
+                  setEpsSymbol(epsInput);
+                  refetchEps();
+                }}
+                disabled={epsRevisionsLoading || !epsInput}
+              >
+                Lookup
+              </Button>
+            </Box>
+            {epsRevisionsLoading ? (
+              <Box display="flex" justifyContent="center" my={3}><CircularProgress size={28} /></Box>
+            ) : epsRevisionsError ? (
+              <Alert severity="error">Failed to load EPS revisions: {epsRevisionsError.message}</Alert>
+            ) : epsRevisionsData?.data?.length ? (
+              <TableContainer component={Paper} sx={{ mt: 2 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Period</TableCell>
+                      <TableCell align="right">Up Last 7d</TableCell>
+                      <TableCell align="right">Up Last 30d</TableCell>
+                      <TableCell align="right">Down Last 7d</TableCell>
+                      <TableCell align="right">Down Last 30d</TableCell>
+                      <TableCell align="right">Fetched At</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {epsRevisionsData.data.map((row, idx) => (
+                      <TableRow key={row.period + idx}>
+                        <TableCell>{row.period}</TableCell>
+                        <TableCell align="right">{row.up_last7days ?? '-'}</TableCell>
+                        <TableCell align="right">{row.up_last30days ?? '-'}</TableCell>
+                        <TableCell align="right">{row.down_last7days ?? '-'}</TableCell>
+                        <TableCell align="right">{row.down_last30days ?? '-'}</TableCell>
+                        <TableCell align="right">{row.fetched_at ? new Date(row.fetched_at).toLocaleString() : '-'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : (
+              <Typography variant="body2" color="text.secondary" mt={2}>
+                No EPS revisions data found for <b>{epsSymbol}</b>.
+              </Typography>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </Container>
   );
 }

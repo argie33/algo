@@ -1127,14 +1127,19 @@ def calculate_technicals_parallel(df):
             # Enhanced logging with more details
             logging.info(f"✅ PIVOT RESULTS: {pivot_high_count} highs, {pivot_low_count} lows from {data_length} bars")
             
-            # Show actual pivot values found
+            # Show actual pivot values found (sample)
             if pivot_high_count > 0:
                 high_pivots = results['pivot_high'].dropna()
-                logging.info(f"� High pivots found: {high_pivots.tolist()}")
-            
+                logging.info(f"🎯 High pivots found: {high_pivots.tolist()}")
+                logging.info(f"🎯 High pivots sample (first 10): {high_pivots.head(10).tolist()}")
+            else:
+                logging.warning(f"⚠️  No non-NaN pivot_high values found. Sample: {results['pivot_high'].head(10).tolist()}")
             if pivot_low_count > 0:
                 low_pivots = results['pivot_low'].dropna()
                 logging.info(f"🔻 Low pivots found: {low_pivots.tolist()}")
+                logging.info(f"🔻 Low pivots sample (first 10): {low_pivots.head(10).tolist()}")
+            else:
+                logging.warning(f"⚠️  No non-NaN pivot_low values found. Sample: {results['pivot_low'].head(10).tolist()}")
             
             # Warning if no pivots found with good data
             if pivot_high_count == 0 and pivot_low_count == 0 and data_length >= 20:
@@ -1545,6 +1550,7 @@ def process_symbol_chunk(symbol_chunk, db_config):
             except psycopg2.OperationalError as e:
                 retry_count += 1
                 if 'canceling statement due to statement timeout' in str(e).lower():
+                   
                     logging.warning(f"⚠️  Query timeout on attempt {retry_count}/{max_retries}. Retrying with smaller timeout...")
                     if retry_count < max_retries:
                         # Progressive timeout reduction for retries
@@ -2052,12 +2058,6 @@ def main():
         
     except KeyboardInterrupt:
         logging.warning("⚠️ Received interrupt signal, shutting down gracefully...")
-        exit_code = 130
-    except Exception as e:
-        logging.error(f"❌ Critical error in {SCRIPT_NAME}: {str(e)}", exc_info=True)
-        exit_code = 1
-    finally:
-        # Clean up database connections
         if cur:
             try:
                 cur.close()
