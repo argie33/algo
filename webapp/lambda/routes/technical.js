@@ -238,108 +238,42 @@ router.get('/:timeframe/summary', async (req, res) => {
 // Root technical endpoint - defaults to daily data
 router.get('/', async (req, res) => {
   try {
-    console.log('Root technical endpoint called with params:', req.query);
-    
-    const page = parseInt(req.query.page) || 1;
-    const limit = Math.min(parseInt(req.query.limit) || 25, 100);
-    const offset = (page - 1) * limit;
-    const symbol = req.query.symbol;
-
-    const tableName = 'technical_data_daily';
-
-    let whereClause = 'WHERE t.date >= CURRENT_DATE - INTERVAL \'30 days\'';
-    const params = [];
-    let paramIndex = 1;
-
-    if (symbol) {
-      whereClause += ` AND t.symbol = $${paramIndex}`;
-      params.push(symbol.toUpperCase());
-      paramIndex++;
+    // Only fetch the latest technicals for each symbol (overview)
+    const timeframe = req.query.timeframe || 'daily';
+    const validTimeframes = ['daily', 'weekly', 'monthly'];
+    if (!validTimeframes.includes(timeframe)) {
+      return res.status(400).json({
+        error: 'Unsupported timeframe',
+        message: `Supported timeframes: ${validTimeframes.join(', ')}, got: ${timeframe}`
+      });
     }
-
-    const dataQuery = `
-      SELECT 
-        t.symbol,
-        t.date,
-        p.close,
-        p.volume,
-        p.open,
-        p.high,
-        p.low,
-        t.rsi,
-        t.macd,
-        t.macd_signal,
-        t.macd_hist,
-        t.adx,
-        t.atr,
-        t.mfi,
-        t.roc,
-        t.mom,
-        t.sma_10,
-        t.sma_20,
-        t.sma_50,
-        t.sma_150,
-        t.sma_200,
-        t.ema_4,
-        t.ema_9,
-        t.ema_21,
-        t.bbands_upper,
-        t.bbands_middle,
-        t.bbands_lower,
-        t.ad,
-        t.cmf,
-        t.td_sequential,
-        t.td_combo,
-        t.marketwatch,
-        t.dm,
-        t.pivot_high,
-        t.pivot_low,
-        ss.security_name as company_name
-      FROM ${tableName} t
-      LEFT JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
-      LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
-      ${whereClause}
-      ORDER BY t.date DESC, t.symbol ASC
-      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    const tableName = `technical_data_${timeframe}`;
+    // Subquery to get latest date per symbol
+    const latestQuery = `
+      SELECT t1.* FROM ${tableName} t1
+      INNER JOIN (
+        SELECT symbol, MAX(date) AS max_date
+        FROM ${tableName}
+        GROUP BY symbol
+      ) t2 ON t1.symbol = t2.symbol AND t1.date = t2.max_date
+      LEFT JOIN stock_symbols ss ON t1.symbol = ss.symbol
+      ORDER BY t1.symbol ASC
+      LIMIT 500
     `;
-
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM ${tableName} t
-      ${whereClause}
-    `;
-
-    const [dataResult, countResult] = await Promise.all([
-      query(dataQuery, [...params, limit, offset]),
-      query(countQuery, params)
-    ]);
-
-    const total = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(total / limit);
-
+    const result = await query(latestQuery);
     res.json({
       success: true,
-      data: dataResult.rows,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
-      },
+      data: result.rows,
+      count: result.rows.length,
       metadata: {
-        timeframe: 'daily',
-        total_records: total,
-        count: dataResult.rows.length,
+        timeframe,
         timestamp: new Date().toISOString()
       }
     });
-
   } catch (error) {
-    console.error('Error in root technical endpoint:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch technical data overview',
+    console.error('Error in technical overview endpoint:', error);
+    res.status(500).json({
+      error: 'Failed to fetch technical overview',
       details: error.message,
       timestamp: new Date().toISOString()
     });

@@ -884,3 +884,11 @@ export const getDiagnosticInfo = () => {
     timestamp: new Date().toISOString()
   }
 }
+
+// If no symbol is provided and this is for the main overview, use the optimized endpoint
+  if (!params.symbol && params.overview) {
+    const url = `/technical`;
+    console.log('Fetching technical overview from:', url);
+    const response = await api.get(url, { baseURL: currentConfig.baseURL });
+    return response.data;
+  }

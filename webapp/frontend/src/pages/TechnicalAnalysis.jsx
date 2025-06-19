@@ -42,24 +42,36 @@ function TechnicalAnalysis() {
   const [timeframe, setTimeframe] = useState('daily');
   const [symbolFilter, setSymbolFilter] = useState('');
   const [page, setPage] = useState(1);
-  const [searchInput, setSearchInput] = useState('');  // Fetch technical data - always use getTechnicalData for consistent data structure
+  const [searchInput, setSearchInput] = useState('');  // Fetch technical data - use overview endpoint if no symbol filter
   const { data: technicalData, isLoading, error, refetch } = useQuery({
     queryKey: ['technicalAnalysis', timeframe, symbolFilter, page],
     queryFn: async () => {
-      const result = await getTechnicalData(timeframe, { 
-        symbol: symbolFilter || undefined, // Only include symbol if filtering
-        limit: symbolFilter ? 50 : 25, // More data for specific symbols
-        page: page
-      });
-      // Patch: If result.data is undefined but result itself is an array, wrap it
-      if (Array.isArray(result)) {
-        return { data: result };
+      if (!symbolFilter) {
+        // Use optimized overview endpoint
+        const result = await getTechnicalData(undefined, { overview: true });
+        // Patch: If result.data is undefined but result itself is an array, wrap it
+        if (Array.isArray(result)) {
+          return { data: result };
+        }
+        if (!Array.isArray(result.data)) {
+          return { ...result, data: [] };
+        }
+        return result;
+      } else {
+        // Use historical endpoint for symbol
+        const result = await getTechnicalData(timeframe, {
+          symbol: symbolFilter,
+          limit: 50,
+          page: page
+        });
+        if (Array.isArray(result)) {
+          return { data: result };
+        }
+        if (!Array.isArray(result.data)) {
+          return { ...result, data: [] };
+        }
+        return result;
       }
-      // Patch: If result.data is not an array, fallback to empty array
-      if (!Array.isArray(result.data)) {
-        return { ...result, data: [] };
-      }
-      return result;
     },
     onError: (error) => logger.queryError('technicalAnalysis', error, { timeframe, symbolFilter, page }),
     refetchInterval: 300000, // Refresh every 5 minutes
