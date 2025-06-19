@@ -63,10 +63,6 @@ FundamentalMetricsLoaderService:
         AssignPublicIp: ENABLED
 
 # --- Outputs ---
-FundamentalMetricsTaskDefArn:
-  Description: ARN of the ECS TaskDefinition for fundamental metrics loader
-  Value: !Ref FundamentalMetricsTaskDefinition
-  Export:
-    Name: FundamentalMetricsTaskDefArn
+
 
 

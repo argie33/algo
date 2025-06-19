@@ -1641,20 +1641,17 @@ def process_symbol_chunk(symbol_chunk, db_config):
                     continue
                 elif len(symbol_data) < min_bars_for_pivots:
                     logging.warning(f"⚠️  {symbol}: Only {len(symbol_data)} bars available - pivots will be NULL (need {min_bars_for_pivots}+ for Pine Script pivot calculations)")
-                else:                    logging.info(f"✅ {symbol}: {len(symbol_data)} bars available - sufficient for Pine Script pivots and all indicators")
-                
+                else:
+                    logging.info(f"✅ {symbol}: {len(symbol_data)} bars available - sufficient for Pine Script pivots and all indicators")
                 logging.info(f"📊 {symbol}: Found {len(symbol_data)} price records for technical analysis")
-                
                 # Debug: Check date ordering for pivot calculations
                 if len(symbol_data) >= min_bars_for_pivots:
                     date_range = f"{symbol_data.index.min()} to {symbol_data.index.max()}"
                     logging.info(f"📅 {symbol}: Date range: {date_range} (sorted for pivots)")
-                
                 # ULTRA-FAST technical indicators calculation using vectorized operations
                 tech_start = time.time()
                 df_tech = calculate_technicals_parallel(symbol_data.copy())  # Use existing optimized function
                 tech_time = time.time() - tech_start
-                
                 if df_tech.empty:
                     logging.warning(f"❌ {symbol}: Failed to calculate technicals - empty result")
                     continue
@@ -1665,9 +1662,9 @@ def process_symbol_chunk(symbol_chunk, db_config):
                 # Calculate pivots using Pine Script logic
                 df_tech['pivot_high'] = pivot_high(df_tech, left_bars=3, right_bars=3, shunt=1)
                 df_tech['pivot_low'] = pivot_low(df_tech, left_bars=3, right_bars=3, shunt=1)
-                
+                # --- NEW: Ensure every date is written, even if pivots are NaN ---
+                # No filtering of rows based on pivot values; always insert all rows
                 logging.info(f"⚡ {symbol}: Calculated {len(df_tech)} technical indicator rows in {tech_time:.2f}s")
-                
                 # LOGGING: Check DataFrame columns and sample pivot values before insert
                 logging.info(f"[DEBUG] Columns in df_tech before insert: {list(df_tech.columns)}")
                 logging.info(f"[DEBUG] DataFrame shape: {df_tech.shape}, index: {df_tech.index[:5].tolist()} ...")
@@ -1742,7 +1739,6 @@ def process_symbol_chunk(symbol_chunk, db_config):
                 tuple_pivot_low = [r[-2] for r in symbol_insert_data]
                 logging.info(f"[DEBUG] Tuple non-None pivot_high count: {sum(x is not None for x in tuple_pivot_high)}")
                 logging.info(f"[DEBUG] Tuple non-None pivot_low count: {sum(x is not None for x in tuple_pivot_low)}")
-                
                 insert_start = time.time()
                 insert_prep_time = time.time() - insert_start
                 all_insert_data.extend(symbol_insert_data)

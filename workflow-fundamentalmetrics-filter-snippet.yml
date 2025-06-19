@@ -1,0 +1,26 @@
+# Add these lines to your workflow for full fundamentalmetrics support
+
+# 1. Add to paths-filter in the filter job:
+# (under the filters: section)
+#
+#     - 'loadfundamentalmetrics.py'
+#     - 'Dockerfile.fundamentalmetrics'
+#     - 'requirements-fundamentalmetrics.txt'
+#     - 'ecs-fundamentalmetrics-snippet.yml'
+#     - '.github/workflows/deploy-app-stocks.yml'
+
+# 2. Add to outputs in the filter job:
+#   fundamentalmetrics: ${{ steps.paths.outputs.fundamentalmetrics }}
+
+# 3. Add to deploy-tasks job (if you have a build/push step for the image):
+#   - name: Build and push fundamentalmetrics image
+#     if: ${{ needs.filter.outputs.fundamentalmetrics == 'true' }}
+#     run: |
+#       docker build -f Dockerfile.fundamentalmetrics -t $ECR_REPO:fundamentalmetrics-${{ github.sha }} .
+#       # push to ECR as with other loaders
+
+# 4. Add the run_fundamentalmetrics job (from workflow-fundamentalmetrics-snippet.yml) after deploy-tasks
+#
+# 5. If you have a matrix or summary, add fundamentalmetrics to any lists/arrays as needed.
+
+# This will ensure the fundamental metrics loader is built, deployed, and run just like all other loaders.
