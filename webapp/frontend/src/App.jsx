@@ -47,6 +47,7 @@ import DataValidation from './pages/DataValidation'
 import FinancialData from './pages/FinancialData'
 import ServiceHealth from './pages/ServiceHealth'
 import Backtest from './pages/Backtest'
+import TechnicalHistory from './pages/TechnicalHistory'
 
 const drawerWidth = 240
 
@@ -243,6 +244,7 @@ function App() {
               <Route path="/service-health" element={<ServiceHealth />} />
               <Route path="/data-validation" element={<DataValidation />} />
               <Route path="/financial-data" element={<FinancialData />} />
+              <Route path="/technical-history/:symbol" element={<TechnicalHistory />} />
             </Routes>
           </Container>
         </Box>

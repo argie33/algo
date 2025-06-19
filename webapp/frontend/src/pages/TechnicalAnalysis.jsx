@@ -43,9 +43,7 @@ import {
 } from '@mui/icons-material';
 import { formatNumber, formatDate } from '../utils/formatters';
 import { getTechnicalData } from '../services/api';
-import Modal from '@mui/material/Modal';
-import Fade from '@mui/material/Fade';
-import Backdrop from '@mui/material/Backdrop';
+import { useNavigate } from 'react-router-dom';
 
 function TechnicalAnalysis() {
   const logger = createComponentLogger('TechnicalAnalysis');
@@ -58,7 +56,7 @@ function TechnicalAnalysis() {
   const [order, setOrder] = useState('asc');
   const [activeFilters, setActiveFilters] = useState(0);
   const [expandedRow, setExpandedRow] = useState(null);
-  const [historyModal, setHistoryModal] = useState({ open: false, symbol: '', data: [], loading: false, filters: { indicator: '', startDate: '', endDate: '' } });
+  const navigate = useNavigate();
   // --- FIX: Move these above useQuery ---
   const [indicatorFilter, setIndicatorFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -94,29 +92,6 @@ function TechnicalAnalysis() {
     // Count active filters (excluding default timeframe)
     setActiveFilters(symbolFilter ? 1 : 0);
   }, [symbolFilter]);
-
-  // Fetch historical technicals for a symbol
-  const fetchHistory = async (symbol, indicator = '', startDate = '', endDate = '') => {
-    setHistoryModal((prev) => ({ ...prev, open: true, symbol, loading: true, data: [], filters: { indicator, startDate, endDate } }));
-    try {
-      const params = { symbol, limit: 25, sortBy: 'date', sortOrder: 'desc' };
-      if (indicator) params.indicator = indicator;
-      if (startDate) params.startDate = startDate;
-      if (endDate) params.endDate = endDate;
-      const result = await getTechnicalData(timeframe, params);
-      setHistoryModal((prev) => ({ ...prev, data: result.data || [], loading: false }));
-    } catch (e) {
-      setHistoryModal((prev) => ({ ...prev, data: [], loading: false }));
-    }
-  };
-  const handleOpenHistory = (symbol) => fetchHistory(symbol);
-  const handleCloseHistory = () => setHistoryModal({ open: false, symbol: '', data: [], loading: false, filters: { indicator: '', startDate: '', endDate: '' } });
-  const handleHistoryFilterChange = (field, value) => {
-    setHistoryModal((prev) => ({ ...prev, filters: { ...prev.filters, [field]: value } }));
-  };
-  const handleHistoryFilterApply = () => {
-    fetchHistory(historyModal.symbol, historyModal.filters.indicator, historyModal.filters.startDate, historyModal.filters.endDate);
-  };
 
   // Update activeFilters count
   useEffect(() => {
@@ -265,7 +240,7 @@ function TechnicalAnalysis() {
                 </Box>
               </Grid>
               <Grid item xs={12} sm={2}>
-                <Button variant="outlined" size="small" onClick={(e) => { e.stopPropagation(); handleOpenHistory(row.symbol); }}>
+                <Button variant="outlined" size="small" onClick={(e) => { e.stopPropagation(); navigate(`/technical-history/${row.symbol}`); }}>
                   View History
                 </Button>
               </Grid>
@@ -404,54 +379,6 @@ function TechnicalAnalysis() {
           )}
         </Box>
       </Box>
-      {/* History Modal */}
-      <Modal
-        open={historyModal.open}
-        onClose={handleCloseHistory}
-        closeAfterTransition
-        BackdropComponent={Backdrop}
-        BackdropProps={{ timeout: 500 }}
-      >
-        <Fade in={historyModal.open}>
-          <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 600, bgcolor: 'background.paper', boxShadow: 24, p: 4, borderRadius: 2 }}>
-            <Typography variant="h6" mb={2}>History for {historyModal.symbol}</Typography>
-            <Box display="flex" gap={2} mb={2}>
-              <TextField label="Indicator" value={historyModal.filters.indicator} onChange={e => handleHistoryFilterChange('indicator', e.target.value)} size="small" />
-              <TextField label="Start Date" type="date" value={historyModal.filters.startDate} onChange={e => handleHistoryFilterChange('startDate', e.target.value)} size="small" InputLabelProps={{ shrink: true }} />
-              <TextField label="End Date" type="date" value={historyModal.filters.endDate} onChange={e => handleHistoryFilterChange('endDate', e.target.value)} size="small" InputLabelProps={{ shrink: true }} />
-              <Button variant="contained" onClick={handleHistoryFilterApply} disabled={historyModal.loading}>Apply</Button>
-            </Box>
-            {historyModal.loading ? (
-              <Box display="flex" alignItems="center" justifyContent="center" minHeight={120}><CircularProgress /></Box>
-            ) : (
-              <Box maxHeight={300} overflow="auto">
-                {historyModal.data.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary">No historical data found.</Typography>
-                ) : (
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Date</TableCell>
-                        <TableCell>Indicator</TableCell>
-                        <TableCell>Value</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {historyModal.data.map((item, i) => (
-                        <TableRow key={i}>
-                          <TableCell>{formatDate(item.date)}</TableCell>
-                          <TableCell>{historyModal.filters.indicator || 'All'}</TableCell>
-                          <TableCell>{formatNumber(item[historyModal.filters.indicator] || item.value)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </Box>
-            )}
-          </Box>
-        </Fade>
-      </Modal>
     </Container>
   );
 }
