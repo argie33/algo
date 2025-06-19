@@ -26,7 +26,9 @@ import {
   MenuItem,
   TablePagination,
   Avatar,
-  LinearProgress
+  LinearProgress,
+  TextField,
+  Button
 } from '@mui/material';
 import {
   EventNote,
@@ -47,6 +49,10 @@ function EarningsCalendar() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [timeFilter, setTimeFilter] = useState('upcoming');
+
+  // EPS Revisions state
+  const [epsSymbol, setEpsSymbol] = useState('AAPL');
+  const [epsInput, setEpsInput] = useState('AAPL');
 
   const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -96,6 +102,32 @@ function EarningsCalendar() {
     },
     enabled: activeTab === 2,
     refetchInterval: 600000 // Refresh every 10 minutes
+  });
+
+  // EPS Revisions fetch
+  const { data: epsRevisionsData, isLoading: epsRevisionsLoading, error: epsRevisionsError, refetch: refetchEps } = useQuery({
+    queryKey: ['epsRevisions', epsSymbol],
+    queryFn: async () => {
+      const url = `${API_BASE}/analysts/${encodeURIComponent(epsSymbol)}/eps-revisions`;
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to fetch EPS revisions');
+      return response.json();
+    },
+    enabled: activeTab === 3 && !!epsSymbol,
+    staleTime: 60000
+  });
+
+  // EPS Trend fetch
+  const { data: epsTrendData, isLoading: epsTrendLoading, error: epsTrendError, refetch: refetchEpsTrend } = useQuery({
+    queryKey: ['epsTrend', epsSymbol],
+    queryFn: async () => {
+      const url = `${API_BASE}/analysts/${encodeURIComponent(epsSymbol)}/eps-trend`;
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to fetch EPS trend');
+      return response.json();
+    },
+    enabled: activeTab === 4 && !!epsSymbol,
+    staleTime: 60000
   });
 
   const getEventTypeChip = (eventType) => {
@@ -332,7 +364,7 @@ function EarningsCalendar() {
     </Card>
   );
 
-  const isLoading = calendarLoading || (activeTab === 1 && estimatesLoading) || (activeTab === 2 && historyLoading);
+  const isLoading = calendarLoading || (activeTab === 1 && estimatesLoading) || (activeTab === 2 && historyLoading) || (activeTab === 3 && epsRevisionsLoading) || (activeTab === 4 && epsTrendLoading);
 
   if (isLoading && !calendarData && !estimatesData && !historyData) {
     return (
@@ -403,6 +435,8 @@ function EarningsCalendar() {
           <Tab label="Calendar Events" icon={<CalendarToday />} />
           <Tab label="Earnings Estimates" icon={<ShowChart />} />
           <Tab label="Earnings History" icon={<Assessment />} />
+          <Tab label="EPS Revisions" icon={<TrendingUp />} />
+          <Tab label="EPS Trend" icon={<TrendingDown />} />
         </Tabs>
       </Box>
 
@@ -459,13 +493,144 @@ function EarningsCalendar() {
               <EarningsHistoryTable />
             </>
           )}
+
+          {activeTab === 3 && (
+            <>
+              <Typography variant="h6" gutterBottom>
+                EPS Revisions Lookup
+              </Typography>
+              <Box display="flex" alignItems="center" gap={2} mb={2}>
+                <TextField
+                  label="Symbol"
+                  value={epsInput}
+                  onChange={e => setEpsInput(e.target.value.toUpperCase())}
+                  size="small"
+                  sx={{ width: 120 }}
+                  inputProps={{ maxLength: 8 }}
+                />
+                <Button
+                  variant="contained"
+                  onClick={() => {
+                    setEpsSymbol(epsInput);
+                    refetchEps();
+                  }}
+                  disabled={epsRevisionsLoading || !epsInput}
+                >
+                  Lookup
+                </Button>
+              </Box>
+              {epsRevisionsLoading ? (
+                <Box display="flex" justifyContent="center" my={3}><CircularProgress size={28} /></Box>
+              ) : epsRevisionsError ? (
+                <Alert severity="error">Failed to load EPS revisions: {epsRevisionsError.message}</Alert>
+              ) : epsRevisionsData?.data?.length ? (
+                <TableContainer component={Paper} sx={{ mt: 2 }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Period</TableCell>
+                        <TableCell align="right">Up Last 7d</TableCell>
+                        <TableCell align="right">Up Last 30d</TableCell>
+                        <TableCell align="right">Down Last 7d</TableCell>
+                        <TableCell align="right">Down Last 30d</TableCell>
+                        <TableCell align="right">Fetched At</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {epsRevisionsData.data.map((row, idx) => (
+                        <TableRow key={row.period + idx}>
+                          <TableCell>{row.period}</TableCell>
+                          <TableCell align="right">{row.up_last7days ?? '-'}</TableCell>
+                          <TableCell align="right">{row.up_last30days ?? '-'}</TableCell>
+                          <TableCell align="right">{row.down_last7days ?? '-'}</TableCell>
+                          <TableCell align="right">{row.down_last30days ?? '-'}</TableCell>
+                          <TableCell align="right">{row.fetched_at ? new Date(row.fetched_at).toLocaleString() : '-'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              ) : (
+                <Typography variant="body2" color="text.secondary" mt={2}>
+                  No EPS revisions data found for <b>{epsSymbol}</b>.
+                </Typography>
+              )}
+            </>
+          )}
+          {activeTab === 4 && (
+            <>
+              <Typography variant="h6" gutterBottom>
+                EPS Trend Lookup
+              </Typography>
+              <Box display="flex" alignItems="center" gap={2} mb={2}>
+                <TextField
+                  label="Symbol"
+                  value={epsInput}
+                  onChange={e => setEpsInput(e.target.value.toUpperCase())}
+                  size="small"
+                  sx={{ width: 120 }}
+                  inputProps={{ maxLength: 8 }}
+                />
+                <Button
+                  variant="contained"
+                  onClick={() => {
+                    setEpsSymbol(epsInput);
+                    refetchEpsTrend();
+                  }}
+                  disabled={epsTrendLoading || !epsInput}
+                >
+                  Lookup
+                </Button>
+              </Box>
+              {epsTrendLoading ? (
+                <Box display="flex" justifyContent="center" my={3}><CircularProgress size={28} /></Box>
+              ) : epsTrendError ? (
+                <Alert severity="error">Failed to load EPS trend: {epsTrendError.message}</Alert>
+              ) : epsTrendData?.data?.length ? (
+                <TableContainer component={Paper} sx={{ mt: 2 }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Period</TableCell>
+                        <TableCell align="right">Current</TableCell>
+                        <TableCell align="right">7 Days Ago</TableCell>
+                        <TableCell align="right">30 Days Ago</TableCell>
+                        <TableCell align="right">60 Days Ago</TableCell>
+                        <TableCell align="right">90 Days Ago</TableCell>
+                        <TableCell align="right">Fetched At</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {epsTrendData.data.map((row, idx) => (
+                        <TableRow key={row.period + idx}>
+                          <TableCell>{row.period}</TableCell>
+                          <TableCell align="right">{row.current ?? '-'}</TableCell>
+                          <TableCell align="right">{row.days7ago ?? '-'}</TableCell>
+                          <TableCell align="right">{row.days30ago ?? '-'}</TableCell>
+                          <TableCell align="right">{row.days60ago ?? '-'}</TableCell>
+                          <TableCell align="right">{row.days90ago ?? '-'}</TableCell>
+                          <TableCell align="right">{row.fetched_at ? new Date(row.fetched_at).toLocaleString() : '-'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              ) : (
+                <Typography variant="body2" color="text.secondary" mt={2}>
+                  No EPS trend data found for <b>{epsSymbol}</b>.
+                </Typography>
+              )}
+            </>
+          )}
           
           <TablePagination
             component="div"
             count={
               activeTab === 0 ? (calendarData?.pagination?.total || 0) :
               activeTab === 1 ? (estimatesData?.pagination?.total || 0) :
-              (historyData?.pagination?.total || 0)
+              activeTab === 2 ? (historyData?.pagination?.total || 0) :
+              activeTab === 3 ? (epsRevisionsData?.pagination?.total || 0) :
+              (epsTrendData?.pagination?.total || 0)
             }
             page={page}
             onPageChange={(e, newPage) => setPage(newPage)}
