@@ -96,22 +96,24 @@ def sanitize_value(x):
     """Convert NaN/inf values to None for database insertion and handle numpy types"""
     if x is None:
         return None
-    
     # Handle numpy scalar types (float32, float64, int32, etc.)
     if hasattr(x, 'item'):
         x = x.item()  # Convert numpy scalar to Python native type
-    
     # Handle NaN/inf values for float types
-    if isinstance(x, (float, np.floating)) and (np.isnan(x) or np.isinf(x)):
-        return None
-    
+    if isinstance(x, (float, np.floating)):
+        if np.isnan(x) or np.isinf(x):
+            logging.debug(f"sanitize_value: Converting {x} to None (NaN/inf)")
+            return None
+        return float(x)
     # Convert numpy types to native Python types
     if isinstance(x, np.integer):
         return int(x)
-    elif isinstance(x, np.floating):
-        return float(x)
     elif isinstance(x, np.bool_):
         return bool(x)
+    # Log suspicious string values
+    if isinstance(x, str) and (x.strip().upper() == 'N/A' or x.strip() == ''):
+        logging.debug(f"sanitize_value: Converting '{x}' to None (string N/A or empty)")
+        return None
     return x
 
 def enhanced_indicator_validation(df, symbol):
@@ -1692,12 +1694,10 @@ def process_symbol_chunk(symbol_chunk, db_config):
                         sanitize_value(row.get('pivot_low')),
                         run_timestamp
                     )
+                    # Extra logging for pivots and full record
+                    if idx < 3 or (record[27] is not None or record[28] is not None):
+                        logging.info(f"RECORD PREP: symbol={record[0]}, date={record[1]}, pivot_high={record[27]}, pivot_low={record[28]}, full={record}")
                     symbol_insert_data.append(record)
-                
-                # DEBUG: Print a few records to verify pivot values before insert
-                if len(symbol_insert_data) > 0:
-                    for rec in symbol_insert_data[:3]:
-                        logging.info(f"  symbol={rec[0]}, date={rec[1]}, pivot_high={rec[27]}, pivot_low={rec[28]}")
                 
                 insert_prep_time = time.time() - insert_start
                 all_insert_data.extend(symbol_insert_data)
@@ -1719,6 +1719,9 @@ def process_symbol_chunk(symbol_chunk, db_config):
         
         # ULTRA-FAST bulk insert for entire chunk
         if all_insert_data:
+            logging.info(f"DB INSERT: First 3 records: {[rec for rec in all_insert_data[:3]]}")
+            logging.info(f"DB INSERT: Example pivots: {[{'symbol': rec[0], 'date': rec[1], 'pivot_high': rec[27], 'pivot_low': rec[28]} for rec in all_insert_data[:10]]}")
+            
             bulk_insert_start = time.time()
             insert_query = """
             INSERT INTO technical_data_daily (

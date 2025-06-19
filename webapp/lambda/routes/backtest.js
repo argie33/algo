@@ -25,6 +25,13 @@ class BacktestEngine {
     this.cash = this.config.initialCapital;
     this.currentDate = null;
     this.metrics = {};
+    this.logs = [];
+  }
+
+  // Log helper
+  log(message, obj) {
+    const entry = `[${this.currentDate || ''}] ${message}` + (obj ? `: ${JSON.stringify(obj)}` : '');
+    this.logs.push(entry);
   }
 
   // Execute user's strategy code
@@ -34,11 +41,11 @@ class BacktestEngine {
       data: marketData,
       positions: this.positions,
       cash: this.cash,
-      buy: this.buy.bind(this),
-      sell: this.sell.bind(this),
-      sellAll: this.sellAll.bind(this),
+      buy: (...args) => { this.log('BUY called', { args }); return this.buy(...args); },
+      sell: (...args) => { this.log('SELL called', { args }); return this.sell(...args); },
+      sellAll: (...args) => { this.log('SELLALL called', { args }); return this.sellAll(...args); },
       getPosition: this.getPosition.bind(this),
-      log: console.log,
+      log: (msg) => this.log('USER', { msg }),
       Math: Math,
       Date: Date,
       parseFloat: parseFloat,
@@ -46,7 +53,7 @@ class BacktestEngine {
       isNaN: isNaN,
       isFinite: isFinite
     };
-
+    this.log('Executing strategy', { marketData, cash: this.cash, positions: Array.from(this.positions.entries()) });
     try {
       // Execute strategy in isolated context
       const func = new Function('context', `
@@ -57,6 +64,7 @@ class BacktestEngine {
       
       await func(context);
     } catch (error) {
+      this.log('Strategy execution error', { error: error.message });
       throw new Error(`Strategy execution error: ${error.message}`);
     }
   }
@@ -98,7 +106,7 @@ class BacktestEngine {
     }
 
     this.cash -= totalCost;
-    
+    this.log('BUY EXECUTED', { symbol, quantity, price, stopLoss, takeProfit, totalCost, cash: this.cash });
     this.trades.push({
       date: this.currentDate,
       symbol,
@@ -106,7 +114,8 @@ class BacktestEngine {
       quantity,
       price,
       commission: quantity * price * this.config.commission,
-      slippage: quantity * price * this.config.slippage
+      slippage: quantity * price * this.config.slippage,
+      pnl: 0 // Always include pnl field for consistency
     });
 
     return true;
@@ -137,6 +146,7 @@ class BacktestEngine {
       });
     }
 
+    this.log('SELL EXECUTED', { symbol, quantity, price, revenue, cash: this.cash });
     this.trades.push({
       date: this.currentDate,
       symbol,
@@ -325,19 +335,23 @@ router.post('/run', async (req, res) => {
         }
       });
 
+      engine.log('Backtest day start', { date, cash: engine.cash, positions: Array.from(engine.positions.entries()) });
       // Execute strategy
       try {
         await engine.executeStrategy(strategy, currentData);
       } catch (error) {
+        engine.log('Strategy execution failed', { error: error.message, date });
         return res.status(400).json({ 
           error: 'Strategy execution failed',
           details: error.message,
-          date: date
+          date: date,
+          logs: engine.logs
         });
       }
 
       // Update portfolio value
       engine.updatePortfolioValue(currentPrices);
+      engine.log('Backtest day end', { date, cash: engine.cash, positions: Array.from(engine.positions.entries()) });
     }
 
     // Calculate final metrics
@@ -353,7 +367,8 @@ router.post('/run', async (req, res) => {
       finalPositions: Array.from(engine.positions.entries()).map(([symbol, position]) => ({
         symbol,
         ...position
-      }))
+      })),
+      logs: engine.logs
     });
 
   } catch (error) {
