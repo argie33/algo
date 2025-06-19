@@ -59,6 +59,10 @@ function TechnicalAnalysis() {
   const [activeFilters, setActiveFilters] = useState(0);
   const [expandedRow, setExpandedRow] = useState(null);
   const [historyModal, setHistoryModal] = useState({ open: false, symbol: '', data: [], loading: false, filters: { indicator: '', startDate: '', endDate: '' } });
+  // --- FIX: Move these above useQuery ---
+  const [indicatorFilter, setIndicatorFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   // Fetch technical data
   const { data: technicalData, isLoading, error, refetch } = useQuery({
@@ -113,11 +117,6 @@ function TechnicalAnalysis() {
   const handleHistoryFilterApply = () => {
     fetchHistory(historyModal.symbol, historyModal.filters.indicator, historyModal.filters.startDate, historyModal.filters.endDate);
   };
-
-  // Additional filter state for main panel
-  const [indicatorFilter, setIndicatorFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
 
   // Update activeFilters count
   useEffect(() => {
