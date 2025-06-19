@@ -179,10 +179,10 @@ function ServiceHealth() {  const [environmentInfo, setEnvironmentInfo] = useSta
     queryFn: async () => {
       const url = getCurrentBaseURL() + '/api/health/database/diagnostics';
       console.log('Fetching database diagnostics from:', url);
+      // Remove invalid timeout property from fetch options
       const response = await fetch(url, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 30000
+        headers: { 'Content-Type': 'application/json' }
       });
       if (!response.ok) {
         const errorText = await response.text();

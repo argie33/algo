@@ -11,15 +11,17 @@ router.get('/upgrades', async (req, res) => {
     const offset = (page - 1) * limit;
       const upgradesQuery = `
       SELECT 
-        symbol,
-        from_grade,
-        to_grade,
-        action,
-        firm,
-        date,
-        details
-      FROM analyst_upgrade_downgrade 
-      ORDER BY date DESC
+        aud.symbol,
+        cp.short_name AS company_name,
+        aud.from_grade,
+        aud.to_grade,
+        aud.action,
+        aud.firm,
+        aud.date,
+        aud.details
+      FROM analyst_upgrade_downgrade aud
+      LEFT JOIN company_profile cp ON aud.symbol = cp.ticker
+      ORDER BY aud.date DESC
       LIMIT $1 OFFSET $2
     `;
 

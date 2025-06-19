@@ -220,16 +220,16 @@ router.get('/earnings-estimates', async (req, res) => {
     const estimatesQuery = `
       SELECT 
         ee.symbol,
+        cp.short_name as company_name,
         ee.period,
         ee.avg_estimate,
         ee.low_estimate,
         ee.high_estimate,
         ee.number_of_analysts,
-        ee.growth,
-        cp.short_name as company_name
+        ee.growth
       FROM earnings_estimates ee
       LEFT JOIN company_profile cp ON ee.symbol = cp.ticker
-      ORDER BY ee.avg_estimate DESC NULLS LAST
+      ORDER BY ee.symbol ASC, ee.period DESC
       LIMIT $1 OFFSET $2
     `;
 
@@ -238,16 +238,50 @@ router.get('/earnings-estimates', async (req, res) => {
       FROM earnings_estimates
     `;
 
-    const [estimatesResult, countResult] = await Promise.all([
+    // Group and summarize by symbol for insights
+    const summaryQuery = `
+      SELECT 
+        symbol,
+        COUNT(*) as count,
+        AVG(growth) as avg_growth,
+        AVG(avg_estimate) as avg_estimate,
+        MAX(high_estimate) as max_estimate,
+        MIN(low_estimate) as min_estimate
+      FROM earnings_estimates
+      GROUP BY symbol
+      ORDER BY symbol ASC
+    `;
+
+    const [estimatesResult, countResult, summaryResult] = await Promise.all([
       query(estimatesQuery, [limit, offset]),
-      query(countQuery)
+      query(countQuery),
+      query(summaryQuery)
     ]);
 
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
+    // Group data by symbol
+    const grouped = {};
+    estimatesResult.rows.forEach(row => {
+      if (!grouped[row.symbol]) grouped[row.symbol] = { company_name: row.company_name, estimates: [] };
+      grouped[row.symbol].estimates.push(row);
+    });
+
+    // Attach summary insights
+    const insights = {};
+    summaryResult.rows.forEach(row => {
+      insights[row.symbol] = {
+        count: row.count,
+        avg_growth: row.avg_growth,
+        avg_estimate: row.avg_estimate,
+        max_estimate: row.max_estimate,
+        min_estimate: row.min_estimate
+      };
+    });
+
     res.json({
-      data: estimatesResult.rows,
+      data: grouped,
       pagination: {
         page,
         limit,
@@ -256,9 +290,7 @@ router.get('/earnings-estimates', async (req, res) => {
         hasNext: page < totalPages,
         hasPrev: page > 1
       },
-      summary: {
-        recent_updates: 0 // Would need separate query for recent updates
-      }
+      insights
     });
 
   } catch (error) {
@@ -277,15 +309,15 @@ router.get('/earnings-history', async (req, res) => {
     const historyQuery = `
       SELECT 
         eh.symbol,
+        cp.short_name as company_name,
         eh.quarter,
         eh.eps_actual,
         eh.eps_estimate,
         eh.eps_difference,
-        eh.surprise_percent,
-        cp.short_name as company_name
+        eh.surprise_percent
       FROM earnings_history eh
       LEFT JOIN company_profile cp ON eh.symbol = cp.ticker
-      ORDER BY eh.quarter DESC
+      ORDER BY eh.symbol ASC, eh.quarter DESC
       LIMIT $1 OFFSET $2
     `;
 
@@ -294,13 +326,21 @@ router.get('/earnings-history', async (req, res) => {
       FROM earnings_history
     `;
 
+    // Group and summarize by symbol for insights
     const summaryQuery = `
       SELECT 
-        COUNT(CASE WHEN surprise_percent > 0 THEN 1 END) as positive_surprises,
-        COUNT(CASE WHEN surprise_percent < 0 THEN 1 END) as negative_surprises,
-        AVG(surprise_percent) as avg_surprise
+        symbol,
+        COUNT(*) as count,
+        AVG(surprise_percent) as avg_surprise,
+        MAX(eps_actual) as max_actual,
+        MIN(eps_actual) as min_actual,
+        MAX(eps_estimate) as max_estimate,
+        MIN(eps_estimate) as min_estimate,
+        SUM(CASE WHEN surprise_percent > 0 THEN 1 ELSE 0 END) as positive_surprises,
+        SUM(CASE WHEN surprise_percent < 0 THEN 1 ELSE 0 END) as negative_surprises
       FROM earnings_history
-      WHERE quarter >= CURRENT_DATE - INTERVAL '3 months'
+      GROUP BY symbol
+      ORDER BY symbol ASC
     `;
 
     const [historyResult, countResult, summaryResult] = await Promise.all([
@@ -312,8 +352,30 @@ router.get('/earnings-history', async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
+    // Group data by symbol
+    const grouped = {};
+    historyResult.rows.forEach(row => {
+      if (!grouped[row.symbol]) grouped[row.symbol] = { company_name: row.company_name, history: [] };
+      grouped[row.symbol].history.push(row);
+    });
+
+    // Attach summary insights
+    const insights = {};
+    summaryResult.rows.forEach(row => {
+      insights[row.symbol] = {
+        count: row.count,
+        avg_surprise: row.avg_surprise,
+        max_actual: row.max_actual,
+        min_actual: row.min_actual,
+        max_estimate: row.max_estimate,
+        min_estimate: row.min_estimate,
+        positive_surprises: row.positive_surprises,
+        negative_surprises: row.negative_surprises
+      };
+    });
+
     res.json({
-      data: historyResult.rows,
+      data: grouped,
       pagination: {
         page,
         limit,
@@ -322,7 +384,7 @@ router.get('/earnings-history', async (req, res) => {
         hasNext: page < totalPages,
         hasPrev: page > 1
       },
-      summary: summaryResult.rows[0]
+      insights
     });
 
   } catch (error) {
