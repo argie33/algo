@@ -346,6 +346,12 @@ def load_company_info(symbols, cur, conn):
                     # parsed_avg_rating remains None
                 # If raw_avg_rating is None, parsed_avg_rating is already None
 
+                # Log full yfinance info response for diagnostics
+                try:
+                    logging.info(f"[YFINANCE_RAW] {orig_sym} info: {json.dumps(info, default=str)[:2000]}")
+                except Exception as e:
+                    logging.warning(f"[YFINANCE_RAW] {orig_sym} info logging failed: {e}")
+
                 # Insert analyst estimates
                 cur.execute("""
                     INSERT INTO analyst_estimates (
@@ -635,4 +641,5 @@ if __name__ == "__main__":
 
     cur.close()
     conn.close()
+
     logging.info("All done.")
