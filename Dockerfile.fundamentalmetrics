@@ -1,0 +1,10 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY loadfundamentalmetrics.py ./
+COPY requirements-fundamentalmetrics.txt ./
+
+RUN pip install --no-cache-dir -r requirements-fundamentalmetrics.txt
+
+ENTRYPOINT ["python", "loadfundamentalmetrics.py"]

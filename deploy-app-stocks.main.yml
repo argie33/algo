@@ -1,0 +1,675 @@
+name: deploy-app-stocks
+
+on:
+  push:
+    branches:
+      - '*'
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+  AWS_ROLE_SESSION: github-deploy
+  FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+
+jobs:
+################################################################################
+# 1) Deploy core infrastructure (RDS, Secrets, ECS cluster)                    # 
+################################################################################
+  infra:
+    name: Deploy application stack
+    needs: filter
+    if: ${{ needs.filter.outputs.app == 'true' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Get CloudFormation templates bucket from core stack
+        id: bucket
+        run: |
+          BUCKET=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
+            --output text)
+          echo "CF_BUCKET=$BUCKET" >> $GITHUB_OUTPUT
+          echo "Using S3 bucket: $BUCKET"      
+      
+      - name: Deploy application stack
+        run: |
+          aws cloudformation deploy \
+            --stack-name stocks-app-stack \
+            --template-file template-app-stocks.yml \
+            --parameter-overrides \
+              RDSUsername=${{ secrets.RDS_USERNAME }} \
+              RDSPassword=${{ secrets.RDS_PASSWORD }} \
+              FREDApiKey=${{ secrets.FRED_API_KEY }} \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+            --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}
+
+################################################################################
+# 2) Detect changed components                                                 #
+################################################################################
+  filter:
+    name: Detect changed components
+    runs-on: ubuntu-latest
+    outputs:
+      app:               ${{ steps.paths.outputs.app }}
+      symbols:           ${{ steps.paths.outputs.symbols }}
+      econ:              ${{ steps.paths.outputs.econ }}
+      pricedaily:        ${{ steps.paths.outputs.pricedaily }}
+      priceweekly:       ${{ steps.paths.outputs.priceweekly }}
+      pricemonthly:      ${{ steps.paths.outputs.pricemonthly }}
+      latestpricedaily: ${{ steps.paths.outputs.latestpricedaily }}
+      latestpriceweekly: ${{ steps.paths.outputs.latestpriceweekly }}
+      latestpricemonthly: ${{ steps.paths.outputs.latestpricemonthly }}
+      latesttechnicalsdaily: ${{ steps.paths.outputs.latesttechnicalsdaily }}
+      latesttechnicalsweekly: ${{ steps.paths.outputs.latesttechnicalsweekly }}
+      latesttechnicalsmonthly: ${{ steps.paths.outputs.latesttechnicalsmonthly }}
+      latestbuyselldaily: ${{ steps.paths.outputs.latestbuyselldaily }}
+      latestbuysellweekly: ${{ steps.paths.outputs.latestbuysellweekly }}
+      latestbuysellmonthly: ${{ steps.paths.outputs.latestbuysellmonthly }}
+      technicalsdaily:   ${{ steps.paths.outputs.technicalsdaily }}
+      loadinfo:          ${{ steps.paths.outputs.loadinfo }}
+      earningsestimate:  ${{ steps.paths.outputs.earningsestimate }}
+      earningshistory:   ${{ steps.paths.outputs.earningshistory }}
+      revenueestimate:   ${{ steps.paths.outputs.revenueestimate }}
+      technicalsweekly:  ${{ steps.paths.outputs.technicalsweekly }}
+      technicalsmonthly: ${{ steps.paths.outputs.technicalsmonthly }}
+      swingtrader:       ${{ steps.paths.outputs.swingtrader }}
+      calendar:          ${{ steps.paths.outputs.calendar }}
+      buyselldaily:      ${{ steps.paths.outputs.buyselldaily }}
+      buysellweekly:     ${{ steps.paths.outputs.buysellweekly }}
+      buysellmonthly:    ${{ steps.paths.outputs.buysellmonthly }}
+      ttmcashflow:       ${{ steps.paths.outputs.ttmcashflow }}
+      ttmincomestmt:     ${{ steps.paths.outputs.ttmincomestmt }}
+      recommendations:   ${{ steps.paths.outputs.recommendations }}
+      balancesheet:      ${{ steps.paths.outputs.balancesheet }}
+      cashflow:          ${{ steps.paths.outputs.cashflow }}
+      epsrevisions:      ${{ steps.paths.outputs.epsrevisions }}
+      epstrend:          ${{ steps.paths.outputs.epstrend }}
+      growthestimates:   ${{ steps.paths.outputs.growthestimates }}
+      incomestmt:        ${{ steps.paths.outputs.incomestmt }}
+      quarterlybalancesheet: ${{ steps.paths.outputs.quarterlybalancesheet }}
+      quarterlycashflow: ${{ steps.paths.outputs.quarterlycashflow }}
+      quarterlyincomestmt: ${{ steps.paths.outputs.quarterlyincomestmt }}
+      analystgrade:      ${{ steps.paths.outputs.analystgrade }}
+      naaim:             ${{ steps.paths.outputs.naaim }}
+      aaiisentiment:     ${{ steps.paths.outputs.aaiisentiment }}
+      feargreed:         ${{ steps.paths.outputs.feargreed }}
+      stockscreener:     ${{ steps.paths.outputs.stockscreener }}
+      any:               ${{ steps.any.outputs.any }}
+      matrix:            ${{ steps.matrix.outputs.matrix }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - id: paths
+        name: Which files changed?
+        uses: dorny/paths-filter@v2
+        with:
+          base: ${{ github.event.before != '0000000000000000000000000000000000000000' && github.event.before || github.sha }}
+          filters: |
+            app:
+              - 'template-app-stocks.yml'
+            symbols:
+              - 'loadstocksymbols.py'
+              - 'Dockerfile.stocksymbols'
+              - 'requirements-loadstocksymbols.txt'
+            econ:
+              - 'loadecondata.py'
+              - 'Dockerfile.econdata'
+              - 'requirements-loadecondata.txt'
+            pricedaily:
+              - 'loadpricedaily.py'
+              - 'Dockerfile.pricedaily'
+              - 'requirements-loadpricedaily.txt'
+            priceweekly:
+              - 'loadpriceweekly.py'
+              - 'Dockerfile.priceweekly'
+              - 'requirements-loadpriceweekly.txt'
+            pricemonthly:
+              - 'loadpricemonthly.py'
+              - 'Dockerfile.pricemonthly'
+              - 'requirements-loadpricemonthly.txt'
+            latestpricedaily:
+              - 'loadlatestpricedaily.py'
+              - 'Dockerfile.latestpricedaily'
+              - 'requirements-loadlatestpricedaily.txt'
+            latestpriceweekly:
+              - 'loadlatestpriceweekly.py'
+              - 'Dockerfile.latestpriceweekly'
+              - 'requirements-loadlatestpriceweekly.txt'
+            latestpricemonthly:
+              - 'loadlatestpricemonthly.py'
+              - 'Dockerfile.latestpricemonthly'
+              - 'requirements-loadlatestpricemonthly.txt'
+            latesttechnicalsdaily:
+              - 'loadlatesttechnicalsdaily.py'
+              - 'Dockerfile.latesttechnicalsdaily'
+              - 'requirements-loadlatesttechnicalsdaily.txt'
+            latesttechnicalsweekly:
+              - 'loadlatesttechnicalsweekly.py'
+              - 'Dockerfile.latesttechnicalsweekly'
+              - 'requirements-loadlatesttechnicalsweekly.txt'
+            latesttechnicalsmonthly:
+              - 'loadlatesttechnicalsmonthly.py'
+              - 'Dockerfile.latesttechnicalsmonthly'
+              - 'requirements-loadlatesttechnicalsmonthly.txt'
+            latestbuyselldaily:
+              - 'loadlatestbuyselldaily.py'
+              - 'Dockerfile.latestbuyselldaily'
+              - 'requirements-loadlatestbuyselldaily.txt'
+            latestbuysellweekly:
+              - 'loadlatestbuysellweekly.py'
+              - 'Dockerfile.latestbuysellweekly'
+              - 'requirements-loadlatestbuysellweekly.txt'
+            latestbuysellmonthly:
+              - 'loadlatestbuysellmonthly.py'
+              - 'Dockerfile.latestbuysellmonthly'
+              - 'requirements-loadlatestbuysellmonthly.txt'
+            technicalsdaily:
+              - 'loadtechnicalsdaily.py'
+              - 'Dockerfile.technicalsdaily'
+              - 'requirements-loadtechnicalsdaily.txt'
+            loadinfo:
+              - 'loadinfo.py'
+              - 'Dockerfile.loadinfo'
+              - 'requirements-loadinfo.txt'
+            earningsestimate:
+              - 'loadearningsestimate.py'
+              - 'Dockerfile.loadearningsestimate'
+              - 'requirements-loadearningsestimate.txt'
+            earningshistory:
+              - 'loadearningshistory.py'
+              - 'Dockerfile.loadearningshistory'
+              - 'requirements-loadearningshistory.txt'
+            revenueestimate:
+              - 'loadrevenueestimate.py'
+              - 'Dockerfile.loadrevenueestimate'
+              - 'requirements-loadrevenueestimate.txt'
+            technicalsweekly:
+              - 'loadtechnicalsweekly.py'
+              - 'Dockerfile.technicalsweekly'
+              - 'requirements-loadtechnicalsweekly.txt'
+            technicalsmonthly:
+              - 'loadtechnicalsmonthly.py'
+              - 'Dockerfile.technicalsmonthly'
+              - 'requirements-loadtechnicalsmonthly.txt'
+            swingtrader:
+              - 'swingtrader.py'
+              - 'Dockerfile.swingtrader'
+              - 'requirements-swingtrader.txt'
+            calendar:
+              - 'loadcalendar.py'
+              - 'Dockerfile.loadcalendar'
+              - 'requirements-loadcalendar.txt'            
+            buyselldaily:
+              - 'loadbuysell.py'
+              - 'Dockerfile.buysell'
+              - 'requirements-loadbuysell.txt'
+            buysellweekly:
+              - 'loadbuysellweekly.py'
+              - 'Dockerfile.buysellweekly'
+              - 'requirements-loadbuysellweekly.txt'
+            buysellmonthly:
+              - 'loadbuysellmonthly.py'
+              - 'Dockerfile.buysellmonthly'
+              - 'requirements-loadbuysellmonthly.txt'
+            ttmcashflow:
+              - 'loadttmcashflow.py'
+              - 'Dockerfile.ttmcashflow'
+              - 'requirements-loadttmcashflow.txt'
+            ttmincomestmt:
+              - 'loadttmincomestmt.py'
+              - 'Dockerfile.ttmincomestmt'
+              - 'requirements-loadttmincomestmt.txt'
+            recommendations:
+              - 'loadrecommendations.py'
+              - 'Dockerfile.recommendations'
+              - 'requirements-loadrecommendations.txt'
+            balancesheet:
+              - 'loadbalancesheet.py'
+              - 'Dockerfile.balancesheet'
+              - 'requirements-loadbalancesheet.txt'
+            cashflow:
+              - 'loadcashflow.py'
+              - 'Dockerfile.cashflow'
+              - 'requirements-loadcashflow.txt'
+            epsrevisions:
+              - 'loadepsrevisions.py'
+              - 'Dockerfile.epsrevisions'
+              - 'requirements-loadepsrevisions.txt'
+            epstrend:
+              - 'loadepstrend.py'
+              - 'Dockerfile.epstrend'
+              - 'requirements-loadepstrend.txt'
+            growthestimates:
+              - 'loadgrowthestimates.py'
+              - 'Dockerfile.growthestimates'
+              - 'requirements-loadgrowthestimates.txt'
+            incomestmt:
+              - 'loadincomestmt.py'
+              - 'Dockerfile.incomestmt'
+              - 'requirements-loadincomestmt.txt'
+            quarterlybalancesheet:
+              - 'loadquarterlybalancesheet.py'
+              - 'Dockerfile.quarterlybalancesheet'
+              - 'requirements-loadquarterlybalancesheet.txt'
+            quarterlycashflow:
+              - 'loadquarterlycashflow.py'
+              - 'Dockerfile.quarterlycashflow'
+              - 'requirements-loadquarterlycashflow.txt'
+            quarterlyincomestmt:
+              - 'loadquarterlyincomestmt.py'
+              - 'Dockerfile.quarterlyincomestmt'
+              - 'requirements-loadquarterlyincomestmt.txt'
+            analystgrade:
+              - 'loadanalystupgradedowngrade.py'
+              - 'dockerfile.analystgrade'
+              - 'requirements-loadanalystupgradedowngrade.txt'
+            naaim:
+              - 'loadnaaim.py'
+              - 'Dockerfile.naaim'
+              - 'requirements-loadnaaim.txt'
+            aaiisentiment:
+              - 'loadaaiisentiment.py'
+              - 'Dockerfile.aaiisentiment'
+              - 'requirements-loadaaiisentiment.txt'
+            feargreed:
+              - 'loadfeargreed.py'
+              - 'Dockerfile.feargreed'
+              - 'requirements-loadfeargreed.txt'
+            stockscreener:
+              - 'stock_screener.py'
+              - 'dockerfile-screener'
+              - 'requirements-stockscreener.txt'
+            fundamentalmetrics:
+              - 'loadfundamentalmetrics.py'
+              - 'Dockerfile.fundamentalmetrics'
+              - 'requirements-fundamentalmetrics.txt'
+
+      - id: any
+        name: Any changes?
+        run: |
+          if [ "${{ steps.paths.outputs.symbols }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.econ }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.pricedaily }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.priceweekly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.pricemonthly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.technicalsdaily }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.loadinfo }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.earningsestimate }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.earningshistory }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.revenueestimate }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.technicalsweekly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.technicalsmonthly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.swingtrader }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.calendar }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.buyselldaily }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.buysellweekly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.buysellmonthly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.latestpricedaily }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.latestpriceweekly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.latestpricemonthly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.latesttechnicalsdaily }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.latesttechnicalsweekly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.latesttechnicalsmonthly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.latestbuyselldaily }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.latestbuysellweekly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.latestbuysellmonthly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.ttmcashflow }}" = "true" ] ||\
+             [ "${{ steps.paths.outputs.ttmincomestmt }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.recommendations }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.balancesheet }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.cashflow }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.epsrevisions }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.epstrend }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.growthestimates }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.incomestmt }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.quarterlybalancesheet }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.quarterlycashflow }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.quarterlyincomestmt }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.analystgrade }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.naaim }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.aaiisentiment }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.feargreed }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.stockscreener }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.app }}" = "true" ]; then
+            echo "any=true" >> $GITHUB_OUTPUT
+          else
+            echo "any=false" >> $GITHUB_OUTPUT
+          fi
+
+      - id: matrix
+        name: Build matrix
+        run: |
+          arr=""
+          [ "${{ steps.paths.outputs.symbols }}" = "true" ]         && arr="$arr,\"symbols\""
+          [ "${{ steps.paths.outputs.econ }}"    = "true" ]         && arr="$arr,\"econ\""
+          [ "${{ steps.paths.outputs.pricedaily }}" = "true" ]      && arr="$arr,\"pricedaily\""
+          [ "${{ steps.paths.outputs.priceweekly }}" = "true" ]     && arr="$arr,\"priceweekly\""
+          [ "${{ steps.paths.outputs.pricemonthly }}" = "true" ]    && arr="$arr,\"pricemonthly\""
+          [ "${{ steps.paths.outputs.technicalsdaily }}" = "true" ] && arr="$arr,\"technicalsdaily\""
+          [ "${{ steps.paths.outputs.loadinfo }}" = "true" ]        && arr="$arr,\"loadinfo\""
+          [ "${{ steps.paths.outputs.earningsestimate }}" = "true" ] && arr="$arr,\"earningsestimate\""
+          [ "${{ steps.paths.outputs.earningshistory }}" = "true" ] && arr="$arr,\"earningshistory\""
+          [ "${{ steps.paths.outputs.revenueestimate }}" = "true" ] && arr="$arr,\"revenueestimate\""
+          [ "${{ steps.paths.outputs.technicalsweekly }}" = "true" ] && arr="$arr,\"technicalsweekly\""
+          [ "${{ steps.paths.outputs.technicalsmonthly }}" = "true" ] && arr="$arr,\"technicalsmonthly\""
+          [ "${{ steps.paths.outputs.swingtrader }}" = "true" ]     && arr="$arr,\"swingtrader\""
+          [ "${{ steps.paths.outputs.calendar }}" = "true" ]        && arr="$arr,\"calendar\""
+          [ "${{ steps.paths.outputs.buyselldaily }}" = "true" ]      && arr="$arr,\"buyselldaily\""
+          [ "${{ steps.paths.outputs.buysellweekly }}" = "true" ]     && arr="$arr,\"buysellweekly\""
+          [ "${{ steps.paths.outputs.buysellmonthly }}" = "true" ]    && arr="$arr,\"buysellmonthly\""
+          [ "${{ steps.paths.outputs.latestpricedaily }}" = "true" ]  && arr="$arr,\"latestpricedaily\""
+          [ "${{ steps.paths.outputs.latestpriceweekly }}" = "true" ] && arr="$arr,\"latestpriceweekly\""
+          [ "${{ steps.paths.outputs.latestpricemonthly }}" = "true" ] && arr="$arr,\"latestpricemonthly\""
+          [ "${{ steps.paths.outputs.latesttechnicalsdaily }}" = "true" ]  && arr="$arr,\"latesttechnicalsdaily\""
+          [ "${{ steps.paths.outputs.latesttechnicalsweekly }}" = "true" ] && arr="$arr,\"latesttechnicalsweekly\""
+          [ "${{ steps.paths.outputs.latesttechnicalsmonthly }}" = "true" ] && arr="$arr,\"latesttechnicalsmonthly\""
+          [ "${{ steps.paths.outputs.latestbuyselldaily }}" = "true" ] && arr="$arr,\"latestbuyselldaily\""
+          [ "${{ steps.paths.outputs.latestbuysellweekly }}" = "true" ] && arr="$arr,\"latestbuysellweekly\""
+          [ "${{ steps.paths.outputs.latestbuysellmonthly }}" = "true" ] && arr="$arr,\"latestbuysellmonthly\""
+          [ "${{ steps.paths.outputs.ttmcashflow }}" = "true" ] && arr="$arr,\"ttmcashflow\""
+          [ "${{ steps.paths.outputs.ttmincomestmt }}" = "true" ] && arr="$arr,\"ttmincomestmt\""
+          [ "${{ steps.paths.outputs.recommendations }}" = "true" ] && arr="$arr,\"recommendations\""
+          [ "${{ steps.paths.outputs.balancesheet }}" = "true" ] && arr="$arr,\"balancesheet\""
+          [ "${{ steps.paths.outputs.cashflow }}" = "true" ] && arr="$arr,\"cashflow\""
+          [ "${{ steps.paths.outputs.epsrevisions }}" = "true" ] && arr="$arr,\"epsrevisions\""
+          [ "${{ steps.paths.outputs.epstrend }}" = "true" ] && arr="$arr,\"epstrend\""
+          [ "${{ steps.paths.outputs.growthestimates }}" = "true" ] && arr="$arr,\"growthestimates\""
+          [ "${{ steps.paths.outputs.incomestmt }}" = "true" ] && arr="$arr,\"incomestmt\""
+          [ "${{ steps.paths.outputs.quarterlybalancesheet }}" = "true" ] && arr="$arr,\"quarterlybalancesheet\""
+          [ "${{ steps.paths.outputs.quarterlycashflow }}" = "true" ] && arr="$arr,\"quarterlycashflow\""
+          [ "${{ steps.paths.outputs.quarterlyincomestmt }}" = "true" ] && arr="$arr,\"quarterlyincomestmt\""
+          [ "${{ steps.paths.outputs.analystgrade }}" = "true" ] && arr="$arr,\"analystgrade\""
+          [ "${{ steps.paths.outputs.naaim }}" = "true" ] && arr="$arr,\"naaim\""
+          [ "${{ steps.paths.outputs.aaiisentiment }}" = "true" ] && arr="$arr,\"aaiisentiment\""
+          [ "${{ steps.paths.outputs.feargreed }}" = "true" ] && arr="$arr,\"feargreed\""
+          [ "${{ steps.paths.outputs.stockscreener }}" = "true" ] && arr="$arr,\"stockscreener\""
+          [ "${{ steps.paths.outputs.fundamentalmetrics }}" = "true" ] && arr="$arr,\"fundamentalmetrics\""
+          
+          echo "matrix=[${arr#,}]" >> $GITHUB_OUTPUT
+
+################################################################################
+# 4) Build only the changed Docker images                                      #
+################################################################################
+  build:
+    name: Build changed images
+    needs: filter
+    if: ${{ needs.filter.outputs.any == 'true' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        loader: ${{ fromJson(needs.filter.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: docker/setup-qemu-action@v2
+        with:
+          platforms: linux/arm64
+      - uses: docker/setup-buildx-action@v2
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - id: build
+        name: Build & push Docker image
+        run: |
+          REPO=stocks-app-registry
+          aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 || \
+            aws ecr create-repository --repository-name "$REPO"
+          URI=$(aws ecr describe-repositories \
+                  --repository-names "$REPO" \
+                  --query 'repositories[0].repositoryUri' --output text)
+          aws ecr get-login-password --region $AWS_REGION | \
+            docker login --username AWS --password-stdin "$URI"
+          
+          case "${{ matrix.loader }}" in
+            symbols)          DOCKERFILE=Dockerfile.stocksymbols;   PARAM=StockSymbolsImageTag;;\
+            econ)             DOCKERFILE=Dockerfile.econdata;       PARAM=EconDataImageTag;;\
+            pricedaily)       DOCKERFILE=Dockerfile.pricedaily;     PARAM=PriceImageTag;;\
+            priceweekly)      DOCKERFILE=Dockerfile.priceweekly;    PARAM=PriceWeeklyImageTag;;\
+            pricemonthly)     DOCKERFILE=Dockerfile.pricemonthly;   PARAM=PriceMonthlyImageTag;;\
+            latestpricedaily)   DOCKERFILE=Dockerfile.latestpricedaily;   PARAM=LatestPriceDailyImageTag;;\
+            latestpriceweekly)  DOCKERFILE=Dockerfile.latestpriceweekly;  PARAM=LatestPriceWeeklyImageTag;;\
+            latestpricemonthly) DOCKERFILE=Dockerfile.latestpricemonthly; PARAM=LatestPriceMonthlyImageTag;;\
+            loadinfo)         DOCKERFILE=Dockerfile.loadinfo;       PARAM=LoadInfoImageTag;;\
+            earningsestimate) DOCKERFILE=Dockerfile.loadearningsestimate;   PARAM=EarningsEstimateImageTag;;\
+            earningshistory)  DOCKERFILE=Dockerfile.loadearningshistory;   PARAM=EarningsHistoryImageTag;;\
+            revenueestimate)  DOCKERFILE=Dockerfile.loadrevenueestimate;   PARAM=RevenueEstimateImageTag;;\
+            technicalsdaily)  DOCKERFILE=Dockerfile.technicalsdaily; PARAM=TechnicalsDailyImageTag;;\
+            technicalsweekly) DOCKERFILE=Dockerfile.technicalsweekly;PARAM=TechnicalsWeeklyImageTag;;\
+            technicalsmonthly)DOCKERFILE=Dockerfile.technicalsmonthly;PARAM=TechnicalsMonthlyImageTag;;\
+            swingtrader)      DOCKERFILE=Dockerfile.swingtrader;    PARAM=SwingTraderImageTag;;\
+            calendar)         DOCKERFILE=Dockerfile.loadcalendar;   PARAM=CalendarImageTag;;\
+            buyselldaily)      DOCKERFILE=Dockerfile.buysell;    PARAM=BuySellDailyImageTag;;\
+            buysellweekly)     DOCKERFILE=Dockerfile.buysellweekly;   PARAM=BuySellWeeklyImageTag;;\
+            buysellmonthly)    DOCKERFILE=Dockerfile.buysellmonthly;  PARAM=BuySellMonthlyImageTag;;\
+            latesttechnicalsdaily)   DOCKERFILE=Dockerfile.latesttechnicalsdaily;   PARAM=LatestTechnicalsDailyImageTag;;\
+            latesttechnicalsweekly)  DOCKERFILE=Dockerfile.latesttechnicalsweekly;  PARAM=LatestTechnicalsWeeklyImageTag;;\
+            latesttechnicalsmonthly) DOCKERFILE=Dockerfile.latesttechnicalsmonthly; PARAM=LatestTechnicalsMonthlyImageTag;;\
+            latestbuyselldaily)   DOCKERFILE=Dockerfile.latestbuyselldaily;   PARAM=LatestBuySellDailyImageTag;;\
+            latestbuysellweekly)  DOCKERFILE=Dockerfile.latestbuysellweekly;  PARAM=LatestBuySellWeeklyImageTag;;\
+            latestbuysellmonthly) DOCKERFILE=Dockerfile.latestbuysellmonthly; PARAM=LatestBuySellMonthlyImageTag;;\
+            ttmcashflow)       DOCKERFILE=Dockerfile.ttmcashflow;   PARAM=TTMCashFlowImageTag;;\
+            ttmincomestmt)     DOCKERFILE=Dockerfile.ttmincomestmt; PARAM=TTMIncomeStmtImageTag;;\
+            recommendations)   DOCKERFILE=Dockerfile.recommendations; PARAM=RecommendationsImageTag;;\
+            balancesheet)      DOCKERFILE=Dockerfile.balancesheet;  PARAM=BalanceSheetImageTag;;\
+            cashflow)          DOCKERFILE=Dockerfile.cashflow;      PARAM=CashFlowImageTag;;\
+            epsrevisions)      DOCKERFILE=Dockerfile.epsrevisions;  PARAM=EPSRevisionsImageTag;;\
+            epstrend)          DOCKERFILE=Dockerfile.epstrend;      PARAM=EPSTrendImageTag;;\
+            growthestimates)   DOCKERFILE=Dockerfile.growthestimates; PARAM=GrowthEstimatesImageTag;;\
+            incomestmt)        DOCKERFILE=Dockerfile.incomestmt;    PARAM=IncomeStmtImageTag;;\
+            quarterlybalancesheet) DOCKERFILE=Dockerfile.quarterlybalancesheet; PARAM=QuarterlyBalanceSheetImageTag;;\
+            quarterlycashflow) DOCKERFILE=Dockerfile.quarterlycashflow; PARAM=QuarterlyCashFlowImageTag;;\
+            quarterlyincomestmt) DOCKERFILE=Dockerfile.quarterlyincomestmt; PARAM=QuarterlyIncomeStmtImageTag;;\
+            analystgrade)      DOCKERFILE=dockerfile.analystgrade;  PARAM=AnalystGradeImageTag;;\
+            naaim)             DOCKERFILE=Dockerfile.naaim;         PARAM=NaaimImageTag;;\
+            aaiisentiment)     DOCKERFILE=Dockerfile.aaiisentiment; PARAM=AaiiSentimentImageTag;;\
+            feargreed)         DOCKERFILE=Dockerfile.feargreed;     PARAM=FearGreedImageTag;;\
+            stockscreener)      DOCKERFILE=Dockerfile.stockscreener;  PARAM=StockScreenerImageTag;;\
+            fundamentalmetrics) DOCKERFILE=Dockerfile.fundamentalmetrics; PARAM=FundamentalMetricsImageTag;;\
+          esac
+          TAG=${{ matrix.loader }}-${{ github.sha }}
+          docker buildx build \
+            --platform linux/arm64 \
+            --push \
+            -f "$DOCKERFILE" \
+            -t "$URI:$TAG" \
+            .
+          echo "${PARAM}=$TAG" > build_tag_${{ matrix.loader }}.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-tags-${{ matrix.loader }}
+          path: build_tag_${{ matrix.loader }}.txt
+
+################################################################################
+# 5) Deploy ECS‐tasks stack (build artifacts → CFN → container-insights)       #
+################################################################################
+  deploy-tasks:
+    name: Deploy ECS-tasks stack
+    needs: [build, filter]
+    if: ${{ needs.filter.outputs.any == 'true' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Get CloudFormation templates bucket from core stack
+        id: bucket
+        run: |
+          BUCKET=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
+            --output text)
+          echo "CF_BUCKET=$BUCKET" >> $GITHUB_OUTPUT
+          echo "Using S3 bucket: $BUCKET"
+
+      - name: Download all build-tag artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: build-tags-*
+          path: .
+          merge-multiple: true      
+      
+      - name: Generate tags.env
+        shell: bash
+        run: |
+          cat build_tag_*.txt > tags.env
+          if [ ! -f tags.env ]; then
+            echo "No build tag files found or tags.env not created" >&2
+            exit 1
+          fi
+
+      - name: Wait for app stack to finish exporting
+        run: |
+          STATUS=$(aws cloudformation describe-stacks --stack-name stocks-app-stack --query 'Stacks[0].StackStatus' --output text)
+          if [[ "$STATUS" == "UPDATE_IN_PROGRESS" || "$STATUS" == "CREATE_IN_PROGRESS" ]]; then
+            aws cloudformation wait stack-update-complete --stack-name stocks-app-stack
+          else
+            echo "Stack is not updating, skipping wait."
+          fi
+
+      - name: Delete ECS tasks stack if not in a stable state (idempotency fix)
+        shell: bash
+        run: |
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "")
+          if [[ "$STATUS" == "ROLLBACK_COMPLETE" || "$STATUS" == "DELETE_FAILED" || "$STATUS" == "CREATE_FAILED" ]]; then
+            echo "Stack in $STATUS, deleting before redeploy."
+            aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
+            aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+            echo "Stack deleted."
+          elif [[ -z "$STATUS" ]]; then
+            echo "Stack does not exist, nothing to delete."
+          else
+            echo "Stack status is $STATUS, not deleting."
+          fi      
+      
+      - name: Upload template to S3
+        run: |
+          aws s3 cp template-app-ecs-tasks.yml s3://${{ steps.bucket.outputs.CF_BUCKET }}/template-app-ecs-tasks.yml
+          echo "Template uploaded to s3://${{ steps.bucket.outputs.CF_BUCKET }}/template-app-ecs-tasks.yml"
+
+      - name: Deploy ECS-tasks CloudFormation stack
+        run: |
+          STACK_NAME="stocks-ecs-tasks-stack"
+          TEMPLATE_URL="https://s3.amazonaws.com/${{ steps.bucket.outputs.CF_BUCKET }}/template-app-ecs-tasks.yml"
+          # Build parameters array
+          PARAMETERS="ParameterKey=StockSymbolsImageTag,ParameterValue=$(grep '^StockSymbolsImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=EconDataImageTag,ParameterValue=$(grep '^EconDataImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=PriceImageTag,ParameterValue=$(grep '^PriceImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=PriceWeeklyImageTag,ParameterValue=$(grep '^PriceWeeklyImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=PriceMonthlyImageTag,ParameterValue=$(grep '^PriceMonthlyImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=LatestPriceDailyImageTag,ParameterValue=$(grep '^LatestPriceDailyImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=LatestPriceWeeklyImageTag,ParameterValue=$(grep '^LatestPriceWeeklyImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=LatestPriceMonthlyImageTag,ParameterValue=$(grep '^LatestPriceMonthlyImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=TechnicalsDailyImageTag,ParameterValue=$(grep '^TechnicalsDailyImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=LoadInfoImageTag,ParameterValue=$(grep '^LoadInfoImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=EarningsEstimateImageTag,ParameterValue=$(grep '^EarningsEstimateImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=EarningsHistoryImageTag,ParameterValue=$(grep '^EarningsHistoryImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=RevenueEstimateImageTag,ParameterValue=$(grep '^RevenueEstimateImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=TechnicalsWeeklyImageTag,ParameterValue=$(grep '^TechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=TechnicalsMonthlyImageTag,ParameterValue=$(grep '^TechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=SwingTraderImageTag,ParameterValue=$(grep '^SwingTraderImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=CalendarImageTag,ParameterValue=$(grep '^CalendarImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=BuySellDailyImageTag,ParameterValue=$(grep '^BuySellDailyImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=BuySellWeeklyImageTag,ParameterValue=$(grep '^BuySellWeeklyImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=BuySellMonthlyImageTag,ParameterValue=$(grep '^BuySellMonthlyImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=LatestTechnicalsDailyImageTag,ParameterValue=$(grep '^LatestTechnicalsDailyImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=LatestTechnicalsWeeklyImageTag,ParameterValue=$(grep '^LatestTechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=LatestTechnicalsMonthlyImageTag,ParameterValue=$(grep '^LatestTechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=TTMCashFlowImageTag,ParameterValue=$(grep '^TTMCashFlowImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=TTMIncomeStmtImageTag,ParameterValue=$(grep '^TTMIncomeStmtImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=RecommendationsImageTag,ParameterValue=$(grep '^RecommendationsImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=BalanceSheetImageTag,ParameterValue=$(grep '^BalanceSheetImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=CashFlowImageTag,ParameterValue=$(grep '^CashFlowImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=EpsRevisionsImageTag,ParameterValue=$(grep '^EPSRevisionsImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=EpsTrendImageTag,ParameterValue=$(grep '^EPSTrendImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=GrowthEstimatesImageTag,ParameterValue=$(grep '^GrowthEstimatesImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=IncomeStmtImageTag,ParameterValue=$(grep '^IncomeStmtImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=QuarterlyBalanceSheetImageTag,ParameterValue=$(grep '^QuarterlyBalanceSheetImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=QuarterlyCashFlowImageTag,ParameterValue=$(grep '^QuarterlyCashFlowImageTag=' tags.env | cut -d= -f2-)"          
+          PARAMETERS="$PARAMETERS ParameterKey=QuarterlyIncomeStmtImageTag,ParameterValue=$(grep '^QuarterlyIncomeStmtImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=StockScreenerImageTag,ParameterValue=$(grep '^StockScreenerImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=AaiiSentimentImageTag,ParameterValue=$(grep '^AaiiSentimentImageTag=' tags.env | cut -d= -f2- || echo "latest")"
+          PARAMETERS="$PARAMETERS ParameterKey=FearGreedImageTag,ParameterValue=$(grep '^FearGreedImageTag=' tags.env | cut -d= -f2- || echo "latest")"
+          PARAMETERS="$PARAMETERS ParameterKey=FundamentalMetricsImageTag,ParameterValue=$(grep '^FundamentalMetricsImageTag=' tags.env | cut -d= -f2- || echo "latest")"
+          PARAMETERS="$PARAMETERS ParameterKey=GrowthEstimatesImageTag,ParameterValue=$(grep '^GrowthEstimatesImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=IncomeStmtImageTag,ParameterValue=$(grep '^IncomeStmtImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=QuarterlyBalanceSheetImageTag,ParameterValue=$(grep '^QuarterlyBalanceSheetImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=QuarterlyCashFlowImageTag,ParameterValue=$(grep '^QuarterlyCashFlowImageTag=' tags.env | cut -d= -f2-)"          
+          PARAMETERS="$PARAMETERS ParameterKey=QuarterlyIncomeStmtImageTag,ParameterValue=$(grep '^QuarterlyIncomeStmtImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=StockScreenerImageTag,ParameterValue=$(grep '^StockScreenerImageTag=' tags.env | cut -d= -f2-)"
+          PARAMETERS="$PARAMETERS ParameterKey=AaiiSentimentImageTag,ParameterValue=$(grep '^AaiiSentimentImageTag=' tags.env | cut -d= -f2- || echo "latest")"
+          PARAMETERS="$PARAMETERS ParameterKey=FearGreedImageTag,ParameterValue=$(grep '^FearGreedImageTag=' tags.env | cut -d= -f2- || echo "latest")"
+          PARAMETERS="$PARAMETERS ParameterKey=NaaimImageTag,ParameterValue=$(grep '^NaaimImageTag=' tags.env | cut -d= -f2- || echo "latest")"
+          PARAMETERS="$PARAMETERS ParameterKey=LatestBuySellDailyImageTag,ParameterValue=$(grep '^LatestBuySellDailyImageTag=' tags.env | cut -d= -f2- || echo "latest")"
+          PARAMETERS="$PARAMETERS ParameterKey=LatestBuySellWeeklyImageTag,ParameterValue=$(grep '^LatestBuySellWeeklyImageTag=' tags.env | cut -d= -f2- || echo "latest")"
+          PARAMETERS="$PARAMETERS ParameterKey=LatestBuySellMonthlyImageTag,ParameterValue=$(grep '^LatestBuySellMonthlyImageTag=' tags.env | cut -d= -f2- || echo "latest")"
+          PARAMETERS="$PARAMETERS ParameterKey=AnalystGradeImageTag,ParameterValue=$(grep '^AnalystGradeImageTag=' tags.env | cut -d= -f2- || echo "latest")"
+          PARAMETERS="$PARAMETERS ParameterKey=FREDApiKey,ParameterValue=${{ secrets.FRED_API_KEY }}"
+          PARAMETERS="$PARAMETERS ParameterKey=IBKRUsername,ParameterValue=${{ secrets.IBKR_USERNAME }}"
+          PARAMETERS="$PARAMETERS ParameterKey=IBKRPassword,ParameterValue=${{ secrets.IBKR_PASSWORD }}"
+          
+          # Check if stack exists
+          if aws cloudformation describe-stacks --stack-name "$STACK_NAME" >/dev/null 2>&1; then
+            echo "Stack exists, updating..."
+            aws cloudformation update-stack \
+              --stack-name "$STACK_NAME" \
+              --template-url "$TEMPLATE_URL" \
+              --parameters $PARAMETERS \
+              --capabilities CAPABILITY_NAMED_IAM
+            
+            echo "Waiting for stack update to complete..."
+            aws cloudformation wait stack-update-complete --stack-name "$STACK_NAME"
+          else
+            echo "Stack does not exist, creating..."
+            aws cloudformation create-stack \
+              --stack-name "$STACK_NAME" \
+              --template-url "$TEMPLATE_URL" \
+              --parameters $PARAMETERS \
+              --capabilities CAPABILITY_NAMED_IAM
+            
+            echo "Waiting for stack creation to complete..."
+            aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME"
+          fi
+
+      - name: Enable ECS Container Insights
+        run: |
+          CLUSTER=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+          aws ecs update-cluster-settings \
+            --cluster "$CLUSTER" \
+            --settings name=containerInsights,value=enabled
+
+################################################################################

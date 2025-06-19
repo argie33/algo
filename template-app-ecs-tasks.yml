@@ -135,6 +135,9 @@ Parameters:
   AnalystGradeImageTag:
     Type: String
     Description: "Tag for analyst grade loader image"
+  FundamentalMetricsImageTag:
+    Type: String
+    Description: "Tag for fundamental metrics loader image"
   FREDApiKey:
     Type: String
     NoEcho: true
@@ -453,6 +456,12 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/latestbuysellmonthly-loader
+      RetentionInDays: 14
+
+  FundamentalMetricsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/fundamentalmetrics-loader
       RetentionInDays: 14
 
   ########################################
@@ -2916,6 +2925,55 @@ Resources:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
 
+  FundamentalMetricsTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Family: fundamentalmetrics-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: fundamentalmetrics-loader
+          Image: !Sub "${StocksCoreContainerRepositoryUri}:${FundamentalMetricsImageTag}"
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/fundamentalmetrics-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  FundamentalMetricsLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !ImportValue StocksCore-EcsClusterName
+      TaskDefinition: !Ref FundamentalMetricsTaskDefinition
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !ImportValue StocksCore-EcsSecurityGroupId
+          Subnets:
+            - !ImportValue StocksCore-SubnetA
+            - !ImportValue StocksCore-SubnetB
+
+# --- Outputs ---
+
   #############################################################
   # IAM Role for EventBridge → ECS RunTask#
   #############################################################
@@ -4222,3 +4280,9 @@ Outputs:
     Value: !Ref AnalystGradeTaskDefinition
     Export:
       Name: AnalystGradeTaskDefArn
+
+  FundamentalMetricsTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for fundamental metrics loader
+    Value: !Ref FundamentalMetricsTaskDefinition
+    Export:
+      Name: FundamentalMetricsTaskDefArn
