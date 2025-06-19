@@ -159,9 +159,25 @@ router.get('/:timeframe', async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
+    // Ensure all indicator fields are numbers or null (never undefined)
+    function sanitizeRow(row) {
+      const indicators = [
+        'rsi','macd','macd_signal','macd_hist','adx','atr','mfi','roc','mom','sma_10','sma_20','sma_50','sma_150','sma_200','ema_4','ema_9','ema_21','bbands_upper','bbands_middle','bbands_lower','ad','cmf','td_sequential','td_combo','marketwatch','dm','pivot_high','pivot_low'
+      ];
+      const sanitized = { ...row };
+      indicators.forEach(key => {
+        if (sanitized[key] === undefined || sanitized[key] === null || isNaN(sanitized[key])) {
+          sanitized[key] = null;
+        } else {
+          sanitized[key] = Number(sanitized[key]);
+        }
+      });
+      return sanitized;
+    }
+
     res.json({
       success: true,
-      data: dataResult.rows,
+      data: dataResult.rows.map(sanitizeRow),
       pagination: {
         page,
         limit,
