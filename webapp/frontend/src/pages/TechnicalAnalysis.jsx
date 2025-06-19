@@ -59,19 +59,19 @@ function TechnicalAnalysis() {
   const navigate = useNavigate();
   // --- FIX: Move these above useQuery ---
   const [indicatorFilter, setIndicatorFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [indicatorMin, setIndicatorMin] = useState('');
+  const [indicatorMax, setIndicatorMax] = useState('');
 
   // Fetch technical data
   const { data: technicalData, isLoading, error, refetch } = useQuery({
-    queryKey: ['technicalAnalysis', timeframe, symbolFilter, indicatorFilter, dateFrom, dateTo, page, rowsPerPage, orderBy, order],
+    queryKey: ['technicalAnalysis', timeframe, symbolFilter, indicatorFilter, indicatorMin, indicatorMax, page, rowsPerPage, orderBy, order],
     queryFn: async () => {
       const params = {
         overview: !symbolFilter,
         symbol: symbolFilter,
         indicator: indicatorFilter,
-        startDate: dateFrom,
-        endDate: dateTo,
+        indicatorMin,
+        indicatorMax,
         limit: rowsPerPage,
         page: page + 1,
         sortBy: orderBy,
@@ -98,9 +98,9 @@ function TechnicalAnalysis() {
     let count = 0;
     if (symbolFilter) count++;
     if (indicatorFilter) count++;
-    if (dateFrom || dateTo) count++;
+    if (indicatorMin || indicatorMax) count++;
     setActiveFilters(count);
-  }, [symbolFilter, indicatorFilter, dateFrom, dateTo]);
+  }, [symbolFilter, indicatorFilter, indicatorMin, indicatorMax]);
 
   const handleSearch = () => {
     setSymbolFilter(searchInput.trim());
@@ -303,35 +303,58 @@ function TechnicalAnalysis() {
                   )
                 }}
               />
-              <TextField
-                label="Indicator"
-                value={indicatorFilter}
-                onChange={(e) => setIndicatorFilter(e.target.value)}
-                size="small"
-                fullWidth
-                sx={{ mb: 2 }}
-                placeholder="e.g., rsi, macd, adx"
-              />
-              <TextField
-                label="Date From"
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                size="small"
-                fullWidth
-                sx={{ mb: 2 }}
-                InputLabelProps={{ shrink: true }}
-              />
-              <TextField
-                label="Date To"
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                size="small"
-                fullWidth
-                sx={{ mb: 2 }}
-                InputLabelProps={{ shrink: true }}
-              />
+              <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+                <InputLabel>Indicator</InputLabel>
+                <Select value={indicatorFilter} label="Indicator" onChange={e => setIndicatorFilter(e.target.value)}>
+                  <MenuItem value="">All</MenuItem>
+                  <MenuItem value="rsi">RSI</MenuItem>
+                  <MenuItem value="macd">MACD</MenuItem>
+                  <MenuItem value="adx">ADX</MenuItem>
+                  <MenuItem value="atr">ATR</MenuItem>
+                  <MenuItem value="mfi">MFI</MenuItem>
+                  <MenuItem value="roc">ROC</MenuItem>
+                  <MenuItem value="mom">MOM</MenuItem>
+                  <MenuItem value="bbands_upper">BB Upper</MenuItem>
+                  <MenuItem value="bbands_middle">BB Middle</MenuItem>
+                  <MenuItem value="bbands_lower">BB Lower</MenuItem>
+                  <MenuItem value="sma_10">SMA 10</MenuItem>
+                  <MenuItem value="sma_20">SMA 20</MenuItem>
+                  <MenuItem value="sma_50">SMA 50</MenuItem>
+                  <MenuItem value="sma_150">SMA 150</MenuItem>
+                  <MenuItem value="sma_200">SMA 200</MenuItem>
+                  <MenuItem value="ema_4">EMA 4</MenuItem>
+                  <MenuItem value="ema_9">EMA 9</MenuItem>
+                  <MenuItem value="ema_21">EMA 21</MenuItem>
+                  <MenuItem value="ad">A/D</MenuItem>
+                  <MenuItem value="cmf">CMF</MenuItem>
+                  <MenuItem value="td_sequential">TD Seq</MenuItem>
+                  <MenuItem value="td_combo">TD Combo</MenuItem>
+                  <MenuItem value="marketwatch">MW</MenuItem>
+                  <MenuItem value="dm">DM</MenuItem>
+                  <MenuItem value="pivot_high">Pivot H</MenuItem>
+                  <MenuItem value="pivot_low">Pivot L</MenuItem>
+                </Select>
+              </FormControl>
+              <Box display="flex" gap={1} mb={2}>
+                <TextField
+                  label="Min Value"
+                  type="number"
+                  value={indicatorMin}
+                  onChange={e => setIndicatorMin(e.target.value)}
+                  size="small"
+                  fullWidth
+                  disabled={!indicatorFilter}
+                />
+                <TextField
+                  label="Max Value"
+                  type="number"
+                  value={indicatorMax}
+                  onChange={e => setIndicatorMax(e.target.value)}
+                  size="small"
+                  fullWidth
+                  disabled={!indicatorFilter}
+                />
+              </Box>
               <Box display="flex" gap={1} mb={2}>
                 <Button variant="outlined" onClick={handleSearch} startIcon={<Search />} disabled={isLoading}>
                   {symbolFilter ? 'Search' : 'Filter'}
