@@ -5,23 +5,7 @@ import {
   Container, Typography, Box, Card, CardContent, Divider, Button, Paper, Table, TableHead, TableRow, TableCell, TableBody, TablePagination, TextField, CircularProgress, Alert, Chip
 } from '@mui/material';
 import { TrendingUp, TrendingDown, ShowChart, InfoOutlined } from '@mui/icons-material';
-import { formatNumber, formatDate } from '../utils/formatters';
-
-// Helper for icon/color/label for indicators (copied from TechnicalAnalysis)
-const getTechStatus = (indicator, value) => {
-  if (value === null || value === undefined) return { icon: <InfoOutlined color="disabled" />, color: 'text.secondary', label: 'N/A' };
-  if (indicator === 'rsi') {
-    if (value > 70) return { icon: <TrendingUp color="error" />, color: 'error.main', label: 'Overbought' };
-    if (value < 30) return { icon: <TrendingDown color="primary" />, color: 'primary.main', label: 'Oversold' };
-    return { icon: <ShowChart color="success" />, color: 'success.main', label: 'Neutral' };
-  }
-  if (indicator === 'macd') {
-    if (value > 0) return { icon: <TrendingUp color="success" />, color: 'success.main', label: 'Bullish' };
-    if (value < 0) return { icon: <TrendingDown color="error" />, color: 'error.main', label: 'Bearish' };
-    return { icon: <ShowChart color="warning" />, color: 'warning.main', label: 'Flat' };
-  }
-  return { icon: <ShowChart color="info" />, color: 'info.main', label: '' };
-};
+import { formatNumber, formatDate, getTechStatus } from '../utils/formatters';
 
 function TechnicalHistory() {
   const { symbol } = useParams();
@@ -30,7 +14,7 @@ function TechnicalHistory() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [rowsPerPage, setRowsPerPage] = useState(10); // Reduced from 25 for faster load
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [total, setTotal] = useState(0);
@@ -73,6 +57,11 @@ function TechnicalHistory() {
   const handleRowsPerPageChange = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
+  };
+
+  // Add a Load More button for progressive loading
+  const handleLoadMore = () => {
+    setRowsPerPage(prev => prev + 10);
   };
 
   // --- Table columns (match TechnicalAnalysis) ---
@@ -149,7 +138,7 @@ function TechnicalHistory() {
       ) : error ? (
         <Alert severity="error">{error}</Alert>
       ) : (
-        <Paper sx={{ width: '100%', overflowX: 'auto', boxShadow: 2 }}>
+        <Paper sx={{ width: '100%', overflowX: 'auto', boxShadow: 2, maxWidth: '100vw' }}>
           <Table size="small" stickyHeader sx={{ minWidth: 1200 }}>
             <TableHead>
               <TableRow>
@@ -166,11 +155,11 @@ function TechnicalHistory() {
                   {columns.map(col => (
                     <TableCell key={col.id} align={typeof row[col.id] === 'number' ? 'right' : 'left'} sx={{ whiteSpace: 'nowrap', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', color: getTechStatus(col.id, row[col.id]).color }}>
                       <Box display="flex" alignItems="center" gap={1}>
-                        {['rsi','macd','pivot_high','pivot_low'].includes(col.id) && getTechStatus(col.id, row[col.id]).icon}
-                        <Typography variant="body2" fontWeight={['rsi','macd','pivot_high','pivot_low'].includes(col.id) ? 'bold' : 'medium'}>
+                        {getTechStatus(col.id, row[col.id]).icon}
+                        <Typography variant="body2" fontWeight="bold">
                           {col.format ? col.format(row[col.id]) : (row[col.id] !== undefined && row[col.id] !== null ? formatNumber(row[col.id]) : 'N/A')}
                         </Typography>
-                        {['rsi','macd','pivot_high','pivot_low'].includes(col.id) && getTechStatus(col.id, row[col.id]).label && (
+                        {getTechStatus(col.id, row[col.id]).label && (
                           <Chip label={getTechStatus(col.id, row[col.id]).label} size="small" sx={{ ml: 0.5 }} color={getTechStatus(col.id, row[col.id]).color.replace('.main','') || 'default'} />
                         )}
                       </Box>
@@ -189,6 +178,13 @@ function TechnicalHistory() {
             onRowsPerPageChange={handleRowsPerPageChange}
             rowsPerPageOptions={[10, 25, 50, 100]}
           />
+          <Box display="flex" justifyContent="center" mt={2}>
+            {data.length < total && (
+              <Button variant="contained" onClick={handleLoadMore} disabled={loading}>
+                {loading ? 'Loading...' : 'Load More'}
+              </Button>
+            )}
+          </Box>
         </Paper>
       )}
     </Container>

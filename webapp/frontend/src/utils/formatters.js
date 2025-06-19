@@ -1,4 +1,5 @@
 import numeral from 'numeral'
+import { TrendingUp, TrendingDown, ShowChart, InfoOutlined, TrendingFlat } from '@mui/icons-material';
 
 // Format currency values
 export const formatCurrency = (value, decimals = 2) => {
@@ -220,3 +221,54 @@ export const getFinancialHealthScore = (metrics) => {
   
   return { score: finalScore, grade, color }
 }
+
+// Consistent technical indicator status helper
+export const getTechStatus = (indicator, value) => {
+  if (value === null || value === undefined) return { icon: <InfoOutlined color="disabled" />, color: 'text.secondary', label: 'N/A' };
+  switch (indicator) {
+    case 'rsi':
+      if (value > 70) return { icon: <TrendingUp color="error" />, color: 'error.main', label: 'Overbought' };
+      if (value < 30) return { icon: <TrendingDown color="primary" />, color: 'primary.main', label: 'Oversold' };
+      return { icon: <ShowChart color="success" />, color: 'success.main', label: 'Neutral' };
+    case 'macd':
+      if (value > 0) return { icon: <TrendingUp color="success" />, color: 'success.main', label: 'Bullish' };
+      if (value < 0) return { icon: <TrendingDown color="error" />, color: 'error.main', label: 'Bearish' };
+      return { icon: <TrendingFlat color="warning" />, color: 'warning.main', label: 'Flat' };
+    case 'adx':
+      if (value >= 25) return { icon: <TrendingUp color="success" />, color: 'success.main', label: 'Trending' };
+      return { icon: <TrendingFlat color="info" />, color: 'info.main', label: 'Weak' };
+    case 'atr':
+      if (value > 2) return { icon: <TrendingUp color="warning" />, color: 'warning.main', label: 'High Volatility' };
+      return { icon: <TrendingFlat color="info" />, color: 'info.main', label: 'Low Volatility' };
+    case 'mfi':
+      if (value > 80) return { icon: <TrendingUp color="error" />, color: 'error.main', label: 'Overbought' };
+      if (value < 20) return { icon: <TrendingDown color="primary" />, color: 'primary.main', label: 'Oversold' };
+      return { icon: <ShowChart color="success" />, color: 'success.main', label: 'Neutral' };
+    case 'roc':
+    case 'mom':
+      if (value > 0) return { icon: <TrendingUp color="success" />, color: 'success.main', label: 'Positive' };
+      if (value < 0) return { icon: <TrendingDown color="error" />, color: 'error.main', label: 'Negative' };
+      return { icon: <TrendingFlat color="info" />, color: 'info.main', label: 'Flat' };
+    case 'bbands_upper':
+    case 'bbands_middle':
+    case 'bbands_lower':
+      return { icon: <ShowChart color="info" />, color: 'info.main', label: '' };
+    case 'sma_10':
+    case 'sma_20':
+    case 'sma_50':
+    case 'sma_150':
+    case 'sma_200':
+    case 'ema_4':
+    case 'ema_9':
+    case 'ema_21':
+      return { icon: <ShowChart color="secondary" />, color: 'secondary.main', label: '' };
+    case 'pivot_high':
+      if (value) return { icon: <TrendingUp color="success" />, color: 'success.main', label: 'Pivot High' };
+      return { icon: <ShowChart color="info" />, color: 'info.main', label: '' };
+    case 'pivot_low':
+      if (value) return { icon: <TrendingDown color="primary" />, color: 'primary.main', label: 'Pivot Low' };
+      return { icon: <ShowChart color="info" />, color: 'info.main', label: '' };
+    default:
+      return { icon: <ShowChart color="info" />, color: 'info.main', label: '' };
+  }
+};

@@ -41,7 +41,7 @@ import {
   ShowChart,
   InfoOutlined
 } from '@mui/icons-material';
-import { formatNumber, formatDate } from '../utils/formatters';
+import { formatNumber, formatDate, getTechStatus } from '../utils/formatters';
 import { getTechnicalData } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
@@ -126,24 +126,6 @@ function TechnicalAnalysis() {
   const handleRowsPerPageChange = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
-  };
-
-  // Helper to determine icon and color for a technical value
-  const getTechStatus = (indicator, value) => {
-    if (value === null || value === undefined) return { icon: <InfoOutlined color="disabled" />, color: 'text.secondary', label: 'N/A' };
-    // Example logic for a few indicators (customize as needed)
-    if (indicator === 'rsi') {
-      if (value > 70) return { icon: <TrendingUp color="error" />, color: 'error.main', label: 'Overbought' };
-      if (value < 30) return { icon: <TrendingDown color="primary" />, color: 'primary.main', label: 'Oversold' };
-      return { icon: <ShowChart color="success" />, color: 'success.main', label: 'Neutral' };
-    }
-    if (indicator === 'macd') {
-      if (value > 0) return { icon: <TrendingUp color="success" />, color: 'success.main', label: 'Bullish' };
-      if (value < 0) return { icon: <TrendingDown color="error" />, color: 'error.main', label: 'Bearish' };
-      return { icon: <ShowChart color="warning" />, color: 'warning.main', label: 'Flat' };
-    }
-    // Default
-    return { icon: <ShowChart color="info" />, color: 'info.main', label: '' };
   };
 
   // Table columns (can be expanded)
