@@ -179,7 +179,6 @@ function ServiceHealth() {  const [environmentInfo, setEnvironmentInfo] = useSta
     queryFn: async () => {
       const url = getCurrentBaseURL() + '/api/health/database/diagnostics';
       console.log('Fetching database diagnostics from:', url);
-      // Remove invalid timeout property from fetch options
       const response = await fetch(url, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' }
@@ -191,6 +190,10 @@ function ServiceHealth() {  const [environmentInfo, setEnvironmentInfo] = useSta
       }
       const data = await response.json();
       console.log('Database diagnostics data:', data);
+      // Defensive: ensure diagnostics property exists
+      if (!data || typeof data !== 'object' || (!data.diagnostics && !data.summary)) {
+        throw new Error('Unexpected diagnostics API response structure: ' + JSON.stringify(data));
+      }
       return data;
     },
     refetchInterval: false, // Don't auto-refresh to avoid spam
