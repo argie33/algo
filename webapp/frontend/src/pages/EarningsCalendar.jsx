@@ -222,6 +222,7 @@ function EarningsCalendar() {
         <TableHead>
           <TableRow sx={{ backgroundColor: 'grey.50' }}>
             <TableCell>Symbol</TableCell>
+            <TableCell>Company</TableCell>
             <TableCell>Period</TableCell>
             <TableCell align="right">Avg Estimate</TableCell>
             <TableCell align="right">Low</TableCell>
@@ -231,50 +232,40 @@ function EarningsCalendar() {
           </TableRow>
         </TableHead>
         <TableBody>
-          {estimatesData?.data?.map((estimate, index) => (
-            <TableRow key={`${estimate.symbol}-${index}`} hover>
-              <TableCell>
-                <Typography variant="body2" fontWeight="bold">
-                  {estimate.symbol}
-                </Typography>
-              </TableCell>
-              <TableCell>
-                <Chip label={estimate.period} size="small" variant="outlined" />
-              </TableCell>
-              <TableCell align="right">
-                <Typography variant="body2" fontWeight="bold">
-                  {formatCurrency(estimate.avg_estimate)}
-                </Typography>
-              </TableCell>
-              <TableCell align="right">
-                {formatCurrency(estimate.low_estimate)}
-              </TableCell>
-              <TableCell align="right">
-                {formatCurrency(estimate.high_estimate)}
-              </TableCell>
-              <TableCell align="right">
-                <Typography variant="body2">
-                  {estimate.number_of_analysts}
-                </Typography>
-              </TableCell>
-              <TableCell align="right">
-                <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
-                  <Avatar sx={{ 
-                    bgcolor: getSurpriseColor(estimate.growth), 
-                    width: 24, 
-                    height: 24 
-                  }}>
-                    {getSurpriseIcon(estimate.growth)}
-                  </Avatar>
-                  <Typography 
-                    variant="body2" 
-                    sx={{ color: getSurpriseColor(estimate.growth) }}
-                  >
-                    {formatPercentage(estimate.growth / 100)}
+          {Object.entries(estimatesData?.data || {}).map(([symbol, group]) => (
+            group.estimates.map((estimate, index) => (
+              <TableRow key={`${symbol}-${estimate.period}-${index}`} hover>
+                <TableCell>
+                  <Typography variant="body2" fontWeight="bold">{symbol}</Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2">{group.company_name}</Typography>
+                </TableCell>
+                <TableCell>
+                  <Chip label={estimate.period} size="small" variant="outlined" />
+                </TableCell>
+                <TableCell align="right">
+                  <Typography variant="body2" fontWeight="bold">
+                    {formatCurrency(estimate.avg_estimate)}
                   </Typography>
-                </Box>
-              </TableCell>
-            </TableRow>
+                </TableCell>
+                <TableCell align="right">{formatCurrency(estimate.low_estimate)}</TableCell>
+                <TableCell align="right">{formatCurrency(estimate.high_estimate)}</TableCell>
+                <TableCell align="right">
+                  <Typography variant="body2">{estimate.number_of_analysts}</Typography>
+                </TableCell>
+                <TableCell align="right">
+                  <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
+                    <Avatar sx={{ bgcolor: getSurpriseColor(estimate.growth), width: 24, height: 24 }}>
+                      {getSurpriseIcon(estimate.growth)}
+                    </Avatar>
+                    <Typography variant="body2" sx={{ color: getSurpriseColor(estimate.growth) }}>
+                      {formatPercentage(estimate.growth / 100)}
+                    </Typography>
+                  </Box>
+                </TableCell>
+              </TableRow>
+            ))
           ))}
         </TableBody>
       </Table>
