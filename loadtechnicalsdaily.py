@@ -1669,9 +1669,12 @@ def process_symbol_chunk(symbol_chunk, db_config):
                 
                 # LOGGING: Check DataFrame columns and sample pivot values before insert
                 logging.info(f"[DEBUG] Columns in df_tech before insert: {list(df_tech.columns)}")
+                logging.info(f"[DEBUG] DataFrame shape: {df_tech.shape}, index: {df_tech.index[:5].tolist()} ...")
                 if 'pivot_high' in df_tech.columns and 'pivot_low' in df_tech.columns:
                     logging.info(f"[DEBUG] Sample pivot_high values (first 5): {df_tech['pivot_high'].head(5).tolist()}")
                     logging.info(f"[DEBUG] Sample pivot_low values (first 5): {df_tech['pivot_low'].head(5).tolist()}")
+                    logging.info(f"[DEBUG] Non-NaN pivot_high count: {df_tech['pivot_high'].notna().sum()}")
+                    logging.info(f"[DEBUG] Non-NaN pivot_low count: {df_tech['pivot_low'].notna().sum()}")
                 else:
                     logging.warning(f"[DEBUG] pivot_high or pivot_low column missing in df_tech before insert!")
                 
@@ -1730,6 +1733,11 @@ def process_symbol_chunk(symbol_chunk, db_config):
                 # Enhanced logging: show first 2 insert records and their pivot values
                 for i, rec in enumerate(symbol_insert_data[:2]):
                     logging.info(f"[DEBUG] Insert record {i+1}: pivot_high={rec[-3]}, pivot_low={rec[-2]}, full={rec}")
+                # Tuple health check: count non-None pivot_high/low in tuples
+                tuple_pivot_high = [r[-3] for r in symbol_insert_data]
+                tuple_pivot_low = [r[-2] for r in symbol_insert_data]
+                logging.info(f"[DEBUG] Tuple non-None pivot_high count: {sum(x is not None for x in tuple_pivot_high)}")
+                logging.info(f"[DEBUG] Tuple non-None pivot_low count: {sum(x is not None for x in tuple_pivot_low)}")
                 
                 insert_prep_time = time.time() - insert_start
                 all_insert_data.extend(symbol_insert_data)
@@ -1801,15 +1809,21 @@ def process_symbol_chunk(symbol_chunk, db_config):
                 pivot_low = EXCLUDED.pivot_low,
                 fetched_at = EXCLUDED.fetched_at
             """
-            
-            # Use MAXIMUM page size for ultra-fast bulk insert
+            # Log a sample of the actual SQL and data being inserted
+            logging.info(f"[DEBUG] Insert query: {insert_query.splitlines()[0]} ...")
+            logging.info(f"[DEBUG] First insert tuple: {all_insert_data[0] if all_insert_data else 'NO DATA'}")
             execute_values(cur, insert_query, all_insert_data, page_size=5000)
             conn.commit()
-            
             bulk_insert_time = time.time() - bulk_insert_start
             records_per_sec = len(all_insert_data) / bulk_insert_time if bulk_insert_time > 0 else 0
-            
             logging.info(f"🚀 ULTRA-FAST bulk insert: {len(all_insert_data)} records in {bulk_insert_time:.2f}s ({records_per_sec:.0f} records/sec)")
+            # Post-insert: fetch and log a sample row for this symbol
+            try:
+                cur.execute("SELECT symbol, date, pivot_high, pivot_low FROM technical_data_daily WHERE symbol = %s ORDER BY date DESC LIMIT 2", (all_insert_data[0][0],))
+                rows = cur.fetchall()
+                logging.info(f"[DEBUG] DB post-insert check for {all_insert_data[0][0]}: {rows}")
+            except Exception as e:
+                logging.warning(f"[DEBUG] Could not fetch post-insert row for {all_insert_data[0][0]}: {e}")
         
         # Clean up
         del price_df, all_insert_data
