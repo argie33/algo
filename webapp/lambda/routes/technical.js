@@ -53,14 +53,8 @@ router.get('/:timeframe', async (req, res) => {
       params.push(req.query.start_date);
       paramIndex++;
     } else {
-      // Default: Only get recent data to prevent timeouts
-      if (timeframe === 'daily') {
-        whereClause += ` AND t.date >= CURRENT_DATE - INTERVAL '10 days'`; // Last 10 days for daily
-      } else if (timeframe === 'weekly') {
-        whereClause += ` AND t.date >= CURRENT_DATE - INTERVAL '26 weeks'`; // Last 26 weeks for weekly
-      } else if (timeframe === 'monthly') {
-        whereClause += ` AND t.date >= CURRENT_DATE - INTERVAL '36 months'`; // Last 3 years for monthly
-      }
+      // Default: Only get the most recent day if no start_date is specified
+      whereClause += ` AND t.date = (SELECT MAX(date) FROM ${tableName})`;
     }
 
     if (req.query.end_date) {
@@ -68,6 +62,15 @@ router.get('/:timeframe', async (req, res) => {
       params.push(req.query.end_date);
       paramIndex++;
     }
+
+    // Add sorting support
+    let sortBy = req.query.sortBy || 'date';
+    let sortOrder = req.query.sortOrder === 'asc' ? 'ASC' : 'DESC';
+    // Only allow sorting by known columns for safety
+    const allowedSorts = [
+      'symbol','date','rsi','macd','macd_signal','macd_hist','adx','atr','mfi','roc','mom','sma_10','sma_20','sma_50','sma_150','sma_200','ema_4','ema_9','ema_21','bbands_upper','bbands_middle','bbands_lower','ad','cmf','td_sequential','td_combo','marketwatch','dm','pivot_high','pivot_low'
+    ];
+    if (!allowedSorts.includes(sortBy)) sortBy = 'date';
 
     console.log('Using whereClause:', whereClause, 'params:', params);
     console.log('Using tableName:', tableName);
@@ -114,7 +117,7 @@ router.get('/:timeframe', async (req, res) => {
       LEFT JOIN price_${timeframe} p ON t.symbol = p.symbol AND t.date = p.date
       LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
       ${whereClause}
-      ORDER BY t.date DESC, t.symbol ASC
+      ORDER BY t.${sortBy} ${sortOrder}, t.symbol ASC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
