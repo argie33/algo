@@ -208,6 +208,22 @@ export default function Backtest() {
     }).filter(Boolean);
   };
 
+  const handleRenameStrategy = async (id) => {
+    const strategy = savedStrategies.find(s => s.id === id);
+    if (!strategy) return;
+    const newName = prompt('Enter a new name for this strategy:', strategy.name);
+    if (!newName || newName === strategy.name) return;
+    // Update backend (simulate PATCH by delete+add)
+    await fetch(`${API_BASE}/backtest/strategies/${id}`, { method: 'DELETE' });
+    const res = await fetch(`${API_BASE}/backtest/strategies`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName, code: strategy.code, language: strategy.language })
+    });
+    const data = await res.json();
+    setSavedStrategies(prev => prev.filter(s => s.id !== id).concat(data.strategy));
+  };
+
   return (
     <Container maxWidth="md" sx={{ py: 4 }}>
       <Box display="flex" alignItems="center" gap={2} mb={3}>
@@ -444,6 +460,35 @@ export default function Backtest() {
             </Box>
           )}
         </Paper>
+      )}
+      {useCustomCode && (
+        <Card sx={{ mt: 4 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>Saved Strategies</Typography>
+            <TableContainer component={Paper} sx={{ mb: 2 }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Name</TableCell>
+                    <TableCell>Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {savedStrategies.map((s) => (
+                    <TableRow key={s.id}>
+                      <TableCell>{s.name}</TableCell>
+                      <TableCell>
+                        <Button size="small" onClick={() => handleLoadStrategy(s.code)}>Load</Button>
+                        <Button size="small" onClick={() => handleRenameStrategy(s.id)}>Rename</Button>
+                        <Button size="small" color="error" onClick={() => handleDeleteStrategy(s.id)}>Delete</Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </CardContent>
+        </Card>
       )}
     </Container>
   );
