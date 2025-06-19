@@ -1000,7 +1000,7 @@ def calculate_technicals_parallel(df):
                 
                 # Additional MFI validation
                 if valid_mfi == 0:
-                    logging.error(f"❌ MFI: All values are NaN - check data quality")
+                    logging.error(f"❌ MFI: All values are NaN - check data")
                 elif valid_mfi < len(results['mfi']) * 0.5:
                     logging.warning(f"⚠️  MFI: Low success rate - {valid_mfi}/{len(results['mfi'])} valid ({valid_mfi/len(results['mfi']):.1%})")
                 else:
@@ -1693,6 +1693,11 @@ def process_symbol_chunk(symbol_chunk, db_config):
                         run_timestamp
                     )
                     symbol_insert_data.append(record)
+                
+                # DEBUG: Print a few records to verify pivot values before insert
+                if len(symbol_insert_data) > 0:
+                    for rec in symbol_insert_data[:3]:
+                        logging.info(f"  symbol={rec[0]}, date={rec[1]}, pivot_high={rec[27]}, pivot_low={rec[28]}")
                 
                 insert_prep_time = time.time() - insert_start
                 all_insert_data.extend(symbol_insert_data)
