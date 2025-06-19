@@ -6,6 +6,7 @@ import { Assessment, PlayArrow, Refresh } from '@mui/icons-material';
 import Autocomplete from '@mui/material/Autocomplete';
 import { Line } from 'react-chartjs-2';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import TextareaAutosize from '@mui/material/TextareaAutosize';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -25,6 +26,8 @@ export default function Backtest() {
   const [strategies, setStrategies] = useState([]);
   const [strategyParams, setStrategyParams] = useState({});
   const [strategyCode, setStrategyCode] = useState('');
+  const [pythonCode, setPythonCode] = useState('');
+  const [useCustomCode, setUseCustomCode] = useState(false);
 
   // Helper: get param config for selected strategy (could be from backend or hardcoded)
   const paramConfig = useMemo(() => {
@@ -77,10 +80,13 @@ export default function Backtest() {
     setError(null);
     setResult(null);
     try {
+      const body = useCustomCode
+        ? { ...params, strategy_code: pythonCode, language: 'python' }
+        : { ...params, ...strategyParams, strategy: params.strategy };
       const res = await fetch(`${API_BASE}/backtest/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...params, ...strategyParams })
+        body: JSON.stringify(body)
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Backtest failed');
@@ -166,6 +172,31 @@ export default function Backtest() {
                 {strategyCode || 'Select a strategy to preview code.'}
               </Paper>
             </Grid>
+            <Grid item xs={12}>
+              <Button
+                variant={useCustomCode ? 'contained' : 'outlined'}
+                onClick={() => setUseCustomCode(!useCustomCode)}
+                sx={{ mb: 2 }}
+              >
+                {useCustomCode ? 'Use Strategy Dropdown' : 'Write Custom Python Strategy'}
+              </Button>
+            </Grid>
+            {useCustomCode ? (
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>Python Strategy Code</Typography>
+                <TextareaAutosize
+                  minRows={10}
+                  style={{ width: '100%', fontFamily: 'monospace', fontSize: 14, background: '#f7f7f7', padding: 8, borderRadius: 4 }}
+                  value={pythonCode}
+                  onChange={e => setPythonCode(e.target.value)}
+                  placeholder={'# Write your Python strategy here\ndef handle_data(context, data):\n    pass'}
+                />
+              </Grid>
+            ) : (
+              <>
+                {/* ...existing code for strategy selection and preview... */}
+              </>
+            )}
             <Grid item xs={12}>
               <Button variant="contained" color="primary" startIcon={<PlayArrow />} onClick={handleRun} disabled={loading} sx={{ minWidth: 160 }}>
                 {loading ? <CircularProgress size={24} color="inherit" /> : 'Run Backtest'}

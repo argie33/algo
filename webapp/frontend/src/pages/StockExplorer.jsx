@@ -273,7 +273,7 @@ function StockExplorer() {
       console.log('Fetching comprehensive price history for', symbol)
       
       // Call the new price API endpoint for comprehensive data
-      const response = await fetch(`/api/stocks/${symbol}/price-data?period=max&interval=daily`)
+      const response = await fetch(`/stocks/${symbol}/price-data?period=max&interval=daily`)
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
