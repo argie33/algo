@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3 
 """
 Technical Indicators Daily Loader - Enhanced Version
 
@@ -96,24 +96,22 @@ def sanitize_value(x):
     """Convert NaN/inf values to None for database insertion and handle numpy types"""
     if x is None:
         return None
+    
     # Handle numpy scalar types (float32, float64, int32, etc.)
     if hasattr(x, 'item'):
         x = x.item()  # Convert numpy scalar to Python native type
+    
     # Handle NaN/inf values for float types
-    if isinstance(x, (float, np.floating)):
-        if np.isnan(x) or np.isinf(x):
-            logging.debug(f"sanitize_value: Converting {x} to None (NaN/inf)")
-            return None
-        return float(x)
+    if isinstance(x, (float, np.floating)) and (np.isnan(x) or np.isinf(x)):
+        return None
+    
     # Convert numpy types to native Python types
     if isinstance(x, np.integer):
         return int(x)
+    elif isinstance(x, np.floating):
+        return float(x)
     elif isinstance(x, np.bool_):
         return bool(x)
-    # Log suspicious string values
-    if isinstance(x, str) and (x.strip().upper() == 'N/A' or x.strip() == ''):
-        logging.debug(f"sanitize_value: Converting '{x}' to None (string N/A or empty)")
-        return None
     return x
 
 def enhanced_indicator_validation(df, symbol):
@@ -646,28 +644,36 @@ def pivot_high(df, left_bars=3, right_bars=3, shunt=1):
     for i in range(left_bars, len(df) - right_bars):
         try:
             current_high = df['high'].iloc[i]
+              # FIXED: Only skip NaN values, allow all positive prices including penny stocks
             if pd.isna(current_high):
                 logging.debug(f"🔍 Skipping NaN high at index {i}")
                 continue
+            
+            # Check left bars - current high should be higher than all left bars
             left_higher = True
             for j in range(i - left_bars, i):
                 left_val = df['high'].iloc[j]
                 if pd.isna(left_val) or current_high <= left_val:
                     left_higher = False
                     break
+            
             if not left_higher:
                 continue
+                  # Check right bars - current high should be higher than all right bars  
             right_higher = True
             for j in range(i + 1, i + right_bars + 1):
                 right_val = df['high'].iloc[j]
                 if pd.isna(right_val) or current_high <= right_val:
                     right_higher = False
-                    break
+                    break                    
             if left_higher and right_higher:
-                idx = i - shunt if (i - shunt) >= 0 else i
-                pivot_vals[idx] = current_high
+                # FIXED: Correct Pine Script shunt logic
+                # In Pine Script: pvthi_[Shunt] means "look back Shunt bars from current bar"
+                # The pivot is detected at bar i, but we want to place it at the actual pivot bar
+                # For pivot detection, we place the pivot value at the actual pivot bar (i)
+                pivot_vals[i] = current_high
                 pivot_count += 1
-                logging.debug(f"🔍 Pivot high found at bar {i}, value: {current_high:.4f}, assigned to idx {idx}")
+                logging.debug(f"🔍 Pivot high found at bar {i}, value: {current_high:.4f}")
         except Exception as e:
             logging.error(f"❌ PIVOT ERROR at index {i}: {str(e)}")
             continue
@@ -717,17 +723,22 @@ def pivot_low(df, left_bars=3, right_bars=3, shunt=1):
     for i in range(left_bars, len(df) - right_bars):
         try:
             current_low = df['low'].iloc[i]
+              # FIXED: Only skip NaN values, allow all positive prices including penny stocks
             if pd.isna(current_low):
                 logging.debug(f"🔍 Skipping NaN low at index {i}")
                 continue
+            
+            # Check left bars - current low should be lower than all left bars
             left_lower = True
             for j in range(i - left_bars, i):
                 left_val = df['low'].iloc[j]
                 if pd.isna(left_val) or current_low >= left_val:
                     left_lower = False
                     break
+            
             if not left_lower:
                 continue
+                  # Check right bars - current low should be lower than all right bars
             right_lower = True
             for j in range(i + 1, i + right_bars + 1):
                 right_val = df['low'].iloc[j]
@@ -736,10 +747,11 @@ def pivot_low(df, left_bars=3, right_bars=3, shunt=1):
                     break
                     
             if left_lower and right_lower:
-                idx = i - shunt if (i - shunt) >= 0 else i
-                pivot_vals[idx] = current_low
+                # FIXED: Correct Pine Script shunt logic for pivot lows
+                # Place the pivot value at the actual pivot bar (i)
+                pivot_vals[i] = current_low
                 pivot_count += 1
-                logging.debug(f"🔍 Pivot low found at bar {i}, value: {current_low:.4f}, assigned to idx {idx}")
+                logging.debug(f"🔍 Pivot low found at bar {i}, value: {current_low:.4f}")
         except Exception as e:
             logging.error(f"❌ PIVOT ERROR at index {i}: {str(e)}")
             continue
@@ -1002,7 +1014,7 @@ def calculate_technicals_parallel(df):
                 
                 # Additional MFI validation
                 if valid_mfi == 0:
-                    logging.error(f"❌ MFI: All values are NaN - check data")
+                    logging.error(f"❌ MFI: All values are NaN - check data quality")
                 elif valid_mfi < len(results['mfi']) * 0.5:
                     logging.warning(f"⚠️  MFI: Low success rate - {valid_mfi}/{len(results['mfi'])} valid ({valid_mfi/len(results['mfi']):.1%})")
                 else:
@@ -1664,14 +1676,21 @@ def process_symbol_chunk(symbol_chunk, db_config):
                     record = (
                         symbol,
                         row['date'].to_pydatetime() if hasattr(row['date'], 'to_pydatetime') else row['date'],
-                        sanitize_value(row.get('open')),
-                        sanitize_value(row.get('high')),
-                        sanitize_value(row.get('low')),
-                        sanitize_value(row.get('close')),
-                        sanitize_value(row.get('volume')),
                         sanitize_value(row.get('rsi')),
+                        sanitize_value(row.get('macd')),
+                        sanitize_value(row.get('macd_signal')),
+                        sanitize_value(row.get('macd_hist')),
                         sanitize_value(row.get('mom')),
                         sanitize_value(row.get('roc')),
+                        sanitize_value(row.get('adx')),
+                        sanitize_value(row.get('atr')),
+                        sanitize_value(row.get('ad')),
+                        sanitize_value(row.get('cmf')),
+                        sanitize_value(row.get('mfi')),
+                        sanitize_value(row.get('td_sequential')),
+                        sanitize_value(row.get('td_combo')),
+                        sanitize_value(row.get('marketwatch')),
+                        sanitize_value(row.get('dm')),
                         sanitize_value(row.get('sma_10')),
                         sanitize_value(row.get('sma_20')),
                         sanitize_value(row.get('sma_50')),
@@ -1680,28 +1699,13 @@ def process_symbol_chunk(symbol_chunk, db_config):
                         sanitize_value(row.get('ema_4')),
                         sanitize_value(row.get('ema_9')),
                         sanitize_value(row.get('ema_21')),
-                        sanitize_value(row.get('macd')),
-                        sanitize_value(row.get('macd_signal')),
-                        sanitize_value(row.get('macd_hist')),
                         sanitize_value(row.get('bbands_lower')),
                         sanitize_value(row.get('bbands_middle')),
                         sanitize_value(row.get('bbands_upper')),
-                        sanitize_value(row.get('atr')),
-                        sanitize_value(row.get('adx')),
-                        sanitize_value(row.get('ad')),
-                        sanitize_value(row.get('cmf')),
-                        sanitize_value(row.get('mfi')),
-                        sanitize_value(row.get('dm')),
-                        sanitize_value(row.get('marketwatch')),
-                        sanitize_value(row.get('td_sequential')),
-                        sanitize_value(row.get('td_combo')),
                         sanitize_value(row.get('pivot_high')),
                         sanitize_value(row.get('pivot_low')),
                         run_timestamp
                     )
-                    # Extra logging for pivots and full record
-                    if idx < 3 or (record[27] is not None or record[28] is not None):
-                        logging.info(f"RECORD PREP: symbol={record[0]}, date={record[1]}, pivot_high={record[27]}, pivot_low={record[28]}, full={record}")
                     symbol_insert_data.append(record)
                 
                 insert_prep_time = time.time() - insert_start
@@ -1724,33 +1728,35 @@ def process_symbol_chunk(symbol_chunk, db_config):
         
         # ULTRA-FAST bulk insert for entire chunk
         if all_insert_data:
-            logging.info(f"DB INSERT: First 3 records: {[rec for rec in all_insert_data[:3]]}")
-            logging.info(f"DB INSERT: Example pivots: {[{'symbol': rec[0], 'date': rec[1], 'pivot_high': rec[27], 'pivot_low': rec[28]} for rec in all_insert_data[:10]]}")
-            
             bulk_insert_start = time.time()
             insert_query = """
             INSERT INTO technical_data_daily (
                 symbol, date,
-                open, high, low, close, volume,
-                rsi, mom, roc,
+                rsi, macd, macd_signal, macd_hist,
+                mom, roc, adx, atr, ad, cmf, mfi,
+                td_sequential, td_combo, marketwatch, dm,
                 sma_10, sma_20, sma_50, sma_150, sma_200,
                 ema_4, ema_9, ema_21,
-                macd, macd_signal, macd_hist,
                 bbands_lower, bbands_middle, bbands_upper,
-                atr, adx, ad, cmf, mfi, dm, marketwatch,
-                td_sequential, td_combo,
                 pivot_high, pivot_low,
                 fetched_at
             ) VALUES %s
             ON CONFLICT (symbol, date) DO UPDATE SET
-                open = EXCLUDED.open,
-                high = EXCLUDED.high,
-                low = EXCLUDED.low,
-                close = EXCLUDED.close,
-                volume = EXCLUDED.volume,
                 rsi = EXCLUDED.rsi,
+                macd = EXCLUDED.macd,
+                macd_signal = EXCLUDED.macd_signal,
+                macd_hist = EXCLUDED.macd_hist,
                 mom = EXCLUDED.mom,
                 roc = EXCLUDED.roc,
+                adx = EXCLUDED.adx,
+                atr = EXCLUDED.atr,
+                ad = EXCLUDED.ad,
+                cmf = EXCLUDED.cmf,
+                mfi = EXCLUDED.mfi,
+                td_sequential = EXCLUDED.td_sequential,
+                td_combo = EXCLUDED.td_combo,
+                marketwatch = EXCLUDED.marketwatch,
+                dm = EXCLUDED.dm,
                 sma_10 = EXCLUDED.sma_10,
                 sma_20 = EXCLUDED.sma_20,
                 sma_50 = EXCLUDED.sma_50,
@@ -1759,21 +1765,9 @@ def process_symbol_chunk(symbol_chunk, db_config):
                 ema_4 = EXCLUDED.ema_4,
                 ema_9 = EXCLUDED.ema_9,
                 ema_21 = EXCLUDED.ema_21,
-                macd = EXCLUDED.macd,
-                macd_signal = EXCLUDED.macd_signal,
-                macd_hist = EXCLUDED.macd_hist,
                 bbands_lower = EXCLUDED.bbands_lower,
                 bbands_middle = EXCLUDED.bbands_middle,
                 bbands_upper = EXCLUDED.bbands_upper,
-                atr = EXCLUDED.atr,
-                adx = EXCLUDED.adx,
-                ad = EXCLUDED.ad,
-                cmf = EXCLUDED.cmf,
-                mfi = EXCLUDED.mfi,
-                dm = EXCLUDED.dm,
-                marketwatch = EXCLUDED.marketwatch,
-                td_sequential = EXCLUDED.td_sequential,
-                td_combo = EXCLUDED.td_combo,
                 pivot_high = EXCLUDED.pivot_high,
                 pivot_low = EXCLUDED.pivot_low,
                 fetched_at = EXCLUDED.fetched_at
