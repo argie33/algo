@@ -1677,20 +1677,23 @@ def process_symbol_chunk(symbol_chunk, db_config):
                     logging.info(f"[DEBUG] Non-NaN pivot_low count: {df_tech['pivot_low'].notna().sum()}")
                 else:
                     logging.warning(f"[DEBUG] pivot_high or pivot_low column missing in df_tech before insert!")
-                
-                # ULTRA-FAST data preparation for insertion - vectorized approach
-                insert_start = time.time()
-                symbol_insert_data = []
-                
                 # Reset index efficiently
                 df_reset = df_tech.reset_index()
-                
+                # Log the first 5 values of pivot_high/low after reset_index
+                if 'pivot_high' in df_reset.columns and 'pivot_low' in df_reset.columns:
+                    logging.info(f"[DEBUG] df_reset pivot_high (first 5): {df_reset['pivot_high'].head(5).tolist()}")
+                    logging.info(f"[DEBUG] df_reset pivot_low (first 5): {df_reset['pivot_low'].head(5).tolist()}")
+                else:
+                    logging.warning(f"[DEBUG] pivot_high or pivot_low column missing in df_reset after reset_index!")
                 # VECTORIZED data preparation - much faster than iterrows()
                 dates = df_reset['date'].values
                 n_rows = len(df_reset)
                 # Pre-allocate and vectorize the data preparation
                 for idx in range(n_rows):
                     row = df_reset.iloc[idx]
+                    # Log the row's pivot_high/low for the first 3 rows
+                    if idx < 3:
+                        logging.info(f"[DEBUG] Row {idx} pivot_high: {row.get('pivot_high')}, pivot_low: {row.get('pivot_low')}, row: {row}")
                     record = (
                         symbol,
                         row['date'].to_pydatetime() if hasattr(row['date'], 'to_pydatetime') else row['date'],
@@ -1739,6 +1742,7 @@ def process_symbol_chunk(symbol_chunk, db_config):
                 logging.info(f"[DEBUG] Tuple non-None pivot_high count: {sum(x is not None for x in tuple_pivot_high)}")
                 logging.info(f"[DEBUG] Tuple non-None pivot_low count: {sum(x is not None for x in tuple_pivot_low)}")
                 
+                insert_start = time.time()
                 insert_prep_time = time.time() - insert_start
                 all_insert_data.extend(symbol_insert_data)
                 processed_symbols.append(symbol)
