@@ -35,10 +35,17 @@ import {
   ExpandMore,
   Search,
   FilterList,
-  Clear
+  Clear,
+  TrendingUp,
+  TrendingDown,
+  ShowChart,
+  InfoOutlined
 } from '@mui/icons-material';
 import { formatNumber, formatDate } from '../utils/formatters';
 import { getTechnicalData } from '../services/api';
+import Modal from '@mui/material/Modal';
+import Fade from '@mui/material/Fade';
+import Backdrop from '@mui/material/Backdrop';
 
 function TechnicalAnalysis() {
   const logger = createComponentLogger('TechnicalAnalysis');
@@ -51,12 +58,23 @@ function TechnicalAnalysis() {
   const [order, setOrder] = useState('asc');
   const [activeFilters, setActiveFilters] = useState(0);
   const [expandedRow, setExpandedRow] = useState(null);
+  const [historyModal, setHistoryModal] = useState({ open: false, symbol: '', data: [], loading: false, filters: { indicator: '', startDate: '', endDate: '' } });
 
   // Fetch technical data
   const { data: technicalData, isLoading, error, refetch } = useQuery({
-    queryKey: ['technicalAnalysis', timeframe, symbolFilter, page, rowsPerPage, orderBy, order],
+    queryKey: ['technicalAnalysis', timeframe, symbolFilter, indicatorFilter, dateFrom, dateTo, page, rowsPerPage, orderBy, order],
     queryFn: async () => {
-      const params = { overview: !symbolFilter, symbol: symbolFilter, limit: rowsPerPage, page: page + 1, sortBy: orderBy, sortOrder: order };
+      const params = {
+        overview: !symbolFilter,
+        symbol: symbolFilter,
+        indicator: indicatorFilter,
+        startDate: dateFrom,
+        endDate: dateTo,
+        limit: rowsPerPage,
+        page: page + 1,
+        sortBy: orderBy,
+        sortOrder: order
+      };
       const result = await getTechnicalData(timeframe, params);
       if (Array.isArray(result)) return { data: result };
       if (!Array.isArray(result.data)) return { ...result, data: [] };
@@ -72,6 +90,43 @@ function TechnicalAnalysis() {
     // Count active filters (excluding default timeframe)
     setActiveFilters(symbolFilter ? 1 : 0);
   }, [symbolFilter]);
+
+  // Fetch historical technicals for a symbol
+  const fetchHistory = async (symbol, indicator = '', startDate = '', endDate = '') => {
+    setHistoryModal((prev) => ({ ...prev, open: true, symbol, loading: true, data: [], filters: { indicator, startDate, endDate } }));
+    try {
+      const params = { symbol, limit: 25, sortBy: 'date', sortOrder: 'desc' };
+      if (indicator) params.indicator = indicator;
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
+      const result = await getTechnicalData(timeframe, params);
+      setHistoryModal((prev) => ({ ...prev, data: result.data || [], loading: false }));
+    } catch (e) {
+      setHistoryModal((prev) => ({ ...prev, data: [], loading: false }));
+    }
+  };
+  const handleOpenHistory = (symbol) => fetchHistory(symbol);
+  const handleCloseHistory = () => setHistoryModal({ open: false, symbol: '', data: [], loading: false, filters: { indicator: '', startDate: '', endDate: '' } });
+  const handleHistoryFilterChange = (field, value) => {
+    setHistoryModal((prev) => ({ ...prev, filters: { ...prev.filters, [field]: value } }));
+  };
+  const handleHistoryFilterApply = () => {
+    fetchHistory(historyModal.symbol, historyModal.filters.indicator, historyModal.filters.startDate, historyModal.filters.endDate);
+  };
+
+  // Additional filter state for main panel
+  const [indicatorFilter, setIndicatorFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  // Update activeFilters count
+  useEffect(() => {
+    let count = 0;
+    if (symbolFilter) count++;
+    if (indicatorFilter) count++;
+    if (dateFrom || dateTo) count++;
+    setActiveFilters(count);
+  }, [symbolFilter, indicatorFilter, dateFrom, dateTo]);
 
   const handleSearch = () => {
     setSymbolFilter(searchInput.trim());
@@ -97,6 +152,24 @@ function TechnicalAnalysis() {
   const handleRowsPerPageChange = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
+  };
+
+  // Helper to determine icon and color for a technical value
+  const getTechStatus = (indicator, value) => {
+    if (value === null || value === undefined) return { icon: <InfoOutlined color="disabled" />, color: 'text.secondary', label: 'N/A' };
+    // Example logic for a few indicators (customize as needed)
+    if (indicator === 'rsi') {
+      if (value > 70) return { icon: <TrendingUp color="error" />, color: 'error.main', label: 'Overbought' };
+      if (value < 30) return { icon: <TrendingDown color="primary" />, color: 'primary.main', label: 'Oversold' };
+      return { icon: <ShowChart color="success" />, color: 'success.main', label: 'Neutral' };
+    }
+    if (indicator === 'macd') {
+      if (value > 0) return { icon: <TrendingUp color="success" />, color: 'success.main', label: 'Bullish' };
+      if (value < 0) return { icon: <TrendingDown color="error" />, color: 'error.main', label: 'Bearish' };
+      return { icon: <ShowChart color="warning" />, color: 'warning.main', label: 'Flat' };
+    }
+    // Default
+    return { icon: <ShowChart color="info" />, color: 'info.main', label: '' };
   };
 
   // Table columns (can be expanded)
@@ -133,7 +206,7 @@ function TechnicalAnalysis() {
     { id: 'pivot_low', label: 'Pivot L', sortable: true }
   ];
 
-  // Accordion rendering for each row
+  // --- Accordion rendering for each row (fixed syntax, requirements met) ---
   const renderAccordionTable = () => (
     <Box sx={{ width: '100%' }}>
       {technicalData?.data?.map((row, idx) => (
@@ -141,29 +214,77 @@ function TechnicalAnalysis() {
           key={row.symbol + '-' + row.date + '-' + idx}
           expanded={expandedRow === idx}
           onChange={() => setExpandedRow(expandedRow === idx ? null : idx)}
-          sx={{ mb: 1 }}
+          sx={{ mb: 1, borderLeft: 4, borderColor: row.rsi > 70 ? 'error.main' : row.rsi < 30 ? 'primary.main' : 'grey.300', boxShadow: expandedRow === idx ? 6 : 1 }}
         >
-          <AccordionSummary expandIcon={<ExpandMore />} sx={{ backgroundColor: 'grey.50', '&:hover': { backgroundColor: 'grey.100' } }}>
+          <AccordionSummary expandIcon={<ExpandMore />} sx={{ backgroundColor: expandedRow === idx ? 'grey.100' : 'grey.50', '&:hover': { backgroundColor: 'grey.200' } }}>
             <Grid container alignItems="center" spacing={2}>
               <Grid item xs={2}>
                 <Typography variant="h6" fontWeight="bold">{row.symbol}</Typography>
+                {row.name && (
+                  <Typography variant="body2" color="text.secondary">{row.name}</Typography>
+                )}
                 <Typography variant="caption" color="text.secondary">{formatDate(row.date)}</Typography>
               </Grid>
-              <Grid item xs={2}><Typography variant="body2">RSI: <b>{formatNumber(row.rsi)}</b></Typography></Grid>
-              <Grid item xs={2}><Typography variant="body2">MACD: <b>{formatNumber(row.macd)}</b></Typography></Grid>
-              <Grid item xs={2}><Typography variant="body2">ADX: <b>{formatNumber(row.adx)}</b></Typography></Grid>
-              <Grid item xs={2}><Typography variant="body2">ATR: <b>{formatNumber(row.atr)}</b></Typography></Grid>
-              <Grid item xs={2}><Typography variant="body2">MFI: <b>{formatNumber(row.mfi)}</b></Typography></Grid>
+              <Grid item xs={2}>
+                <Box display="flex" alignItems="center" gap={1}>
+                  {getTechStatus('rsi', row.rsi).icon}
+                  <Typography variant="body2" color={getTechStatus('rsi', row.rsi).color} fontWeight="bold">
+                    RSI: {formatNumber(row.rsi)}
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={2}>
+                <Box display="flex" alignItems="center" gap={1}>
+                  {getTechStatus('macd', row.macd).icon}
+                  <Typography variant="body2" color={getTechStatus('macd', row.macd).color} fontWeight="bold">
+                    MACD: {formatNumber(row.macd)}
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={2}>
+                <Box display="flex" alignItems="center" gap={1}>
+                  {getTechStatus('adx', row.adx).icon}
+                  <Typography variant="body2" color={getTechStatus('adx', row.adx).color} fontWeight="bold">
+                    ADX: {formatNumber(row.adx)}
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={2}>
+                <Box display="flex" alignItems="center" gap={1}>
+                  {getTechStatus('atr', row.atr).icon}
+                  <Typography variant="body2" color={getTechStatus('atr', row.atr).color} fontWeight="bold">
+                    ATR: {formatNumber(row.atr)}
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={2}>
+                <Box display="flex" alignItems="center" gap={1}>
+                  {getTechStatus('mfi', row.mfi).icon}
+                  <Typography variant="body2" color={getTechStatus('mfi', row.mfi).color} fontWeight="bold">
+                    MFI: {formatNumber(row.mfi)}
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={12} sm={2}>
+                <Button variant="outlined" size="small" onClick={(e) => { e.stopPropagation(); handleOpenHistory(row.symbol); }}>
+                  View History
+                </Button>
+              </Grid>
             </Grid>
           </AccordionSummary>
           <AccordionDetails>
             <Grid container spacing={2}>
-              {columns.map((col) => (
+              {columns.filter(col => col.id !== 'symbol' && col.id !== 'date').map((col) => (
                 <Grid item xs={12} sm={6} md={3} key={col.id}>
                   <Card variant="outlined" sx={{ height: '100%' }}>
                     <CardContent>
-                      <Typography variant="subtitle2">{col.label}</Typography>
-                      <Typography variant="h6">{col.format ? col.format(row[col.id]) : (row[col.id] !== undefined && row[col.id] !== null ? formatNumber(row[col.id]) : 'N/A')}</Typography>
+                      <Box display="flex" alignItems="center" gap={1}>
+                        {getTechStatus(col.id, row[col.id]).icon}
+                        <Typography variant="subtitle2">{col.label}</Typography>
+                      </Box>
+                      <Typography variant="h6" color={getTechStatus(col.id, row[col.id]).color} fontWeight="bold">
+                        {col.format ? col.format(row[col.id]) : (row[col.id] !== undefined && row[col.id] !== null ? formatNumber(row[col.id]) : 'N/A')}
+                      </Typography>
                     </CardContent>
                   </Card>
                 </Grid>
@@ -211,6 +332,35 @@ function TechnicalAnalysis() {
                   )
                 }}
               />
+              <TextField
+                label="Indicator"
+                value={indicatorFilter}
+                onChange={(e) => setIndicatorFilter(e.target.value)}
+                size="small"
+                fullWidth
+                sx={{ mb: 2 }}
+                placeholder="e.g., rsi, macd, adx"
+              />
+              <TextField
+                label="Date From"
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                size="small"
+                fullWidth
+                sx={{ mb: 2 }}
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                label="Date To"
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                size="small"
+                fullWidth
+                sx={{ mb: 2 }}
+                InputLabelProps={{ shrink: true }}
+              />
               <Box display="flex" gap={1} mb={2}>
                 <Button variant="outlined" onClick={handleSearch} startIcon={<Search />} disabled={isLoading}>
                   {symbolFilter ? 'Search' : 'Filter'}
@@ -225,7 +375,7 @@ function TechnicalAnalysis() {
         </Box>
         {/* Main content: overview + table */}
         <Box flex={1}>
-          <Typography variant="h4" gutterBottom>Technical Analysis</Typography>
+          <Typography variant="h4" gutterBottom sx={{ mb: 2, mt: 1, textAlign: 'left' }}>Technical Analysis</Typography>
           <Divider sx={{ mb: 2 }} />
           {/* Overview summary */}
           {sampleData.symbol && (
@@ -282,6 +432,54 @@ function TechnicalAnalysis() {
           )}
         </Box>
       </Box>
+      {/* History Modal */}
+      <Modal
+        open={historyModal.open}
+        onClose={handleCloseHistory}
+        closeAfterTransition
+        BackdropComponent={Backdrop}
+        BackdropProps={{ timeout: 500 }}
+      >
+        <Fade in={historyModal.open}>
+          <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 600, bgcolor: 'background.paper', boxShadow: 24, p: 4, borderRadius: 2 }}>
+            <Typography variant="h6" mb={2}>History for {historyModal.symbol}</Typography>
+            <Box display="flex" gap={2} mb={2}>
+              <TextField label="Indicator" value={historyModal.filters.indicator} onChange={e => handleHistoryFilterChange('indicator', e.target.value)} size="small" />
+              <TextField label="Start Date" type="date" value={historyModal.filters.startDate} onChange={e => handleHistoryFilterChange('startDate', e.target.value)} size="small" InputLabelProps={{ shrink: true }} />
+              <TextField label="End Date" type="date" value={historyModal.filters.endDate} onChange={e => handleHistoryFilterChange('endDate', e.target.value)} size="small" InputLabelProps={{ shrink: true }} />
+              <Button variant="contained" onClick={handleHistoryFilterApply} disabled={historyModal.loading}>Apply</Button>
+            </Box>
+            {historyModal.loading ? (
+              <Box display="flex" alignItems="center" justifyContent="center" minHeight={120}><CircularProgress /></Box>
+            ) : (
+              <Box maxHeight={300} overflow="auto">
+                {historyModal.data.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">No historical data found.</Typography>
+                ) : (
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Date</TableCell>
+                        <TableCell>Indicator</TableCell>
+                        <TableCell>Value</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {historyModal.data.map((item, i) => (
+                        <TableRow key={i}>
+                          <TableCell>{formatDate(item.date)}</TableCell>
+                          <TableCell>{historyModal.filters.indicator || 'All'}</TableCell>
+                          <TableCell>{formatNumber(item[historyModal.filters.indicator] || item.value)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </Box>
+            )}
+          </Box>
+        </Fade>
+      </Modal>
     </Container>
   );
 }
