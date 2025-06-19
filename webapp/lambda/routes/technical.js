@@ -55,11 +55,11 @@ router.get('/:timeframe', async (req, res) => {
     } else {
       // Default: Only get recent data to prevent timeouts
       if (timeframe === 'daily') {
-        whereClause += ` AND t.date >= CURRENT_DATE - INTERVAL '30 days'`; // Last 30 days for daily
+        whereClause += ` AND t.date >= CURRENT_DATE - INTERVAL '10 days'`; // Last 10 days for daily
       } else if (timeframe === 'weekly') {
-        whereClause += ` AND t.date >= CURRENT_DATE - INTERVAL '90 days'`; // Last ~13 weeks for weekly
+        whereClause += ` AND t.date >= CURRENT_DATE - INTERVAL '26 weeks'`; // Last 26 weeks for weekly
       } else if (timeframe === 'monthly') {
-        whereClause += ` AND t.date >= CURRENT_DATE - INTERVAL '365 days'`; // Last 12 months for monthly
+        whereClause += ` AND t.date >= CURRENT_DATE - INTERVAL '36 months'`; // Last 3 years for monthly
       }
     }
 
