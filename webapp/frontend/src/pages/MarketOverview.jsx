@@ -252,7 +252,7 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
                     sx={{ mb: 1 }}
                   />
                   <Typography variant="body2" color="text.secondary">
-                    Last updated: {new Date(sentimentIndicators.fear_greed.timestamp).toLocaleDateString()}
+                    Last updated: {sentimentIndicators.fear_greed.timestamp ? new Date(sentimentIndicators.fear_greed.timestamp).toLocaleDateString() : 'N/A'}
                   </Typography>
                 </Box>
               ) : (
@@ -261,7 +261,6 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
             </CardContent>
           </Card>
         </Grid>
-
         <Grid item xs={12} md={4}>
           <Card>
             <CardContent>
@@ -273,23 +272,23 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                     <Typography variant="body2">Bullish:</Typography>
                     <Typography variant="body2" color="success.main">
-                      {(sentimentIndicators.aaii.bullish * 100).toFixed(1)}%
+                      {sentimentIndicators.aaii.bullish !== undefined ? (sentimentIndicators.aaii.bullish * 100).toFixed(1) + '%' : 'N/A'}
                     </Typography>
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                     <Typography variant="body2">Neutral:</Typography>
                     <Typography variant="body2" color="info.main">
-                      {(sentimentIndicators.aaii.neutral * 100).toFixed(1)}%
+                      {sentimentIndicators.aaii.neutral !== undefined ? (sentimentIndicators.aaii.neutral * 100).toFixed(1) + '%' : 'N/A'}
                     </Typography>
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                     <Typography variant="body2">Bearish:</Typography>
                     <Typography variant="body2" color="error.main">
-                      {(sentimentIndicators.aaii.bearish * 100).toFixed(1)}%
+                      {sentimentIndicators.aaii.bearish !== undefined ? (sentimentIndicators.aaii.bearish * 100).toFixed(1) + '%' : 'N/A'}
                     </Typography>
                   </Box>
                   <Typography variant="body2" color="text.secondary">
-                    Week ending: {new Date(sentimentIndicators.aaii.date).toLocaleDateString()}
+                    Week ending: {sentimentIndicators.aaii.date ? new Date(sentimentIndicators.aaii.date).toLocaleDateString() : 'N/A'}
                   </Typography>
                 </Box>
               ) : (
@@ -298,7 +297,6 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
             </CardContent>
           </Card>
         </Grid>
-
         <Grid item xs={12} md={4}>
           <Card>
             <CardContent>
@@ -308,22 +306,22 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
               {sentimentIndicators.naaim ? (
                 <Box>
                   <Typography variant="h3" color="primary" sx={{ mb: 1 }}>
-                    {sentimentIndicators.naaim.average?.toFixed(1)}%
+                    {sentimentIndicators.naaim.average !== undefined ? sentimentIndicators.naaim.average.toFixed(1) + '%' : 'N/A'}
                   </Typography>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                     <Typography variant="body2">Bullish:</Typography>
                     <Typography variant="body2" color="success.main">
-                      {sentimentIndicators.naaim.bullish_8100?.toFixed(1)}%
+                      {sentimentIndicators.naaim.bullish_8100 !== undefined ? sentimentIndicators.naaim.bullish_8100.toFixed(1) + '%' : 'N/A'}
                     </Typography>
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                     <Typography variant="body2">Bearish:</Typography>
                     <Typography variant="body2" color="error.main">
-                      {sentimentIndicators.naaim.bearish?.toFixed(1)}%
+                      {sentimentIndicators.naaim.bearish !== undefined ? sentimentIndicators.naaim.bearish.toFixed(1) + '%' : 'N/A'}
                     </Typography>
                   </Box>
                   <Typography variant="body2" color="text.secondary">
-                    Week ending: {new Date(sentimentIndicators.naaim.week_ending).toLocaleDateString()}
+                    Week ending: {sentimentIndicators.naaim.week_ending ? new Date(sentimentIndicators.naaim.week_ending).toLocaleDateString() : 'N/A'}
                   </Typography>
                 </Box>
               ) : (
@@ -346,7 +344,7 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
                 <Grid item xs={6}>
                   <Box sx={{ textAlign: 'center', p: 2, backgroundColor: 'success.light', borderRadius: 1 }}>
                     <Typography variant="h4" color="success.contrastText">
-                      {marketBreadth.advancing || 0}
+                      {marketBreadth.advancing !== undefined ? marketBreadth.advancing : 'N/A'}
                     </Typography>
                     <Typography variant="body2" color="success.contrastText">
                       Advancing
@@ -356,7 +354,7 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
                 <Grid item xs={6}>
                   <Box sx={{ textAlign: 'center', p: 2, backgroundColor: 'error.light', borderRadius: 1 }}>
                     <Typography variant="h4" color="error.contrastText">
-                      {marketBreadth.declining || 0}
+                      {marketBreadth.declining !== undefined ? marketBreadth.declining : 'N/A'}
                     </Typography>
                     <Typography variant="body2" color="error.contrastText">
                       Declining
@@ -366,10 +364,10 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
                 <Grid item xs={12}>
                   <Box sx={{ textAlign: 'center', mt: 2 }}>
                     <Typography variant="body2" color="text.secondary">
-                      Advance/Decline Ratio: {marketBreadth.advance_decline_ratio || 'N/A'}
+                      Advance/Decline Ratio: {marketBreadth.advance_decline_ratio !== undefined ? marketBreadth.advance_decline_ratio : 'N/A'}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Average Change: {marketBreadth.average_change_percent || 'N/A'}%
+                      Average Change: {marketBreadth.average_change_percent !== undefined ? marketBreadth.average_change_percent : 'N/A'}%
                     </Typography>
                   </Box>
                 </Grid>
@@ -377,7 +375,6 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
             </CardContent>
           </Card>
         </Grid>
-
         <Grid item xs={12} md={6}>
           <Card>
             <CardContent>
@@ -387,19 +384,19 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
                 <Typography variant="body2">Total Stocks:</Typography>
                 <Typography variant="body2" fontWeight="600">
-                  {marketBreadth.total_stocks?.toLocaleString() || 'N/A'}
+                  {marketBreadth.total_stocks !== undefined ? marketBreadth.total_stocks.toLocaleString() : 'N/A'}
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
                 <Typography variant="body2">Total Market Cap:</Typography>
                 <Typography variant="body2" fontWeight="600">
-                  {formatCurrency(marketCap.total)}
+                  {marketCap.total !== undefined ? formatCurrency(marketCap.total) : 'N/A'}
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
                 <Typography variant="body2">Unchanged:</Typography>
                 <Typography variant="body2" fontWeight="600">
-                  {marketBreadth.unchanged || 0}
+                  {marketBreadth.unchanged !== undefined ? marketBreadth.unchanged : 'N/A'}
                 </Typography>
               </Box>            </CardContent>
           </Card>
