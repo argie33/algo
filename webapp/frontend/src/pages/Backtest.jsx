@@ -10,6 +10,7 @@ import TextareaAutosize from '@mui/material/TextareaAutosize';
 import DownloadIcon from '@mui/icons-material/Download';
 import SaveIcon from '@mui/icons-material/Save';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import { Bar } from 'react-chartjs-2';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -60,6 +61,8 @@ export default function Backtest() {
     fetch(`${API_BASE}/backtest/symbols`).then(r => r.json()).then(d => setSymbols(d.symbols || []));
     // Fetch strategies/templates
     fetch(`${API_BASE}/backtest/templates`).then(r => r.json()).then(d => setStrategies(d.templates || []));
+    // Fetch user strategies from backend
+    fetch(`${API_BASE}/backtest/strategies`).then(r => r.json()).then(d => setSavedStrategies(d.strategies || []));
   }, []);
 
   useEffect(() => {
@@ -72,12 +75,6 @@ export default function Backtest() {
       setStrategyParams(defaults);
     }
   }, [params.strategy, strategies, paramConfig]);
-
-  // Save/load strategies in localStorage
-  useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem('backtest_strategies') || '[]');
-    setSavedStrategies(saved);
-  }, []);
 
   const handleChange = (field, value) => {
     setParams(prev => ({ ...prev, [field]: value }));
@@ -93,15 +90,23 @@ export default function Backtest() {
     setResult(null);
     setLogs('');
     try {
-      const body = useCustomCode
-        ? { ...params, strategy_code: pythonCode, language: 'python' }
-        : { ...params, ...strategyParams, strategy: params.strategy };
-      const res = await fetch(`${API_BASE}/backtest/run`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      const data = await res.json();
+      let res, data;
+      if (useCustomCode) {
+        res = await fetch(`${API_BASE}/backtest/run-python`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ strategy: pythonCode })
+        });
+        data = await res.json();
+      } else {
+        const body = { ...params, ...strategyParams, strategy: params.strategy };
+        res = await fetch(`${API_BASE}/backtest/run`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        data = await res.json();
+      }
       if (!data.success) throw new Error(data.error || 'Backtest failed');
       setResult(data);
       setLogs(data.logs || data.stdout || '');
@@ -140,19 +145,27 @@ export default function Backtest() {
     // Optionally parse params from strat.code or add UI for params
   };
 
-  const handleSaveStrategy = () => {
+  const handleSaveStrategy = async () => {
     if (!pythonCode.trim()) return;
     const name = prompt('Enter a name for this strategy:');
     if (!name) return;
-    const newStrategy = { name, code: pythonCode };
-    const updated = [...savedStrategies, newStrategy];
-    setSavedStrategies(updated);
-    localStorage.setItem('backtest_strategies', JSON.stringify(updated));
+    const res = await fetch(`${API_BASE}/backtest/strategies`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, code: pythonCode, language: 'python' })
+    });
+    const data = await res.json();
+    setSavedStrategies(prev => [...prev, data.strategy]);
   };
 
   const handleLoadStrategy = (code) => {
     setPythonCode(code);
     setUseCustomCode(true);
+  };
+
+  const handleDeleteStrategy = async (id) => {
+    await fetch(`${API_BASE}/backtest/strategies/${id}`, { method: 'DELETE' });
+    setSavedStrategies(prev => prev.filter(s => s.id !== id));
   };
 
   const handleExportTrades = () => {
@@ -174,6 +187,25 @@ export default function Backtest() {
 
   const handleCopyApiExample = () => {
     navigator.clipboard.writeText(apiExample);
+  };
+
+  // Helper to compute drawdown series from equity
+  const getDrawdownSeries = (equity) => {
+    if (!equity || equity.length === 0) return [];
+    let peak = equity[0].value;
+    return equity.map(point => {
+      if (point.value > peak) peak = point.value;
+      return { date: point.date, drawdown: ((point.value - peak) / peak) * 100 };
+    });
+  };
+
+  // Helper: get trade markers for equity curve
+  const getTradeMarkers = (equity, trades) => {
+    if (!equity || !trades) return [];
+    return trades.map(trade => {
+      const idx = equity.findIndex(e => e.date === trade.date);
+      return idx >= 0 ? { x: idx, y: equity[idx].value, action: trade.action, price: trade.price } : null;
+    }).filter(Boolean);
   };
 
   return (
@@ -273,6 +305,78 @@ export default function Backtest() {
       {result && (
         <Paper sx={{ p: 3 }}>
           <Typography variant="h6" gutterBottom>Backtest Results</Typography>
+          {/* Performance Summary */}
+          {result.metrics && (
+            <Box mb={2}>
+              <Typography variant="subtitle1" fontWeight="bold">Performance Summary</Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={6} md={3}><Chip label={`Total Return: ${result.metrics.totalReturn?.toFixed(2)}%`} color="success" /></Grid>
+                <Grid item xs={6} md={3}><Chip label={`Annualized: ${result.metrics.annualizedReturn?.toFixed(2)}%`} color="info" /></Grid>
+                <Grid item xs={6} md={3}><Chip label={`Sharpe: ${result.metrics.sharpeRatio?.toFixed(2)}`} color="primary" /></Grid>
+                <Grid item xs={6} md={3}><Chip label={`Max Drawdown: ${result.metrics.maxDrawdown?.toFixed(2)}%`} color="warning" /></Grid>
+                <Grid item xs={6} md={3}><Chip label={`Volatility: ${result.metrics.volatility?.toFixed(2)}%`} color="default" /></Grid>
+                <Grid item xs={6} md={3}><Chip label={`Win Rate: ${result.metrics.winRate?.toFixed(2)}%`} color="success" /></Grid>
+                <Grid item xs={6} md={3}><Chip label={`Profit Factor: ${result.metrics.profitFactor?.toFixed(2)}`} color="info" /></Grid>
+                <Grid item xs={6} md={3}><Chip label={`Trades: ${result.metrics.totalTrades}`} color="secondary" /></Grid>
+              </Grid>
+            </Box>
+          )}
+          {/* Drawdown Chart */}
+          {result.equity && (
+            <Box mb={2}>
+              <Typography variant="subtitle2">Drawdown Chart</Typography>
+              <Bar
+                data={{
+                  labels: getDrawdownSeries(result.equity).map(p => p.date),
+                  datasets: [{
+                    label: 'Drawdown (%)',
+                    data: getDrawdownSeries(result.equity).map(p => p.drawdown),
+                    backgroundColor: '#ff7043',
+                  }]
+                }}
+                options={{
+                  responsive: true,
+                  plugins: { legend: { display: false } },
+                  scales: { y: { min: Math.min(...getDrawdownSeries(result.equity).map(p => p.drawdown)), max: 0 } }
+                }}
+              />
+            </Box>
+          )}
+          {/* Performance Chart with Trade Markers */}
+          {result.equity && (
+            <Box mb={2}>
+              <Typography variant="subtitle2">Equity Curve</Typography>
+              <Line
+                data={{
+                  labels: result.equity.map(p => p.date),
+                  datasets: [
+                    {
+                      label: 'Equity Curve',
+                      data: result.equity.map(p => p.value),
+                      borderColor: '#1976d2',
+                      fill: false,
+                      pointRadius: 0
+                    },
+                    // Trade markers
+                    ...getTradeMarkers(result.equity, result.trades).map(marker => ({
+                      label: marker.action,
+                      data: [{ x: marker.x, y: marker.y }],
+                      pointBackgroundColor: marker.action === 'BUY' ? '#43a047' : '#e53935',
+                      pointBorderColor: marker.action === 'BUY' ? '#43a047' : '#e53935',
+                      pointRadius: 6,
+                      type: 'scatter',
+                      showLine: false
+                    }))
+                  ]
+                }}
+                options={{
+                  responsive: true,
+                  plugins: { legend: { display: false } },
+                  scales: { x: { display: false } }
+                }}
+              />
+            </Box>
+          )}
           <Button variant="outlined" startIcon={<FileDownloadIcon />} sx={{ mb: 2, mr: 2 }} onClick={handleExport}>Export Results</Button>
           <Button variant="outlined" startIcon={<DownloadIcon />} sx={{ mb: 2, mr: 2 }} onClick={handleDownloadLogs}>Download Logs</Button>
           {result.trades?.length > 0 && (
@@ -291,21 +395,36 @@ export default function Backtest() {
               {apiExample}
             </Paper>
           )}
-          {/* Performance Chart */}
-          {result.equityCurve && (
-            <Box mb={2}>
-              <Line
-                data={{
-                  labels: result.equityCurve.map(p => p.date),
-                  datasets: [{
-                    label: 'Equity Curve',
-                    data: result.equityCurve.map(p => p.value),
-                    borderColor: '#1976d2',
-                    fill: false
-                  }]
-                }}
-                options={{ responsive: true, plugins: { legend: { display: false } } }}
-              />
+          {/* Trade Statistics Table */}
+          {result.trades && result.trades.length > 0 && (
+            <Box mt={3}>
+              <Typography variant="subtitle2">Trade Statistics</Typography>
+              <TableContainer component={Paper} sx={{ mb: 2 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Total Trades</TableCell>
+                      <TableCell>Wins</TableCell>
+                      <TableCell>Losses</TableCell>
+                      <TableCell>Avg Win</TableCell>
+                      <TableCell>Avg Loss</TableCell>
+                      <TableCell>Largest Win</TableCell>
+                      <TableCell>Largest Loss</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell>{result.metrics?.totalTrades || result.trades.length}</TableCell>
+                      <TableCell>{result.metrics?.winningTrades || result.trades.filter(t => t.pnl > 0).length}</TableCell>
+                      <TableCell>{result.metrics?.losingTrades || result.trades.filter(t => t.pnl < 0).length}</TableCell>
+                      <TableCell>{(() => { const wins = result.trades.filter(t => t.pnl > 0).map(t => t.pnl); return wins.length ? (wins.reduce((a,b) => a+b,0)/wins.length).toFixed(2) : '0'; })()}</TableCell>
+                      <TableCell>{(() => { const losses = result.trades.filter(t => t.pnl < 0).map(t => t.pnl); return losses.length ? (losses.reduce((a,b) => a+b,0)/losses.length).toFixed(2) : '0'; })()}</TableCell>
+                      <TableCell>{(() => { const wins = result.trades.filter(t => t.pnl > 0).map(t => t.pnl); return wins.length ? Math.max(...wins).toFixed(2) : '0'; })()}</TableCell>
+                      <TableCell>{(() => { const losses = result.trades.filter(t => t.pnl < 0).map(t => t.pnl); return losses.length ? Math.min(...losses).toFixed(2) : '0'; })()}</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </TableContainer>
             </Box>
           )}
           {/* Show logs/output if present */}
@@ -323,32 +442,6 @@ export default function Backtest() {
               <Chip label={`Sharpe Ratio: ${result.performance.sharpeRatio || 'N/A'}`} color="info" sx={{ mr: 1 }} />
               <Chip label={`Max Drawdown: ${result.performance.maxDrawdown || 'N/A'}`} color="warning" />
             </Box>
-          )}
-          {result.trades && result.trades.length > 0 && (
-            <TableContainer component={Paper} sx={{ mt: 2 }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Date</TableCell>
-                    <TableCell>Action</TableCell>
-                    <TableCell>Price</TableCell>
-                    <TableCell>Shares</TableCell>
-                    <TableCell>PnL</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {result.trades.map((trade, idx) => (
-                    <TableRow key={idx}>
-                      <TableCell>{trade.date}</TableCell>
-                      <TableCell>{trade.action}</TableCell>
-                      <TableCell>{trade.price}</TableCell>
-                      <TableCell>{trade.shares}</TableCell>
-                      <TableCell>{trade.pnl}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
           )}
         </Paper>
       )}

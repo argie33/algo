@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const { query } = require('../utils/database');
+const { execFile } = require('child_process');
+const backtestStore = require('../utils/backtestStore');
+const path = require('path');
 
 // Backtesting engine class
 class BacktestEngine {
@@ -360,6 +363,48 @@ router.post('/run', async (req, res) => {
       details: error.message 
     });
   }
+});
+
+// Run Python strategy endpoint (sandboxed)
+router.post('/run-python', async (req, res) => {
+  const { strategy, input } = req.body;
+  if (!strategy) {
+    return res.status(400).json({ error: 'Python strategy code is required' });
+  }
+  // Write code to temp file
+  const tempFile = path.join(__dirname, `temp_strategy_${Date.now()}.py`);
+  require('fs').writeFileSync(tempFile, strategy);
+  // Run with timeout and resource limits
+  execFile('python', [tempFile], { timeout: 5000, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
+    require('fs').unlinkSync(tempFile);
+    if (err) {
+      return res.status(400).json({ error: 'Python execution failed', details: stderr || err.message });
+    }
+    res.json({ success: true, output: stdout, error: stderr });
+  });
+});
+
+// User strategy management endpoints
+router.get('/strategies', (req, res) => {
+  res.json({ strategies: backtestStore.loadStrategies() });
+});
+
+router.post('/strategies', (req, res) => {
+  const { name, code, language } = req.body;
+  if (!name || !code) return res.status(400).json({ error: 'Name and code required' });
+  const strategy = backtestStore.addStrategy({ name, code, language });
+  res.json({ strategy });
+});
+
+router.get('/strategies/:id', (req, res) => {
+  const strategy = backtestStore.getStrategy(req.params.id);
+  if (!strategy) return res.status(404).json({ error: 'Not found' });
+  res.json({ strategy });
+});
+
+router.delete('/strategies/:id', (req, res) => {
+  backtestStore.deleteStrategy(req.params.id);
+  res.json({ success: true });
 });
 
 // Get historical data for a symbol
