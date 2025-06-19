@@ -179,19 +179,16 @@ function ServiceHealth() {  const [environmentInfo, setEnvironmentInfo] = useSta
     queryFn: async () => {
       const url = getCurrentBaseURL() + '/api/health/database/diagnostics';
       console.log('Fetching database diagnostics from:', url);
-      
       const response = await fetch(url, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
         timeout: 30000
       });
-      
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Database diagnostics error:', response.status, errorText);
         throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
       }
-      
       const data = await response.json();
       console.log('Database diagnostics data:', data);
       return data;
@@ -199,7 +196,7 @@ function ServiceHealth() {  const [environmentInfo, setEnvironmentInfo] = useSta
     refetchInterval: false, // Don't auto-refresh to avoid spam
     retry: 1, // Only retry once
     staleTime: 30000,
-    enabled: false // Don't auto-run, only run when manually triggered
+    enabled: true // Auto-run on mount so diagnostics load automatically
   });
   // Gather environment information
   useEffect(() => {
