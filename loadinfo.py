@@ -348,7 +348,11 @@ def load_company_info(symbols, cur, conn):
 
                 # Log full yfinance info response for diagnostics
                 try:
-                    logging.info(f"[YFINANCE_RAW] {orig_sym} info: {json.dumps(info, default=str)[:2000]}")
+                    # Log the entire JSON, chunked if necessary
+                    info_json = json.dumps(info, default=str)
+                    chunk_size = 1800
+                    for i in range(0, len(info_json), chunk_size):
+                        logging.info(f"[YFINANCE_RAW] {orig_sym} info chunk {i//chunk_size+1}: {info_json[i:i+chunk_size]}")
                 except Exception as e:
                     logging.warning(f"[YFINANCE_RAW] {orig_sym} info logging failed: {e}")
 
