@@ -2965,12 +2965,12 @@ Resources:
       LaunchType: FARGATE
       NetworkConfiguration:
         AwsvpcConfiguration:
-          AssignPublicIp: ENABLED
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
           SecurityGroups:
             - !ImportValue StocksCore-EcsSecurityGroupId
-          Subnets:
-            - !ImportValue StocksCore-SubnetA
-            - !ImportValue StocksCore-SubnetB
+          AssignPublicIp: ENABLED
 
 # --- Outputs ---
 
