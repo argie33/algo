@@ -780,6 +780,23 @@ export const getGrowthEstimates = async (params = {}) => {
   }
 }
 
+// NAAIM Data endpoint
+export const getNaaimData = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value)
+      }
+    })
+    const response = await api.get(`/market/naaim?${queryParams.toString()}`)
+    return response.data
+  } catch (error) {
+    const errorMessage = handleApiError(error, 'get NAAIM data')
+    return { data: [], error: errorMessage }
+  }
+}
+
 // Export all methods as a default object for easier importing
 export default {
   healthCheck,
