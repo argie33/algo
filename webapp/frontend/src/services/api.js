@@ -729,6 +729,60 @@ export const getDataValidationSummary = async (params = {}) => {
   }
 }
 
+// EPS Revisions endpoint
+export const getEpsRevisions = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value)
+      }
+    })
+    const response = await api.get(`/eps/revisions?${queryParams.toString()}`)
+    return response.data
+  } catch (error) {
+    const errorMessage = handleApiError(error, 'get eps revisions')
+    return { data: [], error: errorMessage }
+  }
+}
+
+// EPS Trend endpoint
+export const getEpsTrend = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value)
+      }
+    })
+    const response = await api.get(`/eps/trend?${queryParams.toString()}`)
+    return response.data
+  } catch (error) {
+    const errorMessage = handleApiError(error, 'get eps trend')
+    return { data: [], error: errorMessage }
+  }
+}
+
+// Growth Estimates endpoint
+export const getGrowthEstimates = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value)
+      }
+    })
+    const response = await api.get(`/growth/estimates?${queryParams.toString()}`)
+    return response.data
+  } catch (error) {
+    const errorMessage = handleApiError(error, 'get growth estimates')
+    return { data: [], error: errorMessage }
+  }
+}
+
+// Ensure named exports for all
+export { getDataValidationSummary, getEpsRevisions, getEpsTrend, getGrowthEstimates };
+
 // Export all methods as a default object for easier importing
 export default {
   healthCheck,
