@@ -217,10 +217,47 @@ export const getMarketOverview = async () => {
     }
   }
 }
-export const getMarketSentimentHistory = (days = 30) => api.get(`/market/sentiment/history?days=${days}`)
-export const getMarketSectorPerformance = () => api.get('/market/sectors/performance')
-export const getMarketBreadth = () => api.get('/market/breadth')
-export const getEconomicIndicators = (days = 90) => api.get(`/market/economic?days=${days}`)
+
+// Patch: Always return parsed data for all API methods
+export const getMarketSentimentHistory = async (days = 30) => {
+  try {
+    const response = await api.get(`/market/sentiment/history?days=${days}`)
+    return response.data
+  } catch (error) {
+    const errorMessage = handleApiError(error, 'get market sentiment history')
+    return { data: [], error: errorMessage }
+  }
+}
+
+export const getMarketSectorPerformance = async () => {
+  try {
+    const response = await api.get('/market/sectors/performance')
+    return response.data
+  } catch (error) {
+    const errorMessage = handleApiError(error, 'get market sector performance')
+    return { data: [], error: errorMessage }
+  }
+}
+
+export const getMarketBreadth = async () => {
+  try {
+    const response = await api.get('/market/breadth')
+    return response.data
+  } catch (error) {
+    const errorMessage = handleApiError(error, 'get market breadth')
+    return { data: [], error: errorMessage }
+  }
+}
+
+export const getEconomicIndicators = async (days = 90) => {
+  try {
+    const response = await api.get(`/market/economic?days=${days}`)
+    return response.data
+  } catch (error) {
+    const errorMessage = handleApiError(error, 'get economic indicators')
+    return { data: [], error: errorMessage }
+  }
+}
 
 // Stocks - Updated to use optimized endpoints
 export const getStocks = async (params = {}) => {
@@ -310,17 +347,45 @@ export const getStockFinancials = (ticker, type = 'income') =>
 export const getAnalystRecommendations = (ticker) => 
   api.get(`/stocks/${ticker}/recommendations`)
 
-export const getStockPrices = (ticker, timeframe = 'daily', limit = 100) => 
-  api.get(`/stocks/${ticker}/prices?timeframe=${timeframe}&limit=${limit}`)
+export const getStockPrices = async (ticker, timeframe = 'daily', limit = 100) => {
+  try {
+    const response = await api.get(`/stocks/${ticker}/prices?timeframe=${timeframe}&limit=${limit}`)
+    return response.data
+  } catch (error) {
+    const errorMessage = handleApiError(error, 'get stock prices')
+    return { data: [], error: errorMessage }
+  }
+}
 
-// Lightweight endpoint for recent price data (max 60 days)
-export const getStockPricesRecent = (ticker, limit = 30) => 
-  api.get(`/stocks/${ticker}/price-recent?limit=${limit}`)
+export const getStockPricesRecent = async (ticker, limit = 30) => {
+  try {
+    const response = await api.get(`/stocks/${ticker}/price-recent?limit=${limit}`)
+    return response.data
+  } catch (error) {
+    const errorMessage = handleApiError(error, 'get stock prices recent')
+    return { data: [], error: errorMessage }
+  }
+}
 
-export const getStockRecommendations = (ticker) => 
-  api.get(`/stocks/${ticker}/recommendations`)
+export const getStockRecommendations = async (ticker) => {
+  try {
+    const response = await api.get(`/stocks/${ticker}/recommendations`)
+    return response.data
+  } catch (error) {
+    const errorMessage = handleApiError(error, 'get stock recommendations')
+    return { data: [], error: errorMessage }
+  }
+}
 
-export const getSectors = () => api.get('/stocks/filters/sectors')
+export const getSectors = async () => {
+  try {
+    const response = await api.get('/stocks/filters/sectors')
+    return response.data
+  } catch (error) {
+    const errorMessage = handleApiError(error, 'get sectors')
+    return { data: [], error: errorMessage }
+  }
+}
 
 // Metrics
 export const getValuationMetrics = async (params = {}) => {
