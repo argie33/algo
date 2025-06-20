@@ -1,6 +1,6 @@
 import axios from 'axios' 
 
-// Get API configuration - exported for ServiceHealth
+// Get API configuration - exported for ServiceHealth 
 export const getApiConfig = () => {
   // Get API URL from environment variable (set by workflow)
   const apiUrl = import.meta.env.VITE_API_URL
