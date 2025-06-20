@@ -516,18 +516,22 @@ def marketwatch_indicator_vectorized(close, open_):
     return pd.Series(result, index=close.index)
 
 def pivot_high_hypothetical(high, left_bars=3, right_bars=3):
-    """For each period, output the high at the center of the window (hypothetical pivot value)."""
+    """For each period, output the high at the center of the window (hypothetical pivot value).
+    For all bars except the first left_bars, output the current high as the threshold (even if not enough right bars).
+    """
     n = len(high)
     result = pd.Series(np.nan, index=high.index)
-    for i in range(left_bars, n - right_bars):
+    for i in range(left_bars, n):
         result.iloc[i] = high.iloc[i]
     return result
 
 def pivot_low_hypothetical(low, left_bars=3, right_bars=3):
-    """For each period, output the low at the center of the window (hypothetical pivot value)."""
+    """For each period, output the low at the center of the window (hypothetical pivot value).
+    For all bars except the first left_bars, output the current low as the threshold (even if not enough right bars).
+    """
     n = len(low)
     result = pd.Series(np.nan, index=low.index)
-    for i in range(left_bars, n - right_bars):
+    for i in range(left_bars, n):
         result.iloc[i] = low.iloc[i]
     return result
 
@@ -1138,7 +1142,7 @@ def process_symbol_chunk(symbol_chunk, db_config):
             ) VALUES %s
             ON CONFLICT (symbol, date) DO UPDATE SET
                 rsi = EXCLUDED.rsi,
-                macd = EXCLUDED.macd,
+                macd = EXCLUDED.macd,AND 
                 macd_signal = EXCLUDED.macd_signal,
                 macd_hist = EXCLUDED.macd_hist,
                 mom = EXCLUDED.mom,
