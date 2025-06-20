@@ -237,6 +237,112 @@ Resources:
       ServiceToken: !GetAtt ECRLifecyclePolicyFunction.Arn
       # This will trigger the Lambda to apply policies to all existing ECR repositories
 
+  ### 8) Lambda Role for RDS Start/Stop ###
+  RDSControlLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: RDSStartStop
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - rds:StopDBInstance
+                  - rds:StartDBInstance
+                  - rds:DescribeDBInstances
+                Resource: '*'
+
+  ### 9) Lambda Functions to Stop/Start RDS ###
+  StopRDSLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-stop-rds-nightly'
+      Runtime: python3.11
+      Handler: index.lambda_handler
+      Role: !GetAtt RDSControlLambdaRole.Arn
+      Timeout: 60
+      Code:
+        ZipFile: |
+          import boto3
+          import os
+          def lambda_handler(event, context):
+              rds = boto3.client('rds')
+              db_id = os.environ.get('DB_INSTANCE_ID')
+              if not db_id:
+                  raise Exception('DB_INSTANCE_ID env var not set')
+              resp = rds.stop_db_instance(DBInstanceIdentifier=db_id)
+              return {'status': 'stopping', 'db': db_id, 'response': str(resp)}
+      Environment:
+        Variables:
+          DB_INSTANCE_ID: !Ref StocksDBInstance
+
+  StartRDSLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-start-rds-morning'
+      Runtime: python3.11
+      Handler: index.lambda_handler
+      Role: !GetAtt RDSControlLambdaRole.Arn
+      Timeout: 60
+      Code:
+        ZipFile: |
+          import boto3
+          import os
+          def lambda_handler(event, context):
+              rds = boto3.client('rds')
+              db_id = os.environ.get('DB_INSTANCE_ID')
+              if not db_id:
+                  raise Exception('DB_INSTANCE_ID env var not set')
+              resp = rds.start_db_instance(DBInstanceIdentifier=db_id)
+              return {'status': 'starting', 'db': db_id, 'response': str(resp)}
+      Environment:
+        Variables:
+          DB_INSTANCE_ID: !Ref StocksDBInstance
+
+  ### 10) EventBridge Rules for Scheduling ###
+  StopRDSNightlyRule:
+    Type: AWS::Events::Rule
+    Properties:
+      ScheduleExpression: 'cron(0 23 * * ? *)' # 11:00pm UTC every day
+      Targets:
+        - Arn: !GetAtt StopRDSLambda.Arn
+          Id: StopRDSLambdaTarget
+
+  StartRDSMorningRule:
+    Type: AWS::Events::Rule
+    Properties:
+      ScheduleExpression: 'cron(45 4 * * ? *)' # 4:45am UTC every day
+      Targets:
+        - Arn: !GetAtt StartRDSLambda.Arn
+          Id: StartRDSLambdaTarget
+
+  ### 11) Permissions for EventBridge to invoke Lambdas ###
+  StopRDSLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt StopRDSLambda.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt StopRDSNightlyRule.Arn
+
+  StartRDSLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt StartRDSLambda.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt StartRDSMorningRule.Arn
+
 Outputs:
   DBEndpoint:
     Description: RDS endpoint address
