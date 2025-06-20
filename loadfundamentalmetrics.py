@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3 
 import sys
 import logging
 import os
@@ -37,7 +37,7 @@ def get_db_conn():
 
 # --- Table name ---
 TABLE_NAME = "earnings_metrics"
-SECOND_TABLE_NAME = "future_metrics"  # Placeholder for future use
+SECOND_TABLE_NAME = "fundamental_metrics"  # Placeholder for future use
 
 # --- Drop and create tables ---
 def create_tables(conn):
