@@ -373,18 +373,21 @@ export const getFinancialStrengthMetrics = (params = {}) => {
 // New method for stock screening with proper parameter handling
 export const screenStocks = async (params) => {
   try {
-    // Use the main stocks endpoint instead of /stocks/screen
     const response = await api.get(`/stocks?${params.toString()}`, {
       baseURL: currentConfig.baseURL
     })
-    console.log('Screen stocks response:', response.data)
+    console.log('Screen stocks raw response:', response)
+    if (!response.data || !Array.isArray(response.data.data)) {
+      console.error('screenStocks: Unexpected response structure', response.data)
+      throw new Error('Unexpected API response: missing data array')
+    }
     return response.data
   } catch (error) {
     console.error('Error screening stocks:', error)
     const errorMessage = handleApiError(error, 'screen stocks')
-    // Return a consistent error response structure
-    return { 
-      data: [], 
+    // Always return a consistent error structure
+    return {
+      data: [],
       error: errorMessage,
       count: 0,
       total: 0,
@@ -776,6 +779,16 @@ export const getTechnicalSummary = async (timeframe = 'daily', params = {}) => {
   }
 }
 
+// Earnings metrics endpoint
+export const getEarningsMetrics = async (params = {}) => {
+  const queryParams = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') queryParams.append(key, value);
+  });
+  const res = await api.get(`/earningsmetrics?${queryParams.toString()}`);
+  return res.data;
+}
+
 // Export all methods as a default object for easier importing
 export default {
   healthCheck,
@@ -829,7 +842,8 @@ export default {
   getFearGreedData,
   getTechnicalData,
   getTechnicalSummary,
-  getDataValidationSummary
+  getDataValidationSummary,
+  getEarningsMetrics
 }
 
 // Test API Connection
