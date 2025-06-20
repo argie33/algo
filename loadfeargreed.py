@@ -41,12 +41,21 @@ def timestamp_to_date(ts):
     return datetime.fromtimestamp(ts / 1000).strftime("%Y-%m-%d")
 
 async def get_fear_greed_data():
-    """Fetch Fear & Greed index data from CNN via direct HTTP request."""
+    """Fetch Fear & Greed index data from CNN using a browser automation fallback if HTTP fails."""
     url = 'https://production.dataviz.cnn.io/index/fearandgreed/graphdata'
     logging.info(f"Fetching Fear & Greed data directly from {url} ...")
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=30) as resp:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Accept': 'application/json, text/plain, */*',
+                'Referer': 'https://edition.cnn.com/',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+            }
+            async with session.get(url, headers=headers, timeout=30) as resp:
                 if resp.status != 200:
                     raise Exception(f"HTTP {resp.status} error fetching data")
                 data_json = await resp.json()
@@ -56,8 +65,31 @@ async def get_fear_greed_data():
         logging.info(f"Parsed {len(data_array)} historical data points")
         return data_array
     except Exception as e:
-        logging.error(f"Error fetching Fear & Greed data: {str(e)}")
-        raise
+        logging.error(f"Error fetching Fear & Greed data via HTTP: {str(e)}")
+        # Fallback: try browser automation (undetected-chromedriver)
+        try:
+            import undetected_chromedriver as uc
+            from selenium.webdriver.common.by import By
+            import time
+            import json as pyjson
+            logging.info("Trying browser automation fallback with undetected-chromedriver...")
+            options = uc.ChromeOptions()
+            options.headless = True
+            driver = uc.Chrome(options=options)
+            driver.get(url)
+            time.sleep(2)
+            pre = driver.find_element(By.TAG_NAME, "pre")
+            data = pre.text
+            driver.quit()
+            data_json = pyjson.loads(data)
+            if 'fear_and_greed_historical' not in data_json:
+                raise Exception("Expected data structure not found in browser response")
+            data_array = data_json['fear_and_greed_historical']['data']
+            logging.info(f"Parsed {len(data_array)} historical data points (browser fallback)")
+            return data_array
+        except Exception as e2:
+            logging.error(f"Browser automation fallback also failed: {str(e2)}")
+            raise Exception(f"Both HTTP and browser fallback failed: {e2}")
 
 async def main():
     logging.info("Starting Fear & Greed index data load")
