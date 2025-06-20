@@ -1660,21 +1660,19 @@ def process_symbol_chunk(symbol_chunk, db_config):
                 if not df_tech.index.is_monotonic_increasing:
                     df_tech = df_tech.sort_index()
                 # Calculate pivots using Pine Script logic
-                df_tech['pivot_high'] = pivot_high(df_tech, left_bars=3, right_bars=3, shunt=1)
-                df_tech['pivot_low'] = pivot_low(df_tech, left_bars=3, right_bars=3, shunt=1)
-                # --- NEW: Ensure every date is written, even if pivots are NaN ---
-                # No filtering of rows based on pivot values; always insert all rows
-                logging.info(f"⚡ {symbol}: Calculated {len(df_tech)} technical indicator rows in {tech_time:.2f}s")
-                # LOGGING: Check DataFrame columns and sample pivot values before insert
-                logging.info(f"[DEBUG] Columns in df_tech before insert: {list(df_tech.columns)}")
-                logging.info(f"[DEBUG] DataFrame shape: {df_tech.shape}, index: {df_tech.index[:5].tolist()} ...")
-                if 'pivot_high' in df_tech.columns and 'pivot_low' in df_tech.columns:
-                    logging.info(f"[DEBUG] Sample pivot_high values (first 5): {df_tech['pivot_high'].head(5).tolist()}")
-                    logging.info(f"[DEBUG] Sample pivot_low values (first 5): {df_tech['pivot_low'].head(5).tolist()}")
-                    logging.info(f"[DEBUG] Non-NaN pivot_high count: {df_tech['pivot_high'].notna().sum()}")
-                    logging.info(f"[DEBUG] Non-NaN pivot_low count: {df_tech['pivot_low'].notna().sum()}")
-                else:
-                    logging.warning(f"[DEBUG] pivot_high or pivot_low column missing in df_tech before insert!")
+                pivot_high_series = pivot_high(df_tech, left_bars=3, right_bars=3, shunt=1)
+                pivot_low_series = pivot_low(df_tech, left_bars=3, right_bars=3, shunt=1)
+                # Candidate values are always the high/low for the period
+                df_tech['pivot_high'] = df_tech['high']
+                df_tech['pivot_low'] = df_tech['low']
+                # Triggered flags: True if a pivot is found at this period
+                df_tech['pivot_high_triggered'] = pivot_high_series.notna()
+                df_tech['pivot_low_triggered'] = pivot_low_series.notna()
+                # Log candidate and trigger status for first 5 rows
+                for idx, row in df_tech.head(5).iterrows():
+                    logging.info(f"[PIVOT LOG] {symbol} {row.name}: High={row['high']}, PivotHighTriggered={row['pivot_high_triggered']}, PivotHighValue={row['pivot_high']}")
+                    logging.info(f"[PIVOT LOG] {symbol} {row.name}: Low={row['low']}, PivotLowTriggered={row['pivot_low_triggered']}, PivotLowValue={row['pivot_low']}")
+                # ...existing code...
                 # Reset index efficiently
                 df_reset = df_tech.reset_index()
                 # Log the first 5 values of pivot_high/low after reset_index
@@ -1692,6 +1690,7 @@ def process_symbol_chunk(symbol_chunk, db_config):
                     # Log the row's pivot_high/low for the first 3 rows
                     if idx < 3:
                         logging.info(f"[DEBUG] Row {idx} pivot_high: {row.get('pivot_high')}, pivot_low: {row.get('pivot_low')}, row: {row}")
+                        logging.info(f"[PIVOT TRIGGER] Row {idx} pivot_high_triggered: {row.get('pivot_high_triggered')}, pivot_low_triggered: {row.get('pivot_low_triggered')}")
                     record = (
                         symbol,
                         row['date'].to_pydatetime() if hasattr(row['date'], 'to_pydatetime') else row['date'],
@@ -1728,7 +1727,9 @@ def process_symbol_chunk(symbol_chunk, db_config):
                         sanitize_value(row.get('td_combo')),
                         sanitize_value(row.get('pivot_high')),
                         sanitize_value(row.get('pivot_low')),
-                        run_timestamp
+                        run_timestamp,
+                        sanitize_value(row.get('pivot_high_triggered')),
+                        sanitize_value(row.get('pivot_low_triggered'))
                     )
                     symbol_insert_data.append(record)
                 # Enhanced logging: show first 2 insert records and their pivot values
