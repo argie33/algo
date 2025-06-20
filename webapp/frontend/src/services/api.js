@@ -695,6 +695,23 @@ export const getFinancialMetrics = async (params = {}) => {
   }
 }
 
+// Technical data endpoint
+export const getTechnicalData = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value)
+      }
+    })
+    const response = await api.get(`/technical/data?${queryParams.toString()}`)
+    return response.data
+  } catch (error) {
+    const errorMessage = handleApiError(error, 'get technical data')
+    return { data: [], error: errorMessage }
+  }
+}
+
 // Export all methods as a default object for easier importing
 export default {
   healthCheck,
