@@ -780,9 +780,6 @@ export const getGrowthEstimates = async (params = {}) => {
   }
 }
 
-// Ensure named exports for all
-export { getDataValidationSummary, getEpsRevisions, getEpsTrend, getGrowthEstimates };
-
 // Export all methods as a default object for easier importing
 export default {
   healthCheck,
