@@ -712,6 +712,23 @@ export const getTechnicalData = async (params = {}) => {
   }
 }
 
+// Data validation summary endpoint
+export const getDataValidationSummary = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value)
+      }
+    })
+    const response = await api.get(`/data/validation/summary?${queryParams.toString()}`)
+    return response.data
+  } catch (error) {
+    const errorMessage = handleApiError(error, 'get data validation summary')
+    return { data: [], error: errorMessage }
+  }
+}
+
 // Export all methods as a default object for easier importing
 export default {
   healthCheck,
