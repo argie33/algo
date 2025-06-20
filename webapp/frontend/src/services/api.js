@@ -865,7 +865,45 @@ export const getEarningsMetrics = async (params = {}) => {
   }
 }
 
-export { testApiConnection }
+// Test API Connection
+export const testApiConnection = async (customUrl = null) => {
+  try {
+    console.log('Testing API connection...')
+    console.log('Current API URL:', currentConfig.baseURL)
+    console.log('Custom URL:', customUrl)
+    console.log('Environment:', import.meta.env.MODE)
+    console.log('VITE_API_URL:', import.meta.env.VITE_API_URL)
+    const testUrl = customUrl || currentConfig.baseURL
+    const response = await api.get('/health?quick=true', {
+      baseURL: testUrl,
+      timeout: 10000
+    })
+    return {
+      success: true,
+      apiUrl: testUrl,
+      status: response.status,
+      data: response.data,
+      message: 'API connection successful'
+    }
+  } catch (error) {
+    console.error('API connection test failed:', error)
+    return {
+      success: false,
+      apiUrl: customUrl || currentConfig.baseURL,
+      error: error.message,
+      details: {
+        hasResponse: !!error.response,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        responseData: error.response?.data,
+        code: error.code,
+        isNetworkError: !error.response,
+        configUrl: error.config?.url,
+        fullUrl: (customUrl || currentConfig.baseURL) + '/health?quick=true'
+      }
+    }
+  }
+}
 
 // Export all methods as a default object for easier importing
 export default {
