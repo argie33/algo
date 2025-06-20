@@ -50,10 +50,17 @@ function TechnicalHistory() {
     setLoading(false);
   };
 
+  // Debounce fetchData to avoid excessive API calls
   useEffect(() => {
-    fetchData();
+    let timeout = setTimeout(() => {
+      fetchData();
+    }, 250); // 250ms debounce
+    return () => clearTimeout(timeout);
     // eslint-disable-next-line
   }, [symbol, page, rowsPerPage, dateFrom, dateTo]);
+
+  // Only fetch on mount and when symbol changes, not on every page/row change
+  // useEffect(() => { fetchData(); }, [symbol]);
 
   const handlePageChange = (event, newPage) => setPage(newPage);
   const handleRowsPerPageChange = (event) => {
@@ -63,7 +70,7 @@ function TechnicalHistory() {
 
   // Add a Load More button for progressive loading
   const handleLoadMore = () => {
-    setRowsPerPage(prev => prev + 10);
+    setRowsPerPage(prev => prev + 25); // Increase by 25 for faster batch loading
   };
 
   // --- Table columns (match TechnicalAnalysis) ---
@@ -96,7 +103,9 @@ function TechnicalHistory() {
     { id: 'marketwatch', label: 'MW' },
     { id: 'dm', label: 'DM' },
     { id: 'pivot_high', label: 'Pivot H' },
-    { id: 'pivot_low', label: 'Pivot L' }
+    { id: 'pivot_low', label: 'Pivot L' },
+    { id: 'pivot_high_triggered', label: 'Pivot H Triggered' },
+    { id: 'pivot_low_triggered', label: 'Pivot L Triggered' }
   ];
 
   // Helper to ensure only valid MUI Chip color values are used for the color prop

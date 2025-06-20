@@ -68,7 +68,8 @@ router.get('/:timeframe', async (req, res) => {
     const indicatorMin = req.query.indicatorMin;
     const indicatorMax = req.query.indicatorMax;
     const allowedIndicators = [
-      'rsi','macd','macd_signal','macd_hist','adx','atr','mfi','roc','mom','sma_10','sma_20','sma_50','sma_150','sma_200','ema_4','ema_9','ema_21','bbands_upper','bbands_middle','bbands_lower','ad','cmf','td_sequential','td_combo','marketwatch','dm','pivot_high','pivot_low'
+      'rsi','macd','macd_signal','macd_hist','adx','atr','mfi','roc','mom','sma_10','sma_20','sma_50','sma_150','sma_200','ema_4','ema_9','ema_21','bbands_upper','bbands_middle','bbands_lower','ad','cmf','td_sequential','td_combo','marketwatch','dm','pivot_high','pivot_low',
+      'pivot_high_triggered','pivot_low_triggered'
     ];
     if (indicator && allowedIndicators.includes(indicator)) {
       if (indicatorMin !== undefined && indicatorMin !== '') {
@@ -88,7 +89,8 @@ router.get('/:timeframe', async (req, res) => {
     let sortOrder = req.query.sortOrder === 'asc' ? 'ASC' : 'DESC';
     // Only allow sorting by known columns for safety
     const allowedSorts = [
-      'symbol','date','rsi','macd','macd_signal','macd_hist','adx','atr','mfi','roc','mom','sma_10','sma_20','sma_50','sma_150','sma_200','ema_4','ema_9','ema_21','bbands_upper','bbands_middle','bbands_lower','ad','cmf','td_sequential','td_combo','marketwatch','dm','pivot_high','pivot_low'
+      'symbol','date','rsi','macd','macd_signal','macd_hist','adx','atr','mfi','roc','mom','sma_10','sma_20','sma_50','sma_150','sma_200','ema_4','ema_9','ema_21','bbands_upper','bbands_middle','bbands_lower','ad','cmf','td_sequential','td_combo','marketwatch','dm','pivot_high','pivot_low',
+      'pivot_high_triggered','pivot_low_triggered'
     ];
     if (!allowedSorts.includes(sortBy)) sortBy = 'date';
 
@@ -132,6 +134,8 @@ router.get('/:timeframe', async (req, res) => {
         t.dm,
         t.pivot_high,
         t.pivot_low,
+        t.pivot_high_triggered,
+        t.pivot_low_triggered,
         ss.security_name as company_name
       FROM ${tableName} t
       LEFT JOIN price_${timeframe} p ON t.symbol = p.symbol AND t.date = p.date
@@ -162,7 +166,8 @@ router.get('/:timeframe', async (req, res) => {
     // Ensure all indicator fields are numbers or null (never undefined)
     function sanitizeRow(row) {
       const indicators = [
-        'rsi','macd','macd_signal','macd_hist','adx','atr','mfi','roc','mom','sma_10','sma_20','sma_50','sma_150','sma_200','ema_4','ema_9','ema_21','bbands_upper','bbands_middle','bbands_lower','ad','cmf','td_sequential','td_combo','marketwatch','dm','pivot_high','pivot_low'
+        'rsi','macd','macd_signal','macd_hist','adx','atr','mfi','roc','mom','sma_10','sma_20','sma_50','sma_150','sma_200','ema_4','ema_9','ema_21','bbands_upper','bbands_middle','bbands_lower','ad','cmf','td_sequential','td_combo','marketwatch','dm','pivot_high','pivot_low',
+        'pivot_high_triggered','pivot_low_triggered'
       ];
       const sanitized = { ...row };
       indicators.forEach(key => {

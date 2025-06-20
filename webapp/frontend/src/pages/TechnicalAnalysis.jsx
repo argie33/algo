@@ -159,7 +159,9 @@ function TechnicalAnalysis() {
     { id: 'marketwatch', label: 'MW', sortable: true },
     { id: 'dm', label: 'DM', sortable: true },
     { id: 'pivot_high', label: 'Pivot H', sortable: true },
-    { id: 'pivot_low', label: 'Pivot L', sortable: true }
+    { id: 'pivot_low', label: 'Pivot L', sortable: true },
+    { id: 'pivot_high_triggered', label: 'Pivot H Triggered', sortable: true },
+    { id: 'pivot_low_triggered', label: 'Pivot L Triggered', sortable: true }
   ];
 
   // --- Accordion rendering for each row (fixed syntax, requirements met) ---
