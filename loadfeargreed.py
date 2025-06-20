@@ -99,6 +99,14 @@ async def main():
         data = await get_fear_greed_data()
         logging.info(f"Retrieved {len(data)} Fear & Greed index records")
         
+        # Deduplicate by date (keep last occurrence for each date)
+        deduped = {}
+        for item in data:
+            date_str = timestamp_to_date(item['x'])
+            deduped[date_str] = item  # overwrite, so last wins
+        data = list(deduped.values())
+        logging.info(f"Deduplicated to {len(data)} unique date records")
+        
         # Connect to database
         cfg = get_db_config()
         conn = psycopg2.connect(**cfg)
