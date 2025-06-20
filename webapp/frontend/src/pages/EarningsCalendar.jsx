@@ -67,9 +67,14 @@ function EarningsCalendar() {
         limit: rowsPerPage
       });
       const response = await fetch(`${API_BASE}/calendar/events?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch calendar data');
+      if (!response.ok) {
+        const text = await response.text();
+        logger.error('Calendar events fetch failed', { status: response.status, text });
+        throw new Error(`Failed to fetch calendar data: ${response.status} ${text}`);
+      }
       return response.json();
     },
+    enabled: activeTab === 0,
     refetchInterval: 300000 // Refresh every 5 minutes
   });
 
