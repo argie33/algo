@@ -1662,10 +1662,9 @@ def process_symbol_chunk(symbol_chunk, db_config):
                 # Calculate pivots using Pine Script logic
                 pivot_high_series = pivot_high(df_tech, left_bars=3, right_bars=3, shunt=1)
                 pivot_low_series = pivot_low(df_tech, left_bars=3, right_bars=3, shunt=1)
-                # Candidate values are always the high/low for the period
-                df_tech['pivot_high'] = df_tech['high']
-                df_tech['pivot_low'] = df_tech['low']
-                # Triggered flags: True if a pivot is found at this period
+                # Set pivot values and triggered flags correctly
+                df_tech['pivot_high'] = pivot_high_series
+                df_tech['pivot_low'] = pivot_low_series
                 df_tech['pivot_high_triggered'] = pivot_high_series.notna()
                 df_tech['pivot_low_triggered'] = pivot_low_series.notna()
                 # Log candidate and trigger status for first 5 rows
@@ -1687,10 +1686,6 @@ def process_symbol_chunk(symbol_chunk, db_config):
                 # Pre-allocate and vectorize the data preparation
                 for idx in range(n_rows):
                     row = df_reset.iloc[idx]
-                    # Log the row's pivot_high/low for the first 3 rows
-                    if idx < 3:
-                        logging.info(f"[DEBUG] Row {idx} pivot_high: {row.get('pivot_high')}, pivot_low: {row.get('pivot_low')}, row: {row}")
-                        logging.info(f"[PIVOT TRIGGER] Row {idx} pivot_high_triggered: {row.get('pivot_high_triggered')}, pivot_low_triggered: {row.get('pivot_low_triggered')}")
                     record = (
                         symbol,
                         row['date'].to_pydatetime() if hasattr(row['date'], 'to_pydatetime') else row['date'],
@@ -1727,9 +1722,9 @@ def process_symbol_chunk(symbol_chunk, db_config):
                         sanitize_value(row.get('td_combo')),
                         sanitize_value(row.get('pivot_high')),
                         sanitize_value(row.get('pivot_low')),
-                        run_timestamp,
                         sanitize_value(row.get('pivot_high_triggered')),
-                        sanitize_value(row.get('pivot_low_triggered'))
+                        sanitize_value(row.get('pivot_low_triggered')),
+                        run_timestamp
                     )
                     symbol_insert_data.append(record)
                 # Enhanced logging: show first 2 insert records and their pivot values
@@ -1773,7 +1768,8 @@ def process_symbol_chunk(symbol_chunk, db_config):
                 bbands_lower, bbands_middle, bbands_upper,
                 atr, adx, ad, cmf, mfi, dm, marketwatch,
                 td_sequential, td_combo,
-                pivot_high, pivot_low, pivot_high_triggered, pivot_low_triggered,
+                pivot_high, pivot_low,
+                pivot_high_triggered, pivot_low_triggered,
                 fetched_at
             ) VALUES %s
             ON CONFLICT (symbol, date) DO UPDATE SET
