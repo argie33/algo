@@ -55,6 +55,7 @@ TECHNICALS_COLUMNS = [
     "ema_4", "ema_9", "ema_21",
     "bbands_lower", "bbands_middle", "bbands_upper",
     "pivot_high", "pivot_low",
+    "pivot_high_triggered", "pivot_low_triggered",
     "fetched_at"
 ]
 
@@ -808,6 +809,10 @@ def create_technical_table(cur):
             pivot_high DECIMAL(12,4),
             pivot_low DECIMAL(12,4),
             
+            -- Trigger columns
+            pivot_high_triggered BOOLEAN DEFAULT FALSE,
+            pivot_low_triggered BOOLEAN DEFAULT FALSE,
+            
             -- Metadata
             fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -1053,6 +1058,8 @@ def process_symbol_chunk(symbol_chunk, db_config):
                         sanitize_value(row.get('bbands_upper')),
                         sanitize_value(row.get('pivot_high')),
                         sanitize_value(row.get('pivot_low')),
+                        sanitize_value(row.get('pivot_high_triggered')),
+                        sanitize_value(row.get('pivot_low_triggered')),
                         run_timestamp
                     )
                     symbol_insert_data.append(record)
@@ -1088,6 +1095,7 @@ def process_symbol_chunk(symbol_chunk, db_config):
                 ema_4, ema_9, ema_21,
                 bbands_lower, bbands_middle, bbands_upper,
                 pivot_high, pivot_low,
+                pivot_high_triggered, pivot_low_triggered,
                 fetched_at
             ) VALUES %s
             ON CONFLICT (symbol, date) DO UPDATE SET
@@ -1119,6 +1127,8 @@ def process_symbol_chunk(symbol_chunk, db_config):
                 bbands_upper = EXCLUDED.bbands_upper,
                 pivot_high = EXCLUDED.pivot_high,
                 pivot_low = EXCLUDED.pivot_low,
+                pivot_high_triggered = EXCLUDED.pivot_high_triggered,
+                pivot_low_triggered = EXCLUDED.pivot_low_triggered,
                 fetched_at = EXCLUDED.fetched_at
             """
             
