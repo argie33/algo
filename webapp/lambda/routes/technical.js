@@ -159,12 +159,10 @@ router.get('/:timeframe', async (req, res) => {
     ]);
 
     console.log('Query results - data:', dataResult.rows.length, 'total:', countResult.rows[0].total);
-
-    // Log a sample data row only if data exists
     if (dataResult.rows && dataResult.rows.length > 0) {
       console.log('Sample data row:', dataResult.rows[0]);
     } else {
-      console.log('No data rows returned from technical query.');
+      console.warn('No technical data found for query:', dataQuery, 'params:', [...params, limit, offset]);
     }
 
     const total = parseInt(countResult.rows[0].total);
@@ -203,7 +201,12 @@ router.get('/:timeframe', async (req, res) => {
         count: dataResult.rows.length,
         start_date: req.query.start_date || null,
         end_date: req.query.end_date || null,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        queryDebug: {
+          sql: dataQuery,
+          params: [...params, limit, offset]
+        },
+        warning: dataResult.rows.length === 0 ? 'No technical data found for the given query. Check your database and query parameters.' : undefined
       }
     });
 
