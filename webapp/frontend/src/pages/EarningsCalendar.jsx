@@ -37,7 +37,8 @@ import {
   Assessment,
   CalendarToday,
   MonetizationOn,
-  ShowChart
+  ShowChart,
+  Timeline
 } from '@mui/icons-material';
 import { formatCurrency, formatPercentage, formatNumber } from '../utils/formatters';
 
@@ -127,6 +128,23 @@ function EarningsCalendar() {
       return response.json();
     },
     enabled: activeTab === 4 && !!epsSymbol,
+    staleTime: 60000
+  });
+
+  // Earnings Metrics fetch
+  const { data: earningsMetricsData, isLoading: earningsMetricsLoading, error: earningsMetricsError, refetch: refetchEarningsMetrics } = useQuery({
+    queryKey: ['earningsMetrics', epsSymbol, page, rowsPerPage],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        page: page + 1,
+        limit: rowsPerPage
+      });
+      const url = `${API_BASE}/calendar/earnings-metrics?${params}`;
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to fetch earnings metrics');
+      return response.json();
+    },
+    enabled: activeTab === 5 && !!epsSymbol,
     staleTime: 60000
   });
 
@@ -361,7 +379,7 @@ function EarningsCalendar() {
     </Card>
   );
 
-  const isLoading = calendarLoading || (activeTab === 1 && estimatesLoading) || (activeTab === 2 && historyLoading) || (activeTab === 3 && epsRevisionsLoading) || (activeTab === 4 && epsTrendLoading);
+  const isLoading = calendarLoading || (activeTab === 1 && estimatesLoading) || (activeTab === 2 && historyLoading) || (activeTab === 3 && epsRevisionsLoading) || (activeTab === 4 && epsTrendLoading) || (activeTab === 5 && earningsMetricsLoading);
 
   if (isLoading && !calendarData && !estimatesData && !historyData) {
     return (
@@ -434,6 +452,7 @@ function EarningsCalendar() {
           <Tab label="Earnings History" icon={<Assessment />} />
           <Tab label="EPS Revisions" icon={<TrendingUp />} />
           <Tab label="EPS Trend" icon={<TrendingDown />} />
+          <Tab label="Earnings Metrics" icon={<Timeline />} />
         </Tabs>
       </Box>
 
@@ -619,6 +638,87 @@ function EarningsCalendar() {
               )}
             </>
           )}
+          {activeTab === 5 && (
+            <>
+              <Typography variant="h6" gutterBottom>
+                Earnings Metrics Lookup
+              </Typography>
+              <Box display="flex" alignItems="center" gap={2} mb={2}>
+                <TextField
+                  label="Symbol"
+                  value={epsInput}
+                  onChange={e => setEpsInput(e.target.value.toUpperCase())}
+                  size="small"
+                  sx={{ width: 120 }}
+                  inputProps={{ maxLength: 8 }}
+                />
+                <Button
+                  variant="contained"
+                  onClick={() => {
+                    setEpsSymbol(epsInput);
+                    refetchEarningsMetrics();
+                  }}
+                  disabled={earningsMetricsLoading || !epsInput}
+                >
+                  Lookup
+                </Button>
+              </Box>
+              {earningsMetricsLoading ? (
+                <Box display="flex" justifyContent="center" my={3}><CircularProgress size={28} /></Box>
+              ) : earningsMetricsError ? (
+                <Alert severity="error">Failed to load earnings metrics: {earningsMetricsError.message}</Alert>
+              ) : earningsMetricsData?.data?.[epsSymbol]?.metrics?.length ? (
+                <TableContainer component={Paper} sx={{ mt: 2 }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Report Date</TableCell>
+                        <TableCell align="right">EPS Growth 1Q</TableCell>
+                        <TableCell align="right">EPS Growth 2Q</TableCell>
+                        <TableCell align="right">EPS Growth 4Q</TableCell>
+                        <TableCell align="right">EPS Growth 8Q</TableCell>
+                        <TableCell align="right">EPS Accel Qtrs</TableCell>
+                        <TableCell align="right">Surprise Last Q</TableCell>
+                        <TableCell align="right">Est Rev 1M</TableCell>
+                        <TableCell align="right">Est Rev 3M</TableCell>
+                        <TableCell align="right">Est Rev 6M</TableCell>
+                        <TableCell align="right">Annual EPS 1Y</TableCell>
+                        <TableCell align="right">Annual EPS 3Y</TableCell>
+                        <TableCell align="right">Annual EPS 5Y</TableCell>
+                        <TableCell align="right">Consec EPS Yrs</TableCell>
+                        <TableCell align="right">Est Change This Yr</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {earningsMetricsData.data[epsSymbol].metrics.map((row, idx) => (
+                        <TableRow key={row.report_date + idx}>
+                          <TableCell>{row.report_date}</TableCell>
+                          <TableCell align="right">{row.eps_growth_1q ?? '-'}</TableCell>
+                          <TableCell align="right">{row.eps_growth_2q ?? '-'}</TableCell>
+                          <TableCell align="right">{row.eps_growth_4q ?? '-'}</TableCell>
+                          <TableCell align="right">{row.eps_growth_8q ?? '-'}</TableCell>
+                          <TableCell align="right">{row.eps_acceleration_qtrs ?? '-'}</TableCell>
+                          <TableCell align="right">{row.eps_surprise_last_q ?? '-'}</TableCell>
+                          <TableCell align="right">{row.eps_estimate_revision_1m ?? '-'}</TableCell>
+                          <TableCell align="right">{row.eps_estimate_revision_3m ?? '-'}</TableCell>
+                          <TableCell align="right">{row.eps_estimate_revision_6m ?? '-'}</TableCell>
+                          <TableCell align="right">{row.annual_eps_growth_1y ?? '-'}</TableCell>
+                          <TableCell align="right">{row.annual_eps_growth_3y ?? '-'}</TableCell>
+                          <TableCell align="right">{row.annual_eps_growth_5y ?? '-'}</TableCell>
+                          <TableCell align="right">{row.consecutive_eps_growth_years ?? '-'}</TableCell>
+                          <TableCell align="right">{row.eps_estimated_change_this_year ?? '-'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              ) : (
+                <Typography variant="body2" color="text.secondary" mt={2}>
+                  No earnings metrics data found for <b>{epsSymbol}</b>.
+                </Typography>
+              )}
+            </>
+          )}
           
           <TablePagination
             component="div"
@@ -627,7 +727,8 @@ function EarningsCalendar() {
               activeTab === 1 ? (estimatesData?.pagination?.total || 0) :
               activeTab === 2 ? (historyData?.pagination?.total || 0) :
               activeTab === 3 ? (epsRevisionsData?.pagination?.total || 0) :
-              (epsTrendData?.pagination?.total || 0)
+              activeTab === 4 ? (epsTrendData?.pagination?.total || 0) :
+              (earningsMetricsData?.pagination?.total || 0)
             }
             page={page}
             onPageChange={(e, newPage) => setPage(newPage)}

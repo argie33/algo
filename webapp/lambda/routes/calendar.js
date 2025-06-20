@@ -393,4 +393,108 @@ router.get('/earnings-history', async (req, res) => {
   }
 });
 
+// Get earnings metrics for all companies
+router.get('/earnings-metrics', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 25;
+    const offset = (page - 1) * limit;
+
+    const metricsQuery = `
+      SELECT 
+        em.symbol,
+        cp.short_name as company_name,
+        em.report_date,
+        em.eps_growth_1q,
+        em.eps_growth_2q,
+        em.eps_growth_4q,
+        em.eps_growth_8q,
+        em.eps_acceleration_qtrs,
+        em.eps_surprise_last_q,
+        em.eps_estimate_revision_1m,
+        em.eps_estimate_revision_3m,
+        em.eps_estimate_revision_6m,
+        em.annual_eps_growth_1y,
+        em.annual_eps_growth_3y,
+        em.annual_eps_growth_5y,
+        em.consecutive_eps_growth_years,
+        em.eps_estimated_change_this_year
+      FROM earnings_metrics em
+      LEFT JOIN company_profile cp ON em.symbol = cp.ticker
+      ORDER BY em.symbol ASC, em.report_date DESC
+      LIMIT $1 OFFSET $2
+    `;
+
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM earnings_metrics
+    `;
+
+    // Group and summarize by symbol for insights
+    const summaryQuery = `
+      SELECT 
+        symbol,
+        COUNT(*) as count,
+        AVG(eps_growth_1q) as avg_growth_1q,
+        AVG(eps_growth_2q) as avg_growth_2q,
+        AVG(eps_growth_4q) as avg_growth_4q,
+        AVG(eps_growth_8q) as avg_growth_8q,
+        MAX(annual_eps_growth_1y) as max_annual_growth_1y,
+        MAX(annual_eps_growth_3y) as max_annual_growth_3y,
+        MAX(annual_eps_growth_5y) as max_annual_growth_5y
+      FROM earnings_metrics
+      GROUP BY symbol
+      ORDER BY symbol ASC
+    `;
+
+    const [metricsResult, countResult, summaryResult] = await Promise.all([
+      query(metricsQuery, [limit, offset]),
+      query(countQuery),
+      query(summaryQuery)
+    ]);
+
+    const total = parseInt(countResult.rows[0].total);
+    const totalPages = Math.ceil(total / limit);
+
+    // Group data by symbol
+    const grouped = {};
+    metricsResult.rows.forEach(row => {
+      if (!grouped[row.symbol]) grouped[row.symbol] = { company_name: row.company_name, metrics: [] };
+      grouped[row.symbol].metrics.push(row);
+    });
+
+    // Attach summary insights
+    const insights = {};
+    summaryResult.rows.forEach(row => {
+      insights[row.symbol] = {
+        count: row.count,
+        avg_growth_1q: row.avg_growth_1q,
+        avg_growth_2q: row.avg_growth_2q,
+        avg_growth_4q: row.avg_growth_4q,
+        avg_growth_8q: row.avg_growth_8q,
+        max_annual_growth_1y: row.max_annual_growth_1y,
+        max_annual_growth_3y: row.max_annual_growth_3y,
+        max_annual_growth_5y: row.max_annual_growth_5y
+      };
+    });
+
+    res.json({
+      data: grouped,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      },
+      insights
+    });
+
+  } catch (error) {
+    console.error('Error fetching earnings metrics:', error);
+    res.status(500).json({ error: 'Failed to fetch earnings metrics' });
+  }
+});
+
 module.exports = router;
