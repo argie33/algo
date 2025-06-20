@@ -493,7 +493,12 @@ router.get('/earnings-metrics', async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching earnings metrics:', error);
-    res.status(500).json({ error: 'Failed to fetch earnings metrics' });
+    res.status(500).json({ 
+      error: 'Failed to fetch earnings metrics',
+      data: {}, // Always return data as an object for frontend safety
+      pagination: { page: 1, limit: 25, total: 0, totalPages: 0, hasNext: false, hasPrev: false },
+      insights: {}
+    });
   }
 });
 
