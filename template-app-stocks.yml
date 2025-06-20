@@ -343,6 +343,30 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn: !GetAtt StartRDSMorningRule.Arn
 
+  ### 12) ECR Repository for Core Containers ###
+  StocksCoreRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: stocks-core
+      ImageScanningConfiguration:
+        scanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Expire images except latest 10",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 10
+                },
+                "action": { "type": "expire" }
+              }
+            ]
+          }
+
 Outputs:
   DBEndpoint:
     Description: RDS endpoint address
@@ -379,6 +403,7 @@ Outputs:
     Value: !GetAtt StocksEcsCluster.Arn
     Export:
       Name: StocksApp-ClusterArn
+      
   EcsTaskExecutionRoleArn:
     Description: ARN of ECS Task Execution Role
     Value: !GetAtt EcsTaskExecutionRole.Arn
@@ -390,3 +415,9 @@ Outputs:
     Value: !GetAtt EcsTasksSecurityGroup.GroupId
     Export:
       Name: StocksApp-EcsTasksSecurityGroupId
+
+  StocksCoreContainerRepositoryUri:
+    Description: URI of the ECR repository for core containers
+    Value: !GetAtt StocksCoreRepository.RepositoryUri
+    Export:
+      Name: StocksCoreContainerRepositoryUri

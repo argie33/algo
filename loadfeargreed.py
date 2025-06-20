@@ -9,7 +9,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
 import boto3
 import asyncio
-from pyppeteer import launch
+import aiohttp
 
 # -------------------------------
 # Script metadata & logging setup
@@ -41,117 +41,23 @@ def timestamp_to_date(ts):
     return datetime.fromtimestamp(ts / 1000).strftime("%Y-%m-%d")
 
 async def get_fear_greed_data():
-    """Fetch Fear & Greed index data from CNN."""
-    logging.info("Launching headless browser...")
-    
-    # Enhanced browser launch with better container compatibility
-    launch_args = [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',  # Overcome limited resource problems
-        '--disable-gpu',
-        '--disable-web-security',
-        '--disable-features=VizDisplayCompositor',
-        '--disable-extensions',
-        '--disable-plugins',
-        '--disable-images',  # Faster loading
-        '--disable-javascript',  # Not needed for this specific task
-        '--no-first-run',
-        '--no-default-browser-check',
-        '--single-process',  # Reduce memory usage
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-renderer-backgrounding',
-        '--virtual-time-budget=30000',  # 30 second timeout
-    ]
-    
-    browser = None
-    try:        # Try system Chromium first (most reliable in containers)
-        try:
-            browser = await launch(
-                args=launch_args,
-                headless=True,
-                executablePath='/usr/bin/google-chrome-stable'
-            )
-            logging.info("Successfully launched Google Chrome browser")
-        except Exception as e:
-            logging.warning(f"Google Chrome launch failed: {e}, trying alternative paths...")
-            
-            # Try alternative browser paths
-            browser_paths = [
-                '/usr/bin/google-chrome',
-                '/usr/bin/chromium-browser',
-                '/usr/bin/chromium',
-            ]
-            
-            browser_launched = False
-            for path in browser_paths:
-                try:
-                    browser = await launch(
-                        args=launch_args,
-                        headless=True,
-                        executablePath=path
-                    )
-                    logging.info(f"Successfully launched browser at {path}")
-                    browser_launched = True
-                    break
-                except Exception as alt_e:
-                    logging.debug(f"Failed to launch browser at {path}: {alt_e}")
-                    continue
-            
-            if not browser_launched:
-                # Final fallback - let pyppeteer auto-detect and download
-                logging.info("Trying pyppeteer auto-detection...")
-                browser = await launch(
-                    args=launch_args,
-                    headless=True
-                )
-                logging.info("Successfully launched browser (auto-detected)")
-    
-        # Set up page with timeout and error handling
-        page = await browser.newPage()
-        
-        # Navigate to the data source
-        logging.info("Navigating to Fear & Greed data source...")
-        await page.goto('https://production.dataviz.cnn.io/index/fearandgreed/graphdata', {
-            'waitUntil': 'networkidle0',
-            'timeout': 30000
-        })
-        
-        # Wait for the data element
-        logging.info("Waiting for data element...")
-        await page.waitForSelector('pre', {'timeout': 15000})
-        
-        # Extract the data
-        element = await page.querySelector('pre')
-        if not element:
-            raise Exception("Could not find data element on page")
-        
-        data_text = await page.evaluate('(element) => element.textContent', element)
-        if not data_text:
-            raise Exception("No data found in element")
-        
-        logging.info(f"Retrieved data: {len(data_text)} characters")
-        
-        # Parse JSON data
-        data_json = json.loads(data_text)
-        
+    """Fetch Fear & Greed index data from CNN via direct HTTP request."""
+    url = 'https://production.dataviz.cnn.io/index/fearandgreed/graphdata'
+    logging.info(f"Fetching Fear & Greed data directly from {url} ...")
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=30) as resp:
+                if resp.status != 200:
+                    raise Exception(f"HTTP {resp.status} error fetching data")
+                data_json = await resp.json()
         if 'fear_and_greed_historical' not in data_json:
             raise Exception("Expected data structure not found in response")
-        
         data_array = data_json['fear_and_greed_historical']['data']
         logging.info(f"Parsed {len(data_array)} historical data points")
-        
         return data_array
-        
     except Exception as e:
-        logging.error(f"Error during browser operation: {str(e)}")
+        logging.error(f"Error fetching Fear & Greed data: {str(e)}")
         raise
-    
-    finally:
-        if browser:
-            await browser.close()
-            logging.info("Browser closed")
 
 async def main():
     logging.info("Starting Fear & Greed index data load")
