@@ -922,3 +922,5 @@ export default {
   getEarningsMetrics,
   testApiConnection
 }
+
+export { testApiConnection }
