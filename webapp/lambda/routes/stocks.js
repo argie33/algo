@@ -574,6 +574,7 @@ router.get('/quick/overview', async (req, res) => {
     res.status(500).json({ 
       error: 'Fast overview failed',
       details: error.message,
+      data: [], // Always return data as an array for frontend safety
       timestamp: new Date().toISOString()
     });
   }
@@ -637,6 +638,7 @@ router.get('/chunk/:chunkIndex', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to fetch stocks chunk', 
       details: error.message,
+      data: [], // Always return data as an array for frontend safety
       timestamp: new Date().toISOString()
     });
   }
@@ -712,6 +714,7 @@ router.get('/full/data', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to fetch full stocks data', 
       details: error.message,
+      data: [], // Always return data as an array for frontend safety
       timestamp: new Date().toISOString()
     });
   }
@@ -809,6 +812,7 @@ router.get('/:ticker', async (req, res) => {
       error: 'Failed to fetch stock data', 
       symbol: req.params.ticker,
       message: error.message,
+      data: [], // Always return data as an array for frontend safety
       timestamp: new Date().toISOString()
     });
   }
@@ -877,6 +881,7 @@ router.get('/:ticker/prices', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to fetch stock prices', 
       details: error.message,
+      data: [], // Always return data as an array for frontend safety
       ticker: req.params.ticker,
       timestamp: new Date().toISOString()
     });
@@ -913,6 +918,7 @@ router.get('/filters/sectors', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to fetch stock exchanges', 
       details: error.message,
+      data: [], // Always return data as an array for frontend safety
       timestamp: new Date().toISOString()
     });
   }
@@ -948,6 +954,7 @@ router.get('/filters/industries', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to fetch market categories', 
       details: error.message,
+      data: [], // Always return data as an array for frontend safety
       timestamp: new Date().toISOString()
     });
   }
@@ -1027,6 +1034,7 @@ router.get('/movers/gainers', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to fetch stock gainers', 
       details: error.message,
+      data: [], // Always return data as an array for frontend safety
       timestamp: new Date().toISOString()
     });
   }
@@ -1106,6 +1114,7 @@ router.get('/movers/losers', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to fetch stock losers', 
       details: error.message,
+      data: [], // Always return data as an array for frontend safety
       timestamp: new Date().toISOString()
     });
   }
@@ -1161,6 +1170,7 @@ router.get('/movers/active', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to fetch most active stocks', 
       details: error.message,
+      data: [], // Always return data as an array for frontend safety
       timestamp: new Date().toISOString()
     });
   }
@@ -1264,6 +1274,7 @@ router.get('/screen', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to screen stocks', 
       details: error.message,
+      data: [], // Always return data as an array for frontend safety
       timestamp: new Date().toISOString()    });
   }
 });
@@ -1330,6 +1341,7 @@ router.get('/:ticker/price-recent', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to fetch recent price data', 
       details: error.message,
+      data: [], // Always return data as an array for frontend safety
       ticker: req.params.ticker,
       timestamp: new Date().toISOString()
     });
@@ -1392,6 +1404,7 @@ router.get('/:ticker/profile', async (req, res) => {
       error: 'Failed to fetch stock profile', 
       symbol: req.params.ticker,
       message: error.message,
+      data: [], // Always return data as an array for frontend safety
       timestamp: new Date().toISOString()
     });
   }
@@ -1841,6 +1854,7 @@ router.get('/:ticker/financial-overview', async (req, res) => {
       error: 'Failed to fetch financial overview', 
       symbol: req.params.ticker,
       message: error.message,
+      data: [], // Always return data as an array for frontend safety
       timestamp: new Date().toISOString()
     });
   }
@@ -1901,6 +1915,7 @@ router.get('/:ticker/recommendations', async (req, res) => {
       error: 'Failed to fetch stock recommendations', 
       symbol: req.params.ticker,
       message: error.message,
+      data: [], // Always return data as an array for frontend safety
       timestamp: new Date().toISOString()
     });
   }
@@ -1993,6 +2008,7 @@ router.get('/leadership/:ticker?', async (req, res) => {
     res.status(500).json({ 
       error: 'Leadership data query failed',
       details: error.message,
+      data: [], // Always return data as an array for frontend safety
       timestamp: new Date().toISOString()
     });  }
 });
@@ -2180,6 +2196,7 @@ router.get('/:ticker/price-data', async (req, res) => {
       error: 'Failed to fetch price data',
       ticker: req.params.ticker,
       details: error.message,
+      data: [], // Always return data as an array for frontend safety
       timestamp: new Date().toISOString()
     });
   }
@@ -2197,6 +2214,7 @@ router.get('/bulk/price-data', async (req, res) => {  try {
         message: 'Use ?symbols=AAPL,MSFT,GOOGL to specify symbols',
         example: '/api/stocks/bulk/price-data?symbols=AAPL,MSFT,GOOGL&period=1m',
         supportedIntervals: ['daily', 'weekly', 'monthly'],
+        supportedPeriods: ['1m', '3m', '6m', '1y', '2y', 'max']
       });
     }
     
@@ -2301,6 +2319,7 @@ router.get('/bulk/price-data', async (req, res) => {  try {
     res.status(500).json({
       error: 'Failed to fetch bulk price data',
       details: error.message,
+      data: [], // Always return data as an array for frontend safety
       timestamp: new Date().toISOString()
     });
   }
