@@ -1764,7 +1764,8 @@ def process_symbol_chunk(symbol_chunk, db_config):
             bulk_insert_start = time.time()
             insert_query = """
             INSERT INTO technical_data_daily (
-                symbol, date, open, high, low, close, volume,
+                symbol, date,
+                open, high, low, close, volume,
                 rsi, mom, roc,
                 sma_10, sma_20, sma_50, sma_150, sma_200,
                 ema_4, ema_9, ema_21,
@@ -1772,7 +1773,7 @@ def process_symbol_chunk(symbol_chunk, db_config):
                 bbands_lower, bbands_middle, bbands_upper,
                 atr, adx, ad, cmf, mfi, dm, marketwatch,
                 td_sequential, td_combo,
-                pivot_high, pivot_low,
+                pivot_high, pivot_low, pivot_high_triggered, pivot_low_triggered,
                 fetched_at
             ) VALUES %s
             ON CONFLICT (symbol, date) DO UPDATE SET
@@ -1809,13 +1810,21 @@ def process_symbol_chunk(symbol_chunk, db_config):
                 td_combo = EXCLUDED.td_combo,
                 pivot_high = EXCLUDED.pivot_high,
                 pivot_low = EXCLUDED.pivot_low,
+                pivot_high_triggered = EXCLUDED.pivot_high_triggered,
+                pivot_low_triggered = EXCLUDED.pivot_low_triggered,
                 fetched_at = EXCLUDED.fetched_at
             """
             # Log a sample of the actual SQL and data being inserted
             logging.info(f"[DEBUG] Insert query: {insert_query.splitlines()[0]} ...")
             logging.info(f"[DEBUG] First insert tuple: {all_insert_data[0] if all_insert_data else 'NO DATA'}")
-            execute_values(cur, insert_query, all_insert_data, page_size=5000)
-            conn.commit()
+            try:
+                execute_values(cur, insert_query, all_insert_data, page_size=5000)
+                conn.commit()
+            except Exception as e:
+                logging.error(f"❌ Bulk insert failed: {e}")
+                if all_insert_data:
+                    logging.error(f"❌ First tuple: {all_insert_data[0]}")
+                raise
             bulk_insert_time = time.time() - bulk_insert_start
             records_per_sec = len(all_insert_data) / bulk_insert_time if bulk_insert_time > 0 else 0
             logging.info(f"🚀 ULTRA-FAST bulk insert: {len(all_insert_data)} records in {bulk_insert_time:.2f}s ({records_per_sec:.0f} records/sec)")
