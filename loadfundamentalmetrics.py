@@ -36,11 +36,13 @@ def get_db_conn():
     return psycopg2.connect(**cfg)
 
 # --- Table name ---
-TABLE_NAME = "fundamental_metrics"
+TABLE_NAME = "earnings_metrics"
+SECOND_TABLE_NAME = "future_metrics"  # Placeholder for future use
 
-# --- Drop and create table ---
-def create_table(conn):
+# --- Drop and create tables ---
+def create_tables(conn):
     with conn.cursor() as cur:
+        # Drop and create earnings_metrics
         cur.execute(f"""
         DROP TABLE IF EXISTS {TABLE_NAME};
         CREATE TABLE {TABLE_NAME} (
@@ -64,13 +66,21 @@ def create_table(conn):
             PRIMARY KEY(symbol, report_date)
         );
         """)
+        # Drop and create future_metrics (empty for now)
+        cur.execute(f"""
+        DROP TABLE IF EXISTS {SECOND_TABLE_NAME};
+        CREATE TABLE {SECOND_TABLE_NAME} (
+            id SERIAL PRIMARY KEY
+            -- Add columns for future metrics here
+        );
+        """)
         conn.commit()
-        logging.info(f"Table {TABLE_NAME} created.")
+        logging.info(f"Tables {TABLE_NAME} and {SECOND_TABLE_NAME} created.")
 
 # --- Main loader logic ---
 def main():
     conn = get_db_conn()
-    create_table(conn)
+    create_tables(conn)
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     # --- Load earnings data ---

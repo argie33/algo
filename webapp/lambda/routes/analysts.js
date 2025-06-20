@@ -35,11 +35,14 @@ router.get('/upgrades', async (req, res) => {
       query(countQuery)
     ]);
 
-    const total = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(total / limit);
+    // Map company_name to company for frontend compatibility
+    const mappedRows = upgradesResult.rows.map(row => ({
+      ...row,
+      company: row.company_name
+    }));
 
     res.json({
-      data: upgradesResult.rows,
+      data: mappedRows,
       pagination: {
         page,
         limit,
@@ -50,7 +53,8 @@ router.get('/upgrades', async (req, res) => {
       }
     });
 
-  } catch (error) {    console.error('Error fetching analyst upgrades:', error);
+  } catch (error) {
+    console.error('Error fetching analyst upgrades:', error);
     res.status(500).json({ 
       error: 'Failed to fetch analyst upgrades',
       message: error.message 
