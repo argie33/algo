@@ -35,11 +35,21 @@ router.get('/upgrades', async (req, res) => {
       query(countQuery)
     ]);
 
+    if (!upgradesResult || !Array.isArray(upgradesResult.rows)) {
+      throw new Error('No rows returned from analyst_upgrade_downgrade query');
+    }
+    if (!countResult || !Array.isArray(countResult.rows) || countResult.rows.length === 0) {
+      throw new Error('No count returned from analyst_upgrade_downgrade query');
+    }
+
     // Map company_name to company for frontend compatibility
     const mappedRows = upgradesResult.rows.map(row => ({
       ...row,
       company: row.company_name
     }));
+
+    const total = parseInt(countResult.rows[0].total);
+    const totalPages = Math.ceil(total / limit);
 
     res.json({
       data: mappedRows,

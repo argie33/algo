@@ -1,0 +1,49 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  DataLoaderStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: DataLoaderStateMachineNoTechnicalsBuySell
+      RoleArn: arn:aws:iam::123456789012:role/StepFunctionsExecutionRole  # Replace with your role
+      DefinitionString:
+        !Sub |
+          {
+            "Comment": "Data loader workflow without technicals and buy/sell steps.",
+            "StartAt": "LoadEarningsHistory",
+            "States": {
+              "LoadEarningsHistory": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::ecs:runTask.sync",
+                "Parameters": {
+                  "Cluster": "${EcsClusterArn}",
+                  "TaskDefinition": "${EarningsHistoryTaskDefinitionArn}",
+                  "LaunchType": "FARGATE",
+                  "Overrides": {},
+                  "NetworkConfiguration": {
+                    "AwsvpcConfiguration": {
+                      "Subnets": ["${SubnetA}", "${SubnetB}"],
+                      "AssignPublicIp": "ENABLED"
+                    }
+                  }
+                },
+                "Next": "LoadEarningsEstimates"
+              },
+              "LoadEarningsEstimates": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::ecs:runTask.sync",
+                "Parameters": {
+                  "Cluster": "${EcsClusterArn}",
+                  "TaskDefinition": "${EarningsEstimateTaskDefinitionArn}",
+                  "LaunchType": "FARGATE",
+                  "Overrides": {},
+                  "NetworkConfiguration": {
+                    "AwsvpcConfiguration": {
+                      "Subnets": ["${SubnetA}", "${SubnetB}"],
+                      "AssignPublicIp": "ENABLED"
+                    }
+                  }
+                },
+                "End": true
+              }
+            }
+          }
