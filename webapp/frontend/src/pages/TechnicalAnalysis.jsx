@@ -39,7 +39,8 @@ import {
   TrendingUp,
   TrendingDown,
   ShowChart,
-  InfoOutlined
+  InfoOutlined,
+  TrendingFlat
 } from '@mui/icons-material';
 import { formatNumber, formatDate, getTechStatus } from '../utils/formatters';
 import { getTechnicalData } from '../services/api';
@@ -164,6 +165,14 @@ function TechnicalAnalysis() {
     { id: 'pivot_low_triggered', label: 'Pivot L Triggered', sortable: true }
   ];
 
+  const techStatusIconMap = {
+    up: <TrendingUp color="success" />,
+    down: <TrendingDown color="error" />,
+    neutral: <ShowChart color="info" />,
+    flat: <TrendingFlat color="warning" />,
+    info: <InfoOutlined color="disabled" />
+  };
+
   // --- Accordion rendering for each row (fixed syntax, requirements met) ---
   const renderAccordionTable = () => (
     <Box sx={{ width: '100%' }}>
@@ -185,7 +194,7 @@ function TechnicalAnalysis() {
               </Grid>
               <Grid item xs={2}>
                 <Box display="flex" alignItems="center" gap={1}>
-                  {getTechStatus('rsi', row.rsi).icon}
+                  {techStatusIconMap[getTechStatus('rsi', row.rsi).icon]}
                   <Typography variant="body2" color={getTechStatus('rsi', row.rsi).color} fontWeight="bold">
                     RSI: {formatNumber(row.rsi)}
                   </Typography>
@@ -193,7 +202,7 @@ function TechnicalAnalysis() {
               </Grid>
               <Grid item xs={2}>
                 <Box display="flex" alignItems="center" gap={1}>
-                  {getTechStatus('macd', row.macd).icon}
+                  {techStatusIconMap[getTechStatus('macd', row.macd).icon]}
                   <Typography variant="body2" color={getTechStatus('macd', row.macd).color} fontWeight="bold">
                     MACD: {formatNumber(row.macd)}
                   </Typography>
@@ -201,7 +210,7 @@ function TechnicalAnalysis() {
               </Grid>
               <Grid item xs={2}>
                 <Box display="flex" alignItems="center" gap={1}>
-                  {getTechStatus('adx', row.adx).icon}
+                  {techStatusIconMap[getTechStatus('adx', row.adx).icon]}
                   <Typography variant="body2" color={getTechStatus('adx', row.adx).color} fontWeight="bold">
                     ADX: {formatNumber(row.adx)}
                   </Typography>
@@ -209,7 +218,7 @@ function TechnicalAnalysis() {
               </Grid>
               <Grid item xs={2}>
                 <Box display="flex" alignItems="center" gap={1}>
-                  {getTechStatus('atr', row.atr).icon}
+                  {techStatusIconMap[getTechStatus('atr', row.atr).icon]}
                   <Typography variant="body2" color={getTechStatus('atr', row.atr).color} fontWeight="bold">
                     ATR: {formatNumber(row.atr)}
                   </Typography>
@@ -217,7 +226,7 @@ function TechnicalAnalysis() {
               </Grid>
               <Grid item xs={2}>
                 <Box display="flex" alignItems="center" gap={1}>
-                  {getTechStatus('mfi', row.mfi).icon}
+                  {techStatusIconMap[getTechStatus('mfi', row.mfi).icon]}
                   <Typography variant="body2" color={getTechStatus('mfi', row.mfi).color} fontWeight="bold">
                     MFI: {formatNumber(row.mfi)}
                   </Typography>

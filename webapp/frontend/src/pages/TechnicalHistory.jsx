@@ -4,7 +4,7 @@ import { getTechnicalData } from '../services/api';
 import {
   Container, Typography, Box, Card, CardContent, Divider, Button, Paper, Table, TableHead, TableRow, TableCell, TableBody, TablePagination, TextField, CircularProgress, Alert, Chip
 } from '@mui/material';
-import { TrendingUp, TrendingDown, ShowChart, InfoOutlined } from '@mui/icons-material';
+import { TrendingUp, TrendingDown, ShowChart, InfoOutlined, TrendingFlat } from '@mui/icons-material';
 import { formatNumber, formatDate, getTechStatus } from '../utils/formatters';
 import { useTheme } from '@mui/material/styles';
 
@@ -108,6 +108,15 @@ function TechnicalHistory() {
     { id: 'pivot_low_triggered', label: 'Pivot L Triggered' }
   ];
 
+  // Icon map for getTechStatus
+  const techStatusIconMap = {
+    up: <TrendingUp color="success" />,
+    down: <TrendingDown color="error" />,
+    neutral: <ShowChart color="info" />,
+    flat: <TrendingFlat color="warning" />,
+    info: <InfoOutlined color="disabled" />
+  };
+
   // Helper to ensure only valid MUI Chip color values are used for the color prop
   const getMuiChipColor = (color) => {
     const validColors = ['default','primary','secondary','error','info','success','warning'];
@@ -191,7 +200,7 @@ function TechnicalHistory() {
                   {columns.map(col => (
                     <TableCell key={col.id} align={typeof row[col.id] === 'number' ? 'right' : 'left'} sx={{ whiteSpace: 'nowrap', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', color: getIndicatorColor(getTechStatus(col.id, row[col.id]).color) }}>
                       <Box display="flex" alignItems="center" gap={1}>
-                        {getTechStatus(col.id, row[col.id]).icon}
+                        {techStatusIconMap[getTechStatus(col.id, row[col.id]).icon]}
                         <Typography variant="body2" fontWeight="bold">
                           {col.format ? col.format(row[col.id]) : (row[col.id] !== undefined && row[col.id] !== null ? formatNumber(row[col.id]) : 'N/A')}
                         </Typography>
