@@ -187,7 +187,7 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
           Market Overview
         </Typography>
         <Alert severity="error">
-          Failed to load market data: {marketError.message}
+          Failed to load market data: {marketError.message || JSON.stringify(marketError)}
         </Alert>
       </Box>
     )
