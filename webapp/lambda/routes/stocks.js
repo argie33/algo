@@ -1647,6 +1647,7 @@ router.get('/:ticker/metrics', async (req, res) => {
       error: 'Failed to fetch financial metrics', 
       symbol: req.params.ticker,
       message: error.message,
+      data: [], // Always return data as an array for frontend safety
       timestamp: new Date().toISOString()
     });
   }
@@ -2196,7 +2197,6 @@ router.get('/bulk/price-data', async (req, res) => {  try {
         message: 'Use ?symbols=AAPL,MSFT,GOOGL to specify symbols',
         example: '/api/stocks/bulk/price-data?symbols=AAPL,MSFT,GOOGL&period=1m',
         supportedIntervals: ['daily', 'weekly', 'monthly'],
-        supportedPeriods: ['1m', '3m', '6m', '1y', '2y', 'max']
       });
     }
     
