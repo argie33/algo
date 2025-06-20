@@ -14,7 +14,7 @@ function TechnicalHistory() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10); // Reduced from 25 for faster load
+  const [rowsPerPage, setRowsPerPage] = useState(5); // Reduced from 25 for faster load
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [total, setTotal] = useState(0);
@@ -118,7 +118,12 @@ function TechnicalHistory() {
                     {latest[id] !== undefined && latest[id] !== null ? formatNumber(latest[id]) : 'N/A'}
                   </Typography>
                   {getTechStatus(id, latest[id]).label && (
-                    <Chip label={getTechStatus(id, latest[id]).label} size="small" sx={{ ml: 1 }} color={getTechStatus(id, latest[id]).color.replace('.main','') || 'default'} />
+                    <Chip 
+                      label={getTechStatus(id, latest[id]).label} 
+                      size="small" 
+                      sx={{ ml: 1 }} 
+                      color={['default','primary','secondary','error','info','success','warning'].includes((getTechStatus(id, latest[id]).color || '').replace('.main','')) ? (getTechStatus(id, latest[id]).color || '').replace('.main','') : 'default'}
+                    />
                   )}
                 </Box>
               ))}
@@ -160,7 +165,12 @@ function TechnicalHistory() {
                           {col.format ? col.format(row[col.id]) : (row[col.id] !== undefined && row[col.id] !== null ? formatNumber(row[col.id]) : 'N/A')}
                         </Typography>
                         {getTechStatus(col.id, row[col.id]).label && (
-                          <Chip label={getTechStatus(col.id, row[col.id]).label} size="small" sx={{ ml: 0.5 }} color={getTechStatus(col.id, row[col.id]).color.replace('.main','') || 'default'} />
+                          <Chip 
+                            label={getTechStatus(col.id, row[col.id]).label} 
+                            size="small" 
+                            sx={{ ml: 0.5 }} 
+                            color={['default','primary','secondary','error','info','success','warning'].includes((getTechStatus(col.id, row[col.id]).color || '').replace('.main','')) ? (getTechStatus(col.id, row[col.id]).color || '').replace('.main','') : 'default'}
+                          />
                         )}
                       </Box>
                     </TableCell>
