@@ -323,51 +323,72 @@ export const getStockRecommendations = (ticker) =>
 export const getSectors = () => api.get('/stocks/filters/sectors')
 
 // Metrics
-export const getValuationMetrics = (params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-  
-  return api.get(`/metrics/valuation?${queryParams.toString()}`)
+export const getValuationMetrics = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value)
+      }
+    })
+    const response = await api.get(`/metrics/valuation?${queryParams.toString()}`)
+    return response.data
+  } catch (error) {
+    console.error('Error fetching valuation metrics:', error)
+    const errorMessage = handleApiError(error, 'get valuation metrics')
+    return { data: [], error: errorMessage }
+  }
 }
 
-export const getGrowthMetrics = (params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-  
-  return api.get(`/metrics/growth?${queryParams.toString()}`)
+export const getGrowthMetrics = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value)
+      }
+    })
+    const response = await api.get(`/metrics/growth?${queryParams.toString()}`)
+    return response.data
+  } catch (error) {
+    console.error('Error fetching growth metrics:', error)
+    const errorMessage = handleApiError(error, 'get growth metrics')
+    return { data: [], error: errorMessage }
+  }
 }
 
-export const getDividendMetrics = (params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-  
-  return api.get(`/metrics/dividends?${queryParams.toString()}`)
+export const getDividendMetrics = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value)
+      }
+    })
+    const response = await api.get(`/metrics/dividends?${queryParams.toString()}`)
+    return response.data
+  } catch (error) {
+    console.error('Error fetching dividend metrics:', error)
+    const errorMessage = handleApiError(error, 'get dividend metrics')
+    return { data: [], error: errorMessage }
+  }
 }
 
-export const getFinancialStrengthMetrics = (params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-    return api.get(`/metrics/financial-strength?${queryParams.toString()}`)
+export const getFinancialStrengthMetrics = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value)
+      }
+    })
+    const response = await api.get(`/metrics/financial-strength?${queryParams.toString()}`)
+    return response.data
+  } catch (error) {
+    console.error('Error fetching financial strength metrics:', error)
+    const errorMessage = handleApiError(error, 'get financial strength metrics')
+    return { data: [], error: errorMessage }
+  }
 }
 
 // New method for stock screening with proper parameter handling
@@ -448,16 +469,21 @@ export const getEarningsEstimates = async (params = {}) => {
   }
 }
 
-export const getEarningsHistory = (params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-  
-  return api.get(`/calendar/earnings-history?${queryParams.toString()}`)
+export const getEarningsHistory = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value)
+      }
+    })
+    const response = await api.get(`/calendar/earnings-history?${queryParams.toString()}`)
+    return response.data
+  } catch (error) {
+    console.error('Error fetching earnings history:', error)
+    const errorMessage = handleApiError(error, 'get earnings history')
+    return { data: [], error: errorMessage }
+  }
 }
 
 export const getTickerEarningsEstimates = (ticker) => 
