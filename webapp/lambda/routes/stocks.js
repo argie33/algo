@@ -81,8 +81,6 @@ router.get('/', async (req, res) => {
         cp.industry_disp,
         cp.business_summary,
         cp.employee_count,
-        cp.website_url,
-        cp.ir_website_url,
         cp.address1,
         cp.city,
         cp.state,
@@ -230,8 +228,6 @@ router.get('/', async (req, res) => {
       employeeCount: stock.employee_count,
       
       // Contact information
-      website: stock.website_url,
-      investorRelationsWebsite: stock.ir_website_url,
       address: {
         street: stock.address1,
         city: stock.city,
@@ -437,8 +433,8 @@ router.get('/', async (req, res) => {
           // Company profile data
           'short_name', 'long_name', 'display_name', 'quote_type',
           'sector', 'sector_disp', 'industry', 'industry_disp',
-          'business_summary', 'employee_count', 'website_url', 
-          'ir_website_url', 'address1', 'city', 'state', 'postal_code',
+          'business_summary', 'employee_count', /*'website_url',*/ 
+          /*'ir_website_url',*/ 'address1', 'city', 'state', 'postal_code',
           'country', 'phone_number', 'currency', 'market', 'full_exchange_name',
           
           // Market data
@@ -1669,7 +1665,7 @@ router.get('/:ticker/financial-overview', async (req, res) => {
         cp.industry_disp,
         cp.business_summary,
         cp.employee_count,
-        cp.website_url,
+        -- REMOVED: cp.website_url,
         
         -- Current market data
         md.current_price,
@@ -1744,7 +1740,7 @@ router.get('/:ticker/financial-overview', async (req, res) => {
         industry: data.industry_disp,
         description: data.business_summary,
         employees: parseInt(data.employee_count || 0),
-        website: data.website_url
+        // REMOVED: website: data.website_url
       },
       
       // Stock Price
@@ -2314,7 +2310,7 @@ router.get('/debug/raw/:symbol', async (req, res) => {
         ss.symbol,
         ss.security_name,
         cp.ticker as cp_ticker,
-        cp.short_name, cp.long_name, cp.business_summary, cp.employee_count, cp.website_url, cp.country,
+        cp.short_name, cp.long_name, cp.business_summary, cp.employee_count, /*cp.website_url,*/ cp.country,
         md.ticker as md_ticker,
         md.current_price, md.previous_close, md.day_low, md.day_high, md.volume, md.average_volume,
         km.ticker as km_ticker,
