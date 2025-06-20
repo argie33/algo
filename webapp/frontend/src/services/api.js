@@ -905,6 +905,19 @@ export const testApiConnection = async (customUrl = null) => {
   }
 }
 
+// Diagnostic function for ServiceHealth
+export const getDiagnosticInfo = () => {
+  return {
+    currentApiUrl: currentConfig.baseURL,
+    axiosDefaultBaseUrl: api.defaults.baseURL,
+    viteApiUrl: import.meta.env.VITE_API_URL,
+    isConfigured: currentConfig.isConfigured,
+    environment: import.meta.env.MODE,
+    urlsMatch: currentConfig.baseURL === api.defaults.baseURL,
+    timestamp: new Date().toISOString()
+  }
+}
+
 // Export all methods as a default object for easier importing
 export default {
   healthCheck,
@@ -960,6 +973,10 @@ export default {
   getTechnicalSummary,
   getDataValidationSummary,
   getEarningsMetrics,
-  testApiConnection
+  testApiConnection,
+  getDiagnosticInfo,
+  getApiConfig,
+  getCurrentBaseURL,
+  updateApiBaseUrl
 }
 
