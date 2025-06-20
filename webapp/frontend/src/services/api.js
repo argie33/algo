@@ -663,221 +663,36 @@ export const getKeyMetrics = async (ticker) => {
 }
 
 // Comprehensive financial data endpoint
-export const getAllFinancialData = (params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-  
-  return api.get(`/financials/all?${queryParams.toString()}`)
-}
-
-// Financial metrics aggregation
-export const getFinancialMetrics = (params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-  
-  return api.get(`/financials/metrics?${queryParams.toString()}`)
-}
-
-// General analyst data endpoints (for market-wide analysis)
-export const getEpsRevisions = (params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-  
-  return api.get(`/analysts/eps-revisions?${queryParams.toString()}`)
-}
-
-export const getEpsTrend = (params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-  
-  return api.get(`/analysts/eps-trend?${queryParams.toString()}`)
-}
-
-export const getGrowthEstimates = (params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-  
-  return api.get(`/analysts/growth-estimates?${queryParams.toString()}`)
-}
-
-// Economic and market data endpoints
-export const getEconomicData = (params = {}) => {
-  const queryParams = new URLSearchParams()
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value)
-    }
-  })
-  
-  return api.get(`/market/economic-data?${queryParams.toString()}`)
-}
-
-export const getNaaimData = async (params = {}) => {
+export const getAllFinancialData = async (params = {}) => {
   try {
     const queryParams = new URLSearchParams()
-    
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
         queryParams.append(key, value)
       }
     })
-      return await api.get(`/market/naaim?${queryParams.toString()}`, {
-      baseURL: currentConfig.baseURL
-    })
+    const response = await api.get(`/financials/all?${queryParams.toString()}`)
+    return response.data
   } catch (error) {
-    const errorMessage = handleApiError(error, 'get NAAIM data')
+    const errorMessage = handleApiError(error, 'get all financial data')
     return { data: [], error: errorMessage }
   }
 }
 
-export const getFearGreedData = async (params = {}) => {
+export const getFinancialMetrics = async (params = {}) => {
   try {
     const queryParams = new URLSearchParams()
-    
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
         queryParams.append(key, value)
       }
     })
-      return await api.get(`/market/fear-greed?${queryParams.toString()}`, {      
-      baseURL: currentConfig.baseURL
-    })
+    const response = await api.get(`/financials/metrics?${queryParams.toString()}`)
+    return response.data
   } catch (error) {
-    const errorMessage = handleApiError(error, 'get Fear & Greed data')
+    const errorMessage = handleApiError(error, 'get financial metrics')
     return { data: [], error: errorMessage }
   }
-}
-
-// Data validation endpoints
-export const getDataValidationSummary = async () => {
-  try {
-    return await api.get('/data/validation-summary', {
-      baseURL: currentConfig.baseURL
-    })
-  } catch (error) {
-    const errorMessage = handleApiError(error, 'data validation summary')
-    return { data: [], error: errorMessage }
-  }
-}
-
-// Technical analysis endpoints
-export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
-  try {
-    const queryParams = new URLSearchParams()
-    
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        queryParams.append(key, value)
-      }
-    })
-    
-    const url = `/technical/${timeframe}?${queryParams.toString()}`
-    console.log('Fetching technical data from:', url)
-    
-    const response = await api.get(url, {
-      baseURL: currentConfig.baseURL
-    })
-    
-    console.log('Technical data response:', response.data)
-    
-    // Return consistent structure: { data: [...], pagination: {...}, metadata: {...} }
-    if (response.data.success) {
-      return {
-        data: response.data.data, // The actual array of technical data
-        pagination: response.data.pagination,
-        metadata: response.data.metadata
-      }
-    } else {
-      return { 
-        data: [], 
-        error: response.data.error || 'Unknown error',
-        pagination: null,
-        metadata: null
-      }
-    }
-  } catch (error) {
-    console.error('Error fetching technical data:', error)
-    const errorMessage = handleApiError(error, `get technical data (${timeframe})`)
-    // Return a consistent error response structure
-    return { 
-      data: [], 
-      error: errorMessage,
-      pagination: null,
-      metadata: null
-    }
-  }
-}
-
-export const getTechnicalSummary = async (timeframe = 'daily', params = {}) => {
-  try {
-    const queryParams = new URLSearchParams()
-    
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        queryParams.append(key, value)
-      }
-    })
-    
-    const response = await api.get(`/technical/${timeframe}/summary?${queryParams.toString()}`)
-    
-    // Return consistent structure
-    if (response.data.success) {
-      return {
-        data: response.data.data,
-        metadata: response.data.metadata
-      }
-    } else {
-      return { 
-        data: null, 
-        error: response.data.error || 'Unknown error',
-        metadata: null
-      }
-    }
-  } catch (error) {
-    console.error('Error fetching technical summary:', error)
-    const errorMessage = handleApiError(error, `get technical summary (${timeframe})`)
-    return { 
-      data: null, 
-      error: errorMessage,
-      metadata: null
-    }
-  }
-}
-
-// Earnings metrics endpoint
-export const getEarningsMetrics = async (params = {}) => {
-  const queryParams = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') queryParams.append(key, value);
-  });
-  const res = await api.get(`/earningsmetrics?${queryParams.toString()}`);
-  return res.data;
 }
 
 // Export all methods as a default object for easier importing
