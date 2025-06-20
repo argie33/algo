@@ -1142,7 +1142,7 @@ def process_symbol_chunk(symbol_chunk, db_config):
             ) VALUES %s
             ON CONFLICT (symbol, date) DO UPDATE SET
                 rsi = EXCLUDED.rsi,
-                macd = EXCLUDED.macd,AND 
+                macd = EXCLUDED.macd, 
                 macd_signal = EXCLUDED.macd_signal,
                 macd_hist = EXCLUDED.macd_hist,
                 mom = EXCLUDED.mom,
