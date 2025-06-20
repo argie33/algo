@@ -212,6 +212,7 @@ router.get('/:timeframe', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to fetch technical data',
       details: error.message,
+      data: [], // Always return data as an array for frontend safety
       timestamp: new Date().toISOString()
     });
   }
