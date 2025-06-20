@@ -2956,21 +2956,22 @@ Resources:
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
               
-  FundamentalMetricsLoaderService:
-    Type: AWS::ECS::Service
-    Properties:
-      Cluster: !ImportValue StocksCore-EcsClusterName
-      TaskDefinition: !Ref FundamentalMetricsTaskDefinition
-      DesiredCount: 0
-      LaunchType: FARGATE
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          Subnets:
-            - !ImportValue StocksCore-PublicSubnet1Id
-            - !ImportValue StocksCore-PublicSubnet2Id
-          SecurityGroups:
-            - !ImportValue StocksCore-EcsSecurityGroupId
-          AssignPublicIp: ENABLED
+  LatestBuySellMonthlyLoaderService:
+      Type: AWS::ECS::Service
+      Properties:
+        ServiceName: latestbuysellmonthly-loader-service
+        Cluster: !ImportValue StocksApp-ClusterArn
+        LaunchType: FARGATE
+        DesiredCount: 0
+        TaskDefinition: !Ref LatestBuySellMonthlyTaskDefinition
+        NetworkConfiguration:
+          AwsvpcConfiguration:
+            Subnets:
+              - !ImportValue StocksCore-PublicSubnet1Id
+              - !ImportValue StocksCore-PublicSubnet2Id
+            SecurityGroups:
+              - !ImportValue StocksApp-EcsTasksSecurityGroupId
+            AssignPublicIp: ENABLED
 
 # --- Outputs ---
 
