@@ -1,4 +1,4 @@
-import axios from 'axios'
+import axios from 'axios' 
 
 // Get API configuration - exported for ServiceHealth
 export const getApiConfig = () => {
