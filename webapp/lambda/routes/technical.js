@@ -52,10 +52,8 @@ router.get('/:timeframe', async (req, res) => {
       whereClause += ` AND t.date >= $${paramIndex}`;
       params.push(req.query.start_date);
       paramIndex++;
-    } else {
-      // Default: Only get the most recent day if no start_date is specified
-      whereClause += ` AND t.date = (SELECT MAX(date) FROM ${tableName})`;
-    }
+    } 
+    // else: do not restrict by date, return all data
 
     if (req.query.end_date) {
       whereClause += ` AND t.date <= $${paramIndex}`;
