@@ -209,11 +209,19 @@ export const getMarketOverview = async () => {
   }
 }
 
+// Helper to unwrap { data: ... } if present, else return as-is
+const unwrapApiResponse = (responseData) => {
+  if (responseData && typeof responseData === 'object' && 'data' in responseData && Object.keys(responseData).length === 1) {
+    return responseData.data
+  }
+  return responseData
+}
+
 // Patch: Always return parsed data for all API methods
 export const getMarketSentimentHistory = async (days = 30) => {
   try {
     const response = await api.get(`/market/sentiment/history?days=${days}`)
-    return { data: response.data }
+    return { data: unwrapApiResponse(response.data) }
   } catch (error) {
     const errorMessage = handleApiError(error, 'get market sentiment history')
     return { data: [], error: errorMessage }
@@ -223,7 +231,7 @@ export const getMarketSentimentHistory = async (days = 30) => {
 export const getMarketSectorPerformance = async () => {
   try {
     const response = await api.get('/market/sectors/performance')
-    return { data: response.data }
+    return { data: unwrapApiResponse(response.data) }
   } catch (error) {
     const errorMessage = handleApiError(error, 'get market sector performance')
     return { data: [], error: errorMessage }
@@ -233,7 +241,7 @@ export const getMarketSectorPerformance = async () => {
 export const getMarketBreadth = async () => {
   try {
     const response = await api.get('/market/breadth')
-    return { data: response.data }
+    return { data: unwrapApiResponse(response.data) }
   } catch (error) {
     const errorMessage = handleApiError(error, 'get market breadth')
     return { data: [], error: errorMessage }
@@ -243,7 +251,7 @@ export const getMarketBreadth = async () => {
 export const getEconomicIndicators = async (days = 90) => {
   try {
     const response = await api.get(`/market/economic?days=${days}`)
-    return { data: response.data }
+    return { data: unwrapApiResponse(response.data) }
   } catch (error) {
     const errorMessage = handleApiError(error, 'get economic indicators')
     return { data: [], error: errorMessage }
@@ -710,6 +718,21 @@ export const getCashFlowStatement = async (ticker, period = 'annual') => {
   } catch (error) {
     console.error('Error fetching cash flow statement:', error)
     const errorMessage = handleApiError(error, `get cash flow statement for ${ticker}`)
+    return { data: [], error: errorMessage }
+  }
+}
+
+export const getBalanceSheet = async (ticker, period = 'annual') => {
+  try {
+    const url = `/financials/${ticker}/balance-sheet?period=${period}`
+    const response = await api.get(url, {
+      baseURL: currentConfig.baseURL
+    })
+    console.log('Balance sheet response:', response.data)
+    return { data: response.data }
+  } catch (error) {
+    console.error('Error fetching balance sheet:', error)
+    const errorMessage = handleApiError(error, `get balance sheet for ${ticker}`)
     return { data: [], error: errorMessage }
   }
 }
