@@ -6,6 +6,7 @@ import {
 } from '@mui/material';
 import { TrendingUp, TrendingDown, ShowChart, InfoOutlined } from '@mui/icons-material';
 import { formatNumber, formatDate, getTechStatus } from '../utils/formatters';
+import { useTheme } from '@mui/material/styles';
 
 function TechnicalHistory() {
   const { symbol } = useParams();
@@ -18,6 +19,7 @@ function TechnicalHistory() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [total, setTotal] = useState(0);
+  const theme = useTheme();
 
   // --- Summary/overview ---
   const latest = data && data.length > 0 ? data[0] : null;
@@ -97,6 +99,25 @@ function TechnicalHistory() {
     { id: 'pivot_low', label: 'Pivot L' }
   ];
 
+  // Helper to ensure only valid MUI Chip color values are used
+  const getMuiChipColor = (color) => {
+    const validColors = ['default','primary','secondary','error','info','success','warning'];
+    if (!color) return 'default';
+    const cleaned = color.replace('.main','');
+    return validColors.includes(cleaned) ? cleaned : 'default';
+  };
+
+  // Helper to get themed color for indicators
+  const getIndicatorColor = (color) => {
+    if (!color) return undefined;
+    const cleaned = color.replace('.main','');
+    const validColors = ['primary','secondary','error','info','success','warning'];
+    if (validColors.includes(cleaned) && theme.palette[cleaned]) {
+      return theme.palette[cleaned].main;
+    }
+    return undefined;
+  };
+
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       <Button variant="outlined" onClick={() => navigate(-1)} sx={{ mb: 2 }}>Back</Button>
@@ -111,10 +132,10 @@ function TechnicalHistory() {
               {summaryIndicators.map(({ id, label }) => (
                 <Box key={id} minWidth={120} display="flex" alignItems="center" gap={1}>
                   {getTechStatus(id, latest[id]).icon}
-                  <Typography variant="subtitle2" color={getTechStatus(id, latest[id]).color} fontWeight="bold">
+                  <Typography variant="subtitle2" color={getIndicatorColor(getTechStatus(id, latest[id]).color)} fontWeight="bold">
                     {label}:
                   </Typography>
-                  <Typography variant="h6" color={getTechStatus(id, latest[id]).color} fontWeight="bold">
+                  <Typography variant="h6" color={getIndicatorColor(getTechStatus(id, latest[id]).color)} fontWeight="bold">
                     {latest[id] !== undefined && latest[id] !== null ? formatNumber(latest[id]) : 'N/A'}
                   </Typography>
                   {getTechStatus(id, latest[id]).label && (
@@ -122,7 +143,7 @@ function TechnicalHistory() {
                       label={getTechStatus(id, latest[id]).label} 
                       size="small" 
                       sx={{ ml: 1 }} 
-                      color={['default','primary','secondary','error','info','success','warning'].includes((getTechStatus(id, latest[id]).color || '').replace('.main','')) ? (getTechStatus(id, latest[id]).color || '').replace('.main','') : 'default'}
+                      color={getMuiChipColor(getTechStatus(id, latest[id]).color)}
                     />
                   )}
                 </Box>
@@ -158,7 +179,7 @@ function TechnicalHistory() {
               {data.map((row, i) => (
                 <TableRow key={row.date + '-' + i} hover sx={{ '&:hover': { background: '#f0f4ff' } }}>
                   {columns.map(col => (
-                    <TableCell key={col.id} align={typeof row[col.id] === 'number' ? 'right' : 'left'} sx={{ whiteSpace: 'nowrap', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', color: getTechStatus(col.id, row[col.id]).color }}>
+                    <TableCell key={col.id} align={typeof row[col.id] === 'number' ? 'right' : 'left'} sx={{ whiteSpace: 'nowrap', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', color: getIndicatorColor(getTechStatus(col.id, row[col.id]).color) }}>
                       <Box display="flex" alignItems="center" gap={1}>
                         {getTechStatus(col.id, row[col.id]).icon}
                         <Typography variant="body2" fontWeight="bold">
@@ -169,7 +190,7 @@ function TechnicalHistory() {
                             label={getTechStatus(col.id, row[col.id]).label} 
                             size="small" 
                             sx={{ ml: 0.5 }} 
-                            color={['default','primary','secondary','error','info','success','warning'].includes((getTechStatus(col.id, row[col.id]).color || '').replace('.main','')) ? (getTechStatus(col.id, row[col.id]).color || '').replace('.main','') : 'default'}
+                            color={getMuiChipColor(getTechStatus(col.id, row[col.id]).color)}
                           />
                         )}
                       </Box>
