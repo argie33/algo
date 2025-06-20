@@ -2943,7 +2943,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: fundamentalmetrics-loader
-          Image: !Sub "${StocksCoreContainerRepositoryUri}:${FundamentalMetricsImageTag}"
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref FundamentalMetricsImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -2955,7 +2955,7 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
-
+              
   FundamentalMetricsLoaderService:
     Type: AWS::ECS::Service
     Properties:

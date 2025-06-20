@@ -415,9 +415,3 @@ Outputs:
     Value: !GetAtt EcsTasksSecurityGroup.GroupId
     Export:
       Name: StocksApp-EcsTasksSecurityGroupId
-
-  StocksCoreContainerRepositoryUri:
-    Description: URI of the ECR repository for core containers
-    Value: !GetAtt StocksCoreRepository.RepositoryUri
-    Export:
-      Name: StocksCoreContainerRepositoryUri
