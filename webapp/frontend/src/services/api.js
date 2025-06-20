@@ -2,14 +2,14 @@ import axios from 'axios'
 
 // Get API configuration - exported for ServiceHealth 
 export const getApiConfig = () => {
-  // Get API URL from environment variable (set by workflow)
-  const apiUrl = import.meta.env.VITE_API_URL
-  
+  // Dynamic API URL resolution: runtime > build-time > fallback
+  let runtimeApiUrl = (typeof window !== 'undefined' && window.__CONFIG__ && window.__CONFIG__.API_URL) ? window.__CONFIG__.API_URL : null;
+  const apiUrl = runtimeApiUrl || import.meta.env.VITE_API_URL || 'http://localhost:3001';
   return {
-    baseURL: apiUrl || 'http://localhost:3001', // Fallback for development
-    isServerless: !!apiUrl, // Only true if VITE_API_URL is set
-    apiUrl: apiUrl || 'http://localhost:3001',
-    isConfigured: !!apiUrl,
+    baseURL: apiUrl,
+    isServerless: !!apiUrl && !apiUrl.includes('localhost'),
+    apiUrl: apiUrl,
+    isConfigured: !!apiUrl && !apiUrl.includes('localhost'),
     environment: import.meta.env.MODE,
     isDevelopment: import.meta.env.DEV,
     isProduction: import.meta.env.PROD,
@@ -24,10 +24,15 @@ let currentConfig = getApiConfig()
 console.log('API Configuration:', {
   baseURL: currentConfig.baseURL,
   isServerless: currentConfig.isServerless,
-  hostname: window.location.hostname,
+  hostname: typeof window !== 'undefined' ? window.location.hostname : 'SSR',
   viteMode: import.meta.env.MODE,
   apiUrl: currentConfig.apiUrl
 })
+
+// Warn if API URL is fallback (localhost)
+if (!currentConfig.apiUrl || currentConfig.apiUrl.includes('localhost')) {
+  console.warn('[API CONFIG] Using fallback API URL:', currentConfig.baseURL + '\nSet window.__CONFIG__.API_URL at runtime or VITE_API_URL at build time to override.')
+}
 
 const api = axios.create({
   baseURL: currentConfig.baseURL,
@@ -76,7 +81,8 @@ const retryRequest = async (error) => {
 // Request interceptor for logging and Lambda optimization
 api.interceptors.request.use(
   (config) => {
-    console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`)
+    const fullUrl = `${config.baseURL || api.defaults.baseURL}${config.url}`
+    console.log(`[API REQUEST] ${config.method?.toUpperCase()} ${fullUrl}`)
       // Add headers for Lambda optimization
     if (config.isServerless) {
       config.headers['X-Lambda-Request'] = 'true'
@@ -91,36 +97,11 @@ api.interceptors.request.use(
   }
 )
 
-// Enhanced error handling and debugging
-const handleApiError = (error, endpoint = 'unknown') => {
-  console.error(`API Error on ${endpoint}:`, {
-    message: error.message,
-    response: error.response?.data,
-    status: error.response?.status,
-    config: error.config?.url,
-    baseURL: error.config?.baseURL
-  })
-  
-  // More specific error messages
-  if (!error.response) {
-    // Network error - can't reach server
-    if (error.code === 'ECONNABORTED') {
-      return `Request timeout on ${endpoint}. The server may be starting up.`
-    } else {
-      return `Network error on ${endpoint}. Check if API server is running and accessible.`
-    }
-  } else if (error.response.status >= 500) {
-    return `Server error on ${endpoint}: ${error.response.data?.message || error.message}`
-  } else if (error.response.status === 404) {
-    return `Endpoint not found: ${endpoint}`
-  } else {
-    return `API error on ${endpoint}: ${error.response.data?.message || error.message}`
-  }
-}
-
-// Response interceptor for error handling and retries
+// Enhanced diagnostics: Log every response's status and data
 api.interceptors.response.use(
   (response) => {
+    const fullUrl = `${response.config.baseURL || api.defaults.baseURL}${response.config.url}`
+    console.log(`[API RESPONSE] ${response.status} from ${fullUrl}`, response.data)
     // Log Lambda execution details if available
     if (response.headers['x-amzn-requestid']) {
       console.log(`✅ Lambda Request ID: ${response.headers['x-amzn-requestid']}`)
