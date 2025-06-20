@@ -684,6 +684,36 @@ export const getFinancialStatements = async (ticker, period = 'annual') => {
   }
 }
 
+export const getIncomeStatement = async (ticker, period = 'annual') => {
+  try {
+    const url = `/financials/${ticker}/income-statement?period=${period}`
+    const response = await api.get(url, {
+      baseURL: currentConfig.baseURL
+    })
+    console.log('Income statement response:', response.data)
+    return { data: response.data }
+  } catch (error) {
+    console.error('Error fetching income statement:', error)
+    const errorMessage = handleApiError(error, `get income statement for ${ticker}`)
+    return { data: [], error: errorMessage }
+  }
+}
+
+export const getCashFlowStatement = async (ticker, period = 'annual') => {
+  try {
+    const url = `/financials/${ticker}/cash-flow?period=${period}`
+    const response = await api.get(url, {
+      baseURL: currentConfig.baseURL
+    })
+    console.log('Cash flow response:', response.data)
+    return { data: response.data }
+  } catch (error) {
+    console.error('Error fetching cash flow statement:', error)
+    const errorMessage = handleApiError(error, `get cash flow statement for ${ticker}`)
+    return { data: [], error: errorMessage }
+  }
+}
+
 // Key metrics endpoint
 export const getKeyMetrics = async (ticker) => {
   try {
