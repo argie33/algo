@@ -919,5 +919,6 @@ export default {
   getTechnicalData,
   getTechnicalSummary,
   getDataValidationSummary,
-  getEarningsMetrics
+  getEarningsMetrics,
+  testApiConnection
 }
