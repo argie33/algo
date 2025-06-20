@@ -797,6 +797,74 @@ export const getNaaimData = async (params = {}) => {
   }
 }
 
+// Economic Data endpoint
+export const getEconomicData = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value)
+      }
+    })
+    const response = await api.get(`/economic/data?${queryParams.toString()}`)
+    return response.data
+  } catch (error) {
+    const errorMessage = handleApiError(error, 'get economic data')
+    return { data: [], error: errorMessage }
+  }
+}
+
+// Fear & Greed Data endpoint
+export const getFearGreedData = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value)
+      }
+    })
+    const response = await api.get(`/market/fear-greed?${queryParams.toString()}`)
+    return response.data
+  } catch (error) {
+    const errorMessage = handleApiError(error, 'get fear & greed data')
+    return { data: [], error: errorMessage }
+  }
+}
+
+// Technical Summary endpoint
+export const getTechnicalSummary = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value)
+      }
+    })
+    const response = await api.get(`/technical/summary?${queryParams.toString()}`)
+    return response.data
+  } catch (error) {
+    const errorMessage = handleApiError(error, 'get technical summary')
+    return { data: [], error: errorMessage }
+  }
+}
+
+// Earnings Metrics endpoint
+export const getEarningsMetrics = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value)
+      }
+    })
+    const response = await api.get(`/earnings/metrics?${queryParams.toString()}`)
+    return response.data
+  } catch (error) {
+    const errorMessage = handleApiError(error, 'get earnings metrics')
+    return { data: [], error: errorMessage }
+  }
+}
+
 // Export all methods as a default object for easier importing
 export default {
   healthCheck,
@@ -854,55 +922,64 @@ export default {
   getEarningsMetrics
 }
 
-// Test API Connection
-export const testApiConnection = async (customUrl = null) => {
-  try {    console.log('Testing API connection...')
-    console.log('Current API URL:', currentConfig.baseURL)
-    console.log('Custom URL:', customUrl)
-    console.log('Environment:', import.meta.env.MODE)
-    console.log('VITE_API_URL:', import.meta.env.VITE_API_URL)
-      const testUrl = customUrl || currentConfig.baseURL
-    const response = await api.get('/health?quick=true', {
-      baseURL: testUrl,
-      timeout: 10000
-    })
-    
-    return {
-      success: true,
-      apiUrl: testUrl,
-      status: response.status,
-      data: response.data,
-      message: 'API connection successful'
-    }
-  } catch (error) {
-    console.error('API connection test failed:', error)
-    
-    return {
-      success: false,
-      apiUrl: customUrl || currentConfig.baseURL,
-      error: error.message,
-      details: {
-        hasResponse: !!error.response,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        responseData: error.response?.data,
-        code: error.code,
-        isNetworkError: !error.response,
-        configUrl: error.config?.url,
-        fullUrl: (customUrl || currentConfig.baseURL) + '/health?quick=true'
-      }    }
-  }
-}
-
-// Diagnostic function for ServiceHealth
-export const getDiagnosticInfo = () => {
-  return {
-    currentApiUrl: currentConfig.baseURL,
-    axiosDefaultBaseUrl: api.defaults.baseURL,
-    viteApiUrl: import.meta.env.VITE_API_URL,
-    isConfigured: currentConfig.isConfigured,
-    environment: import.meta.env.MODE,
-    urlsMatch: currentConfig.baseURL === api.defaults.baseURL,
-    timestamp: new Date().toISOString()
-  }
+// Ensure all API methods are available as named exports for robust frontend imports
+export {
+  healthCheck,
+  getMarketOverview,
+  getMarketSentimentHistory,
+  getMarketSectorPerformance,
+  getMarketBreadth,
+  getEconomicIndicators,
+  getStocks,
+  getStocksQuick,
+  getStocksChunk,
+  getStocksFull,
+  getStock,
+  getStockProfile,
+  getStockMetrics,
+  getStockFinancials,
+  getAnalystRecommendations,
+  getStockPrices,
+  getStockPricesRecent,
+  getStockRecommendations,
+  getSectors,
+  getValuationMetrics,
+  getGrowthMetrics,
+  getDividendMetrics,
+  getFinancialStrengthMetrics,
+  screenStocks,
+  getBuySignals,
+  getSellSignals,
+  getEarningsEstimates,
+  getEarningsHistory,
+  getTickerEarningsEstimates,
+  getTickerEarningsHistory,
+  getTickerRevenueEstimates,
+  getTickerEpsRevisions,
+  getTickerEpsTrend,
+  getTickerGrowthEstimates,
+  getTickerAnalystRecommendations,
+  getAnalystOverview,
+  getBalanceSheet,
+  getIncomeStatement,
+  getCashFlowStatement,
+  getFinancialStatements,
+  getKeyMetrics,
+  getAllFinancialData,
+  getFinancialMetrics,
+  getEpsRevisions,
+  getEpsTrend,
+  getGrowthEstimates,
+  getEconomicData,
+  getNaaimData,
+  getFearGreedData,
+  getTechnicalData,
+  getTechnicalSummary,
+  getDataValidationSummary,
+  getEarningsMetrics,
+  testApiConnection,
+  getApiConfig,
+  getCurrentBaseURL,
+  updateApiBaseUrl,
+  getDiagnosticInfo
 }
