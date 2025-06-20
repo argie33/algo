@@ -4,7 +4,7 @@ import { getTechnicalData } from '../services/api';
 import {
   Container, Typography, Box, Card, CardContent, Divider, Button, Paper, Table, TableHead, TableRow, TableCell, TableBody, TablePagination, TextField, CircularProgress, Alert, Chip
 } from '@mui/material';
-import { TrendingUp, TrendingDown, ShowChart, InfoOutlined, TrendingFlat } from '@mui/icons-material';
+import { TrendingUp, TrendingDown, ShowChart, InfoOutlined } from '@mui/icons-material';
 import { formatNumber, formatDate, getTechStatus } from '../utils/formatters';
 import { useTheme } from '@mui/material/styles';
 
@@ -27,7 +27,9 @@ function TechnicalHistory() {
     { id: 'rsi', label: 'RSI' },
     { id: 'macd', label: 'MACD' },
     { id: 'pivot_high', label: 'Pivot H' },
-    { id: 'pivot_low', label: 'Pivot L' }
+    { id: 'pivot_low', label: 'Pivot L' },
+    { id: 'pivot_high_triggered', label: 'Pivot H Triggered' },
+    { id: 'pivot_low_triggered', label: 'Pivot L Triggered' }
   ];
 
   const fetchData = async () => {
@@ -50,17 +52,10 @@ function TechnicalHistory() {
     setLoading(false);
   };
 
-  // Debounce fetchData to avoid excessive API calls
   useEffect(() => {
-    let timeout = setTimeout(() => {
-      fetchData();
-    }, 250); // 250ms debounce
-    return () => clearTimeout(timeout);
+    fetchData();
     // eslint-disable-next-line
   }, [symbol, page, rowsPerPage, dateFrom, dateTo]);
-
-  // Only fetch on mount and when symbol changes, not on every page/row change
-  // useEffect(() => { fetchData(); }, [symbol]);
 
   const handlePageChange = (event, newPage) => setPage(newPage);
   const handleRowsPerPageChange = (event) => {
@@ -70,7 +65,7 @@ function TechnicalHistory() {
 
   // Add a Load More button for progressive loading
   const handleLoadMore = () => {
-    setRowsPerPage(prev => prev + 25); // Increase by 25 for faster batch loading
+    setRowsPerPage(prev => prev + 10);
   };
 
   // --- Table columns (match TechnicalAnalysis) ---
@@ -107,15 +102,6 @@ function TechnicalHistory() {
     { id: 'pivot_high_triggered', label: 'Pivot H Triggered' },
     { id: 'pivot_low_triggered', label: 'Pivot L Triggered' }
   ];
-
-  // Icon map for getTechStatus
-  const techStatusIconMap = {
-    up: <TrendingUp color="success" />,
-    down: <TrendingDown color="error" />,
-    neutral: <ShowChart color="info" />,
-    flat: <TrendingFlat color="warning" />,
-    info: <InfoOutlined color="disabled" />
-  };
 
   // Helper to ensure only valid MUI Chip color values are used for the color prop
   const getMuiChipColor = (color) => {
@@ -200,7 +186,7 @@ function TechnicalHistory() {
                   {columns.map(col => (
                     <TableCell key={col.id} align={typeof row[col.id] === 'number' ? 'right' : 'left'} sx={{ whiteSpace: 'nowrap', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', color: getIndicatorColor(getTechStatus(col.id, row[col.id]).color) }}>
                       <Box display="flex" alignItems="center" gap={1}>
-                        {techStatusIconMap[getTechStatus(col.id, row[col.id]).icon]}
+                        {getTechStatus(col.id, row[col.id]).icon}
                         <Typography variant="body2" fontWeight="bold">
                           {col.format ? col.format(row[col.id]) : (row[col.id] !== undefined && row[col.id] !== null ? formatNumber(row[col.id]) : 'N/A')}
                         </Typography>

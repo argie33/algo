@@ -2336,4 +2336,30 @@ router.get('/debug/raw/:symbol', async (req, res) => {
   }
 });
 
+// Price data endpoint for a symbol
+router.get('/api/stocks/:symbol/price-data', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    if (!symbol) {
+      return res.status(400).json({ error: 'Missing symbol parameter' });
+    }
+    // Query all price data for the symbol from price_daily
+    const priceQuery = `
+      SELECT date, open, high, low, close, adj_close, volume, dividends, stock_splits
+      FROM price_daily
+      WHERE symbol = $1
+      ORDER BY date ASC
+    `;
+    const result = await query(priceQuery, [symbol.toUpperCase()]);
+    res.json({
+      symbol: symbol.toUpperCase(),
+      count: result.rows.length,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error in price-data endpoint:', error);
+    res.status(500).json({ error: 'Failed to fetch price data', details: error.message });
+  }
+});
+
 module.exports = router;
