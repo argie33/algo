@@ -99,11 +99,12 @@ function TechnicalHistory() {
     { id: 'pivot_low', label: 'Pivot L' }
   ];
 
-  // Helper to ensure only valid MUI Chip color values are used
+  // Helper to ensure only valid MUI Chip color values are used for the color prop
   const getMuiChipColor = (color) => {
     const validColors = ['default','primary','secondary','error','info','success','warning'];
     if (!color) return 'default';
-    const cleaned = color.replace('.main','');
+    // Remove any .main or similar suffixes
+    const cleaned = String(color).replace('.main','').toLowerCase();
     return validColors.includes(cleaned) ? cleaned : 'default';
   };
 
