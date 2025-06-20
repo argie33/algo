@@ -729,9 +729,10 @@ function StockExplorer() {
                     sx={{ minWidth: 150 }}
                   >
                     <MenuItem value="symbol">Symbol</MenuItem>
-                    <MenuItem value="security_name">Company Name</MenuItem>
                     <MenuItem value="exchange">Exchange</MenuItem>
-                    <MenuItem value="market_category">Category</MenuItem>
+                    {/* Remove unsupported sort options to match backend allowedSorts */}
+                    {/* <MenuItem value="security_name">Company Name</MenuItem> */}
+                    {/* <MenuItem value="market_category">Category</MenuItem> */}
                   </TextField>
                   
                   <Button

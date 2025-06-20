@@ -151,12 +151,23 @@ router.get('/:timeframe', async (req, res) => {
 
     console.log('Executing queries with limit:', limit, 'offset:', offset);
 
+    // Log the final SQL query and parameters for debugging
+    console.log('Final SQL Query:', dataQuery);
+    console.log('Query Parameters:', [...params, limit, offset]);
+
     const [dataResult, countResult] = await Promise.all([
       query(dataQuery, [...params, limit, offset]),
       query(countQuery, params)
     ]);
 
     console.log('Query results - data:', dataResult.rows.length, 'total:', countResult.rows[0].total);
+
+    // Log a sample data row only if data exists
+    if (dataResult.rows && dataResult.rows.length > 0) {
+      console.log('Sample data row:', dataResult.rows[0]);
+    } else {
+      console.log('No data rows returned from technical query.');
+    }
 
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);

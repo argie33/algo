@@ -102,6 +102,18 @@ function TechnicalAnalysis() {
     setActiveFilters(count);
   }, [symbolFilter, indicatorFilter, indicatorMin, indicatorMax]);
 
+  // Log the technicalData and error for debugging
+  useEffect(() => {
+    if (technicalData) {
+      // eslint-disable-next-line no-console
+      console.log('TechnicalAnalysis: technicalData', technicalData);
+    }
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.error('TechnicalAnalysis: error', error);
+    }
+  }, [technicalData, error]);
+
   const handleSearch = () => {
     setSymbolFilter(searchInput.trim());
     setPage(0);

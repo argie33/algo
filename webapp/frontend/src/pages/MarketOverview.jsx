@@ -87,9 +87,9 @@ const MetricTable = ({ data, columns, title }) => (
 const logger = createComponentLogger('MarketOverview');
 
 function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
-  const { data: marketData, isLoading: marketLoading, error: marketError } = useQuery(
-    'market-overview',
-    async () => {
+  const { data: marketData, isLoading: marketLoading, error: marketError } = useQuery({
+    queryKey: ['market-overview'],
+    queryFn: async () => {
       try {
         const result = await getMarketOverview();
         logger.success('getMarketOverview', result);
@@ -99,15 +99,13 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
         throw err;
       }
     },
-    { 
-      refetchInterval: 60000,
-      onError: (err) => logger.queryError('market-overview', err)
-    }
-  )
+    refetchInterval: 60000,
+    onError: (err) => logger.queryError('market-overview', err)
+  });
 
-  const { data: sentimentData, isLoading: sentimentLoading } = useQuery(
-    'market-sentiment-history',
-    async () => {
+  const { data: sentimentData, isLoading: sentimentLoading } = useQuery({
+    queryKey: ['market-sentiment-history'],
+    queryFn: async () => {
       try {
         const result = await getMarketSentimentHistory(30);
         logger.success('getMarketSentimentHistory', result, { days: 30 });
@@ -117,15 +115,13 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
         throw err;
       }
     },
-    { 
-      enabled: tabValue === 1,
-      onError: (err) => logger.queryError('market-sentiment-history', err)
-    }
-  )
+    enabled: tabValue === 1,
+    onError: (err) => logger.queryError('market-sentiment-history', err)
+  });
 
-  const { data: sectorData, isLoading: sectorLoading } = useQuery(
-    'market-sector-performance',
-    async () => {
+  const { data: sectorData, isLoading: sectorLoading } = useQuery({
+    queryKey: ['market-sector-performance'],
+    queryFn: async () => {
       try {
         const result = await getMarketSectorPerformance();
         logger.success('getMarketSectorPerformance', result);
@@ -135,15 +131,13 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
         throw err;
       }
     },
-    { 
-      enabled: tabValue === 2,
-      onError: (err) => logger.queryError('market-sector-performance', err)
-    }
-  )
+    enabled: tabValue === 2,
+    onError: (err) => logger.queryError('market-sector-performance', err)
+  });
 
-  const { data: breadthData, isLoading: breadthLoading } = useQuery(
-    'market-breadth',
-    async () => {
+  const { data: breadthData, isLoading: breadthLoading } = useQuery({
+    queryKey: ['market-breadth'],
+    queryFn: async () => {
       try {
         const result = await getMarketBreadth();
         logger.success('getMarketBreadth', result);
@@ -153,15 +147,13 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
         throw err;
       }
     },
-    { 
-      enabled: tabValue === 3,
-      onError: (err) => logger.queryError('market-breadth', err)
-    }
-  )
+    enabled: tabValue === 3,
+    onError: (err) => logger.queryError('market-breadth', err)
+  });
 
-  const { data: economicData, isLoading: economicLoading } = useQuery(
-    'economic-indicators',
-    async () => {
+  const { data: economicData, isLoading: economicLoading } = useQuery({
+    queryKey: ['economic-indicators'],
+    queryFn: async () => {
       try {
         const result = await getEconomicIndicators(90);
         logger.success('getEconomicIndicators', result, { days: 90 });
@@ -171,11 +163,9 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
         throw err;
       }
     },
-    { 
-      enabled: tabValue === 4,
-      onError: (err) => logger.queryError('economic-indicators', err)
-    }
-  )
+    enabled: tabValue === 4,
+    onError: (err) => logger.queryError('economic-indicators', err)
+  });
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue)
