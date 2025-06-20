@@ -788,7 +788,7 @@ function StockExplorer() {
 
                   {/* Stock Accordions */}
                   <Box sx={{ width: '100%' }}>
-                    {stocksData.data?.map((stock) => (
+                    {(Array.isArray(stocksData?.data) ? stocksData.data : []).map((stock) => (
                       <Accordion
                         key={stock.symbol}
                         expanded={expandedStock === stock.symbol}
