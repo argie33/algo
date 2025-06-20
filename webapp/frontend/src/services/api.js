@@ -865,6 +865,8 @@ export const getEarningsMetrics = async (params = {}) => {
   }
 }
 
+export { testApiConnection }
+
 // Export all methods as a default object for easier importing
 export default {
   healthCheck,
@@ -923,4 +925,3 @@ export default {
   testApiConnection
 }
 
-export { testApiConnection }
