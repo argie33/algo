@@ -1,23 +1,4 @@
 #!/usr/bin/env python3
-"""
-Technical Indicators Daily Loader - Enhanced Version
-
-RECENT FIXES APPLIED:
-1. MFI (Money Flow Index): Enhanced edge case handling and NaN filling
-2. A/D (Accumulation/Distribution): Improved division by zero protection  
-3. CMF (Chaikin Money Flow): Better handling of high==low cases
-4. MW (MarketWatch): Enhanced direction tracking and logging
-5. DM (Directional Movement): Complete rewrite with proper smoothing
-6. Pivot H/L: Already robust Pine Script implementation maintained
-7. Data Validation: Added comprehensive checks for volume data availability
-8. Error Handling: Enhanced logging and debugging for all indicators
-
-All indicators now have:
-- Proper NaN handling
-- Division by zero protection  
-- Enhanced logging and debugging
-- Validation of input data quality
-"""
 import sys
 import time
 import logging
@@ -45,8 +26,8 @@ warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
 # -------------------------------
 SCRIPT_NAME = "loadtechnicalsdaily.py"
 logging.basicConfig(
-    level=logging.DEBUG,  # Changed to DEBUG for maximum verbosity
-    format="%(asctime)s - %(levelname)s - [%(funcName)s:%(lineno)d] - %(message)s",
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
     stream=sys.stdout
 )
 
@@ -74,6 +55,7 @@ TECHNICALS_COLUMNS = [
     "ema_4", "ema_9", "ema_21",
     "bbands_lower", "bbands_middle", "bbands_upper",
     "pivot_high", "pivot_low",
+    "pivot_high_triggered", "pivot_low_triggered",
     "fetched_at"
 ]
 
@@ -112,50 +94,8 @@ def sanitize_value(x):
         return float(x)
     elif isinstance(x, np.bool_):
         return bool(x)
+    
     return x
-
-def enhanced_indicator_validation(df, symbol):
-    """Enhanced validation to catch N/A values and symbol-specific issues"""
-    logging.info(f"🔍 ENHANCED VALIDATION for {symbol}")
-    
-    # Check for any string "N/A" values that might have been inserted
-    na_string_columns = []
-    for col in df.columns:
-        if col in ['symbol', 'date']:
-            continue
-        if df[col].dtype == 'object':
-            na_strings = df[col].astype(str).str.contains('N/A', na=False).sum()
-            if na_strings > 0:
-                na_string_columns.append((col, na_strings))
-                logging.warning(f"    ⚠️ {col}: Found {na_strings} 'N/A' string values")
-    
-    # Check for potential data quality issues
-    problematic_indicators = []
-    for col in df.columns:
-        if col in ['symbol', 'date']:
-            continue
-        
-        # Check for all-zero values (suspicious)
-        if df[col].dtype in ['float64', 'int64']:
-            zero_count = (df[col] == 0).sum()
-            if zero_count == len(df) and len(df) > 0:
-                problematic_indicators.append((col, 'all_zeros'))
-                logging.warning(f"    ⚠️ {col}: ALL VALUES ARE ZERO (suspicious)")
-    
-    # Log symbol-specific statistics for key indicators
-    key_indicators = ['mfi', 'ad', 'cmf', 'pivot_high', 'pivot_low']
-    for indicator in key_indicators:
-        if indicator in df.columns:
-            valid_count = df[indicator].notna().sum()
-            total_count = len(df)
-            if valid_count == 0:
-                logging.error(f"    ❌ {symbol}: {indicator} has NO valid values")
-            elif valid_count < total_count * 0.5:
-                logging.warning(f"    ⚠️ {symbol}: {indicator} has only {valid_count}/{total_count} valid values")
-            else:
-                logging.info(f"    ✅ {symbol}: {indicator} has {valid_count}/{total_count} valid values")
-    
-    return na_string_columns, problematic_indicators
 
 # -------------------------------
 # ULTRA-FAST PURE NUMPY TECHNICAL INDICATORS
@@ -328,221 +268,63 @@ def roc_fast(values, period=10):
     return roc.fillna(0)
 
 def ad_line_fast(high, low, close, volume):
-    """Accumulation/Distribution Line - improved implementation with detailed logging"""
-    logging.debug(f"🔍 A/D: Starting calculation")
-    logging.debug(f"🔍 A/D: Input lengths - high:{len(high)}, low:{len(low)}, close:{len(close)}, volume:{len(volume)}")
-    
+    """Accumulation/Distribution Line"""
     if len(high) == 0:
-        logging.warning(f"⚠️  A/D: No data provided")
         return pd.Series([], dtype=float)
     
-    # Check for volume data quality
-    volume_valid = (volume > 0).sum()
-    logging.debug(f"🔍 A/D: Volume data - total:{len(volume)}, valid:{volume_valid}, zero:{(volume == 0).sum()}")
-    
-    if volume_valid == 0:
-        logging.error(f"❌ A/D: No valid volume data - cannot calculate A/D line")
-        return pd.Series(np.full(len(high), np.nan), index=high.index)
-    
-    # Money Flow Multiplier - handle edge cases where high == low
-    high_low_diff = high - low
-    doji_count = (high_low_diff == 0).sum()
-    logging.debug(f"🔍 A/D: Price ranges - min:{high_low_diff.min():.4f}, max:{high_low_diff.max():.4f}, doji_days:{doji_count}")
-    
-    high_low_diff = high_low_diff.replace(0, 1e-10)  # Avoid division by zero
-    
-    mfm = ((close - low) - (high - close)) / high_low_diff
-    logging.debug(f"🔍 A/D: Money Flow Multiplier - min:{mfm.min():.4f}, max:{mfm.max():.4f}")
+    # Money Flow Multiplier
+    mfm = ((close - low) - (high - close)) / (high - low + 1e-10)
     
     # Money Flow Volume
     mfv = mfm * volume
-    logging.debug(f"🔍 A/D: Money Flow Volume - min:{mfv.min():.2f}, max:{mfv.max():.2f}")
     
-    # A/D Line (cumulative) - handle NaN values properly
-    ad_line = mfv.fillna(0).cumsum()
-    
-    valid_count = ad_line.notna().sum()
-    logging.debug(f"🔍 A/D: Final A/D line - valid:{valid_count}/{len(ad_line)}")
-    logging.debug(f"🔍 A/D: Sample values: {ad_line.tail(5).tolist()}")
-    
-    return ad_line
+    # A/D Line (cumulative)
+    ad_line = mfv.cumsum()
+    return ad_line.fillna(0)
 
 def cmf_fast(high, low, close, volume, period=20):
-    """Chaikin Money Flow - improved implementation with detailed logging"""
-    logging.debug(f"🔍 CMF: Starting calculation with period={period}")
-    logging.debug(f"🔍 CMF: Input lengths - high:{len(high)}, low:{len(low)}, close:{len(close)}, volume:{len(volume)}")
-    
+    """Chaikin Money Flow"""
     if len(high) < period:
-        logging.warning(f"⚠️  CMF: Insufficient data - need {period}, got {len(high)}")
         return pd.Series(np.full(len(high), np.nan), index=high.index)
     
-    # Check volume data
-    volume_stats = {
-        'positive': (volume > 0).sum(),
-        'zero': (volume == 0).sum(),
-        'negative': (volume < 0).sum(),
-        'sum': volume.sum()
-    }
-    logging.debug(f"🔍 CMF: Volume stats = {volume_stats}")
-    
-    if volume_stats['positive'] == 0:
-        logging.error(f"❌ CMF: No positive volume values found")
-        return pd.Series(np.full(len(high), np.nan), index=high.index)
-    
-    # Money Flow Multiplier - handle edge cases where high == low
-    high_low_diff = high - low
-    doji_count = (high_low_diff == 0).sum()
-    logging.debug(f"🔍 CMF: Price ranges - doji_days:{doji_count}, min_range:{high_low_diff.min():.4f}")
-    
-    high_low_diff = high_low_diff.replace(0, 1e-10)  # Avoid division by zero
-    
-    mfm = ((close - low) - (high - close)) / high_low_diff
-    logging.debug(f"🔍 CMF: Money Flow Multiplier range: {mfm.min():.4f} to {mfm.max():.4f}")
+    # Money Flow Multiplier
+    mfm = ((close - low) - (high - close)) / (high - low + 1e-10)
     
     # Money Flow Volume
     mfv = mfm * volume
-    logging.debug(f"🔍 CMF: Money Flow Volume sum: {mfv.sum():.2f}")
     
     # CMF calculation using rolling sums
     mfv_sum = mfv.rolling(window=period, min_periods=period).sum()
     volume_sum = volume.rolling(window=period, min_periods=period).sum()
-    
-    # Avoid division by zero in volume sum
     cmf = mfv_sum / (volume_sum + 1e-10)
-    result = cmf.fillna(0)
     
-    valid_count = result.notna().sum()
-    logging.debug(f"🔍 CMF: Final results - valid:{valid_count}/{len(result)}, mean:{result.mean():.4f}")
-    logging.debug(f"🔍 CMF: Sample values: {result.dropna().tail(5).tolist()}")
-    
-    return result
-
-def dm_fast(high, low, period=14):
-    """Directional Movement calculation - properly implemented with detailed logging"""
-    logging.debug(f"🔍 DM: Starting calculation with period={period}")
-    logging.debug(f"🔍 DM: Input lengths - high:{len(high)}, low:{len(low)}")
-    
-    if len(high) < 2:
-        logging.warning(f"⚠️  DM: Insufficient data - need at least 2 points, got {len(high)}")
-        return pd.Series(np.full(len(high), np.nan), index=high.index)
-    
-    # Calculate high and low differences
-    high_diff = high.diff()
-    low_diff = low.shift(1) - low
-    
-    logging.debug(f"🔍 DM: High diff stats - min:{high_diff.min():.4f}, max:{high_diff.max():.4f}")
-    logging.debug(f"🔍 DM: Low diff stats - min:{low_diff.min():.4f}, max:{low_diff.max():.4f}")
-    
-    # Calculate +DM and -DM
-    plus_dm = pd.Series(np.where((high_diff > low_diff) & (high_diff > 0), high_diff, 0), index=high.index)
-    minus_dm = pd.Series(np.where((low_diff > high_diff) & (low_diff > 0), low_diff, 0), index=high.index)
-    
-    plus_dm_count = (plus_dm > 0).sum()
-    minus_dm_count = (minus_dm > 0).sum()
-    logging.debug(f"🔍 DM: +DM signals: {plus_dm_count}, -DM signals: {minus_dm_count}")
-    
-    # Smooth the DM values with EMA
-    plus_dm_smooth = plus_dm.ewm(span=period, adjust=False).mean()
-    minus_dm_smooth = minus_dm.ewm(span=period, adjust=False).mean()
-    
-    # Return the difference (can also return plus_dm_smooth or minus_dm_smooth separately)
-    dm = plus_dm_smooth - minus_dm_smooth
-    result = dm.fillna(0)
-    
-    valid_count = result.notna().sum()
-    logging.debug(f"🔍 DM: Final results - valid:{valid_count}/{len(result)}, mean:{result.mean():.4f}")
-    logging.debug(f"🔍 DM: Sample values: {result.tail(5).tolist()}")
-    
-    return result
+    return cmf.fillna(0)
 
 def mfi_fast(high, low, close, volume, period=14):
-    """Money Flow Index - improved implementation with detailed logging and better error handling"""
-    logging.debug(f"🔍 MFI: Starting calculation with period={period}")
-    logging.debug(f"🔍 MFI: Input lengths - high:{len(high)}, low:{len(low)}, close:{len(close)}, volume:{len(volume)}")
-    
-    # More lenient data requirement - allow calculation with less data but warn
+    """Money Flow Index"""
     if len(high) < period + 1:
-        if len(high) >= 10:  # Allow with at least 10 days but use shorter period
-            adjusted_period = max(5, len(high) - 5)  # Use shorter period
-            logging.warning(f"⚠️  MFI: Using adjusted period {adjusted_period} instead of {period} (insufficient data: {len(high)} days)")
-            period = adjusted_period
-        else:
-            logging.warning(f"⚠️  MFI: Insufficient data - need at least 10 days, got {len(high)}")
-            return pd.Series(np.full(len(high), np.nan), index=high.index)
-    
-    # Check volume data quality with more detailed analysis
-    volume_stats = {
-        'total_rows': len(volume),
-        'non_null': volume.notna().sum(),
-        'positive': (volume > 0).sum(),
-        'zero': (volume == 0).sum(),
-        'negative': (volume < 0).sum(),
-        'mean': volume.mean() if volume.notna().sum() > 0 else 0,
-        'max': volume.max() if volume.notna().sum() > 0 else 0,
-        'min': volume.min() if volume.notna().sum() > 0 else 0
-    }
-    logging.debug(f"🔍 MFI: Volume stats = {volume_stats}")
-    
-    # More lenient volume check - allow if at least 50% of data has positive volume
-    positive_ratio = volume_stats['positive'] / volume_stats['total_rows'] if volume_stats['total_rows'] > 0 else 0
-    
-    if volume_stats['positive'] == 0:
-        logging.error(f"❌ MFI: No positive volume values found - cannot calculate MFI")
         return pd.Series(np.full(len(high), np.nan), index=high.index)
-    elif positive_ratio < 0.5:
-        logging.warning(f"⚠️  MFI: Low volume data quality - only {positive_ratio:.1%} positive volume values")
-        # Replace zero/negative volume with small positive value to allow calculation
-        volume_clean = volume.copy()
-        volume_clean = volume_clean.where(volume_clean > 0, volume_clean.median() * 0.01)
-        logging.warning(f"⚠️  MFI: Replacing {volume_stats['zero'] + volume_stats['negative']} invalid volume values with minimal volume")
-    else:
-        volume_clean = volume
-        logging.info(f"✅ MFI: Good volume data quality - {positive_ratio:.1%} positive volume values")
     
     # Typical Price
     typical_price = (high + low + close) / 3
-    logging.debug(f"🔍 MFI: Typical price - min:{typical_price.min():.4f}, max:{typical_price.max():.4f}")
     
     # Raw Money Flow
-    raw_money_flow = typical_price * volume_clean
-    logging.debug(f"🔍 MFI: Raw money flow - min:{raw_money_flow.min():.2f}, max:{raw_money_flow.max():.2f}")
+    raw_money_flow = typical_price * volume
     
     # Positive and Negative Money Flow
     price_changes = typical_price.diff()
     pos_money_flow = raw_money_flow.where(price_changes > 0, 0)
     neg_money_flow = raw_money_flow.where(price_changes < 0, 0)
     
-    logging.debug(f"🔍 MFI: Positive money flow sum: {pos_money_flow.sum():.2f}")
-    logging.debug(f"🔍 MFI: Negative money flow sum: {neg_money_flow.sum():.2f}")
+    # Rolling sums
+    pos_sum = pos_money_flow.rolling(window=period, min_periods=period).sum()
+    neg_sum = neg_money_flow.rolling(window=period, min_periods=period).sum()
     
-    # Rolling sums with reduced min_periods for edge cases
-    min_periods_mfi = max(5, period // 2)  # Allow calculation with less data
-    pos_sum = pos_money_flow.rolling(window=period, min_periods=min_periods_mfi).sum()
-    neg_sum = neg_money_flow.rolling(window=period, min_periods=min_periods_mfi).sum()
-    
-    # MFI calculation with better handling of edge cases
-    money_ratio = pos_sum / (neg_sum + 1e-10)  # Avoid division by zero
+    # MFI calculation
+    money_ratio = pos_sum / (neg_sum + 1e-10)
     mfi = 100 - (100 / (1 + money_ratio))
     
-    # Better NaN handling - only fill obvious invalid values
-    # Keep NaN for initial periods where calculation isn't possible
-    result = mfi.copy()
-    
-    # Fill infinite or invalid values with neutral MFI
-    result = result.replace([np.inf, -np.inf], 50)
-    
-    # Log final results with more detail
-    valid_count = result.notna().sum()
-    nan_count = result.isna().sum()
-    logging.debug(f"🔍 MFI: Final results - valid:{valid_count}/{len(result)}, NaN:{nan_count}")
-    
-    if valid_count > 0:
-        logging.debug(f"🔍 MFI: Stats - mean:{result.mean():.2f}, min:{result.min():.2f}, max:{result.max():.2f}")
-        logging.debug(f"🔍 MFI: Sample values: {result.dropna().tail(5).tolist()}")
-    else:
-        logging.error(f"❌ MFI: All values are NaN - calculation failed completely")
-    
-    return result
+    return mfi.fillna(50)
 
 # -------------------------------
 # Updated function calls to use new implementations
@@ -596,170 +378,43 @@ def calculate_mfi(high, low, close, volume, period=14):
     """Pure NumPy Money Flow Index calculation"""
     return mfi_fast(high, low, close, volume, period)
 
-def calculate_dm(high, low, period=14):
-    """Pure NumPy Directional Movement calculation"""
-    return dm_fast(high, low, period)
-
 # -------------------------------
 # Custom Indicators (Pure NumPy/Pandas implementations)
 # -------------------------------
 
-def pivot_high(df, left_bars=3, right_bars=3, shunt=1):
-    """
-    Pine Script style pivot high calculation with shunt
-    This matches your Pine Script exactly:
-    pvthi_ = pivothigh(high, pvtLenL, pvtLenR) 
-    pvthi = pvthi_[Shunt]
+def pivot_high_vectorized(high, left_bars=3, right_bars=3):
+    """Vectorized pivot high calculation"""
+    if len(high) < left_bars + right_bars + 1:
+        return pd.Series(np.full(len(high), np.nan), index=high.index)
     
-    Args:
-        df: DataFrame with OHLC data
-        left_bars: bars to look left (default 3)
-        right_bars: bars to look right (default 3) 
-        shunt: bars to shift back after confirmation (default 1)
-    """
-    # DEBUG: Check if we have the required columns and valid data
-    if 'high' not in df.columns:
-        logging.error(f"❌ PIVOT ERROR: 'high' column missing from DataFrame. Available columns: {list(df.columns)}")
-        return pd.Series(np.full(len(df), np.nan), index=df.index)
+    result = pd.Series(np.full(len(high), np.nan), index=high.index)
     
-    # CRITICAL: FORCE SORT DATA BY DATE - This is essential for pivot calculations
-    if not df.index.is_monotonic_increasing:
-        logging.warning(f"⚠️  PIVOT WARNING: Data not sorted, forcing sort by date index for pivot calculations")
-        df = df.sort_index()
+    for i in range(left_bars, len(high) - right_bars):
+        # Check if current high is higher than surrounding bars
+        left_window = high.iloc[i-left_bars:i]
+        right_window = high.iloc[i+1:i+right_bars+1]
+        
+        if (high.iloc[i] > left_window.max()) and (high.iloc[i] > right_window.max()):
+            result.iloc[i] = high.iloc[i]
     
-    # Check for NaN values in high column
-    nan_count = df['high'].isna().sum()
-    if nan_count > 0:
-        logging.warning(f"⚠️  PIVOT WARNING: {nan_count} NaN values found in 'high' column out of {len(df)} rows")
-    
-    # Check for zero or negative values
-    invalid_count = (df['high'] <= 0).sum()
-    if invalid_count > 0:
-        logging.warning(f"⚠️  PIVOT WARNING: {invalid_count} zero/negative values found in 'high' column")
-    
-    pivot_vals = [np.nan] * len(df)
-    pivot_count = 0
-    
-    # First find raw pivots (like pvthi_)
-    for i in range(left_bars, len(df) - right_bars):
-        try:
-            current_high = df['high'].iloc[i]
-              # FIXED: Only skip NaN values, allow all positive prices including penny stocks
-            if pd.isna(current_high):
-                logging.debug(f"🔍 Skipping NaN high at index {i}")
-                continue
-            
-            # Check left bars - current high should be higher than all left bars
-            left_higher = True
-            for j in range(i - left_bars, i):
-                left_val = df['high'].iloc[j]
-                if pd.isna(left_val) or current_high <= left_val:
-                    left_higher = False
-                    break
-            
-            if not left_higher:
-                continue
-                  # Check right bars - current high should be higher than all right bars  
-            right_higher = True
-            for j in range(i + 1, i + right_bars + 1):
-                right_val = df['high'].iloc[j]
-                if pd.isna(right_val) or current_high <= right_val:
-                    right_higher = False
-                    break                    
-            if left_higher and right_higher:
-                # FIXED: Correct Pine Script shunt logic
-                # In Pine Script: pvthi_[Shunt] means "look back Shunt bars from current bar"
-                # The pivot is detected at bar i, but we want to place it at the actual pivot bar
-                # For pivot detection, we place the pivot value at the actual pivot bar (i)
-                pivot_vals[i] = current_high
-                pivot_count += 1
-                logging.debug(f"🔍 Pivot high found at bar {i}, value: {current_high:.4f}")
-        except Exception as e:
-            logging.error(f"❌ PIVOT ERROR at index {i}: {str(e)}")
-            continue
-    
-    if pivot_count == 0:
-        logging.warning(f"⚠️  PIVOT WARNING: No pivot highs found in {len(df)} bars of data")
-    
-    return pd.Series(pivot_vals, index=df.index)
+    return result
 
-def pivot_low(df, left_bars=3, right_bars=3, shunt=1):
-    """
-    Pine Script style pivot low calculation with shunt
-    This matches your Pine Script exactly:
-    pvtlo_ = pivotlow(low, pvtLenL, pvtLenR)
-    pvtlo = pvtlo_[Shunt]
+def pivot_low_vectorized(low, left_bars=3, right_bars=3):
+    """Vectorized pivot low calculation"""
+    if len(low) < left_bars + right_bars + 1:
+        return pd.Series(np.full(len(low), np.nan), index=low.index)
     
-    Args:
-        df: DataFrame with OHLC data  
-        left_bars: bars to look left (default 3)
-        right_bars: bars to look right (default 3)
-        shunt: bars to shift back after confirmation (default 1)
-    """
-    # DEBUG: Check if we have the required columns and valid data
-    if 'low' not in df.columns:
-        logging.error(f"❌ PIVOT ERROR: 'low' column missing from DataFrame. Available columns: {list(df.columns)}")
-        return pd.Series(np.full(len(df), np.nan), index=df.index)
+    result = pd.Series(np.full(len(low), np.nan), index=low.index)
     
-    # CRITICAL: FORCE SORT DATA BY DATE - This is essential for pivot calculations
-    if not df.index.is_monotonic_increasing:
-        logging.warning(f"⚠️  PIVOT WARNING: Data not sorted, forcing sort by date index for pivot calculations")
-        df = df.sort_index()
+    for i in range(left_bars, len(low) - right_bars):
+        # Check if current low is lower than surrounding bars
+        left_window = low.iloc[i-left_bars:i]
+        right_window = low.iloc[i+1:i+right_bars+1]
+        
+        if (low.iloc[i] < left_window.min()) and (low.iloc[i] < right_window.min()):
+            result.iloc[i] = low.iloc[i]
     
-    # Check for NaN values in low column
-    nan_count = df['low'].isna().sum()
-    if nan_count > 0:
-        logging.warning(f"⚠️  PIVOT WARNING: {nan_count} NaN values found in 'low' column out of {len(df)} rows")
-    
-    # Check for zero or negative values
-    invalid_count = (df['low'] <= 0).sum()
-    if invalid_count > 0:
-        logging.warning(f"⚠️  PIVOT WARNING: {invalid_count} zero/negative values found in 'low' column")
-    
-    pivot_vals = [np.nan] * len(df)
-    pivot_count = 0
-    
-    # First find raw pivots (like pvtlo_)
-    for i in range(left_bars, len(df) - right_bars):
-        try:
-            current_low = df['low'].iloc[i]
-              # FIXED: Only skip NaN values, allow all positive prices including penny stocks
-            if pd.isna(current_low):
-                logging.debug(f"🔍 Skipping NaN low at index {i}")
-                continue
-            
-            # Check left bars - current low should be lower than all left bars
-            left_lower = True
-            for j in range(i - left_bars, i):
-                left_val = df['low'].iloc[j]
-                if pd.isna(left_val) or current_low >= left_val:
-                    left_lower = False
-                    break
-            
-            if not left_lower:
-                continue
-                  # Check right bars - current low should be lower than all right bars
-            right_lower = True
-            for j in range(i + 1, i + right_bars + 1):
-                right_val = df['low'].iloc[j]
-                if pd.isna(right_val) or current_low >= right_val:
-                    right_lower = False
-                    break
-                    
-            if left_lower and right_lower:
-                # FIXED: Correct Pine Script shunt logic for pivot lows
-                # Place the pivot value at the actual pivot bar (i)
-                pivot_vals[i] = current_low
-                pivot_count += 1
-                logging.debug(f"🔍 Pivot low found at bar {i}, value: {current_low:.4f}")
-        except Exception as e:
-            logging.error(f"❌ PIVOT ERROR at index {i}: {str(e)}")
-            continue
-    
-    if pivot_count == 0:
-        logging.warning(f"⚠️  PIVOT WARNING: No pivot lows found in {len(df)} bars of data")
-    
-    return pd.Series(pivot_vals, index=df.index)
+    return result
 
 def td_sequential_vectorized(close, lookback=4):
     """Vectorized TD Sequential indicator"""
@@ -830,120 +485,83 @@ def td_combo_vectorized(close, lookback=2):
     return pd.Series(result, index=close.index)
 
 def marketwatch_indicator_vectorized(close, open_):
-    """Vectorized MarketWatch indicator - improved implementation"""
+    """Vectorized MarketWatch indicator"""
     if len(close) != len(open_):
-        logging.warning(f"MarketWatch: Length mismatch - close({len(close)}) vs open({len(open_)})")
         return pd.Series(np.zeros(len(close)), index=close.index)
     
-    # Determine green/red days
     signal = np.where(close > open_, 1, np.where(close < open_, -1, 0))
     result = np.zeros(len(close))
     count = 0
     current_direction = 0
     
     for i in range(len(signal)):
-        if signal[i] == 1:  # Green day (bullish)
+        if signal[i] == 1:  # Green day
             if current_direction == 1:
                 count += 1
             else:
                 count = 1
                 current_direction = 1
             result[i] = count
-        elif signal[i] == -1:  # Red day (bearish)
+        elif signal[i] == -1:  # Red day
             if current_direction == -1:
-                count -= 1  # Negative count for bearish streak
+                count -= 1
             else:
                 count = -1
                 current_direction = -1
             result[i] = count
-        else:  # Doji or equal (neutral)
+        else:  # Neutral
             count = 0
             current_direction = 0
-            result[i] = 0
     
     return pd.Series(result, index=close.index)
+
+def pivot_high_hypothetical(high, left_bars=3, right_bars=3):
+    """For each period, output the high at the center of the window (hypothetical pivot value)."""
+    n = len(high)
+    result = pd.Series(np.nan, index=high.index)
+    for i in range(left_bars, n - right_bars):
+        result.iloc[i] = high.iloc[i]
+    return result
+
+def pivot_low_hypothetical(low, left_bars=3, right_bars=3):
+    """For each period, output the low at the center of the window (hypothetical pivot value)."""
+    n = len(low)
+    result = pd.Series(np.nan, index=low.index)
+    for i in range(left_bars, n - right_bars):
+        result.iloc[i] = low.iloc[i]
+    return result
+
+def pivot_high_triggered_flag(high, left_bars=3, right_bars=3):
+    """Flag if a pivot high is triggered at this bar (value = high, else NaN)."""
+    n = len(high)
+    result = pd.Series(np.nan, index=high.index)
+    for i in range(left_bars, n - right_bars):
+        left_window = high.iloc[i-left_bars:i]
+        right_window = high.iloc[i+1:i+right_bars+1]
+        if (high.iloc[i] > left_window.max()) and (high.iloc[i] > right_window.max()):
+            result.iloc[i] = high.iloc[i]
+    return result
+
+def pivot_low_triggered_flag(low, left_bars=3, right_bars=3):
+    """Flag if a pivot low is triggered at this bar (value = low, else NaN)."""
+    n = len(low)
+    result = pd.Series(np.nan, index=low.index)
+    for i in range(left_bars, n - right_bars):
+        left_window = low.iloc[i-left_bars:i]
+        right_window = low.iloc[i+1:i+right_bars+1]
+        if (low.iloc[i] < left_window.min()) and (low.iloc[i] < right_window.min()):
+            result.iloc[i] = low.iloc[i]
+    return result
 
 # -------------------------------
 # Main technical indicators calculator with parallel processing
 # -------------------------------
 def calculate_technicals_parallel(df):
     """Calculate all technical indicators using parallel processing where beneficial"""
-    
-    logging.info("🚀 STARTING TECHNICAL INDICATORS CALCULATION")
-    logging.info("=" * 60)
-    
-    # COMPREHENSIVE INPUT DATA VALIDATION
-    logging.info("📋 INPUT DATA VALIDATION")
-    logging.info(f"📏 DataFrame shape: {df.shape} (rows x cols)")
-    logging.info(f"📅 Date range: {df.index.min() if hasattr(df.index, 'min') else 'N/A'} to {df.index.max() if hasattr(df.index, 'max') else 'N/A'}")
-    
-    # Check all required columns
-    required_columns = ['open', 'high', 'low', 'close', 'volume']
-    column_analysis = {}
-    
-    for col in required_columns:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
-            
-            # Comprehensive column analysis
-            col_stats = {
-                'total': len(df),
-                'non_null': df[col].notna().sum(),
-                'null': df[col].isna().sum(),
-                'positive': (df[col] > 0).sum() if col != 'open' else (df[col] != 0).sum(),
-                'zero': (df[col] == 0).sum(),
-                'negative': (df[col] < 0).sum(),
-                'min': df[col].min() if df[col].notna().sum() > 0 else None,
-                'max': df[col].max() if df[col].notna().sum() > 0 else None,
-                'mean': df[col].mean() if df[col].notna().sum() > 0 else None
-            }
-            column_analysis[col] = col_stats
-            
-            # Log detailed column stats
-            logging.info(f"  📊 {col:6} | {col_stats['non_null']:4}/{col_stats['total']:4} valid | "
-                        f"{col_stats['positive']:4} pos | {col_stats['zero']:3} zero | {col_stats['negative']:3} neg | "
-                        f"range: {col_stats['min']:.2f} - {col_stats['max']:.2f}")
-            
-            # Special validation for volume
-            if col == 'volume':
-                if col_stats['positive'] == 0:
-                    logging.error(f"❌ CRITICAL: No positive volume values found! Volume indicators will fail.")
-                elif col_stats['positive'] < col_stats['total'] * 0.8:
-                    logging.warning(f"⚠️  WARNING: Only {col_stats['positive']}/{col_stats['total']} positive volume values")
-                else:
-                    logging.info(f"✅ Volume data looks good: {col_stats['positive']} positive values")
-                    
-        else:
-            logging.error(f"❌ CRITICAL: Required column '{col}' missing from DataFrame")
-            return df  # Return original df if essential columns are missing
-    
-    # Check data consistency (high >= low, etc.)
-    if 'high' in df.columns and 'low' in df.columns:
-        invalid_hl = (df['high'] < df['low']).sum()
-        if invalid_hl > 0:
-            logging.warning(f"⚠️  {invalid_hl} rows where high < low (data quality issue)")
-    
-    if 'high' in df.columns and 'close' in df.columns and 'low' in df.columns:
-        close_out_of_range = ((df['close'] > df['high']) | (df['close'] < df['low'])).sum()
-        if close_out_of_range > 0:
-            logging.warning(f"⚠️  {close_out_of_range} rows where close is outside high-low range")
-    
-    # Fill any gaps and drop rows where all OHLC values are NaN
-    original_length = len(df)
-    df = df.ffill().bfill()
-    
-    # Check for completely invalid rows (all OHLC are NaN)
-    ohlc_columns = ['open', 'high', 'low', 'close']
-    valid_ohlc_mask = df[ohlc_columns].notna().any(axis=1)
-    invalid_rows = (~valid_ohlc_mask).sum()
-    
-    if invalid_rows > 0:
-        logging.warning(f"⚠️  Dropping {invalid_rows} rows with all NaN OHLC values")
-        df = df[valid_ohlc_mask]
-    
-    if len(df) == 0:
-        logging.error("❌ No valid data remaining after cleaning")
-        return df
+    # Ensure proper data types
+    for col in ['open', 'high', 'low', 'close', 'volume']:
+        df[col] = pd.to_numeric(df[col], errors='coerce')    # Fill any gaps and drop NaN rows
+    df = df.ffill().bfill().dropna()
     
     # Process ALL available data regardless of size - maximum data for backtesting
     
@@ -957,94 +575,13 @@ def calculate_technicals_parallel(df):
         
         # Momentum indicators
         results['mom'] = calculate_momentum(df['close'], period=10)
-        results['roc'] = calculate_roc(df['close'], period=10)        # Volume indicators - with comprehensive error handling and debugging
+        results['roc'] = calculate_roc(df['close'], period=10)
+        
+        # Volume indicators
         results['atr'] = calculate_atr(df['high'], df['low'], df['close'], period=14)
-        
-        # Comprehensive volume data validation
-        volume_analysis = {
-            'has_volume_column': 'volume' in df.columns,
-            'total_rows': len(df),
-            'volume_not_null': df['volume'].notna().sum() if 'volume' in df.columns else 0,
-            'volume_positive': (df['volume'] > 0).sum() if 'volume' in df.columns else 0,
-            'volume_zero': (df['volume'] == 0).sum() if 'volume' in df.columns else 0,
-            'volume_negative': (df['volume'] < 0).sum() if 'volume' in df.columns else 0,
-            'volume_mean': df['volume'].mean() if 'volume' in df.columns and df['volume'].notna().sum() > 0 else 0,
-            'volume_max': df['volume'].max() if 'volume' in df.columns and df['volume'].notna().sum() > 0 else 0,
-            'volume_min': df['volume'].min() if 'volume' in df.columns and df['volume'].notna().sum() > 0 else 0
-        }
-        
-        logging.info(f"📊 VOLUME ANALYSIS: {volume_analysis}")
-          # Check if volume data is available and valid - More lenient validation
-        volume_usable = (volume_analysis['has_volume_column'] and 
-                        volume_analysis['volume_not_null'] > 0 and 
-                        volume_analysis['volume_positive'] > 0)
-        
-        # Calculate volume data quality ratio
-        volume_quality = 0
-        if volume_analysis['volume_not_null'] > 0:
-            volume_quality = volume_analysis['volume_positive'] / volume_analysis['volume_not_null']
-        
-        if volume_usable:
-            logging.info(f"✅ Calculating volume indicators with {volume_analysis['volume_positive']} valid volume records ({volume_quality:.1%} quality)")
-            
-            # Calculate each volume indicator separately with individual error handling
-            try:
-                logging.debug("🔍 Starting A/D calculation...")
-                results['ad'] = calculate_accumulation_distribution(df['high'], df['low'], df['close'], df['volume'])
-                valid_ad = results['ad'].notna().sum()
-                logging.info(f"✅ A/D calculated: {valid_ad}/{len(results['ad'])} valid values")
-            except Exception as e:
-                logging.error(f"❌ A/D calculation failed: {e}")
-                results['ad'] = pd.Series(np.full(len(df), np.nan), index=df.index)
-            
-            try:
-                logging.debug("🔍 Starting CMF calculation...")
-                results['cmf'] = calculate_cmf(df['high'], df['low'], df['close'], df['volume'], period=20)
-                valid_cmf = results['cmf'].notna().sum()
-                logging.info(f"✅ CMF calculated: {valid_cmf}/{len(results['cmf'])} valid values")
-            except Exception as e:
-                logging.error(f"❌ CMF calculation failed: {e}")
-                results['cmf'] = pd.Series(np.full(len(df), np.nan), index=df.index)
-            
-            try:
-                logging.debug("🔍 Starting MFI calculation...")
-                results['mfi'] = calculate_mfi(df['high'], df['low'], df['close'], df['volume'], period=14)
-                valid_mfi = results['mfi'].notna().sum()
-                logging.info(f"✅ MFI calculated: {valid_mfi}/{len(results['mfi'])} valid values")
-                
-                # Additional MFI validation
-                if valid_mfi == 0:
-                    logging.error(f"❌ MFI: All values are NaN - check data quality")
-                elif valid_mfi < len(results['mfi']) * 0.5:
-                    logging.warning(f"⚠️  MFI: Low success rate - {valid_mfi}/{len(results['mfi'])} valid ({valid_mfi/len(results['mfi']):.1%})")
-                else:
-                    logging.info(f"✅ MFI: Good success rate - {valid_mfi}/{len(results['mfi'])} valid ({valid_mfi/len(results['mfi']):.1%})")
-                    
-            except Exception as e:
-                logging.error(f"❌ MFI calculation failed: {e}")
-                results['mfi'] = pd.Series(np.full(len(df), np.nan), index=df.index)
-                
-        else:
-            # Fill with NaN if no valid volume data, but provide more detailed diagnosis
-            logging.error(f"❌ VOLUME DATA INVALID - cannot calculate volume indicators")
-            logging.error(f"   - has_volume_column: {volume_analysis['has_volume_column']}")
-            logging.error(f"   - volume_not_null: {volume_analysis['volume_not_null']}")
-            logging.error(f"   - volume_positive: {volume_analysis['volume_positive']}")
-            logging.error(f"   - volume_quality: {volume_quality:.1%}")
-            
-            # Provide actionable diagnosis
-            if not volume_analysis['has_volume_column']:
-                logging.error(f"   ISSUE: 'volume' column missing from DataFrame")
-            elif volume_analysis['volume_not_null'] == 0:
-                logging.error(f"   ISSUE: All volume values are NULL")  
-            elif volume_analysis['volume_positive'] == 0:
-                logging.error(f"   ISSUE: All volume values are zero or negative")
-            else:
-                logging.error(f"   ISSUE: Unknown volume data problem")
-            
-            results['ad'] = pd.Series(np.full(len(df), np.nan), index=df.index)
-            results['cmf'] = pd.Series(np.full(len(df), np.nan), index=df.index)
-            results['mfi'] = pd.Series(np.full(len(df), np.nan), index=df.index)
+        results['ad'] = calculate_accumulation_distribution(df['high'], df['low'], df['close'], df['volume'])
+        results['cmf'] = calculate_cmf(df['high'], df['low'], df['close'], df['volume'], period=20)
+        results['mfi'] = calculate_mfi(df['high'], df['low'], df['close'], df['volume'], period=14)
         
         return results
     
@@ -1055,7 +592,8 @@ def calculate_technicals_parallel(df):
         # SMAs
         for period in [10, 20, 50, 150, 200]:
             results[f'sma_{period}'] = calculate_sma(df['close'], period)
-          # EMAs
+        
+        # EMAs
         for period in [4, 9, 21]:
             results[f'ema_{period}'] = calculate_ema(df['close'], period)
         
@@ -1073,7 +611,8 @@ def calculate_technicals_parallel(df):
         
         # ADX (computationally expensive)
         results['adx'] = calculate_adx(df['high'], df['low'], df['close'], period=14)
-          # Bollinger Bands
+        
+        # Bollinger Bands
         bb_lower, bb_middle, bb_upper = calculate_bollinger_bands(df['close'], period=20, std_dev=2)
         results['bbands_lower'] = bb_lower
         results['bbands_middle'] = bb_middle
@@ -1088,78 +627,21 @@ def calculate_technicals_parallel(df):
         # Custom indicators
         results['td_sequential'] = td_sequential_vectorized(df['close'], lookback=4)
         results['td_combo'] = td_combo_vectorized(df['close'], lookback=2)
-        results['marketwatch'] = marketwatch_indicator_vectorized(df['close'], df['open'])        # Pivot points - Pine Script style with enhanced debugging
-        data_length = len(df)
-        min_required = 7  # 3 left + 1 center + 3 right
+        results['marketwatch'] = marketwatch_indicator_vectorized(df['close'], df['open'])
+        # Pivot points (repurposed: always output the hypothetical value)
+        results['pivot_high'] = pivot_high_hypothetical(df['high'], left_bars=3, right_bars=3)
+        results['pivot_low'] = pivot_low_hypothetical(df['low'], left_bars=3, right_bars=3)
+        # New: flag if a pivot was triggered (old logic)
+        results['pivot_high_triggered'] = pivot_high_triggered_flag(df['high'], left_bars=3, right_bars=3)
+        results['pivot_low_triggered'] = pivot_low_triggered_flag(df['low'], left_bars=3, right_bars=3)
+        # DM calculation
+        dm_plus = df['high'].diff()
+        dm_minus = df['low'].shift(1) - df['low']
+        dm_plus = dm_plus.where((dm_plus>dm_minus)&(dm_plus>0), 0)
+        dm_minus = dm_minus.where((dm_minus>dm_plus)&(dm_minus>0), 0)
+        results['dm'] = dm_plus - dm_minus
         
-        logging.info(f"🔍 PIVOT CALCULATION: Data length={data_length}, min_required={min_required}")
-        
-        if data_length >= min_required:
-            # Log data quality before pivot calculation
-            high_stats = {
-                'min': df['high'].min(),
-                'max': df['high'].max(),
-                'mean': df['high'].mean(),
-                'nan_count': df['high'].isna().sum(),
-                'zero_count': (df['high'] == 0).sum(),
-                'negative_count': (df['high'] < 0).sum()
-            }
-            low_stats = {
-                'min': df['low'].min(),
-                'max': df['low'].max(),
-                'mean': df['low'].mean(),
-                'nan_count': df['low'].isna().sum(),
-                'zero_count': (df['low'] == 0).sum(),
-                'negative_count': (df['low'] < 0).sum()
-            }
-            
-            logging.info(f"📊 HIGH data: min={high_stats['min']:.4f}, max={high_stats['max']:.4f}, mean={high_stats['mean']:.4f}, NaN={high_stats['nan_count']}")
-            logging.info(f"📊 LOW data: min={low_stats['min']:.4f}, max={low_stats['max']:.4f}, mean={low_stats['mean']:.4f}, NaN={low_stats['nan_count']}")
-            
-            # Use fixed pivot functions (no shunt parameter needed now)
-            results['pivot_high'] = pivot_high(df, left_bars=3, right_bars=3, shunt=1)
-            results['pivot_low'] = pivot_low(df, left_bars=3, right_bars=3, shunt=1)
-            
-            # Count non-NaN pivots for logging
-            pivot_high_count = results['pivot_high'].notna().sum()
-            pivot_low_count = results['pivot_low'].notna().sum()
-            
-            # Enhanced logging with more details
-            logging.info(f"✅ PIVOT RESULTS: {pivot_high_count} highs, {pivot_low_count} lows from {data_length} bars")
-            
-            # Show actual pivot values found
-            if pivot_high_count > 0:
-                high_pivots = results['pivot_high'].dropna()
-                logging.info(f"� High pivots found: {high_pivots.tolist()}")
-            
-            if pivot_low_count > 0:
-                low_pivots = results['pivot_low'].dropna()
-                logging.info(f"🔻 Low pivots found: {low_pivots.tolist()}")
-            
-            # Warning if no pivots found with good data
-            if pivot_high_count == 0 and pivot_low_count == 0 and data_length >= 20:
-                logging.warning(f"⚠️  PIVOT WARNING: No pivots found in {data_length} bars - investigating data quality")
-                logging.warning(f"⚠️  Sample highs: {df['high'].head(10).tolist()}")
-                logging.warning(f"⚠️  Sample lows: {df['low'].head(10).tolist()}")
-        else:
-            # Insufficient data - return NaN series
-            results['pivot_high'] = pd.Series(np.full(len(df), np.nan), index=df.index)
-            results['pivot_low'] = pd.Series(np.full(len(df), np.nan), index=df.index)
-            logging.warning(f"⚠️  Insufficient data for pivots: {data_length} bars (need {min_required}+)")
-        
-        # DM calculation - Use the proper DM function with detailed logging
-        try:
-            logging.debug("🔍 Starting DM calculation...")
-            results['dm'] = calculate_dm(df['high'], df['low'], period=14)
-            dm_valid = results['dm'].notna().sum()
-            logging.info(f"✅ DM calculated: {dm_valid}/{len(results['dm'])} valid values")
-            if dm_valid > 0:
-                logging.debug(f"🔍 DM sample values: {results['dm'].dropna().tail(5).tolist()}")
-        except Exception as e:
-            logging.error(f"❌ DM calculation failed: {e}")
-            results['dm'] = pd.Series(np.full(len(df), np.nan), index=df.index)
-        
-        return results
+        return results    
     # Execute calculations in parallel (limited to 2 jobs for ECS safety)
     try:
         with ThreadPoolExecutor(max_workers=2) as executor:
@@ -1181,92 +663,14 @@ def calculate_technicals_parallel(df):
         ma_results = calculate_moving_averages()
         complex_results = calculate_complex_indicators()
         custom_results = calculate_custom_indicators()
-      # Combine all results
+    
+    # Combine all results
     for results_dict in [basic_results, ma_results, complex_results, custom_results]:
         for key, value in results_dict.items():
             df[key] = value
     
-    # Critical: Clean infinite values and ensure proper NaN handling for database insertion
-    df = df.replace([np.inf, -np.inf], np.nan)    # Log data quality for debugging - COMPREHENSIVE logging for ALL indicators
-    all_technical_columns = [
-        'rsi', 'macd', 'macd_signal', 'macd_hist',
-        'mom', 'roc', 'adx', 'atr', 'ad', 'cmf', 'mfi',
-        'td_sequential', 'td_combo', 'marketwatch', 'dm',
-        'sma_10', 'sma_20', 'sma_50', 'sma_150', 'sma_200',
-        'ema_4', 'ema_9', 'ema_21',
-        'bbands_lower', 'bbands_middle', 'bbands_upper',
-        'pivot_high', 'pivot_low'
-    ]
-    
-    logging.info("=" * 80)
-    logging.info("📊 COMPREHENSIVE TECHNICAL INDICATORS SUMMARY")
-    logging.info("=" * 80)
-    
-    indicator_summary = {
-        'working': [],
-        'empty': [],
-        'missing': [],
-        'problematic': []
-    }
-    
-    for col in all_technical_columns:
-        if col in df.columns:
-            non_null_count = df[col].notna().sum()
-            total_count = len(df)
-            null_count = df[col].isna().sum()
-            inf_count = np.isinf(df[col]).sum()
-            percentage = (non_null_count/total_count*100) if total_count > 0 else 0
-            
-            # Categorize indicators
-            if non_null_count == 0:
-                indicator_summary['empty'].append(col)
-                status = "❌ EMPTY"
-            elif inf_count > 0:
-                indicator_summary['problematic'].append(col)
-                status = "⚠️  HAS_INF"
-            elif percentage > 80:
-                indicator_summary['working'].append(col)
-                status = "✅ WORKING"
-            else:
-                indicator_summary['problematic'].append(col)
-                status = "⚠️  PARTIAL"
-            
-            logging.info(f"{status} {col:15} | {non_null_count:4}/{total_count:4} valid ({percentage:5.1f}%) | {null_count:4} NaN | {inf_count:2} inf")
-            
-            # Log sample values for working indicators
-            if non_null_count > 0:
-                sample_values = df[col].dropna().tail(3).tolist()
-                mean_val = df[col].mean() if non_null_count > 0 else 0
-                logging.debug(f"    � {col} samples: {sample_values}, mean: {mean_val:.4f}")
-            
-            # Special handling for volume indicators
-            if col in ['ad', 'cmf', 'mfi'] and non_null_count == 0:
-                logging.error(f"    💡 {col} failed - likely volume data issue")
-            
-            # Special handling for pivot debugging
-            if col in ['pivot_high', 'pivot_low'] and non_null_count > 0:
-                pivot_values = df[col].dropna()
-                if len(pivot_values) > 0:
-                    logging.info(f"    🎯 {col}: min={pivot_values.min():.4f}, max={pivot_values.max():.4f}, count={len(pivot_values)}")
-        else:
-            indicator_summary['missing'].append(col)
-            logging.error(f"❌ MISSING {col:15} | Column not found in DataFrame")
-    
-    # Summary report
-    logging.info("-" * 80)
-    logging.info(f"📊 SUMMARY: ✅ {len(indicator_summary['working'])} working | "
-                f"❌ {len(indicator_summary['empty'])} empty | "
-                f"⚠️  {len(indicator_summary['problematic'])} problematic | "
-                f"🚫 {len(indicator_summary['missing'])} missing")
-    
-    if indicator_summary['empty']:
-        logging.error(f"❌ EMPTY INDICATORS: {', '.join(indicator_summary['empty'])}")
-    if indicator_summary['problematic']:
-        logging.warning(f"⚠️  PROBLEMATIC INDICATORS: {', '.join(indicator_summary['problematic'])}")
-    if indicator_summary['missing']:
-        logging.error(f"🚫 MISSING INDICATORS: {', '.join(indicator_summary['missing'])}")
-        
-    logging.info("=" * 80)
+    # Clean infinite values
+    df = df.replace([np.inf, -np.inf], np.nan)
     
     return df
 
@@ -1444,6 +848,8 @@ def create_technical_table(cur):
             -- Pivot points
             pivot_high DECIMAL(12,4),
             pivot_low DECIMAL(12,4),
+            pivot_high_triggered DECIMAL(12,4),
+            pivot_low_triggered DECIMAL(12,4),
             
             -- Metadata
             fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -1519,6 +925,7 @@ def process_symbol_chunk(symbol_chunk, db_config):
         symbols_placeholder = ','.join(['%s'] * len(symbol_chunk))
         
         logging.info(f"🚀 ULTRA-FAST loading price data for {len(symbol_chunk)} symbols...")
+        
         # OPTIMIZED query with retry logic for timeout handling
         max_retries = 3
         retry_count = 0
@@ -1618,68 +1025,40 @@ def process_symbol_chunk(symbol_chunk, db_config):
         symbol_process_start = time.time()
         for i, symbol in enumerate(symbol_chunk):
             symbol_start_time = time.time()
-            symbol_insert_data = []  # <-- FIX: initialize per-symbol insert list
             try:
                 if symbol not in price_df.index.get_level_values('symbol'):
                     logging.warning(f"⚠️  No price data for {symbol}, skipping")
                     continue
-                  # Log every symbol for enhanced visibility
-                logging.info(f"🔄 Processing {symbol} ({i+1}/{len(symbol_chunk)}) - daily technicals...")                
+                
+                # Log every symbol for enhanced visibility
+                logging.info(f"🔄 Processing {symbol} ({i+1}/{len(symbol_chunk)}) - daily technicals...")
                 
                 # ULTRA-FAST data extraction
-                symbol_data = price_df.loc[symbol].copy()
-                
-                # CRITICAL: Ensure data is sorted by date for pivot calculations
-                # Pivot calculations require consecutive date-ordered data to work correctly
-                symbol_data = symbol_data.sort_index()  # Sort by date index
-                
-                # For Pine Script pivot calculations, we need minimum 7 bars (3 left + 1 center + 3 right)
-                # This matches the buysellload approach exactly
-                min_bars_for_pivots = 7
-                if len(symbol_data) < 1:
+                symbol_data = price_df.loc[symbol].copy()                  # Skip if insufficient data - use minimal requirement to process maximum data available
+                if len(symbol_data) < 1:  # Process ALL available data - even single data points for maximum backtesting data
                     logging.warning(f"⚠️  No data available for {symbol}, skipping")
                     continue
-                elif len(symbol_data) < min_bars_for_pivots:
-                    logging.warning(f"⚠️  {symbol}: Only {len(symbol_data)} bars available - pivots will be NULL (need {min_bars_for_pivots}+ for Pine Script pivot calculations)")
-                else:
-                    logging.info(f"✅ {symbol}: {len(symbol_data)} bars available - sufficient for Pine Script pivots and all indicators")
+                
                 logging.info(f"📊 {symbol}: Found {len(symbol_data)} price records for technical analysis")
-                # Debug: Check date ordering for pivot calculations
-                if len(symbol_data) >= min_bars_for_pivots:
-                    date_range = f"{symbol_data.index.min()} to {symbol_data.index.max()}"
-                    logging.info(f"📅 {symbol}: Date range: {date_range} (sorted for pivots)")
+                
                 # ULTRA-FAST technical indicators calculation using vectorized operations
                 tech_start = time.time()
                 df_tech = calculate_technicals_parallel(symbol_data.copy())  # Use existing optimized function
                 tech_time = time.time() - tech_start
+                
                 if df_tech.empty:
                     logging.warning(f"❌ {symbol}: Failed to calculate technicals - empty result")
                     continue
                 
-                # Ensure data is sorted by date for pivot calculations
-                if not df_tech.index.is_monotonic_increasing:
-                    df_tech = df_tech.sort_index()
-                # Calculate pivots using Pine Script logic
-                pivot_high_series = pivot_high(df_tech, left_bars=3, right_bars=3, shunt=1)
-                pivot_low_series = pivot_low(df_tech, left_bars=3, right_bars=3, shunt=1)
-                # Set pivot values and triggered flags correctly
-                df_tech['pivot_high'] = pivot_high_series
-                df_tech['pivot_low'] = pivot_low_series
-                df_tech['pivot_high_triggered'] = pivot_high_series.notna()
-                df_tech['pivot_low_triggered'] = pivot_low_series.notna()
-                # Log candidate and trigger status for first 5 rows
-                for idx, row in df_tech.head(5).iterrows():
-                    logging.info(f"[PIVOT LOG] {symbol} {row.name}: High={row['high']}, PivotHighTriggered={row['pivot_high_triggered']}, PivotHighValue={row['pivot_high']}")
-                    logging.info(f"[PIVOT LOG] {symbol} {row.name}: Low={row['low']}, PivotLowTriggered={row['pivot_low_triggered']}, PivotLowValue={row['pivot_low']}")
-                # ...existing code...
+                logging.info(f"⚡ {symbol}: Calculated {len(df_tech)} technical indicator rows in {tech_time:.2f}s")
+                
+                # ULTRA-FAST data preparation for insertion - vectorized approach
+                insert_start = time.time()
+                symbol_insert_data = []
+                
                 # Reset index efficiently
                 df_reset = df_tech.reset_index()
-                # Log the first 5 values of pivot_high/low after reset_index
-                if 'pivot_high' in df_reset.columns and 'pivot_low' in df_reset.columns:
-                    logging.info(f"[DEBUG] df_reset pivot_high (first 5): {df_reset['pivot_high'].head(5).tolist()}")
-                    logging.info(f"[DEBUG] df_reset pivot_low (first 5): {df_reset['pivot_low'].head(5).tolist()}")
-                else:
-                    logging.warning(f"[DEBUG] pivot_high or pivot_low column missing in df_reset after reset_index!")
+                
                 # VECTORIZED data preparation - much faster than iterrows()
                 dates = df_reset['date'].values
                 n_rows = len(df_reset)
@@ -1689,14 +1068,21 @@ def process_symbol_chunk(symbol_chunk, db_config):
                     record = (
                         symbol,
                         row['date'].to_pydatetime() if hasattr(row['date'], 'to_pydatetime') else row['date'],
-                        sanitize_value(row.get('open')),
-                        sanitize_value(row.get('high')),
-                        sanitize_value(row.get('low')),
-                        sanitize_value(row.get('close')),
-                        sanitize_value(row.get('volume')),
                         sanitize_value(row.get('rsi')),
+                        sanitize_value(row.get('macd')),
+                        sanitize_value(row.get('macd_signal')),
+                        sanitize_value(row.get('macd_hist')),
                         sanitize_value(row.get('mom')),
                         sanitize_value(row.get('roc')),
+                        sanitize_value(row.get('adx')),
+                        sanitize_value(row.get('atr')),
+                        sanitize_value(row.get('ad')),
+                        sanitize_value(row.get('cmf')),
+                        sanitize_value(row.get('mfi')),
+                        sanitize_value(row.get('td_sequential')),
+                        sanitize_value(row.get('td_combo')),
+                        sanitize_value(row.get('marketwatch')),
+                        sanitize_value(row.get('dm')),
                         sanitize_value(row.get('sma_10')),
                         sanitize_value(row.get('sma_20')),
                         sanitize_value(row.get('sma_50')),
@@ -1705,21 +1091,9 @@ def process_symbol_chunk(symbol_chunk, db_config):
                         sanitize_value(row.get('ema_4')),
                         sanitize_value(row.get('ema_9')),
                         sanitize_value(row.get('ema_21')),
-                        sanitize_value(row.get('macd')),
-                        sanitize_value(row.get('macd_signal')),
-                        sanitize_value(row.get('macd_hist')),
                         sanitize_value(row.get('bbands_lower')),
                         sanitize_value(row.get('bbands_middle')),
                         sanitize_value(row.get('bbands_upper')),
-                        sanitize_value(row.get('atr')),
-                        sanitize_value(row.get('adx')),
-                        sanitize_value(row.get('ad')),
-                        sanitize_value(row.get('cmf')),
-                        sanitize_value(row.get('mfi')),
-                        sanitize_value(row.get('dm')),
-                        sanitize_value(row.get('marketwatch')),
-                        sanitize_value(row.get('td_sequential')),
-                        sanitize_value(row.get('td_combo')),
                         sanitize_value(row.get('pivot_high')),
                         sanitize_value(row.get('pivot_low')),
                         sanitize_value(row.get('pivot_high_triggered')),
@@ -1727,15 +1101,7 @@ def process_symbol_chunk(symbol_chunk, db_config):
                         run_timestamp
                     )
                     symbol_insert_data.append(record)
-                # Enhanced logging: show first 2 insert records and their pivot values
-                for i, rec in enumerate(symbol_insert_data[:2]):
-                    logging.info(f"[DEBUG] Insert record {i+1}: pivot_high={rec[-3]}, pivot_low={rec[-2]}, full={rec}")
-                # Tuple health check: count non-None pivot_high/low in tuples
-                tuple_pivot_high = [r[-3] for r in symbol_insert_data]
-                tuple_pivot_low = [r[-2] for r in symbol_insert_data]
-                logging.info(f"[DEBUG] Tuple non-None pivot_high count: {sum(x is not None for x in tuple_pivot_high)}")
-                logging.info(f"[DEBUG] Tuple non-None pivot_low count: {sum(x is not None for x in tuple_pivot_low)}")
-                insert_start = time.time()
+                
                 insert_prep_time = time.time() - insert_start
                 all_insert_data.extend(symbol_insert_data)
                 processed_symbols.append(symbol)
@@ -1760,27 +1126,32 @@ def process_symbol_chunk(symbol_chunk, db_config):
             insert_query = """
             INSERT INTO technical_data_daily (
                 symbol, date,
-                open, high, low, close, volume,
-                rsi, mom, roc,
+                rsi, macd, macd_signal, macd_hist,
+                mom, roc, adx, atr, ad, cmf, mfi,
+                td_sequential, td_combo, marketwatch, dm,
                 sma_10, sma_20, sma_50, sma_150, sma_200,
                 ema_4, ema_9, ema_21,
-                macd, macd_signal, macd_hist,
                 bbands_lower, bbands_middle, bbands_upper,
-                atr, adx, ad, cmf, mfi, dm, marketwatch,
-                td_sequential, td_combo,
                 pivot_high, pivot_low,
                 pivot_high_triggered, pivot_low_triggered,
                 fetched_at
             ) VALUES %s
             ON CONFLICT (symbol, date) DO UPDATE SET
-                open = EXCLUDED.open,
-                high = EXCLUDED.high,
-                low = EXCLUDED.low,
-                close = EXCLUDED.close,
-                volume = EXCLUDED.volume,
                 rsi = EXCLUDED.rsi,
+                macd = EXCLUDED.macd,
+                macd_signal = EXCLUDED.macd_signal,
+                macd_hist = EXCLUDED.macd_hist,
                 mom = EXCLUDED.mom,
                 roc = EXCLUDED.roc,
+                adx = EXCLUDED.adx,
+                atr = EXCLUDED.atr,
+                ad = EXCLUDED.ad,
+                cmf = EXCLUDED.cmf,
+                mfi = EXCLUDED.mfi,
+                td_sequential = EXCLUDED.td_sequential,
+                td_combo = EXCLUDED.td_combo,
+                marketwatch = EXCLUDED.marketwatch,
+                dm = EXCLUDED.dm,
                 sma_10 = EXCLUDED.sma_10,
                 sma_20 = EXCLUDED.sma_20,
                 sma_50 = EXCLUDED.sma_50,
@@ -1789,48 +1160,24 @@ def process_symbol_chunk(symbol_chunk, db_config):
                 ema_4 = EXCLUDED.ema_4,
                 ema_9 = EXCLUDED.ema_9,
                 ema_21 = EXCLUDED.ema_21,
-                macd = EXCLUDED.macd,
-                macd_signal = EXCLUDED.macd_signal,
-                macd_hist = EXCLUDED.macd_hist,
                 bbands_lower = EXCLUDED.bbands_lower,
                 bbands_middle = EXCLUDED.bbands_middle,
                 bbands_upper = EXCLUDED.bbands_upper,
-                atr = EXCLUDED.atr,
-                adx = EXCLUDED.adx,
-                ad = EXCLUDED.ad,
-                cmf = EXCLUDED.cmf,
-                mfi = EXCLUDED.mfi,
-                dm = EXCLUDED.dm,
-                marketwatch = EXCLUDED.marketwatch,
-                td_sequential = EXCLUDED.td_sequential,
-                td_combo = EXCLUDED.td_combo,
                 pivot_high = EXCLUDED.pivot_high,
                 pivot_low = EXCLUDED.pivot_low,
                 pivot_high_triggered = EXCLUDED.pivot_high_triggered,
                 pivot_low_triggered = EXCLUDED.pivot_low_triggered,
                 fetched_at = EXCLUDED.fetched_at
             """
-            # Log a sample of the actual SQL and data being inserted
-            logging.info(f"[DEBUG] Insert query: {insert_query.splitlines()[0]} ...")
-            logging.info(f"[DEBUG] First insert tuple: {all_insert_data[0] if all_insert_data else 'NO DATA'}")
-            try:
-                execute_values(cur, insert_query, all_insert_data, page_size=5000)
-                conn.commit()
-            except Exception as e:
-                logging.error(f"❌ Bulk insert failed: {e}")
-                if all_insert_data:
-                    logging.error(f"❌ First tuple: {all_insert_data[0]}")
-                raise
+            
+            # Use MAXIMUM page size for ultra-fast bulk insert
+            execute_values(cur, insert_query, all_insert_data, page_size=5000)
+            conn.commit()
+            
             bulk_insert_time = time.time() - bulk_insert_start
             records_per_sec = len(all_insert_data) / bulk_insert_time if bulk_insert_time > 0 else 0
+            
             logging.info(f"🚀 ULTRA-FAST bulk insert: {len(all_insert_data)} records in {bulk_insert_time:.2f}s ({records_per_sec:.0f} records/sec)")
-            # Post-insert: fetch and log a sample row for this symbol
-            try:
-                cur.execute("SELECT symbol, date, pivot_high, pivot_low FROM technical_data_daily WHERE symbol = %s ORDER BY date DESC LIMIT 2", (all_insert_data[0][0],))
-                rows = cur.fetchall()
-                logging.info(f"[DEBUG] DB post-insert check for {all_insert_data[0][0]}: {rows}")
-            except Exception as e:
-                logging.warning(f"[DEBUG] Could not fetch post-insert row for {all_insert_data[0][0]}: {e}")
         
         # Clean up
         del price_df, all_insert_data
