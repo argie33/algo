@@ -742,41 +742,23 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
                 <Card>
                   <CardContent>
                     <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                      Economic Indicators (Last 90 Days)
+                      Economic Data (Last 40 Records)
                     </Typography>
                     <TableContainer>
                       <Table>
                         <TableHead>
                           <TableRow sx={{ backgroundColor: 'grey.50' }}>
-                            <TableCell sx={{ fontWeight: 600 }}>Indicator</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 600 }}>Current Value</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 600 }}>Previous Value</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 600 }}>Change</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>Series ID</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 600 }}>Date</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 600 }}>Value</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {(economicData?.slice ? economicData.slice(0, 10) : []).map((indicator, index) => (
+                          {(economicData?.slice ? economicData.slice(0, 40) : []).map((row, index) => (
                             <TableRow key={index} hover>
-                              <TableCell>{indicator.name || 'N/A'}</TableCell>
-                              <TableCell align="right">
-                                {indicator.value} {indicator.unit}
-                              </TableCell>
-                              <TableCell align="right">
-                                {indicator.previous_value || 'N/A'} {indicator.unit}
-                              </TableCell>
-                              <TableCell 
-                                align="right"
-                                sx={{ 
-                                  color: getChangeColor(parseFloat(indicator.change_percent) || 0),
-                                  fontWeight: 600
-                                }}
-                              >
-                                {indicator.change_percent ? formatPercentage(parseFloat(indicator.change_percent)) : 'N/A'}
-                              </TableCell>
-                              <TableCell align="right">
-                                {indicator.timestamp ? new Date(indicator.timestamp).toLocaleDateString() : 'N/A'}
-                              </TableCell>
+                              <TableCell>{row.series_id || 'N/A'}</TableCell>
+                              <TableCell align="right">{row.date ? new Date(row.date).toLocaleDateString() : 'N/A'}</TableCell>
+                              <TableCell align="right">{row.value !== undefined ? row.value : 'N/A'}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>

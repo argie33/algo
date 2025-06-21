@@ -997,6 +997,20 @@ export const getDiagnosticInfo = () => {
   }
 }
 
+// Database health (full details)
+export const getDatabaseHealthFull = async () => {
+  try {
+    const response = await api.get('/health/database', {
+      baseURL: currentConfig.baseURL
+    })
+    // Return the full response (healthSummary, tables, etc.)
+    return { data: response.data }
+  } catch (error) {
+    const errorMessage = handleApiError(error, 'get database health')
+    return { data: null, error: errorMessage }
+  }
+}
+
 // --- Add this utility for consistent error handling ---
 function handleApiError(error, context = '') {
   let message = 'An unexpected error occurred';
@@ -1072,6 +1086,7 @@ export default {
   getDiagnosticInfo,
   getApiConfig,
   getCurrentBaseURL,
-  updateApiBaseUrl
+  updateApiBaseUrl,
+  getDatabaseHealthFull
 }
 
