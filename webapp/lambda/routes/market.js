@@ -259,32 +259,34 @@ router.get('/overview', async (req, res) => {
         week_ending: row.date
       };
     }
+    // --- Wrap the response in a 'data' property for frontend compatibility ---
     res.json({
-      sentiment_indicators: {
-        fear_greed: mapFearGreed(fearGreedResult.rows[0]),
-        naaim: mapNaaim(naaimResult.rows[0]),
-        aaii: mapAaii(aaiiResult.rows[0])
-      },
-      market_breadth: {
-        total_stocks: parseInt(marketStats.total_stocks),
-        advancing: parseInt(marketStats.advancing_stocks),
-        declining: parseInt(marketStats.declining_stocks),
-        unchanged: parseInt(marketStats.unchanged_stocks),
-        advance_decline_ratio: parseFloat(advanceDeclineRatio.toFixed(2)),
-        average_change_percent: parseFloat(marketStats.avg_change_percent || 0).toFixed(2)
-      },
-      market_cap: {
-        total: parseFloat(marketStats.total_market_cap || 0)
-      },
-      economic_indicators: [], // Not available
-      data_availability: {
-        tables_checked: requiredTables,
-        tables_available: Object.keys(tableExists).filter(table => tableExists[table]),
-        tables_missing: Object.keys(tableExists).filter(table => !tableExists[table])
-      },
-      timestamp: new Date().toISOString()
+      data: {
+        sentiment_indicators: {
+          fear_greed: mapFearGreed(fearGreedResult.rows[0]),
+          naaim: mapNaaim(naaimResult.rows[0]),
+          aaii: mapAaii(aaiiResult.rows[0])
+        },
+        market_breadth: {
+          total_stocks: parseInt(marketStats.total_stocks),
+          advancing: parseInt(marketStats.advancing_stocks),
+          declining: parseInt(marketStats.declining_stocks),
+          unchanged: parseInt(marketStats.unchanged_stocks),
+          advance_decline_ratio: parseFloat(advanceDeclineRatio.toFixed(2)),
+          average_change_percent: parseFloat(marketStats.avg_change_percent || 0).toFixed(2)
+        },
+        market_cap: {
+          total: parseFloat(marketStats.total_market_cap || 0)
+        },
+        economic_indicators: [], // Not available
+        data_availability: {
+          tables_checked: requiredTables,
+          tables_available: Object.keys(tableExists).filter(table => tableExists[table]),
+          tables_missing: Object.keys(tableExists).filter(table => !tableExists[table])
+        },
+        timestamp: new Date().toISOString()
+      }
     });
-
   } catch (error) {
     console.error('Error fetching market overview:', error);
     console.error('Error stack:', error.stack);
