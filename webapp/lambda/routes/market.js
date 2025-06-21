@@ -507,20 +507,31 @@ router.get('/economic', async (req, res) => {
 
     const result = await query(econQuery);
 
-    // Group by indicator type
-    const indicators = {};
+    // Group by indicator type (legacy)
+    const indicatorsGrouped = {};
     result.rows.forEach(row => {
-      if (!indicators[row.indicator_name]) {
-        indicators[row.indicator_name] = [];
+      if (!indicatorsGrouped[row.indicator_name]) {
+        indicatorsGrouped[row.indicator_name] = [];
       }
-      indicators[row.indicator_name].push(row);
+      indicatorsGrouped[row.indicator_name].push(row);
     });
+
+    // Flatten all indicators into a single array for frontend table
+    const flatIndicators = result.rows.map(row => ({
+      name: row.indicator_name,
+      value: row.value,
+      date: row.date,
+      description: row.description,
+      source: row.source,
+      unit: row.unit
+    }));
 
     res.json({
       period_days: days,
-      indicators: indicators,
+      data: flatIndicators, // <-- frontend expects this
+      indicators_grouped: indicatorsGrouped, // legacy/grouped
       total_data_points: result.rows.length,
-      indicator_types: Object.keys(indicators),
+      indicator_types: Object.keys(indicatorsGrouped),
       timestamp: new Date().toISOString()
     });
 
