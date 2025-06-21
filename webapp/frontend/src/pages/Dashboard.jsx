@@ -157,9 +157,12 @@ const Dashboard = () => {
   }
 
   // Use available backend fields
-  const marketBreadth = marketData?.data?.market_breadth || {};
-  const marketCap = marketData?.data?.market_cap || {};
-  const sentimentIndicators = marketData?.data?.sentiment_indicators || {};
+  const rawData = marketData?.data || marketData || {};
+  console.log('Dashboard marketData:', marketData);
+
+  const marketBreadth = rawData.market_breadth || {};
+  const marketCap = rawData.market_cap || {};
+  const sentimentIndicators = rawData.sentiment_indicators || {};
   // No sector performance or top gainers/losers available
 
   return (

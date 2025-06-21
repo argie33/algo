@@ -38,14 +38,14 @@ router.get('/', async (req, res) => {
     }
 
     // Add sector filter (on cp.sector)
-    if (sector) {
+    if (sector && sector.trim() !== '') {
       paramCount++;
       whereClause += ` AND cp.sector = $${paramCount}`;
       params.push(sector);
     }
 
     // Add exchange filter (on ss.exchange)
-    if (exchange) {
+    if (exchange && exchange.trim() !== '') {
       paramCount++;
       whereClause += ` AND ss.exchange = $${paramCount}`;
       params.push(exchange);
@@ -292,7 +292,7 @@ router.get('/', async (req, res) => {
         // Financial results
         totalRevenue: stock.total_revenue,
         netIncome: stock.net_income,
-        ebitda: stock.ebitda,
+        ebitda: stock.ebit,
         grossProfit: stock.gross_profit,
         
         // Earnings per share
