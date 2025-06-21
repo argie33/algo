@@ -144,7 +144,6 @@ function StockExplorer() {
   const [expandedStock, setExpandedStock] = useState(null) // Track which stock accordion is expanded
   const [priceHistoryData, setPriceHistoryData] = useState({}) // Cache price history data
   const [priceHistoryModal, setPriceHistoryModal] = useState({ open: false, symbol: '', data: [], loading: false }) // Price history modal state
-  const [earningsMetricsModal, setEarningsMetricsModal] = useState({ open: false, symbol: '', data: [], loading: false, error: null }) // Earnings metrics modal state
   
   // Initialize from URL params only once on mount
   useEffect(() => {
@@ -321,18 +320,7 @@ function StockExplorer() {
     setPriceHistoryModal({ open: false, symbol: '', data: [], loading: false })
   }
 
-  // Fetch Earnings Metrics for a stock
-  const handleFetchEarningsMetrics = async (symbol) => {
-    setEarningsMetricsModal({ open: true, symbol, data: [], loading: true, error: null })
-    try {
-      const result = await getEarningsMetrics({ symbol })
-      setEarningsMetricsModal({ open: true, symbol, data: result.data, loading: false, error: result.error || null })
-    } catch (err) {
-      setEarningsMetricsModal({ open: true, symbol, data: [], loading: false, error: err.message || 'Failed to fetch Earnings Metrics' })
-    }
-  }
-  // Close modal
-  const handleCloseEarningsMetricsModal = () => setEarningsMetricsModal({ open: false, symbol: '', data: [], loading: false, error: null })
+  // Removed viewMode handler - always use advanced view
 
   const getActiveFiltersCount = () => {
     return Object.values(filters).filter(value => 
@@ -1067,13 +1055,6 @@ function StockExplorer() {
                                     >
                                       Full Details
                                     </Button>
-                                    <Button
-                                      variant="outlined"
-                                      onClick={() => handleFetchEarningsMetrics(stock.symbol)}
-                                      size="small"
-                                    >
-                                      Earnings Metrics
-                                    </Button>
                                     {stock.website && (
                                       <Button
                                         variant="outlined"
@@ -1274,46 +1255,6 @@ function StockExplorer() {
                 <Alert severity="info">
                   No price data available for {priceHistoryModal.symbol}
                 </Alert>
-              )}
-            </Box>
-          </Box>
-        </Fade>
-      </Modal>
-
-      {/* Earnings Metrics Modal */}
-      <Modal
-        open={earningsMetricsModal.open}
-        onClose={handleCloseEarningsMetricsModal}
-        closeAfterTransition
-        BackdropComponent={Backdrop}
-        BackdropProps={{ timeout: 500 }}
-      >
-        <Fade in={earningsMetricsModal.open}>
-          <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '90%', maxWidth: 800, maxHeight: '90vh', bgcolor: 'background.paper', border: 'none', borderRadius: 2, boxShadow: 24, overflow: 'auto' }}>
-            <Box sx={{ p: 3 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h5" component="h2">
-                  Earnings Metrics - {earningsMetricsModal.symbol}
-                </Typography>
-                <IconButton onClick={handleCloseEarningsMetricsModal}>
-                  <Clear />
-                </IconButton>
-              </Box>
-              {earningsMetricsModal.loading ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                  <CircularProgress />
-                  <Typography sx={{ ml: 2 }}>Loading Earnings Metrics...</Typography>
-                </Box>
-              ) : earningsMetricsModal.error ? (
-                <Alert severity="error" sx={{ mb: 2 }}>{earningsMetricsModal.error}</Alert>
-              ) : (
-                <Box>
-                  {Array.isArray(earningsMetricsModal.data) && earningsMetricsModal.data.length > 0 ? (
-                    <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{JSON.stringify(earningsMetricsModal.data, null, 2)}</pre>
-                  ) : (
-                    <Typography>No Earnings Metrics data available.</Typography>
-                  )}
-                </Box>
               )}
             </Box>
           </Box>
