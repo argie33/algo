@@ -709,9 +709,9 @@ function StockExplorer() {
                       sx={{ ml: 2 }} 
                     />
                   )}
-                  {stocksData?.data?.length && (
+                  {stocksList.length > 0 && (
                     <Chip 
-                      label={`Showing ${stocksData.data.length}`} 
+                      label={`Showing ${stocksList.length}`} 
                       color="secondary" 
                       variant="outlined" 
                       sx={{ ml: 1 }} 
@@ -788,7 +788,7 @@ function StockExplorer() {
 
                   {/* Stock Accordions */}
                   <Box sx={{ width: '100%' }}>
-                    {(Array.isArray(stocksData?.data) ? stocksData.data : []).map((stock) => (
+                    {stocksList.map((stock) => (
                       <Accordion
                         key={stock.symbol}
                         expanded={expandedStock === stock.symbol}
@@ -1093,7 +1093,7 @@ function StockExplorer() {
                   </Box>
                 </>
               )}              {/* No Results */}
-              {stocksData && (!stocksData.data || stocksData.data?.length === 0) && !isLoading && (
+              {stocksData && (stocksList.length === 0) && !isLoading && (
                 <Box textAlign="center" py={6}>
                   <Typography variant="h6" color="text.secondary" gutterBottom>
                     No stocks match your criteria
