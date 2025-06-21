@@ -782,7 +782,8 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
     })
     // Call /technical/:timeframe?...
     const response = await api.get(`/technical/${timeframe}?${queryParams.toString()}`)
-    return { data: response.data }
+    // Return the full API response object (not wrapped)
+    return response.data
   } catch (error) {
     const errorMessage = handleApiError(error, 'get technical data')
     return { data: [], error: errorMessage }
@@ -925,6 +926,23 @@ export const getTechnicalSummary = async (params = {}) => {
   }
 }
 
+// Earnings Metrics endpoint
+export const getEarningsMetrics = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value)
+      }
+    })
+    const response = await api.get(`/earnings/metrics?${queryParams.toString()}`)
+    return { data: response.data }
+  } catch (error) {
+    const errorMessage = handleApiError(error, 'get earnings metrics')
+    return { data: [], error: errorMessage }
+  }
+}
+
 // Test API Connection
 export const testApiConnection = async (customUrl = null) => {
   try {
@@ -1048,6 +1066,7 @@ export default {
   getTechnicalData,
   getTechnicalSummary,
   getDataValidationSummary,
+  getEarningsMetrics,
   testApiConnection,
   getDiagnosticInfo,
   getApiConfig,
