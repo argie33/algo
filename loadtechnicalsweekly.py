@@ -55,7 +55,6 @@ TECHNICALS_COLUMNS = [
     "ema_4", "ema_9", "ema_21",
     "bbands_lower", "bbands_middle", "bbands_upper",
     "pivot_high", "pivot_low",
-    "pivot_high_triggered", "pivot_low_triggered",
     "fetched_at"
 ]
 
@@ -89,7 +88,7 @@ def sanitize_value(x):
     
     # Convert numpy types to native Python types
     if isinstance(x, np.integer):
-        return int(x)no o
+        return int(x)
     elif isinstance(x, np.floating):
         return float(x)
     elif isinstance(x, np.bool_):
@@ -808,10 +807,8 @@ def create_technical_table(cur):
             -- Pivot points
             pivot_high DECIMAL(12,4),
             pivot_low DECIMAL(12,4),
-            
-            -- Trigger columns
-            pivot_high_triggered BOOLEAN DEFAULT FALSE,
-            pivot_low_triggered BOOLEAN DEFAULT FALSE,
+            pivot_high_triggered DECIMAL(12,4),
+            pivot_low_triggered DECIMAL(12,4),
             
             -- Metadata
             fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

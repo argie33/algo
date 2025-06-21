@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3 
 """
 Optimized Buy/Sell Signal Generator
 - Ultra-fast vectorized operations with NumPy/Pandas
@@ -139,7 +139,8 @@ def get_optimized_connection(retry_count=0):
         conn = psycopg2.connect(
             host=cfg["host"], port=cfg["port"],
             user=cfg["user"], password=cfg["password"],
-            dbname=cfg["dbname"],            # Extended timeout for connection establishment
+            dbname=cfg["dbname"],
+            # Extended timeout for connection establishment
             connect_timeout=connection_timeout,
             application_name=f"{SCRIPT_NAME}_daily",
             # Additional connection parameters for reliability

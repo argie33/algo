@@ -810,10 +810,8 @@ def create_technical_table(cur):
             -- Pivot points
             pivot_high DECIMAL(12,4),
             pivot_low DECIMAL(12,4),
-            
-            -- Trigger columns
-            pivot_high_triggered BOOLEAN DEFAULT FALSE,
-            pivot_low_triggered BOOLEAN DEFAULT FALSE,
+            pivot_high_triggered DECIMAL(12,4),
+            pivot_low_triggered DECIMAL(12,4),
             
             -- Metadata
             fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -1062,7 +1060,8 @@ def _process_symbol_chunk_internal(symbol_chunk, db_config, retry_count=0):
                         sanitize_value(row.get('pivot_low')),
                         sanitize_value(row.get('pivot_high_triggered')),
                         sanitize_value(row.get('pivot_low_triggered')),
-                        run_timestamp)
+                        run_timestamp
+                    )
                     symbol_insert_data.append(record)
                 
                 insert_prep_time = time.time() - insert_start
