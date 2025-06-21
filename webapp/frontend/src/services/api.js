@@ -770,7 +770,7 @@ export const getFinancialMetrics = async (params = {}) => {
   }
 }
 
-// Technical data endpoint
+// Technical data  
 // Updated: Accepts timeframe as first param, params as second
 export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
   try {
