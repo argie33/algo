@@ -83,66 +83,129 @@ router.get('/:timeframe', async (req, res) => {
     if (!allowedSorts.includes(sortBy)) sortBy = 'date';
     console.log('[DEBUG] Using whereClause:', whereClause, 'params:', params);
     console.log('[DEBUG] Using tableName:', tableName);
-    const dataQuery = `
-      SELECT 
-        t.symbol,
-        t.date,
-        t.rsi,
-        t.macd,
-        t.macd_signal,
-        t.macd_hist,
-        t.mom,
-        t.roc,
-        t.adx,
-        t.atr,
-        t.ad,
-        t.cmf,
-        t.mfi,
-        t.td_sequential,
-        t.td_combo,
-        t.marketwatch,
-        t.dm,
-        t.sma_10,
-        t.sma_20,
-        t.sma_50,
-        t.sma_150,
-        t.sma_200,
-        t.ema_4,
-        t.ema_9,
-        t.ema_21,
-        t.bbands_lower,
-        t.bbands_middle,
-        t.bbands_upper,
-        t.pivot_high,
-        t.pivot_low,
-        t.pivot_high_triggered,
-        t.pivot_low_triggered,
-        ss.security_name as company_name
-      FROM ${tableName} t
-      LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
-      ${whereClause}
-      ORDER BY t.${sortBy} ${sortOrder}, t.symbol ASC
-      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
-    `;
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM ${tableName} t
-      ${whereClause}
-    `;
-    console.log('[DEBUG] Executing queries with limit:', limit, 'offset:', offset);
-    console.log('[DEBUG] Final SQL Query:', dataQuery);
-    console.log('[DEBUG] Query Parameters:', [...params, limit, offset]);
+    // Detect if no filters are present (only pagination/sorting)
+    let dataQuery, countQuery;
+    // If no filters, return only the latest record per symbol (alphabetical, paginated)
+    const noFilters = !symbol && !req.query.start_date && !req.query.end_date && !indicator;
+    if (noFilters) {
+      dataQuery = `
+        SELECT 
+          t.symbol,
+          t.date,
+          t.rsi,
+          t.macd,
+          t.macd_signal,
+          t.macd_hist,
+          t.mom,
+          t.roc,
+          t.adx,
+          t.atr,
+          t.ad,
+          t.cmf,
+          t.mfi,
+          t.td_sequential,
+          t.td_combo,
+          t.marketwatch,
+          t.dm,
+          t.sma_10,
+          t.sma_20,
+          t.sma_50,
+          t.sma_150,
+          t.sma_200,
+          t.ema_4,
+          t.ema_9,
+          t.ema_21,
+          t.bbands_lower,
+          t.bbands_middle,
+          t.bbands_upper,
+          t.pivot_high,
+          t.pivot_low,
+          t.pivot_high_triggered,
+          t.pivot_low_triggered,
+          ss.security_name as company_name
+        FROM ${tableName} t
+        LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
+        INNER JOIN (
+          SELECT symbol, MAX(date) as max_date
+          FROM ${tableName}
+          GROUP BY symbol
+        ) latest ON t.symbol = latest.symbol AND t.date = latest.max_date
+        ORDER BY t.symbol ASC
+        LIMIT $1 OFFSET $2
+      `;
+      countQuery = `
+        SELECT COUNT(*) as total
+        FROM (
+          SELECT symbol, MAX(date) as max_date
+          FROM ${tableName}
+          GROUP BY symbol
+        ) sub
+      `;
+      params.length = 0; // no filters, so params is empty
+    } else {
+      dataQuery = `
+        SELECT 
+          t.symbol,
+          t.date,
+          t.rsi,
+          t.macd,
+          t.macd_signal,
+          t.macd_hist,
+          t.mom,
+          t.roc,
+          t.adx,
+          t.atr,
+          t.ad,
+          t.cmf,
+          t.mfi,
+          t.td_sequential,
+          t.td_combo,
+          t.marketwatch,
+          t.dm,
+          t.sma_10,
+          t.sma_20,
+          t.sma_50,
+          t.sma_150,
+          t.sma_200,
+          t.ema_4,
+          t.ema_9,
+          t.ema_21,
+          t.bbands_lower,
+          t.bbands_middle,
+          t.bbands_upper,
+          t.pivot_high,
+          t.pivot_low,
+          t.pivot_high_triggered,
+          t.pivot_low_triggered,
+          ss.security_name as company_name
+        FROM ${tableName} t
+        LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
+        ${whereClause}
+        ORDER BY t.${sortBy} ${sortOrder}, t.symbol ASC
+        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+      `;
+      countQuery = `
+        SELECT COUNT(*) as total
+        FROM ${tableName} t
+        ${whereClause}
+      `;
+    }
+    // console.log('[DEBUG] Executing queries with limit:', limit, 'offset:', offset);
+    // console.log('[DEBUG] Final SQL Query:', dataQuery);
+    // console.log('[DEBUG] Query Parameters:', [...params, limit, offset]);
     let dataResult, countResult;
-    try {
+    if (noFilters) {
+      [dataResult, countResult] = await Promise.all([
+        query(dataQuery, [limit, offset]),
+        query(countQuery)
+      ]);
+    } else {
       [dataResult, countResult] = await Promise.all([
         query(dataQuery, [...params, limit, offset]),
         query(countQuery, params)
       ]);
-    } catch (dbError) {
-      console.error('[DEBUG] Database query error:', dbError);
-      throw dbError;
     }
-    console.log('[DEBUG] Query results - data:', dataResult.rows.length, 'total:', countResult.rows[0].total);
+    // console.log('[DEBUG] Query results - data:', dataResult.rows.length, 'total:', countResult.rows[0].total);
     if (dataResult.rows && dataResult.rows.length > 0) {
       console.log('[DEBUG] Sample data row:', dataResult.rows[0]);
     } else {
