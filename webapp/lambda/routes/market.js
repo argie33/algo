@@ -218,10 +218,28 @@ router.get('/overview', async (req, res) => {
 
     const marketStats = marketStatsResult.rows[0];    const advanceDeclineRatio = marketStats.advancing_stocks / Math.max(marketStats.declining_stocks, 1);
 
+    // Map backend fields to frontend expectations for sentiment_indicators
+    function mapFearGreed(row) {
+      if (!row) return null;
+      return {
+        value: row.index_value,
+        value_text: row.rating,
+        timestamp: row.date
+      };
+    }
+    function mapNaaim(row) {
+      if (!row) return null;
+      return {
+        average: row.mean_exposure,
+        bullish_8100: row.bullish_exposure, // Map to expected frontend key
+        bearish: row.bearish_exposure,
+        week_ending: row.date
+      };
+    }
     res.json({
       sentiment_indicators: {
-        fear_greed: fearGreedResult.rows[0] || null,
-        naaim: naaimResult.rows[0] || null,
+        fear_greed: mapFearGreed(fearGreedResult.rows[0]),
+        naaim: mapNaaim(naaimResult.rows[0]),
         aaii: null // Not available
       },
       market_breadth: {
