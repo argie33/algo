@@ -21,7 +21,8 @@ router.get('/', async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 50, 200); // Increased limit
     const offset = (page - 1) * limit;
     const search = req.query.search || '';
-    const exchange = req.query.sector || req.query.exchange || '';
+    const sector = req.query.sector || '';
+    const exchange = req.query.exchange || '';
     const sortBy = req.query.sortBy || 'symbol';
     const sortOrder = req.query.sortOrder || 'asc';
     
@@ -36,7 +37,14 @@ router.get('/', async (req, res) => {
       params.push(`%${search}%`);
     }
 
-    // Add exchange filter
+    // Add sector filter (on cp.sector)
+    if (sector) {
+      paramCount++;
+      whereClause += ` AND cp.sector = $${paramCount}`;
+      params.push(sector);
+    }
+
+    // Add exchange filter (on ss.exchange)
     if (exchange) {
       paramCount++;
       whereClause += ` AND ss.exchange = $${paramCount}`;
