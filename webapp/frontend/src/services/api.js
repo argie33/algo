@@ -1025,9 +1025,6 @@ function normalizeApiResponse(response) {
   return { data: [] };
 }
 
-// Export healthCheck as a named export for compatibility with named imports
-export { healthCheck };
-
 // Export all methods as a default object for easier importing
 export default {
   healthCheck,

@@ -11,6 +11,15 @@ import DownloadIcon from '@mui/icons-material/Download';
 import SaveIcon from '@mui/icons-material/Save';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { Bar } from 'react-chartjs-2';
+import SimpleCodeEditor from 'react-simple-code-editor';
+import Prism from 'prismjs';
+import 'prismjs/components/prism-python';
+import 'prismjs/themes/prism.css';
+import CodeMirror from '@uiw/react-codemirror';
+import { python } from '@codemirror/lang-python';
+import { javascript } from '@codemirror/lang-javascript';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -35,6 +44,10 @@ export default function Backtest() {
   const [logs, setLogs] = useState('');
   const [savedStrategies, setSavedStrategies] = useState([]);
   const [showApiExample, setShowApiExample] = useState(false);
+  const [validateStatus, setValidateStatus] = useState(null);
+  const [validateMsg, setValidateMsg] = useState('');
+  const [activeTab, setActiveTab] = useState('equity');
+  const [isRunning, setIsRunning] = useState(false);
 
   // Helper: get param config for selected strategy (could be from backend or hardcoded)
   const paramConfig = useMemo(() => {
@@ -86,6 +99,7 @@ export default function Backtest() {
 
   const handleRun = async () => {
     setLoading(true);
+    setIsRunning(true);
     setError(null);
     setResult(null);
     setLogs('');
@@ -110,11 +124,20 @@ export default function Backtest() {
       if (!data.success) throw new Error(data.error || 'Backtest failed');
       setResult(data);
       setLogs(data.logs || data.stdout || '');
+      setActiveTab('equity');
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
+      setIsRunning(false);
     }
+  };
+
+  const handleStop = () => {
+    // For now, just set running to false and loading to false (simulate stop)
+    setIsRunning(false);
+    setLoading(false);
+    setError('Backtest stopped by user.');
   };
 
   const handleExport = () => {
@@ -187,6 +210,30 @@ export default function Backtest() {
 
   const handleCopyApiExample = () => {
     navigator.clipboard.writeText(apiExample);
+  };
+
+  // Validate custom code (Python or JS)
+  const handleValidate = async () => {
+    setValidateStatus('pending');
+    setValidateMsg('');
+    try {
+      const res = await fetch(`${API_BASE}/backtest/validate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ strategy: pythonCode })
+      });
+      const data = await res.json();
+      if (data.valid) {
+        setValidateStatus('success');
+        setValidateMsg('Code is valid!');
+      } else {
+        setValidateStatus('error');
+        setValidateMsg(data.error || 'Invalid code');
+      }
+    } catch (e) {
+      setValidateStatus('error');
+      setValidateMsg(e.message);
+    }
   };
 
   // Helper to compute drawdown series from equity
@@ -263,17 +310,19 @@ export default function Backtest() {
               <TextField label="End Date" type="date" value={params.endDate} onChange={e => handleChange('endDate', e.target.value)} fullWidth size="small" InputLabelProps={{ shrink: true }} />
             </Grid>
             <Grid item xs={12}>
-              {paramConfig.map(param => (
-                <TextField
-                  key={param.name}
-                  label={param.label}
-                  type={param.type}
-                  value={strategyParams[param.name] ?? param.default}
-                  onChange={e => handleStrategyParamChange(param.name, e.target.value)}
-                  size="small"
-                  sx={{ mr: 2, mb: 2, width: 180 }}
-                />
-              ))}
+              <Box display="flex" flexWrap="wrap" gap={2}>
+                {paramConfig.map(param => (
+                  <TextField
+                    key={param.name}
+                    label={param.label}
+                    type={param.type}
+                    value={strategyParams[param.name] ?? param.default}
+                    onChange={e => handleStrategyParamChange(param.name, e.target.value)}
+                    size="small"
+                    sx={{ width: 180 }}
+                  />
+                ))}
+              </Box>
             </Grid>
             <Grid item xs={12}>
               <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>Strategy Code Preview</Typography>
@@ -293,25 +342,47 @@ export default function Backtest() {
             {useCustomCode ? (
               <Grid item xs={12}>
                 <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>Python Strategy Code</Typography>
-                <TextareaAutosize
-                  minRows={10}
-                  style={{ width: '100%', fontFamily: 'monospace', fontSize: 14, background: '#f7f7f7', padding: 8, borderRadius: 4 }}
-                  value={pythonCode}
-                  onChange={e => setPythonCode(e.target.value)}
-                  placeholder={'# Write your Python strategy here\ndef handle_data(context, data):\n    pass'}
-                />
+                <Paper sx={{ p: 0, mb: 2, background: '#f7f7f7' }}>
+                  <CodeMirror
+                    value={pythonCode}
+                    height="300px"
+                    extensions={[python()]}
+                    onChange={v => setPythonCode(v)}
+                    theme="light"
+                  />
+                </Paper>
+                <Button variant="outlined" startIcon={<SaveIcon />} onClick={handleSaveStrategy} sx={{ mb: 2, mr: 2 }}>Save Strategy</Button>
               </Grid>
-            ) : (
-              <>
-                {/* ...existing code for strategy selection and preview... */}
-              </>
-            )}
+            ) : null}
             <Grid item xs={12}>
-              <Button variant="contained" color="primary" startIcon={<PlayArrow />} onClick={handleRun} disabled={loading} sx={{ minWidth: 160 }}>
-                {loading ? <CircularProgress size={24} color="inherit" /> : 'Run Backtest'}
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={<PlayArrow />}
+                onClick={handleRun}
+                disabled={loading || isRunning}
+                sx={{ minWidth: 160 }}
+              >
+                {loading || isRunning ? <CircularProgress size={24} color="inherit" /> : 'Run Backtest'}
               </Button>
-              <Button variant="outlined" color="secondary" startIcon={<Refresh />} onClick={() => { setParams(defaultParams); setResult(null); setError(null); }} sx={{ ml: 2 }} disabled={loading}>
+              <Button
+                variant="outlined"
+                color="secondary"
+                startIcon={<Refresh />}
+                onClick={() => { setParams(defaultParams); setResult(null); setError(null); setPythonCode(''); setStrategyParams({}); }}
+                sx={{ ml: 2 }}
+                disabled={loading || isRunning}
+              >
                 Reset
+              </Button>
+              <Button
+                variant="outlined"
+                color="error"
+                onClick={handleStop}
+                sx={{ ml: 2 }}
+                disabled={!isRunning}
+              >
+                Stop
               </Button>
             </Grid>
           </Grid>
@@ -320,46 +391,14 @@ export default function Backtest() {
       {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
       {result && (
         <Paper sx={{ p: 3 }}>
-          <Typography variant="h6" gutterBottom>Backtest Results</Typography>
-          {/* Performance Summary */}
-          {result.metrics && (
-            <Box mb={2}>
-              <Typography variant="subtitle1" fontWeight="bold">Performance Summary</Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={6} md={3}><Chip label={`Total Return: ${result.metrics.totalReturn?.toFixed(2)}%`} color="success" /></Grid>
-                <Grid item xs={6} md={3}><Chip label={`Annualized: ${result.metrics.annualizedReturn?.toFixed(2)}%`} color="info" /></Grid>
-                <Grid item xs={6} md={3}><Chip label={`Sharpe: ${result.metrics.sharpeRatio?.toFixed(2)}`} color="primary" /></Grid>
-                <Grid item xs={6} md={3}><Chip label={`Max Drawdown: ${result.metrics.maxDrawdown?.toFixed(2)}%`} color="warning" /></Grid>
-                <Grid item xs={6} md={3}><Chip label={`Volatility: ${result.metrics.volatility?.toFixed(2)}%`} color="default" /></Grid>
-                <Grid item xs={6} md={3}><Chip label={`Win Rate: ${result.metrics.winRate?.toFixed(2)}%`} color="success" /></Grid>
-                <Grid item xs={6} md={3}><Chip label={`Profit Factor: ${result.metrics.profitFactor?.toFixed(2)}`} color="info" /></Grid>
-                <Grid item xs={6} md={3}><Chip label={`Trades: ${result.metrics.totalTrades}`} color="secondary" /></Grid>
-              </Grid>
-            </Box>
-          )}
-          {/* Drawdown Chart */}
-          {result.equity && (
-            <Box mb={2}>
-              <Typography variant="subtitle2">Drawdown Chart</Typography>
-              <Bar
-                data={{
-                  labels: getDrawdownSeries(result.equity).map(p => p.date),
-                  datasets: [{
-                    label: 'Drawdown (%)',
-                    data: getDrawdownSeries(result.equity).map(p => p.drawdown),
-                    backgroundColor: '#ff7043',
-                  }]
-                }}
-                options={{
-                  responsive: true,
-                  plugins: { legend: { display: false } },
-                  scales: { y: { min: Math.min(...getDrawdownSeries(result.equity).map(p => p.drawdown)), max: 0 } }
-                }}
-              />
-            </Box>
-          )}
-          {/* Performance Chart with Trade Markers */}
-          {result.equity && (
+          <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} sx={{ mb: 2 }}>
+            <Tab label="Equity Curve" value="equity" />
+            <Tab label="Drawdown" value="drawdown" />
+            <Tab label="Trades" value="trades" />
+            <Tab label="Logs" value="logs" />
+            <Tab label="Summary" value="summary" />
+          </Tabs>
+          {activeTab === 'equity' && result.equity && (
             <Box mb={2}>
               <Typography variant="subtitle2">Equity Curve</Typography>
               <Line
@@ -373,7 +412,6 @@ export default function Backtest() {
                       fill: false,
                       pointRadius: 0
                     },
-                    // Trade markers
                     ...getTradeMarkers(result.equity, result.trades).map(marker => ({
                       label: marker.action,
                       data: [{ x: marker.x, y: marker.y }],
@@ -393,12 +431,83 @@ export default function Backtest() {
               />
             </Box>
           )}
-          <Button variant="outlined" startIcon={<FileDownloadIcon />} sx={{ mb: 2, mr: 2 }} onClick={handleExport}>Export Results</Button>
-          <Button variant="outlined" startIcon={<DownloadIcon />} sx={{ mb: 2, mr: 2 }} onClick={handleDownloadLogs}>Download Logs</Button>
-          {result.trades?.length > 0 && (
-            <Button variant="outlined" sx={{ mb: 2 }} onClick={handleExportTrades}>Export Trades (CSV)</Button>
+          {activeTab === 'drawdown' && result.equity && (
+            <Box mb={2}>
+              <Typography variant="subtitle2">Drawdown Chart</Typography>
+              <Bar
+                data={{
+                  labels: getDrawdownSeries(result.equity).map(p => p.date),
+                  datasets: [{
+                    label: 'Drawdown (%)',
+                    data: getDrawdownSeries(result.equity).map(p => p.drawdown),
+                    backgroundColor: '#ff7043',
+                  }]
+                }}
+                options={{
+                  responsive: true,
+                  plugins: { legend: { display: false } },
+                  scales: { y: { min: Math.min(...getDrawdownSeries(result.equity).map(p => p.drawdown)), max: 0 } }
+                }}
+              />
+            </Box>
           )}
-          {/* API Example */}
+          {activeTab === 'trades' && result.trades && result.trades.length > 0 && (
+            <Box mt={3}>
+              <Typography variant="subtitle2">Trade Statistics</Typography>
+              <TableContainer component={Paper} sx={{ mb: 2 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Date</TableCell>
+                      <TableCell>Symbol</TableCell>
+                      <TableCell>Action</TableCell>
+                      <TableCell>Price</TableCell>
+                      <TableCell>Shares</TableCell>
+                      <TableCell>PnL</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {result.trades.map((t, i) => (
+                      <TableRow key={i}>
+                        <TableCell>{t.date}</TableCell>
+                        <TableCell>{t.symbol}</TableCell>
+                        <TableCell>{t.action}</TableCell>
+                        <TableCell>{t.price}</TableCell>
+                        <TableCell>{t.quantity || t.shares}</TableCell>
+                        <TableCell>{t.pnl !== undefined ? t.pnl.toFixed(2) : ''}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              <Button variant="outlined" sx={{ mb: 2 }} onClick={handleExportTrades}>Export Trades (CSV)</Button>
+            </Box>
+          )}
+          {activeTab === 'logs' && (
+            <Box mt={2}>
+              <Typography variant="subtitle2" color="text.secondary">Backtest Logs / Output</Typography>
+              <Paper sx={{ p: 2, fontFamily: 'monospace', fontSize: 13, whiteSpace: 'pre', overflowX: 'auto', background: '#f7f7f7' }}>
+                {logs}
+              </Paper>
+              <Button variant="outlined" startIcon={<DownloadIcon />} sx={{ mb: 2, mt: 2 }} onClick={handleDownloadLogs}>Download Logs</Button>
+            </Box>
+          )}
+          {activeTab === 'summary' && result.metrics && (
+            <Box mb={2}>
+              <Typography variant="subtitle1" fontWeight="bold">Performance Summary</Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={6} md={3}><Chip label={`Total Return: ${result.metrics.totalReturn?.toFixed(2)}%`} color="success" /></Grid>
+                <Grid item xs={6} md={3}><Chip label={`Annualized: ${result.metrics.annualizedReturn?.toFixed(2)}%`} color="info" /></Grid>
+                <Grid item xs={6} md={3}><Chip label={`Sharpe: ${result.metrics.sharpeRatio?.toFixed(2)}`} color="primary" /></Grid>
+                <Grid item xs={6} md={3}><Chip label={`Max Drawdown: ${result.metrics.maxDrawdown?.toFixed(2)}%`} color="warning" /></Grid>
+                <Grid item xs={6} md={3}><Chip label={`Volatility: ${result.metrics.volatility?.toFixed(2)}%`} color="default" /></Grid>
+                <Grid item xs={6} md={3}><Chip label={`Win Rate: ${result.metrics.winRate?.toFixed(2)}%`} color="success" /></Grid>
+                <Grid item xs={6} md={3}><Chip label={`Profit Factor: ${result.metrics.profitFactor?.toFixed(2)}`} color="info" /></Grid>
+                <Grid item xs={6} md={3}><Chip label={`Trades: ${result.metrics.totalTrades}`} color="secondary" /></Grid>
+              </Grid>
+            </Box>
+          )}
+          <Button variant="outlined" startIcon={<FileDownloadIcon />} sx={{ mb: 2, mr: 2 }} onClick={handleExport}>Export Results</Button>
           <Button variant="text" startIcon={<ContentCopyIcon />} sx={{ mb: 2, ml: 2 }} onClick={() => setShowApiExample(v => !v)}>
             {showApiExample ? 'Hide' : 'Show'} API Example
           </Button>
@@ -410,54 +519,6 @@ export default function Backtest() {
               </Box>
               {apiExample}
             </Paper>
-          )}
-          {/* Trade Statistics Table */}
-          {result.trades && result.trades.length > 0 && (
-            <Box mt={3}>
-              <Typography variant="subtitle2">Trade Statistics</Typography>
-              <TableContainer component={Paper} sx={{ mb: 2 }}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Total Trades</TableCell>
-                      <TableCell>Wins</TableCell>
-                      <TableCell>Losses</TableCell>
-                      <TableCell>Avg Win</TableCell>
-                      <TableCell>Avg Loss</TableCell>
-                      <TableCell>Largest Win</TableCell>
-                      <TableCell>Largest Loss</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell>{result.metrics?.totalTrades || result.trades.length}</TableCell>
-                      <TableCell>{result.metrics?.winningTrades || result.trades.filter(t => t.pnl > 0).length}</TableCell>
-                      <TableCell>{result.metrics?.losingTrades || result.trades.filter(t => t.pnl < 0).length}</TableCell>
-                      <TableCell>{(() => { const wins = result.trades.filter(t => t.pnl > 0).map(t => t.pnl); return wins.length ? (wins.reduce((a,b) => a+b,0)/wins.length).toFixed(2) : '0'; })()}</TableCell>
-                      <TableCell>{(() => { const losses = result.trades.filter(t => t.pnl < 0).map(t => t.pnl); return losses.length ? (losses.reduce((a,b) => a+b,0)/losses.length).toFixed(2) : '0'; })()}</TableCell>
-                      <TableCell>{(() => { const wins = result.trades.filter(t => t.pnl > 0).map(t => t.pnl); return wins.length ? Math.max(...wins).toFixed(2) : '0'; })()}</TableCell>
-                      <TableCell>{(() => { const losses = result.trades.filter(t => t.pnl < 0).map(t => t.pnl); return losses.length ? Math.min(...losses).toFixed(2) : '0'; })()}</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Box>
-          )}
-          {/* Show logs/output if present */}
-          {logs && (
-            <Box mt={2}>
-              <Typography variant="subtitle2" color="text.secondary">Backtest Logs / Output</Typography>
-              <Paper sx={{ p: 2, fontFamily: 'monospace', fontSize: 13, whiteSpace: 'pre', overflowX: 'auto', background: '#f7f7f7' }}>
-                {logs}
-              </Paper>
-            </Box>
-          )}
-          {result.performance && (
-            <Box mb={2}>
-              <Chip label={`Total Return: ${result.performance.totalReturn || 'N/A'}`} color="success" sx={{ mr: 1 }} />
-              <Chip label={`Sharpe Ratio: ${result.performance.sharpeRatio || 'N/A'}`} color="info" sx={{ mr: 1 }} />
-              <Chip label={`Max Drawdown: ${result.performance.maxDrawdown || 'N/A'}`} color="warning" />
-            </Box>
           )}
         </Paper>
       )}
