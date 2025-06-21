@@ -190,8 +190,8 @@ function TechnicalAnalysis() {
             <Grid container alignItems="center" spacing={2}>
               <Grid item xs={2}>
                 <Typography variant="h6" fontWeight="bold">{row.symbol}</Typography>
-                {row.name && (
-                  <Typography variant="body2" color="text.secondary">{row.name}</Typography>
+                {row.company_name && (
+                  <Typography variant="body2" color="text.secondary">{row.company_name}</Typography>
                 )}
                 <Typography variant="caption" color="text.secondary">{formatDate(row.date)}</Typography>
               </Grid>
