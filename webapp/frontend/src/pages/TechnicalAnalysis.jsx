@@ -38,6 +38,7 @@ import {
   Clear,
   TrendingUp,
   TrendingDown,
+  TrendingFlat,
   ShowChart,
   InfoOutlined
 } from '@mui/icons-material';
@@ -176,6 +177,23 @@ function TechnicalAnalysis() {
     { id: 'pivot_low_triggered', label: 'Pivot L Triggered', sortable: true }
   ];
 
+  // Helper to map icon string to MUI icon component
+  const getIconComponent = (icon) => {
+    switch (icon) {
+      case 'up':
+        return <TrendingUp fontSize="small" color="inherit" />;
+      case 'down':
+        return <TrendingDown fontSize="small" color="inherit" />;
+      case 'flat':
+        return <TrendingFlat fontSize="small" color="inherit" />;
+      case 'neutral':
+        return <ShowChart fontSize="small" color="inherit" />;
+      case 'info':
+      default:
+        return <InfoOutlined fontSize="small" color="inherit" />;
+    }
+  };
+
   // --- Accordion rendering for each row (fixed syntax, requirements met) ---
   const renderAccordionTable = () => (
     <Box sx={{ width: '100%' }}>
@@ -197,7 +215,7 @@ function TechnicalAnalysis() {
               </Grid>
               <Grid item xs={2}>
                 <Box display="flex" alignItems="center" gap={1}>
-                  {getTechStatus('rsi', row.rsi).icon}
+                  {getIconComponent(getTechStatus('rsi', row.rsi).icon)}
                   <Typography variant="body2" color={getTechStatus('rsi', row.rsi).color} fontWeight="bold">
                     RSI: {formatNumber(row.rsi)}
                   </Typography>
@@ -205,7 +223,7 @@ function TechnicalAnalysis() {
               </Grid>
               <Grid item xs={2}>
                 <Box display="flex" alignItems="center" gap={1}>
-                  {getTechStatus('macd', row.macd).icon}
+                  {getIconComponent(getTechStatus('macd', row.macd).icon)}
                   <Typography variant="body2" color={getTechStatus('macd', row.macd).color} fontWeight="bold">
                     MACD: {formatNumber(row.macd)}
                   </Typography>
@@ -213,7 +231,7 @@ function TechnicalAnalysis() {
               </Grid>
               <Grid item xs={2}>
                 <Box display="flex" alignItems="center" gap={1}>
-                  {getTechStatus('adx', row.adx).icon}
+                  {getIconComponent(getTechStatus('adx', row.adx).icon)}
                   <Typography variant="body2" color={getTechStatus('adx', row.adx).color} fontWeight="bold">
                     ADX: {formatNumber(row.adx)}
                   </Typography>
@@ -221,7 +239,7 @@ function TechnicalAnalysis() {
               </Grid>
               <Grid item xs={2}>
                 <Box display="flex" alignItems="center" gap={1}>
-                  {getTechStatus('atr', row.atr).icon}
+                  {getIconComponent(getTechStatus('atr', row.atr).icon)}
                   <Typography variant="body2" color={getTechStatus('atr', row.atr).color} fontWeight="bold">
                     ATR: {formatNumber(row.atr)}
                   </Typography>
@@ -229,7 +247,7 @@ function TechnicalAnalysis() {
               </Grid>
               <Grid item xs={2}>
                 <Box display="flex" alignItems="center" gap={1}>
-                  {getTechStatus('mfi', row.mfi).icon}
+                  {getIconComponent(getTechStatus('mfi', row.mfi).icon)}
                   <Typography variant="body2" color={getTechStatus('mfi', row.mfi).color} fontWeight="bold">
                     MFI: {formatNumber(row.mfi)}
                   </Typography>
@@ -249,7 +267,7 @@ function TechnicalAnalysis() {
                   <Card variant="outlined" sx={{ height: '100%' }}>
                     <CardContent>
                       <Box display="flex" alignItems="center" gap={1}>
-                        {getTechStatus(col.id, row[col.id]).icon}
+                        {getIconComponent(getTechStatus(col.id, row[col.id]).icon)}
                         <Typography variant="subtitle2">{col.label}</Typography>
                       </Box>
                       <Typography variant="h6" color={getTechStatus(col.id, row[col.id]).color} fontWeight="bold">

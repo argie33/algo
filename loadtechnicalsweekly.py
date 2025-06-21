@@ -89,7 +89,7 @@ def sanitize_value(x):
     
     # Convert numpy types to native Python types
     if isinstance(x, np.integer):
-        return int(x)
+        return int(x)no o
     elif isinstance(x, np.floating):
         return float(x)
     elif isinstance(x, np.bool_):

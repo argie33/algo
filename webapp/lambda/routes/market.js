@@ -128,7 +128,7 @@ router.get('/overview', async (req, res) => {
     console.log('Market overview endpoint called');
     
     // Check if required tables exist
-    const requiredTables = ['fear_greed_index', 'naaim_exposure', 'stock_symbols'];
+    const requiredTables = ['fear_greed_index', 'naaim_exposure', 'stock_symbols', 'aaii_sentiment'];
     const tableExists = {};
     
     for (const table of requiredTables) {
@@ -153,6 +153,7 @@ router.get('/overview', async (req, res) => {
     // Initialize default results
     let fearGreedResult = { rows: [] };
     let naaimResult = { rows: [] };
+    let aaiiResult = { rows: [] };
     let marketStatsResult = { rows: [{ 
       total_stocks: 0, 
       advancing_stocks: 0, 
@@ -182,6 +183,16 @@ router.get('/overview', async (req, res) => {
       `;
       promises.push(query(naaimQuery).then(result => ({ type: 'naaim', result })));
     }
+
+    if (tableExists['aaii_sentiment']) {
+      const aaiiQuery = `
+        SELECT bullish, neutral, bearish, date
+        FROM aaii_sentiment
+        ORDER BY date DESC
+        LIMIT 1
+      `;
+      promises.push(query(aaiiQuery).then(result => ({ type: 'aaii', result })));
+    }
     
     if (tableExists['stock_symbols']) {
       const marketStatsQuery = `
@@ -210,6 +221,9 @@ router.get('/overview', async (req, res) => {
         case 'naaim':
           naaimResult = result;
           break;
+        case 'aaii':
+          aaiiResult = result;
+          break;
         case 'marketstats':
           marketStatsResult = result;
           break;
@@ -236,11 +250,20 @@ router.get('/overview', async (req, res) => {
         week_ending: row.date
       };
     }
+    function mapAaii(row) {
+      if (!row) return null;
+      return {
+        bullish: row.bullish,
+        neutral: row.neutral,
+        bearish: row.bearish,
+        week_ending: row.date
+      };
+    }
     res.json({
       sentiment_indicators: {
         fear_greed: mapFearGreed(fearGreedResult.rows[0]),
         naaim: mapNaaim(naaimResult.rows[0]),
-        aaii: null // Not available
+        aaii: mapAaii(aaiiResult.rows[0])
       },
       market_breadth: {
         total_stocks: parseInt(marketStats.total_stocks),

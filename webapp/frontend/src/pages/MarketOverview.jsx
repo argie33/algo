@@ -18,9 +18,17 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Chip
+  Chip,
+  Tooltip,
+  CircularProgress
 } from '@mui/material'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts'
+import SentimentVerySatisfiedIcon from '@mui/icons-material/SentimentVerySatisfied';
+import SentimentVeryDissatisfiedIcon from '@mui/icons-material/SentimentVeryDissatisfied';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import SentimentNeutralIcon from '@mui/icons-material/SentimentNeutral';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 
 import { 
   getMarketOverview, 
@@ -218,17 +226,38 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
 
       {marketLoading && <LinearProgress sx={{ mb: 2 }} />}
 
-      {/* Market Sentiment Indicators */}
+      {/* Market Sentiment Indicators - FANCY VERSION */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
+        {/* Fear & Greed */}
         <Grid item xs={12} md={4}>
-          <Card>
+          <Card sx={{
+            background: 'linear-gradient(135deg, #f8fafc 60%, #e3f2fd 100%)',
+            boxShadow: 6,
+            borderRadius: 3,
+            position: 'relative',
+            overflow: 'visible',
+            minHeight: 220
+          }}>
             <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Fear & Greed Index
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <SentimentVerySatisfiedIcon sx={{ fontSize: 48, color: '#1976d2', mr: 1 }} />
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  Fear & Greed Index
+                </Typography>
+                <Tooltip title="Measures market sentiment from extreme fear to extreme greed" placement="top">
+                  <InfoOutlinedIcon sx={{ ml: 1, color: 'grey.500' }} />
+                </Tooltip>
+              </Box>
               {sentimentIndicators.fear_greed ? (
-                <Box>
-                  <Typography variant="h3" color="primary" sx={{ mb: 1 }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 2 }}>
+                  <CircularProgress 
+                    variant="determinate" 
+                    value={sentimentIndicators.fear_greed.value} 
+                    size={90} 
+                    thickness={5}
+                    sx={{ color: sentimentIndicators.fear_greed.value > 75 ? '#d32f2f' : sentimentIndicators.fear_greed.value > 55 ? '#fbc02d' : sentimentIndicators.fear_greed.value > 45 ? '#0288d1' : '#388e3c' }}
+                  />
+                  <Typography variant="h3" sx={{ mt: -7, fontWeight: 800, color: 'primary.main', zIndex: 1 }}>
                     {sentimentIndicators.fear_greed.value}
                   </Typography>
                   <Chip 
@@ -237,11 +266,11 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
                       sentimentIndicators.fear_greed.value > 75 ? 'error' :
                       sentimentIndicators.fear_greed.value > 55 ? 'warning' :
                       sentimentIndicators.fear_greed.value > 45 ? 'info' :
-                      sentimentIndicators.fear_greed.value > 25 ? 'warning' : 'error'
+                      sentimentIndicators.fear_greed.value > 25 ? 'warning' : 'success'
                     }
-                    sx={{ mb: 1 }}
+                    sx={{ mt: 1, fontWeight: 700, fontSize: 16 }}
                   />
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                     Last updated: {sentimentIndicators.fear_greed.timestamp ? new Date(sentimentIndicators.fear_greed.timestamp).toLocaleDateString() : 'N/A'}
                   </Typography>
                 </Box>
@@ -251,34 +280,51 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
             </CardContent>
           </Card>
         </Grid>
+        {/* AAII Sentiment */}
         <Grid item xs={12} md={4}>
-          <Card>
+          <Card sx={{
+            background: 'linear-gradient(135deg, #f8fafc 60%, #fffde7 100%)',
+            boxShadow: 6,
+            borderRadius: 3,
+            position: 'relative',
+            overflow: 'visible',
+            minHeight: 220
+          }}>
             <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                AAII Investor Sentiment
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <SentimentNeutralIcon sx={{ fontSize: 48, color: '#fbc02d', mr: 1 }} />
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  AAII Investor Sentiment
+                </Typography>
+                <Tooltip title="Weekly survey of individual investor sentiment (bullish, neutral, bearish)" placement="top">
+                  <InfoOutlinedIcon sx={{ ml: 1, color: 'grey.500' }} />
+                </Tooltip>
+              </Box>
               {sentimentIndicators.aaii ? (
-                <Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Bullish:</Typography>
-                    <Typography variant="body2" color="success.main">
+                <Box sx={{ mt: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <TrendingUpIcon sx={{ color: '#388e3c', mr: 1 }} />
+                    <Typography variant="body1" sx={{ fontWeight: 700, minWidth: 70 }}>Bullish:</Typography>
+                    <Typography variant="body1" color="success.main" sx={{ fontWeight: 700 }}>
                       {sentimentIndicators.aaii.bullish !== undefined ? (sentimentIndicators.aaii.bullish * 100).toFixed(1) + '%' : 'N/A'}
                     </Typography>
                   </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Neutral:</Typography>
-                    <Typography variant="body2" color="info.main">
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <SentimentNeutralIcon sx={{ color: '#fbc02d', mr: 1 }} />
+                    <Typography variant="body1" sx={{ fontWeight: 700, minWidth: 70 }}>Neutral:</Typography>
+                    <Typography variant="body1" color="warning.main" sx={{ fontWeight: 700 }}>
                       {sentimentIndicators.aaii.neutral !== undefined ? (sentimentIndicators.aaii.neutral * 100).toFixed(1) + '%' : 'N/A'}
                     </Typography>
                   </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Bearish:</Typography>
-                    <Typography variant="body2" color="error.main">
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <TrendingDownIcon sx={{ color: '#d32f2f', mr: 1 }} />
+                    <Typography variant="body1" sx={{ fontWeight: 700, minWidth: 70 }}>Bearish:</Typography>
+                    <Typography variant="body1" color="error.main" sx={{ fontWeight: 700 }}>
                       {sentimentIndicators.aaii.bearish !== undefined ? (sentimentIndicators.aaii.bearish * 100).toFixed(1) + '%' : 'N/A'}
                     </Typography>
                   </Box>
-                  <Typography variant="body2" color="text.secondary">
-                    Week ending: {sentimentIndicators.aaii.date ? new Date(sentimentIndicators.aaii.date).toLocaleDateString() : 'N/A'}
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    Week ending: {sentimentIndicators.aaii.week_ending ? new Date(sentimentIndicators.aaii.week_ending).toLocaleDateString() : 'N/A'}
                   </Typography>
                 </Box>
               ) : (
@@ -287,30 +333,50 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
             </CardContent>
           </Card>
         </Grid>
+        {/* NAAIM Sentiment */}
         <Grid item xs={12} md={4}>
-          <Card>
+          <Card sx={{
+            background: 'linear-gradient(135deg, #f8fafc 60%, #e8f5e9 100%)',
+            boxShadow: 6,
+            borderRadius: 3,
+            position: 'relative',
+            overflow: 'visible',
+            minHeight: 220
+          }}>
             <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                NAAIM Exposure Index
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <TrendingUpIcon sx={{ fontSize: 48, color: '#388e3c', mr: 1 }} />
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  NAAIM Exposure Index
+                </Typography>
+                <Tooltip title="Active manager equity exposure (average, bullish, bearish)" placement="top">
+                  <InfoOutlinedIcon sx={{ ml: 1, color: 'grey.500' }} />
+                </Tooltip>
+              </Box>
               {sentimentIndicators.naaim ? (
-                <Box>
-                  <Typography variant="h3" color="primary" sx={{ mb: 1 }}>
-                    {sentimentIndicators.naaim.average !== undefined ? sentimentIndicators.naaim.average.toFixed(1) + '%' : 'N/A'}
-                  </Typography>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Bullish:</Typography>
-                    <Typography variant="body2" color="success.main">
+                <Box sx={{ mt: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <TrendingUpIcon sx={{ color: '#388e3c', mr: 1 }} />
+                    <Typography variant="body1" sx={{ fontWeight: 700, minWidth: 70 }}>Bullish:</Typography>
+                    <Typography variant="body1" color="success.main" sx={{ fontWeight: 700 }}>
                       {sentimentIndicators.naaim.bullish_8100 !== undefined ? sentimentIndicators.naaim.bullish_8100.toFixed(1) + '%' : 'N/A'}
                     </Typography>
                   </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Bearish:</Typography>
-                    <Typography variant="body2" color="error.main">
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <TrendingDownIcon sx={{ color: '#d32f2f', mr: 1 }} />
+                    <Typography variant="body1" sx={{ fontWeight: 700, minWidth: 70 }}>Bearish:</Typography>
+                    <Typography variant="body1" color="error.main" sx={{ fontWeight: 700 }}>
                       {sentimentIndicators.naaim.bearish !== undefined ? sentimentIndicators.naaim.bearish.toFixed(1) + '%' : 'N/A'}
                     </Typography>
                   </Box>
-                  <Typography variant="body2" color="text.secondary">
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <SentimentNeutralIcon sx={{ color: '#fbc02d', mr: 1 }} />
+                    <Typography variant="body1" sx={{ fontWeight: 700, minWidth: 70 }}>Average:</Typography>
+                    <Typography variant="body1" color="info.main" sx={{ fontWeight: 700 }}>
+                      {sentimentIndicators.naaim.average !== undefined ? sentimentIndicators.naaim.average.toFixed(1) + '%' : 'N/A'}
+                    </Typography>
+                  </Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                     Week ending: {sentimentIndicators.naaim.week_ending ? new Date(sentimentIndicators.naaim.week_ending).toLocaleDateString() : 'N/A'}
                   </Typography>
                 </Box>
@@ -474,7 +540,7 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="date" />
                     <YAxis domain={[0, 100]} />
-                    <Tooltip 
+                    <RechartsTooltip 
                       formatter={(value, name, props) => [
                         `${value} (${props.payload.text})`,
                         'Fear & Greed Index'
@@ -515,7 +581,7 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
                           height={80}
                         />
                         <YAxis />
-                        <Tooltip 
+                        <RechartsTooltip 
                           formatter={(value, name) => [
                             `${value.toFixed(2)}%`,
                             'Performance'
