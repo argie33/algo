@@ -211,12 +211,24 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
   }))
 
   // Prepare sentiment chart data
-  const fearGreedHistory = sentimentHistory.fear_greed_history || []
-  const sentimentChartData = fearGreedHistory.slice(0, 30).map(item => ({
-    date: new Date(item.timestamp).toLocaleDateString(),
-    value: item.value,
-    text: item.value_text
-  })).reverse()
+  const fearGreedHistory = sentimentHistory.fear_greed_history || [];
+  const naaimHistory = sentimentHistory.naaim_history || [];
+  const aaiiHistory = sentimentHistory.aaii_history || [];
+
+  // Prepare chart data for all three
+  const sentimentChartData = Array.from({ length: 30 }, (_, i) => {
+    const fg = fearGreedHistory[i] || {};
+    const naaim = naaimHistory[i] || {};
+    const aaii = aaiiHistory[i] || {};
+    return {
+      date: fg.date ? new Date(fg.date).toLocaleDateString() : naaim.date ? new Date(naaim.date).toLocaleDateString() : aaii.date ? new Date(aaii.date).toLocaleDateString() : '',
+      fear_greed: fg.index_value ?? null,
+      naaim: naaim.mean_exposure ?? null,
+      aaii_bullish: aaii.bullish !== undefined ? aaii.bullish * 100 : null,
+      aaii_neutral: aaii.neutral !== undefined ? aaii.neutral * 100 : null,
+      aaii_bearish: aaii.bearish !== undefined ? aaii.bearish * 100 : null
+    };
+  }).reverse()
 
   return (
     <Box>
@@ -533,26 +545,30 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
             <Card>
               <CardContent>
                 <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                  Fear & Greed Index History (30 Days)
+                  Sentiment History (30 Days)
                 </Typography>
-                <ResponsiveContainer width="100%" height={400}>
-                  <LineChart data={sentimentChartData}>
+                <ResponsiveContainer width="100%" height={420}>
+                  <LineChart data={sentimentChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis domain={[0, 100]} />
+                    <XAxis dataKey="date" minTickGap={4} />
+                    <YAxis yAxisId="left" domain={[0, 100]} tickFormatter={v => v + '%'} />
+                    <YAxis yAxisId="right" orientation="right" domain={[0, 100]} hide />
                     <RechartsTooltip 
-                      formatter={(value, name, props) => [
-                        `${value} (${props.payload.text})`,
-                        'Fear & Greed Index'
-                      ]}
+                      formatter={(value, name) => {
+                        if (name === 'fear_greed') return [value, 'Fear & Greed'];
+                        if (name === 'naaim') return [value + '%', 'NAAIM'];
+                        if (name === 'aaii_bullish') return [value + '%', 'AAII Bullish'];
+                        if (name === 'aaii_neutral') return [value + '%', 'AAII Neutral'];
+                        if (name === 'aaii_bearish') return [value + '%', 'AAII Bearish'];
+                        return value;
+                      }}
                     />
-                    <Line 
-                      type="monotone" 
-                      dataKey="value" 
-                      stroke="#8884d8" 
-                      strokeWidth={2}
-                      dot={{ r: 4 }}
-                    />
+                    <Legend verticalAlign="top" height={36} />
+                    <Line yAxisId="left" type="monotone" dataKey="fear_greed" name="Fear & Greed" stroke="#1976d2" strokeWidth={2} dot={false} />
+                    <Line yAxisId="left" type="monotone" dataKey="naaim" name="NAAIM" stroke="#388e3c" strokeWidth={2} dot={false} />
+                    <Line yAxisId="left" type="monotone" dataKey="aaii_bullish" name="AAII Bullish" stroke="#43a047" strokeDasharray="5 2" dot={false} />
+                    <Line yAxisId="left" type="monotone" dataKey="aaii_neutral" name="AAII Neutral" stroke="#fbc02d" strokeDasharray="3 3" dot={false} />
+                    <Line yAxisId="left" type="monotone" dataKey="aaii_bearish" name="AAII Bearish" stroke="#d32f2f" strokeDasharray="2 2" dot={false} />
                   </LineChart>
                 </ResponsiveContainer>
               </CardContent>
