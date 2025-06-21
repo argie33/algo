@@ -23,7 +23,7 @@ import {
   CircularProgress
 } from '@mui/material'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts'
-import SentimentVerySatisfiedIcon from '@mui/icons-material/SentimentVerySatisfied';
+import AssessmentIcon from '@mui/icons-material/Assessment';
 import SentimentVeryDissatisfiedIcon from '@mui/icons-material/SentimentVeryDissatisfied';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
@@ -252,7 +252,7 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
           }}>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <SentimentVerySatisfiedIcon sx={{ fontSize: 48, color: '#1976d2', mr: 1 }} />
+                <AssessmentIcon sx={{ fontSize: 44, color: '#1976d2', mr: 1 }} />
                 <Typography variant="h6" sx={{ fontWeight: 700 }}>
                   Fear & Greed Index
                 </Typography>
@@ -261,27 +261,26 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
                 </Tooltip>
               </Box>
               {sentimentIndicators.fear_greed ? (
-                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 2 }}>
-                  <CircularProgress 
-                    variant="determinate" 
-                    value={sentimentIndicators.fear_greed.value} 
-                    size={90} 
-                    thickness={5}
-                    sx={{ color: sentimentIndicators.fear_greed.value > 75 ? '#d32f2f' : sentimentIndicators.fear_greed.value > 55 ? '#fbc02d' : sentimentIndicators.fear_greed.value > 45 ? '#0288d1' : '#388e3c' }}
-                  />
-                  <Typography variant="h3" sx={{ mt: -7, fontWeight: 800, color: 'primary.main', zIndex: 1 }}>
-                    {sentimentIndicators.fear_greed.value}
-                  </Typography>
-                  <Chip 
-                    label={sentimentIndicators.fear_greed.value_text} 
-                    color={
-                      sentimentIndicators.fear_greed.value > 75 ? 'error' :
-                      sentimentIndicators.fear_greed.value > 55 ? 'warning' :
-                      sentimentIndicators.fear_greed.value > 45 ? 'info' :
-                      sentimentIndicators.fear_greed.value > 25 ? 'warning' : 'success'
-                    }
-                    sx={{ mt: 1, fontWeight: 700, fontSize: 16 }}
-                  />
+                <Box sx={{ mt: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <Typography variant="body1" sx={{ fontWeight: 700, minWidth: 90 }}>Value:</Typography>
+                    <Typography variant="body1" color="primary.main" sx={{ fontWeight: 700, fontSize: 28, ml: 1 }}>
+                      {sentimentIndicators.fear_greed.value !== undefined ? Number(sentimentIndicators.fear_greed.value).toFixed(1) : 'N/A'}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <Typography variant="body1" sx={{ fontWeight: 700, minWidth: 90 }}>Rating:</Typography>
+                    <Chip 
+                      label={sentimentIndicators.fear_greed.value_text} 
+                      color={
+                        sentimentIndicators.fear_greed.value > 75 ? 'error' :
+                        sentimentIndicators.fear_greed.value > 55 ? 'warning' :
+                        sentimentIndicators.fear_greed.value > 45 ? 'info' :
+                        sentimentIndicators.fear_greed.value > 25 ? 'warning' : 'success'
+                      }
+                      sx={{ fontWeight: 700, fontSize: 16, ml: 1 }}
+                    />
+                  </Box>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                     Last updated: {sentimentIndicators.fear_greed.timestamp ? new Date(sentimentIndicators.fear_greed.timestamp).toLocaleDateString() : 'N/A'}
                   </Typography>
