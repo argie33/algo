@@ -108,6 +108,7 @@ jobs:
       aaiisentiment:     ${{ steps.paths.outputs.aaiisentiment }}
       feargreed:         ${{ steps.paths.outputs.feargreed }}
       stockscreener:     ${{ steps.paths.outputs.stockscreener }}
+      fundamentalmetrics:     ${{ steps.paths.outputs.fundamentalmetrics }}
       any:               ${{ steps.any.outputs.any }}
       matrix:            ${{ steps.matrix.outputs.matrix }}
 
