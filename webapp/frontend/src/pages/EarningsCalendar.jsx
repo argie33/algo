@@ -672,7 +672,7 @@ function EarningsCalendar() {
                 <Box display="flex" justifyContent="center" my={3}><CircularProgress size={28} /></Box>
               ) : earningsMetricsError ? (
                 <Alert severity="error">Failed to load earnings metrics: {earningsMetricsError.message}</Alert>
-              ) : earningsMetricsData?.data?.[epsSymbol]?.metrics?.length ? (
+              ) : (
                 <TableContainer component={Paper} sx={{ mt: 2 }}>
                   <Table size="small">
                     <TableHead>
@@ -695,32 +695,38 @@ function EarningsCalendar() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {earningsMetricsData.data[epsSymbol].metrics.map((row, idx) => (
-                        <TableRow key={row.report_date + idx}>
-                          <TableCell>{row.report_date}</TableCell>
-                          <TableCell align="right">{row.eps_growth_1q ?? '-'}</TableCell>
-                          <TableCell align="right">{row.eps_growth_2q ?? '-'}</TableCell>
-                          <TableCell align="right">{row.eps_growth_4q ?? '-'}</TableCell>
-                          <TableCell align="right">{row.eps_growth_8q ?? '-'}</TableCell>
-                          <TableCell align="right">{row.eps_acceleration_qtrs ?? '-'}</TableCell>
-                          <TableCell align="right">{row.eps_surprise_last_q ?? '-'}</TableCell>
-                          <TableCell align="right">{row.eps_estimate_revision_1m ?? '-'}</TableCell>
-                          <TableCell align="right">{row.eps_estimate_revision_3m ?? '-'}</TableCell>
-                          <TableCell align="right">{row.eps_estimate_revision_6m ?? '-'}</TableCell>
-                          <TableCell align="right">{row.annual_eps_growth_1y ?? '-'}</TableCell>
-                          <TableCell align="right">{row.annual_eps_growth_3y ?? '-'}</TableCell>
-                          <TableCell align="right">{row.annual_eps_growth_5y ?? '-'}</TableCell>
-                          <TableCell align="right">{row.consecutive_eps_growth_years ?? '-'}</TableCell>
-                          <TableCell align="right">{row.eps_estimated_change_this_year ?? '-'}</TableCell>
+                      {Array.isArray(earningsMetricsData?.data?.[epsSymbol]?.metrics) && earningsMetricsData.data[epsSymbol].metrics.length > 0 ? (
+                        earningsMetricsData.data[epsSymbol].metrics.map((row, idx) => (
+                          <TableRow key={row.report_date + idx}>
+                            <TableCell>{row.report_date}</TableCell>
+                            <TableCell align="right">{row.eps_growth_1q ?? '-'}</TableCell>
+                            <TableCell align="right">{row.eps_growth_2q ?? '-'}</TableCell>
+                            <TableCell align="right">{row.eps_growth_4q ?? '-'}</TableCell>
+                            <TableCell align="right">{row.eps_growth_8q ?? '-'}</TableCell>
+                            <TableCell align="right">{row.eps_acceleration_qtrs ?? '-'}</TableCell>
+                            <TableCell align="right">{row.eps_surprise_last_q ?? '-'}</TableCell>
+                            <TableCell align="right">{row.eps_estimate_revision_1m ?? '-'}</TableCell>
+                            <TableCell align="right">{row.eps_estimate_revision_3m ?? '-'}</TableCell>
+                            <TableCell align="right">{row.eps_estimate_revision_6m ?? '-'}</TableCell>
+                            <TableCell align="right">{row.annual_eps_growth_1y ?? '-'}</TableCell>
+                            <TableCell align="right">{row.annual_eps_growth_3y ?? '-'}</TableCell>
+                            <TableCell align="right">{row.annual_eps_growth_5y ?? '-'}</TableCell>
+                            <TableCell align="right">{row.consecutive_eps_growth_years ?? '-'}</TableCell>
+                            <TableCell align="right">{row.eps_estimated_change_this_year ?? '-'}</TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={15} align="center">
+                            <Typography variant="body2" color="text.secondary" mt={2}>
+                              No earnings metrics data found for <b>{epsSymbol}</b>.
+                            </Typography>
+                          </TableCell>
                         </TableRow>
-                      ))}
+                      )}
                     </TableBody>
                   </Table>
                 </TableContainer>
-              ) : (
-                <Typography variant="body2" color="text.secondary" mt={2}>
-                  No earnings metrics data found for <b>{epsSymbol}</b>.
-                </Typography>
               )}
             </>
           )}
