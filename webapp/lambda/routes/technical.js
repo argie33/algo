@@ -16,52 +16,45 @@ router.get('/ping', (req, res) => {
 router.get('/:timeframe', async (req, res) => {
   try {
     const { timeframe } = req.params;
-    console.log(`Technical data endpoint called for timeframe: ${timeframe}, params:`, req.query);
-    
-    // Support all available timeframes
+    console.log(`[DEBUG] Technical data endpoint called for timeframe: ${timeframe}, params:`, req.query);
     const validTimeframes = ['daily', 'weekly', 'monthly'];
     if (!validTimeframes.includes(timeframe)) {
+      console.log(`[DEBUG] Invalid timeframe: ${timeframe}`);
       return res.status(400).json({
         error: 'Unsupported timeframe',
         message: `Supported timeframes: ${validTimeframes.join(', ')}, got: ${timeframe}`,
         availableTimeframes: validTimeframes
       });
     }
-
     const page = parseInt(req.query.page) || 1;
-    const limit = Math.min(parseInt(req.query.limit) || 25, 100); // Cap at 100 for performance
+    const limit = Math.min(parseInt(req.query.limit) || 25, 100);
     const offset = (page - 1) * limit;
     const symbol = req.query.symbol;
-
-    // Use the correct table based on timeframe
+    console.log(`[DEBUG] Pagination: page=${page}, limit=${limit}, offset=${offset}`);
     const tableName = `technical_data_${timeframe}`;
-
     let whereClause = 'WHERE 1=1';
     const params = [];
     let paramIndex = 1;
-
-    // Add symbol filter if provided
     if (symbol) {
+      console.log(`[DEBUG] Symbol filter provided: ${symbol}`);
       whereClause += ` AND t.symbol = $${paramIndex}`;
       params.push(symbol.toUpperCase());
       paramIndex++;
+    } else {
+      console.log('[DEBUG] No symbol filter provided');
     }
-
-    // Add date filters - with default recent data limits for performance
     if (req.query.start_date) {
+      console.log(`[DEBUG] Start date filter: ${req.query.start_date}`);
       whereClause += ` AND t.date >= $${paramIndex}`;
       params.push(req.query.start_date);
       paramIndex++;
-    } 
-    // else: do not restrict by date, return all data
-
+    }
     if (req.query.end_date) {
+      console.log(`[DEBUG] End date filter: ${req.query.end_date}`);
       whereClause += ` AND t.date <= $${paramIndex}`;
       params.push(req.query.end_date);
       paramIndex++;
     }
-
-    // Add indicator value range filter if provided
     const indicator = req.query.indicator;
     const indicatorMin = req.query.indicatorMin;
     const indicatorMax = req.query.indicatorMax;
@@ -70,29 +63,26 @@ router.get('/:timeframe', async (req, res) => {
     ];
     if (indicator && allowedIndicators.includes(indicator)) {
       if (indicatorMin !== undefined && indicatorMin !== '') {
+        console.log(`[DEBUG] Indicator min filter: ${indicator} >= ${indicatorMin}`);
         whereClause += ` AND t.${indicator} >= $${paramIndex}`;
         params.push(Number(indicatorMin));
         paramIndex++;
       }
       if (indicatorMax !== undefined && indicatorMax !== '') {
+        console.log(`[DEBUG] Indicator max filter: ${indicator} <= ${indicatorMax}`);
         whereClause += ` AND t.${indicator} <= $${paramIndex}`;
         params.push(Number(indicatorMax));
         paramIndex++;
       }
     }
-
-    // Add sorting support
     let sortBy = req.query.sortBy || 'date';
     let sortOrder = req.query.sortOrder === 'asc' ? 'ASC' : 'DESC';
-    // Only allow sorting by known columns for safety
     const allowedSorts = [
       'symbol','date','rsi','macd','macd_signal','macd_hist','adx','atr','mfi','roc','mom','sma_10','sma_20','sma_50','sma_150','sma_200','ema_4','ema_9','ema_21','bbands_upper','bbands_middle','bbands_lower','ad','cmf','td_sequential','td_combo','marketwatch','dm','pivot_high','pivot_low','pivot_high_triggered','pivot_low_triggered'
     ];
     if (!allowedSorts.includes(sortBy)) sortBy = 'date';
-
-    console.log('Using whereClause:', whereClause, 'params:', params);
-    console.log('Using tableName:', tableName);
-    
+    console.log('[DEBUG] Using whereClause:', whereClause, 'params:', params);
+    console.log('[DEBUG] Using tableName:', tableName);
     const dataQuery = `
       SELECT 
         t.symbol,
@@ -140,35 +130,32 @@ router.get('/:timeframe', async (req, res) => {
       ORDER BY t.${sortBy} ${sortOrder}, t.symbol ASC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
-
     const countQuery = `
       SELECT COUNT(*) as total
       FROM ${tableName} t
       ${whereClause}
     `;
-
-    console.log('Executing queries with limit:', limit, 'offset:', offset);
-
-    // Log the final SQL query and parameters for debugging
-    console.log('Final SQL Query:', dataQuery);
-    console.log('Query Parameters:', [...params, limit, offset]);
-
-    const [dataResult, countResult] = await Promise.all([
-      query(dataQuery, [...params, limit, offset]),
-      query(countQuery, params)
-    ]);
-
-    console.log('Query results - data:', dataResult.rows.length, 'total:', countResult.rows[0].total);
-    if (dataResult.rows && dataResult.rows.length > 0) {
-      console.log('Sample data row:', dataResult.rows[0]);
-    } else {
-      console.warn('No technical data found for query:', dataQuery, 'params:', [...params, limit, offset]);
+    console.log('[DEBUG] Executing queries with limit:', limit, 'offset:', offset);
+    console.log('[DEBUG] Final SQL Query:', dataQuery);
+    console.log('[DEBUG] Query Parameters:', [...params, limit, offset]);
+    let dataResult, countResult;
+    try {
+      [dataResult, countResult] = await Promise.all([
+        query(dataQuery, [...params, limit, offset]),
+        query(countQuery, params)
+      ]);
+    } catch (dbError) {
+      console.error('[DEBUG] Database query error:', dbError);
+      throw dbError;
     }
-
+    console.log('[DEBUG] Query results - data:', dataResult.rows.length, 'total:', countResult.rows[0].total);
+    if (dataResult.rows && dataResult.rows.length > 0) {
+      console.log('[DEBUG] Sample data row:', dataResult.rows[0]);
+    } else {
+      console.warn('[DEBUG] No technical data found for query:', dataQuery, 'params:', [...params, limit, offset]);
+    }
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
-
-    // Ensure all indicator fields are numbers or null (never undefined)
     function sanitizeRow(row) {
       const indicators = [
         'rsi','macd','macd_signal','macd_hist','adx','atr','mfi','roc','mom','sma_10','sma_20','sma_50','sma_150','sma_200','ema_4','ema_9','ema_21','bbands_upper','bbands_middle','bbands_lower','ad','cmf','td_sequential','td_combo','marketwatch','dm','pivot_high','pivot_low','pivot_high_triggered','pivot_low_triggered'
@@ -183,7 +170,6 @@ router.get('/:timeframe', async (req, res) => {
       });
       return sanitized;
     }
-
     res.json({
       success: true,
       data: dataResult.rows.map(sanitizeRow),
@@ -209,9 +195,8 @@ router.get('/:timeframe', async (req, res) => {
         warning: dataResult.rows.length === 0 ? 'No technical data found for the given query. Check your database and query parameters.' : undefined
       }
     });
-
   } catch (error) {
-    console.error('Error in technical endpoint:', error);
+    console.error('[DEBUG] Error in technical endpoint:', error);
     res.status(500).json({ 
       error: 'Failed to fetch technical data',
       details: error.message,

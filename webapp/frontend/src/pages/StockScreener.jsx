@@ -248,6 +248,16 @@ function StockScreener() {
     { id: 'sector', label: 'Sector', sortable: true }
   ]
 
+  // Normalize stocks list to handle both { data: [...] } and { data: { data: [...] } } API responses
+  let stocksList = [];
+  if (screenResults) {
+    if (Array.isArray(screenResults.data)) {
+      stocksList = screenResults.data;
+    } else if (screenResults.data && Array.isArray(screenResults.data.data)) {
+      stocksList = screenResults.data.data;
+    }
+  }
+
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
@@ -525,7 +535,7 @@ function StockScreener() {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {screenResults.data?.map((stock) => (
+                        {stocksList.map((stock) => (
                           <TableRow
                             key={stock.symbol}
                             hover

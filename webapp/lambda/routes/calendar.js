@@ -393,14 +393,15 @@ router.get('/earnings-history', async (req, res) => {
   }
 });
 
-// Get earnings metrics for all companies
+// Get earnings metrics for all companies or a specific symbol
 router.get('/earnings-metrics', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 25;
     const offset = (page - 1) * limit;
+    const symbol = req.query.symbol ? req.query.symbol.toUpperCase() : null;
 
-    const metricsQuery = `
+    let metricsQuery = `
       SELECT 
         em.symbol,
         cp.short_name as company_name,
@@ -421,17 +422,9 @@ router.get('/earnings-metrics', async (req, res) => {
         em.eps_estimated_change_this_year
       FROM earnings_metrics em
       LEFT JOIN company_profile cp ON em.symbol = cp.ticker
-      ORDER BY em.symbol ASC, em.report_date DESC
-      LIMIT $1 OFFSET $2
     `;
-
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM earnings_metrics
-    `;
-
-    // Group and summarize by symbol for insights
-    const summaryQuery = `
+    let countQuery = `SELECT COUNT(*) as total FROM earnings_metrics`;
+    let summaryQuery = `
       SELECT 
         symbol,
         COUNT(*) as count,
@@ -443,17 +436,30 @@ router.get('/earnings-metrics', async (req, res) => {
         MAX(annual_eps_growth_3y) as max_annual_growth_3y,
         MAX(annual_eps_growth_5y) as max_annual_growth_5y
       FROM earnings_metrics
-      GROUP BY symbol
-      ORDER BY symbol ASC
     `;
+    const params = [];
+    if (symbol) {
+      metricsQuery += ` WHERE em.symbol = $1 ORDER BY em.report_date DESC LIMIT $2 OFFSET $3`;
+      countQuery += ` WHERE symbol = $1`;
+      summaryQuery += ` WHERE symbol = $1 GROUP BY symbol ORDER BY symbol ASC`;
+      params.push(symbol, limit, offset);
+    } else {
+      metricsQuery += ` ORDER BY em.symbol ASC, em.report_date DESC LIMIT $1 OFFSET $2`;
+      params.push(limit, offset);
+      summaryQuery += ` GROUP BY symbol ORDER BY symbol ASC`;
+    }
+
+    const metricsPromise = query(metricsQuery, params);
+    const countPromise = symbol ? query(countQuery, [symbol]) : query(countQuery);
+    const summaryPromise = symbol ? query(summaryQuery, [symbol]) : query(summaryQuery);
 
     const [metricsResult, countResult, summaryResult] = await Promise.all([
-      query(metricsQuery, [limit, offset]),
-      query(countQuery),
-      query(summaryQuery)
+      metricsPromise,
+      countPromise,
+      summaryPromise
     ]);
 
-    const total = parseInt(countResult.rows[0].total);
+    const total = parseInt(countResult.rows[0]?.total || 0);
     const totalPages = Math.ceil(total / limit);
 
     // Group data by symbol
