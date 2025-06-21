@@ -160,9 +160,9 @@ router.get('/', async (req, res) => {
 router.get('/database', async (req, res) => {
   try {
     console.log('Database health check endpoint called');
-    
     const results = {};
-      // Check all important tables
+    const warnings = [];
+    // Check all important tables
     const tables = [
       'technical_data_daily',
       'technical_data_weekly', 
@@ -191,7 +191,6 @@ router.get('/database', async (req, res) => {
       'fear_greed_index',
       'economic_data'
     ];
-    
     for (const table of tables) {
       try {
         // Check if table exists
@@ -202,14 +201,11 @@ router.get('/database', async (req, res) => {
             AND table_name = '${table}'
           );
         `;
-        
         const tableExists = await query(tableExistsQuery);
-        
         if (tableExists.rows[0].exists) {
           // Count total records
           const countQuery = `SELECT COUNT(*) as total FROM ${table}`;
           const countResult = await query(countQuery);
-          
           // Get last updated timestamp if available
           const columns = await query(`
             SELECT column_name 
@@ -227,7 +223,6 @@ router.get('/database', async (req, res) => {
               END
             LIMIT 1
           `);
-          
           let lastUpdate = null;
           if (columns.rows.length > 0) {
             const timestampColumn = columns.rows[0].column_name;
@@ -235,47 +230,92 @@ router.get('/database', async (req, res) => {
             const timestampResult = await query(timestampQuery);
             lastUpdate = timestampResult.rows[0].last_update;
           }
-          
+          // Get table size
+          let size = null;
+          try {
+            const sizeResult = await query(`
+              SELECT pg_size_pretty(pg_total_relation_size('${table}')) as size
+            `);
+            size = sizeResult.rows[0].size;
+          } catch (e) { size = null; }
+          // Get index info
+          let indexes = [];
+          try {
+            const indexResult = await query(`
+              SELECT indexname, indexdef FROM pg_indexes WHERE tablename = '${table}'
+            `);
+            indexes = indexResult.rows;
+          } catch (e) { indexes = []; }
+          // Add warning for empty or stale tables
+          if (parseInt(countResult.rows[0].total) === 0) {
+            warnings.push(`${table} is empty`);
+          } else if (lastUpdate) {
+            const daysOld = (Date.now() - new Date(lastUpdate).getTime()) / (1000*60*60*24);
+            if (daysOld > 30) {
+              warnings.push(`${table} has not been updated in ${Math.round(daysOld)} days`);
+            }
+          }
           results[table] = {
             exists: true,
             totalRecords: parseInt(countResult.rows[0].total),
-            lastUpdate: lastUpdate
+            lastUpdate: lastUpdate,
+            size: size,
+            indexes: indexes
           };
         } else {
           results[table] = {
             exists: false,
             totalRecords: 0,
-            lastUpdate: null
+            lastUpdate: null,
+            size: null,
+            indexes: []
           };
         }
-        
       } catch (error) {
         results[table] = {
           exists: false,
           totalRecords: 0,
           lastUpdate: null,
+          size: null,
+          indexes: [],
           error: error.message
         };
       }
     }
-    
+    // Pool stats (if available)
+    let poolStats = null;
+    try {
+      const { getPool } = require('../utils/database');
+      const pool = getPool();
+      poolStats = {
+        totalCount: pool.totalCount,
+        idleCount: pool.idleCount,
+        waitingCount: pool.waitingCount
+      };
+    } catch (e) { poolStats = null; }
     // Overall health summary
     const totalTables = tables.length;
     const existingTables = Object.values(results).filter(r => r.exists).length;
     const tablesWithData = Object.values(results).filter(r => r.exists && r.totalRecords > 0).length;
-    
-    res.json({
+    // Health summary section
+    const healthSummary = {
       status: 'ok',
       timestamp: new Date().toISOString(),
-      summary: {
-        totalTables,
-        existingTables,
-        tablesWithData,
-        healthPercentage: Math.round((tablesWithData / totalTables) * 100)
-      },
+      uptimeSeconds: process.uptime(),
+      memory: process.memoryUsage(),
+      environment: process.env.NODE_ENV || 'development',
+      dbConnection: poolStats ? 'connected' : 'unknown',
+      totalTables,
+      existingTables,
+      tablesWithData,
+      healthPercentage: Math.round((tablesWithData / totalTables) * 100),
+      warnings,
+      poolStats
+    };
+    res.json({
+      healthSummary,
       tables: results
     });
-    
   } catch (error) {
     console.error('Error in database health check:', error);
     res.status(500).json({ 
