@@ -182,7 +182,7 @@ export const getMarketOverview = async () => {
       baseURL: currentConfig.baseURL
     })
     console.log('Market overview response:', response.data)
-    return { data: response.data }
+    return { data: unwrapApiResponse(response.data) }
   } catch (error) {
     console.error('Error fetching market overview:', error)
     const errorMessage = handleApiError(error, 'market overview')

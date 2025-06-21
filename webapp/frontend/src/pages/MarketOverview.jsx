@@ -756,7 +756,7 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {economicData?.data?.slice(0, 10).map((indicator, index) => (
+                          {(economicData?.slice ? economicData.slice(0, 10) : []).map((indicator, index) => (
                             <TableRow key={index} hover>
                               <TableCell>{indicator.name || 'N/A'}</TableCell>
                               <TableCell align="right">
