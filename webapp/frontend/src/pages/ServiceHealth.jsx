@@ -361,7 +361,18 @@ function ServiceHealth() {  const [environmentInfo, setEnvironmentInfo] = useSta
                 Environment
               </Typography>
               <Typography variant="body2" color="textSecondary">
-                {environmentInfo?.MODE || 'Unknown'}
+                {/* Show a friendly environment name. Default to 'Production' if not set. */}
+                {(() => {
+                  const env = import.meta.env.VITE_ENV || import.meta.env.MODE || '';
+                  if (env.toLowerCase().startsWith('prod')) return 'Production';
+                  if (env.toLowerCase().startsWith('stag')) return 'Staging';
+                  if (env.toLowerCase().startsWith('dev')) return 'Development';
+                  if (env) return env.charAt(0).toUpperCase() + env.slice(1);
+                  return 'Production';
+                })()}
+              </Typography>
+              <Typography variant="caption" display="block" sx={{ mt: 1 }} title={import.meta.env.VITE_API_URL || ''}>
+                {import.meta.env.VITE_API_URL ? `API: ${import.meta.env.VITE_API_URL}` : ''}
               </Typography>
             </CardContent>
           </Card>
