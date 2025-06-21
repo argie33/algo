@@ -430,6 +430,16 @@ function StockExplorer() {
     { id: 'isEtf', label: 'ETF', sortable: true, minWidth: 80, format: (value) => value ? 'Yes' : 'No' },
     { id: 'testIssue', label: 'Test Issue', sortable: true, minWidth: 100, format: (value) => value ? 'Yes' : 'No' }
   ]
+  // --- Add this at the top of the StockExplorer function, after hooks, before return ---
+  // Normalize stocks list to handle both { data: [...] } and { data: { data: [...] } } API responses
+  let stocksList = [];
+  if (stocksData) {
+    if (Array.isArray(stocksData.data)) {
+      stocksList = stocksData.data;
+    } else if (stocksData.data && Array.isArray(stocksData.data.data)) {
+      stocksList = stocksData.data.data;
+    }
+  }
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
