@@ -935,7 +935,8 @@ export const getEarningsMetrics = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/earnings/metrics?${queryParams.toString()}`)
+    // Corrected endpoint path
+    const response = await api.get(`/calendar/earnings-metrics?${queryParams.toString()}`)
     return { data: response.data }
   } catch (error) {
     const errorMessage = handleApiError(error, 'get earnings metrics')
