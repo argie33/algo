@@ -771,7 +771,8 @@ export const getFinancialMetrics = async (params = {}) => {
 }
 
 // Technical data endpoint
-export const getTechnicalData = async (params = {}) => {
+// Updated: Accepts timeframe as first param, params as second
+export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
   try {
     const queryParams = new URLSearchParams()
     Object.entries(params).forEach(([key, value]) => {
@@ -779,7 +780,8 @@ export const getTechnicalData = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/technical/data?${queryParams.toString()}`)
+    // Call /technical/:timeframe?...
+    const response = await api.get(`/technical/${timeframe}?${queryParams.toString()}`)
     return { data: response.data }
   } catch (error) {
     const errorMessage = handleApiError(error, 'get technical data')
