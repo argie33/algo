@@ -963,6 +963,30 @@ export const getDatabaseHealthFull = async () => {
   }
 }
 
+// Health check
+export const healthCheck = async (queryParams = '') => {
+  try {
+    const response = await api.get(`/health${queryParams}`, {
+      baseURL: currentConfig.baseURL
+    })
+    console.log('Health check response:', response.data)
+    return {
+      data: response.data,
+      healthy: true,
+      timestamp: new Date().toISOString()
+    }
+  } catch (error) {
+    console.error('Error in health check:', error)
+    const errorMessage = handleApiError(error, 'health check')
+    return {
+      data: null,
+      error: errorMessage,
+      healthy: false,
+      timestamp: new Date().toISOString()
+    }
+  }
+}
+
 // --- Add this utility for consistent error handling ---
 function handleApiError(error, context = '') {
   let message = 'An unexpected error occurred';
@@ -978,6 +1002,9 @@ function handleApiError(error, context = '') {
   }
   return message;
 }
+
+// Export healthCheck as a named export for compatibility with named imports
+export { healthCheck };
 
 // Export all methods as a default object for easier importing
 export default {
