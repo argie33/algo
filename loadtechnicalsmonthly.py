@@ -515,6 +515,48 @@ def marketwatch_indicator_vectorized(close, open_):
     
     return pd.Series(result, index=close.index)
 
+def pivot_high_hypothetical(high, left_bars=3, right_bars=3):
+    """For each period, output the high at the center of the window (hypothetical pivot value).
+    For all bars except the first left_bars, output the current high as the threshold (even if not enough right bars).
+    """
+    n = len(high)
+    result = pd.Series(np.nan, index=high.index)
+    for i in range(left_bars, n):
+        result.iloc[i] = high.iloc[i]
+    return result
+
+def pivot_low_hypothetical(low, left_bars=3, right_bars=3):
+    """For each period, output the low at the center of the window (hypothetical pivot value).
+    For all bars except the first left_bars, output the current low as the threshold (even if not enough right bars).
+    """
+    n = len(low)
+    result = pd.Series(np.nan, index=low.index)
+    for i in range(left_bars, n):
+        result.iloc[i] = low.iloc[i]
+    return result
+
+def pivot_high_triggered_flag(high, left_bars=3, right_bars=3):
+    """Flag if a pivot high is triggered at this bar (value = high, else NaN)."""
+    n = len(high)
+    result = pd.Series(np.nan, index=high.index)
+    for i in range(left_bars, n - right_bars):
+        left_window = high.iloc[i-left_bars:i]
+        right_window = high.iloc[i+1:i+right_bars+1]
+        if (high.iloc[i] > left_window.max()) and (high.iloc[i] > right_window.max()):
+            result.iloc[i] = high.iloc[i]
+    return result
+
+def pivot_low_triggered_flag(low, left_bars=3, right_bars=3):
+    """Flag if a pivot low is triggered at this bar (value = low, else NaN)."""
+    n = len(low)
+    result = pd.Series(np.nan, index=low.index)
+    for i in range(left_bars, n - right_bars):
+        left_window = low.iloc[i-left_bars:i]
+        right_window = low.iloc[i+1:i+right_bars+1]
+        if (low.iloc[i] < left_window.min()) and (low.iloc[i] < right_window.min()):
+            result.iloc[i] = low.iloc[i]
+    return result
+
 # -------------------------------
 # Main technical indicators calculator with parallel processing
 # -------------------------------
@@ -586,15 +628,16 @@ def calculate_technicals_parallel(df):
     def calculate_custom_indicators():
         """Calculate custom indicators"""
         results = {}
-        
-        # Custom indicators        
+        # Custom indicators
         results['td_sequential'] = td_sequential_vectorized(df['close'], lookback=4)
         results['td_combo'] = td_combo_vectorized(df['close'], lookback=2)
         results['marketwatch'] = marketwatch_indicator_vectorized(df['close'], df['open'])
-          # Pivot points
-        results['pivot_high'] = pivot_high_vectorized(df['high'], left_bars=3, right_bars=3)
-        results['pivot_low'] = pivot_low_vectorized(df['low'], left_bars=3, right_bars=3)
-        
+        # Pivot points (repurposed: always output the hypothetical value)
+        results['pivot_high'] = pivot_high_hypothetical(df['high'], left_bars=3, right_bars=3)
+        results['pivot_low'] = pivot_low_hypothetical(df['low'], left_bars=3, right_bars=3)
+        # New: flag if a pivot was triggered (old logic)
+        results['pivot_high_triggered'] = pivot_high_triggered_flag(df['high'], left_bars=3, right_bars=3)
+        results['pivot_low_triggered'] = pivot_low_triggered_flag(df['low'], left_bars=3, right_bars=3)
         # DM calculation
         dm_plus = df['high'].diff()
         dm_minus = df['low'].shift(1) - df['low']

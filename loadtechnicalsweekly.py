@@ -55,6 +55,7 @@ TECHNICALS_COLUMNS = [
     "ema_4", "ema_9", "ema_21",
     "bbands_lower", "bbands_middle", "bbands_upper",
     "pivot_high", "pivot_low",
+    "pivot_high_triggered", "pivot_low_triggered",
     "fetched_at"
 ]
 
