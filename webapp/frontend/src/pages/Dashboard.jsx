@@ -156,17 +156,11 @@ const Dashboard = () => {
     )
   }
 
-  const overview = marketData?.data?.overview
-  const topGainers = marketData?.data?.top_gainers
-  const topLosers = marketData?.data?.top_losers
-  const sectorPerformance = marketData?.data?.sector_performance
-
-  // Prepare sector chart data
-  const sectorChartData = sectorPerformance?.slice(0, 6).map(sector => ({
-    name: sector.sector?.replace(/[&,]/g, '') || 'Other',
-    value: parseFloat(sector.avg_change) || 0,
-    stockCount: parseInt(sector.stock_count) || 0
-  })) || []
+  // Use available backend fields
+  const marketBreadth = marketData?.data?.market_breadth || {};
+  const marketCap = marketData?.data?.market_cap || {};
+  const sentimentIndicators = marketData?.data?.sentiment_indicators || {};
+  // No sector performance or top gainers/losers available
 
   return (
     <Box>
@@ -179,7 +173,7 @@ const Dashboard = () => {
         <Grid item xs={12} sm={6} md={3}>
           <MetricCard
             title="Total Stocks"
-            value={formatNumber(overview?.total_stocks || 0, 0)}
+            value={formatNumber(marketBreadth.total_stocks || 0, 0)}
             icon={<Business />}
             color="primary"
           />
@@ -187,117 +181,96 @@ const Dashboard = () => {
         <Grid item xs={12} sm={6} md={3}>
           <MetricCard
             title="Market Cap"
-            value={formatCurrency(overview?.total_market_cap || 0, 0)}
+            value={formatCurrency(marketCap.total || 0, 0)}
             icon={<AttachMoney />}
             color="success"
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <MetricCard
-            title="Gainers"
-            value={formatNumber(overview?.gainers || 0, 0)}
-            subtitle={`${formatNumber(overview?.losers || 0, 0)} losers`}
+            title="Advancing"
+            value={formatNumber(marketBreadth.advancing || 0, 0)}
+            subtitle={`Declining: ${formatNumber(marketBreadth.declining || 0, 0)}`}
             icon={<TrendingUp />}
             color="success"
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <MetricCard
-            title="Avg P/E Ratio"
-            value={formatNumber(overview?.avg_pe || 0)}
-            subtitle={`Avg P/B: ${formatNumber(overview?.avg_pb || 0)}`}
+            title="Advance/Decline Ratio"
+            value={marketBreadth.advance_decline_ratio !== undefined ? marketBreadth.advance_decline_ratio : 'N/A'}
+            subtitle={`Avg Change: ${marketBreadth.average_change_percent !== undefined ? marketBreadth.average_change_percent : 'N/A'}%`}
             icon={<Assessment />}
             color="info"
           />
         </Grid>
       </Grid>
 
-      {/* Charts and Lists */}
-      <Grid container spacing={3}>
-        {/* Sector Performance Chart */}
-        <Grid item xs={12} md={6}>
-          <Card sx={{ height: 400 }}>
+      {/* Sentiment Indicators */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} sm={4}>
+          <Card>
             <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Sector Performance Today
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
+                Fear & Greed Index
               </Typography>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={sectorChartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="name" 
-                    tick={{ fontSize: 12 }}
-                    angle={-45}
-                    textAnchor="end"
-                    height={80}
-                  />
-                  <YAxis 
-                    tick={{ fontSize: 12 }}
-                    tickFormatter={(value) => `${value}%`}
-                  />
-                  <Tooltip 
-                    formatter={(value, name) => [`${value.toFixed(2)}%`, 'Avg Change']}
-                    labelFormatter={(label) => `Sector: ${label}`}
-                  />
-                  <Bar 
-                    dataKey="value" 
-                    fill="#1976d2"
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+              {sentimentIndicators.fear_greed ? (
+                <Box>
+                  <Typography variant="h4" color="primary" sx={{ fontWeight: 700 }}>
+                    {sentimentIndicators.fear_greed.value !== undefined ? Number(sentimentIndicators.fear_greed.value).toFixed(1) : 'N/A'}
+                  </Typography>
+                  <Chip label={sentimentIndicators.fear_greed.value_text} sx={{ mt: 1 }} />
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    Last updated: {sentimentIndicators.fear_greed.timestamp ? new Date(sentimentIndicators.fear_greed.timestamp).toLocaleDateString() : 'N/A'}
+                  </Typography>
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary">No data available</Typography>
+              )}
             </CardContent>
           </Card>
         </Grid>
-
-        {/* Market Distribution */}
-        <Grid item xs={12} md={6}>
-          <Card sx={{ height: 400 }}>
+        <Grid item xs={12} sm={4}>
+          <Card>
             <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Sector Distribution (by Stock Count)
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
+                AAII Investor Sentiment
               </Typography>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={sectorChartData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
-                    paddingAngle={5}
-                    dataKey="stockCount"
-                  >
-                    {sectorChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    formatter={(value, name) => [`${value} stocks`, 'Count']}
-                  />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
+              {sentimentIndicators.aaii ? (
+                <Box>
+                  <Typography variant="body2">Bullish: <b>{sentimentIndicators.aaii.bullish !== undefined ? (sentimentIndicators.aaii.bullish * 100).toFixed(1) + '%' : 'N/A'}</b></Typography>
+                  <Typography variant="body2">Neutral: <b>{sentimentIndicators.aaii.neutral !== undefined ? (sentimentIndicators.aaii.neutral * 100).toFixed(1) + '%' : 'N/A'}</b></Typography>
+                  <Typography variant="body2">Bearish: <b>{sentimentIndicators.aaii.bearish !== undefined ? (sentimentIndicators.aaii.bearish * 100).toFixed(1) + '%' : 'N/A'}</b></Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    Week ending: {sentimentIndicators.aaii.week_ending ? new Date(sentimentIndicators.aaii.week_ending).toLocaleDateString() : 'N/A'}
+                  </Typography>
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary">No data available</Typography>
+              )}
             </CardContent>
           </Card>
         </Grid>
-
-        {/* Top Gainers */}
-        <Grid item xs={12} md={6}>
-          <StockListCard
-            title="🚀 Top Gainers Today"
-            stocks={topGainers}
-            showChange={true}
-          />
-        </Grid>
-
-        {/* Top Losers */}
-        <Grid item xs={12} md={6}>
-          <StockListCard
-            title="📉 Top Losers Today"
-            stocks={topLosers}
-            showChange={true}
-          />
+        <Grid item xs={12} sm={4}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
+                NAAIM Exposure Index
+              </Typography>
+              {sentimentIndicators.naaim ? (
+                <Box>
+                  <Typography variant="body2">Average: <b>{sentimentIndicators.naaim.average !== undefined ? sentimentIndicators.naaim.average.toFixed(1) + '%' : 'N/A'}</b></Typography>
+                  <Typography variant="body2">Bullish: <b>{sentimentIndicators.naaim.bullish_8100 !== undefined ? sentimentIndicators.naaim.bullish_8100.toFixed(1) + '%' : 'N/A'}</b></Typography>
+                  <Typography variant="body2">Bearish: <b>{sentimentIndicators.naaim.bearish !== undefined ? sentimentIndicators.naaim.bearish.toFixed(1) + '%' : 'N/A'}</b></Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    Week ending: {sentimentIndicators.naaim.week_ending ? new Date(sentimentIndicators.naaim.week_ending).toLocaleDateString() : 'N/A'}
+                  </Typography>
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary">No data available</Typography>
+              )}
+            </CardContent>
+          </Card>
         </Grid>
       </Grid>
     </Box>
