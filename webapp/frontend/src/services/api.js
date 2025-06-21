@@ -1003,6 +1003,28 @@ function handleApiError(error, context = '') {
   return message;
 }
 
+// Helper to always return { data: ... } for all API responses
+function normalizeApiResponse(response) {
+  // If response is already { data: ... } and nothing else, unwrap one level
+  if (response && typeof response === 'object' && Object.keys(response).length === 1 && 'data' in response) {
+    if (Array.isArray(response.data) || typeof response.data === 'object') {
+      return { data: response.data };
+    }
+  }
+  // If response is an array, wrap it
+  if (Array.isArray(response)) return { data: response };
+  // If response.data is an array or object, wrap it
+  if (response && response.data) {
+    if (Array.isArray(response.data) || typeof response.data === 'object') {
+      return { data: response.data };
+    }
+  }
+  // If response is an object, wrap it
+  if (response && typeof response === 'object') return { data: response };
+  // Fallback to empty array
+  return { data: [] };
+}
+
 // Export healthCheck as a named export for compatibility with named imports
 export { healthCheck };
 
