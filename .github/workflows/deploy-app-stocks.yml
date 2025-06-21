@@ -348,7 +348,6 @@ jobs:
              [ "${{ steps.paths.outputs.aaiisentiment }}" = "true" ] || \
              [ "${{ steps.paths.outputs.feargreed }}" = "true" ] || \
              [ "${{ steps.paths.outputs.stockscreener }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.fundamentalmetrics }}" = "true" ] || \
              [ "${{ steps.paths.outputs.app }}" = "true" ]; then
             echo "any=true" >> $GITHUB_OUTPUT
           else
