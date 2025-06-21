@@ -770,8 +770,16 @@ export const getFinancialMetrics = async (params = {}) => {
   }
 }
 
-// Technical data  
-// Updated: Accepts timeframe as first param, params as second
+// Helper to always return { data: ... } for all API responses
+function normalizeApiResponse(response) {
+  if (Array.isArray(response)) return { data: response };
+  if (response && Array.isArray(response.data)) return response;
+  if (response && response.data && typeof response.data === 'object' && Array.isArray(response.data.data)) return { data: response.data.data };
+  if (response && typeof response === 'object' && 'data' in response) return response;
+  return { data: [] };
+}
+
+// Patch all API methods to use normalizeApiResponse
 export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
   try {
     const queryParams = new URLSearchParams()
@@ -780,10 +788,8 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
         queryParams.append(key, value)
       }
     })
-    // Call /technical/:timeframe?...
     const response = await api.get(`/technical/${timeframe}?${queryParams.toString()}`)
-    // Return the full API response object (not wrapped)
-    return response.data
+    return normalizeApiResponse(response.data)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get technical data')
     return { data: [], error: errorMessage }
