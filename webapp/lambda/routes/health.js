@@ -10,6 +10,7 @@ router.get('/', async (req, res) => {
     if (req.query.quick === 'true') {
       return res.json({
         status: 'healthy',
+        healthy: true,
         service: 'Financial Dashboard API',
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'development',
@@ -17,9 +18,9 @@ router.get('/', async (req, res) => {
         uptime: process.uptime(),
         note: 'Quick health check - database not tested'
       });
-    }// Full health check with database
+    }
+    // Full health check with database
     console.log('Starting health check with database...');
-    
     // Initialize database if not already done
     try {
       getPool(); // This will throw if not initialized
@@ -30,7 +31,8 @@ router.get('/', async (req, res) => {
       } catch (dbInitError) {
         console.error('Failed to initialize database:', dbInitError.message);
         return res.status(503).json({
-          status: 'degraded',
+          status: 'unhealthy',
+          healthy: false,
           service: 'Financial Dashboard API',
           timestamp: new Date().toISOString(),
           environment: process.env.NODE_ENV || 'development',
@@ -44,11 +46,11 @@ router.get('/', async (req, res) => {
         });
       }
     }
-    
     // Check if database error was passed from middleware
     if (req.dbError) {
       return res.status(503).json({
-        status: 'degraded',
+        status: 'unhealthy',
+        healthy: false,
         service: 'Financial Dashboard API',
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'development',
@@ -61,18 +63,34 @@ router.get('/', async (req, res) => {
         uptime: process.uptime()
       });
     }
-    
     // Test database connection with timeout
     const dbStart = Date.now();
-    const result = await Promise.race([
-      query('SELECT NOW() as timestamp, version() as db_version'),
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Database health check timeout')), 5000)
-      )
-    ]);
+    let result;
+    try {
+      result = await Promise.race([
+        query('SELECT 1 as ok'),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Database health check timeout')), 5000)
+        )
+      ]);
+    } catch (dbError) {
+      console.error('Database health check query failed:', dbError.message);
+      return res.status(503).json({
+        status: 'unhealthy',
+        healthy: false,
+        service: 'Financial Dashboard API',
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development',
+        database: {
+          status: 'disconnected',
+          error: dbError.message,
+          lastAttempt: new Date().toISOString()
+        },
+        memory: process.memoryUsage(),
+        uptime: process.uptime()
+      });
+    }
     const dbTime = Date.now() - dbStart;
-    
-    console.log(`Database connection test completed in ${dbTime}ms`);
     // Get table information (check existence first)
     let tables = {};
     try {
@@ -87,9 +105,7 @@ router.get('/', async (req, res) => {
           setTimeout(() => reject(new Error('Table existence check timeout')), 2000)
         )
       ]);
-
       const existingTables = tableExistenceCheck.rows.map(row => row.table_name);
-      
       // Only count tables that exist
       if (existingTables.length > 0) {
         const countQueries = existingTables.map(tableName => 
@@ -102,38 +118,33 @@ router.get('/', async (req, res) => {
             error: err.message
           }))
         );
-
         const tableResults = await Promise.race([
           Promise.all(countQueries),
           new Promise((_, reject) => 
             setTimeout(() => reject(new Error('Table count timeout')), 5000)
           )
         ]);
-
         // Build tables object
         tableResults.forEach(result => {
           tables[result.table] = result.count !== null ? result.count : `Error: ${result.error}`;
         });
       }
-
       // Add missing tables as "not_found"
       ['stock_symbols', 'fear_greed_index', 'naaim_exposure', 'technical_data_daily', 'earnings_estimates'].forEach(tableName => {
         if (!existingTables.includes(tableName)) {
           tables[tableName] = 'not_found';
         }
       });
-
     } catch (tableError) {
       console.log('Table check failed:', tableError.message);
       tables = { error: tableError.message };
     }
-
     const health = {
       status: 'healthy',
-      timestamp: result.rows[0].timestamp,
+      healthy: true,
+      timestamp: new Date().toISOString(),
       database: {
         status: 'connected',
-        version: result.rows[0].db_version.split(' ')[0],
         tables: tables
       },
       api: {
@@ -141,12 +152,12 @@ router.get('/', async (req, res) => {
         environment: process.env.NODE_ENV || 'development'
       }
     };
-
     res.json(health);
   } catch (error) {
     console.error('Health check failed:', error);
     res.status(503).json({
       status: 'unhealthy',
+      healthy: false,
       timestamp: new Date().toISOString(),
       error: error.message,
       database: {

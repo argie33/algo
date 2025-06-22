@@ -137,8 +137,18 @@ api.interceptors.response.use(
       console.warn('⏳ Rate limit exceeded')
     } else if (error.response?.status >= 500 || error.code === 'ECONNABORTED') {
       console.error('🔥 Server error or timeout detected')
-        // Attempt retry for serverless environments
-      if (config.isServerless) {
+      
+      // Check for database connection issues
+      if (error.response?.data?.error?.includes('database connection failed') ||
+          error.response?.data?.message?.includes('database is currently unavailable') ||
+          error.response?.data?.details?.includes('connection timeout')) {
+        console.error('💾 Database connection issue detected - This is a backend infrastructure problem')
+        console.error('💡 The API health check passes but data endpoints fail due to database connectivity')
+        console.error('🔧 Backend team needs to check database connection settings and network configuration')
+      }
+      
+      // Attempt retry for serverless environments
+      if (currentConfig.isServerless) {
         try {
           return await retryRequest(error)
         } catch (retryError) {
