@@ -998,22 +998,6 @@ export const healthCheck = async (queryParams = '') => {
   }
 }
 
-// --- Add this utility for consistent error handling ---
-function handleApiError(error, context = '') {
-  let message = 'An unexpected error occurred';
-  if (error?.response?.data?.error) {
-    message = error.response.data.error;
-  } else if (error?.response?.data?.message) {
-    message = error.response.data.message;
-  } else if (error?.message) {
-    message = error.message;
-  }
-  if (context) {
-    return `${context}: ${message}`;
-  }
-  return message;
-}
-
 // Export all methods as a default object for easier importing
 export default {
   healthCheck,
