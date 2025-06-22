@@ -172,31 +172,46 @@ function handleApiError(error, context = '') {
 
 // Helper to always return { data: ... } for all API responses
 function normalizeApiResponse(response) {
+  console.log('normalizeApiResponse input:', response)
+  
   // If response is null or undefined, return { data: [] }
-  if (response == null) return { data: [] };
+  if (response == null) {
+    console.log('normalizeApiResponse: null/undefined input, returning { data: [] }')
+    return { data: [] };
+  }
 
-  // If response is already { data: ... } structure, return as-is
+  // If response is already normalized (has data property and no axios properties)
   if (
     typeof response === 'object' &&
     'data' in response &&
     !('status' in response) &&
-    !('headers' in response)
+    !('headers' in response) &&
+    !('config' in response)
   ) {
+    console.log('normalizeApiResponse: already normalized, returning as-is')
     return response;
   }
 
   // If response is an Axios response object, extract the data
-  if (response && response.data !== undefined) {
+  if (response && typeof response === 'object' && 'data' in response && ('status' in response || 'headers' in response)) {
+    console.log('normalizeApiResponse: Axios response detected, extracting data:', response.data)
     return { data: response.data };
   }
 
   // If response is an array, wrap it
-  if (Array.isArray(response)) return { data: response };
+  if (Array.isArray(response)) {
+    console.log('normalizeApiResponse: array input, wrapping in { data: ... }')
+    return { data: response };
+  }
 
   // If response is an object, wrap it
-  if (typeof response === 'object') return { data: response };
+  if (typeof response === 'object') {
+    console.log('normalizeApiResponse: object input, wrapping in { data: ... }')
+    return { data: response };
+  }
 
   // Fallback to empty array
+  console.log('normalizeApiResponse: fallback to { data: [] }')
   return { data: [] };
 }
 
@@ -207,8 +222,11 @@ export const getMarketOverview = async () => {
     const response = await api.get('/market/overview', {
       baseURL: currentConfig.baseURL
     })
-    console.log('Market overview response:', response.data)
-    return normalizeApiResponse(response)
+    console.log('Market overview raw response:', response)
+    console.log('Market overview response data:', response.data)
+    const normalized = normalizeApiResponse(response)
+    console.log('Market overview normalized:', normalized)
+    return normalized
   } catch (error) {
     console.error('Error fetching market overview:', error)
     const errorMessage = handleApiError(error, 'market overview')
@@ -274,8 +292,12 @@ export const getStocks = async (params = {}) => {
     const response = await api.get(url, {
       baseURL: currentConfig.baseURL
     })
-    console.log('Stocks response:', response.data)
-    return normalizeApiResponse(response)
+    console.log('Raw Axios Response:', response)
+    console.log('Response data:', response.data)
+    console.log('Response status:', response.status)
+    const normalized = normalizeApiResponse(response)
+    console.log('Normalized response:', normalized)
+    return normalized
   } catch (error) {
     console.error('Error fetching stocks:', error)
     const errorMessage = handleApiError(error, 'get stocks')
@@ -492,11 +514,18 @@ export const getFinancialStrengthMetrics = async (params = {}) => {
 // New method for stock screening with proper parameter handling
 export const screenStocks = async (params) => {
   try {
-    const response = await api.get(`/stocks?${params.toString()}`, {
+    const url = `/stocks?${params.toString()}`
+    console.log('Screen stocks URL:', url)
+    const response = await api.get(url, {
       baseURL: currentConfig.baseURL
     })
-    return normalizeApiResponse(response)
+    console.log('Screen stocks raw response:', response)
+    console.log('Screen stocks response data:', response.data)
+    const normalized = normalizeApiResponse(response)
+    console.log('Screen stocks normalized:', normalized)
+    return normalized
   } catch (error) {
+    console.error('Error screening stocks:', error)
     const errorMessage = handleApiError(error, 'screen stocks')
     return normalizeApiResponse({
       data: [],
