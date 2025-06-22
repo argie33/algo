@@ -1003,26 +1003,50 @@ export const getDatabaseHealthFull = async () => {
   }
 }
 
-// Health check
+// Health check (robust: tries /health, then /)
 export const healthCheck = async (queryParams = '') => {
+  let triedRoot = false;
+  let healthUrl = `/health${queryParams}`;
+  let rootUrl = `/${queryParams}`;
   try {
-    const response = await api.get(`/health${queryParams}`, {
+    const response = await api.get(healthUrl, {
       baseURL: currentConfig.baseURL
-    })
-    console.log('Health check response:', response.data)
+    });
+    console.log('Health check response:', response.data);
     return {
       data: response.data,
       healthy: true,
+      endpoint: healthUrl,
+      fallback: false,
       timestamp: new Date().toISOString()
-    }
+    };
   } catch (error) {
-    console.error('Error in health check:', error)
-    const errorMessage = handleApiError(error, 'health check')
-    return {
-      data: null,
-      error: errorMessage,
-      healthy: false,
-      timestamp: new Date().toISOString()
+    // If 404 or network error, try root endpoint
+    console.warn('Health check failed for /health, trying root / endpoint...');
+    triedRoot = true;
+    try {
+      const response = await api.get(rootUrl, {
+        baseURL: currentConfig.baseURL
+      });
+      console.log('Root endpoint health check response:', response.data);
+      return {
+        data: response.data,
+        healthy: true,
+        endpoint: rootUrl,
+        fallback: true,
+        timestamp: new Date().toISOString()
+      };
+    } catch (rootError) {
+      console.error('Error in health check (both endpoints failed):', rootError);
+      const errorMessage = handleApiError(rootError, 'health check (both endpoints)');
+      return {
+        data: null,
+        error: errorMessage,
+        healthy: false,
+        endpoint: triedRoot ? rootUrl : healthUrl,
+        fallback: triedRoot,
+        timestamp: new Date().toISOString()
+      };
     }
   }
 }
