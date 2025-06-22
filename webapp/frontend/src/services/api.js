@@ -154,27 +154,44 @@ api.interceptors.response.use(
   }
 )
 
+// --- Add this utility for consistent error handling ---
+function handleApiError(error, context = '') {
+  let message = 'An unexpected error occurred';
+  if (error?.response?.data?.error) {
+    message = error.response.data.error;
+  } else if (error?.response?.data?.message) {
+    message = error.response.data.message;
+  } else if (error?.message) {
+    message = error.message;
+  }
+  if (context) {
+    return `${context}: ${message}`;
+  }
+  return message;
+}
+
 // Helper to always return { data: ... } for all API responses
 function normalizeApiResponse(response) {
   // If response is null or undefined, return { data: [] }
   if (response == null) return { data: [] };
 
-  // If response is already { data: ... } and nothing else, return as-is
+  // If response is already { data: ... } structure, return as-is
   if (
     typeof response === 'object' &&
-    Object.keys(response).length === 1 &&
-    'data' in response
+    'data' in response &&
+    !('status' in response) &&
+    !('headers' in response)
   ) {
     return response;
   }
 
-  // If response is an array, wrap it
-  if (Array.isArray(response)) return { data: response };
-
-  // If response.data is an array or object, wrap it
-  if (response && response.data) {
+  // If response is an Axios response object, extract the data
+  if (response && response.data !== undefined) {
     return { data: response.data };
   }
+
+  // If response is an array, wrap it
+  if (Array.isArray(response)) return { data: response };
 
   // If response is an object, wrap it
   if (typeof response === 'object') return { data: response };
@@ -190,8 +207,10 @@ export const getMarketOverview = async () => {
     const response = await api.get('/market/overview', {
       baseURL: currentConfig.baseURL
     })
+    console.log('Market overview response:', response.data)
     return normalizeApiResponse(response)
   } catch (error) {
+    console.error('Error fetching market overview:', error)
     const errorMessage = handleApiError(error, 'market overview')
     return normalizeApiResponse({ data: null, error: errorMessage })
   }
@@ -251,11 +270,14 @@ export const getStocks = async (params = {}) => {
       }
     })
     const url = `/stocks?${queryParams.toString()}`
+    console.log('Fetching stocks from:', url)
     const response = await api.get(url, {
       baseURL: currentConfig.baseURL
     })
+    console.log('Stocks response:', response.data)
     return normalizeApiResponse(response)
   } catch (error) {
+    console.error('Error fetching stocks:', error)
     const errorMessage = handleApiError(error, 'get stocks')
     return normalizeApiResponse({ data: [], error: errorMessage })
   }
@@ -888,20 +910,26 @@ export const getEarningsMetrics = async (params = {}) => {
 // Test API Connection
 export const testApiConnection = async (customUrl = null) => {
   try {
+    console.log('Testing API connection...')
+    console.log('Current API URL:', currentConfig.baseURL)
+    console.log('Custom URL:', customUrl)
+    console.log('Environment:', import.meta.env.MODE)
+    console.log('VITE_API_URL:', import.meta.env.VITE_API_URL)
     const testUrl = customUrl || currentConfig.baseURL
     const response = await api.get('/health?quick=true', {
       baseURL: testUrl,
       timeout: 10000
     })
-    return normalizeApiResponse({
+    return {
       success: true,
       apiUrl: testUrl,
       status: response.status,
       data: response.data,
       message: 'API connection successful'
-    })
+    }
   } catch (error) {
-    return normalizeApiResponse({
+    console.error('API connection test failed:', error)
+    return {
       success: false,
       apiUrl: customUrl || currentConfig.baseURL,
       error: error.message,
@@ -915,7 +943,7 @@ export const testApiConnection = async (customUrl = null) => {
         configUrl: error.config?.url,
         fullUrl: (customUrl || currentConfig.baseURL) + '/health?quick=true'
       }
-    })
+    }
   }
 }
 
@@ -938,10 +966,11 @@ export const getDatabaseHealthFull = async () => {
     const response = await api.get('/health/database', {
       baseURL: currentConfig.baseURL
     })
-    return normalizeApiResponse(response)
+    // Return the full response (healthSummary, tables, etc.)
+    return { data: response.data }
   } catch (error) {
     const errorMessage = handleApiError(error, 'get database health')
-    return normalizeApiResponse({ data: null, error: errorMessage })
+    return { data: null, error: errorMessage }
   }
 }
 
@@ -951,19 +980,21 @@ export const healthCheck = async (queryParams = '') => {
     const response = await api.get(`/health${queryParams}`, {
       baseURL: currentConfig.baseURL
     })
-    return normalizeApiResponse({
+    console.log('Health check response:', response.data)
+    return {
       data: response.data,
       healthy: true,
       timestamp: new Date().toISOString()
-    })
+    }
   } catch (error) {
+    console.error('Error in health check:', error)
     const errorMessage = handleApiError(error, 'health check')
-    return normalizeApiResponse({
+    return {
       data: null,
       error: errorMessage,
       healthy: false,
       timestamp: new Date().toISOString()
-    })
+    }
   }
 }
 

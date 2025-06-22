@@ -144,36 +144,46 @@ def main():
                     past = est_group[est_group['report_date'] <= (pd.to_datetime(row['report_date']) - pd.DateOffset(months=months))]
                     if not past.empty:
                         metrics[key] = pct_change(past.iloc[-1]['eps_estimate'], est_now)
-            results.append(metrics)
-    # --- Annual EPS growth and consecutive years ---
+            results.append(metrics)    # --- Annual EPS growth and consecutive years ---
     for symbol, group in annual.groupby('symbol'):
         group = group.sort_values('fiscal_year')
         group['eps_growth'] = group['eps_actual'].pct_change()
         group['is_growth'] = group['eps_growth'] > 0
         group['consec'] = group['is_growth'].astype(int).groupby((group['is_growth'] != group['is_growth'].shift()).cumsum()).cumsum()
         max_consec = group['consec'].max() if not group.empty else 0
-        for idx, row in group.iterrows():
-            # Find matching result by symbol and year
+        
+        # Find the latest year data for this symbol
+        if len(group) >= 2:
             for r in results:
-                if r['symbol'] == symbol and str(row['fiscal_year']) in str(r['report_date']):
-                    r['annual_eps_growth_1y'] = row['eps_growth']
+                if r['symbol'] == symbol:
+                    # Add annual growth rates
+                    if len(group) >= 2:
+                        r['annual_eps_growth_1y'] = pct_change(group['eps_actual'].iloc[-2], group['eps_actual'].iloc[-1])
+                    if len(group) >= 4:
+                        r['annual_eps_growth_3y'] = pct_change(group['eps_actual'].iloc[-4], group['eps_actual'].iloc[-1])
+                    if len(group) >= 6:
+                        r['annual_eps_growth_5y'] = pct_change(group['eps_actual'].iloc[-6], group['eps_actual'].iloc[-1])
                     r['consecutive_eps_growth_years'] = max_consec
-        # 3y/5y growth
-        if len(group) >= 4:
-            results[-1]['annual_eps_growth_3y'] = pct_change(group['eps_actual'].iloc[-4], group['eps_actual'].iloc[-1])
-        if len(group) >= 6:
-            results[-1]['annual_eps_growth_5y'] = pct_change(group['eps_actual'].iloc[-6], group['eps_actual'].iloc[-1])
+                    break
+
     # --- Write to DB ---
     if results:
         keys = list(results[0].keys())
         values = [[r.get(k) for k in keys] for r in results]
         with conn.cursor() as cur:
-            execute_values(cur, f"INSERT INTO {TABLE_NAME} ({','.join(keys)}) VALUES %s ON CONFLICT (symbol, report_date) DO UPDATE SET " + ','.join([f"{k}=EXCLUDED.{k}" for k in keys if k not in ['symbol','report_date']]), values)
+            execute_values(
+                cur, 
+                f"INSERT INTO {TABLE_NAME} ({','.join(keys)}) VALUES %s ON CONFLICT (symbol, report_date) DO UPDATE SET " + 
+                ','.join([f"{k}=EXCLUDED.{k}" for k in keys if k not in ['symbol','report_date']]), 
+                values
+            )
             conn.commit()
         logging.info(f"Inserted/updated {len(results)} rows into {TABLE_NAME}.")
     else:
         logging.warning("No metrics calculated.")
+    
     conn.close()
+    logging.info("Loader completed successfully.")
 
 def pct_change(old, new):
     try:
