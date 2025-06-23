@@ -1,0 +1,223 @@
+// Load environment variables first
+require('dotenv').config();
+
+const serverless = require('serverless-http');
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const morgan = require('morgan');
+const { initializeDatabase } = require('./utils/database');
+const errorHandler = require('./middleware/errorHandler');
+
+// Import routes
+const stockRoutes = require('./routes/stocks');
+const metricsRoutes = require('./routes/metrics');
+const healthRoutes = require('./routes/health');
+const marketRoutes = require('./routes/market');
+const analystRoutes = require('./routes/analysts');
+const financialRoutes = require('./routes/financials');
+const tradingRoutes = require('./routes/trading');
+const technicalRoutes = require('./routes/technical');
+const calendarRoutes = require('./routes/calendar');
+const signalsRoutes = require('./routes/signals');
+const dataRoutes = require('./routes/data');
+const backtestRoutes = require('./routes/backtest');
+
+const app = express();
+
+// Trust proxy when running behind API Gateway/CloudFront
+app.set('trust proxy', true);
+
+// Security middleware (adjusted for Lambda)
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https:"],
+      scriptSrc: ["'self'"],
+      connectSrc: ["'self'"],
+    },
+  },
+}));
+
+// Note: Rate limiting removed - API Gateway handles this
+
+// CORS configuration (allow API Gateway origins)
+app.use((req, res, next) => {
+  // Log the request origin for debugging
+  console.log('CORS Debug - Request Origin:', req.headers.origin);
+  next();
+});
+app.use(cors({
+  origin: (origin, callback) => {
+    // TEMP: Allow all origins for debugging database diagnostics
+    // Remove this after debugging!
+    callback(null, true);
+    // Original logic (restore after debugging):
+    // if (!origin || 
+    //     origin.includes('.execute-api.') || 
+    //     origin.includes('.cloudfront.net') || 
+    //     origin.includes('localhost') ||
+    //     origin === process.env.FRONTEND_URL) {
+    //   callback(null, true);
+    // } else {
+    //   callback(new Error('Not allowed by CORS'));
+    // }
+  },
+  credentials: true,
+}));
+
+// Request parsing
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Note: API Gateway strips the /api prefix before sending to Lambda
+
+// Logging (simplified for Lambda)
+const nodeEnv = process.env.NODE_ENV || 'production';
+const isProduction = nodeEnv === 'production' || nodeEnv === 'prod';
+
+if (!isProduction) {
+  app.use(morgan('combined'));
+}
+
+// Global database initialization promise
+let dbInitPromise = null;
+let dbAvailable = false;
+
+// Initialize database connection with shorter timeout
+const ensureDatabase = async () => {
+  if (!dbInitPromise) {
+    console.log('Initializing database connection...');
+    dbInitPromise = Promise.race([
+      initializeDatabase(),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Database initialization timeout after 15 seconds')), 15000)
+      )
+    ]).then(pool => {
+      dbAvailable = true;
+      console.log('Database connection established successfully');
+      return pool;
+    }).catch(err => {
+      console.error('Failed to initialize database:', err);
+      dbInitPromise = null; // Reset to allow retry
+      dbAvailable = false;
+      throw err;
+    });
+  }
+  return dbInitPromise;
+};
+
+// Middleware to check database requirement based on endpoint
+app.use(async (req, res, next) => {
+  console.log(`Processing request: ${req.method} ${req.path}`);
+  
+  // Endpoints that don't require database
+  const nonDbEndpoints = ['/', '/health'];
+  const isHealthQuick = req.path === '/health' && req.query.quick === 'true';
+  
+  if (nonDbEndpoints.includes(req.path) || isHealthQuick) {
+    console.log('Endpoint does not require database connection');
+    return next();
+  }
+  
+  // For endpoints that need database, try to ensure connection
+  try {
+    await ensureDatabase();
+    console.log('Database connection verified for database-dependent endpoint');
+    next();  } catch (error) {
+    console.error('Database initialization failed for database-dependent endpoint:', error.message);
+    
+    // For health endpoint (non-quick), still allow it to proceed with DB error info
+    if (req.path === '/health') {
+      req.dbError = error;
+      return next();
+    }
+    
+    // For other endpoints, return service unavailable
+    res.status(503).json({ 
+      error: 'Service temporarily unavailable - database connection failed',      message: 'The database is currently unavailable. Please try again later.',
+      timestamp: new Date().toISOString(),
+      details: !isProduction ? error.message : undefined
+    });
+  }
+});
+
+// Routes (note: API Gateway handles the /api prefix)
+app.use('/health', healthRoutes);
+app.use('/stocks', stockRoutes);
+app.use('/metrics', metricsRoutes);
+app.use('/market', marketRoutes);
+app.use('/analysts', analystRoutes);
+app.use('/financials', financialRoutes);
+app.use('/trading', tradingRoutes);
+app.use('/technical', technicalRoutes);
+app.use('/calendar', calendarRoutes);
+app.use('/signals', signalsRoutes);
+app.use('/data', dataRoutes);
+app.use('/backtest', backtestRoutes);
+
+// Default route
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Financial Dashboard API',
+    version: '1.0.0',
+    status: 'operational',
+    timestamp: new Date().toISOString(),
+    environment: nodeEnv,
+    endpoints: {
+      health: {
+        quick: '/health?quick=true',
+        full: '/health'
+      },      api: {
+        stocks: '/stocks',
+        screen: '/stocks/screen',
+        metrics: '/metrics',
+        market: '/market',
+        analysts: '/analysts',
+        trading: '/trading',
+        technical: '/technical',
+        calendar: '/calendar',
+        signals: '/signals'
+      }
+    },
+    notes: 'Use /health?quick=true for fast status check without database dependency'
+  });
+});
+
+// 404 handler
+app.use('*', (req, res) => {
+  res.status(404).json({
+    error: 'Endpoint not found',
+    message: `The requested endpoint ${req.originalUrl} does not exist`
+  });
+});
+
+// Error handling middleware (should be last)
+app.use(errorHandler);
+
+// Export Lambda handler
+module.exports.handler = serverless(app, {
+  // Lambda-specific options
+  request: (request, event, context) => {
+    // Add AWS event/context to request if needed
+    request.event = event;
+    request.context = context;
+  }
+});
+
+// Export app for local testing
+module.exports.app = app;
+
+// For local testing
+if (require.main === module) {
+  const PORT = process.env.PORT || 3001;
+  app.listen(PORT, () => {
+    console.log(`Financial Dashboard API server running on port ${PORT} (local mode)`);
+    console.log(`Health check: http://localhost:${PORT}/health`);
+    console.log(`Stocks: http://localhost:${PORT}/stocks`);
+    console.log(`Technical: http://localhost:${PORT}/technical/daily`);
+  });
+}

@@ -1,0 +1,2406 @@
+const express = require('express');
+const { query } = require('../utils/database');
+
+const router = express.Router();
+
+// Basic ping endpoint
+router.get('/ping', (req, res) => {
+  res.json({
+    status: 'ok',
+    endpoint: 'stocks',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// OPTIMIZED: Main stocks endpoint with fast queries and all data visible
+router.get('/', async (req, res) => {
+  try {
+    console.log('OPTIMIZED Stocks main endpoint called with params:', req.query);
+    
+    const page = parseInt(req.query.page) || 1;
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200); // Increased limit
+    const offset = (page - 1) * limit;
+    const search = req.query.search || '';
+    const sector = req.query.sector || '';
+    const exchange = req.query.exchange || '';
+    const sortBy = req.query.sortBy || 'symbol';
+    const sortOrder = req.query.sortOrder || 'asc';
+    
+    let whereClause = 'WHERE 1=1';
+    const params = [];
+    let paramCount = 0;
+
+    // Add search filter
+    if (search) {
+      paramCount++;
+      whereClause += ` AND (ss.symbol ILIKE $${paramCount} OR ss.security_name ILIKE $${paramCount})`;
+      params.push(`%${search}%`);
+    }
+
+    // Add sector filter (on cp.sector)
+    if (sector && sector.trim() !== '') {
+      paramCount++;
+      whereClause += ` AND cp.sector = $${paramCount}`;
+      params.push(sector);
+    }
+
+    // Add exchange filter (on ss.exchange)
+    if (exchange && exchange.trim() !== '') {
+      paramCount++;
+      whereClause += ` AND ss.exchange = $${paramCount}`;
+      params.push(exchange);
+    }
+
+    // FAST sort columns
+    const validSortColumns = {
+      'ticker': 'ss.symbol',
+      'symbol': 'ss.symbol', 
+      'name': 'ss.security_name',
+      'exchange': 'ss.exchange',
+      'market_category': 'ss.market_category'
+    };
+
+    const sortColumn = validSortColumns[sortBy] || 'ss.symbol';
+    const sortDirection = sortOrder.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+
+    console.log('OPTIMIZED query params:', { whereClause, params, limit, offset });    // COMPREHENSIVE QUERY: Include ALL data from loadinfo script
+    const stocksQuery = `
+      SELECT 
+        -- Stock symbols data
+        ss.symbol,
+        ss.security_name,
+        ss.exchange,
+        ss.market_category,
+        ss.cqs_symbol,
+        ss.financial_status,
+        ss.round_lot_size,
+        ss.etf,
+        ss.secondary_symbol,
+        ss.test_issue,
+        
+        -- Company profile data from loadinfo
+        cp.short_name,
+        cp.long_name,
+        cp.display_name,
+        cp.quote_type,
+        cp.sector,
+        cp.sector_disp,
+        cp.industry,
+        cp.industry_disp,
+        cp.business_summary,
+        cp.employee_count,
+        cp.website_url,
+        cp.ir_website_url,
+        cp.address1,
+        cp.city,
+        cp.state,
+        cp.postal_code,
+        cp.country,
+        cp.phone_number,
+        cp.currency,
+        cp.market,
+        cp.full_exchange_name,
+        
+        -- Market data from loadinfo
+        md.current_price,
+        md.previous_close,
+        md.open_price,
+        md.day_low,
+        md.day_high,
+        md.volume,
+        md.average_volume,
+        md.market_cap,
+        md.fifty_two_week_low,
+        md.fifty_two_week_high,
+        md.fifty_day_avg,
+        md.two_hundred_day_avg,
+        md.bid_price,
+        md.ask_price,
+        md.market_state,
+        
+        -- Key financial metrics from loadinfo
+        km.trailing_pe,
+        km.forward_pe,
+        km.price_to_sales_ttm,
+        km.price_to_book,
+        km.book_value,
+        km.peg_ratio,
+        km.enterprise_value,
+        km.ev_to_revenue,
+        km.ev_to_ebitda,
+        km.total_revenue,
+        km.net_income,
+        km.ebitda,
+        km.gross_profit,
+        km.eps_trailing,
+        km.eps_forward,
+        km.eps_current_year,
+        km.price_eps_current_year,
+        km.earnings_q_growth_pct,
+        km.total_cash,
+        km.cash_per_share,
+        km.operating_cashflow,
+        km.free_cashflow,
+        km.total_debt,
+        km.debt_to_equity,
+        km.quick_ratio,
+        km.current_ratio,
+        km.profit_margin_pct,
+        km.gross_margin_pct,
+        km.ebitda_margin_pct,
+        km.operating_margin_pct,
+        km.return_on_assets_pct,
+        km.return_on_equity_pct,
+        km.revenue_growth_pct,
+        km.earnings_growth_pct,
+        km.dividend_rate,
+        km.dividend_yield,
+        km.five_year_avg_dividend_yield,
+        km.payout_ratio,
+        
+        -- Analyst estimates from loadinfo
+        ae.target_high_price,
+        ae.target_low_price,
+        ae.target_mean_price,
+        ae.target_median_price,
+        ae.recommendation_key,
+        ae.recommendation_mean,
+        ae.analyst_opinion_count,
+        ae.average_analyst_rating,
+        
+        -- Governance scores from loadinfo
+        gs.audit_risk,
+        gs.board_risk,
+        gs.compensation_risk,
+        gs.shareholder_rights_risk,
+        gs.overall_risk,
+        
+        -- Leadership team count (subquery)
+        COALESCE(lt_count.executive_count, 0) as leadership_count
+        
+      FROM stock_symbols ss
+      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN market_data md ON ss.symbol = md.ticker
+      LEFT JOIN key_metrics km ON ss.symbol = km.ticker
+      LEFT JOIN analyst_estimates ae ON ss.symbol = ae.ticker
+      LEFT JOIN governance_scores gs ON ss.symbol = gs.ticker
+      LEFT JOIN (
+        SELECT ticker, COUNT(*) as executive_count 
+        FROM leadership_team 
+        GROUP BY ticker
+      ) lt_count ON ss.symbol = lt_count.ticker
+      ${whereClause}
+      ORDER BY ${sortColumn} ${sortDirection}
+      LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
+    `;
+
+    params.push(limit, offset);
+
+    // Count query - also fast
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM stock_symbols ss
+      ${whereClause}
+    `;
+
+    console.log('Executing FAST queries...');
+
+    const [stocksResult, countResult] = await Promise.all([
+      query(stocksQuery, params),
+      query(countQuery, params.slice(0, -2))
+    ]);
+
+    const total = parseInt(countResult.rows[0].total);
+    const totalPages = Math.ceil(total / limit);
+
+    console.log(`FAST query results: ${stocksResult.rows.length} stocks, ${total} total`);    // Professional formatting with ALL comprehensive data from loadinfo
+    const formattedStocks = stocksResult.rows.map(stock => ({
+      // Core identification
+      ticker: stock.symbol,
+      symbol: stock.symbol,
+      name: stock.security_name,
+      fullName: stock.long_name || stock.security_name,
+      shortName: stock.short_name,
+      displayName: stock.display_name,
+      
+      // Exchange & categorization 
+      exchange: stock.exchange,
+      fullExchangeName: stock.full_exchange_name,
+      marketCategory: stock.market_category,
+      market: stock.market,
+      
+      // Business information
+      sector: stock.sector,
+      sectorDisplay: stock.sector_disp,
+      industry: stock.industry,
+      industryDisplay: stock.industry_disp,
+      businessSummary: stock.business_summary,
+      employeeCount: stock.employee_count,
+      
+      // Contact information
+      website: stock.website_url,
+      investorRelationsWebsite: stock.ir_website_url,
+      address: {
+        street: stock.address1,
+        city: stock.city,
+        state: stock.state,
+        postalCode: stock.postal_code,
+        country: stock.country
+      },
+      phoneNumber: stock.phone_number,
+      
+      // Financial details
+      currency: stock.currency,
+      quoteType: stock.quote_type,
+      
+      // Current market data
+      price: {
+        current: stock.current_price,
+        previousClose: stock.previous_close,
+        open: stock.open_price,
+        dayLow: stock.day_low,
+        dayHigh: stock.day_high,
+        fiftyTwoWeekLow: stock.fifty_two_week_low,
+        fiftyTwoWeekHigh: stock.fifty_two_week_high,
+        fiftyDayAverage: stock.fifty_day_avg,
+        twoHundredDayAverage: stock.two_hundred_day_avg,
+        bid: stock.bid_price,
+        ask: stock.ask_price,
+        marketState: stock.market_state
+      },
+      
+      // Volume data
+      volume: stock.volume,
+      averageVolume: stock.average_volume,
+      marketCap: stock.market_cap,
+      
+      // Comprehensive financial metrics
+      financialMetrics: {
+        // Valuation ratios
+        trailingPE: stock.trailing_pe,
+        forwardPE: stock.forward_pe,
+        priceToSales: stock.price_to_sales_ttm,
+        priceToBook: stock.price_to_book,
+        pegRatio: stock.peg_ratio,
+        bookValue: stock.book_value,
+        
+        // Enterprise metrics
+        enterpriseValue: stock.enterprise_value,
+        evToRevenue: stock.ev_to_revenue,
+        evToEbitda: stock.ev_to_ebitda,
+        
+        // Financial results
+        totalRevenue: stock.total_revenue,
+        netIncome: stock.net_income,
+        ebitda: stock.ebit,
+        grossProfit: stock.gross_profit,
+        
+        // Earnings per share
+        epsTrailing: stock.eps_trailing,
+        epsForward: stock.eps_forward,
+        epsCurrent: stock.eps_current_year,
+        priceEpsCurrent: stock.price_eps_current_year,
+        
+        // Growth metrics
+        earningsGrowthQuarterly: stock.earnings_q_growth_pct,
+        revenueGrowth: stock.revenue_growth_pct,
+        earningsGrowth: stock.earnings_growth_pct,
+        
+        // Cash & debt
+        totalCash: stock.total_cash,
+        cashPerShare: stock.cash_per_share,
+        operatingCashflow: stock.operating_cashflow,
+        freeCashflow: stock.free_cashflow,
+        totalDebt: stock.total_debt,
+        debtToEquity: stock.debt_to_equity,
+        
+        // Liquidity ratios
+        quickRatio: stock.quick_ratio,
+        currentRatio: stock.current_ratio,
+        
+        // Profitability margins
+        profitMargin: stock.profit_margin_pct,
+        grossMargin: stock.gross_margin_pct,
+        ebitdaMargin: stock.ebitda_margin_pct,
+        operatingMargin: stock.operating_margin_pct,
+        
+        // Return metrics
+        returnOnAssets: stock.return_on_assets_pct,
+        returnOnEquity: stock.return_on_equity_pct,
+        
+        // Dividend information
+        dividendRate: stock.dividend_rate,
+        dividendYield: stock.dividend_yield,
+        fiveYearAvgDividendYield: stock.five_year_avg_dividend_yield,
+        payoutRatio: stock.payout_ratio
+      },
+      
+      // Analyst estimates and recommendations
+      analystData: {
+        targetPrices: {
+          high: stock.target_high_price,
+          low: stock.target_low_price,
+          mean: stock.target_mean_price,
+          median: stock.target_median_price
+        },
+        recommendation: {
+          key: stock.recommendation_key,
+          mean: stock.recommendation_mean,
+          rating: stock.average_analyst_rating
+        },
+        analystCount: stock.analyst_opinion_count
+      },
+        // Governance data
+      governance: {
+        auditRisk: stock.audit_risk,
+        boardRisk: stock.board_risk,
+        compensationRisk: stock.compensation_risk,
+        shareholderRightsRisk: stock.shareholder_rights_risk,
+        overallRisk: stock.overall_risk
+      },
+      
+      // Leadership team summary
+      leadership: {
+        executiveCount: stock.leadership_count,
+        hasLeadershipData: stock.leadership_count > 0,
+        // Full leadership data available via /leadership/:ticker endpoint
+        detailsAvailable: true
+      },
+      
+      // Additional identifiers
+      cqsSymbol: stock.cqs_symbol,
+      secondarySymbol: stock.secondary_symbol,
+      
+      // Status & type
+      financialStatus: stock.financial_status,
+      isEtf: stock.etf === 'Y',
+      testIssue: stock.test_issue === 'Y',
+      roundLotSize: stock.round_lot_size,
+        // Comprehensive data availability indicators
+      hasData: true,
+      dataSource: 'comprehensive_loadinfo_query',
+      hasCompanyProfile: !!stock.long_name,
+      hasMarketData: !!stock.current_price,
+      hasFinancialMetrics: !!stock.trailing_pe || !!stock.total_revenue,
+      hasAnalystData: !!stock.target_mean_price || !!stock.recommendation_key,
+      hasGovernanceData: !!stock.overall_risk,
+      hasLeadershipData: stock.leadership_count > 0,
+      
+      // Professional presentation with rich data
+      displayData: {
+        primaryExchange: stock.full_exchange_name || stock.exchange || 'Unknown',
+        category: stock.market_category || 'Standard',
+        type: stock.etf === 'Y' ? 'ETF' : 'Stock',
+        tradeable: stock.financial_status !== 'D' && stock.test_issue !== 'Y',
+        sector: stock.sector_disp || stock.sector || 'Unknown',
+        industry: stock.industry_disp || stock.industry || 'Unknown',
+        
+        // Key financial highlights for quick view
+        keyMetrics: {
+          pe: stock.trailing_pe,
+          marketCap: stock.market_cap,
+          revenue: stock.total_revenue,
+          profitMargin: stock.profit_margin_pct,
+          dividendYield: stock.dividend_yield,
+          analystRating: stock.recommendation_key,
+          targetPrice: stock.target_mean_price
+        },
+        
+        // Risk summary
+        riskProfile: {
+          overall: stock.overall_risk,
+          hasHighRisk: (stock.overall_risk && stock.overall_risk >= 8),
+          hasModerateRisk: (stock.overall_risk && stock.overall_risk >= 5 && stock.overall_risk < 8),
+          hasLowRisk: (stock.overall_risk && stock.overall_risk < 5)
+        }
+      }
+    }));    res.json({
+      success: true,
+      performance: 'COMPREHENSIVE LOADINFO DATA - All company profiles, market data, financial metrics, analyst estimates, and governance scores from loadinfo tables',
+      data: formattedStocks,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      },
+      filters: {
+        search: search || null,
+        exchange: exchange || null,
+        sortBy,
+        sortOrder
+      },
+      metadata: {
+        totalStocks: total,
+        currentPage: page,
+        showingRecords: stocksResult.rows.length,
+        dataFields: [
+          // Basic stock symbol data
+          'symbol', 'security_name', 'exchange', 'market_category',
+          'cqs_symbol', 'financial_status', 'etf', 'round_lot_size', 
+          'test_issue', 'secondary_symbol',
+          
+          // Company profile data
+          'short_name', 'long_name', 'display_name', 'quote_type',
+          'sector', 'sector_disp', 'industry', 'industry_disp',
+          'business_summary', 'employee_count', 'website_url', 
+          'ir_website_url', 'address1', 'city', 'state', 'postal_code',
+          'country', 'phone_number', 'currency', 'market', 'full_exchange_name',
+          
+          // Market data
+          'current_price', 'previous_close', 'open_price', 'day_low', 'day_high',
+          'volume', 'average_volume', 'market_cap', 'fifty_two_week_low',
+          'fifty_two_week_high', 'fifty_day_avg', 'two_hundred_day_avg',
+          'bid_price', 'ask_price', 'market_state',
+          
+          // Financial metrics
+          'trailing_pe', 'forward_pe', 'price_to_sales_ttm', 'price_to_book',
+          'book_value', 'peg_ratio', 'enterprise_value', 'ev_to_revenue',
+          'ev_to_ebitda', 'total_revenue', 'net_income', 'ebitda', 'gross_profit',
+          'eps_trailing', 'eps_forward', 'eps_current_year', 'earnings_q_growth_pct',
+          'total_cash', 'cash_per_share', 'operating_cashflow', 'free_cashflow',
+          'total_debt', 'debt_to_equity', 'quick_ratio', 'current_ratio',
+          'profit_margin_pct', 'gross_margin_pct', 'ebitda_margin_pct',
+          'operating_margin_pct', 'return_on_assets_pct', 'return_on_equity_pct',
+          'revenue_growth_pct', 'earnings_growth_pct', 'dividend_rate',
+          'dividend_yield', 'five_year_avg_dividend_yield', 'payout_ratio',
+          
+          // Analyst estimates
+          'target_high_price', 'target_low_price', 'target_mean_price',
+          'target_median_price', 'recommendation_key', 'recommendation_mean',
+          'analyst_opinion_count', 'average_analyst_rating',
+          
+          // Governance data
+          'audit_risk', 'board_risk', 'compensation_risk', 'shareholder_rights_risk',
+          'overall_risk'
+        ],        dataSources: [
+          'stock_symbols', 'company_profile', 'market_data', 'key_metrics',
+          'analyst_estimates', 'governance_scores', 'leadership_team'
+        ],
+        comprehensiveData: {
+          includesCompanyProfiles: true,
+          includesMarketData: true,
+          includesFinancialMetrics: true,
+          includesAnalystEstimates: true,
+          includesGovernanceScores: true,
+          includesLeadershipTeam: true // Count included, details via /leadership/:ticker
+        },
+        endpoints: {
+          leadershipDetails: '/api/stocks/leadership/:ticker',
+          leadershipSummary: '/api/stocks/leadership'
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('OPTIMIZED endpoint error:', error);
+    res.status(500).json({ 
+      error: 'Optimized query failed',
+      details: error.message,
+      data: [], // Always return data as an array for frontend safety
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// SUPER FAST overview for initial page load - shows all your data fields
+router.get('/quick/overview', async (req, res) => {
+  try {
+    console.log('FAST overview endpoint called');
+    
+    const limit = Math.min(parseInt(req.query.limit) || 25, 100);
+    
+    // LIGHTNING FAST query - no joins, just stock_symbols
+    const quickQuery = `
+      SELECT        symbol,
+        security_name,
+        exchange,
+        market_category,
+        cqs_symbol,
+        financial_status,
+        etf,
+        round_lot_size,
+        test_issue,
+        secondary_symbol
+      FROM stock_symbols
+      WHERE financial_status != 'D' AND test_issue != 'Y'
+      ORDER BY symbol ASC
+      LIMIT $1
+    `;
+
+    const result = await query(quickQuery, [limit]);
+
+    console.log(`FAST overview: ${result.rows.length} stocks loaded instantly`);
+
+    // Professional formatting showing ALL your data
+    const formattedData = result.rows.map(row => ({
+      // Core data
+      ticker: row.symbol,
+      name: row.security_name,
+      
+      // Classification
+      exchange: row.exchange,
+      category: row.market_category,
+      type: row.etf === 'Y' ? 'ETF' : 'Stock',
+        // Identifiers
+      cqsSymbol: row.cqs_symbol,
+      secondarySymbol: row.secondary_symbol,
+      
+      // Status
+      financialStatus: row.financial_status,
+      testIssue: row.test_issue,
+      roundLotSize: row.round_lot_size,
+      
+      // Professional display
+      displayName: `${row.symbol} - ${row.security_name}`,
+      tradeable: row.financial_status !== 'D' && row.test_issue !== 'Y',
+      
+      // Data completeness
+      hasAllData: true,
+      dataQuality: 'Complete'
+    }));
+
+    res.json({
+      success: true,
+      performance: 'LIGHTNING FAST - No joins, instant load',
+      data: formattedData,
+      count: result.rows.length,
+      summary: {
+        totalShown: result.rows.length,
+        dataFields: 11,
+        loadTime: 'Sub-second',
+        allFieldsVisible: true
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error in FAST overview:', error);
+    res.status(500).json({ 
+      error: 'Fast overview failed',
+      details: error.message,
+      data: [], // Always return data as an array for frontend safety
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Chunked stocks loading
+router.get('/chunk/:chunkIndex', async (req, res) => {
+  try {
+    const chunkIndex = parseInt(req.params.chunkIndex) || 0;
+    const chunkSize = 50; // Small chunks for performance
+    
+    console.log(`Stocks chunk endpoint called for chunk: ${chunkIndex}`);
+    
+    const offset = chunkIndex * chunkSize;
+
+    // Use actual tables - get stocks with latest price data
+    const dataQuery = `
+      SELECT 
+        ss.symbol,
+        ss.security_name,
+        ss.exchange,
+        ss.market_category,
+        pd.close as current_price,
+        pd.volume as current_volume,
+        pd.date as price_date
+      FROM stock_symbols ss
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol) symbol, close, volume, date
+        FROM price_daily
+        ORDER BY symbol, date DESC
+      ) pd ON ss.symbol = pd.symbol
+      ORDER BY ss.symbol ASC
+      LIMIT $1 OFFSET $2
+    `;
+
+    const result = await query(dataQuery, [chunkSize, offset]);
+
+    // Format response to match expected structure
+    const formattedData = result.rows.map(row => ({
+      ticker: row.symbol,
+      short_name: row.security_name,
+      sector: row.exchange, // Using exchange as sector substitute
+      regular_market_price: row.current_price,
+      market_cap: null, // Not available in current schema
+      trailing_pe: null, // Not available in current schema
+      volume: row.current_volume,
+      price_date: row.price_date
+    }));
+
+    res.json({
+      chunk: chunkIndex,
+      chunkSize: chunkSize,
+      dataCount: result.rows.length,
+      data: formattedData,
+      hasMore: result.rows.length === chunkSize,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error fetching stocks chunk:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch stocks chunk', 
+      details: error.message,
+      data: [], // Always return data as an array for frontend safety
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Full stocks data endpoint (use with caution)
+router.get('/full/data', async (req, res) => {
+  try {
+    console.log('Stocks full data endpoint called with params:', req.query);
+    
+    // Force small limit for safety
+    const limit = Math.min(parseInt(req.query.limit) || 10, 10);
+    const exchange = req.query.sector; // Use exchange instead of sector
+
+    let whereClause = 'WHERE 1=1';
+    const params = [];
+    let paramIndex = 1;
+
+    if (exchange) {
+      whereClause += ` AND ss.exchange = $${paramIndex}`;
+      params.push(exchange);
+      paramIndex++;
+    }
+
+    // Use actual tables - get stocks with latest price data
+    const dataQuery = `
+      SELECT 
+        ss.symbol,
+        ss.security_name,
+        ss.exchange,
+        ss.market_category,
+        pd.close as current_price,
+        pd.volume as current_volume,
+        pd.date as price_date
+      FROM stock_symbols ss
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol) symbol, close, volume, date
+        FROM price_daily
+        ORDER BY symbol, date DESC
+      ) pd ON ss.symbol = pd.symbol
+      ${whereClause}
+      ORDER BY pd.volume DESC NULLS LAST
+      LIMIT $${paramIndex}
+    `;
+
+    const result = await query(dataQuery, [...params, limit]);
+
+    // Format response to match expected structure
+    const formattedData = result.rows.map(row => ({
+      ticker: row.symbol,
+      short_name: row.security_name,
+      sector: row.exchange,
+      industry: row.market_category,
+      regular_market_price: row.current_price,
+      market_cap: null, // Not available in current schema
+      trailing_pe: null, // Not available in current schema
+      dividend_yield: null, // Not available in current schema
+      volume: row.current_volume,
+      price_date: row.price_date
+    }));
+
+    res.json({
+      warning: 'This endpoint returns limited data for performance reasons',
+      actualLimit: limit,
+      filters: { sector: exchange || null },
+      data: formattedData,
+      count: result.rows.length,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error fetching full stocks data:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch full stocks data', 
+      details: error.message,
+      data: [], // Always return data as an array for frontend safety
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Get comprehensive stock details by ticker
+// SIMPLIFIED Individual Stock Endpoint - Fast and reliable
+router.get('/:ticker', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    const tickerUpper = ticker.toUpperCase();
+    
+    console.log(`SIMPLIFIED stock endpoint called for: ${tickerUpper}`);
+    
+    // SINGLE OPTIMIZED QUERY - Get everything we need in one go
+    const stockQuery = `
+      SELECT 
+        ss.symbol,
+        ss.security_name,
+        ss.exchange,
+        ss.market_category,
+        ss.financial_status,
+        ss.etf,
+        pd.date as latest_date,
+        pd.open,
+        pd.high,
+        pd.low,
+        pd.close,
+        pd.volume,
+        pd.adj_close
+      FROM stock_symbols ss
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol) 
+          symbol, date, open, high, low, close, volume, adj_close
+        FROM price_daily
+        WHERE symbol = $1
+        ORDER BY symbol, date DESC
+      ) pd ON ss.symbol = pd.symbol
+      WHERE ss.symbol = $1
+    `;
+    
+    const result = await query(stockQuery, [tickerUpper]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Stock not found',
+        symbol: tickerUpper,
+        message: `Symbol '${tickerUpper}' not found in database`,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const stock = result.rows[0];
+    
+    // SIMPLE RESPONSE - Just the essential data
+    const response = {
+      symbol: tickerUpper,
+      ticker: tickerUpper,
+      companyInfo: {
+        name: stock.security_name,
+        exchange: stock.exchange,
+        marketCategory: stock.market_category,
+        financialStatus: stock.financial_status,
+        isETF: stock.etf === 't' || stock.etf === true
+      },
+      currentPrice: stock.close ? {
+        date: stock.latest_date,
+        open: parseFloat(stock.open || 0),
+        high: parseFloat(stock.high || 0),
+        low: parseFloat(stock.low || 0),
+        close: parseFloat(stock.close || 0),
+        adjClose: parseFloat(stock.adj_close || stock.close || 0),
+        volume: parseInt(stock.volume || 0)
+      } : null,
+      metadata: {
+        requestedSymbol: ticker,
+        resolvedSymbol: tickerUpper,
+        dataAvailability: {
+          basicInfo: true,
+          priceData: stock.close !== null,
+          technicalIndicators: false, // Disabled for speed
+          fundamentals: false // Disabled for speed
+        },
+        timestamp: new Date().toISOString()
+      }
+    };
+    
+    console.log(`✅ SIMPLIFIED: Successfully returned basic data for ${tickerUpper}`);
+    
+    res.json(response);
+    
+  } catch (error) {
+    console.error('Error in simplified stock endpoint:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch stock data', 
+      symbol: req.params.ticker,
+      message: error.message,
+      data: [], // Always return data as an array for frontend safety
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Get stock price history
+// SIMPLIFIED Get stock price history
+router.get('/:ticker/prices', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    const limit = Math.min(parseInt(req.query.limit) || 30, 90); // Max 90 days for performance
+    
+    console.log(`SIMPLIFIED prices endpoint called for ticker: ${ticker}, limit: ${limit}`);
+    
+    const pricesQuery = `
+      SELECT date, open, high, low, close, adj_close, volume
+      FROM price_daily
+      WHERE UPPER(symbol) = UPPER($1)
+      ORDER BY date DESC
+      LIMIT $2
+    `;
+    
+    const result = await query(pricesQuery, [ticker, limit]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'No price data found',
+        ticker: ticker.toUpperCase(),
+        message: 'Price data not available for this symbol',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Simple response
+    const prices = result.rows;
+    const latest = prices[0];
+    const oldest = prices[prices.length - 1];
+
+    const periodReturn = oldest.close > 0 ? 
+      ((latest.close - oldest.close) / oldest.close * 100) : 0;
+
+    // Add priceChange and priceChangePct to each record
+    const pricesWithChange = prices.map((price, idx) => {
+      let priceChange = null, priceChangePct = null;
+      if (idx < prices.length - 1) {
+        const prev = prices[idx + 1];
+        priceChange = price.close - prev.close;
+        priceChangePct = prev.close !== 0 ? priceChange / prev.close : null;
+      }
+      return {
+        date: price.date,
+        open: parseFloat(price.open),
+        high: parseFloat(price.high),
+        low: parseFloat(price.low),
+        close: parseFloat(price.close),
+        adjClose: parseFloat(price.adj_close),
+        volume: parseInt(price.volume) || 0,
+        priceChange,
+        priceChangePct
+      };
+    });
+
+    res.json({
+      success: true,
+      ticker: ticker.toUpperCase(),
+      dataPoints: result.rows.length,
+      data: pricesWithChange,
+      summary: {
+        latestPrice: parseFloat(latest.close),
+        latestDate: latest.date,
+        periodReturn: parseFloat(periodReturn.toFixed(2)),
+        latestVolume: parseInt(latest.volume) || 0
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error fetching stock prices:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch stock prices', 
+      details: error.message,
+      data: [], // Always return data as an array for frontend safety
+      ticker: req.params.ticker,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Get available filters - exchanges instead of sectors
+router.get('/filters/sectors', async (req, res) => {
+  try {
+    console.log('Stock filters/sectors (exchanges) endpoint called');
+    
+    const sectorsQuery = `
+      SELECT exchange, COUNT(*) as count
+      FROM stock_symbols
+      WHERE exchange IS NOT NULL
+      GROUP BY exchange
+      ORDER BY count DESC, exchange ASC
+    `;
+    
+    const result = await query(sectorsQuery);
+    
+    res.json({
+      data: result.rows.map(row => ({
+        name: row.exchange,
+        value: row.exchange,
+        count: parseInt(row.count)
+      })),
+      total: result.rows.length,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error fetching stock exchanges:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch stock exchanges', 
+      details: error.message,
+      data: [], // Always return data as an array for frontend safety
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Get available industries - market categories
+router.get('/filters/industries', async (req, res) => {
+  try {
+    console.log('Stock filters/industries (market categories) endpoint called');
+    
+    const industriesQuery = `
+      SELECT market_category, COUNT(*) as count
+      FROM stock_symbols
+      WHERE market_category IS NOT NULL
+      GROUP BY market_category
+      ORDER BY count DESC, market_category ASC
+    `;
+    
+    const result = await query(industriesQuery);
+    
+    res.json({
+      data: result.rows.map(row => ({
+        name: row.market_category,
+        value: row.market_category,
+        count: parseInt(row.count)
+      })),
+      total: result.rows.length,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error fetching market categories:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch market categories', 
+      details: error.message,
+      data: [], // Always return data as an array for frontend safety
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Top gainers based on available price data
+router.get('/movers/gainers', async (req, res) => {
+  try {
+    console.log('Stock movers/gainers endpoint called');
+    
+    const limit = Math.min(parseInt(req.query.limit) || 10, 50);
+    
+    // Get stocks with current and previous day prices to calculate gains
+    const gainersQuery = `
+      WITH price_changes AS (
+        SELECT 
+          symbol,
+          date,
+          close,
+          LAG(close) OVER (PARTITION BY symbol ORDER BY date) as prev_close,
+          LAG(date) OVER (PARTITION BY symbol ORDER BY date) as prev_date
+        FROM price_daily
+        WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+      ),
+      latest_changes AS (
+        SELECT DISTINCT ON (symbol)
+          symbol,
+          close as current_price,
+          prev_close,
+          date as price_date,
+          CASE 
+            WHEN prev_close > 0 
+            THEN ((close - prev_close) / prev_close * 100)
+            ELSE 0
+          END as change_percent
+        FROM price_changes
+        WHERE prev_close IS NOT NULL
+        ORDER BY symbol, date DESC
+      )
+      SELECT 
+        ss.symbol,
+        ss.security_name,
+        ss.exchange,
+        lc.current_price,
+        lc.prev_close,
+        lc.change_percent,
+        lc.price_date
+      FROM latest_changes lc
+      JOIN stock_symbols ss ON ss.symbol = lc.symbol
+      WHERE lc.change_percent > 0
+      ORDER BY lc.change_percent DESC
+      LIMIT $1
+    `;
+    
+    const result = await query(gainersQuery, [limit]);
+    
+    const formattedData = result.rows.map(row => ({
+      ticker: row.symbol,
+      name: row.security_name,
+      exchange: row.exchange,
+      price: row.current_price,
+      change: row.current_price - row.prev_close,
+      changePercent: row.change_percent,
+      volume: null, // Not available in this query
+      price_date: row.price_date
+    }));
+    
+    res.json({
+      data: formattedData,
+      count: result.rows.length,
+      type: 'gainers',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error fetching stock gainers:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch stock gainers', 
+      details: error.message,
+      data: [], // Always return data as an array for frontend safety
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Top losers based on available price data
+router.get('/movers/losers', async (req, res) => {
+  try {
+    console.log('Stock movers/losers endpoint called');
+    
+    const limit = Math.min(parseInt(req.query.limit) || 10, 50);
+    
+    // Get stocks with current and previous day prices to calculate losses
+    const losersQuery = `
+      WITH price_changes AS (
+        SELECT 
+          symbol,
+          date,
+          close,
+          LAG(close) OVER (PARTITION BY symbol ORDER BY date) as prev_close,
+          LAG(date) OVER (PARTITION BY symbol ORDER BY date) as prev_date
+        FROM price_daily
+        WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+      ),
+      latest_changes AS (
+        SELECT DISTINCT ON (symbol)
+          symbol,
+          close as current_price,
+          prev_close,
+          date as price_date,
+          CASE 
+            WHEN prev_close > 0 
+            THEN ((close - prev_close) / prev_close * 100)
+            ELSE 0
+          END as change_percent
+        FROM price_changes
+        WHERE prev_close IS NOT NULL
+        ORDER BY symbol, date DESC
+      )
+      SELECT 
+        ss.symbol,
+        ss.security_name,
+        ss.exchange,
+        lc.current_price,
+        lc.prev_close,
+        lc.change_percent,
+        lc.price_date
+      FROM latest_changes lc
+      JOIN stock_symbols ss ON ss.symbol = lc.symbol
+      WHERE lc.change_percent < 0
+      ORDER BY lc.change_percent ASC
+      LIMIT $1
+    `;
+    
+    const result = await query(losersQuery, [limit]);
+    
+    const formattedData = result.rows.map(row => ({
+      ticker: row.symbol,
+      name: row.security_name,
+      exchange: row.exchange,
+      price: row.current_price,
+      change: row.current_price - row.prev_close,
+      changePercent: row.change_percent,
+      volume: null, // Not available in this query
+      price_date: row.price_date
+    }));
+    
+    res.json({
+      data: formattedData,
+      count: result.rows.length,
+      type: 'losers',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error fetching stock losers:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch stock losers', 
+      details: error.message,
+      data: [], // Always return data as an array for frontend safety
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Most active stocks by volume
+router.get('/movers/active', async (req, res) => {
+  try {
+    console.log('Stock movers/active endpoint called');
+    
+    const limit = Math.min(parseInt(req.query.limit) || 10, 50);
+    
+    // Get most active stocks by volume
+    const activeQuery = `
+      SELECT 
+        ss.symbol,
+        ss.security_name,
+        ss.exchange,
+        pd.close as current_price,
+        pd.volume,
+        pd.date as price_date
+      FROM stock_symbols ss
+      JOIN (
+        SELECT DISTINCT ON (symbol) symbol, close, volume, date
+        FROM price_daily
+        ORDER BY symbol, date DESC
+      ) pd ON ss.symbol = pd.symbol
+      WHERE pd.volume IS NOT NULL AND pd.volume > 0
+      ORDER BY pd.volume DESC
+      LIMIT $1
+    `;
+    
+    const result = await query(activeQuery, [limit]);
+    
+    const formattedData = result.rows.map(row => ({
+      ticker: row.symbol,
+      name: row.security_name,
+      exchange: row.exchange,
+      price: row.current_price,
+      volume: row.volume,
+      price_date: row.price_date
+    }));
+    
+    res.json({
+      data: formattedData,
+      count: result.rows.length,
+      type: 'most_active',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error fetching most active stocks:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch most active stocks', 
+      details: error.message,
+      data: [], // Always return data as an array for frontend safety
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Stock screening endpoint
+router.get('/screen', async (req, res) => {
+  try {
+    console.log('Stock screen endpoint called with params:', req.query);
+    
+    const limit = Math.min(parseInt(req.query.limit) || 25, 100);
+    const exchange = req.query.exchange;
+    const marketCategory = req.query.marketCategory;
+    const minPrice = parseFloat(req.query.minPrice) || null;
+    const maxPrice = parseFloat(req.query.maxPrice) || null;
+    const minVolume = parseInt(req.query.minVolume) || null;
+    
+    let whereClause = 'WHERE pd.close IS NOT NULL';
+    const params = [];
+    let paramIndex = 1;
+    
+    if (exchange) {
+      whereClause += ` AND ss.exchange = $${paramIndex}`;
+      params.push(exchange);
+      paramIndex++;
+    }
+    
+    if (marketCategory) {
+      whereClause += ` AND ss.market_category = $${paramIndex}`;
+      params.push(marketCategory);
+      paramIndex++;
+    }
+    
+    if (minPrice !== null) {
+      whereClause += ` AND pd.close >= $${paramIndex}`;
+      params.push(minPrice);
+      paramIndex++;
+    }
+    
+    if (maxPrice !== null) {
+      whereClause += ` AND pd.close <= $${paramIndex}`;
+      params.push(maxPrice);
+      paramIndex++;
+    }
+    
+    if (minVolume !== null) {
+      whereClause += ` AND pd.volume >= $${paramIndex}`;
+      params.push(minVolume);
+      paramIndex++;
+    }
+    
+    const screenQuery = `
+      SELECT 
+        ss.symbol,
+        ss.security_name,
+        ss.exchange,
+        ss.market_category,
+        pd.close as current_price,
+        pd.volume,
+        pd.date as price_date
+      FROM stock_symbols ss
+      JOIN (
+        SELECT DISTINCT ON (symbol) symbol, close, volume, date
+        FROM price_daily
+        ORDER BY symbol, date DESC
+      ) pd ON ss.symbol = pd.symbol
+      ${whereClause}
+      ORDER BY pd.volume DESC NULLS LAST
+      LIMIT $${paramIndex}
+    `;
+    
+    params.push(limit);
+    
+    const result = await query(screenQuery, params);
+    
+    const formattedData = result.rows.map(row => ({
+      ticker: row.symbol,
+      name: row.security_name,
+      exchange: row.exchange,
+      market_category: row.market_category,
+      price: row.current_price,
+      volume: row.volume,
+      price_date: row.price_date
+    }));
+    
+    res.json({
+      data: formattedData,
+      count: result.rows.length,
+      filters: {
+        exchange: exchange || null,
+        marketCategory: marketCategory || null,
+        minPrice: minPrice,
+        maxPrice: maxPrice,
+        minVolume: minVolume
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error screening stocks:', error);
+    res.status(500).json({ 
+      error: 'Failed to screen stocks', 
+      details: error.message,
+      data: [], // Always return data as an array for frontend safety
+      timestamp: new Date().toISOString()    });
+  }
+});
+
+// Lightweight endpoint for recent price data only
+router.get('/:ticker/price-recent', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    const limit = Math.min(parseInt(req.query.limit) || 30, 60); // Max 60 days for performance
+    
+    console.log(`Recent price endpoint called for ticker: ${ticker}, limit: ${limit}`);
+    
+    const pricesQuery = `
+      SELECT date, open, high, low, close, adj_close, volume
+      FROM price_daily
+      WHERE UPPER(symbol) = UPPER($1)
+      ORDER BY date DESC
+      LIMIT $2
+    `;
+    
+    const result = await query(pricesQuery, [ticker, limit]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'No price data found',
+        ticker: ticker.toUpperCase(),
+        message: 'Price data not available for this symbol',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Calculate basic metrics
+    const prices = result.rows;
+    const latest = prices[0];
+    const oldest = prices[prices.length - 1];
+    
+    const periodReturn = oldest.close > 0 ? 
+      ((latest.close - oldest.close) / oldest.close * 100) : 0;
+    
+    res.json({
+      success: true,
+      ticker: ticker.toUpperCase(),
+      dataPoints: result.rows.length,
+      data: prices.map(price => ({
+        date: price.date,
+        open: parseFloat(price.open),
+        high: parseFloat(price.high),
+        low: parseFloat(price.low),
+        close: parseFloat(price.close),
+        adjClose: parseFloat(price.adj_close),
+        volume: parseInt(price.volume) || 0
+      })),
+      summary: {
+        latestPrice: parseFloat(latest.close),
+        latestDate: latest.date,
+        periodReturn: parseFloat(periodReturn.toFixed(2)),
+        latestVolume: parseInt(latest.volume) || 0
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error fetching recent prices:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch recent price data', 
+      details: error.message,
+      data: [], // Always return data as an array for frontend safety
+      ticker: req.params.ticker,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Stock profile endpoint - returns company information
+router.get('/:ticker/profile', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    const tickerUpper = ticker.toUpperCase();
+    
+    console.log(`Stock profile endpoint called for: ${tickerUpper}`);
+    
+    const stockInfoQuery = `
+      SELECT 
+        symbol,
+        security_name,
+        exchange,
+        market_category,
+        cqs_symbol,
+        financial_status,
+        round_lot_size,
+        etf,
+        test_issue,
+        nasdaq_symbol
+      FROM stock_symbols 
+      WHERE symbol = $1
+    `;
+    
+    const stockInfo = await query(stockInfoQuery, [tickerUpper]);
+    
+    if (stockInfo.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Stock not found',
+        symbol: tickerUpper,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const stockData = stockInfo.rows[0];
+    
+    res.json({
+      symbol: tickerUpper,
+      name: stockData.security_name,
+      exchange: stockData.exchange,
+      marketCategory: stockData.market_category,
+      cqsSymbol: stockData.cqs_symbol,
+      financialStatus: stockData.financial_status,
+      roundLotSize: stockData.round_lot_size,
+      isETF: stockData.etf === 't' || stockData.etf === true,
+      isTestIssue: stockData.test_issue === 't' || stockData.test_issue === true,
+      nasdaqSymbol: stockData.nasdaq_symbol,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error in stock profile endpoint:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch stock profile', 
+      symbol: req.params.ticker,
+      message: error.message,
+      data: [], // Always return data as an array for frontend safety
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Comprehensive financial metrics endpoint - uses loadinfo data
+router.get('/:ticker/metrics', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    const tickerUpper = ticker.toUpperCase();
+    
+    console.log(`Comprehensive financial metrics endpoint called for: ${tickerUpper}`);
+    
+    // Get all financial data from loadinfo tables
+    const financialQuery = `
+      SELECT 
+        -- Company Profile
+        cp.short_name,
+        cp.long_name,
+        cp.sector,
+        cp.sector_disp,
+        cp.industry,
+        cp.industry_disp,
+        cp.business_summary,
+        cp.employee_count,
+        cp.exchange,
+        cp.full_exchange_name,
+        
+        -- Market Data
+        md.current_price,
+        md.previous_close,
+        md.day_low,
+        md.day_high,
+        md.volume,
+        md.average_volume,
+        md.market_cap,
+        md.fifty_two_week_low,
+        md.fifty_two_week_high,
+        md.fifty_day_avg,
+        md.two_hundred_day_avg,
+        md.bid_price,
+        md.ask_price,
+        
+        -- Key Metrics  
+        km.trailing_pe,
+        km.forward_pe,
+        km.price_to_sales_ttm,
+        km.price_to_book,
+        km.book_value,
+        km.peg_ratio,
+        km.enterprise_value,
+        km.ev_to_revenue,
+        km.ev_to_ebitda,
+        km.total_revenue,
+        km.net_income,
+        km.ebitda,
+        km.gross_profit,
+        km.eps_trailing,
+        km.eps_forward,
+        km.total_cash,
+        km.cash_per_share,
+        km.operating_cashflow,
+        km.free_cashflow,
+        km.total_debt,
+        km.debt_to_equity,
+        km.quick_ratio,
+        km.current_ratio,
+        km.profit_margin_pct,
+        km.gross_margin_pct,
+        km.ebitda_margin_pct,
+        km.operating_margin_pct,
+        km.return_on_assets_pct,
+        km.return_on_equity_pct,
+        km.revenue_growth_pct,
+        km.earnings_growth_pct,
+        km.dividend_rate,
+        km.dividend_yield,
+        km.five_year_avg_dividend_yield,
+        km.payout_ratio,
+        
+        -- Analyst Estimates
+        ae.target_high_price,
+        ae.target_low_price,
+        ae.target_mean_price,
+        ae.target_median_price,
+        ae.recommendation_key,
+        ae.recommendation_mean,
+        ae.analyst_opinion_count,
+        ae.average_analyst_rating,
+        
+        -- Governance Scores
+        gs.audit_risk,
+        gs.board_risk,
+        gs.compensation_risk,
+        gs.shareholder_rights_risk,
+        gs.overall_risk
+        
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker  
+      LEFT JOIN analyst_estimates ae ON cp.ticker = ae.ticker
+      LEFT JOIN governance_scores gs ON cp.ticker = gs.ticker
+      WHERE cp.ticker = $1
+    `;
+    
+    const result = await query(financialQuery, [tickerUpper]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Stock not found',
+        symbol: tickerUpper,
+        message: 'No financial data available for this symbol',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const data = result.rows[0];
+    
+    // Structure comprehensive financial response
+    const financialMetrics = {
+      symbol: tickerUpper,
+      companyInfo: {
+        name: data.long_name || data.short_name,
+        shortName: data.short_name,
+        sector: data.sector_disp || data.sector,
+        industry: data.industry_disp || data.industry,
+        businessSummary: data.business_summary,
+        employeeCount: data.employee_count,
+        exchange: data.full_exchange_name || data.exchange
+      },
+      
+      pricing: {
+        currentPrice: parseFloat(data.current_price || 0),
+        previousClose: parseFloat(data.previous_close || 0),
+        dayRange: {
+          low: parseFloat(data.day_low || 0),
+          high: parseFloat(data.day_high || 0)
+        },
+        fiftyTwoWeekRange: {
+          low: parseFloat(data.fifty_two_week_low || 0),
+          high: parseFloat(data.fifty_two_week_high || 0)
+        },
+        movingAverages: {
+          fiftyDay: parseFloat(data.fifty_day_avg || 0),
+          twoHundredDay: parseFloat(data.two_hundred_day_avg || 0)
+        },
+        bidAsk: {
+          bid: parseFloat(data.bid_price || 0),
+          ask: parseFloat(data.ask_price || 0)
+        }
+      },
+      
+      marketData: {
+        marketCap: parseInt(data.market_cap || 0),
+        volume: parseInt(data.volume || 0),
+        averageVolume: parseInt(data.average_volume || 0),
+        enterpriseValue: parseInt(data.enterprise_value || 0)
+      },
+      
+      valuationRatios: {
+        trailingPE: parseFloat(data.trailing_pe || 0),
+        forwardPE: parseFloat(data.forward_pe || 0),
+        priceToSales: parseFloat(data.price_to_sales_ttm || 0),
+        priceToBook: parseFloat(data.price_to_book || 0),
+        pegRatio: parseFloat(data.peg_ratio || 0),
+        evToRevenue: parseFloat(data.ev_to_revenue || 0),
+        evToEbitda: parseFloat(data.ev_to_ebitda || 0)
+      },
+      
+      profitability: {
+        profitMargin: parseFloat(data.profit_margin_pct || 0),
+        grossMargin: parseFloat(data.gross_margin_pct || 0),
+        ebitdaMargin: parseFloat(data.ebitda_margin_pct || 0),
+        operatingMargin: parseFloat(data.operating_margin_pct || 0),
+        returnOnAssets: parseFloat(data.return_on_assets_pct || 0),
+        returnOnEquity: parseFloat(data.return_on_equity_pct || 0)
+      },
+      
+      growth: {
+        revenueGrowth: parseFloat(data.revenue_growth_pct || 0),
+        earningsGrowth: parseFloat(data.earnings_growth_pct || 0)
+      },
+      
+      financial: {
+        totalRevenue: parseInt(data.total_revenue || 0),
+        netIncome: parseInt(data.net_income || 0),
+        ebitda: parseInt(data.ebitda || 0),
+        grossProfit: parseInt(data.gross_profit || 0),
+        totalCash: parseInt(data.total_cash || 0),
+        cashPerShare: parseFloat(data.cash_per_share || 0),
+        operatingCashflow: parseInt(data.operating_cashflow || 0),
+        freeCashflow: parseInt(data.free_cashflow || 0),
+        totalDebt: parseInt(data.total_debt || 0),
+        bookValue: parseFloat(data.book_value || 0)
+      },
+      
+      ratios: {
+        debtToEquity: parseFloat(data.debt_to_equity || 0),
+        quickRatio: parseFloat(data.quick_ratio || 0),
+        currentRatio: parseFloat(data.current_ratio || 0)
+      },
+      
+      earnings: {
+        epsTrailing: parseFloat(data.eps_trailing || 0),
+        epsForward: parseFloat(data.eps_forward || 0)
+      },
+      
+      dividends: {
+        dividendRate: parseFloat(data.dividend_rate || 0),
+        dividendYield: parseFloat(data.dividend_yield || 0),
+        fiveYearAvgDividendYield: parseFloat(data.five_year_avg_dividend_yield || 0),
+        payoutRatio: parseFloat(data.payout_ratio || 0)
+      },
+      
+      analystEstimates: {
+        targetPrices: {
+          high: parseFloat(data.target_high_price || 0),
+          low: parseFloat(data.target_low_price || 0),
+          mean: parseFloat(data.target_mean_price || 0),
+          median: parseFloat(data.target_median_price || 0)
+        },
+        recommendation: {
+          key: data.recommendation_key,
+          mean: parseFloat(data.recommendation_mean || 0),
+          analystCount: parseInt(data.analyst_opinion_count || 0),
+          averageRating: parseFloat(data.average_analyst_rating || 0)
+        }
+      },
+      
+      governance: {
+        auditRisk: parseInt(data.audit_risk || 0),
+        boardRisk: parseInt(data.board_risk || 0),
+        compensationRisk: parseInt(data.compensation_risk || 0),
+        shareholderRightsRisk: parseInt(data.shareholder_rights_risk || 0),
+        overallRisk: parseInt(data.overall_risk || 0)
+      },
+      
+      dataAvailability: {
+        hasMarketData: !!data.current_price,
+        hasKeyMetrics: !!data.trailing_pe,
+        hasAnalystEstimates: !!data.target_mean_price,
+        hasGovernanceData: !!data.overall_risk
+      },
+      
+      timestamp: new Date().toISOString()
+    };
+    
+    res.json(financialMetrics);
+    
+  } catch (error) {
+    console.error('Error in comprehensive financial metrics endpoint:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch financial metrics', 
+      symbol: req.params.ticker,
+      message: error.message,
+      data: [], // Always return data as an array for frontend safety
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Comprehensive financial overview endpoint - perfect for frontend financial pages
+router.get('/:ticker/financial-overview', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    const tickerUpper = ticker.toUpperCase();
+    
+    console.log(`Financial overview endpoint called for: ${tickerUpper}`);
+    
+    // Get comprehensive financial overview
+    const overviewQuery = `
+      SELECT 
+        -- Company basics
+        cp.short_name,
+        cp.long_name,
+        cp.sector_disp,
+        cp.industry_disp,
+        cp.business_summary,
+        cp.employee_count,
+        cp.website_url,
+        
+        -- Current market data
+        md.current_price,
+        md.previous_close,
+        md.market_cap,
+        md.volume,
+        md.fifty_two_week_low,
+        md.fifty_two_week_high,
+        
+        -- Key financial metrics
+        km.trailing_pe,
+        km.forward_pe,
+        km.price_to_book,
+        km.dividend_yield,
+        km.eps_trailing,
+        km.eps_forward,
+        km.total_revenue,
+        km.net_income,
+        km.profit_margin_pct,
+        km.return_on_equity_pct,
+        km.debt_to_equity,
+        km.revenue_growth_pct,
+        km.earnings_growth_pct,
+        
+        -- Analyst data
+        ae.target_mean_price,
+        ae.recommendation_key,
+        ae.analyst_opinion_count,
+        
+        -- Governance
+        gs.overall_risk
+        
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+      LEFT JOIN analyst_estimates ae ON cp.ticker = ae.ticker
+      LEFT JOIN governance_scores gs ON cp.ticker = gs.ticker
+      WHERE cp.ticker = $1
+    `;
+    
+    const result = await query(overviewQuery, [tickerUpper]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Stock not found',
+        symbol: tickerUpper,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const data = result.rows[0];
+    
+    // Calculate derived metrics
+    const currentPrice = parseFloat(data.current_price || 0);
+    const previousClose = parseFloat(data.previous_close || 0);
+    const priceChange = currentPrice - previousClose;
+    const priceChangePercent = previousClose > 0 ? (priceChange / previousClose) * 100 : 0;
+    
+    const fiftyTwoWeekLow = parseFloat(data.fifty_two_week_low || 0);
+    const fiftyTwoWeekHigh = parseFloat(data.fifty_two_week_high || 0);
+    const fiftyTwoWeekPosition = fiftyTwoWeekHigh > fiftyTwoWeekLow ? 
+      ((currentPrice - fiftyTwoWeekLow) / (fiftyTwoWeekHigh - fiftyTwoWeekLow)) * 100 : 0;
+    
+    // Format response for easy frontend consumption
+    const overview = {
+      symbol: tickerUpper,
+      
+      // Company Information
+      company: {
+        name: data.long_name || data.short_name,
+        sector: data.sector_disp,
+        industry: data.industry_disp,
+        description: data.business_summary,
+        employees: parseInt(data.employee_count || 0),
+        website: data.website_url
+      },
+      
+      // Stock Price
+      price: {
+        current: currentPrice,
+        change: parseFloat(priceChange.toFixed(2)),
+        changePercent: parseFloat(priceChangePercent.toFixed(2)),
+        previousClose: previousClose,
+        fiftyTwoWeekRange: {
+          low: fiftyTwoWeekLow,
+          high: fiftyTwoWeekHigh,
+          position: parseFloat(fiftyTwoWeekPosition.toFixed(1))
+        }
+      },
+      
+      // Market Data
+      market: {
+        marketCap: {
+          value: parseInt(data.market_cap || 0),
+          formatted: formatMarketCap(parseInt(data.market_cap || 0))
+        },
+        volume: parseInt(data.volume || 0),
+        avgVolume: null // Could add from market_data if needed
+      },
+      
+      // Valuation
+      valuation: {
+        peRatio: parseFloat(data.trailing_pe || 0),
+        forwardPE: parseFloat(data.forward_pe || 0),
+        priceToBook: parseFloat(data.price_to_book || 0),
+        eps: parseFloat(data.eps_trailing || 0),
+        forwardEPS: parseFloat(data.eps_forward || 0)
+      },
+      
+      // Financial Health
+      financial: {
+        revenue: {
+          value: parseInt(data.total_revenue || 0),
+          formatted: formatLargeNumber(parseInt(data.total_revenue || 0))
+        },
+        netIncome: {
+          value: parseInt(data.net_income || 0),
+          formatted: formatLargeNumber(parseInt(data.net_income || 0))
+        },
+        profitMargin: parseFloat(data.profit_margin_pct || 0),
+        roe: parseFloat(data.return_on_equity_pct || 0),
+        debtToEquity: parseFloat(data.debt_to_equity || 0)
+      },
+      
+      // Growth
+      growth: {
+        revenueGrowth: parseFloat(data.revenue_growth_pct || 0),
+        earningsGrowth: parseFloat(data.earnings_growth_pct || 0)
+      },
+      
+      // Dividends
+      dividends: {
+        yield: parseFloat(data.dividend_yield || 0),
+        hasDividend: parseFloat(data.dividend_yield || 0) > 0
+      },
+      
+      // Analyst Opinion
+      analysts: {
+        targetPrice: parseFloat(data.target_mean_price || 0),
+        recommendation: data.recommendation_key,
+        analystCount: parseInt(data.analyst_opinion_count || 0),
+        hasEstimates: !!data.target_mean_price
+      },
+      
+      // Risk Assessment
+      risk: {
+        overallRisk: parseInt(data.overall_risk || 0),
+        riskLevel: getRiskLevel(parseInt(data.overall_risk || 0))
+      },
+      
+      // Data Quality Indicators
+      dataQuality: {
+        hasPrice: !!data.current_price,
+        hasFinancials: !!data.total_revenue,
+        hasAnalysts: !!data.target_mean_price,
+        completeness: calculateCompleteness(data)
+      },
+      
+      timestamp: new Date().toISOString()
+    };
+    
+    res.json(overview);
+    
+  } catch (error) {
+    console.error('Error in financial overview endpoint:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch financial overview', 
+      symbol: req.params.ticker,
+      message: error.message,
+      data: [], // Always return data as an array for frontend safety
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Helper functions for financial overview
+function formatMarketCap(value) {
+  if (value >= 1e12) return `$${(value / 1e12).toFixed(1)}T`;
+  if (value >= 1e9) return `$${(value / 1e9).toFixed(1)}B`;
+  if (value >= 1e6) return `$${(value / 1e6).toFixed(1)}M`;
+  if (value >= 1e3) return `$${(value / 1e3).toFixed(1)}K`;
+  return `$${value}`;
+}
+
+function formatLargeNumber(value) {
+  if (value >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
+  if (value >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
+  if (value >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
+  if (value >= 1e3) return `$${(value / 1e3).toFixed(2)}K`;
+  return `$${value}`;
+}
+
+function getRiskLevel(riskScore) {
+  if (riskScore <= 3) return 'Low';
+  if (riskScore <= 6) return 'Medium';
+  if (riskScore <= 8) return 'High';
+  return 'Very High';
+}
+
+function calculateCompleteness(data) {
+  const fields = [
+    'current_price', 'market_cap', 'trailing_pe', 'total_revenue', 
+    'net_income', 'eps_trailing', 'target_mean_price'
+  ];
+  const available = fields.filter(field => data[field] != null).length;
+  return Math.round((available / fields.length) * 100);
+}
+
+// Stock recommendations endpoint - returns analyst recommendations
+router.get('/:ticker/recommendations', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    const tickerUpper = ticker.toUpperCase();
+    
+    console.log(`Stock recommendations endpoint called for: ${tickerUpper}`);
+    
+    res.json({
+      symbol: tickerUpper,
+      available: false,
+      message: 'Analyst recommendations data not available',
+      recommendations: [],
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error in stock recommendations endpoint:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch stock recommendations', 
+      symbol: req.params.ticker,
+      message: error.message,
+      data: [], // Always return data as an array for frontend safety
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Leadership team data endpoint - provides executive/leadership information
+router.get('/leadership/:ticker?', async (req, res) => {
+  try {
+    const ticker = req.params.ticker;
+    
+    let leadershipQuery;
+    let params = [];
+    
+    if (ticker) {
+      // Get leadership for specific ticker
+      leadershipQuery = `
+        SELECT 
+          lt.ticker,
+          lt.person_name,
+          lt.age,
+          lt.title,
+          lt.birth_year,
+          lt.fiscal_year,
+          lt.total_pay,
+          lt.exercised_value,
+          lt.unexercised_value,
+          lt.role_source,
+          cp.short_name as company_name
+        FROM leadership_team lt
+        LEFT JOIN company_profile cp ON lt.ticker = cp.ticker
+        WHERE UPPER(lt.ticker) = UPPER($1)
+        ORDER BY lt.total_pay DESC NULLS LAST, lt.person_name
+      `;
+      params = [ticker.toUpperCase()];
+    } else {
+      // Get leadership summary - top executives across all companies
+      const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+      leadershipQuery = `
+        SELECT 
+          lt.ticker,
+          lt.person_name,
+          lt.age,
+          lt.title,
+          lt.birth_year,
+          lt.fiscal_year,
+          lt.total_pay,
+          lt.exercised_value,
+          lt.unexercised_value,
+          lt.role_source,
+          cp.short_name as company_name
+        FROM leadership_team lt
+        LEFT JOIN company_profile cp ON lt.ticker = cp.ticker
+        ORDER BY lt.total_pay DESC NULLS LAST
+        LIMIT $1
+      `;
+      params = [limit];
+    }
+    
+    const result = await query(leadershipQuery, params);
+    
+    const formattedLeadership = result.rows.map(exec => ({
+      ticker: exec.ticker,
+      companyName: exec.company_name,
+      executiveInfo: {
+        name: exec.person_name,
+        title: exec.title,
+        age: exec.age,
+        birthYear: exec.birth_year
+      },
+      compensation: {
+        totalPay: exec.total_pay,
+        exercisedValue: exec.exercised_value,
+        unexercisedValue: exec.unexercised_value,
+        fiscalYear: exec.fiscal_year
+      },
+      roleSource: exec.role_source
+    }));
+    
+    res.json({
+      success: true,
+      ticker: ticker || 'ALL',
+      data: formattedLeadership,
+      count: formattedLeadership.length,
+      endpoint: ticker ? 'leadership_by_ticker' : 'leadership_summary',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Leadership endpoint error:', error);
+    res.status(500).json({ 
+      error: 'Leadership data query failed',
+      details: error.message,
+      data: [], // Always return data as an array for frontend safety
+      timestamp: new Date().toISOString()
+    });  }
+});
+
+// Dedicated Price Data API - On-demand loading for stock drilldown pages
+router.get('/:ticker/price-data', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    const tickerUpper = ticker.toUpperCase();
+      // Get query parameters for flexible date ranges
+    const period = req.query.period || '1y'; // 1m, 3m, 6m, 1y, 2y, max
+    const interval = req.query.interval || 'daily'; // daily, weekly, monthly
+    const limit = parseInt(req.query.limit) || 0; // 0 = no limit
+    
+    console.log(`Price data API called for ${tickerUpper}, period: ${period}, interval: ${interval}`);
+    
+    // Validate interval - only support what you actually have
+    const validIntervals = ['daily', 'weekly', 'monthly'];
+    if (!validIntervals.includes(interval)) {
+      return res.status(400).json({
+        error: 'Invalid interval',
+        message: `Supported intervals: ${validIntervals.join(', ')}, got: ${interval}`,
+        supportedIntervals: validIntervals
+      });
+    }
+    
+    // Map period to days for SQL query - realistic periods for your data
+    const periodToDays = {
+      '1m': 30,
+      '3m': 90,
+      '6m': 180,
+      '1y': 365,
+      '2y': 730,
+      'max': 0 // No limit
+    };
+    
+    const days = periodToDays[period] || 365;
+    
+    // Choose the appropriate table based on interval
+    const tableMap = {
+      'daily': 'price_daily',
+      'weekly': 'price_weekly', 
+      'monthly': 'price_monthly'
+    };
+    
+    const tableName = tableMap[interval] || 'price_daily';
+    
+    // Build dynamic query with optional date filtering
+    let whereClause = 'WHERE symbol = $1';
+    const params = [tickerUpper];
+    let paramCount = 1;
+    
+    if (days > 0) {
+      paramCount++;
+      whereClause += ` AND date >= CURRENT_DATE - INTERVAL '${days} days'`;
+    }
+    
+    // Add custom date range if provided
+    if (req.query.start_date) {
+      paramCount++;
+      whereClause += ` AND date >= $${paramCount}`;
+      params.push(req.query.start_date);
+    }
+    
+    if (req.query.end_date) {
+      paramCount++;
+      whereClause += ` AND date <= $${paramCount}`;
+      params.push(req.query.end_date);
+    }
+    
+    // Add limit if specified
+    let limitClause = '';
+    if (limit > 0) {
+      paramCount++;
+      limitClause = ` LIMIT $${paramCount}`;
+      params.push(limit);
+    }
+    
+    const priceQuery = `
+      SELECT 
+        symbol,
+        date,
+        open,
+        high,
+        low,
+        close,
+        adj_close,
+        volume,
+        -- Calculate daily changes
+        close - LAG(close) OVER (ORDER BY date) as price_change,
+        ROUND(((close - LAG(close) OVER (ORDER BY date)) / LAG(close) OVER (ORDER BY date) * 100)::numeric, 2) as price_change_pct,
+        -- Volume change
+        volume - LAG(volume) OVER (ORDER BY date) as volume_change,
+        ROUND(((volume - LAG(volume) OVER (ORDER BY date)) / NULLIF(LAG(volume) OVER (ORDER BY date), 0) * 100)::numeric, 2) as volume_change_pct
+      FROM ${tableName}
+      ${whereClause}
+      ORDER BY date DESC
+      ${limitClause}
+    `;
+    
+    console.log(`Executing price query on ${tableName} with ${params.length} parameters`);
+    
+    const result = await query(priceQuery, params);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({        error: 'No price data found',
+        ticker: tickerUpper,
+        period: period,
+        interval: interval,
+        message: 'Price data not available for this symbol and time range',
+        supportedIntervals: ['daily', 'weekly', 'monthly'],
+        supportedPeriods: ['1m', '3m', '6m', '1y', '2y', 'max'],
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Process and format the price data
+    const priceData = result.rows.map(row => ({
+      date: row.date,
+      open: parseFloat(row.open || 0),
+      high: parseFloat(row.high || 0),
+      low: parseFloat(row.low || 0),
+      close: parseFloat(row.close || 0),
+      adjClose: parseFloat(row.adj_close || row.close || 0),
+      volume: parseInt(row.volume || 0),
+      priceChange: parseFloat(row.price_change || 0),
+      priceChangePct: parseFloat(row.price_change_pct || 0),
+      volumeChange: parseInt(row.volume_change || 0),
+      volumeChangePct: parseFloat(row.volume_change_pct || 0)
+    }));
+    
+    // Calculate summary statistics
+    const prices = priceData.map(d => d.close).filter(p => p > 0);
+    const volumes = priceData.map(d => d.volume).filter(v => v > 0);
+    
+    const latest = priceData[0];
+    const oldest = priceData[priceData.length - 1];
+    
+    const summary = {
+      ticker: tickerUpper,
+      period: period,
+      interval: interval,
+      dataPoints: priceData.length,
+      dateRange: {
+        start: oldest?.date,
+        end: latest?.date
+      },
+      priceStats: {
+        current: latest?.close || 0,
+        periodHigh: Math.max(...prices),
+        periodLow: Math.min(...prices),
+        periodChange: latest && oldest ? latest.close - oldest.close : 0,
+        periodChangePct: latest && oldest && oldest.close > 0 ? 
+          ((latest.close - oldest.close) / oldest.close * 100) : 0,
+        avgPrice: prices.length > 0 ? prices.reduce((a, b) => a + b, 0) / prices.length : 0
+      },
+      volumeStats: {
+        current: latest?.volume || 0,
+        periodHigh: volumes.length > 0 ? Math.max(...volumes) : 0,
+        periodLow: volumes.length > 0 ? Math.min(...volumes) : 0,
+        avgVolume: volumes.length > 0 ? Math.round(volumes.reduce((a, b) => a + b, 0) / volumes.length) : 0,
+        totalVolume: volumes.reduce((a, b) => a + b, 0)
+      }
+    };
+    
+    // Response optimized for frontend charts and drilldown pages
+    res.json({
+      success: true,
+      ticker: tickerUpper,
+      summary: summary,
+      data: priceData,
+      metadata: {
+        requestedPeriod: period,
+        requestedInterval: interval,
+        actualDataPoints: priceData.length,
+        tableName: tableName,
+        queryTime: new Date().toISOString(),
+        apiEndpoint: 'price-data'
+      }
+    });
+    
+  } catch (error) {
+    console.error(`Error fetching price data for ${req.params.ticker}:`, error);
+    res.status(500).json({
+      error: 'Failed to fetch price data',
+      ticker: req.params.ticker,
+      details: error.message,
+      data: [], // Always return data as an array for frontend safety
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Bulk price data API - For getting multiple stocks at once (efficient for screeners)
+router.get('/bulk/price-data', async (req, res) => {  try {
+    const symbols = req.query.symbols ? req.query.symbols.split(',').map(s => s.toUpperCase()) : [];
+    const period = req.query.period || '1m';
+    const interval = req.query.interval || 'daily';
+    
+    if (symbols.length === 0) {
+      return res.status(400).json({
+        error: 'No symbols provided',
+        message: 'Use ?symbols=AAPL,MSFT,GOOGL to specify symbols',
+        example: '/api/stocks/bulk/price-data?symbols=AAPL,MSFT,GOOGL&period=1m',
+        supportedIntervals: ['daily', 'weekly', 'monthly'],
+        supportedPeriods: ['1m', '3m', '6m', '1y', '2y', 'max']
+      });
+    }
+    
+    if (symbols.length > 50) {
+      return res.status(400).json({
+        error: 'Too many symbols',
+        message: 'Maximum 50 symbols allowed per request',
+        requested: symbols.length
+      });
+    }
+    
+    // Validate interval
+    const validIntervals = ['daily', 'weekly', 'monthly'];
+    if (!validIntervals.includes(interval)) {
+      return res.status(400).json({
+        error: 'Invalid interval',
+        message: `Supported intervals: ${validIntervals.join(', ')}, got: ${interval}`,
+        supportedIntervals: validIntervals
+      });
+    }
+    
+    console.log(`Bulk price data API called for ${symbols.length} symbols: ${symbols.join(', ')}`);
+    
+    const periodToDays = {
+      '1m': 30,
+      '3m': 90,
+      '6m': 180,
+      '1y': 365,
+      '2y': 730,
+      'max': 0
+    };
+    
+    const days = periodToDays[period] || 1;
+    const tableName = interval === 'weekly' ? 'price_weekly' : 
+                     interval === 'monthly' ? 'price_monthly' : 'price_daily';
+    
+    // Optimized query for multiple symbols
+    const bulkQuery = `
+      WITH latest_prices AS (
+        SELECT DISTINCT ON (symbol) 
+          symbol,
+          date,
+          open,
+          high,
+          low,
+          close,
+          adj_close,
+          volume
+        FROM ${tableName}
+        WHERE symbol = ANY($1)
+          AND date >= CURRENT_DATE - INTERVAL '${days} days'
+        ORDER BY symbol, date DESC
+      )
+      SELECT * FROM latest_prices
+      ORDER BY symbol
+    `;
+    
+    const result = await query(bulkQuery, [symbols]);
+    
+    // Group results by symbol
+    const dataBySymbol = {};
+    result.rows.forEach(row => {
+      if (!dataBySymbol[row.symbol]) {
+        dataBySymbol[row.symbol] = [];
+      }
+      dataBySymbol[row.symbol].push({
+        date: row.date,
+        open: parseFloat(row.open || 0),
+        high: parseFloat(row.high || 0),
+        low: parseFloat(row.low || 0),
+        close: parseFloat(row.close || 0),
+        adjClose: parseFloat(row.adj_close || row.close || 0),
+        volume: parseInt(row.volume || 0)
+      });
+    });
+    
+    // Format response for easy frontend consumption
+    const response = {
+      success: true,
+      requestedSymbols: symbols,
+      foundSymbols: Object.keys(dataBySymbol),
+      missingSymbols: symbols.filter(s => !dataBySymbol[s]),
+      data: dataBySymbol,
+      summary: {
+        requested: symbols.length,
+        found: Object.keys(dataBySymbol).length,
+        missing: symbols.filter(s => !dataBySymbol[s]).length,
+        totalDataPoints: result.rows.length
+      },
+      metadata: {
+        period: period,
+        interval: interval,
+        tableName: tableName,
+        timestamp: new Date().toISOString()
+      }
+    };
+    
+    res.json(response);
+    
+  } catch (error) {
+    console.error('Error in bulk price data API:', error);
+    res.status(500).json({
+      error: 'Failed to fetch bulk price data',
+      details: error.message,
+      data: [], // Always return data as an array for frontend safety
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Debug endpoint: fetch raw joined data for a symbol
+router.get('/debug/raw/:symbol', async (req, res) => {
+  const symbol = req.params.symbol;
+  try {
+    const debugQuery = `
+      SELECT 
+        ss.symbol,
+        ss.security_name,
+        cp.ticker as cp_ticker,
+        cp.short_name, cp.long_name, cp.business_summary, cp.employee_count, cp.website_url, cp.country,
+        md.ticker as md_ticker,
+        md.current_price, md.previous_close, md.day_low, md.day_high, md.volume, md.average_volume,
+        km.ticker as km_ticker,
+        km.trailing_pe, km.peg_ratio, km.price_to_book, km.eps_trailing, km.profit_margin_pct
+      FROM stock_symbols ss
+      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN market_data md ON ss.symbol = md.ticker
+      LEFT JOIN key_metrics km ON ss.symbol = km.ticker
+      WHERE ss.symbol = $1
+      LIMIT 1
+    `;
+    const result = await query(debugQuery, [symbol]);
+    res.json({
+      symbol,
+      row: result.rows[0] || null
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Price data endpoint for a symbol
+router.get('/api/stocks/:symbol/price-data', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    if (!symbol) {
+      return res.status(400).json({ error: 'Missing symbol parameter' });
+    }
+    // Query all price data for the symbol from price_daily
+    const priceQuery = `
+      SELECT date, open, high, low, close, adj_close, volume, dividends, stock_splits
+      FROM price_daily
+      WHERE symbol = $1
+      ORDER BY date ASC
+    `;
+    const result = await query(priceQuery, [symbol.toUpperCase()]);
+    res.json({
+      symbol: symbol.toUpperCase(),
+      count: result.rows.length,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error in price-data endpoint:', error);
+    res.status(500).json({ error: 'Failed to fetch price data', details: error.message });
+  }
+});
+
+module.exports = router;
