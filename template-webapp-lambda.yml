@@ -230,14 +230,14 @@ Resources:
     Properties:
       DistributionConfig:
         Enabled: true
-        DefaultRootObject: index.html        PriceClass: PriceClass_100
+        DefaultRootObject: index.html
+        PriceClass: PriceClass_100
         HttpVersion: http2
         IPV6Enabled: true
         Origins:
           - Id: S3Origin
             DomainName: !GetAtt FrontendBucket.RegionalDomainName
-            S3OriginConfig:
-              OriginAccessIdentity: ''
+            S3OriginConfig: {}
             OriginAccessControlId: !Ref OriginAccessControl
           - Id: ApiOrigin
             DomainName: !Sub '${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com'
