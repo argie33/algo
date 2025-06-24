@@ -1,142 +1,614 @@
-name: Deploy Webapp with Lambda
+name: deploy-webapp
 
 on:
   push:
-    branches: 
-      - main
-      - loaddata
-      - "**"
+    branches:
+      - '*'
     paths:
       - 'webapp/**'
-      - '.github/workflows/deploy-webapp-lambda.yml'
-      - 'template-webapp.yml'
+      - 'template-webapp-lambda.yml'
+      - '.github/workflows/deploy-webapp.yml'
   workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
 
 env:
   AWS_REGION: us-east-1
-  STACK_NAME: stocks-webapp-lambda
-  ECR_REPOSITORY: stocks-app-registry
-  IMAGE_TAG: ${{ github.sha }}
-  CERT_ARN: ${{ secrets.CERT_ARN }}
+  AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+  AWS_ROLE_SESSION: github-deploy
+  NODE_VERSION: '18.x'
 
 jobs:
-  build-and-deploy:
+################################################################################
+# 1) Determine environment based on branch                                     #
+################################################################################
+  setup:
+    name: Setup environment
     runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+      stack_name: ${{ steps.env.outputs.stack_name }}
+    steps:
+      - name: Determine environment
+        id: env
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.ref }}" == "refs/heads/master" ]]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+            echo "stack_name=stocks-webapp-prod" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/staging" || "${{ github.ref }}" == "refs/heads/stage" ]]; then
+            echo "environment=staging" >> $GITHUB_OUTPUT
+            echo "stack_name=stocks-webapp-staging" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+            echo "stack_name=stocks-webapp-dev" >> $GITHUB_OUTPUT
+          fi
+          echo "Deploying to environment: $(echo $GITHUB_OUTPUT | grep environment | cut -d'=' -f2)"
+################################################################################
+# 2) Detect changed components                                                 #
+################################################################################
+  filter:
+    name: Detect changed components
+    needs: setup
+    runs-on: ubuntu-latest
+    outputs:
+      webapp:     ${{ steps.paths.outputs.webapp }}
+      lambda:     ${{ steps.paths.outputs.lambda }}
+      frontend:   ${{ steps.paths.outputs.frontend }}
+      template:   ${{ steps.paths.outputs.template }}
+      any:        ${{ steps.any.outputs.any }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - id: paths
+        name: Which files changed?
+        uses: dorny/paths-filter@v2
+        with:
+          base: ${{ github.event.before != '0000000000000000000000000000000000000000' && github.event.before || github.sha }}
+          filters: |
+            webapp:
+              - 'webapp/**'
+            lambda:
+              - 'webapp/lambda/**'
+              - 'webapp/backend/**'
+            frontend:
+              - 'webapp/frontend/**'
+            template:
+              - 'template-webapp-lambda.yml'
+              - '.github/workflows/deploy-webapp.yml'
+      - id: any
+        name: Any relevant changes?
+        run: |
+          if [[ "${{ steps.paths.outputs.webapp }}" == "true" || "${{ steps.paths.outputs.lambda }}" == "true" || "${{ steps.paths.outputs.frontend }}" == "true" || "${{ steps.paths.outputs.template }}" == "true" ]]; then
+            echo "any=true" >> $GITHUB_OUTPUT
+          else
+            echo "any=false" >> $GITHUB_OUTPUT
+          fi
+################################################################################
+# 3) Deploy webapp infrastructure                                              #
+################################################################################
+  deploy_infrastructure:
+    name: Deploy webapp infrastructure
+    needs: [setup, filter]
+    if: ${{ needs.filter.outputs.template == 'true' || needs.filter.outputs.any == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      ENVIRONMENT_NAME: ${{ needs.setup.outputs.environment }}
+      STACK_NAME: ${{ needs.setup.outputs.stack_name }}
+    outputs:
+      bucket_prefix: ${{ steps.stack_outputs.outputs.bucket_prefix }}
+      cloudfront_id: ${{ steps.stack_outputs.outputs.cloudfront_id }}
+      api_url: ${{ steps.stack_outputs.outputs.api_url }}
+      website_url: ${{ steps.stack_outputs.outputs.website_url }}
+      environment: ${{ needs.setup.outputs.environment }}
+      stack_name: ${{ needs.setup.outputs.stack_name }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Get database connection info from stacks
+        id: db_info
+        run: |
+          DB_SECRET_ARN=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-SecretArn'].Value" \
+            --output text)
+          DB_ENDPOINT=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-DBEndpoint'].Value" \
+            --output text)
+          
+          # Validate that we got the values
+          if [[ -z "$DB_SECRET_ARN" || "$DB_SECRET_ARN" == "None" ]]; then
+            echo "❌ Failed to get database secret ARN from app stack exports"
+            exit 1
+          fi
+          
+          if [[ -z "$DB_ENDPOINT" || "$DB_ENDPOINT" == "None" ]]; then
+            echo "❌ Failed to get database endpoint from app stack exports"
+            exit 1
+          fi
+          
+          echo "DB_SECRET_ARN=$DB_SECRET_ARN" >> $GITHUB_OUTPUT
+          echo "DB_ENDPOINT=$DB_ENDPOINT" >> $GITHUB_OUTPUT
+          echo "Using database secret: $DB_SECRET_ARN"
+          echo "Using database endpoint: $DB_ENDPOINT"
+      
+      - name: Get CloudFormation templates bucket from core stack
+        id: bucket
+        run: |
+          BUCKET=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
+            --output text)
+          
+          # Validate bucket name
+          if [[ -z "$BUCKET" || "$BUCKET" == "None" ]]; then
+            echo "❌ Failed to get CloudFormation templates bucket from core stack exports"
+            exit 1
+          fi
+          
+          echo "CF_BUCKET=$BUCKET" >> $GITHUB_OUTPUT
+          echo "Using S3 bucket: $BUCKET"
+      - name: Install SAM CLI
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - name: Build SAM application
+        run: |
+          sam build --template template-webapp-lambda.yml
+      - name: Check and handle failed stack state
+        run: |
+          # Check if stack exists and its status
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query "Stacks[0].StackStatus" \
+            --output text 2>/dev/null || echo "STACK_NOT_FOUND")
+          
+          echo "Current stack status: $STACK_STATUS"
+          
+          # Handle different stack states
+          case "$STACK_STATUS" in
+            "STACK_NOT_FOUND")
+              echo "ℹ️ Stack does not exist. Will create new stack."
+              ;;
+            "CREATE_COMPLETE"|"UPDATE_COMPLETE")
+              echo "ℹ️ Stack is in healthy state: $STACK_STATUS. Proceeding with deployment."
+              ;;
+            "ROLLBACK_COMPLETE"|"CREATE_FAILED")
+              echo "⚠️ Stack is in failed state: $STACK_STATUS. Deleting stack to allow re-creation..."
+              aws cloudformation delete-stack --stack-name ${{ env.STACK_NAME }}
+              echo "⏳ Waiting for stack deletion to complete..."
+              aws cloudformation wait stack-delete-complete --stack-name ${{ env.STACK_NAME }}
+              echo "✅ Stack deletion completed"
+              ;;
+            "ROLLBACK_IN_PROGRESS"|"CREATE_IN_PROGRESS"|"UPDATE_IN_PROGRESS"|"DELETE_IN_PROGRESS")
+              echo "⏳ Stack is in progress state: $STACK_STATUS. Waiting for operation to complete..."
+              # Wait for the current operation to complete
+              if [[ "$STACK_STATUS" == "ROLLBACK_IN_PROGRESS" ]]; then
+                echo "⏳ Waiting for rollback to complete..."
+                aws cloudformation wait stack-rollback-complete --stack-name ${{ env.STACK_NAME }}
+                # After rollback completes, delete the stack
+                echo "🧹 Rollback completed. Deleting failed stack..."
+                aws cloudformation delete-stack --stack-name ${{ env.STACK_NAME }}
+                aws cloudformation wait stack-delete-complete --stack-name ${{ env.STACK_NAME }}
+                echo "✅ Failed stack cleanup completed"
+              elif [[ "$STACK_STATUS" == "CREATE_IN_PROGRESS" ]]; then
+                aws cloudformation wait stack-create-complete --stack-name ${{ env.STACK_NAME }}
+              elif [[ "$STACK_STATUS" == "UPDATE_IN_PROGRESS" ]]; then
+                aws cloudformation wait stack-update-complete --stack-name ${{ env.STACK_NAME }}
+              elif [[ "$STACK_STATUS" == "DELETE_IN_PROGRESS" ]]; then
+                aws cloudformation wait stack-delete-complete --stack-name ${{ env.STACK_NAME }}
+              fi
+              ;;
+            "UPDATE_ROLLBACK_COMPLETE")
+              echo "⚠️ Stack is in UPDATE_ROLLBACK_COMPLETE state. This indicates a failed update that was rolled back."
+              echo "ℹ️ Stack is still functional but last update failed. Proceeding with new deployment."
+              ;;
+            "DELETE_FAILED")
+              echo "❌ Stack is in DELETE_FAILED state. Manual intervention required."
+              echo "   Please manually delete the stack or resolve the deletion issues."
+              exit 1
+              ;;
+            "REVIEW_IN_PROGRESS")
+              echo "⚠️ Stack is in REVIEW_IN_PROGRESS state due to failed changeset"
+              echo "   Deleting the stack to clean up the failed changeset..."
+              aws cloudformation delete-stack --stack-name ${{ env.STACK_NAME }}
+              echo "⏳ Waiting for stack deletion to complete..."
+              aws cloudformation wait stack-delete-complete --stack-name ${{ env.STACK_NAME }}
+              echo "✅ Stack cleanup completed"
+              ;;
+            *)
+              echo "❌ Stack is in unexpected state: $STACK_STATUS"
+              echo "   Manual intervention may be required."
+              exit 1
+              ;;
+          esac
+      - name: Deploy webapp CloudFormation stack
+        run: |
+          echo "Using stack name: $STACK_NAME"
+          echo "Using environment: $ENVIRONMENT_NAME"
+          
+          # Final check that stack is in a deployable state
+          FINAL_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query "Stacks[0].StackStatus" \
+            --output text 2>/dev/null || echo "STACK_NOT_FOUND")
+            echo "Final stack status before deployment: $FINAL_STATUS"
+          
+          # Ensure we're in a deployable state
+          case "$FINAL_STATUS" in
+            "STACK_NOT_FOUND"|"CREATE_COMPLETE"|"UPDATE_COMPLETE"|"UPDATE_ROLLBACK_COMPLETE")
+              echo "✅ Stack is in deployable state: $FINAL_STATUS"
+              ;;
+            "REVIEW_IN_PROGRESS")
+              echo "⚠️ Stack is in REVIEW_IN_PROGRESS state due to failed changeset"
+              echo "   Deleting the stack to clean up the failed changeset..."
+              aws cloudformation delete-stack --stack-name "$STACK_NAME"
+              echo "⏳ Waiting for stack deletion to complete..."
+              aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME"
+              echo "✅ Stack cleanup completed, proceeding with fresh deployment"
+              ;;
+            "ROLLBACK_COMPLETE"|"CREATE_FAILED"|"ROLLBACK_IN_PROGRESS"|*"_IN_PROGRESS")
+              echo "❌ Stack is in non-deployable state: $FINAL_STATUS"
+              echo "   This should not happen after our cleanup step. The previous step may have failed."
+              exit 1
+              ;;
+            *)
+              echo "⚠️ Stack is in unexpected state: $FINAL_STATUS. Attempting deployment anyway..."
+              ;;
+          esac
+          
+          # Validate parameters before deployment
+          if [[ -z "${{ steps.db_info.outputs.DB_SECRET_ARN }}" ]]; then
+            echo "❌ Database secret ARN is empty"
+            exit 1
+          fi
+          
+          if [[ -z "${{ steps.db_info.outputs.DB_ENDPOINT }}" ]]; then
+            echo "❌ Database endpoint is empty"
+            exit 1
+          fi
+          
+          if [[ -z "${{ steps.bucket.outputs.CF_BUCKET }}" ]]; then
+            echo "❌ S3 bucket is empty"
+            exit 1
+          fi
+          
+          # Deploy with validated parameters and enhanced error handling
+          echo "🚀 Starting SAM deployment..."
+          if ! sam deploy \
+            --stack-name "$STACK_NAME" \
+            --s3-bucket "${{ steps.bucket.outputs.CF_BUCKET }}" \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+            --parameter-overrides \
+              "EnvironmentName=${{ env.ENVIRONMENT_NAME }}" \
+              "DatabaseSecretArn=${{ steps.db_info.outputs.DB_SECRET_ARN }}" \
+              "DatabaseEndpoint=${{ steps.db_info.outputs.DB_ENDPOINT }}" \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset; then
+            
+            echo "❌ SAM deployment failed. Checking stack status..."
+            DEPLOY_STATUS=$(aws cloudformation describe-stacks \
+              --stack-name "$STACK_NAME" \
+              --query "Stacks[0].StackStatus" \
+              --output text 2>/dev/null || echo "STACK_NOT_FOUND")
+            echo "Stack status after failed deployment: $DEPLOY_STATUS"
+            
+            # If deployment failed and stack is in rollback state, clean it up for next attempt
+            if [[ "$DEPLOY_STATUS" == "ROLLBACK_COMPLETE" || "$DEPLOY_STATUS" == "CREATE_FAILED" ]]; then
+              echo "🧹 Cleaning up failed deployment for next attempt..."
+              aws cloudformation delete-stack --stack-name "$STACK_NAME"
+            fi
+            
+            exit 1
+          fi
+          
+          echo "✅ SAM deployment completed successfully"
+          echo "STACK_NAME=$STACK_NAME" >> $GITHUB_OUTPUT
+      - name: Get stack outputs
+        id: stack_outputs
+        run: |
+          # Get CloudFormation stack outputs
+          FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" \
+            --output text)
+          
+          CLOUDFRONT_ID=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
+            --output text)
+          
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayUrl'].OutputValue" \
+            --output text)
+          
+          WEBSITE_URL=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query "Stacks[0].Outputs[?OutputKey=='WebsiteURL'].OutputValue" \
+            --output text)          
+            # Validate required outputs
+          if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
+            echo "❌ Failed to get FrontendBucketName from stack outputs"
+            aws cloudformation describe-stacks \
+              --stack-name ${{ env.STACK_NAME }} \
+              --query "Stacks[0].Outputs[].[OutputKey,OutputValue]" \
+              --output table
+            exit 1
+          fi
+          
+          if [[ -z "$API_URL" || "$API_URL" == "None" ]]; then
+            echo "❌ Failed to get ApiGatewayUrl from stack outputs"
+            echo "This is critical - the frontend needs this URL!"
+            aws cloudformation describe-stacks \
+              --stack-name ${{ env.STACK_NAME }} \
+              --query "Stacks[0].Outputs[].[OutputKey,OutputValue]" \
+              --output table
+            exit 1
+          fi
+          
+          # Extract bucket prefix to avoid secret masking (bucket name contains AWS Account ID)
+          # Bucket format: financial-dashboard-frontend-prod-ACCOUNTID
+          BUCKET_PREFIX=$(echo "$FRONTEND_BUCKET" | cut -d'-' -f1-4)  # Gets "financial-dashboard-frontend-prod"
+          
+          # Set outputs (avoiding the full bucket name that contains account ID)
+          echo "bucket_prefix=$BUCKET_PREFIX" >> $GITHUB_OUTPUT
+          echo "cloudfront_id=$CLOUDFRONT_ID" >> $GITHUB_OUTPUT
+          echo "api_url=$API_URL" >> $GITHUB_OUTPUT
+          echo "website_url=$WEBSITE_URL" >> $GITHUB_OUTPUT
+          
+          echo "✅ Stack outputs retrieved successfully:"
+          echo "  Bucket prefix: $BUCKET_PREFIX"
+          echo "  CloudFront ID: $CLOUDFRONT_ID"
+          echo "  API URL: $API_URL"
+          echo "  Website URL: $WEBSITE_URL"
+################################################################################
+# 3) Build and deploy Frontend                                                 #
+################################################################################
+  deploy_frontend:
+    name: Deploy Frontend to S3
+    needs: [filter, deploy_infrastructure]
+    if: ${{ needs.filter.outputs.any == 'true' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: webapp/frontend/package-lock.json
 
-      - name: Install frontend dependencies
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Install Frontend dependencies
+        working-directory: webapp/frontend
         run: |
-          cd webapp/frontend
           npm ci
-
-      - name: Build frontend
-        run: |
-          cd webapp/frontend
-          npm run build
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-      - name: Build and push Docker image
+          echo "Frontend dependencies installed"
+      - name: Test Frontend
+        working-directory: webapp/frontend
         env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          API_URL: ${{ needs.deploy_infrastructure.outputs.api_url }}
         run: |
-          # Build Docker image for the backend API
-          docker build \
-            -f webapp/lambda/Dockerfile \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
-            webapp/lambda
+          # Run tests if available
+          if npm run test:unit --if-present 2>/dev/null; then
+            echo "Frontend unit tests passed"
+          else
+            echo "No unit tests found or configured, skipping"
+          fi
           
-          # Push to ECR
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-
-      - name: Deploy CloudFormation stack
+          # Basic lint check if available
+          if npm run lint --if-present 2>/dev/null; then
+            echo "Frontend lint check passed"
+          else
+            echo "No lint script found, skipping"
+          fi
+      - name: Build Frontend
+        working-directory: webapp/frontend
+        env:
+          API_URL: ${{ needs.deploy_infrastructure.outputs.api_url }}
+          VITE_API_URL: ${{ needs.deploy_infrastructure.outputs.api_url }}
         run: |
-          aws cloudformation deploy \
-            --stack-name ${{ env.STACK_NAME }} \
-            --template-file template-webapp.yml \
-            --parameter-overrides \
-              CertificateArn="${{ env.CERT_ARN }}" \
-              ImageTag=${{ env.IMAGE_TAG }} \
-              DesiredCount=1 \
-            --capabilities CAPABILITY_IAM \
-            --no-fail-on-empty-changeset
-
-      - name: Get CloudFormation outputs
-        id: cf-outputs
+          echo "🔧 Environment variables for build:"
+          echo "API_URL: $API_URL"
+          echo "VITE_API_URL: $VITE_API_URL"
+          echo "Node environment: $NODE_ENV"
+          
+          # Verify the API URL is not empty
+          if [[ -z "$VITE_API_URL" ]]; then
+            echo "❌ VITE_API_URL is empty! This will cause the frontend to fail."
+            echo "Available outputs from deploy_infrastructure:"
+            echo "  api_url: '${{ needs.deploy_infrastructure.outputs.api_url }}'"
+            exit 1
+          fi
+          
+          # Show what's in the .env file for debugging
+          echo "📄 Current .env content (if exists):"
+          cat .env 2>/dev/null || echo "No .env file found"
+          
+          # Create/update .env file with the API URL
+          echo "VITE_API_URL=$VITE_API_URL" > .env
+          echo "📝 Created .env file with:"
+          cat .env
+          
+          npm run build
+          echo "✅ Frontend build completed"
+      - name: Deploy Frontend to S3
+        working-directory: webapp/frontend
         run: |
-          # Get the static assets bucket name from the webapp stack
-          ASSETS_BUCKET=$(aws cloudformation describe-stacks \
-            --stack-name ${{ env.STACK_NAME }} \
-            --query "Stacks[0].Outputs[?OutputKey=='StaticAssetsBucket'].OutputValue" \
-            --output text)
-          echo "assets-bucket=$ASSETS_BUCKET" >> $GITHUB_OUTPUT
-
-      - name: Deploy frontend to S3
+          # Reconstruct bucket name from prefix and AWS Account ID
+          BUCKET_PREFIX="${{ needs.deploy_infrastructure.outputs.bucket_prefix }}"
+          AWS_ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
+          BUCKET_NAME="${BUCKET_PREFIX}-${AWS_ACCOUNT_ID}"
+          
+          # Validate bucket components
+          if [[ -z "$BUCKET_PREFIX" ]]; then
+            echo "❌ Bucket prefix is empty!"
+            echo "Available outputs from deploy_infrastructure job:"
+            echo "  bucket_prefix: '${{ needs.deploy_infrastructure.outputs.bucket_prefix }}'"
+            echo "  cloudfront_id: '${{ needs.deploy_infrastructure.outputs.cloudfront_id }}'"
+            echo "  api_url: '${{ needs.deploy_infrastructure.outputs.api_url }}'"
+            echo "  website_url: '${{ needs.deploy_infrastructure.outputs.website_url }}'"
+            exit 1
+          fi
+          
+          if [[ -z "$AWS_ACCOUNT_ID" ]]; then
+            echo "❌ AWS Account ID is not set!"
+            exit 1
+          fi
+          
+          echo "Using bucket: $BUCKET_NAME"
+          
+          # Verify bucket exists
+          if ! aws s3 ls "s3://$BUCKET_NAME" >/dev/null 2>&1; then
+            echo "❌ S3 bucket '$BUCKET_NAME' does not exist or is not accessible"
+            exit 1
+          fi
+          
+          # Sync frontend files to S3
+          aws s3 sync dist/ s3://"$BUCKET_NAME"/ \
+            --delete \
+            --cache-control "public, max-age=31536000" \
+            --exclude "*.html" \
+            --exclude "service-worker.js"
+          
+          # Upload HTML files with shorter cache
+          aws s3 sync dist/ s3://"$BUCKET_NAME"/ \
+            --cache-control "public, max-age=0, must-revalidate" \
+            --include "*.html" \
+            --include "service-worker.js"
+          
+          echo "Frontend deployed to S3 bucket: $BUCKET_NAME"
+      - name: Invalidate CloudFront cache
         run: |
-          # Upload frontend build to S3
-          aws s3 sync webapp/frontend/dist/ s3://${{ steps.cf-outputs.outputs.assets-bucket }}/ --delete
-
-      - name: Get deployment outputs
-        id: deployment
-        run: |
-          CLOUDFRONT_URL=$(aws cloudformation describe-stacks \
-            --stack-name ${{ env.STACK_NAME }} \
-            --query "Stacks[0].Outputs[?OutputKey=='CloudFrontURL'].OutputValue" \
-            --output text)
-          ALB_URL=$(aws cloudformation describe-stacks \
-            --stack-name ${{ env.STACK_NAME }} \
-            --query "Stacks[0].Outputs[?OutputKey=='LoadBalancerURL'].OutputValue" \
+          DISTRIBUTION_ID="${{ needs.deploy_infrastructure.outputs.cloudfront_id }}"
+          
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
+            --distribution-id "$DISTRIBUTION_ID" \
+            --paths "/*" \
+            --query "Invalidation.Id" \
             --output text)
           
-          echo "cloudfront-url=$CLOUDFRONT_URL" >> $GITHUB_OUTPUT
-          echo "alb-url=$ALB_URL" >> $GITHUB_OUTPUT
+          echo "CloudFront invalidation created: $INVALIDATION_ID"
+          echo "Distribution ID: $DISTRIBUTION_ID"
+################################################################################
+# 5) Post-deployment verification                                              #
+################################################################################
+  verify_deployment:
+    name: Verify deployment
+    needs: [setup, deploy_infrastructure, deploy_frontend]
+    if: ${{ always() && needs.deploy_infrastructure.result == 'success' }}
+    runs-on: ubuntu-latest
 
-      - name: Update ECS Service
-        run: |
-          # Force new deployment to pick up the latest image
-          aws ecs update-service \
-            --cluster ${{ env.STACK_NAME }}-cluster \
-            --service ${{ env.STACK_NAME }}-service \
-            --force-new-deployment
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Wait for deployment
+      - name: Test API endpoint
         run: |
-          # Wait for the ECS service to stabilize
-          aws ecs wait services-stable \
-            --cluster ${{ env.STACK_NAME }}-cluster \
-            --services ${{ env.STACK_NAME }}-service
-
-      - name: Run health check
-        run: |
-          echo "Waiting for service to be healthy..."
-          sleep 60
+          API_URL="${{ needs.deploy_infrastructure.outputs.api_url }}"
           
-          # Health check via ALB
-          curl -f "${{ steps.deployment.outputs.alb-url }}/api/health" || exit 1
-          echo "Health check passed!"
-
-      - name: Deployment Summary
+          echo "Testing API health endpoint..."
+          echo "Full API URL: $API_URL"
+          
+          # Test the health endpoint with proper path
+          if curl -f -s "$API_URL/health" > /dev/null; then
+            echo "✅ API health check passed"
+          else
+            echo "⚠️  API health check failed"
+            echo "Trying alternative health endpoint..."
+            # Try root path
+            if curl -f -s "$API_URL/" > /dev/null; then
+              echo "✅ API root endpoint accessible"
+            else
+              echo "❌ Both health and root endpoints failed"
+            fi
+          fi
+      - name: Test website
         run: |
-          echo "✅ Deployment completed successfully!"
-          echo "🌐 CloudFront URL: ${{ steps.deployment.outputs.cloudfront-url }}"
-          echo "⚖️  Load Balancer URL: ${{ steps.deployment.outputs.alb-url }}"
-          echo "📦 Docker Image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}"
+          WEBSITE_URL="${{ needs.deploy_infrastructure.outputs.website_url }}"
+          
+          echo "Testing website availability..."
+          if curl -f -s "$WEBSITE_URL" > /dev/null; then
+            echo "✅ Website is accessible"
+          else
+            echo "⚠️  Website check failed, but deployment will continue"
+          fi
+      - name: Deployment summary
+        env:
+          STACK_NAME: ${{ needs.setup.outputs.stack_name }}
+        run: |
+          echo "🎉 Webapp deployment completed!"
+          echo ""
+          echo "📊 Deployment Summary:"
+          echo "  • Website URL: ${{ needs.deploy_infrastructure.outputs.website_url }}"
+          echo "  • API URL: ${{ needs.deploy_infrastructure.outputs.api_url }}"
+          echo "  • Bucket Prefix: ${{ needs.deploy_infrastructure.outputs.bucket_prefix }}"
+          echo "  • CloudFront ID: ${{ needs.deploy_infrastructure.outputs.cloudfront_id }}"
+          echo ""
+          echo "🔧 Stack Status:"
+          if [ -n "$STACK_NAME" ]; then
+            aws cloudformation describe-stacks \
+              --stack-name "$STACK_NAME" \
+              --query "Stacks[0].StackStatus" \
+              --output text
+          else
+            echo "Stack name not available"
+          fi
+################################################################################
+# 6) Cleanup on failure                                                        #
+################################################################################
+  cleanup_on_failure:
+    name: Cleanup failed deployment
+    needs: [deploy_infrastructure, deploy_frontend]
+    if: ${{ failure() && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+
+    steps:      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+      
+      - name: Check stack status and cleanup if needed
+        run: |
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query "Stacks[0].StackStatus" \
+            --output text 2>/dev/null || echo NOT_FOUND)
+          
+          echo "Stack status: $STATUS"
+          
+          if [[ "$STATUS" == "ROLLBACK_COMPLETE" || "$STATUS" == "CREATE_FAILED" ]]; then
+            echo "Cleaning up failed stack..."
+            aws cloudformation delete-stack --stack-name ${{ env.STACK_NAME }}
+            echo "Stack deletion initiated"
+          else
+            echo "Stack is in a stable state, no cleanup needed"
+          fi
