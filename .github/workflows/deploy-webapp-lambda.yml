@@ -333,12 +333,12 @@ jobs:
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayUrl'].OutputValue" \
             --output text)
-          
-          WEBSITE_URL=$(aws cloudformation describe-stacks \
+            WEBSITE_URL=$(aws cloudformation describe-stacks \
             --stack-name ${{ env.STACK_NAME }} \
             --query "Stacks[0].Outputs[?OutputKey=='WebsiteURL'].OutputValue" \
-            --output text)          
-            # Validate required outputs
+            --output text)
+          
+          # Validate required outputs
           if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
             echo "❌ Failed to get FrontendBucketName from stack outputs"
             aws cloudformation describe-stacks \
@@ -446,18 +446,16 @@ jobs:
           echo "📄 Current .env content (if exists):"
           cat .env 2>/dev/null || echo "No .env file found"
           # Create/update .env file with the API URL
-          echo "VITE_API_URL=$VITE_API_URL" > .env
-          echo "📝 Created .env file with:"
+          echo "VITE_API_URL=$VITE_API_URL" > .env          echo "📝 Created .env file with:"
           cat .env
-          
           # Also create runtime config file for dynamic loading
           mkdir -p public
           echo "// Runtime configuration - dynamically set during deployment" > public/config.js
           echo "window.__CONFIG__ = {" >> public/config.js
           echo "  API_URL: '$VITE_API_URL'," >> public/config.js
           echo "  ENVIRONMENT: '${{ needs.deploy_infrastructure.outputs.environment }}'," >> public/config.js
-          echo "  VERSION: '\$(date +%Y%m%d-%H%M%S)'," >> public/config.js
-          echo "  BUILD_TIME: '\$(date -u +%Y-%m-%dT%H:%M:%SZ)'" >> public/config.js
+          echo "  VERSION: '$(date +%Y%m%d-%H%M%S)'," >> public/config.js
+          echo "  BUILD_TIME: '$(date -u +%Y-%m-%dT%H:%M:%SZ)'" >> public/config.js
           echo "};" >> public/config.js
           echo "console.log('Runtime config loaded:', window.__CONFIG__);" >> public/config.js
           echo "📝 Created runtime config:"
