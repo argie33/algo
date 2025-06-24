@@ -445,23 +445,21 @@ jobs:
           # Show what's in the .env file for debugging
           echo "📄 Current .env content (if exists):"
           cat .env 2>/dev/null || echo "No .env file found"
-            # Create/update .env file with the API URL
+          # Create/update .env file with the API URL
           echo "VITE_API_URL=$VITE_API_URL" > .env
           echo "📝 Created .env file with:"
           cat .env
           
           # Also create runtime config file for dynamic loading
           mkdir -p public
-          cat > public/config.js << EOF
-// Runtime configuration - dynamically set during deployment
-window.__CONFIG__ = {
-  API_URL: '$VITE_API_URL',
-  ENVIRONMENT: '${EnvironmentName:-dev}',
-  VERSION: '$(date +%Y%m%d-%H%M%S)',
-  BUILD_TIME: '$(date -u +"%Y-%m-%dT%H:%M:%SZ")'
-};
-console.log('Runtime config loaded:', window.__CONFIG__);
-EOF
+          echo "// Runtime configuration - dynamically set during deployment" > public/config.js
+          echo "window.__CONFIG__ = {" >> public/config.js
+          echo "  API_URL: '$VITE_API_URL'," >> public/config.js
+          echo "  ENVIRONMENT: '${{ needs.deploy_infrastructure.outputs.environment }}'," >> public/config.js
+          echo "  VERSION: '\$(date +%Y%m%d-%H%M%S)'," >> public/config.js
+          echo "  BUILD_TIME: '\$(date -u +%Y-%m-%dT%H:%M:%SZ)'" >> public/config.js
+          echo "};" >> public/config.js
+          echo "console.log('Runtime config loaded:', window.__CONFIG__);" >> public/config.js
           echo "📝 Created runtime config:"
           cat public/config.js
           
