@@ -771,7 +771,7 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
   }
 }
 
-// Data validation summary endpoint
+// Data validation summary endpoint 
 export const getDataValidationSummary = async (params = {}) => {
   try {
     const queryParams = new URLSearchParams()
