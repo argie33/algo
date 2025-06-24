@@ -52,10 +52,10 @@ Resources:
         OriginAccessControlOriginType: s3
         SigningBehavior: always
         SigningProtocol: sigv4
-
   # Bucket Policy to allow CloudFront access via OAC
   FrontendBucketPolicy:
     Type: AWS::S3::BucketPolicy
+    DependsOn: CloudFrontDistribution
     Properties:
       Bucket: !Ref FrontendBucket
       PolicyDocument:
@@ -76,10 +76,9 @@ Resources:
     Properties:
       FunctionName: !Sub 'financial-dashboard-api-${EnvironmentName}'
       CodeUri: webapp/lambda/
-      Handler: index.handler
-      VpcConfig:
+      Handler: index.handler      VpcConfig:
         SecurityGroupIds:
-          - !ImportValue StocksCore-LambdaSecurityGroupId
+          - !ImportValue StocksApp-EcsTasksSecurityGroupId
         SubnetIds:
           - !ImportValue StocksCore-PrivateSubnet1Id
           - !ImportValue StocksCore-PrivateSubnet2Id
@@ -108,13 +107,11 @@ Resources:
           Properties:
             Path: /{proxy+}
             Method: ANY
-            RestApiId: !Ref ServerlessRestApi
         ApiRoot:
           Type: Api
           Properties:
             Path: /
             Method: ANY
-            RestApiId: !Ref ServerlessRestApi
 
   # Explicit API Gateway (SAM creates this implicitly, but we reference it)
   ServerlessRestApi:
@@ -235,12 +232,10 @@ Resources:
         DefaultRootObject: index.html
         PriceClass: PriceClass_100
         HttpVersion: http2
-        IPV6Enabled: true        
+        IPV6Enabled: true
         Origins:
           - Id: S3Origin
             DomainName: !GetAtt FrontendBucket.RegionalDomainName
-            S3OriginConfig:
-              OriginAccessIdentity: ''
             OriginAccessControlId: !Ref OriginAccessControl
           - Id: ApiOrigin
             DomainName: !Sub '${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com'
