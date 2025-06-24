@@ -754,7 +754,7 @@ export const getFinancialMetrics = async (params = {}) => {
   }
 }
 
-// Patch all API methods to always return normalizeApiResponse
+// Patch all API methods to always return normalizeApiResponse 
 export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
   try {
     const queryParams = new URLSearchParams()
