@@ -99,7 +99,8 @@ Resources:
               Action:
                 - logs:CreateLogGroup
                 - logs:CreateLogStream
-                - logs:PutLogEvents              Resource: '*'
+                - logs:PutLogEvents
+              Resource: '*'
       Events:
         ApiProxy:
           Type: Api
@@ -114,7 +115,7 @@ Resources:
             Method: ANY
             RestApiId: !Ref ServerlessRestApi
 
-  # Explicit API Gateway with CORS
+  # Explicit API Gateway with CORS 
   ServerlessRestApi:
     Type: AWS::Serverless::Api
     Properties:
