@@ -51,8 +51,7 @@ Resources:
         Name: !Sub '${EnvironmentName}-frontend-oac'
         OriginAccessControlOriginType: s3
         SigningBehavior: always
-        SigningProtocol: sigv4
-  # Bucket Policy to allow CloudFront access via OAC
+        SigningProtocol: sigv4  # Bucket Policy to allow CloudFront access via OAC
   FrontendBucketPolicy:
     Type: AWS::S3::BucketPolicy
     DependsOn: CloudFrontDistribution
@@ -65,7 +64,7 @@ Resources:
             Principal:
               Service: cloudfront.amazonaws.com
             Action: s3:GetObject
-            Resource: !Sub '${FrontendBucket}/*'
+            Resource: !Sub '${FrontendBucket.Arn}/*'
             Condition:
               StringEquals:
                 'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
