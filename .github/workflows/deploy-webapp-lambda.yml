@@ -1,0 +1,142 @@
+name: Deploy Webapp with Lambda
+
+on:
+  push:
+    branches: 
+      - main
+      - loaddata
+      - "**"
+    paths:
+      - 'webapp/**'
+      - '.github/workflows/deploy-webapp-lambda.yml'
+      - 'template-webapp.yml'
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  STACK_NAME: stocks-webapp-lambda
+  ECR_REPOSITORY: stocks-app-registry
+  IMAGE_TAG: ${{ github.sha }}
+  CERT_ARN: ${{ secrets.CERT_ARN }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: webapp/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: |
+          cd webapp/frontend
+          npm ci
+
+      - name: Build frontend
+        run: |
+          cd webapp/frontend
+          npm run build
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Build and push Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          # Build Docker image for the backend API
+          docker build \
+            -f webapp/lambda/Dockerfile \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+            webapp/lambda
+          
+          # Push to ECR
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Deploy CloudFormation stack
+        run: |
+          aws cloudformation deploy \
+            --stack-name ${{ env.STACK_NAME }} \
+            --template-file template-webapp.yml \
+            --parameter-overrides \
+              CertificateArn="${{ env.CERT_ARN }}" \
+              ImageTag=${{ env.IMAGE_TAG }} \
+              DesiredCount=1 \
+            --capabilities CAPABILITY_IAM \
+            --no-fail-on-empty-changeset
+
+      - name: Get CloudFormation outputs
+        id: cf-outputs
+        run: |
+          # Get the static assets bucket name from the webapp stack
+          ASSETS_BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query "Stacks[0].Outputs[?OutputKey=='StaticAssetsBucket'].OutputValue" \
+            --output text)
+          echo "assets-bucket=$ASSETS_BUCKET" >> $GITHUB_OUTPUT
+
+      - name: Deploy frontend to S3
+        run: |
+          # Upload frontend build to S3
+          aws s3 sync webapp/frontend/dist/ s3://${{ steps.cf-outputs.outputs.assets-bucket }}/ --delete
+
+      - name: Get deployment outputs
+        id: deployment
+        run: |
+          CLOUDFRONT_URL=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query "Stacks[0].Outputs[?OutputKey=='CloudFrontURL'].OutputValue" \
+            --output text)
+          ALB_URL=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query "Stacks[0].Outputs[?OutputKey=='LoadBalancerURL'].OutputValue" \
+            --output text)
+          
+          echo "cloudfront-url=$CLOUDFRONT_URL" >> $GITHUB_OUTPUT
+          echo "alb-url=$ALB_URL" >> $GITHUB_OUTPUT
+
+      - name: Update ECS Service
+        run: |
+          # Force new deployment to pick up the latest image
+          aws ecs update-service \
+            --cluster ${{ env.STACK_NAME }}-cluster \
+            --service ${{ env.STACK_NAME }}-service \
+            --force-new-deployment
+
+      - name: Wait for deployment
+        run: |
+          # Wait for the ECS service to stabilize
+          aws ecs wait services-stable \
+            --cluster ${{ env.STACK_NAME }}-cluster \
+            --services ${{ env.STACK_NAME }}-service
+
+      - name: Run health check
+        run: |
+          echo "Waiting for service to be healthy..."
+          sleep 60
+          
+          # Health check via ALB
+          curl -f "${{ steps.deployment.outputs.alb-url }}/api/health" || exit 1
+          echo "Health check passed!"
+
+      - name: Deployment Summary
+        run: |
+          echo "✅ Deployment completed successfully!"
+          echo "🌐 CloudFront URL: ${{ steps.deployment.outputs.cloudfront-url }}"
+          echo "⚖️  Load Balancer URL: ${{ steps.deployment.outputs.alb-url }}"
+          echo "📦 Docker Image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}"
