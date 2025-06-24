@@ -113,14 +113,19 @@ Resources:
           Properties:
             Path: /
             Method: ANY
-            RestApiId: !Ref ServerlessRestApi
-
-  # Explicit API Gateway with CORS 
+            RestApiId: !Ref ServerlessRestApi  # Explicit API Gateway with CORS
   ServerlessRestApi:
     Type: AWS::Serverless::Api
     Properties:
       Name: !Sub 'financial-dashboard-api-${EnvironmentName}'
       StageName: !Ref EnvironmentName
+      OpenApiVersion: 3.0.1
+      MethodSettings:
+        - ResourcePath: "/*"
+          HttpMethod: "*"
+          LoggingLevel: INFO
+          DataTraceEnabled: true
+          MetricsEnabled: true
       Cors:
         AllowMethods: "'GET,POST,OPTIONS,PUT,DELETE'"
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
