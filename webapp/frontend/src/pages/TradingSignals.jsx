@@ -21,22 +21,23 @@ import {
   Chip,
   CircularProgress,
   Alert,
-  Tabs,
-  Tab,
   TablePagination
 } from '@mui/material'
 import { TrendingUp, TrendingDown, Assessment } from '@mui/icons-material'
 import { formatCurrency, formatPercentage } from '../utils/formatters'
-import { createComponentLogger } from '../utils/errorLogger'
 
-// Create component-specific logger
-const logger = createComponentLogger('TradingSignals');
+// Simple logger replacement to prevent build errors
+const logger = {
+  success: (action, data, context) => console.log(`[TradingSignals] ${action}:`, { data, context }),
+  error: (action, error, context) => console.error(`[TradingSignals] ${action}:`, { error: error?.message || error, context }),
+  queryError: (query, error, context) => console.error(`[TradingSignals] Query ${query}:`, { error: error?.message || error, context })
+};
 
 function TradingSignals() {
-  const [activeTab, setActiveTab] = useState(0);
   const [signalType, setSignalType] = useState('all');
   const [timeframe, setTimeframe] = useState('daily');
-  const [page, setPage] = useState(0);  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
   const API_BASE = import.meta.env.VITE_API_URL || '';
   // Fetch buy/sell signals
   const { data: signalsData, isLoading: signalsLoading, error: signalsError } = useQuery({
@@ -83,45 +84,6 @@ function TradingSignals() {
     },
     refetchInterval: 300000, // Refresh every 5 minutes
     onError: (err) => logger.queryError('tradingSignals', err, { signalType, timeframe })
-  });
-
-  // Fetch swing trading signals
-  const { data: swingData, isLoading: swingLoading } = useQuery({
-    queryKey: ['swingSignals', page, rowsPerPage],
-    queryFn: async () => {
-      try {
-        const params = new URLSearchParams({
-          page: page + 1,
-          limit: rowsPerPage
-        });
-        const url = `${API_BASE}/trading/swing-signals?${params}`;
-        logger.success('fetchSwingSignals', null, { url });
-        
-        const response = await fetch(url);
-        if (!response.ok) {
-          const error = new Error(`Failed to fetch swing signals (${response.status})`);
-          logger.error('fetchSwingSignals', error, {
-            url,
-            status: response.status,
-            statusText: response.statusText
-          });
-          throw error;
-        }
-        
-        const result = await response.json();
-        logger.success('fetchSwingSignals', result, {
-          resultCount: result?.data?.length || 0,
-          page: page + 1
-        });
-        return result;
-      } catch (err) {
-        logger.error('fetchSwingSignals', err, { page: page + 1, rowsPerPage });
-        throw err;
-      }
-    },
-    enabled: activeTab === 1,
-    refetchInterval: 300000,
-    onError: (err) => logger.queryError('swingSignals', err)
   });
 
   // Fetch performance summary
@@ -221,6 +183,7 @@ function TradingSignals() {
             <TableCell align="right">P/E</TableCell>
             <TableCell align="right">Dividend Yield</TableCell>
             <TableCell>Date</TableCell>
+            {/* Add more columns here if your backend provides them */}
           </TableRow>
         </TableHead>
         <TableBody>
@@ -261,6 +224,7 @@ function TradingSignals() {
                   {signal.date ? new Date(signal.date).toLocaleDateString() : ''}
                 </Typography>
               </TableCell>
+              {/* Add more cells here if your backend provides them */}
             </TableRow>
           ))}
         </TableBody>
@@ -268,45 +232,9 @@ function TradingSignals() {
     </TableContainer>
   );
 
-  // --- Table for Technical Signals, matching backend fields ---
-  const TechnicalSignalsTable = () => (
-    <TableContainer component={Paper} elevation={0}>
-      <Table>
-        <TableHead>
-          <TableRow sx={{ backgroundColor: 'grey.50' }}>
-            <TableCell>Symbol</TableCell>
-            <TableCell>Company</TableCell>
-            <TableCell>Signal</TableCell>
-            <TableCell align="right">Date</TableCell>
-            <TableCell align="right">Price</TableCell>
-            <TableCell align="right">Performance</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {swingData?.data?.map((sig, idx) => (
-            <TableRow key={sig.symbol + sig.date + idx} hover>
-              <TableCell>
-                <Typography variant="body2" fontWeight="bold">{sig.symbol}</Typography>
-              </TableCell>
-              <TableCell>
-                <Typography variant="body2" noWrap>{sig.company_name}</Typography>
-              </TableCell>
-              <TableCell>
-                {getSignalChip(sig.signal)}
-              </TableCell>
-              <TableCell align="right">{sig.date ? new Date(sig.date).toLocaleDateString() : ''}</TableCell>
-              <TableCell align="right">{formatCurrency(sig.current_price)}</TableCell>
-              <TableCell align="right">{sig.performance_percent ? sig.performance_percent.toFixed(2) + '%' : '--'}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </TableContainer>
-  );
+  const isLoading = signalsLoading || performanceLoading;
 
-  const isLoading = (activeTab === 0 ? signalsLoading : swingLoading) || performanceLoading;
-
-  if (isLoading && !signalsData && !swingData) {
+  if (isLoading && !signalsData) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
         <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -346,75 +274,55 @@ function TradingSignals() {
         </Grid>
       </Grid>
 
-      {/* Tabs */}
-      <Box mb={3}>
-        <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
-          <Tab label="Buy/Sell Signals" />
-          <Tab label="Technical Signals" />
-        </Tabs>
-      </Box>
-
       {/* Filters */}
-      {activeTab === 0 && (
-        <Grid container spacing={2} mb={3}>
-          <Grid item xs={12} sm={4}>
-            <FormControl fullWidth>
-              <InputLabel>Signal Type</InputLabel>
-              <Select
-                value={signalType}
-                label="Signal Type"
-                onChange={(e) => setSignalType(e.target.value)}
-              >
-                <MenuItem value="all">All Signals</MenuItem>
-                <MenuItem value="buy">Buy Only</MenuItem>
-                <MenuItem value="sell">Sell Only</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} sm={4}>
-            <FormControl fullWidth>
-              <InputLabel>Timeframe</InputLabel>
-              <Select
-                value={timeframe}
-                label="Timeframe"
-                onChange={(e) => setTimeframe(e.target.value)}
-              >
-                <MenuItem value="daily">Daily</MenuItem>
-                <MenuItem value="weekly">Weekly</MenuItem>
-                <MenuItem value="monthly">Monthly</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
+      <Grid container spacing={2} mb={3}>
+        <Grid item xs={12} sm={4}>
+          <FormControl fullWidth>
+            <InputLabel>Signal Type</InputLabel>
+            <Select
+              value={signalType}
+              label="Signal Type"
+              onChange={(e) => setSignalType(e.target.value)}
+            >
+              <MenuItem value="all">All Signals</MenuItem>
+              <MenuItem value="buy">Buy Only</MenuItem>
+              <MenuItem value="sell">Sell Only</MenuItem>
+            </Select>
+          </FormControl>
         </Grid>
-      )}
+        <Grid item xs={12} sm={4}>
+          <FormControl fullWidth>
+            <InputLabel>Timeframe</InputLabel>
+            <Select
+              value={timeframe}
+              label="Timeframe"
+              onChange={(e) => setTimeframe(e.target.value)}
+            >
+              <MenuItem value="daily">Daily</MenuItem>
+              <MenuItem value="weekly">Weekly</MenuItem>
+              <MenuItem value="monthly">Monthly</MenuItem>
+            </Select>
+          </FormControl>
+        </Grid>
+      </Grid>
 
       {/* Error Handling */}
-      {(signalsError || (activeTab === 1 && swingData?.error)) && (
+      {signalsError && (
         <Alert severity="error" sx={{ mb: 3 }}>
           Failed to load trading signals. Please try again later.<br />
-          {signalsError && (
-            <>
-              <b>Error:</b> {signalsError.message}<br />
-              {signalsError.stack && <span style={{ fontSize: 12 }}>{signalsError.stack.split('\n')[0]}</span>}
-              <br />API URL: <code>{API_BASE}/trading/signals/{timeframe}</code>
-            </>
-          )}
-          {activeTab === 1 && swingData?.error && (
-            <>
-              <b>Error:</b> {swingData.error}<br />
-              <br />API URL: <code>{API_BASE}/trading/swing-signals</code>
-            </>
-          )}
+          <b>Error:</b> {signalsError.message}<br />
+          {signalsError.stack && <span style={{ fontSize: 12 }}>{signalsError.stack.split('\n')[0]}</span>}
+          <br />API URL: <code>{API_BASE}/trading/signals/{timeframe}</code>
         </Alert>
       )}
 
-      {/* Data Tables */}
+      {/* Data Table */}
       <Card>
         <CardContent>
-          {activeTab === 0 ? <BuySellSignalsTable /> : <TechnicalSignalsTable />}
+          <BuySellSignalsTable />
           <TablePagination
             component="div"
-            count={activeTab === 0 ? (signalsData?.pagination?.total || 0) : (swingData?.pagination?.total || 0)}
+            count={signalsData?.pagination?.total || 0}
             page={page}
             onPageChange={(e, newPage) => setPage(newPage)}
             rowsPerPage={rowsPerPage}

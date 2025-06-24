@@ -13,6 +13,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
         manualChunks: {
@@ -20,7 +21,9 @@ export default defineConfig({
           mui: ['@mui/material', '@mui/icons-material'],
           charts: ['recharts']
         }
-      }
+      },
+      // Limit concurrent operations to prevent EMFILE
+      maxParallelFileOps: 5
     }
   },
   server: {
@@ -37,5 +40,13 @@ export default defineConfig({
     // Expose environment variables to the client
     __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
+  optimizeDeps: {
+    // Reduce the number of files opened during optimization
+    esbuildOptions: {
+      loader: {
+        '.js': 'jsx',
+      },
+    }
   }
 })
