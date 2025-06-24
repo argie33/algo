@@ -284,7 +284,9 @@ Outputs:
     Description: ID of the CloudFront distribution
     Value: !Ref CloudFrontDistribution
     Export:
-      Name: !Sub '${AWS::StackName}-CloudFrontDistributionId'  ApiGatewayUrl:
+      Name: !Sub '${AWS::StackName}-CloudFrontDistributionId'
+
+  ApiGatewayUrl:
     Description: API Gateway endpoint URL
     Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}'
     Export:
