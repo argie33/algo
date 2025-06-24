@@ -235,7 +235,8 @@ Resources:
         DefaultRootObject: index.html
         PriceClass: PriceClass_100
         HttpVersion: http2
-        IPV6Enabled: true        Origins:
+        IPV6Enabled: true        
+        Origins:
           - Id: S3Origin
             DomainName: !GetAtt FrontendBucket.RegionalDomainName
             S3OriginConfig:
@@ -250,10 +251,10 @@ Resources:
                 - TLSv1.2
         DefaultCacheBehavior:
           TargetOriginId: S3Origin
-          ViewerProtocolPolicy: redirect-to-https
-          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # Managed-CachingOptimized
+          ViewerProtocolPolicy: redirect-to-https          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # Managed-CachingOptimized
           OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf  # Managed-CORS-S3Origin
-          ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b31e9d03  # Managed-SecurityHeadersPolicy        CacheBehaviors:
+          ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b31e9d03  # Managed-SecurityHeadersPolicy
+        CacheBehaviors:
           - PathPattern: !Sub '/${EnvironmentName}/*'
             TargetOriginId: ApiOrigin
             ViewerProtocolPolicy: https-only
