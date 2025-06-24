@@ -1,425 +1,251 @@
 import React, { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { createComponentLogger } from '../utils/errorLogger';
-import {
-  Box,
-  Container,
-  Typography,
-  Grid,
-  Card,
-  CardContent,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  CircularProgress,
-  Alert,
-  TextField,
-  Button,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Chip,
-  InputAdornment,
-  TablePagination,
-  Divider
-} from '@mui/material';
-import {
-  ExpandMore,
-  Search,
-  FilterList,
-  Clear,
-  TrendingUp,
-  TrendingDown,
-  TrendingFlat,
-  ShowChart,
-  InfoOutlined
-} from '@mui/icons-material';
-import { formatNumber, formatDate, getTechStatus } from '../utils/formatters';
 import { getTechnicalData } from '../services/api';
-import { useNavigate } from 'react-router-dom';
+import {
+  Container, Typography, Box, Card, CardContent, Grid, Button, Paper, Table, TableHead, TableRow, TableCell, TableBody, TablePagination, TextField, CircularProgress, Alert, Chip, Autocomplete
+} from '@mui/material';
+import { TrendingUp, TrendingDown, ShowChart, Refresh } from '@mui/icons-material';
+import { formatNumber, formatDate } from '../utils/formatters';
 
-function TechnicalAnalysis() {
-  const logger = createComponentLogger('TechnicalAnalysis');
-  const [timeframe, setTimeframe] = useState('daily');
-  const [symbolFilter, setSymbolFilter] = useState('');
-  const [searchInput, setSearchInput] = useState('');
+// TEST COMMENT: Fresh branch workflow trigger test - webapp-workflow-fix
+export default function TechnicalAnalysis() {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
-  const [orderBy, setOrderBy] = useState('symbol');
-  const [order, setOrder] = useState('asc');
-  const [activeFilters, setActiveFilters] = useState(0);
-  const [expandedRow, setExpandedRow] = useState(null);
-  const navigate = useNavigate();
-  // --- FIX: Move these above useQuery ---
-  const [indicatorFilter, setIndicatorFilter] = useState('');
-  const [indicatorMin, setIndicatorMin] = useState('');
-  const [indicatorMax, setIndicatorMax] = useState('');
+  const [symbol, setSymbol] = useState('');
+  const [timeframe, setTimeframe] = useState('daily');
+  const [total, setTotal] = useState(0);
 
-  // Fetch technical data
-  const { data: technicalData, isLoading, error, refetch } = useQuery({
-    queryKey: ['technicalAnalysis', timeframe, symbolFilter, indicatorFilter, indicatorMin, indicatorMax, page, rowsPerPage, orderBy, order],
-    queryFn: async () => {
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
       const params = {
-        overview: !symbolFilter,
-        symbol: symbolFilter,
-        indicator: indicatorFilter,
-        indicatorMin,
-        indicatorMax,
         limit: rowsPerPage,
-        page: page + 1,
-        sortBy: orderBy,
-        sortOrder: order
+        page: page + 1
       };
+      if (symbol) {
+        params.symbol = symbol;
+      }
+      
+      console.log('Fetching technical data with params:', params);
       const result = await getTechnicalData(timeframe, params);
-      if (Array.isArray(result)) return { data: result };
-      if (!Array.isArray(result.data)) return { ...result, data: [] };
-      return result;
-    },
-    onError: (error) => logger.queryError('technicalAnalysis', error, { timeframe, symbolFilter, page }),
-    refetchInterval: 300000,
-    retry: 2,
-    staleTime: 60000
-  });
-
-  useEffect(() => {
-    // Count active filters (excluding default timeframe)
-    setActiveFilters(symbolFilter ? 1 : 0);
-  }, [symbolFilter]);
-
-  // Update activeFilters count
-  useEffect(() => {
-    let count = 0;
-    if (symbolFilter) count++;
-    if (indicatorFilter) count++;
-    if (indicatorMin || indicatorMax) count++;
-    setActiveFilters(count);
-  }, [symbolFilter, indicatorFilter, indicatorMin, indicatorMax]);
-
-  // Log the technicalData and error for debugging
-  useEffect(() => {
-    if (technicalData) {
-      // eslint-disable-next-line no-console
-      console.log('TechnicalAnalysis: technicalData', technicalData);
+      console.log('Technical data result:', result);
+      
+      if (result.error) {
+        setError(result.error);
+        setData([]);
+        setTotal(0);
+      } else {
+        setData(result.data || []);
+        setTotal(result.pagination?.total || (result.data ? result.data.length : 0));
+      }
+    } catch (e) {
+      console.error('Error fetching technical data:', e);
+      setError(e.message || 'Failed to load technical data');
+      setData([]);
+      setTotal(0);
     }
-    if (error) {
-      // eslint-disable-next-line no-console
-      console.error('TechnicalAnalysis: error', error);
-    }
-  }, [technicalData, error]);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [page, rowsPerPage, timeframe]);
 
   const handleSearch = () => {
-    setSymbolFilter(searchInput.trim());
     setPage(0);
+    fetchData();
   };
-  const handleClearSearch = () => {
-    setSearchInput('');
-    setSymbolFilter('');
-    setPage(0);
-  };
-  const handleTimeframeChange = (e) => {
-    setTimeframe(e.target.value);
-    setPage(0);
-  };
-  const handleSort = (column) => {
-    const isAsc = orderBy === column && order === 'asc';
-    setOrder(isAsc ? 'desc' : 'asc');
-    setOrderBy(column);
-  };
-  const handlePageChange = (event, newPage) => {
-    setPage(newPage);
-  };
+
+  const handlePageChange = (event, newPage) => setPage(newPage);
   const handleRowsPerPageChange = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   };
 
-  // Table columns (can be expanded)
   const columns = [
-    { id: 'symbol', label: 'Symbol', sortable: true },
-    { id: 'date', label: 'Date', sortable: true, format: formatDate },
-    { id: 'rsi', label: 'RSI', sortable: true },
-    { id: 'macd', label: 'MACD', sortable: true },
-    { id: 'macd_signal', label: 'MACD Signal', sortable: true },
-    { id: 'macd_hist', label: 'MACD Hist', sortable: true },
-    { id: 'adx', label: 'ADX', sortable: true },
-    { id: 'atr', label: 'ATR', sortable: true },
-    { id: 'mfi', label: 'MFI', sortable: true },
-    { id: 'roc', label: 'ROC', sortable: true },
-    { id: 'mom', label: 'MOM', sortable: true },
-    { id: 'bbands_upper', label: 'BB Upper', sortable: true },
-    { id: 'bbands_middle', label: 'BB Middle', sortable: true },
-    { id: 'bbands_lower', label: 'BB Lower', sortable: true },
-    { id: 'sma_10', label: 'SMA 10', sortable: true },
-    { id: 'sma_20', label: 'SMA 20', sortable: true },
-    { id: 'sma_50', label: 'SMA 50', sortable: true },
-    { id: 'sma_150', label: 'SMA 150', sortable: true },
-    { id: 'sma_200', label: 'SMA 200', sortable: true },
-    { id: 'ema_4', label: 'EMA 4', sortable: true },
-    { id: 'ema_9', label: 'EMA 9', sortable: true },
-    { id: 'ema_21', label: 'EMA 21', sortable: true },
-    { id: 'ad', label: 'A/D', sortable: true },
-    { id: 'cmf', label: 'CMF', sortable: true },
-    { id: 'td_sequential', label: 'TD Seq', sortable: true },
-    { id: 'td_combo', label: 'TD Combo', sortable: true },
-    { id: 'marketwatch', label: 'MW', sortable: true },
-    { id: 'dm', label: 'DM', sortable: true },
-    { id: 'pivot_high', label: 'Pivot H', sortable: true },
-    { id: 'pivot_low', label: 'Pivot L', sortable: true },
-    { id: 'pivot_high_triggered', label: 'Pivot H Triggered', sortable: true },
-    { id: 'pivot_low_triggered', label: 'Pivot L Triggered', sortable: true }
+    { id: 'symbol', label: 'Symbol' },
+    { id: 'date', label: 'Date', format: formatDate },
+    { id: 'rsi', label: 'RSI' },
+    { id: 'macd', label: 'MACD' },
+    { id: 'macd_signal', label: 'MACD Signal' },
+    { id: 'adx', label: 'ADX' },
+    { id: 'atr', label: 'ATR' },
+    { id: 'mfi', label: 'MFI' },
+    { id: 'sma_20', label: 'SMA 20' },
+    { id: 'sma_50', label: 'SMA 50' },
+    { id: 'ema_9', label: 'EMA 9' },
+    { id: 'ema_21', label: 'EMA 21' }
   ];
-
-  // Helper to map icon string to MUI icon component
-  const getIconComponent = (icon) => {
-    switch (icon) {
-      case 'up':
-        return <TrendingUp fontSize="small" color="inherit" />;
-      case 'down':
-        return <TrendingDown fontSize="small" color="inherit" />;
-      case 'flat':
-        return <TrendingFlat fontSize="small" color="inherit" />;
-      case 'neutral':
-        return <ShowChart fontSize="small" color="inherit" />;
-      case 'info':
-      default:
-        return <InfoOutlined fontSize="small" color="inherit" />;
-    }
-  };
-
-  // --- Accordion rendering for each row (fixed syntax, requirements met) ---
-  const renderAccordionTable = () => (
-    <Box sx={{ width: '100%' }}>
-      {technicalData?.data?.map((row, idx) => (
-        <Accordion
-          key={row.symbol + '-' + row.date + '-' + idx}
-          expanded={expandedRow === idx}
-          onChange={() => setExpandedRow(expandedRow === idx ? null : idx)}
-          sx={{ mb: 1, borderLeft: 4, borderColor: row.rsi > 70 ? 'error.main' : row.rsi < 30 ? 'primary.main' : 'grey.300', boxShadow: expandedRow === idx ? 6 : 1 }}
-        >
-          <AccordionSummary expandIcon={<ExpandMore />} sx={{ backgroundColor: expandedRow === idx ? 'grey.100' : 'grey.50', '&:hover': { backgroundColor: 'grey.200' } }}>
-            <Grid container alignItems="center" spacing={2}>
-              <Grid item xs={2}>
-                <Typography variant="h6" fontWeight="bold">{row.symbol}</Typography>
-                {row.company_name && (
-                  <Typography variant="body2" color="text.secondary">{row.company_name}</Typography>
-                )}
-                <Typography variant="caption" color="text.secondary">{formatDate(row.date)}</Typography>
-              </Grid>
-              <Grid item xs={2}>
-                <Box display="flex" alignItems="center" gap={1}>
-                  {getIconComponent(getTechStatus('rsi', row.rsi).icon)}
-                  <Typography variant="body2" color={getTechStatus('rsi', row.rsi).color} fontWeight="bold">
-                    RSI: {formatNumber(row.rsi)}
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={2}>
-                <Box display="flex" alignItems="center" gap={1}>
-                  {getIconComponent(getTechStatus('macd', row.macd).icon)}
-                  <Typography variant="body2" color={getTechStatus('macd', row.macd).color} fontWeight="bold">
-                    MACD: {formatNumber(row.macd)}
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={2}>
-                <Box display="flex" alignItems="center" gap={1}>
-                  {getIconComponent(getTechStatus('adx', row.adx).icon)}
-                  <Typography variant="body2" color={getTechStatus('adx', row.adx).color} fontWeight="bold">
-                    ADX: {formatNumber(row.adx)}
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={2}>
-                <Box display="flex" alignItems="center" gap={1}>
-                  {getIconComponent(getTechStatus('atr', row.atr).icon)}
-                  <Typography variant="body2" color={getTechStatus('atr', row.atr).color} fontWeight="bold">
-                    ATR: {formatNumber(row.atr)}
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={2}>
-                <Box display="flex" alignItems="center" gap={1}>
-                  {getIconComponent(getTechStatus('mfi', row.mfi).icon)}
-                  <Typography variant="body2" color={getTechStatus('mfi', row.mfi).color} fontWeight="bold">
-                    MFI: {formatNumber(row.mfi)}
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={12} sm={2}>
-                <Button variant="outlined" size="small" onClick={(e) => { e.stopPropagation(); navigate(`/technical-history/${row.symbol}`); }}>
-                  View History
-                </Button>
-              </Grid>
-            </Grid>
-          </AccordionSummary>
-          <AccordionDetails>
-            <Grid container spacing={2}>
-              {columns.filter(col => col.id !== 'symbol' && col.id !== 'date').map((col) => (
-                <Grid item xs={12} sm={6} md={3} key={col.id}>
-                  <Card variant="outlined" sx={{ height: '100%' }}>
-                    <CardContent>
-                      <Box display="flex" alignItems="center" gap={1}>
-                        {getIconComponent(getTechStatus(col.id, row[col.id]).icon)}
-                        <Typography variant="subtitle2">{col.label}</Typography>
-                      </Box>
-                      <Typography variant="h6" color={getTechStatus(col.id, row[col.id]).color} fontWeight="bold">
-                        {col.format ? col.format(row[col.id]) : (row[col.id] !== undefined && row[col.id] !== null ? formatNumber(row[col.id]) : 'N/A')}
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
-          </AccordionDetails>
-        </Accordion>
-      ))}
-    </Box>
-  );
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
-      <Box display="flex" alignItems="flex-start" gap={4}>
-        {/* Left filter/search panel */}
-        <Box minWidth={260} maxWidth={320}>
-          <Card sx={{ mb: 3 }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>Filter Technicals</Typography>
-              <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-                <InputLabel>Timeframe</InputLabel>
-                <Select value={timeframe} label="Timeframe" onChange={handleTimeframeChange}>
-                  <MenuItem value="daily">Daily</MenuItem>
-                  <MenuItem value="weekly">Weekly</MenuItem>
-                  <MenuItem value="monthly">Monthly</MenuItem>
-                </Select>
-              </FormControl>
-              <TextField
-                label="Search Symbol"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value.toUpperCase())}
-                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                size="small"
-                fullWidth
-                sx={{ mb: 2 }}
-                placeholder="e.g., AAPL"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Search />
-                    </InputAdornment>
-                  )
-                }}
-              />
-              <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-                <InputLabel>Indicator</InputLabel>
-                <Select value={indicatorFilter} label="Indicator" onChange={e => setIndicatorFilter(e.target.value)}>
-                  <MenuItem value="">All</MenuItem>
-                  <MenuItem value="rsi">RSI</MenuItem>
-                  <MenuItem value="macd">MACD</MenuItem>
-                  <MenuItem value="adx">ADX</MenuItem>
-                  <MenuItem value="atr">ATR</MenuItem>
-                  <MenuItem value="mfi">MFI</MenuItem>
-                  <MenuItem value="roc">ROC</MenuItem>
-                  <MenuItem value="mom">MOM</MenuItem>
-                  <MenuItem value="bbands_upper">BB Upper</MenuItem>
-                  <MenuItem value="bbands_middle">BB Middle</MenuItem>
-                  <MenuItem value="bbands_lower">BB Lower</MenuItem>
-                  <MenuItem value="sma_10">SMA 10</MenuItem>
-                  <MenuItem value="sma_20">SMA 20</MenuItem>
-                  <MenuItem value="sma_50">SMA 50</MenuItem>
-                  <MenuItem value="sma_150">SMA 150</MenuItem>
-                  <MenuItem value="sma_200">SMA 200</MenuItem>
-                  <MenuItem value="ema_4">EMA 4</MenuItem>
-                  <MenuItem value="ema_9">EMA 9</MenuItem>
-                  <MenuItem value="ema_21">EMA 21</MenuItem>
-                  <MenuItem value="ad">A/D</MenuItem>
-                  <MenuItem value="cmf">CMF</MenuItem>
-                  <MenuItem value="td_sequential">TD Seq</MenuItem>
-                  <MenuItem value="td_combo">TD Combo</MenuItem>
-                  <MenuItem value="marketwatch">MW</MenuItem>
-                  <MenuItem value="dm">DM</MenuItem>
-                  <MenuItem value="pivot_high">Pivot H</MenuItem>
-                  <MenuItem value="pivot_low">Pivot L</MenuItem>
-                  <MenuItem value="pivot_high_triggered">Pivot H Triggered</MenuItem>
-                  <MenuItem value="pivot_low_triggered">Pivot L Triggered</MenuItem>
-                </Select>
-              </FormControl>
-              <Box display="flex" gap={1} mb={2}>
-                <TextField
-                  label="Min Value"
-                  type="number"
-                  value={indicatorMin}
-                  onChange={e => setIndicatorMin(e.target.value)}
-                  size="small"
-                  fullWidth
-                  disabled={!indicatorFilter}
-                />
-                <TextField
-                  label="Max Value"
-                  type="number"
-                  value={indicatorMax}
-                  onChange={e => setIndicatorMax(e.target.value)}
-                  size="small"
-                  fullWidth
-                  disabled={!indicatorFilter}
-                />
-              </Box>
-              <Box display="flex" gap={1} mb={2}>
-                <Button variant="outlined" onClick={handleSearch} startIcon={<Search />} disabled={isLoading}>
-                  {symbolFilter ? 'Search' : 'Filter'}
-                </Button>
-                <Button variant="outlined" startIcon={<Clear />} onClick={handleClearSearch} disabled={isLoading || !symbolFilter}>
-                  Clear
-                </Button>
-                <Chip label={`${activeFilters} Filters`} color={activeFilters > 0 ? 'primary' : 'default'} icon={<FilterList />} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Box>
-        {/* Main content: overview + table */}
-        <Box flex={1}>
-          <Typography variant="h4" gutterBottom sx={{ mb: 2, mt: 1, textAlign: 'left' }}>Technical Analysis</Typography>
-          <Divider sx={{ mb: 2 }} />
-          {/* Error/Loading/Empty states */}
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>Error loading technical data: {error.message}</Alert>
-          )}
-          {isLoading ? (
-            <Box display="flex" flexDirection="column" alignItems="center" p={4}>
-              <CircularProgress sx={{ mb: 2 }} />
-              <Typography variant="body2" color="text.secondary">Loading technical data...</Typography>
-            </Box>
-          ) : (
-            <>
-              {technicalData?.data?.length === 0 ? (
-                <Alert severity="warning" sx={{ mb: 2 }}>No technical data found.</Alert>
-              ) : (
-                renderAccordionTable()
-              )}
-              {/* Pagination */}
-              <TablePagination
-                component="div"
-                count={technicalData?.pagination?.total || 0}
-                page={page}
-                onPageChange={handlePageChange}
-                rowsPerPage={rowsPerPage}
-                onRowsPerPageChange={handleRowsPerPageChange}
-                rowsPerPageOptions={[10, 25, 50, 100]}
-                sx={{ mt: 2 }}
-              />
-            </>
-          )}
-        </Box>
+      <Box display="flex" alignItems="center" gap={2} mb={3}>
+        <ShowChart color="primary" fontSize="large" />
+        <Typography variant="h4" fontWeight="bold">Technical Analysis</Typography>
       </Box>
+
+      {/* Search Controls */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} sm={4}>
+              <TextField
+                label="Symbol (optional)"
+                value={symbol}
+                onChange={(e) => setSymbol(e.target.value)}
+                fullWidth
+                size="small"
+                placeholder="e.g. AAPL"
+              />
+            </Grid>
+            <Grid item xs={12} sm={3}>
+              <TextField
+                select
+                label="Timeframe"
+                value={timeframe}
+                onChange={(e) => setTimeframe(e.target.value)}
+                fullWidth
+                size="small"
+                SelectProps={{ native: true }}
+              >
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={2}>
+              <Button
+                variant="contained"
+                startIcon={<ShowChart />}
+                onClick={handleSearch}
+                disabled={loading}
+                fullWidth
+              >
+                Search
+              </Button>
+            </Grid>
+            <Grid item xs={12} sm={2}>
+              <Button
+                variant="outlined"
+                startIcon={<Refresh />}
+                onClick={() => {
+                  setSymbol('');
+                  setPage(0);
+                  fetchData();
+                }}
+                disabled={loading}
+                fullWidth
+              >
+                Reset
+              </Button>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+
+      {/* Error Display */}
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+      )}
+
+      {/* Data Summary */}
+      {!loading && data.length > 0 && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Summary
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={6} sm={3}>
+                <Chip 
+                  label={`Total Records: ${total}`} 
+                  color="primary" 
+                  variant="outlined" 
+                />
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <Chip 
+                  label={`Timeframe: ${timeframe}`} 
+                  color="secondary" 
+                  variant="outlined" 
+                />
+              </Grid>
+              {symbol && (
+                <Grid item xs={6} sm={3}>
+                  <Chip 
+                    label={`Symbol: ${symbol}`} 
+                    color="info" 
+                    variant="outlined" 
+                  />
+                </Grid>
+              )}
+            </Grid>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Loading State */}
+      {loading && (
+        <Box display="flex" justifyContent="center" py={4}>
+          <CircularProgress />
+        </Box>
+      )}
+
+      {/* No Data Message */}
+      {!loading && data.length === 0 && !error && (
+        <Alert severity="info">
+          No technical data found. Try adjusting your search criteria or check if data has been loaded into the database.
+        </Alert>
+      )}
+
+      {/* Data Table */}
+      {!loading && data.length > 0 && (
+        <Paper>
+          <Table stickyHeader>
+            <TableHead>
+              <TableRow>
+                {columns.map((column) => (
+                  <TableCell key={column.id} align="center">
+                    {column.label}
+                  </TableCell>
+                ))}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {data.map((row, index) => (
+                <TableRow key={`${row.symbol}-${row.date}-${index}`} hover>
+                  {columns.map((column) => {
+                    const value = row[column.id];
+                    return (
+                      <TableCell key={column.id} align="center">
+                        {column.format && value !== null && value !== undefined
+                          ? column.format(value)
+                          : value !== null && value !== undefined
+                          ? formatNumber(value)
+                          : '-'}
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <TablePagination
+            rowsPerPageOptions={[5, 10, 25, 50, 100]}
+            component="div"
+            count={total}
+            rowsPerPage={rowsPerPage}
+            page={page}
+            onPageChange={handlePageChange}
+            onRowsPerPageChange={handleRowsPerPageChange}
+          />
+        </Paper>
+      )}
     </Container>
   );
 }
-
-export default TechnicalAnalysis;
