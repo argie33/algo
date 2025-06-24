@@ -76,7 +76,8 @@ Resources:
     Properties:
       FunctionName: !Sub 'financial-dashboard-api-${EnvironmentName}'
       CodeUri: webapp/lambda/
-      Handler: index.handler      VpcConfig:
+      Handler: index.handler
+      VpcConfig:
         SecurityGroupIds:
           - !ImportValue StocksApp-EcsTasksSecurityGroupId
         SubnetIds:
