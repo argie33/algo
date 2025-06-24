@@ -233,10 +233,11 @@ Resources:
         DefaultRootObject: index.html
         PriceClass: PriceClass_100
         HttpVersion: http2
-        IPV6Enabled: true
-        Origins:
+        IPV6Enabled: true        Origins:
           - Id: S3Origin
             DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            S3OriginConfig:
+              OriginAccessIdentity: ''
             OriginAccessControlId: !Ref OriginAccessControl
           - Id: ApiOrigin
             DomainName: !Sub '${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com'
