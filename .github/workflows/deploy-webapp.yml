@@ -1,0 +1,145 @@
+name: Deploy Webapp Serverless
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'webapp/lambda/**'
+      - 'webapp/frontend/**'
+      - 'webapp/template-webapp-serverless.yml'
+      - '.github/workflows/deploy-webapp-serverless.yml'
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  STACK_NAME: stocks-webapp-stack
+  LAMBDA_CODE_KEY: api.zip
+  APP_BUCKET: stocks-algo-app-code
+  SITE_BUCKET: stocks-algo-site-code
+  CERT_ARN: ${{ secrets.CERT_ARN }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: webapp/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: |
+          cd webapp/frontend
+          npm ci
+
+      - name: Build frontend
+        run: |
+          cd webapp/frontend
+          npm run build
+
+      - name: Package API Lambda
+        run: |
+          cd webapp/lambda
+          # Install production dependencies
+          npm ci --only=production
+          # Create deployment package
+          zip -r ../../${{ env.LAMBDA_CODE_KEY }} . -x "node_modules/.cache/*" "test*" "*.test.js" "*.spec.js"
+
+      - name: Upload Lambda code
+        run: |
+          aws s3 cp \
+            ${{ env.LAMBDA_CODE_KEY }} \
+            s3://${{ env.APP_BUCKET }}/${{ env.LAMBDA_CODE_KEY }}
+
+      - name: Deploy frontend to S3
+        run: |
+          # Get the frontend bucket name from the stack
+          FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" \
+            --output text 2>/dev/null || echo "")
+          
+          if [ -z "$FRONTEND_BUCKET" ]; then
+            echo "Stack doesn't exist yet, using default bucket"
+            FRONTEND_BUCKET="${{ env.SITE_BUCKET }}"
+          fi
+          
+          echo "Deploying to bucket: $FRONTEND_BUCKET"
+          aws s3 sync webapp/frontend/dist/ s3://$FRONTEND_BUCKET --delete
+          
+          # Set proper content types
+          aws s3 cp webapp/frontend/dist/ s3://$FRONTEND_BUCKET --recursive \
+            --exclude "*" --include "*.html" \
+            --content-type "text/html" \
+            --cache-control "no-cache"
+          
+          aws s3 cp webapp/frontend/dist/ s3://$FRONTEND_BUCKET --recursive \
+            --exclude "*" --include "*.js" \
+            --content-type "application/javascript" \
+            --cache-control "max-age=31536000"
+          
+          aws s3 cp webapp/frontend/dist/ s3://$FRONTEND_BUCKET --recursive \
+            --exclude "*" --include "*.css" \
+            --content-type "text/css" \
+            --cache-control "max-age=31536000"
+
+      - name: Deploy Serverless Webapp
+        run: |
+          aws cloudformation deploy \
+            --stack-name ${{ env.STACK_NAME }} \
+            --template-file webapp/template-webapp-serverless.yml \
+            --parameter-overrides \
+              LambdaCodeKey=${{ env.LAMBDA_CODE_KEY }} \
+              CertificateArn=${{ env.CERT_ARN }} \
+            --capabilities CAPABILITY_NAMED_IAM
+
+      - name: Invalidate CloudFront cache
+        run: |
+          DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
+            --output text 2>/dev/null || echo "")
+          
+          if [ ! -z "$DISTRIBUTION_ID" ]; then
+            echo "Invalidating CloudFront distribution: $DISTRIBUTION_ID"
+            aws cloudfront create-invalidation \
+              --distribution-id $DISTRIBUTION_ID \
+              --paths "/*"
+          else
+            echo "CloudFront distribution ID not found, skipping invalidation"
+          fi
+
+      - name: Get deployment outputs
+        run: |
+          echo "### Deployment Complete! 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" \
+            --output text 2>/dev/null || echo "Not found")
+          
+          CLOUDFRONT_URL=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query "Stacks[0].Outputs[?OutputKey=='CloudFrontUrl'].OutputValue" \
+            --output text 2>/dev/null || echo "Not found")
+          
+          echo "**Frontend URL:** $CLOUDFRONT_URL" >> $GITHUB_STEP_SUMMARY
+          echo "**API URL:** $API_URL" >> $GITHUB_STEP_SUMMARY
+          echo "**Lambda Package:** ${{ env.LAMBDA_CODE_KEY }}" >> $GITHUB_STEP_SUMMARY
+          
+          echo "✅ Deployment completed successfully!"
+          echo "🌐 Frontend: $CLOUDFRONT_URL"
+          echo "🔌 API: $API_URL"
