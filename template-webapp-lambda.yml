@@ -99,21 +99,22 @@ Resources:
               Action:
                 - logs:CreateLogGroup
                 - logs:CreateLogStream
-                - logs:PutLogEvents
-              Resource: '*'
+                - logs:PutLogEvents              Resource: '*'
       Events:
         ApiProxy:
           Type: Api
           Properties:
             Path: /{proxy+}
             Method: ANY
+            RestApiId: !Ref ServerlessRestApi
         ApiRoot:
           Type: Api
           Properties:
             Path: /
             Method: ANY
+            RestApiId: !Ref ServerlessRestApi
 
-  # Explicit API Gateway (SAM creates this implicitly, but we reference it)
+  # Explicit API Gateway with CORS
   ServerlessRestApi:
     Type: AWS::Serverless::Api
     Properties:
@@ -123,9 +124,6 @@ Resources:
         AllowMethods: "'GET,POST,OPTIONS,PUT,DELETE'"
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         AllowOrigin: "'*'"
-      AccessLogSetting:
-        DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
-        Format: '$requestId $requestTime $httpMethod $resourcePath $status $responseLength $requestTime'
 
   # CloudWatch Log Group for API Gateway
   ApiGatewayLogGroup:
@@ -286,8 +284,7 @@ Outputs:
     Description: ID of the CloudFront distribution
     Value: !Ref CloudFrontDistribution
     Export:
-      Name: !Sub '${AWS::StackName}-CloudFrontDistributionId'
-  ApiGatewayUrl:
+      Name: !Sub '${AWS::StackName}-CloudFrontDistributionId'  ApiGatewayUrl:
     Description: API Gateway endpoint URL
     Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}'
     Export:
