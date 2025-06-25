@@ -34,7 +34,7 @@ Resources:
   FrontendBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub 'financial-dashboard-frontend-${EnvironmentName}-${AWS::AccountId}'
+      BucketName: !Sub 'financial-dashboard-frontend-dev-${AWS::AccountId}'
       WebsiteConfiguration:
         IndexDocument: index.html
         ErrorDocument: error.html
@@ -48,7 +48,7 @@ Resources:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
       OriginAccessControlConfig:
-        Name: !Sub '${EnvironmentName}-frontend-oac'
+        Name: !Sub 'dev-frontend-oac'
         OriginAccessControlOriginType: s3
         SigningBehavior: always
         SigningProtocol: sigv4  # Bucket Policy to allow CloudFront access via OAC
@@ -73,7 +73,7 @@ Resources:
   ApiFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub 'financial-dashboard-api-${EnvironmentName}'
+      FunctionName: !Sub 'financial-dashboard-api-dev'
       CodeUri: webapp/lambda/
       Handler: index.handler      
       Policies:
@@ -106,12 +106,12 @@ Resources:
           Properties:
             Path: /
             Method: ANY
-            RestApiId: !Ref ServerlessRestApi  # Explicit API Gateway with CORS 
+            RestApiId: !Ref ServerlessRestApi  # Explicit API Gateway with CORS
   ServerlessRestApi:
     Type: AWS::Serverless::Api
     Properties:
-      Name: !Sub 'financial-dashboard-api-${EnvironmentName}'
-      StageName: !Ref EnvironmentName
+      Name: !Sub 'financial-dashboard-api-dev'
+      StageName: dev
       OpenApiVersion: 3.0.1
       EndpointConfiguration:
         Type: REGIONAL
@@ -125,10 +125,10 @@ Resources:
         AllowMethods: "'GET,POST,OPTIONS,PUT,DELETE'"
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         AllowOrigin: "'*'"
-      # Force stage deployment
-      StageName: dev
       Variables:
-        Environment: !Ref EnvironmentName# Lambda Permission for API Gateway
+        Environment: dev
+
+  # Lambda Permission for API Gateway
   LambdaApiGatewayPermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -141,14 +141,14 @@ Resources:
   ApiGatewayLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub '/aws/apigateway/financial-dashboard-${EnvironmentName}'
+      LogGroupName: !Sub '/aws/apigateway/financial-dashboard-dev'
       RetentionInDays: 14
 
   # CloudWatch Log Group for Lambda
   LambdaLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub '/aws/lambda/financial-dashboard-api-${EnvironmentName}'
+      LogGroupName: !Sub '/aws/lambda/financial-dashboard-api-dev'
       RetentionInDays: 14
 
   # IAM Role for Lambda execution
@@ -262,7 +262,7 @@ Resources:
           OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf  # Managed-CORS-S3Origin
           ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b31e9d03  # Managed-SecurityHeadersPolicy
         CacheBehaviors:
-          - PathPattern: !Sub '/${EnvironmentName}/*'
+          - PathPattern: /dev/*
             TargetOriginId: ApiOrigin
             ViewerProtocolPolicy: https-only
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad  # Managed-CachingDisabled
@@ -297,10 +297,9 @@ Outputs:
     Value: !Ref CloudFrontDistribution
     Export:
       Name: !Sub '${AWS::StackName}-CloudFrontDistributionId'
-
   ApiGatewayUrl:
     Description: API Gateway endpoint URL
-    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}'
+    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/dev'
     Export:
       Name: !Sub '${AWS::StackName}-ApiGatewayUrl'
 
@@ -309,10 +308,9 @@ Outputs:
     Value: !Sub 'https://${CloudFrontDistribution.DomainName}'
     Export:
       Name: !Sub '${AWS::StackName}-WebsiteURL'
-
   EnvironmentName:
     Description: Environment name
-    Value: !Ref EnvironmentName
+    Value: dev
     Export:
       Name: !Sub '${AWS::StackName}-Environment'
 
