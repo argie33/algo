@@ -1125,3 +1125,6 @@ export default {
   getDatabaseHealthFull
 }
 
+// Export the api instance for direct use
+export { api };
+
