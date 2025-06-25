@@ -74,7 +74,8 @@ Resources:
     Properties:
       FunctionName: !Sub 'financial-dashboard-api-${EnvironmentName}'
       CodeUri: webapp/lambda/
-      Handler: index.handler      Policies:
+      Handler: index.handler      
+      Policies:
         - Version: '2012-10-17'
           Statement:
             - Effect: Allow
