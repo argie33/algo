@@ -64,7 +64,7 @@ Resources:
             Principal:
               Service: cloudfront.amazonaws.com
             Action: s3:GetObject
-            Resource: !Sub '${FrontendBucket.Arn}/*'            
+            Resource: !Sub '${FrontendBucket.Arn}/*'
             Condition:
               StringEquals:
                 'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
@@ -150,7 +150,8 @@ Resources:
   # IAM Role for Lambda execution
   LambdaExecutionRole:
     Type: AWS::IAM::Role
-    Properties:      AssumeRolePolicyDocument:
+    Properties:
+      AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
