@@ -78,7 +78,7 @@ const mockNews = [
 ];
 
 const BRAND_NAME = 'Edgebrooke Capital';
-// Remove user/advisor names for now
+// Remove user/advisor names for now 
 const USER_NAME = '';
 const ADVISOR_NAME = '';
 const ADVISOR_EMAIL = '';
