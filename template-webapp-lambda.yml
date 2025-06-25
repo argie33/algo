@@ -69,21 +69,12 @@ Resources:
               StringEquals:
                 'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
 
-  # Main API Lambda function (handles all routes)
-  ApiFunction:
+  # Main API Lambda function (handles all routes)  ApiFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'financial-dashboard-api-${EnvironmentName}'
       CodeUri: webapp/lambda/
-      Handler: index.handler
-      VpcConfig:
-        SecurityGroupIds:
-          - !ImportValue StocksApp-EcsTasksSecurityGroupId
-        SubnetIds:
-          - !ImportValue StocksCore-PrivateSubnet1Id
-          - !ImportValue StocksCore-PrivateSubnet2Id
-      Policies:
-        - VPCAccessPolicy: {}
+      Handler: index.handler      Policies:
         - Version: '2012-10-17'
           Statement:
             - Effect: Allow
