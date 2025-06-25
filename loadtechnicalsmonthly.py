@@ -64,13 +64,45 @@ def sanitize_value(x):
     return x
 
 def pivot_high_vectorized(df, left_bars=3, right_bars=3):
+    """Calculate hypothetical pivot high values (always returns a value)"""
+    series = df['high']
+    roll_left  = series.shift(1).rolling(window=left_bars,  min_periods=left_bars).max()
+    roll_right = series.shift(-1).rolling(window=right_bars, min_periods=right_bars).max()
+    
+    # Calculate hypothetical pivot high value
+    hypothetical_pivot = series.where(series > roll_left, series)
+    hypothetical_pivot = hypothetical_pivot.where(hypothetical_pivot > roll_right, hypothetical_pivot)
+    
+    # For periods where we can't calculate a proper pivot, use the high value
+    hypothetical_pivot = hypothetical_pivot.fillna(series)
+    
+    return hypothetical_pivot
+
+def pivot_low_vectorized(df, left_bars=3, right_bars=3):
+    """Calculate hypothetical pivot low values (always returns a value)"""
+    series = df['low']
+    roll_left  = series.shift(1).rolling(window=left_bars,  min_periods=left_bars).min()
+    roll_right = series.shift(-1).rolling(window=right_bars, min_periods=right_bars).min()
+    
+    # Calculate hypothetical pivot low value
+    hypothetical_pivot = series.where(series < roll_left, series)
+    hypothetical_pivot = hypothetical_pivot.where(hypothetical_pivot < roll_right, hypothetical_pivot)
+    
+    # For periods where we can't calculate a proper pivot, use the low value
+    hypothetical_pivot = hypothetical_pivot.fillna(series)
+    
+    return hypothetical_pivot
+
+def pivot_high_triggered_vectorized(df, left_bars=3, right_bars=3):
+    """Calculate actual pivot high triggers (only has value when pivot is triggered)"""
     series = df['high']
     roll_left  = series.shift(1).rolling(window=left_bars,  min_periods=left_bars).max()
     roll_right = series.shift(-1).rolling(window=right_bars, min_periods=right_bars).max()
     cond = (series > roll_left) & (series > roll_right)
     return series.where(cond, np.nan)
 
-def pivot_low_vectorized(df, left_bars=3, right_bars=3):
+def pivot_low_triggered_vectorized(df, left_bars=3, right_bars=3):
+    """Calculate actual pivot low triggers (only has value when pivot is triggered)"""
     series = df['low']
     roll_left  = series.shift(1).rolling(window=left_bars,  min_periods=left_bars).min()
     roll_right = series.shift(-1).rolling(window=right_bars, min_periods=right_bars).min()
@@ -170,6 +202,8 @@ def prepare_db():
         bbands_upper    DOUBLE PRECISION,
         pivot_high      DOUBLE PRECISION,
         pivot_low       DOUBLE PRECISION,
+        pivot_high_triggered DOUBLE PRECISION,
+        pivot_low_triggered DOUBLE PRECISION,
         fetched_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (symbol, date)
     );
@@ -286,6 +320,8 @@ def process_symbol(symbol, conn_pool):
         reset = df.reset_index()
         df['pivot_high'] = pivot_high_vectorized(reset, 3, 3).values
         df['pivot_low'] = pivot_low_vectorized(reset, 3, 3).values
+        df['pivot_high_triggered'] = pivot_high_triggered_vectorized(reset, 3, 3).values
+        df['pivot_low_triggered'] = pivot_low_triggered_vectorized(reset, 3, 3).values
 
         # Clean data
         df = df.replace([np.inf, -np.inf], np.nan)
@@ -301,6 +337,7 @@ def process_symbol(symbol, conn_pool):
           ema_4, ema_9, ema_21,
           bbands_lower, bbands_middle, bbands_upper,
           pivot_high, pivot_low,
+          pivot_high_triggered, pivot_low_triggered,
           fetched_at
         ) VALUES %s;
         """
@@ -341,6 +378,8 @@ def process_symbol(symbol, conn_pool):
                 sanitize_value(row.get('bbands_upper')),
                 sanitize_value(row.get('pivot_high')),
                 sanitize_value(row.get('pivot_low')),
+                sanitize_value(row.get('pivot_high_triggered')),
+                sanitize_value(row.get('pivot_low_triggered')),
                 datetime.now()
             ))
             
