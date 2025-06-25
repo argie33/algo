@@ -20,7 +20,7 @@ import {
 } from '@mui/icons-material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
-import { getStockPrices, getStockMetrics, getBuySignals, getSellSignals } from '../services/api';
+import { getStockPrices, getStockMetrics, getBuySignals, getSellSignals, api } from '../services/api';
 import { PieChart, Pie, Cell } from 'recharts';
 import { format } from 'date-fns';
 import { getApiConfig } from '../services/api';
@@ -94,9 +94,8 @@ function useUser() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-user'],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/auth/user`, { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to fetch user info');
-      return res.json();
+      const response = await api.get('/auth/user');
+      return response.data;
     },
     staleTime: 10 * 60 * 1000
   });
@@ -177,13 +176,12 @@ function TechnicalSignalsWidget() {
 
 // --- MARKET OVERVIEW WIDGET ---
 function MarketOverviewWidget() {
-  // Fetch real market summary from backend
+  // Fetch real market summary from backend using API service
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-market-summary'],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/dashboard/market-summary`);
-      if (!res.ok) throw new Error(`Failed to fetch market summary: ${res.status} ${res.statusText}`);
-      return res.json();
+      const response = await api.get('/api/dashboard/market-summary');
+      return response.data;
     },
     staleTime: 2 * 60 * 1000
   });
@@ -221,13 +219,12 @@ function MarketOverviewWidget() {
 
 // --- EARNINGS CALENDAR WIDGET ---
 function EarningsCalendarWidget({ symbol }) {
-  // Fetch real earnings/events for the selected symbol
+  // Fetch real earnings/events for the selected symbol using API service
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-earnings-calendar', symbol],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/dashboard/earnings-calendar?symbol=${encodeURIComponent(symbol)}`);
-      if (!res.ok) throw new Error(`Failed to fetch earnings calendar: ${res.status} ${res.statusText}`);
-      return res.json();
+      const response = await api.get(`/api/dashboard/earnings-calendar?symbol=${encodeURIComponent(symbol)}`);
+      return response.data;
     },
     enabled: !!symbol,
     staleTime: 5 * 60 * 1000
@@ -261,13 +258,12 @@ function EarningsCalendarWidget({ symbol }) {
 
 // --- ANALYST INSIGHTS WIDGET ---
 function AnalystInsightsWidget({ symbol }) {
-  // Fetch real analyst insights for the selected symbol
+  // Fetch real analyst insights for the selected symbol using API service
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-analyst-insights', symbol],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/dashboard/analyst-insights?symbol=${encodeURIComponent(symbol)}`);
-      if (!res.ok) throw new Error(`Failed to fetch analyst insights: ${res.status} ${res.statusText}`);
-      return res.json();
+      const response = await api.get(`/api/dashboard/analyst-insights?symbol=${encodeURIComponent(symbol)}`);
+      return response.data;
     },
     enabled: !!symbol,
     staleTime: 5 * 60 * 1000
@@ -296,13 +292,12 @@ function AnalystInsightsWidget({ symbol }) {
 
 // --- FINANCIAL HIGHLIGHTS WIDGET ---
 function FinancialHighlightsWidget({ symbol }) {
-  // Fetch real financial highlights for the selected symbol
+  // Fetch real financial highlights for the selected symbol using API service
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-financial-highlights', symbol],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/dashboard/financial-highlights?symbol=${encodeURIComponent(symbol)}`);
-      if (!res.ok) throw new Error(`Failed to fetch financial highlights: ${res.status} ${res.statusText}`);
-      return res.json();
+      const response = await api.get(`/api/dashboard/financial-highlights?symbol=${encodeURIComponent(symbol)}`);
+      return response.data;
     },
     enabled: !!symbol,
     staleTime: 5 * 60 * 1000
@@ -359,9 +354,8 @@ const Dashboard = () => {
   const { data: symbolListData, isLoading: symbolListLoading, error: symbolListError } = useQuery({
     queryKey: ['dashboard-symbol-list'],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/dashboard/symbols`);
-      if (!res.ok) throw new Error('Failed to fetch symbol list');
-      return res.json();
+      const response = await api.get('/api/dashboard/symbols');
+      return response.data;
     },
     staleTime: 60 * 60 * 1000
   });
@@ -398,9 +392,8 @@ const Dashboard = () => {
   const { data: portfolioData, isLoading: portfolioLoading, error: portfolioError } = useQuery({
     queryKey: ['dashboard-portfolio'],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/dashboard/portfolio`);
-      if (!res.ok) throw new Error('Failed to fetch portfolio');
-      return res.json();
+      const response = await api.get('/api/dashboard/portfolio');
+      return response.data;
     },
     staleTime: 5 * 60 * 1000
   });
@@ -412,9 +405,8 @@ const Dashboard = () => {
   const { data: watchlistData, isLoading: watchlistLoading, error: watchlistError } = useQuery({
     queryKey: ['dashboard-watchlist'],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/dashboard/watchlist`);
-      if (!res.ok) throw new Error('Failed to fetch watchlist');
-      return res.json();
+      const response = await api.get('/api/dashboard/watchlist');
+      return response.data;
     },
     staleTime: 5 * 60 * 1000
   });
@@ -424,9 +416,8 @@ const Dashboard = () => {
   const { data: newsData, isLoading: newsLoading, error: newsError } = useQuery({
     queryKey: ['dashboard-news'],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/dashboard/news`);
-      if (!res.ok) throw new Error('Failed to fetch news');
-      return res.json();
+      const response = await api.get('/api/dashboard/news');
+      return response.data;
     },
     staleTime: 5 * 60 * 1000
   });
@@ -436,9 +427,8 @@ const Dashboard = () => {
   const { data: activityData, isLoading: activityLoading, error: activityError } = useQuery({
     queryKey: ['dashboard-activity'],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/dashboard/activity`);
-      if (!res.ok) throw new Error('Failed to fetch activity');
-      return res.json();
+      const response = await api.get('/api/dashboard/activity');
+      return response.data;
     },
     staleTime: 5 * 60 * 1000
   });
@@ -448,9 +438,8 @@ const Dashboard = () => {
   const { data: calendarData, isLoading: calendarLoading, error: calendarError } = useQuery({
     queryKey: ['dashboard-calendar'],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/dashboard/calendar`);
-      if (!res.ok) throw new Error('Failed to fetch calendar');
-      return res.json();
+      const response = await api.get('/api/dashboard/calendar');
+      return response.data;
     },
     staleTime: 5 * 60 * 1000
   });
@@ -460,9 +449,8 @@ const Dashboard = () => {
   const { data: signalsData, isLoading: signalsLoading, error: signalsError } = useQuery({
     queryKey: ['dashboard-signals'],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/dashboard/signals`);
-      if (!res.ok) throw new Error('Failed to fetch signals');
-      return res.json();
+      const response = await api.get('/api/dashboard/signals');
+      return response.data;
     },
     staleTime: 2 * 60 * 1000
   });
@@ -541,8 +529,12 @@ const Dashboard = () => {
           )}
           {user && (
             <Button size="small" color="secondary" variant="outlined" onClick={() => {
-              fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' })
-                .then(() => window.location.href = '/login');
+              api.post('/auth/logout')
+                .then(() => window.location.href = '/login')
+                .catch(error => {
+                  console.error('Logout error:', error);
+                  window.location.href = '/login';
+                });
             }}>Logout</Button>
           )}
         </Box>
