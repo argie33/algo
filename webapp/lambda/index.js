@@ -45,28 +45,28 @@ app.use(helmet({
 // Note: Rate limiting removed - API Gateway handles this
 
 // CORS configuration (allow API Gateway origins)
-app.use((req, res, next) => {
-  // Log the request origin for debugging
-  console.log('CORS Debug - Request Origin:', req.headers.origin);
-  next();
-});
 app.use(cors({
   origin: (origin, callback) => {
-    // TEMP: Allow all origins for debugging database diagnostics
-    // Remove this after debugging!
-    callback(null, true);
-    // Original logic (restore after debugging):
-    // if (!origin || 
-    //     origin.includes('.execute-api.') || 
-    //     origin.includes('.cloudfront.net') || 
-    //     origin.includes('localhost') ||
-    //     origin === process.env.FRONTEND_URL) {
-    //   callback(null, true);
-    // } else {
-    //   callback(new Error('Not allowed by CORS'));
-    // }
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    // Allow API Gateway, CloudFront, and localhost origins
+    if (origin.includes('.execute-api.') || 
+        origin.includes('.cloudfront.net') || 
+        origin.includes('localhost') ||
+        origin.includes('127.0.0.1') ||
+        origin === process.env.FRONTEND_URL) {
+      callback(null, true);
+    } else {
+      console.warn('CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
   },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
 // Request parsing

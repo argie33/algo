@@ -22,33 +22,23 @@ const signalsRoutes = require('./routes/signals');
 const dataRoutes = require('./routes/data');
 
 const app = express();
-
-// Security middleware
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:", "https:"],
-      scriptSrc: ["'self'"],
-      connectSrc: ["'self'"],
-    },
-  },
-}));
-
-// CORS configuration
-app.use(cors({
-  origin: true,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
-}));
+const PORT = process.env.PORT || 3001;
 
 // Middleware
+app.use(helmet());
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+  credentials: true
+}));
+
+// Logging
+if (process.env.NODE_ENV !== 'production') {
+  app.use(morgan('combined'));
+}
+
+// Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(morgan('combined'));
 
 // Initialize database connection
 initializeDatabase();
@@ -65,6 +55,17 @@ app.use('/api/technical', technicalRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/signals', signalsRoutes);
 app.use('/api/data', dataRoutes);
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    service: 'Financial Dashboard API',
+    version: '1.0.0'
+  });
+});
 
 // API info endpoint
 app.get('/api', (req, res) => {
@@ -88,35 +89,103 @@ app.get('/api', (req, res) => {
   });
 });
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'healthy',
+// Mock endpoints for development
+if (process.env.NODE_ENV !== 'production') {
+  app.get('/api/stocks', (req, res) => {
+    res.json({
+      success: true,
+      data: [
+        { symbol: 'AAPL', name: 'Apple Inc.', price: 150.00 },
+        { symbol: 'GOOGL', name: 'Alphabet Inc.', price: 2800.00 },
+        { symbol: 'MSFT', name: 'Microsoft Corporation', price: 300.00 }
+      ],
+      message: 'Mock stock data for development'
+    });
+  });
+
+  app.get('/api/market', (req, res) => {
+    res.json({
+      success: true,
+      data: {
+        sp500: { value: 4500, change: 25.5, changePercent: 0.57 },
+        nasdaq: { value: 14000, change: -50.2, changePercent: -0.36 },
+        dow: { value: 35000, change: 100.0, changePercent: 0.29 }
+      },
+      message: 'Mock market data for development'
+    });
+  });
+
+  app.get('/api/health/full', (req, res) => {
+    res.json({
+      status: 'healthy',
+      healthy: true,
+      service: 'Financial Dashboard API',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      memory: process.memoryUsage(),
+      uptime: process.uptime(),
+      database: { status: 'mock_mode' },
+      api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' }
+    });
+  });
+}
+
+// Default route
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Financial Dashboard API',
+    version: '1.0.0',
+    status: 'operational',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    endpoints: {
+      health: {
+        quick: '/health?quick=true',
+        full: '/health'
+      },
+      api: {
+        stocks: '/api/stocks',
+        screen: '/api/stocks/screen',
+        metrics: '/api/metrics',
+        market: '/api/market',
+        analysts: '/api/analysts',
+        trading: '/api/trading',
+        technical: '/api/technical',
+        calendar: '/api/calendar',
+        signals: '/api/signals'
+      }
+    },
+    notes: 'Use /health?quick=true for fast status check without database dependency'
+  });
+});
+
+// Error handling
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(500).json({
+    error: 'Internal Server Error',
+    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong',
+    timestamp: new Date().toISOString()
   });
 });
 
 // 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({
-    error: 'Route not found',
-    path: req.originalUrl,
+    error: 'Not Found',
+    message: `Route ${req.originalUrl} not found`,
     timestamp: new Date().toISOString()
   });
 });
 
-// Error handler
-app.use(errorHandler);
-
 // Start server
-const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log(`\n🚀 LoadFundamentals API Server running on port ${port}`);
-  console.log(`📊 Health check: http://localhost:${port}/health`);
-  console.log(`📈 Stocks API: http://localhost:${port}/api/stocks`);
-  console.log(`🔍 API Info: http://localhost:${port}/api`);
-  console.log(`⚡ Quick Overview: http://localhost:${port}/api/stocks/quick/overview`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Financial Dashboard API server running on port ${PORT}`);
+    console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🌐 Health check: http://localhost:${PORT}/health`);
+    console.log(`📋 API info: http://localhost:${PORT}/api`);
+  });
+}
 
 module.exports = app;

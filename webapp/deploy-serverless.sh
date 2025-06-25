@@ -106,9 +106,37 @@ build_frontend() {
     log_info "Installing frontend dependencies..."
     npm ci
     
+    # Create environment configuration for serverless deployment
+    log_info "Creating serverless environment configuration..."
+    cat > .env << EOF
+# Serverless deployment configuration
+VITE_API_URL=/api
+VITE_SERVERLESS=true
+VITE_ENVIRONMENT=$ENVIRONMENT
+VITE_BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+VITE_ENABLE_DEBUG=false
+VITE_ENABLE_MOCK_DATA=false
+EOF
+
+    # Update runtime config for serverless
+    cat > public/config.js << EOF
+// Runtime configuration - Serverless deployment
+window.__CONFIG__ = {
+  API_URL: "/api",
+  BUILD_TIME: "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  VERSION: "1.0.0",
+  ENVIRONMENT: "$ENVIRONMENT"
+};
+EOF
+
+    log_info "Environment configuration created:"
+    cat .env
+    echo ""
+    cat public/config.js
+    
     # Build with serverless configuration
     log_info "Building frontend for serverless deployment..."
-    VITE_SERVERLESS=true VITE_API_URL=/api npm run build
+    npm run build
     
     # Verify build output
     if [ ! -d "dist" ]; then

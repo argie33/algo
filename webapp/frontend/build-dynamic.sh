@@ -35,10 +35,27 @@ VITE_SERVERLESS=true
 VITE_ENVIRONMENT=$ENVIRONMENT
 VITE_BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 VITE_STACK_NAME=$STACK_NAME
+VITE_ENABLE_DEBUG=false
+VITE_ENABLE_MOCK_DATA=false
 EOF
 
 echo "📋 Environment configuration:"
 cat .env
+
+# Update runtime config
+echo "📝 Updating runtime configuration..."
+cat > public/config.js << EOF
+// Runtime configuration - dynamically populated at build time
+window.__CONFIG__ = {
+  API_URL: "$API_URL",
+  BUILD_TIME: "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  VERSION: "1.0.0",
+  ENVIRONMENT: "$ENVIRONMENT"
+};
+EOF
+
+echo "📋 Runtime configuration:"
+cat public/config.js
 
 # Build the frontend
 echo "🔨 Building frontend..."

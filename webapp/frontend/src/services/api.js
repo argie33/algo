@@ -4,15 +4,28 @@ import axios from 'axios'
 export const getApiConfig = () => {
   // Dynamic API URL resolution: runtime > build-time > fallback
   let runtimeApiUrl = (typeof window !== 'undefined' && window.__CONFIG__ && window.__CONFIG__.API_URL) ? window.__CONFIG__.API_URL : null;
-  const apiUrl = runtimeApiUrl || import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  
+  // Environment detection
+  const isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development';
+  const isProduction = import.meta.env.PROD || import.meta.env.MODE === 'production';
+  
+  // API URL resolution priority:
+  // 1. Runtime config (window.__CONFIG__.API_URL)
+  // 2. Build-time env var (VITE_API_URL)
+  // 3. Development fallback (localhost:3001)
+  // 4. Production fallback (empty string - should be set)
+  const apiUrl = runtimeApiUrl || 
+                 import.meta.env.VITE_API_URL || 
+                 (isDevelopment ? 'http://localhost:3001' : '');
+  
   return {
     baseURL: apiUrl,
     isServerless: !!apiUrl && !apiUrl.includes('localhost'),
     apiUrl: apiUrl,
-    isConfigured: !!apiUrl && !apiUrl.includes('localhost'),
+    isConfigured: !!apiUrl,
     environment: import.meta.env.MODE,
-    isDevelopment: import.meta.env.DEV,
-    isProduction: import.meta.env.PROD,
+    isDevelopment: isDevelopment,
+    isProduction: isProduction,
     baseUrl: import.meta.env.BASE_URL,
     allEnvVars: import.meta.env
   }
@@ -26,12 +39,20 @@ console.log('API Configuration:', {
   isServerless: currentConfig.isServerless,
   hostname: typeof window !== 'undefined' ? window.location.hostname : 'SSR',
   viteMode: import.meta.env.MODE,
-  apiUrl: currentConfig.apiUrl
+  apiUrl: currentConfig.apiUrl,
+  isDevelopment: currentConfig.isDevelopment,
+  isProduction: currentConfig.isProduction
 })
 
-// Warn if API URL is fallback (localhost)
-if (!currentConfig.apiUrl || currentConfig.apiUrl.includes('localhost')) {
-  console.warn('[API CONFIG] Using fallback API URL:', currentConfig.baseURL + '\nSet window.__CONFIG__.API_URL at runtime or VITE_API_URL at build time to override.')
+// Warn if API URL is fallback (localhost) in production
+if (currentConfig.isProduction && (!currentConfig.apiUrl || currentConfig.apiUrl.includes('localhost'))) {
+  console.error('[API CONFIG] Production environment detected but using localhost API URL:', currentConfig.baseURL)
+  console.error('Set window.__CONFIG__.API_URL at runtime or VITE_API_URL at build time to override.')
+}
+
+// Warn if API URL is not configured in development
+if (currentConfig.isDevelopment && !currentConfig.apiUrl) {
+  console.warn('[API CONFIG] Development environment detected but no API URL configured. Using localhost:3001')
 }
 
 const api = axios.create({
