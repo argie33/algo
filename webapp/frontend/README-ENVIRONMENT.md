@@ -12,23 +12,33 @@ The frontend uses a multi-layered configuration system:
 
 ## Quick Start
 
-### Development Setup
-```bash
-# Set up development environment (localhost:3001)
+### Development
+```
 npm run setup-dev
-
-# Start development server
 npm run dev
 ```
 
-### Production Setup
-```bash
-# Set up production environment with your API URL
-npm run setup-prod https://your-api-gateway-url.amazonaws.com/prod
+### Production/Deployed Environment (dev, staging, prod)
 
-# Build for production
-npm run build-prod
+Set the API URL and environment name:
+
 ```
+# For dev deployment
+npm run setup-prod -- "https://your-api-gateway-url.amazonaws.com/dev" dev
+
+# For staging deployment
+npm run setup-prod -- "https://your-api-gateway-url.amazonaws.com/staging" staging
+
+# For production deployment
+npm run setup-prod -- "https://your-api-gateway-url.amazonaws.com/prod" production
+
+npm run build
+# Deploy dist/ to S3/CloudFront
+```
+
+- The scripts will update both `public/config.js` and `.env` for Vite.
+- The frontend will always use the correct API URL for the current environment.
+- You can add more environments as needed.
 
 ## Environment Configuration
 
