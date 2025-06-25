@@ -201,9 +201,18 @@ function normalizeApiResponse(response, expectArray = true) {
     return expectArray ? [] : {};
   }
 
-  // If response is an Axios response object, extract the data directly
+  // If response is an Axios response object, extract the data
   if (response && typeof response === 'object' && 'data' in response && ('status' in response || 'headers' in response)) {
-    console.log('normalizeApiResponse: Axios response detected, returning data directly:', response.data)
+    console.log('normalizeApiResponse: Axios response detected, processing data:', response.data)
+    
+    // Handle API response structure: {success, data, pagination, metadata}
+    if (response.data && typeof response.data === 'object' && 'data' in response.data) {
+      console.log('normalizeApiResponse: API response structure detected, returning data.data')
+      return response.data.data;
+    }
+    
+    // Handle direct data response
+    console.log('normalizeApiResponse: direct data response, returning data')
     return response.data;
   }
 
