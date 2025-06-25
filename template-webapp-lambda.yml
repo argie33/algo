@@ -237,9 +237,19 @@ Resources:
     Properties:
       CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
 
+  # API Gateway Deployment (forces stage deployment)
+  ApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn: ApiFunction
+    Properties:
+      RestApiId: !Ref ServerlessRestApi
+      StageName: dev
+      Description: !Sub 'Deployment for ${AWS::StackName} - ${AWS::StackId}'
+
   # CloudFront Distribution
   CloudFrontDistribution:
     Type: AWS::CloudFront::Distribution
+    DependsOn: ApiGatewayDeployment
     Properties:
       DistributionConfig:
         Enabled: true
