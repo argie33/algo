@@ -131,15 +131,14 @@ Resources:
       Cors:
         AllowMethods: "'GET,POST,OPTIONS,PUT,DELETE'"
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-        AllowOrigin: "'*'"
-  # Lambda Permission for API Gateway
+        AllowOrigin: "'*'"  # Lambda Permission for API Gateway
   LambdaApiGatewayPermission:
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !GetAtt ApiFunction.Arn
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub '${ServerlessRestApi}/*/*'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ServerlessRestApi}/*/*'
 
   # CloudWatch Log Group for API Gateway
   ApiGatewayLogGroup:
