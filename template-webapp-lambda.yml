@@ -120,6 +120,8 @@ Resources:
       Name: !Sub 'financial-dashboard-api-${EnvironmentName}'
       StageName: !Ref EnvironmentName
       OpenApiVersion: 3.0.1
+      EndpointConfiguration:
+        Type: REGIONAL
       MethodSettings:
         - ResourcePath: "/*"
           HttpMethod: "*"
