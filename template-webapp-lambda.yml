@@ -106,7 +106,7 @@ Resources:
           Properties:
             Path: /
             Method: ANY
-            RestApiId: !Ref ServerlessRestApi  # Explicit API Gateway with CORS
+            RestApiId: !Ref ServerlessRestApi  # Explicit API Gateway with CORS 
   ServerlessRestApi:
     Type: AWS::Serverless::Api
     Properties:
@@ -124,7 +124,11 @@ Resources:
       Cors:
         AllowMethods: "'GET,POST,OPTIONS,PUT,DELETE'"
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-        AllowOrigin: "'*'"  # Lambda Permission for API Gateway
+        AllowOrigin: "'*'"
+      # Force stage deployment
+      StageName: dev
+      Variables:
+        Environment: !Ref EnvironmentName# Lambda Permission for API Gateway
   LambdaApiGatewayPermission:
     Type: AWS::Lambda::Permission
     Properties:
