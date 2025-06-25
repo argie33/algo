@@ -1,6 +1,6 @@
 import axios from 'axios' 
 
-// Get API configuration - exported for ServiceHealth 
+// Get API configuration - exported for ServiceHealth
 export const getApiConfig = () => {
   // Dynamic API URL resolution: runtime > build-time > fallback
   let runtimeApiUrl = (typeof window !== 'undefined' && window.__CONFIG__ && window.__CONFIG__.API_URL) ? window.__CONFIG__.API_URL : null;
