@@ -130,7 +130,8 @@ app.use(async (req, res, next) => {
   try {
     await ensureDatabase();
     console.log('Database connection verified for database-dependent endpoint');
-    next();  } catch (error) {
+    next();
+  } catch (error) {
     console.error('Database initialization failed for database-dependent endpoint:', error.message);
     
     // For health endpoint (non-quick), still allow it to proceed with DB error info
@@ -139,9 +140,10 @@ app.use(async (req, res, next) => {
       return next();
     }
     
-    // For other endpoints, return service unavailable
+    // For other endpoints, return service unavailable instead of forbidden
     res.status(503).json({ 
-      error: 'Service temporarily unavailable - database connection failed',      message: 'The database is currently unavailable. Please try again later.',
+      error: 'Service temporarily unavailable - database connection failed',
+      message: 'The database is currently unavailable. Please try again later.',
       timestamp: new Date().toISOString(),
       details: !isProduction ? error.message : undefined
     });
