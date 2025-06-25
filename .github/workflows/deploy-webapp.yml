@@ -34,16 +34,10 @@ jobs:
       - name: Determine environment
         id: env
         run: |
-          if [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.ref }}" == "refs/heads/master" ]]; then            echo "environment=prod" >> $GITHUB_OUTPUT
-            echo "stack_name=stocks-webapp-prod" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref }}" == "refs/heads/staging" || "${{ github.ref }}" == "refs/heads/stage" ]]; then
-            echo "environment=staging" >> $GITHUB_OUTPUT
-            echo "stack_name=stocks-webapp-staging" >> $GITHUB_OUTPUT
-          else
-            echo "environment=dev" >> $GITHUB_OUTPUT
-            echo "stack_name=stocks-webapp-dev" >> $GITHUB_OUTPUT
-          fi
-          echo "Deploying to environment: $(echo $GITHUB_OUTPUT | grep environment | cut -d'=' -f2)"
+          # Force everything to dev environment for now
+          echo "environment=dev" >> $GITHUB_OUTPUT
+          echo "stack_name=stocks-webapp-dev" >> $GITHUB_OUTPUT
+          echo "Deploying to environment: dev"
 ################################################################################
 # 2) Detect changed components                                                 #
 ################################################################################
@@ -358,8 +352,8 @@ jobs:
           fi
           
           # Extract bucket prefix to avoid secret masking (bucket name contains AWS Account ID)
-          # Bucket format: financial-dashboard-frontend-prod-ACCOUNTID
-          BUCKET_PREFIX=$(echo "$FRONTEND_BUCKET" | cut -d'-' -f1-4)  # Gets "financial-dashboard-frontend-prod"
+          # Bucket format: financial-dashboard-frontend-dev-ACCOUNTID
+          BUCKET_PREFIX=$(echo "$FRONTEND_BUCKET" | cut -d'-' -f1-4)  # Gets "financial-dashboard-frontend-dev"
           
           # Set outputs (avoiding the full bucket name that contains account ID)
           echo "bucket_prefix=$BUCKET_PREFIX" >> $GITHUB_OUTPUT

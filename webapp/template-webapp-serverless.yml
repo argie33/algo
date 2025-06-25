@@ -4,12 +4,6 @@ Description: >
   — imports S3, network & IAM from core infra; DB Secret ARN from stocks-infra-stack.
 
 Parameters:
-  EnvironmentName:
-    Type: String
-    Default: dev
-    AllowedValues: [dev, staging, prod]
-    Description: Environment name for resource naming and configuration
-
   LambdaCodeKey:
     Type: String
     Description: S3 key for the API Lambda zip (e.g. api.zip)
@@ -78,12 +72,13 @@ Resources:
             - AcmCertificateArn: !Ref CertificateArn
               SslSupportMethod: sni-only
             - CloudFrontDefaultCertificate: true
+
   ## 4) API Lambda backed by RDS (via Secret)
   ApiLambda:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub 'financial-dashboard-api-${EnvironmentName}'
-      Runtime: nodejs18.x
+      FunctionName: api-handler
+      Runtime: python3.9
       Handler: index.handler
       Role: !ImportValue StocksCore-LambdaExecutionRoleArn
       Code:
@@ -99,17 +94,16 @@ Resources:
       Environment:
         Variables:
           DB_SECRET_ARN: !ImportValue StocksInfra-SecretArn
-          ENVIRONMENT: !Ref EnvironmentName
+
   ## 5) HTTP API (API Gateway v2)
   StocksApi:
     Type: AWS::ApiGatewayV2::Api
     Properties:
-      Name: !Sub 'financial-dashboard-api-${EnvironmentName}'
+      Name: stocks-api
       ProtocolType: HTTP
       CorsConfiguration:
         AllowOrigins: ['*']
-        AllowMethods: ['GET','POST','PUT','DELETE','OPTIONS']
-        AllowHeaders: ['Content-Type', 'X-Amz-Date', 'Authorization', 'X-Api-Key', 'X-Amz-Security-Token']
+        AllowMethods: ['GET','OPTIONS']
 
   ApiIntegration:
     Type: AWS::ApiGatewayV2::Integration
@@ -119,74 +113,32 @@ Resources:
       IntegrationUri: !GetAtt ApiLambda.Arn
       PayloadFormatVersion: '2.0'
 
-  # Catch-all route for all paths
-  ApiRouteRoot:
+  ApiRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref StocksApi
-      RouteKey: 'ANY /'
-      Target: !Sub 'integrations/${ApiIntegration}'
-
-  ApiRouteProxy:
-    Type: AWS::ApiGatewayV2::Route
-    Properties:
-      ApiId: !Ref StocksApi
-      RouteKey: 'ANY /{proxy+}'
+      RouteKey: 'GET /'
       Target: !Sub 'integrations/${ApiIntegration}'
 
   ApiDeploy:
     Type: AWS::ApiGatewayV2::Deployment
     Properties:
       ApiId: !Ref StocksApi
-    DependsOn: [ApiRouteRoot, ApiRouteProxy]
+    DependsOn: ApiRoute
+
   ApiStage:
     Type: AWS::ApiGatewayV2::Stage
     Properties:
       ApiId: !Ref StocksApi
-      StageName: !Ref EnvironmentName
+      StageName: '$default'
       DeploymentId: !Ref ApiDeploy
       AutoDeploy: true
 
-  # Permission for API Gateway to invoke Lambda
-  LambdaApiPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !Ref ApiLambda
-      Action: lambda:InvokeFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub '${StocksApi}/*/*'
-
 Outputs:
-  FrontendBucketName:
-    Description: Name of the S3 bucket for frontend hosting
-    Value: !ImportValue StocksCore-SiteCodeBucketName
-    Export:
-      Name: !Sub '${AWS::StackName}-FrontendBucketName'
-
-  CloudFrontDistributionId:
-    Description: ID of the CloudFront distribution
-    Value: !Ref SPACloudFront
-    Export:
-      Name: !Sub '${AWS::StackName}-CloudFrontDistributionId'
-
-  CloudFrontUrl:
+  SPAUrl:
     Description: CloudFront URL for SPA
-    Value: !Sub 'https://${SPACloudFront.DomainName}'
-    Export:
-      Name: !Sub '${AWS::StackName}-WebsiteURL'
+    Value: !GetAtt SPACloudFront.DomainName
 
-  ApiGatewayUrl:
-    Description: HTTP API invoke URL with stage
-    Value: !Sub 'https://${StocksApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}'
-    Export:
-      Name: !Sub '${AWS::StackName}-ApiGatewayUrl'
-
-  ApiUrl:
-    Description: HTTP API invoke URL (legacy output name)
-    Value: !Sub 'https://${StocksApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}'
-
-  EnvironmentName:
-    Description: Environment name
-    Value: !Ref EnvironmentName
-    Export:
-      Name: !Sub '${AWS::StackName}-Environment'
+  ApiEndpoint:
+    Description: HTTP API invoke URL
+    Value: !Sub 'https://${StocksApi}.execute-api.${AWS::Region}.amazonaws.com'
