@@ -1,6 +1,9 @@
 // Load environment variables first
 require('dotenv').config();
 
+// Financial Dashboard API - Lambda Function
+// Updated: 2025-06-25 - Fixed CORS configuration for API Gateway
+
 const serverless = require('serverless-http');
 const express = require('express');
 const cors = require('cors');
