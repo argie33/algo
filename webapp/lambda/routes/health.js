@@ -1,3 +1,18 @@
+/**
+ * Robustness patch: Ensures all health endpoints always return valid JSON, never HTML or undefined.
+ * - Defines HEALTH_TIMEOUT_MS to avoid ReferenceError.
+ * - Adds global error handlers for unhandled promise rejections and uncaught exceptions.
+ * - Adds Express error middleware to always return JSON.
+ */
+const HEALTH_TIMEOUT_MS = 5000; // 5 seconds default for all health timeouts
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception thrown:', err);
+});
+
 const express = require('express');
 const { query, initializeDatabase, getPool } = require('../utils/database');
 
@@ -639,6 +654,18 @@ router.get('/db-test', async (req, res) => {
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }
+});
+
+// Express error-handling middleware to always return JSON
+router.use((err, req, res, next) => {
+  console.error('Express error handler:', err);
+  if (res.headersSent) return next(err);
+  res.status(500).json({
+    status: 'error',
+    error: err.message || 'Internal server error',
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+    timestamp: new Date().toISOString()
+  });
 });
 
 module.exports = router;
