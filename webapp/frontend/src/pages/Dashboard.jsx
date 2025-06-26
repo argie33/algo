@@ -219,12 +219,22 @@ function MarketOverviewWidget() {
 
 // --- EARNINGS CALENDAR WIDGET ---
 function EarningsCalendarWidget({ symbol }) {
-  // Fetch real earnings/events for the selected symbol using API service
+  // Fetch real earnings/events for the selected symbol using the correct calendar API
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-earnings-calendar', symbol],
     queryFn: async () => {
-      const response = await api.get(`/api/dashboard/earnings-calendar?symbol=${encodeURIComponent(symbol)}`);
-      return response.data;
+      // Use the same endpoint as EarningsCalendar page
+      const params = new URLSearchParams({
+        type: 'upcoming',
+        page: 1,
+        limit: 5
+      });
+      const response = await fetch(`${API_BASE}/calendar/events?${params}`);
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Failed to fetch calendar data: ${response.status} ${text}`);
+      }
+      return response.json();
     },
     enabled: !!symbol,
     staleTime: 5 * 60 * 1000
@@ -239,13 +249,13 @@ function EarningsCalendarWidget({ symbol }) {
         ) : error ? (
           <Typography variant="body2" color="error">Error loading earnings/events: {error.message}</Typography>
         ) : earnings.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">No upcoming earnings/events for {symbol}.</Typography>
+          <Typography variant="body2" color="text.secondary">No upcoming earnings/events found.</Typography>
         ) : (
           <>
             {earnings.map((ev, idx) => (
-              <Box key={ev.event + idx} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography variant="body2">{ev.event}</Typography>
-                <Typography variant="caption" color="text.secondary">{format(new Date(ev.date), 'MMM d')}</Typography>
+              <Box key={ev.symbol + ev.start_date + idx} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2">{ev.symbol}: {ev.title}</Typography>
+                <Typography variant="caption" color="text.secondary">{format(new Date(ev.start_date), 'MMM d')}</Typography>
               </Box>
             ))}
           </>
