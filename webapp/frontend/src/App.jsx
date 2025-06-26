@@ -33,7 +33,7 @@ import {
   PlayArrow
 } from '@mui/icons-material'
 
-// Restore all real page imports
+// All real page imports
 import Dashboard from './pages/Dashboard'
 import MarketOverview from './pages/MarketOverview'
 import StockExplorer from './pages/StockExplorer'
@@ -62,6 +62,43 @@ const menuItems = [
   { text: 'Earnings', icon: <EventIcon />, path: '/earnings' },
   { text: 'Service Health', icon: <HealthAndSafetyIcon />, path: '/service-health' },
 ]
+
+// Global error boundary to catch and show errors
+class GlobalErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error }
+  }
+  componentDidCatch(error, errorInfo) {
+    // You can log errorInfo to a service here
+    // eslint-disable-next-line no-console
+    console.error('Global error boundary caught:', error, errorInfo)
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Box sx={{ p: 3 }}>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            <Typography variant="h6">Application Error</Typography>
+            <Typography variant="body2">
+              The application encountered an error. Please refresh the page or contact support.
+            </Typography>
+            <details style={{ marginTop: '10px' }}>
+              <summary>Error Details</summary>
+              <pre style={{ fontSize: '12px', overflow: 'auto' }}>
+                {this.state.error ? this.state.error.toString() : 'Unknown error'}
+              </pre>
+            </details>
+          </Alert>
+        </Box>
+      )
+    }
+    return this.props.children
+  }
+}
 
 function App() {
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -118,94 +155,96 @@ function App() {
   )
 
   return (
-    <Box sx={{ display: 'flex' }}>
-      <AppBar
-        position="fixed"
-        sx={{
-          width: { md: `calc(100% - ${drawerWidth}px)` },
-          ml: { md: `${drawerWidth}px` },
-          backgroundColor: 'white',
-          color: 'text.primary',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-        }}
-      >
-        <Toolbar>
-          <IconButton
-            color="inherit"
-            aria-label="open drawer"
-            edge="start"
-            onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { md: 'none' } }}
+    <GlobalErrorBoundary>
+      <Box sx={{ display: 'flex' }}>
+        <AppBar
+          position="fixed"
+          sx={{
+            width: { md: `calc(100% - ${drawerWidth}px)` },
+            ml: { md: `${drawerWidth}px` },
+            backgroundColor: 'white',
+            color: 'text.primary',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          }}
+        >
+          <Toolbar>
+            <IconButton
+              color="inherit"
+              aria-label="open drawer"
+              edge="start"
+              onClick={handleDrawerToggle}
+              sx={{ mr: 2, display: { md: 'none' } }}
+            >
+              <MenuIcon />
+            </IconButton>
+            <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
+              {menuItems.find(item => item.path === location.pathname)?.text || 'Dashboard'}
+            </Typography>
+          </Toolbar>
+        </AppBar>
+
+        <Box
+          component="nav"
+          sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}
+        >
+          <Drawer
+            variant="temporary"
+            open={mobileOpen}
+            onClose={handleDrawerToggle}
+            ModalProps={{
+              keepMounted: true, // Better open performance on mobile.
+            }}
+            sx={{
+              display: { xs: 'block', md: 'none' },
+              '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+            }}
           >
-            <MenuIcon />
-          </IconButton>
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            {menuItems.find(item => item.path === location.pathname)?.text || 'Dashboard'}
-          </Typography>
-        </Toolbar>
-      </AppBar>
+            {drawer}
+          </Drawer>
+          <Drawer
+            variant="permanent"
+            sx={{
+              display: { xs: 'none', md: 'block' },
+              '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+            }}
+            open
+          >
+            {drawer}
+          </Drawer>
+        </Box>
 
-      <Box
-        component="nav"
-        sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}
-      >
-        <Drawer
-          variant="temporary"
-          open={mobileOpen}
-          onClose={handleDrawerToggle}
-          ModalProps={{
-            keepMounted: true, // Better open performance on mobile.
-          }}
+        <Box
+          component="main"
           sx={{
-            display: { xs: 'block', md: 'none' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+            flexGrow: 1,
+            p: 3,
+            width: { md: `calc(100% - ${drawerWidth}px)` },
+            backgroundColor: theme.palette.background.default,
+            minHeight: '100vh',
           }}
         >
-          {drawer}
-        </Drawer>
-        <Drawer
-          variant="permanent"
-          sx={{
-            display: { xs: 'none', md: 'block' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
-          }}
-          open
-        >
-          {drawer}
-        </Drawer>
+          <Toolbar />
+          <Container maxWidth="xl">
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/market" element={<MarketOverview />} />
+              <Route path="/stocks" element={<StockExplorer />} />
+              <Route path="/stocks/:ticker" element={<StockDetail />} />
+              <Route path="/screener" element={<StockExplorer />} />
+              <Route path="/trading" element={<TradingSignals />} />
+              <Route path="/technical" element={<TechnicalAnalysis />} />
+              <Route path="/analysts" element={<AnalystInsights />} />
+              <Route path="/earnings" element={<EarningsCalendar />} />
+              <Route path="/backtest" element={<Backtest />} />
+              <Route path="/data-validation" element={<DataValidation />} />
+              <Route path="/financial-data" element={<FinancialData />} />
+              <Route path="/service-health" element={<ServiceHealth />} />
+              <Route path="/technical-history/:symbol" element={<TechnicalHistory />} />
+            </Routes>
+          </Container>
+        </Box>
       </Box>
-
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          p: 3,
-          width: { md: `calc(100% - ${drawerWidth}px)` },
-          backgroundColor: theme.palette.background.default,
-          minHeight: '100vh',
-        }}
-      >
-        <Toolbar />
-        <Container maxWidth="xl">
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/market" element={<MarketOverview />} />
-            <Route path="/stocks" element={<StockExplorer />} />
-            <Route path="/stocks/:ticker" element={<StockDetail />} />
-            <Route path="/screener" element={<StockExplorer />} />
-            <Route path="/trading" element={<TradingSignals />} />
-            <Route path="/technical" element={<TechnicalAnalysis />} />
-            <Route path="/analysts" element={<AnalystInsights />} />
-            <Route path="/earnings" element={<EarningsCalendar />} />
-            <Route path="/backtest" element={<Backtest />} />
-            <Route path="/data-validation" element={<DataValidation />} />
-            <Route path="/financial-data" element={<FinancialData />} />
-            <Route path="/service-health" element={<ServiceHealth />} />
-            <Route path="/technical-history/:symbol" element={<TechnicalHistory />} />
-          </Routes>
-        </Container>
-      </Box>
-    </Box>
+    </GlobalErrorBoundary>
   )
 }
 
