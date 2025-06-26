@@ -86,7 +86,9 @@ jobs:
       technicalsmonthly: ${{ steps.paths.outputs.technicalsmonthly }}
       swingtrader:       ${{ steps.paths.outputs.swingtrader }}
       calendar:          ${{ steps.paths.outputs.calendar }}
-      buysell:           ${{ steps.paths.outputs.buysell }}
+      buyselldaily:      ${{ steps.paths.outputs.buyselldaily }}
+      buysellweekly:     ${{ steps.paths.outputs.buysellweekly }}
+      buysellmonthly:    ${{ steps.paths.outputs.buysellmonthly }}
       any:               ${{ steps.any.outputs.any }}
       matrix:            ${{ steps.matrix.outputs.matrix }}
 
@@ -188,8 +190,16 @@ jobs:
               - 'loadcalendar.py'
               - 'Dockerfile.loadcalendar'
               - 'requirements-loadcalendar.txt'
-            buysell:
-              - 'loadbuysell.py'
+            buyselldaily:
+              - 'loadbuyselldaily.py'
+              - 'Dockerfile.buysell'
+              - 'requirements-loadbuysell.txt'
+            buysellweekly:
+              - 'loadbuysellweekly.py'
+              - 'Dockerfile.buysell'
+              - 'requirements-loadbuysell.txt'
+            buysellmonthly:
+              - 'loadbuysellmonthly.py'
               - 'Dockerfile.buysell'
               - 'requirements-loadbuysell.txt'
 
@@ -211,7 +221,9 @@ jobs:
              [ "${{ steps.paths.outputs.technicalsmonthly }}" = "true" ] || \
              [ "${{ steps.paths.outputs.swingtrader }}" = "true" ] || \
              [ "${{ steps.paths.outputs.calendar }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.buysell }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.buyselldaily }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.buysellweekly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.buysellmonthly }}" = "true" ] || \
              [ "${{ steps.paths.outputs.latestpricedaily }}" = "true" ] || \
              [ "${{ steps.paths.outputs.latestpriceweekly }}" = "true" ] || \
              [ "${{ steps.paths.outputs.latestpricemonthly }}" = "true" ] || \
@@ -243,7 +255,9 @@ jobs:
           [ "${{ steps.paths.outputs.technicalsmonthly }}" = "true" ] && arr="$arr,\"technicalsmonthly\""
           [ "${{ steps.paths.outputs.swingtrader }}" = "true" ]     && arr="$arr,\"swingtrader\""
           [ "${{ steps.paths.outputs.calendar }}" = "true" ]        && arr="$arr,\"calendar\""
-          [ "${{ steps.paths.outputs.buysell }}" = "true" ]         && arr="$arr,\"buysell\""
+          [ "${{ steps.paths.outputs.buyselldaily }}" = "true" ]    && arr="$arr,\"buyselldaily\""
+          [ "${{ steps.paths.outputs.buysellweekly }}" = "true" ]   && arr="$arr,\"buysellweekly\""
+          [ "${{ steps.paths.outputs.buysellmonthly }}" = "true" ]  && arr="$arr,\"buysellmonthly\""
           [ "${{ steps.paths.outputs.latestpricedaily }}" = "true" ]  && arr="$arr,\"latestpricedaily\""
           [ "${{ steps.paths.outputs.latestpriceweekly }}" = "true" ] && arr="$arr,\"latestpriceweekly\""
           [ "${{ steps.paths.outputs.latestpricemonthly }}" = "true" ] && arr="$arr,\"latestpricemonthly\""
@@ -308,7 +322,9 @@ jobs:
             technicalsmonthly)DOCKERFILE=Dockerfile.technicalsmonthly;PARAM=TechnicalsMonthlyImageTag;;\
             swingtrader)      DOCKERFILE=Dockerfile.swingtrader;    PARAM=SwingTraderImageTag;;\
             calendar)         DOCKERFILE=Dockerfile.loadcalendar;   PARAM=CalendarImageTag;;\
-            buysell)          DOCKERFILE=Dockerfile.buysell;        PARAM=BuySellImageTag;;\
+            buyselldaily)     DOCKERFILE=Dockerfile.buysell;        PARAM=BuySellDailyImageTag;;\
+            buysellweekly)    DOCKERFILE=Dockerfile.buysell;        PARAM=BuySellWeeklyImageTag;;\
+            buysellmonthly)   DOCKERFILE=Dockerfile.buysell;        PARAM=BuySellMonthlyImageTag;;\
             latesttechnicalsdaily)   DOCKERFILE=Dockerfile.latesttechnicalsdaily;   PARAM=LatestTechnicalsDailyImageTag;;\
             latesttechnicalsweekly)  DOCKERFILE=Dockerfile.latesttechnicalsweekly;  PARAM=LatestTechnicalsWeeklyImageTag;;\
             latesttechnicalsmonthly) DOCKERFILE=Dockerfile.latesttechnicalsmonthly; PARAM=LatestTechnicalsMonthlyImageTag;;\
@@ -423,7 +439,9 @@ jobs:
               TechnicalsMonthlyImageTag=$(grep '^TechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-) \
               SwingTraderImageTag=$(grep '^SwingTraderImageTag=' tags.env | cut -d= -f2-) \
               CalendarImageTag=$(grep '^CalendarImageTag=' tags.env | cut -d= -f2-) \
-              BuySellImageTag=$(grep '^BuySellImageTag=' tags.env | cut -d= -f2-) \
+              BuySellDailyImageTag=$(grep '^BuySellDailyImageTag=' tags.env | cut -d= -f2-) \
+              BuySellWeeklyImageTag=$(grep '^BuySellWeeklyImageTag=' tags.env | cut -d= -f2-) \
+              BuySellMonthlyImageTag=$(grep '^BuySellMonthlyImageTag=' tags.env | cut -d= -f2-) \
               LatestTechnicalsDailyImageTag=$(grep '^LatestTechnicalsDailyImageTag=' tags.env | cut -d= -f2-) \
               LatestTechnicalsWeeklyImageTag=$(grep '^LatestTechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-) \
               LatestTechnicalsMonthlyImageTag=$(grep '^LatestTechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-) \
@@ -1674,10 +1692,10 @@ jobs:
             exit $EXIT
           fi
 
-  run_buysell:
-    name: Run buysell loader
+  run_buyselldaily:
+    name: Run buysell daily loader
     needs: deploy-tasks
-    if: ${{ needs.filter.outputs.buysell == 'true' }}
+    if: ${{ needs.filter.outputs.buyselldaily == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -1694,7 +1712,7 @@ jobs:
         run: |
           ARN=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='BuySellTaskDefArn'].OutputValue" \
+            --query "Stacks[0].Outputs[?OutputKey=='BuySellDailyTaskDefArn'].OutputValue" \
             --output text)
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
 
@@ -1718,7 +1736,7 @@ jobs:
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
           echo "SG=$SG" >> $GITHUB_OUTPUT
 
-      - name: Run buysell Fargate task
+      - name: Run buysell daily Fargate task
         id: run
         run: |
           TASK_ARN=$(aws ecs run-task \
@@ -1730,7 +1748,7 @@ jobs:
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
-          echo "🟢 Started buysell task $TASK_ARN"
+          echo "🟢 Started buysell daily task $TASK_ARN"
 
       - name: Wait up to 60m for task to stop
         run: |
@@ -1745,7 +1763,7 @@ jobs:
             sleep 20
           done
           if [ "$STATUS" != "STOPPED" ]; then
-            echo "❌ buysell task did not stop within 60m"
+            echo "❌ buysell daily task did not stop within 60m"
             exit 1
           fi
 
@@ -1758,7 +1776,183 @@ jobs:
             --output text)
           echo "→ Exit code: $EXIT"
           if [ "$EXIT" -ne 0 ]; then
-            echo "❌ buysell failed with exit code $EXIT"
+            echo "❌ buysell daily failed with exit code $EXIT"
+            exit $EXIT
+          fi
+
+  run_buysellweekly:
+    name: Run buysell weekly loader
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.buysellweekly == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Fetch Task Definition ARN
+        id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='BuySellWeeklyTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch cluster ARN & subnets & SG
+        id: infra
+        run: |
+          CLUSTER=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+          SUB1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUB2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+          echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
+          echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
+          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
+
+      - name: Run buysell weekly Fargate task
+        id: run
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --launch-type FARGATE \
+            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
+            --count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "🟢 Started buysell weekly task $TASK_ARN"
+
+      - name: Wait up to 60m for task to stop
+        run: |
+          for i in $(seq 1 180); do
+            STATUS=$(aws ecs describe-tasks \
+              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+              --query 'tasks[0].lastStatus' \
+              --output text)
+            echo "Attempt $i – status=$STATUS"
+            [ "$STATUS" = "STOPPED" ] && break
+            sleep 20
+          done
+          if [ "$STATUS" != "STOPPED" ]; then
+            echo "❌ buysell weekly task did not stop within 60m"
+            exit 1
+          fi
+
+      - name: Check container exit code
+        run: |
+          EXIT=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          echo "→ Exit code: $EXIT"
+          if [ "$EXIT" -ne 0 ]; then
+            echo "❌ buysell weekly failed with exit code $EXIT"
+            exit $EXIT
+          fi
+
+  run_buysellmonthly:
+    name: Run buysell monthly loader
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.buysellmonthly == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Fetch Task Definition ARN
+        id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='BuySellMonthlyTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch cluster ARN & subnets & SG
+        id: infra
+        run: |
+          CLUSTER=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+          SUB1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUB2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+          echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
+          echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
+          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
+
+      - name: Run buysell monthly Fargate task
+        id: run
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --launch-type FARGATE \
+            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
+            --count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "🟢 Started buysell monthly task $TASK_ARN"
+
+      - name: Wait up to 60m for task to stop
+        run: |
+          for i in $(seq 1 180); do
+            STATUS=$(aws ecs describe-tasks \
+              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+              --query 'tasks[0].lastStatus' \
+              --output text)
+            echo "Attempt $i – status=$STATUS"
+            [ "$STATUS" = "STOPPED" ] && break
+            sleep 20
+          done
+          if [ "$STATUS" != "STOPPED" ]; then
+            echo "❌ buysell monthly task did not stop within 60m"
+            exit 1
+          fi
+
+      - name: Check container exit code
+        run: |
+          EXIT=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          echo "→ Exit code: $EXIT"
+          if [ "$EXIT" -ne 0 ]; then
+            echo "❌ buysell monthly failed with exit code $EXIT"
             exit $EXIT
           fi
 

@@ -3,7 +3,7 @@
 # 1) Base image
 FROM python:3.10-slim
 
-# 2) Where we’ll live inside the container
+# 2) Where we'll live inside the container
 WORKDIR /app
 
 # 3) (Optional) If you need any OS-level build tools (e.g. for mysql-connector)
@@ -17,8 +17,10 @@ COPY requirements-loadbuysell.txt .
 RUN pip install --upgrade pip \
  && pip install --no-cache-dir -r requirements-loadbuysell.txt
 
-# 5) Copy your loader
-COPY loadbuysell.py .
+# 5) Copy your loaders
+COPY loadbuyselldaily.py .
+COPY loadbuysellweekly.py .
+COPY loadbuysellmonthly.py .
 
-# 6) Default command
-CMD ["python", "loadbuysell.py"]
+# 6) Default command (run daily by default)
+CMD ["python", "loadbuyselldaily.py"]

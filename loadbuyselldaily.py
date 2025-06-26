@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 import os
 import sys
@@ -15,7 +14,7 @@ import logging
 # -------------------------------
 # Script metadata & logging setup
 # -------------------------------
-SCRIPT_NAME = "loadbuysell.py"
+SCRIPT_NAME = "loadbuyselldaily.py"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -73,9 +72,9 @@ def get_symbols_from_db(limit=None):
         conn.close()
 
 def create_buy_sell_table(cur):
-    cur.execute("DROP TABLE IF EXISTS buy_sell;")
+    cur.execute("DROP TABLE IF EXISTS buy_sell_daily;")
     cur.execute("""
-      CREATE TABLE buy_sell (
+      CREATE TABLE buy_sell_daily (
         id           SERIAL PRIMARY KEY,
         symbol       VARCHAR(20)    NOT NULL,
         timeframe    VARCHAR(10)    NOT NULL,
@@ -95,7 +94,7 @@ def create_buy_sell_table(cur):
 
 def insert_symbol_results(cur, symbol, timeframe, df):
     insert_q = """
-      INSERT INTO buy_sell (
+      INSERT INTO buy_sell_daily (
         symbol, timeframe, date,
         open, high, low, close, volume,
         signal, buylevel, stoplevel, inposition
