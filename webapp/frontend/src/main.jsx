@@ -114,10 +114,12 @@ console.log('🚀 Creating React root and rendering app...');
 try {
   ReactDOM.createRoot(document.getElementById('root')).render(
     <BrowserRouter>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <App />
-      </ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          <App />
+        </ThemeProvider>
+      </QueryClientProvider>
     </BrowserRouter>,
   )
   console.log('✅ React app rendered successfully');
