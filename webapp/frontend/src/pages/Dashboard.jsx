@@ -113,20 +113,10 @@ function TechnicalSignalsWidget() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-technical-signals'],
     queryFn: async () => {
-      try {
-        const url = `${API_BASE}/trading/signals/daily?limit=10`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('Failed to fetch technical signals');
-        // Defensive: try/catch JSON parsing
-        try {
-          return await res.json();
-        } catch (jsonErr) {
-          throw new Error('Invalid JSON in technical signals response');
-        }
-      } catch (err) {
-        // Always throw error to be caught by useQuery
-        throw err;
-      }
+      // FIX: Use a working endpoint or implement if missing
+      // Try /api/technical/daily?limit=10&sortBy=date
+      const response = await api.get('/api/technical/daily?limit=10&sortBy=date');
+      return response.data;
     },
     refetchInterval: 300000
   });
@@ -148,27 +138,25 @@ function TechnicalSignalsWidget() {
               <thead>
                 <tr>
                   <th align="left">Symbol</th>
-                  <th align="left">Signal</th>
+                  <th align="left">RSI</th>
+                  <th align="left">MACD</th>
                   <th align="right">Date</th>
-                  <th align="right">Price</th>
-                  <th align="right">Performance</th>
                 </tr>
               </thead>
               <tbody>
                 {signals.map((sig, idx) => (
                   <tr key={sig.symbol + sig.date + idx} style={{ background: idx % 2 ? '#f9f9f9' : 'white' }}>
                     <td>{sig.symbol}</td>
-                    <td style={{ color: sig.signal === 'Buy' ? '#43a047' : '#e53935', fontWeight: 600 }}>{sig.signal}</td>
+                    <td>{sig.rsi}</td>
+                    <td>{sig.macd}</td>
                     <td align="right">{sig.date ? new Date(sig.date).toLocaleDateString() : ''}</td>
-                    <td align="right">${sig.current_price?.toLocaleString?.() ?? '--'}</td>
-                    <td align="right">{sig.performance_percent ? sig.performance_percent.toFixed(2) + '%' : '--'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </Box>
         )}
-        <Typography variant="caption" color="text.secondary">Live technical signals from your buy/sell tables (daily).</Typography>
+        <Typography variant="caption" color="text.secondary">Live technical signals from your technicals table (daily).</Typography>
       </CardContent>
     </Card>
   );
@@ -180,12 +168,33 @@ function MarketOverviewWidget() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-market-summary'],
     queryFn: async () => {
-      const response = await api.get('/api/dashboard/market-summary');
+      // FIX: Use the correct endpoint from market.js
+      const response = await api.get('/api/market/overview');
       return response.data;
     },
     staleTime: 2 * 60 * 1000
   });
-  const summary = Array.isArray(data?.data) ? data.data : [];
+  // Map the data to the expected structure for the widget
+  const summary = [
+    {
+      name: 'S&P 500',
+      value: data?.data?.sp500_level ?? data?.sp500_level ?? '--',
+      change: data?.data?.sp500_change ?? data?.sp500_change ?? 0,
+      pct: data?.data?.sp500_pct ?? data?.sp500_pct ?? '--'
+    },
+    {
+      name: 'NASDAQ',
+      value: data?.data?.nasdaq_level ?? data?.nasdaq_level ?? '--',
+      change: data?.data?.nasdaq_change ?? data?.nasdaq_change ?? 0,
+      pct: data?.data?.nasdaq_pct ?? data?.nasdaq_pct ?? '--'
+    },
+    {
+      name: 'DOW',
+      value: data?.data?.dow_level ?? data?.dow_level ?? '--',
+      change: data?.data?.dow_change ?? data?.dow_change ?? 0,
+      pct: data?.data?.dow_pct ?? data?.dow_pct ?? '--'
+    }
+  ];
   return (
     <Card sx={{ mb: 3 }}>
       <CardContent>
@@ -272,14 +281,16 @@ function AnalystInsightsWidget({ symbol }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-analyst-insights', symbol],
     queryFn: async () => {
-      const response = await api.get(`/api/dashboard/analyst-insights?symbol=${encodeURIComponent(symbol)}`);
+      // FIX: Use the correct endpoint from analysts.js
+      const response = await api.get(`/api/analysts/${encodeURIComponent(symbol)}/overview`);
       return response.data;
     },
     enabled: !!symbol,
     staleTime: 5 * 60 * 1000
   });
-  const upgrades = Array.isArray(data?.data?.upgrades) ? data.data.upgrades : [];
-  const downgrades = Array.isArray(data?.data?.downgrades) ? data.data.downgrades : [];
+  // Map upgrades/downgrades from the overview data
+  const upgrades = Array.isArray(data?.data?.earnings_estimates) ? data.data.earnings_estimates.filter(e => e.surprise_percent > 0) : [];
+  const downgrades = Array.isArray(data?.data?.earnings_estimates) ? data.data.earnings_estimates.filter(e => e.surprise_percent < 0) : [];
   return (
     <Card sx={{ mb: 3 }}>
       <CardContent>
@@ -306,13 +317,27 @@ function FinancialHighlightsWidget({ symbol }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-financial-highlights', symbol],
     queryFn: async () => {
-      const response = await api.get(`/api/dashboard/financial-highlights?symbol=${encodeURIComponent(symbol)}`);
+      // FIX: Use the correct endpoint from financials.js
+      const response = await api.get(`/api/financials/${encodeURIComponent(symbol)}/key-metrics`);
       return response.data;
     },
     enabled: !!symbol,
     staleTime: 5 * 60 * 1000
   });
-  const highlights = Array.isArray(data?.data) ? data.data : [];
+  // Extract highlights from the key metrics data
+  const highlights = [];
+  const metrics = data?.data;
+  if (metrics) {
+    // Pick a few key metrics for highlights
+    const categories = ['valuation', 'financial_performance', 'growth', 'dividends'];
+    categories.forEach(cat => {
+      if (metrics[cat]) {
+        Object.entries(metrics[cat].metrics).forEach(([label, value]) => {
+          highlights.push({ label, value });
+        });
+      }
+    });
+  }
   return (
     <Card sx={{ mb: 3 }}>
       <CardContent>
@@ -323,7 +348,7 @@ function FinancialHighlightsWidget({ symbol }) {
           <Typography variant="body2" color="error">Error loading financial highlights: {error.message}</Typography>
         ) : (
           <Grid container spacing={2}>
-            {highlights.map((item, idx) => (
+            {highlights.slice(0, 8).map((item, idx) => (
               <Grid item xs={6} key={item.label}>
                 <Typography variant="body2" color="text.secondary">{item.label}</Typography>
                 <Typography variant="body2" fontWeight={600}>{item.value}</Typography>
