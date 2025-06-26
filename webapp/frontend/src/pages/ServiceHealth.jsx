@@ -76,8 +76,12 @@ function ServiceHealth() {
   const [testingInProgress, setTestingInProgress] = useState(false);
   const [componentError, setComponentError] = useState(null);
 
-  // Ensure diagnosticInfo is always defined
-  const diagnosticInfo = getDiagnosticInfo();
+  // Memoize diagnosticInfo to prevent infinite re-renders
+  const diagnosticInfo = useMemo(() => getDiagnosticInfo(), []);
+  
+  // Memoize other API config calls to prevent infinite re-renders
+  const apiConfig = useMemo(() => getApiConfig(), []);
+  const currentBaseURL = useMemo(() => getCurrentBaseURL(), []);
 
   // Defensive: fallback if diagnosticInfo is missing or not an object
   if (!diagnosticInfo || typeof diagnosticInfo !== 'object') {
@@ -225,12 +229,10 @@ function ServiceHealth() {
   });
   // Gather environment information
   useEffect(() => {
-    const apiConfig = getApiConfig()
-    
     console.log('=== SERVICE HEALTH DEBUG INFO ===')
     console.log('API Config:', apiConfig)
     console.log('Diagnostic Info:', diagnosticInfo)
-    console.log('Current Base URL:', getCurrentBaseURL())
+    console.log('Current Base URL:', currentBaseURL)
     console.log('Window Location:', window.location.href)
     console.log('Environment Variables:', import.meta.env)
     
@@ -241,7 +243,7 @@ function ServiceHealth() {
         userAgent: navigator.userAgent.substring(0, 100) + '...',
         timestamp: new Date().toISOString(),
         viteApiUrl: import.meta.env.VITE_API_URL,
-        currentBaseURL: getCurrentBaseURL(),
+        currentBaseURL: currentBaseURL,
         diagnosticInfo: diagnosticInfo
       }
     };
@@ -249,7 +251,7 @@ function ServiceHealth() {
     
     // Removed testAllEndpoints() call to prevent infinite re-render loop
     // Tests will only run when user clicks the "Test All Endpoints" button
-  }, []);
+  }, [apiConfig, diagnosticInfo, currentBaseURL]);
 
   // Defensive: ensure dbDiagnostics is always an object
   const safeDbDiagnostics = isObject(dbDiagnostics) ? dbDiagnostics : {};

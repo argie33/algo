@@ -4,28 +4,15 @@ import axios from 'axios'
 export const getApiConfig = () => {
   // Dynamic API URL resolution: runtime > build-time > fallback
   let runtimeApiUrl = (typeof window !== 'undefined' && window.__CONFIG__ && window.__CONFIG__.API_URL) ? window.__CONFIG__.API_URL : null;
-  
-  // Environment detection
-  const isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development';
-  const isProduction = import.meta.env.PROD || import.meta.env.MODE === 'production';
-  
-  // API URL resolution priority:
-  // 1. Runtime config (window.__CONFIG__.API_URL)
-  // 2. Build-time env var (VITE_API_URL)
-  // 3. Development fallback (localhost:3001)
-  // 4. Production fallback (empty string - should be set)
-  const apiUrl = runtimeApiUrl || 
-                 import.meta.env.VITE_API_URL || 
-                 (isDevelopment ? 'http://localhost:3001' : '');
-  
+  const apiUrl = runtimeApiUrl || import.meta.env.VITE_API_URL || 'http://localhost:3001';
   return {
     baseURL: apiUrl,
     isServerless: !!apiUrl && !apiUrl.includes('localhost'),
     apiUrl: apiUrl,
-    isConfigured: !!apiUrl,
+    isConfigured: !!apiUrl && !apiUrl.includes('localhost'),
     environment: import.meta.env.MODE,
-    isDevelopment: isDevelopment,
-    isProduction: isProduction,
+    isDevelopment: import.meta.env.DEV,
+    isProduction: import.meta.env.PROD,
     baseUrl: import.meta.env.BASE_URL,
     allEnvVars: import.meta.env
   }
@@ -39,20 +26,12 @@ console.log('API Configuration:', {
   isServerless: currentConfig.isServerless,
   hostname: typeof window !== 'undefined' ? window.location.hostname : 'SSR',
   viteMode: import.meta.env.MODE,
-  apiUrl: currentConfig.apiUrl,
-  isDevelopment: currentConfig.isDevelopment,
-  isProduction: currentConfig.isProduction
+  apiUrl: currentConfig.apiUrl
 })
 
-// Warn if API URL is fallback (localhost) in production
-if (currentConfig.isProduction && (!currentConfig.apiUrl || currentConfig.apiUrl.includes('localhost'))) {
-  console.error('[API CONFIG] Production environment detected but using localhost API URL:', currentConfig.baseURL)
-  console.error('Set window.__CONFIG__.API_URL at runtime or VITE_API_URL at build time to override.')
-}
-
-// Warn if API URL is not configured in development
-if (currentConfig.isDevelopment && !currentConfig.apiUrl) {
-  console.warn('[API CONFIG] Development environment detected but no API URL configured. Using localhost:3001')
+// Warn if API URL is fallback (localhost)
+if (!currentConfig.apiUrl || currentConfig.apiUrl.includes('localhost')) {
+  console.warn('[API CONFIG] Using fallback API URL:', currentConfig.baseURL + '\nSet window.__CONFIG__.API_URL at runtime or VITE_API_URL at build time to override.')
 }
 
 const api = axios.create({
@@ -201,18 +180,9 @@ function normalizeApiResponse(response, expectArray = true) {
     return expectArray ? [] : {};
   }
 
-  // If response is an Axios response object, extract the data
+  // If response is an Axios response object, extract the data directly
   if (response && typeof response === 'object' && 'data' in response && ('status' in response || 'headers' in response)) {
-    console.log('normalizeApiResponse: Axios response detected, processing data:', response.data)
-    
-    // Handle API response structure: {success, data, pagination, metadata}
-    if (response.data && typeof response.data === 'object' && 'data' in response.data) {
-      console.log('normalizeApiResponse: API response structure detected, returning data.data')
-      return response.data.data;
-    }
-    
-    // Handle direct data response
-    console.log('normalizeApiResponse: direct data response, returning data')
+    console.log('normalizeApiResponse: Axios response detected, returning data directly:', response.data)
     return response.data;
   }
 
@@ -798,21 +768,8 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
   } catch (error) {
     const errorMessage = handleApiError(error, 'get technical data')
     return { error: errorMessage }
-  }
-}
-
-// Data validation summary endpoint 
-export const getDataValidationSummary = async (params = {}) => {
-  try {
-    const queryParams = new URLSearchParams()
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        queryParams.append(key, value)
-      }
-    })
-    const response = await api.get(`/data/validation/summary?${queryParams.toString()}`)
     return normalizeApiResponse(response)
-  } catch (error) {
+   } catch (error) {
     const errorMessage = handleApiError(error, 'get data validation summary')
     return normalizeApiResponse({ data: [], error: errorMessage })
   }
@@ -1124,7 +1081,4 @@ export default {
   updateApiBaseUrl,
   getDatabaseHealthFull
 }
-
-// Export the api instance for direct use
-export { api };
 
