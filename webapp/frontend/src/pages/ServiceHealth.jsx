@@ -70,10 +70,14 @@ function isObject(val) {
   return val && typeof val === 'object' && !Array.isArray(val);
 }
 
-function ServiceHealth() {  const [environmentInfo, setEnvironmentInfo] = useState({});
+function ServiceHealth() {
+  const [environmentInfo, setEnvironmentInfo] = useState({});
   const [testResults, setTestResults] = useState({});
   const [testingInProgress, setTestingInProgress] = useState(false);
   const [componentError, setComponentError] = useState(null);
+
+  // Ensure diagnosticInfo is always defined
+  const diagnosticInfo = getDiagnosticInfo();
 
   // Component error handler
   useEffect(() => {
@@ -214,7 +218,6 @@ function ServiceHealth() {  const [environmentInfo, setEnvironmentInfo] = useSta
   // Gather environment information
   useEffect(() => {
     const apiConfig = getApiConfig()
-    const diagnosticInfo = getDiagnosticInfo()
     
     console.log('=== SERVICE HEALTH DEBUG INFO ===')
     console.log('API Config:', apiConfig)
@@ -337,8 +340,7 @@ function ServiceHealth() {  const [environmentInfo, setEnvironmentInfo] = useSta
                 Refresh
               </Button>
             </CardContent>
-          </Card>
-        </Grid>        <Grid item xs={12} md={3}>
+          </Card></Grid> <Grid item xs={12} md={3}>
           <Card>
             <CardContent sx={{ textAlign: 'center' }}>
               <Api sx={{ fontSize: 40, mb: 1, color: 'primary.main' }} />
