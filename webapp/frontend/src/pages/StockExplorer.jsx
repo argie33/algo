@@ -433,10 +433,22 @@ function StockExplorer() {
   // Normalize stocks list to handle both { data: [...] } and { data: { data: [...] } } API responses
   let stocksList = [];
   if (stocksData) {
+    console.log('StockExplorer: stocksData structure:', {
+      hasData: !!stocksData.data,
+      dataType: typeof stocksData.data,
+      isArray: Array.isArray(stocksData.data),
+      dataLength: stocksData.data?.length,
+      keys: Object.keys(stocksData || {})
+    });
+    
     if (Array.isArray(stocksData.data)) {
       stocksList = stocksData.data;
+      console.log('StockExplorer: Using stocksData.data directly, length:', stocksList.length);
     } else if (stocksData.data && Array.isArray(stocksData.data.data)) {
       stocksList = stocksData.data.data;
+      console.log('StockExplorer: Using stocksData.data.data, length:', stocksList.length);
+    } else {
+      console.log('StockExplorer: No valid data structure found in stocksData');
     }
   }
   return (

@@ -502,19 +502,21 @@ export const screenStocks = async (params) => {
     })
     console.log('Screen stocks raw response:', response)
     console.log('Screen stocks response data:', response.data)
-    const normalized = normalizeApiResponse(response)
-    console.log('Screen stocks normalized:', normalized)
-    return normalized
+    
+    // Return the response.data directly since the backend returns the correct structure
+    // { success: true, data: [...], pagination: {...} }
+    return response.data
   } catch (error) {
     console.error('Error screening stocks:', error)
     const errorMessage = handleApiError(error, 'screen stocks')
-    return normalizeApiResponse({
+    return {
+      success: false,
       data: [],
       error: errorMessage,
       count: 0,
       total: 0,
       timestamp: new Date().toISOString()
-    })
+    }
   }
 }
 
@@ -768,10 +770,6 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
   } catch (error) {
     const errorMessage = handleApiError(error, 'get technical data')
     return { error: errorMessage }
-    return normalizeApiResponse(response)
-   } catch (error) {
-    const errorMessage = handleApiError(error, 'get data validation summary')
-    return normalizeApiResponse({ data: [], error: errorMessage })
   }
 }
 
