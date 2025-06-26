@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Box,
@@ -110,8 +110,9 @@ function ServiceHealth() {
       </Container>
     );
   }
-  // Comprehensive endpoint tests
-  const endpoints = [
+
+  // Comprehensive endpoint tests - memoized to prevent recreation
+  const endpoints = useMemo(() => [
     { name: 'Health', fn: () => healthCheck(), critical: true },
     { name: 'Health (Quick)', fn: () => healthCheck('?quick=true'), critical: true },
     { name: 'Database Health', fn: () => fetch(getCurrentBaseURL() + '/health/database').then(r => r.json()), critical: true },
@@ -135,10 +136,10 @@ function ServiceHealth() {
     { name: 'Earnings Estimates', fn: () => getEarningsEstimates({ limit: 5 }), critical: false },
     { name: 'NAAIM Data', fn: () => getNaaimData({ limit: 5 }), critical: false },
     { name: 'Fear & Greed', fn: () => getFearGreedData({ limit: 5 }), critical: false }
-  ];
+  ], []); // Empty dependency array since these functions don't change
 
-  // Test all endpoints
-  const testAllEndpoints = async () => {
+  // Test all endpoints - memoized with useCallback to prevent infinite re-renders
+  const testAllEndpoints = useCallback(async () => {
     setTestingInProgress(true);
     const results = {};
     
@@ -170,8 +171,9 @@ function ServiceHealth() {
         };
       }
     }
-      setTestResults(results);
-    setTestingInProgress(false);  };
+    setTestResults(results);
+    setTestingInProgress(false);
+  }, [endpoints]); // Now depends on the memoized endpoints array
 
   // Health check query
   const { data: healthData, isLoading: healthLoading, error: healthError, refetch: refetchHealth } = useQuery({
@@ -245,8 +247,8 @@ function ServiceHealth() {
     };
     setEnvironmentInfo(env);
     
-    // Auto-run tests on component mount
-    testAllEndpoints();
+    // Removed testAllEndpoints() call to prevent infinite re-render loop
+    // Tests will only run when user clicks the "Test All Endpoints" button
   }, []);
 
   // Defensive: ensure dbDiagnostics is always an object
