@@ -64,50 +64,100 @@ def sanitize_value(x):
     return x
 
 def pivot_high_vectorized(df, left_bars=3, right_bars=3):
-    """Calculate hypothetical pivot high values (always returns a value)"""
-    series = df['high']
-    roll_left  = series.shift(1).rolling(window=left_bars,  min_periods=left_bars).max()
-    roll_right = series.shift(-1).rolling(window=right_bars, min_periods=right_bars).max()
+    """
+    Calculate pivot high values - a true pivot high is the highest point 
+    within left_bars + 1 + right_bars period (including current bar)
     
-    # Calculate hypothetical pivot high value
-    hypothetical_pivot = series.where(series > roll_left, series)
-    hypothetical_pivot = hypothetical_pivot.where(hypothetical_pivot > roll_right, hypothetical_pivot)
+    Ensures data is sorted and handles edge cases properly.
+    """
+    # Ensure data is sorted by date (index)
+    series = df['high'].sort_index()
     
-    # For periods where we can't calculate a proper pivot, use the high value
-    hypothetical_pivot = hypothetical_pivot.fillna(series)
+    # Create a rolling window that includes current bar and surrounding bars
+    pivot_highs = pd.Series(index=series.index, dtype=float)
     
-    return hypothetical_pivot
+    for i in range(len(series)):
+        # Calculate window boundaries
+        start_idx = max(0, i - left_bars)
+        end_idx = min(len(series), i + right_bars + 1)
+        
+        # Get the window around current bar
+        window = series.iloc[start_idx:end_idx]
+        
+        # Current bar position in the window
+        current_pos_in_window = i - start_idx
+        current_value = window.iloc[current_pos_in_window]
+        
+        # Check if we have enough data for a proper pivot calculation
+        if len(window) < 3:  # Need at least 3 bars for a meaningful pivot
+            pivot_highs.iloc[i] = np.nan
+        else:
+            # Check if current bar is the highest in the window
+            if current_value == window.max():
+                # Additional check: ensure it's not just a flat line
+                if window.max() != window.min():
+                    pivot_highs.iloc[i] = current_value
+                else:
+                    pivot_highs.iloc[i] = np.nan
+            else:
+                pivot_highs.iloc[i] = np.nan
+    
+    return pivot_highs
 
 def pivot_low_vectorized(df, left_bars=3, right_bars=3):
-    """Calculate hypothetical pivot low values (always returns a value)"""
-    series = df['low']
-    roll_left  = series.shift(1).rolling(window=left_bars,  min_periods=left_bars).min()
-    roll_right = series.shift(-1).rolling(window=right_bars, min_periods=right_bars).min()
+    """
+    Calculate pivot low values - a true pivot low is the lowest point 
+    within left_bars + 1 + right_bars period (including current bar)
     
-    # Calculate hypothetical pivot low value
-    hypothetical_pivot = series.where(series < roll_left, series)
-    hypothetical_pivot = hypothetical_pivot.where(hypothetical_pivot < roll_right, hypothetical_pivot)
+    Ensures data is sorted and handles edge cases properly.
+    """
+    # Ensure data is sorted by date (index)
+    series = df['low'].sort_index()
     
-    # For periods where we can't calculate a proper pivot, use the low value
-    hypothetical_pivot = hypothetical_pivot.fillna(series)
+    # Create a rolling window that includes current bar and surrounding bars
+    pivot_lows = pd.Series(index=series.index, dtype=float)
     
-    return hypothetical_pivot
+    for i in range(len(series)):
+        # Calculate window boundaries
+        start_idx = max(0, i - left_bars)
+        end_idx = min(len(series), i + right_bars + 1)
+        
+        # Get the window around current bar
+        window = series.iloc[start_idx:end_idx]
+        
+        # Current bar position in the window
+        current_pos_in_window = i - start_idx
+        current_value = window.iloc[current_pos_in_window]
+        
+        # Check if we have enough data for a proper pivot calculation
+        if len(window) < 3:  # Need at least 3 bars for a meaningful pivot
+            pivot_lows.iloc[i] = np.nan
+        else:
+            # Check if current bar is the lowest in the window
+            if current_value == window.min():
+                # Additional check: ensure it's not just a flat line
+                if window.max() != window.min():
+                    pivot_lows.iloc[i] = current_value
+                else:
+                    pivot_lows.iloc[i] = np.nan
+            else:
+                pivot_lows.iloc[i] = np.nan
+    
+    return pivot_lows
 
 def pivot_high_triggered_vectorized(df, left_bars=3, right_bars=3):
-    """Calculate actual pivot high triggers (only has value when pivot is triggered)"""
-    series = df['high']
-    roll_left  = series.shift(1).rolling(window=left_bars,  min_periods=left_bars).max()
-    roll_right = series.shift(-1).rolling(window=right_bars, min_periods=right_bars).max()
-    cond = (series > roll_left) & (series > roll_right)
-    return series.where(cond, np.nan)
+    """
+    Calculate pivot high triggers - same as pivot_high_vectorized but 
+    returns the actual pivot high values when triggered
+    """
+    return pivot_high_vectorized(df, left_bars, right_bars)
 
 def pivot_low_triggered_vectorized(df, left_bars=3, right_bars=3):
-    """Calculate actual pivot low triggers (only has value when pivot is triggered)"""
-    series = df['low']
-    roll_left  = series.shift(1).rolling(window=left_bars,  min_periods=left_bars).min()
-    roll_right = series.shift(-1).rolling(window=right_bars, min_periods=right_bars).min()
-    cond = (series < roll_left) & (series < roll_right)
-    return series.where(cond, np.nan)
+    """
+    Calculate pivot low triggers - same as pivot_low_vectorized but 
+    returns the actual pivot low values when triggered
+    """
+    return pivot_low_vectorized(df, left_bars, right_bars)
 
 def td_sequential(close, lookback=4):
     count = np.zeros(len(close), dtype=np.float64)
@@ -246,16 +296,32 @@ def process_symbol(symbol, conn_pool):
             conn_pool.putconn(conn)
             return 0
 
-        # Initialize DataFrame
+        # Initialize DataFrame with proper data handling
         df = pd.DataFrame(rows, columns=['date','open','high','low','close','volume'])
         df['date'] = pd.to_datetime(df['date'])
+        
+        # Ensure we have enough data for calculations
+        if len(df) < 30:  # Need at least 30 bars for meaningful technical analysis
+            logging.warning(f"Insufficient data for {symbol}: {len(df)} bars (need at least 30)")
+            conn_pool.putconn(conn)
+            return 0
+        
+        # Sort by date to ensure proper ordering
+        df = df.sort_values('date').reset_index(drop=True)
         df.set_index('date', inplace=True)
         
         # Convert to float once for all calculations
         for col in ['open', 'high', 'low', 'close', 'volume']:
-            df[col] = df[col].astype('float64')
+            df[col] = pd.to_numeric(df[col], errors='coerce')
         
-        df = df.ffill().bfill().dropna()
+        # Handle missing data more carefully - only forward fill, then drop remaining NaN
+        df = df.ffill().dropna()
+        
+        # Final check for sufficient data after cleaning
+        if len(df) < 20:
+            logging.warning(f"Insufficient data after cleaning for {symbol}: {len(df)} bars")
+            conn_pool.putconn(conn)
+            return 0
 
         # --- INDICATORS ---
         # Calculate all indicators at once to avoid redundant operations
@@ -316,12 +382,12 @@ def process_symbol(symbol, conn_pool):
         else:
             df[['bbands_lower', 'bbands_middle', 'bbands_upper']] = np.nan
 
-        # Pivots
-        reset = df.reset_index()
-        df['pivot_high'] = pivot_high_vectorized(reset, 3, 3).values
-        df['pivot_low'] = pivot_low_vectorized(reset, 3, 3).values
-        df['pivot_high_triggered'] = pivot_high_triggered_vectorized(reset, 3, 3).values
-        df['pivot_low_triggered'] = pivot_low_triggered_vectorized(reset, 3, 3).values
+        # Pivots - calculate directly on the DataFrame with date index
+        # No need to reset_index since our pivot functions work with the indexed DataFrame
+        df['pivot_high'] = pivot_high_vectorized(df, 3, 3)
+        df['pivot_low'] = pivot_low_vectorized(df, 3, 3)
+        df['pivot_high_triggered'] = pivot_high_triggered_vectorized(df, 3, 3)
+        df['pivot_low_triggered'] = pivot_low_triggered_vectorized(df, 3, 3)
 
         # Clean data
         df = df.replace([np.inf, -np.inf], np.nan)
