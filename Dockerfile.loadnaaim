@@ -1,6 +1,7 @@
 FROM python:3.11-slim
 
 # Install system dependencies
+# Updated to trigger workflow test
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
