@@ -66,6 +66,10 @@ function fetchWithTimeout(resource, options = {}, timeout = 10000) {
   ]);
 }
 
+function isObject(val) {
+  return val && typeof val === 'object' && !Array.isArray(val);
+}
+
 function ServiceHealth() {  const [environmentInfo, setEnvironmentInfo] = useState({});
   const [testResults, setTestResults] = useState({});
   const [testingInProgress, setTestingInProgress] = useState(false);
@@ -236,15 +240,27 @@ function ServiceHealth() {  const [environmentInfo, setEnvironmentInfo] = useSta
     testAllEndpoints();
   }, []);
 
-  // Combine environment info with database diagnostics
+  // Defensive: ensure dbDiagnostics is always an object
+  const safeDbDiagnostics = isObject(dbDiagnostics) ? dbDiagnostics : {};
+  const safeDiagnostics = isObject(safeDbDiagnostics.diagnostics) ? safeDbDiagnostics.diagnostics : {};
+  const safeTables = isObject(safeDiagnostics.tables) ? safeDiagnostics.tables : {};
+  const safeTableList = Array.isArray(safeTables.list) ? safeTables.list : [];
+
+  // Defensive: ensure summary is an object
+  const safeSummary = isObject(safeDbDiagnostics.summary) ? safeDbDiagnostics.summary : {};
+
+  // Defensive: ensure environmentInfo is an object
+  const safeEnvironmentInfo = isObject(environmentInfo) ? environmentInfo : {};
+
+  // Defensive: ensure combinedEnvironmentInfo is always an object
   const combinedEnvironmentInfo = {
-    ...environmentInfo,
-    Backend: dbDiagnostics?.diagnostics?.environment || {},
-    Database: dbDiagnostics?.summary || {}
+    ...safeEnvironmentInfo,
+    Backend: isObject(safeDiagnostics.environment) ? safeDiagnostics.environment : {},
+    Database: safeSummary
   };
 
-  // Get diagnostic information
-  const diagnosticInfo = getDiagnosticInfo()
+  // Defensive: ensure diagnosticInfo is an object
+  const safeDiagnosticInfo = isObject(diagnosticInfo) ? diagnosticInfo : {};
 
   const getStatusIcon = (status) => {
     switch (status) {
@@ -535,10 +551,10 @@ function ServiceHealth() {  const [environmentInfo, setEnvironmentInfo] = useSta
                     Environment: {dbDiagnostics.diagnostics.environment.NODE_ENV}
                   </Typography>
 
-                  {dbDiagnostics.diagnostics.tables && (
+                  {safeTableList.length > 0 && (
                     <Box sx={{ mt: 2 }}>
                       <Typography variant="subtitle2" gutterBottom>
-                        Table Status ({dbDiagnostics.diagnostics.tables.withData}/{dbDiagnostics.diagnostics.tables.total} with data):
+                        Table Status ({safeTables.withData || 0}/{safeTables.total || 0} with data):
                       </Typography>
                       <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
                         <Table size="small" stickyHeader>
@@ -551,7 +567,7 @@ function ServiceHealth() {  const [environmentInfo, setEnvironmentInfo] = useSta
                             </TableRow>
                           </TableHead>
                           <TableBody>
-                            {dbDiagnostics.diagnostics.tables.list?.map((table) => (
+                            {safeTableList.map((table) => (
                               <TableRow key={table.table_name}>
                                 <TableCell>{table.table_name}</TableCell>
                                 <TableCell align="right">
@@ -569,7 +585,7 @@ function ServiceHealth() {  const [environmentInfo, setEnvironmentInfo] = useSta
                                   />
                                 </TableCell>
                               </TableRow>
-                            )) || []}
+                            ))}
                           </TableBody>
                         </Table>
                       </TableContainer>
@@ -625,25 +641,25 @@ function ServiceHealth() {  const [environmentInfo, setEnvironmentInfo] = useSta
               </Typography>
             </AccordionSummary>
             <AccordionDetails>
-              {combinedEnvironmentInfo && (
+              {isObject(combinedEnvironmentInfo) && Object.keys(combinedEnvironmentInfo).length > 0 && (
                 <TableContainer component={Paper}>
                   <Table size="small">
                     <TableBody>
-                      {combinedEnvironmentInfo && typeof combinedEnvironmentInfo === 'object' && Object.entries(combinedEnvironmentInfo).map(([section, values]) => (
+                      {Object.entries(combinedEnvironmentInfo).map(([section, values]) => (
                         <React.Fragment key={section}>
                           <TableRow>
                             <TableCell colSpan={2} sx={{ fontWeight: 'bold', backgroundColor: 'grey.100' }}>
                               {section}
                             </TableCell>
                           </TableRow>
-                          {values && typeof values === 'object' && Object.entries(values).map(([key, value]) => (
+                          {isObject(values) && Object.entries(values).map(([key, value]) => (
                             <TableRow key={`${section}-${key}`}>
                               <TableCell component="th" scope="row" sx={{ fontWeight: 'bold', pl: 3 }}>
                                 {key}
                               </TableCell>
                               <TableCell>
                                 <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
-                                  {String(value || 'undefined')}
+                                  {String(value ?? 'undefined')}
                                 </Typography>
                               </TableCell>
                             </TableRow>
@@ -668,7 +684,7 @@ function ServiceHealth() {  const [environmentInfo, setEnvironmentInfo] = useSta
               </Typography>
             </AccordionSummary>
             <AccordionDetails>
-              {diagnosticInfo && (
+              {isObject(safeDiagnosticInfo) && Object.keys(safeDiagnosticInfo).length > 0 && (
                 <TableContainer component={Paper}>
                   <Table size="small">
                     <TableBody>
@@ -678,7 +694,7 @@ function ServiceHealth() {  const [environmentInfo, setEnvironmentInfo] = useSta
                         </TableCell>
                         <TableCell>
                           <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
-                            {diagnosticInfo.currentApiUrl || 'Not set'}
+                            {safeDiagnosticInfo.currentApiUrl || 'Not set'}
                           </Typography>
                         </TableCell>
                       </TableRow>
@@ -688,7 +704,7 @@ function ServiceHealth() {  const [environmentInfo, setEnvironmentInfo] = useSta
                         </TableCell>
                         <TableCell>
                           <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
-                            {diagnosticInfo.axiosDefaultBaseUrl || 'Not set'}
+                            {safeDiagnosticInfo.axiosDefaultBaseUrl || 'Not set'}
                           </Typography>
                         </TableCell>
                       </TableRow>
@@ -698,7 +714,7 @@ function ServiceHealth() {  const [environmentInfo, setEnvironmentInfo] = useSta
                         </TableCell>
                         <TableCell>
                           <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
-                            {diagnosticInfo.viteApiUrl || 'Not set'}
+                            {safeDiagnosticInfo.viteApiUrl || 'Not set'}
                           </Typography>
                         </TableCell>
                       </TableRow>
@@ -708,9 +724,9 @@ function ServiceHealth() {  const [environmentInfo, setEnvironmentInfo] = useSta
                         </TableCell>
                         <TableCell>
                           <Chip
-                            icon={getStatusIcon(diagnosticInfo.urlsMatch ? 'success' : 'error')}
-                            label={diagnosticInfo.urlsMatch ? 'Yes' : 'No'}
-                            color={getStatusColor(diagnosticInfo.urlsMatch ? 'success' : 'error')}
+                            icon={getStatusIcon(safeDiagnosticInfo.urlsMatch ? 'success' : 'error')}
+                            label={safeDiagnosticInfo.urlsMatch ? 'Yes' : 'No'}
+                            color={getStatusColor(safeDiagnosticInfo.urlsMatch ? 'success' : 'error')}
                             size="small"
                           />
                         </TableCell>
@@ -721,9 +737,9 @@ function ServiceHealth() {  const [environmentInfo, setEnvironmentInfo] = useSta
                         </TableCell>
                         <TableCell>
                           <Chip
-                            icon={getStatusIcon(diagnosticInfo.isConfigured ? 'success' : 'error')}
-                            label={diagnosticInfo.isConfigured ? 'Yes' : 'No'}
-                            color={getStatusColor(diagnosticInfo.isConfigured ? 'success' : 'error')}
+                            icon={getStatusIcon(safeDiagnosticInfo.isConfigured ? 'success' : 'error')}
+                            label={safeDiagnosticInfo.isConfigured ? 'Yes' : 'No'}
+                            color={getStatusColor(safeDiagnosticInfo.isConfigured ? 'success' : 'error')}
                             size="small"
                           />
                         </TableCell>
