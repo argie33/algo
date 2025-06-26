@@ -42,6 +42,9 @@ const api = axios.create({
   },
 })
 
+// Export the api instance for direct use
+export { api }
+
 // Function to get current base URL
 export const getCurrentBaseURL = () => {
   return currentConfig.baseURL
