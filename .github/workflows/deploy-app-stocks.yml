@@ -207,15 +207,15 @@ jobs:
               - 'requirements-loadbuysell.txt'
             naaim:
               - 'loadnaaim.py'
-              - 'Dockerfile.naaim'
+              - 'Dockerfile.loadnaaim'
               - 'requirements-loadnaaim.txt'
             aaii:
-              - 'loadaaii.py'
-              - 'Dockerfile.aaii'
-              - 'requirements-loadaaii.txt'
+              - 'loadaaiidata.py'
+              - 'Dockerfile.loadaaiidata'
+              - 'requirements-loadaaiidata.txt'
             feargreed:
               - 'loadfeargreed.py'
-              - 'Dockerfile.feargreed'
+              - 'Dockerfile.loadfeargreed'
               - 'requirements-loadfeargreed.txt'
 
       - id: any
@@ -349,9 +349,9 @@ jobs:
             latesttechnicalsdaily)   DOCKERFILE=Dockerfile.latesttechnicalsdaily;   PARAM=LatestTechnicalsDailyImageTag;;\
             latesttechnicalsweekly)  DOCKERFILE=Dockerfile.latesttechnicalsweekly;  PARAM=LatestTechnicalsWeeklyImageTag;;\
             latesttechnicalsmonthly) DOCKERFILE=Dockerfile.latesttechnicalsmonthly; PARAM=LatestTechnicalsMonthlyImageTag;;\
-            naaim)            DOCKERFILE=Dockerfile.naaim;          PARAM=NaaimImageTag;;\
-            aaii)             DOCKERFILE=Dockerfile.aaii;           PARAM=AaiiImageTag;;\
-            feargreed)        DOCKERFILE=Dockerfile.feargreed;      PARAM=FearGreedImageTag;;\
+            naaim)            DOCKERFILE=Dockerfile.loadnaaim;          PARAM=NaaimImageTag;;\
+            aaii)             DOCKERFILE=Dockerfile.loadaaiidata;           PARAM=AaiiImageTag;;\
+            feargreed)        DOCKERFILE=Dockerfile.loadfeargreed;      PARAM=FearGreedImageTag;;\
           esac
           TAG=${{ matrix.loader }}-${{ github.sha }}
           docker buildx build \
