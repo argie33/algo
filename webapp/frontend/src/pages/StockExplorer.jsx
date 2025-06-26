@@ -57,7 +57,7 @@ import {
   Tune,
   InfoOutlined
 } from '@mui/icons-material'
-import api, { screenStocks, getStockPrices, getStockPricesRecent, getEarningsMetrics } from '../services/api'
+import api, { screenStocks, getStockPrices, getStockPricesRecent, getEarningsMetrics, getStockPriceHistory } from '../services/api'
 import { formatCurrency, formatPercentage as formatPercent, formatNumber, getChangeColor, getChangeIcon, getMarketCapCategory } from '../utils/formatters'
 
 // Create component-specific logger
@@ -271,15 +271,13 @@ function StockExplorer() {
       setPriceHistoryModal({ open: true, symbol, data: [], loading: true })
       
       console.log('Fetching comprehensive price history for', symbol)
+      console.log('API base URL:', api.defaults.baseURL)
+      console.log('Full URL will be:', `${api.defaults.baseURL}/stocks/${symbol}/prices?limit=90`)
       
-      // Call the correct price API endpoint for historical data
-      const response = await fetch(`/api/stocks/${symbol}/prices?limit=90`)
+      // Use the new API function for getting stock price history
+      const result = await getStockPriceHistory(symbol, 90)
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      
-      const result = await response.json()
+      console.log('API response received:', result)
       
       if (result.success && result.data) {
         console.log('Comprehensive price history loaded for', symbol, result.data.length, 'records')
@@ -303,6 +301,14 @@ function StockExplorer() {
       }
     } catch (error) {
       console.error('Error fetching comprehensive price history for', symbol, error)
+      console.error('Error details:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        url: error.config?.url,
+        baseURL: error.config?.baseURL
+      })
       
       // Show error in modal
       setPriceHistoryModal({ 
@@ -479,7 +485,38 @@ function StockExplorer() {
               }}
             >
               Test API
-            </Button>          )}
+            </Button>
+          )}
+          
+          {/* Price History API Test Button */}
+          {import.meta.env.DEV && (
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={async () => {
+                try {
+                  console.log('Testing price history API...');
+                  console.log('API base URL:', api.defaults.baseURL);
+                  
+                  // Test with a known stock symbol
+                  const testSymbol = 'AAPL';
+                  const result = await getStockPriceHistory(testSymbol, 5);
+                  console.log('Price history test result:', result);
+                  
+                  if (result.success) {
+                    alert(`Price history API test successful! Found ${result.data.length} records for ${testSymbol}`);
+                  } else {
+                    alert(`Price history API test failed: ${result.error}`);
+                  }
+                } catch (err) {
+                  console.error('Price history API test failed:', err);
+                  alert(`Price history API test failed: ${err.message}`);
+                }
+              }}
+            >
+              Test Price API
+            </Button>
+          )}
           
           {/* Removed view mode toggle - always use advanced table view */}
           

@@ -1031,6 +1031,17 @@ export const getDataValidationSummary = async () => {
   }
 };
 
+// Get comprehensive stock price history
+export const getStockPriceHistory = async (ticker, limit = 90) => {
+  try {
+    const response = await api.get(`/stocks/${ticker}/prices?limit=${limit}`)
+    return response.data
+  } catch (error) {
+    console.error('Error fetching stock price history:', error)
+    throw error
+  }
+}
+
 // Export all methods as a default object for easier importing
 export default {
   healthCheck,
@@ -1091,6 +1102,7 @@ export default {
   getApiConfig,
   getCurrentBaseURL,
   updateApiBaseUrl,
-  getDatabaseHealthFull
+  getDatabaseHealthFull,
+  getStockPriceHistory
 }
 
