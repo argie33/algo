@@ -253,10 +253,61 @@ function TechnicalAnalysis() {
                   </Typography>
                 </Box>
               </Grid>
-              <Grid item xs={12} sm={2}>
-                <Button variant="outlined" size="small" onClick={(e) => { e.stopPropagation(); navigate(`/technical-history/${row.symbol}`); }}>
-                  View History
-                </Button>
+              <Grid item xs={12}>
+                <Divider sx={{ my: 1 }} />
+                <Grid container spacing={2}>
+                  <Grid item xs={2}>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Typography variant="body2" color="text.secondary">Price:</Typography>
+                      <Typography variant="body2" fontWeight="bold">
+                        ${row.current_price ? formatNumber(row.current_price, 2) : 'N/A'}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={2}>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      {row.price_direction && (
+                        getIconComponent(row.price_direction)
+                      )}
+                      <Typography 
+                        variant="body2" 
+                        color={row.price_direction === 'up' ? 'success.main' : row.price_direction === 'down' ? 'error.main' : 'text.secondary'}
+                        fontWeight="bold"
+                      >
+                        {row.price_change_percent ? `${row.price_change_percent > 0 ? '+' : ''}${formatNumber(row.price_change_percent, 2)}%` : 'N/A'}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={2}>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Typography variant="body2" color="text.secondary">Range:</Typography>
+                      <Typography variant="body2" fontWeight="bold">
+                        {row.high_price && row.low_price ? `${formatNumber(row.low_price, 2)} - ${formatNumber(row.high_price, 2)}` : 'N/A'}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={2}>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Typography variant="body2" color="text.secondary">Volume:</Typography>
+                      <Typography variant="body2" fontWeight="bold">
+                        {row.volume ? formatNumber(row.volume) : 'N/A'}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={2}>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Typography variant="body2" color="text.secondary">Open:</Typography>
+                      <Typography variant="body2" fontWeight="bold">
+                        ${row.open_price ? formatNumber(row.open_price, 2) : 'N/A'}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={2}>
+                    <Button variant="outlined" size="small" onClick={(e) => { e.stopPropagation(); navigate(`/technical-history/${row.symbol}`); }}>
+                      View History
+                    </Button>
+                  </Grid>
+                </Grid>
               </Grid>
             </Grid>
           </AccordionSummary>

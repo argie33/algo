@@ -122,9 +122,25 @@ router.get('/:timeframe', async (req, res) => {
           t.pivot_low,
           t.pivot_high_triggered,
           t.pivot_low_triggered,
-          ss.security_name as company_name
+          ss.security_name as company_name,
+          p.close as current_price,
+          p.open as open_price,
+          p.high as high_price,
+          p.low as low_price,
+          p.volume as volume,
+          CASE 
+            WHEN p.close > p.open THEN 'up'
+            WHEN p.close < p.open THEN 'down'
+            ELSE 'flat'
+          END as price_direction,
+          CASE 
+            WHEN p.close > p.open THEN ((p.close - p.open) / p.open * 100)
+            WHEN p.close < p.open THEN ((p.close - p.open) / p.open * 100)
+            ELSE 0
+          END as price_change_percent
         FROM ${tableName} t
         LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
+        LEFT JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
         INNER JOIN (
           SELECT symbol, MAX(date) as max_date
           FROM ${tableName}
@@ -177,9 +193,25 @@ router.get('/:timeframe', async (req, res) => {
           t.pivot_low,
           t.pivot_high_triggered,
           t.pivot_low_triggered,
-          ss.security_name as company_name
+          ss.security_name as company_name,
+          p.close as current_price,
+          p.open as open_price,
+          p.high as high_price,
+          p.low as low_price,
+          p.volume as volume,
+          CASE 
+            WHEN p.close > p.open THEN 'up'
+            WHEN p.close < p.open THEN 'down'
+            ELSE 'flat'
+          END as price_direction,
+          CASE 
+            WHEN p.close > p.open THEN ((p.close - p.open) / p.open * 100)
+            WHEN p.close < p.open THEN ((p.close - p.open) / p.open * 100)
+            ELSE 0
+          END as price_change_percent
         FROM ${tableName} t
         LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
+        LEFT JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
         ${whereClause}
         ORDER BY t.${sortBy} ${sortOrder}, t.symbol ASC
         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -217,7 +249,13 @@ router.get('/:timeframe', async (req, res) => {
       const indicators = [
         'rsi','macd','macd_signal','macd_hist','adx','atr','mfi','roc','mom','sma_10','sma_20','sma_50','sma_150','sma_200','ema_4','ema_9','ema_21','bbands_upper','bbands_middle','bbands_lower','ad','cmf','td_sequential','td_combo','marketwatch','dm','pivot_high','pivot_low','pivot_high_triggered','pivot_low_triggered'
       ];
+      const priceFields = [
+        'current_price','open_price','high_price','low_price','volume','price_change_percent'
+      ];
+      
       const sanitized = { ...row };
+      
+      // Sanitize technical indicators
       indicators.forEach(key => {
         if (sanitized[key] === undefined || sanitized[key] === null || isNaN(sanitized[key])) {
           sanitized[key] = null;
@@ -225,6 +263,21 @@ router.get('/:timeframe', async (req, res) => {
           sanitized[key] = Number(sanitized[key]);
         }
       });
+      
+      // Sanitize price fields
+      priceFields.forEach(key => {
+        if (sanitized[key] === undefined || sanitized[key] === null || isNaN(sanitized[key])) {
+          sanitized[key] = null;
+        } else {
+          sanitized[key] = Number(sanitized[key]);
+        }
+      });
+      
+      // Ensure price_direction is a string
+      if (sanitized.price_direction === undefined || sanitized.price_direction === null) {
+        sanitized.price_direction = 'flat';
+      }
+      
       return sanitized;
     }
     res.json({

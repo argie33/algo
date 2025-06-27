@@ -13,10 +13,35 @@ import {
   Fade,
   Skeleton,
   TextField,
-  Autocomplete
+  Autocomplete,
+  CircularProgress,
+  Alert
 } from '@mui/material';
 import {
-  TrendingUp, TrendingDown, Assessment, Notifications, Event, ListAlt, ShowChart, AccountBalance, Download, ContactSupport, Info, TrendingFlat, ArrowUpward, ArrowDownward
+  TrendingUp,
+  TrendingDown,
+  ArrowUpward,
+  ArrowDownward,
+  Business,
+  AccountBalance,
+  Analytics,
+  Timeline,
+  ShowChart,
+  BookmarkBorder,
+  Bookmark,
+  ExpandMore,
+  FilterList,
+  Clear,
+  Search,
+  ViewList,
+  Tune,
+  InfoOutlined,
+  Notifications,
+  Event,
+  ListAlt,
+  Download,
+  ContactSupport,
+  Info
 } from '@mui/icons-material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
@@ -113,14 +138,15 @@ function TechnicalSignalsWidget() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-technical-signals'],
     queryFn: async () => {
-      // FIX: Use a working endpoint or implement if missing
-      // Try /api/technical/daily?limit=10&sortBy=date
+      // Use the correct endpoint that exists
       const response = await api.get('/api/technical/daily?limit=10&sortBy=date');
       return response.data;
     },
     refetchInterval: 300000
   });
+  
   const signals = data?.data || [];
+  
   return (
     <Card sx={{ mb: 3 }}>
       <CardContent>
@@ -129,9 +155,18 @@ function TechnicalSignalsWidget() {
           <Typography variant="h6" sx={{ fontWeight: 600 }}>Technical Signals</Typography>
         </Box>
         {isLoading ? (
-          <Typography variant="body2" color="text.secondary">Loading technical signals...</Typography>
+          <Box display="flex" alignItems="center" gap={2}>
+            <CircularProgress size={20} />
+            <Typography>Loading technical signals...</Typography>
+          </Box>
         ) : error ? (
-          <Typography variant="body2" color="error">{error.message || 'Error loading technical signals'}</Typography>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            Failed to fetch technical signals: {error.message}
+          </Alert>
+        ) : signals.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            No technical signals available
+          </Typography>
         ) : (
           <Box sx={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', fontSize: 15 }}>
@@ -147,16 +182,18 @@ function TechnicalSignalsWidget() {
                 {signals.map((sig, idx) => (
                   <tr key={sig.symbol + sig.date + idx} style={{ background: idx % 2 ? '#f9f9f9' : 'white' }}>
                     <td>{sig.symbol}</td>
-                    <td>{sig.rsi}</td>
-                    <td>{sig.macd}</td>
-                    <td align="right">{sig.date ? new Date(sig.date).toLocaleDateString() : ''}</td>
+                    <td>{sig.rsi ? formatNumber(sig.rsi, 2) : 'N/A'}</td>
+                    <td>{sig.macd ? formatNumber(sig.macd, 4) : 'N/A'}</td>
+                    <td align="right">{sig.date ? new Date(sig.date).toLocaleDateString() : 'N/A'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </Box>
         )}
-        <Typography variant="caption" color="text.secondary">Live technical signals from your technicals table (daily).</Typography>
+        <Typography variant="caption" color="text.secondary">
+          Live technical signals from your buy/sell tables (daily).
+        </Typography>
       </CardContent>
     </Card>
   );
@@ -168,59 +205,75 @@ function MarketOverviewWidget() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-market-summary'],
     queryFn: async () => {
-      // FIX: Use the correct endpoint from market.js
+      // Use the correct endpoint that exists
       const response = await api.get('/api/market/overview');
       return response.data;
     },
     staleTime: 2 * 60 * 1000
   });
+  
   // Map the data to the expected structure for the widget
   const summary = [
     {
       name: 'S&P 500',
       value: data?.data?.sp500_level ?? data?.sp500_level ?? '--',
       change: data?.data?.sp500_change ?? data?.sp500_change ?? 0,
-      pct: data?.data?.sp500_pct ?? data?.sp500_pct ?? '--'
+      changePercent: data?.data?.sp500_change_percent ?? data?.sp500_change_percent ?? 0
     },
     {
       name: 'NASDAQ',
       value: data?.data?.nasdaq_level ?? data?.nasdaq_level ?? '--',
       change: data?.data?.nasdaq_change ?? data?.nasdaq_change ?? 0,
-      pct: data?.data?.nasdaq_pct ?? data?.nasdaq_pct ?? '--'
+      changePercent: data?.data?.nasdaq_change_percent ?? data?.nasdaq_change_percent ?? 0
     },
     {
       name: 'DOW',
       value: data?.data?.dow_level ?? data?.dow_level ?? '--',
       change: data?.data?.dow_change ?? data?.dow_change ?? 0,
-      pct: data?.data?.dow_pct ?? data?.dow_pct ?? '--'
+      changePercent: data?.data?.dow_change_percent ?? data?.dow_change_percent ?? 0
     }
   ];
+
   return (
     <Card sx={{ mb: 3 }}>
       <CardContent>
         <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>Market Overview</Typography>
         {isLoading ? (
-          <Typography variant="body2" color="text.secondary">Loading market summary...</Typography>
+          <Box display="flex" alignItems="center" gap={2}>
+            <CircularProgress size={20} />
+            <Typography>Loading market data...</Typography>
+          </Box>
         ) : error ? (
-          <Typography variant="body2" color="error">Error loading market summary: {error.message}</Typography>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            Error loading market summary: {error.message}
+          </Alert>
         ) : (
           <Grid container spacing={2}>
-            {summary.map((mkt, idx) => (
-              <Grid item xs={12} sm={4} key={mkt.name}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  {/* Use up/down icon based on change */}
-                  {mkt.change >= 0 ? <ArrowUpward sx={{ color: 'success.main', fontSize: 18 }} /> : <ArrowDownward sx={{ color: 'error.main', fontSize: 18 }} />}
-                  <Box>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>{mkt.name}</Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 700 }}>{mkt.value?.toLocaleString?.() ?? '--'}</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600, color: mkt.change >= 0 ? '#43a047' : '#e53935' }}>{mkt.pct ?? '--'}</Typography>
-                  </Box>
+            {summary.map((item, index) => (
+              <Grid item xs={12} sm={4} key={index}>
+                <Box textAlign="center" p={2} border={1} borderColor="divider" borderRadius={1}>
+                  <Typography variant="h6" fontWeight="bold">
+                    {item.name}
+                  </Typography>
+                  <Typography variant="h5" fontWeight="bold" color="primary">
+                    {typeof item.value === 'number' ? formatCurrency(item.value) : item.value}
+                  </Typography>
+                  <Typography 
+                    variant="body2" 
+                    color={item.change >= 0 ? 'success.main' : 'error.main'}
+                    display="flex" 
+                    alignItems="center" 
+                    justifyContent="center" 
+                    gap={0.5}
+                  >
+                    {item.change >= 0 ? <TrendingUp fontSize="small" /> : <TrendingDown fontSize="small" />}
+                    {formatCurrency(item.change)} ({formatPercent(item.changePercent / 100)})
+                  </Typography>
                 </Box>
               </Grid>
             ))}
           </Grid>
         )}
-        <Typography variant="caption" color="text.secondary">Major indices and market direction</Typography>
       </CardContent>
     </Card>
   );
@@ -277,35 +330,68 @@ function EarningsCalendarWidget({ symbol }) {
 
 // --- ANALYST INSIGHTS WIDGET ---
 function AnalystInsightsWidget({ symbol }) {
-  // Fetch real analyst insights for the selected symbol using API service
+  // Fetch analyst data for the selected symbol
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-analyst-insights', symbol],
     queryFn: async () => {
-      // FIX: Use the correct endpoint from analysts.js
-      const response = await api.get(`/api/analysts/${encodeURIComponent(symbol)}/overview`);
+      // Use the correct endpoint that exists
+      const response = await api.get(`/api/analysts/${symbol}/recommendations`);
       return response.data;
     },
     enabled: !!symbol,
     staleTime: 5 * 60 * 1000
   });
-  // Map upgrades/downgrades from the overview data
-  const upgrades = Array.isArray(data?.data?.earnings_estimates) ? data.data.earnings_estimates.filter(e => e.surprise_percent > 0) : [];
-  const downgrades = Array.isArray(data?.data?.earnings_estimates) ? data.data.earnings_estimates.filter(e => e.surprise_percent < 0) : [];
+
+  const recommendations = data?.recommendations || [];
+  const latestRec = recommendations[0];
+  
+  const upgradeCount = latestRec ? (latestRec.strong_buy || 0) + (latestRec.buy || 0) : 0;
+  const downgradeCount = latestRec ? (latestRec.sell || 0) + (latestRec.strong_sell || 0) : 0;
+
   return (
     <Card sx={{ mb: 3 }}>
       <CardContent>
         <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>Analyst Insights</Typography>
         {isLoading ? (
-          <Typography variant="body2" color="text.secondary">Loading analyst insights...</Typography>
+          <Box display="flex" alignItems="center" gap={2}>
+            <CircularProgress size={20} />
+            <Typography>Loading analyst data...</Typography>
+          </Box>
         ) : error ? (
-          <Typography variant="body2" color="error">Error loading analyst insights: {error.message}</Typography>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            Error loading analyst insights: {error.message}
+          </Alert>
         ) : (
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <Chip label={`Upgrades: ${upgrades.length}`} color="success" />
-            <Chip label={`Downgrades: ${downgrades.length}`} color="error" />
+          <Box>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Latest analyst actions for {symbol}
+            </Typography>
+            {latestRec ? (
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Box textAlign="center" p={2} border={1} borderColor="success.main" borderRadius={1}>
+                    <Typography variant="h6" color="success.main" fontWeight="bold">
+                      {upgradeCount}
+                    </Typography>
+                    <Typography variant="body2">Upgrades</Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={6}>
+                  <Box textAlign="center" p={2} border={1} borderColor="error.main" borderRadius={1}>
+                    <Typography variant="h6" color="error.main" fontWeight="bold">
+                      {downgradeCount}
+                    </Typography>
+                    <Typography variant="body2">Downgrades</Typography>
+                  </Box>
+                </Grid>
+              </Grid>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                No analyst recommendations available
+              </Typography>
+            )}
           </Box>
         )}
-        <Typography variant="caption" color="text.secondary">Latest analyst actions for {symbol}</Typography>
       </CardContent>
     </Card>
   );
@@ -313,50 +399,63 @@ function AnalystInsightsWidget({ symbol }) {
 
 // --- FINANCIAL HIGHLIGHTS WIDGET ---
 function FinancialHighlightsWidget({ symbol }) {
-  // Fetch real financial highlights for the selected symbol using API service
+  // Fetch financial data for the selected symbol
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-financial-highlights', symbol],
     queryFn: async () => {
-      // FIX: Use the correct endpoint from financials.js
-      const response = await api.get(`/api/financials/${encodeURIComponent(symbol)}/key-metrics`);
+      // Use the correct endpoint that exists
+      const response = await api.get(`/api/stocks/${symbol}/metrics`);
       return response.data;
     },
     enabled: !!symbol,
     staleTime: 5 * 60 * 1000
   });
-  // Extract highlights from the key metrics data
-  const highlights = [];
-  const metrics = data?.data;
-  if (metrics) {
-    // Pick a few key metrics for highlights
-    const categories = ['valuation', 'financial_performance', 'growth', 'dividends'];
-    categories.forEach(cat => {
-      if (metrics[cat]) {
-        Object.entries(metrics[cat].metrics).forEach(([label, value]) => {
-          highlights.push({ label, value });
-        });
-      }
-    });
-  }
+
+  const metrics = data || {};
+  
+  const keyMetrics = [
+    { label: 'Market Cap', value: metrics.market_cap, format: formatCurrency },
+    { label: 'P/E Ratio', value: metrics.trailing_pe, format: (val) => val ? formatNumber(val, 2) : 'N/A' },
+    { label: 'EPS', value: metrics.eps_trailing, format: formatCurrency },
+    { label: 'ROE', value: metrics.return_on_equity_pct, format: (val) => val ? formatPercent(val / 100) : 'N/A' },
+    { label: 'Debt/Equity', value: metrics.debt_to_equity, format: (val) => val ? formatNumber(val, 2) : 'N/A' },
+    { label: 'Revenue', value: metrics.total_revenue, format: formatCurrency }
+  ];
+
   return (
     <Card sx={{ mb: 3 }}>
       <CardContent>
         <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>Financial Highlights</Typography>
         {isLoading ? (
-          <Typography variant="body2" color="text.secondary">Loading financial highlights...</Typography>
+          <Box display="flex" alignItems="center" gap={2}>
+            <CircularProgress size={20} />
+            <Typography>Loading financial data...</Typography>
+          </Box>
         ) : error ? (
-          <Typography variant="body2" color="error">Error loading financial highlights: {error.message}</Typography>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            Error loading financial highlights: {error.message}
+          </Alert>
         ) : (
-          <Grid container spacing={2}>
-            {highlights.slice(0, 8).map((item, idx) => (
-              <Grid item xs={6} key={item.label}>
-                <Typography variant="body2" color="text.secondary">{item.label}</Typography>
-                <Typography variant="body2" fontWeight={600}>{item.value}</Typography>
-              </Grid>
-            ))}
-          </Grid>
+          <Box>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Key financial metrics for {symbol}
+            </Typography>
+            <Grid container spacing={2}>
+              {keyMetrics.map((metric, index) => (
+                <Grid item xs={6} sm={4} key={index}>
+                  <Box textAlign="center" p={1}>
+                    <Typography variant="body2" color="text.secondary">
+                      {metric.label}
+                    </Typography>
+                    <Typography variant="body1" fontWeight="bold">
+                      {metric.format(metric.value)}
+                    </Typography>
+                  </Box>
+                </Grid>
+              ))}
+            </Grid>
+          </Box>
         )}
-        <Typography variant="caption" color="text.secondary">Key financial metrics for {symbol}</Typography>
       </CardContent>
     </Card>
   );
@@ -672,11 +771,11 @@ const Dashboard = () => {
               <CardContent sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1 }}>
                 <Box>
                   <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>{mkt.name}</Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 700 }}>{mkt.value.toLocaleString()}</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>{mkt.value?.toLocaleString?.() ?? '--'}</Typography>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   {mkt.icon}
-                  <Typography variant="body2" sx={{ fontWeight: 600, color: mkt.change >= 0 ? '#43a047' : '#e53935' }}>{mkt.pct}</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: mkt.change >= 0 ? '#43a047' : '#e53935' }}>{mkt.pct ?? '--'}</Typography>
                 </Box>
               </CardContent>
             </Card>
