@@ -279,13 +279,27 @@ export const getStocks = async (params = {}) => {
     console.log('Raw Axios Response:', response)
     console.log('Response data:', response.data)
     console.log('Response status:', response.status);
-    const normalized = normalizeApiResponse(response, true) // Array of stocks
-    console.log('Normalized response:', normalized)
-    return normalized
+    console.log('Stocks response structure:', {
+      hasSuccess: 'success' in response.data,
+      hasData: 'data' in response.data,
+      hasPagination: 'pagination' in response.data,
+      hasMetadata: 'metadata' in response.data,
+      dataLength: response.data.data?.length || 0
+    })
+    
+    // The backend returns {success: true, data: [...], pagination: {...}, metadata: {...}}
+    // We need to return the entire response structure, not just the data array
+    return response.data
   } catch (error) {
     console.error('Error fetching stocks:', error)
     const errorMessage = handleApiError(error, 'get stocks')
-    return normalizeApiResponse({ error: errorMessage }, true)
+    return {
+      success: false,
+      data: [],
+      error: errorMessage,
+      pagination: { page: 1, limit: 10, total: 0, totalPages: 0, hasNext: false, hasPrev: false },
+      metadata: { timestamp: new Date().toISOString() }
+    }
   }
 }
 
@@ -769,10 +783,29 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
       }
     })
     const response = await api.get(`/technical/${timeframe}?${queryParams.toString()}`)
-    return normalizeApiResponse(response, true) // Array of technical data
+    console.log('Technical data raw response:', response)
+    console.log('Technical data response data:', response.data)
+    console.log('Technical data response structure:', {
+      hasSuccess: 'success' in response.data,
+      hasData: 'data' in response.data,
+      hasPagination: 'pagination' in response.data,
+      hasMetadata: 'metadata' in response.data,
+      dataLength: response.data.data?.length || 0
+    })
+    
+    // The backend returns {success: true, data: [...], pagination: {...}, metadata: {...}}
+    // We need to return the entire response structure, not just the data array
+    return response.data
   } catch (error) {
+    console.error('Error in getTechnicalData:', error)
     const errorMessage = handleApiError(error, 'get technical data')
-    return { error: errorMessage }
+    return { 
+      success: false,
+      data: [], 
+      error: errorMessage,
+      pagination: { page: 1, limit: 25, total: 0, totalPages: 0, hasNext: false, hasPrev: false },
+      metadata: { timeframe, timestamp: new Date().toISOString() }
+    }
   }
 }
 
