@@ -46,7 +46,7 @@ import {
 } from '@mui/icons-material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
-import { getStockPrices, getStockMetrics, getBuySignals, getSellSignals, getRecentAnalystActions, api } from '../services/api';
+import { getStockPrices, getStockMetrics, getBuySignals, getSellSignals, getRecentAnalystActions, getKeyMetrics, api } from '../services/api';
 import { PieChart, Pie, Cell } from 'recharts';
 import { format } from 'date-fns';
 import { getApiConfig } from '../services/api';
@@ -141,7 +141,7 @@ function TechnicalSignalsWidget() {
     queryKey: ['dashboard-technical-signals'],
     queryFn: async () => {
       // Use the correct endpoint that exists
-      const response = await api.get('/api/technical/daily?limit=10&sortBy=date');
+      const response = await api.get('/technical/daily?limit=10&sortBy=date');
       return response.data;
     },
     refetchInterval: 300000
@@ -208,7 +208,7 @@ function MarketOverviewWidget() {
     queryKey: ['dashboard-market-summary'],
     queryFn: async () => {
       // Use the correct endpoint that exists
-      const response = await api.get('/api/market/overview');
+      const response = await api.get('/market/overview');
       return response.data;
     },
     staleTime: 2 * 60 * 1000
@@ -455,11 +455,7 @@ function FinancialHighlightsWidget({ symbol }) {
   // Fetch financial data for the selected symbol using the same endpoint as FinancialData page
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-financial-highlights', symbol],
-    queryFn: async () => {
-      // Use the same endpoint as FinancialData page - get key metrics
-      const response = await api.get(`/api/financials/${symbol}/key-metrics`);
-      return response.data;
-    },
+    queryFn: () => getKeyMetrics(symbol),
     enabled: !!symbol,
     staleTime: 5 * 60 * 1000
   });
@@ -572,7 +568,7 @@ const Dashboard = () => {
   const { data: symbolListData, isLoading: symbolListLoading, error: symbolListError } = useQuery({
     queryKey: ['dashboard-symbol-list'],
     queryFn: async () => {
-      const response = await api.get('/api/dashboard/symbols');
+      const response = await api.get('/dashboard/symbols');
       return response.data;
     },
     staleTime: 60 * 60 * 1000
@@ -610,7 +606,7 @@ const Dashboard = () => {
   const { data: portfolioData, isLoading: portfolioLoading, error: portfolioError } = useQuery({
     queryKey: ['dashboard-portfolio'],
     queryFn: async () => {
-      const response = await api.get('/api/dashboard/portfolio');
+      const response = await api.get('/dashboard/portfolio');
       return response.data;
     },
     staleTime: 5 * 60 * 1000
@@ -623,7 +619,7 @@ const Dashboard = () => {
   const { data: watchlistData, isLoading: watchlistLoading, error: watchlistError } = useQuery({
     queryKey: ['dashboard-watchlist'],
     queryFn: async () => {
-      const response = await api.get('/api/dashboard/watchlist');
+      const response = await api.get('/dashboard/watchlist');
       return response.data;
     },
     staleTime: 5 * 60 * 1000
@@ -634,7 +630,7 @@ const Dashboard = () => {
   const { data: newsData, isLoading: newsLoading, error: newsError } = useQuery({
     queryKey: ['dashboard-news'],
     queryFn: async () => {
-      const response = await api.get('/api/dashboard/news');
+      const response = await api.get('/dashboard/news');
       return response.data;
     },
     staleTime: 5 * 60 * 1000
@@ -645,7 +641,7 @@ const Dashboard = () => {
   const { data: activityData, isLoading: activityLoading, error: activityError } = useQuery({
     queryKey: ['dashboard-activity'],
     queryFn: async () => {
-      const response = await api.get('/api/dashboard/activity');
+      const response = await api.get('/dashboard/activity');
       return response.data;
     },
     staleTime: 5 * 60 * 1000
@@ -656,7 +652,7 @@ const Dashboard = () => {
   const { data: calendarData, isLoading: calendarLoading, error: calendarError } = useQuery({
     queryKey: ['dashboard-calendar'],
     queryFn: async () => {
-      const response = await api.get('/api/dashboard/calendar');
+      const response = await api.get('/dashboard/calendar');
       return response.data;
     },
     staleTime: 5 * 60 * 1000
@@ -667,7 +663,7 @@ const Dashboard = () => {
   const { data: signalsData, isLoading: signalsLoading, error: signalsError } = useQuery({
     queryKey: ['dashboard-signals'],
     queryFn: async () => {
-      const response = await api.get('/api/dashboard/signals');
+      const response = await api.get('/dashboard/signals');
       return response.data;
     },
     staleTime: 2 * 60 * 1000

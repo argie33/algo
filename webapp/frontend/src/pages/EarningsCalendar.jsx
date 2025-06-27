@@ -38,7 +38,8 @@ import {
   Analytics,
   Event,
   Schedule,
-  AttachMoney
+  AttachMoney,
+  ShowChart
 } from '@mui/icons-material';
 import { formatCurrency, formatPercentage, formatNumber } from '../utils/formatters';
 
