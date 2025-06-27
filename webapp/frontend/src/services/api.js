@@ -1149,6 +1149,7 @@ export default {
   getCurrentBaseURL,
   updateApiBaseUrl,
   getDatabaseHealthFull,
-  getStockPriceHistory
+  getStockPriceHistory,
+  getRecentAnalystActions
 }
 

@@ -439,4 +439,88 @@ router.get('/:ticker/overview', async (req, res) => {
   }
 });
 
+// Get recent analyst actions (upgrades/downgrades) for the most recent day
+router.get('/recent-actions', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    
+    // Get the most recent date with analyst actions
+    const recentDateQuery = `
+      SELECT DISTINCT date 
+      FROM analyst_upgrade_downgrade 
+      ORDER BY date DESC 
+      LIMIT 1
+    `;
+    
+    const recentDateResult = await query(recentDateQuery);
+    
+    if (!recentDateResult.rows || recentDateResult.rows.length === 0) {
+      return res.json({
+        data: [],
+        summary: {
+          date: null,
+          total_actions: 0,
+          upgrades: 0,
+          downgrades: 0
+        },
+        message: 'No analyst actions found'
+      });
+    }
+    
+    const mostRecentDate = recentDateResult.rows[0].date;
+    
+    // Get all actions for the most recent date
+    const recentActionsQuery = `
+      SELECT 
+        aud.symbol,
+        cp.short_name AS company_name,
+        aud.from_grade,
+        aud.to_grade,
+        aud.action,
+        aud.firm,
+        aud.date,
+        aud.details,
+        CASE 
+          WHEN LOWER(aud.action) LIKE '%up%' OR LOWER(aud.action) LIKE '%buy%' OR LOWER(aud.action) LIKE '%positive%' THEN 'upgrade'
+          WHEN LOWER(aud.action) LIKE '%down%' OR LOWER(aud.action) LIKE '%sell%' OR LOWER(aud.action) LIKE '%negative%' THEN 'downgrade'
+          ELSE 'neutral'
+        END as action_type
+      FROM analyst_upgrade_downgrade aud
+      LEFT JOIN company_profile cp ON aud.symbol = cp.ticker
+      WHERE aud.date = $1
+      ORDER BY aud.date DESC, aud.symbol ASC
+      LIMIT $2
+    `;
+    
+    const actionsResult = await query(recentActionsQuery, [mostRecentDate, limit]);
+    
+    // Count action types
+    const actions = actionsResult.rows || [];
+    const upgrades = actions.filter(action => action.action_type === 'upgrade');
+    const downgrades = actions.filter(action => action.action_type === 'downgrade');
+    const neutrals = actions.filter(action => action.action_type === 'neutral');
+    
+    res.json({
+      data: actions,
+      summary: {
+        date: mostRecentDate,
+        total_actions: actions.length,
+        upgrades: upgrades.length,
+        downgrades: downgrades.length,
+        neutrals: neutrals.length
+      },
+      metadata: {
+        timestamp: new Date().toISOString()
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error fetching recent analyst actions:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch recent analyst actions',
+      message: error.message 
+    });
+  }
+});
+
 module.exports = router;

@@ -66,96 +66,126 @@ def sanitize_value(x):
 def pivot_high_vectorized(df, left_bars=3, right_bars=3):
     """
     Calculate pivot high values - Pine Script style pivothigh()
-    Returns the hypothetical trigger value that would cause a pivot high signal
+    Returns the hypothetical pivot high levels that persist until a new pivot is formed
     """
-    series = df['high'].sort_index()
-    pivot_highs = pd.Series(index=series.index, dtype=float)
+    high_series = df['high'].values
+    n = len(high_series)
+    pivot_highs = np.full(n, np.nan)
     
-    for i in range(left_bars, len(series) - right_bars):
-        # Get the window around current bar
-        left_window = series.iloc[i-left_bars:i]
-        current_value = series.iloc[i]
-        right_window = series.iloc[i+1:i+right_bars+1]
+    # Find all pivot high points
+    for i in range(left_bars, n - right_bars):
+        # Check if current bar is highest in the window
+        left_max = np.max(high_series[i-left_bars:i])
+        right_max = np.max(high_series[i+1:i+right_bars+1])
+        current = high_series[i]
         
-        # Check if current bar is the highest in the window
-        if current_value > left_window.max() and current_value > right_window.max():
-            # This is a pivot high - return the hypothetical trigger value
-            # In Pine Script, this would be the high value that triggers the signal
-            pivot_highs.iloc[i] = current_value
-        else:
-            pivot_highs.iloc[i] = np.nan
+        if current > left_max and current > right_max:
+            pivot_highs[i] = current
     
-    return pivot_highs
+    # Forward fill the pivot values (persist until new pivot)
+    last_pivot = np.nan
+    for i in range(n):
+        if not np.isnan(pivot_highs[i]):
+            last_pivot = pivot_highs[i]
+        pivot_highs[i] = last_pivot
+    
+    return pd.Series(pivot_highs, index=df.index)
 
 def pivot_low_vectorized(df, left_bars=3, right_bars=3):
     """
     Calculate pivot low values - Pine Script style pivotlow()
-    Returns the hypothetical trigger value that would cause a pivot low signal
+    Returns the hypothetical pivot low levels that persist until a new pivot is formed
     """
-    series = df['low'].sort_index()
-    pivot_lows = pd.Series(index=series.index, dtype=float)
+    low_series = df['low'].values
+    n = len(low_series)
+    pivot_lows = np.full(n, np.nan)
     
-    for i in range(left_bars, len(series) - right_bars):
-        # Get the window around current bar
-        left_window = series.iloc[i-left_bars:i]
-        current_value = series.iloc[i]
-        right_window = series.iloc[i+1:i+right_bars+1]
+    # Find all pivot low points
+    for i in range(left_bars, n - right_bars):
+        # Check if current bar is lowest in the window
+        left_min = np.min(low_series[i-left_bars:i])
+        right_min = np.min(low_series[i+1:i+right_bars+1])
+        current = low_series[i]
         
-        # Check if current bar is the lowest in the window
-        if current_value < left_window.min() and current_value < right_window.min():
-            # This is a pivot low - return the hypothetical trigger value
-            # In Pine Script, this would be the low value that triggers the signal
-            pivot_lows.iloc[i] = current_value
-        else:
-            pivot_lows.iloc[i] = np.nan
+        if current < left_min and current < right_min:
+            pivot_lows[i] = current
     
-    return pivot_lows
+    # Forward fill the pivot values (persist until new pivot)
+    last_pivot = np.nan
+    for i in range(n):
+        if not np.isnan(pivot_lows[i]):
+            last_pivot = pivot_lows[i]
+        pivot_lows[i] = last_pivot
+    
+    return pd.Series(pivot_lows, index=df.index)
 
 def pivot_high_triggered_vectorized(df, left_bars=3, right_bars=3):
     """
-    Calculate pivot high triggers - returns actual pivot values only when triggered
-    This represents when a pivot high signal is actually generated
+    Calculate pivot high triggers - returns values only when price crosses above pivot high
+    This represents when a pivot high breakout signal is actually generated
     """
-    series = df['high'].sort_index()
-    pivot_highs = pd.Series(index=series.index, dtype=float)
+    high_series = df['high'].values
+    n = len(high_series)
+    pivot_highs = np.full(n, np.nan)
     
-    for i in range(left_bars, len(series) - right_bars):
-        # Get the window around current bar
-        left_window = series.iloc[i-left_bars:i]
-        current_value = series.iloc[i]
-        right_window = series.iloc[i+1:i+right_bars+1]
+    # Find all pivot high points
+    for i in range(left_bars, n - right_bars):
+        # Check if current bar is highest in the window
+        left_max = np.max(high_series[i-left_bars:i])
+        right_max = np.max(high_series[i+1:i+right_bars+1])
+        current = high_series[i]
         
-        # Check if current bar is the highest in the window
-        if current_value > left_window.max() and current_value > right_window.max():
-            # This is a confirmed pivot high - signal is triggered
-            pivot_highs.iloc[i] = current_value
-        else:
-            pivot_highs.iloc[i] = np.nan
+        if current > left_max and current > right_max:
+            pivot_highs[i] = current
     
-    return pivot_highs
+    # Forward fill the pivot values (persist until new pivot)
+    last_pivot = np.nan
+    for i in range(n):
+        if not np.isnan(pivot_highs[i]):
+            last_pivot = pivot_highs[i]
+        pivot_highs[i] = last_pivot
+    
+    # Now check for breakouts - only return value when price crosses above pivot
+    triggered = np.full(n, np.nan)
+    for i in range(1, n):
+        if not np.isnan(pivot_highs[i-1]) and high_series[i] > pivot_highs[i-1]:
+            triggered[i] = pivot_highs[i-1]  # Return the pivot level that was broken
+    
+    return pd.Series(triggered, index=df.index)
 
 def pivot_low_triggered_vectorized(df, left_bars=3, right_bars=3):
     """
-    Calculate pivot low triggers - returns actual pivot values only when triggered
-    This represents when a pivot low signal is actually generated
+    Calculate pivot low triggers - returns values only when price crosses below pivot low
+    This represents when a pivot low breakdown signal is actually generated
     """
-    series = df['low'].sort_index()
-    pivot_lows = pd.Series(index=series.index, dtype=float)
+    low_series = df['low'].values
+    n = len(low_series)
+    pivot_lows = np.full(n, np.nan)
     
-    for i in range(left_bars, len(series) - right_bars):
-        # Get the window around current bar
-        left_window = series.iloc[i-left_bars:i]
-        current_value = series.iloc[i]
-        right_window = series.iloc[i+1:i+right_bars+1]
+    # Find all pivot low points
+    for i in range(left_bars, n - right_bars):
+        # Check if current bar is lowest in the window
+        left_min = np.min(low_series[i-left_bars:i])
+        right_min = np.min(low_series[i+1:i+right_bars+1])
+        current = low_series[i]
         
-        # Check if current bar is the lowest in the window
-        if current_value < left_window.min() and current_value < right_window.min():
-            # This is a confirmed pivot low - signal is triggered
-            pivot_lows.iloc[i] = current_value
-        else:
-            pivot_lows.iloc[i] = np.nan
+        if current < left_min and current < right_min:
+            pivot_lows[i] = current
     
-    return pivot_lows
+    # Forward fill the pivot values (persist until new pivot)
+    last_pivot = np.nan
+    for i in range(n):
+        if not np.isnan(pivot_lows[i]):
+            last_pivot = pivot_lows[i]
+        pivot_lows[i] = last_pivot
+    
+    # Now check for breakdowns - only return value when price crosses below pivot
+    triggered = np.full(n, np.nan)
+    for i in range(1, n):
+        if not np.isnan(pivot_lows[i-1]) and low_series[i] < pivot_lows[i-1]:
+            triggered[i] = pivot_lows[i-1]  # Return the pivot level that was broken
+    
+    return pd.Series(triggered, index=df.index)
 
 def td_sequential(close, lookback=4):
     count = np.zeros(len(close), dtype=np.float64)

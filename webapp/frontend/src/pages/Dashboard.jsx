@@ -46,7 +46,7 @@ import {
 } from '@mui/icons-material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
-import { getStockPrices, getStockMetrics, getBuySignals, getSellSignals, api } from '../services/api';
+import { getStockPrices, getStockMetrics, getBuySignals, getSellSignals, getRecentAnalystActions, api } from '../services/api';
 import { PieChart, Pie, Cell } from 'recharts';
 import { format } from 'date-fns';
 import { getApiConfig } from '../services/api';
@@ -332,71 +332,115 @@ function EarningsCalendarWidget({ symbol }) {
 
 // --- ANALYST INSIGHTS WIDGET ---
 function AnalystInsightsWidget({ symbol }) {
-  // Fetch analyst data for the selected symbol using the same endpoint as AnalystInsights page
+  // Fetch recent analyst actions across all stocks using the new endpoint
   const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboard-analyst-insights', symbol],
-    queryFn: async () => {
-      // Use the same endpoint as AnalystInsights page - get recent upgrades/downgrades
-      const params = new URLSearchParams({
-        page: 1,
-        limit: 10
-      });
-      const response = await fetch(`${API_BASE}/analysts/upgrades?${params}`);
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Failed to fetch analyst data: ${response.status} ${text}`);
-      }
-      return response.json();
-    },
-    enabled: !!symbol,
-    staleTime: 5 * 60 * 1000
+    queryKey: ['dashboard-recent-analyst-actions'],
+    queryFn: () => getRecentAnalystActions(8),
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 300000 // Refresh every 5 minutes
   });
 
-  // Filter data for the selected symbol
-  const symbolData = data?.data?.filter(item => item.symbol === symbol) || [];
-  const upgrades = symbolData.filter(item => item.action?.toLowerCase() === 'up');
-  const downgrades = symbolData.filter(item => item.action?.toLowerCase() === 'down');
+  const actions = data?.data || [];
+  const summary = data?.summary || {};
 
   return (
     <Card sx={{ mb: 3 }}>
       <CardContent>
-        <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>Analyst Insights</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>Recent Analyst Actions</Typography>
+          {summary.date && (
+            <Chip 
+              label={new Date(summary.date).toLocaleDateString()} 
+              size="small" 
+              color="primary" 
+              variant="outlined"
+            />
+          )}
+        </Box>
         {isLoading ? (
           <Box display="flex" alignItems="center" gap={2}>
             <CircularProgress size={20} />
-            <Typography>Loading analyst data...</Typography>
+            <Typography>Loading analyst actions...</Typography>
           </Box>
         ) : error ? (
           <Alert severity="error" sx={{ mb: 2 }}>
-            Error loading analyst insights: {error.message}
+            Error loading analyst actions: {error.message}
           </Alert>
+        ) : actions.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            No recent analyst actions available
+          </Typography>
         ) : (
           <Box>
-            <Typography variant="body2" color="text.secondary" gutterBottom>
-              Latest analyst actions for {symbol}
-            </Typography>
-            {symbolData.length > 0 ? (
-              <Grid container spacing={2}>
-                <Grid item xs={6}>
-                  <Box textAlign="center" p={2} border={1} borderColor="success.main" borderRadius={1}>
-                    <Typography variant="h6" color="success.main" fontWeight="bold">
-                      {upgrades.length}
-                    </Typography>
-                    <Typography variant="body2">Upgrades</Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={6}>
-                  <Box textAlign="center" p={2} border={1} borderColor="error.main" borderRadius={1}>
-                    <Typography variant="h6" color="error.main" fontWeight="bold">
-                      {downgrades.length}
-                    </Typography>
-                    <Typography variant="body2">Downgrades</Typography>
-                  </Box>
-                </Grid>
+            {/* Summary stats */}
+            <Grid container spacing={1} sx={{ mb: 2 }}>
+              <Grid item xs={4}>
+                <Box textAlign="center" p={1} border={1} borderColor="success.main" borderRadius={1}>
+                  <Typography variant="h6" color="success.main" fontWeight="bold">
+                    {summary.upgrades || 0}
+                  </Typography>
+                  <Typography variant="caption">Upgrades</Typography>
+                </Box>
               </Grid>
-            ) : (
-              <Typography variant="body2" color="text.secondary">
-                No analyst actions available for {symbol}
+              <Grid item xs={4}>
+                <Box textAlign="center" p={1} border={1} borderColor="error.main" borderRadius={1}>
+                  <Typography variant="h6" color="error.main" fontWeight="bold">
+                    {summary.downgrades || 0}
+                  </Typography>
+                  <Typography variant="caption">Downgrades</Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={4}>
+                <Box textAlign="center" p={1} border={1} borderColor="warning.main" borderRadius={1}>
+                  <Typography variant="h6" color="warning.main" fontWeight="bold">
+                    {summary.total_actions || 0}
+                  </Typography>
+                  <Typography variant="caption">Total</Typography>
+                </Box>
+              </Grid>
+            </Grid>
+            
+            {/* Recent actions list */}
+            <Box sx={{ maxHeight: 200, overflowY: 'auto' }}>
+              {actions.slice(0, 6).map((action, index) => (
+                <Box 
+                  key={`${action.symbol}-${action.date}-${index}`} 
+                  sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center',
+                    py: 1,
+                    borderBottom: index < actions.length - 1 ? '1px solid #f0f0f0' : 'none'
+                  }}
+                >
+                  <Box>
+                    <Typography variant="body2" fontWeight="bold">
+                      {action.symbol}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {action.company_name || action.symbol}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ textAlign: 'right' }}>
+                    <Chip 
+                      label={action.action_type === 'upgrade' ? 'Upgrade' : 
+                             action.action_type === 'downgrade' ? 'Downgrade' : 'Neutral'}
+                      size="small"
+                      color={action.action_type === 'upgrade' ? 'success' : 
+                             action.action_type === 'downgrade' ? 'error' : 'default'}
+                      variant="outlined"
+                    />
+                    <Typography variant="caption" display="block" color="text.secondary">
+                      {action.firm}
+                    </Typography>
+                  </Box>
+                </Box>
+              ))}
+            </Box>
+            
+            {actions.length > 6 && (
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                Showing 6 of {actions.length} recent actions
               </Typography>
             )}
           </Box>
