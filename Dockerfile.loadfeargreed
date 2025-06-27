@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-# Install system dependencies including Chrome 
+# Install system dependencies including Chromium 
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
@@ -29,13 +29,7 @@ RUN apt-get update && apt-get install -y \
     libcairo2 \
     libgdk-pixbuf2.0-0 \
     libpango-1.0-0 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Google Chrome (architecture-agnostic)
-RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [arch=$(dpkg --print-architecture)] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list \
-    && apt-get update \
-    && apt-get install -y google-chrome-stable \
+    chromium \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -51,9 +45,9 @@ COPY loadfeargreed.py .
 # Make script executable
 RUN chmod +x loadfeargreed.py
 
-# Set environment variables for Chrome
-ENV CHROME_BIN=/usr/bin/google-chrome
-ENV CHROME_PATH=/usr/bin/google-chrome
+# Set environment variables for Chromium
+ENV CHROME_BIN=/usr/bin/chromium
+ENV CHROME_PATH=/usr/bin/chromium
 
 # Run the script
 CMD ["python", "loadfeargreed.py"] 

@@ -96,6 +96,7 @@ async def get_fear_greed_data():
             
             # Launch browser with appropriate arguments for containerized environment
             browser = await launch(
+                executablePath='/usr/bin/chromium',
                 args=[
                     "--no-sandbox",
                     "--disable-setuid-sandbox",
