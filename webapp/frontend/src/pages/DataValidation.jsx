@@ -32,11 +32,14 @@ import {
   Storage,
   Assessment,
   TrendingUp,
-  ShowChart,
-  Timeline,
-  DataUsage,
-  Refresh,
-  Search
+  TrendingDown,
+  HorizontalRule,
+  Analytics,
+  CheckCircle,
+  Error,
+  Warning,
+  Info,
+  DataUsage
 } from '@mui/icons-material';
 import { formatNumber, formatDate } from '../utils/formatters';
 import { 
@@ -350,7 +353,7 @@ function DataValidation() {
             title="Last Updated"
             value={summaryData?.generated_at ? formatDate(summaryData.generated_at) : 'Never'}
             subtitle="Summary generated"
-            icon={<Assessment />}
+            icon={<Analytics />}
             color="warning.main"
           />
         </Grid>
@@ -384,13 +387,13 @@ function DataValidation() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)} sx={{ mb: 3 }}>
-        <Tab label="Summary" icon={<Assessment />} />
+        <Tab label="Summary" icon={<Analytics />} />
         <Tab label="EPS Revisions" icon={<TrendingUp />} />
         <Tab label="EPS Trend" icon={<Timeline />} />
         <Tab label="Growth Estimates" icon={<ShowChart />} />
         <Tab label="Technical Data" icon={<Timeline />} />
         <Tab label="Market Data" icon={<DataUsage />} />
-        <Tab label="Economic Data" icon={<Assessment />} />
+        <Tab label="Economic Data" icon={<Analytics />} />
       </Tabs>
 
       {/* Tab Content */}

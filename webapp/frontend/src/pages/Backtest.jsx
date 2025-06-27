@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box, Container, Typography, Card, CardContent, Button, TextField, MenuItem, Grid, CircularProgress, Alert, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip
 } from '@mui/material';
-import { Assessment, PlayArrow, Refresh } from '@mui/icons-material';
+import { Analytics, PlayArrow, Refresh } from '@mui/icons-material';
 import Autocomplete from '@mui/material/Autocomplete';
 import { Line } from 'react-chartjs-2';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
@@ -386,7 +386,7 @@ export default function Backtest() {
   return (
     <Container maxWidth="md" sx={{ py: 4 }}>
       <Box display="flex" alignItems="center" gap={2} mb={3}>
-        <Assessment color="primary" fontSize="large" />
+        <Analytics color="primary" fontSize="large" />
         <Typography variant="h4" fontWeight="bold">Backtester</Typography>
         <Tooltip title="Start a new blank strategy" arrow><Button variant="outlined" sx={{ ml: 2 }} onClick={() => { setPythonCode(''); setParams(defaultParams); setStrategyParams({}); setResult(null); setError(null); }}>New Strategy</Button></Tooltip>
       </Box>

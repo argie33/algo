@@ -934,7 +934,7 @@ const Dashboard = () => {
           <Card>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                <Assessment sx={{ color: 'secondary.main', mr: 1 }} />
+                <Analytics sx={{ color: 'secondary.main', mr: 1 }} />
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>Risk & Stats ({selectedSymbol})</Typography>
               </Box>
               {metricsLoading ? (

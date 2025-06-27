@@ -32,6 +32,9 @@ import {
   Assessment,
   Timeline,
   TrendingUp,
+  TrendingDown,
+  HorizontalRule,
+  Analytics,
   Search,
   BusinessCenter,
   ShowChart
@@ -407,7 +410,7 @@ function FinancialData() {
         {/* Tabs */}        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
           <Tabs value={tabValue} onChange={handleTabChange}>
             <Tab label="Balance Sheet" icon={<AccountBalance />} />
-            <Tab label="Income Statement" icon={<Assessment />} />
+            <Tab label="Income Statement" icon={<Analytics />} />
             <Tab label="Cash Flow" icon={<Timeline />} />
             <Tab label="Key Metrics" icon={<ShowChart />} />
           </Tabs>
@@ -434,7 +437,7 @@ function FinancialData() {
           ) : incomeStatementError ? (
             <Alert severity="error">Failed to load income statement: {incomeStatementError.message}</Alert>
           ) : (
-            renderFinancialTable(incomeStatement, 'Income Statement', <Assessment />)
+            renderFinancialTable(incomeStatement, 'Income Statement', <Analytics />)
           )}
         </TabPanel>
 

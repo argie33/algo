@@ -28,8 +28,7 @@ import {
   TrendingUp,
   TrendingDown,
   HorizontalRule,
-  Assessment,
-  Person
+  Analytics
 } from '@mui/icons-material';
 import { formatCurrency, formatPercentage } from '../utils/formatters';
 
@@ -91,7 +90,7 @@ function AnalystInsights() {
       'up': { color: '#10B981', icon: <TrendingUp />, label: 'Upgrade' },
       'down': { color: '#DC2626', icon: <TrendingDown />, label: 'Downgrade' },
       'main': { color: '#3B82F6', icon: <HorizontalRule />, label: 'Maintains' },
-      'init': { color: '#8B5CF6', icon: <Assessment />, label: 'Initiates' },
+      'init': { color: '#8B5CF6', icon: <Analytics />, label: 'Initiates' },
       'resume': { color: '#10B981', icon: <TrendingUp />, label: 'Resume' },
       'reit': { color: '#F59E0B', icon: <HorizontalRule />, label: 'Reiterate' }
     };
@@ -266,7 +265,7 @@ function AnalystInsights() {
             title="Initiates"
             value={initiates.length}
             subtitle="New coverage"
-            icon={<Assessment />}
+            icon={<Analytics />}
             color="#8B5CF6"
           />
         </Grid>
@@ -275,7 +274,7 @@ function AnalystInsights() {
             title="Total Actions"
             value={upgradesData?.data?.length || 0}
             subtitle="All analyst actions"
-            icon={<Person />}
+            icon={<HorizontalRule />}
             color="#3B82F6"
           />
         </Grid>

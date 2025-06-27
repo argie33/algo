@@ -23,7 +23,7 @@ import {
   Alert,
   TablePagination
 } from '@mui/material'
-import { TrendingUp, TrendingDown, Assessment } from '@mui/icons-material'
+import { TrendingUp, TrendingDown, Analytics } from '@mui/icons-material'
 import { formatCurrency, formatPercentage } from '../utils/formatters'
 
 // Simple logger replacement to prevent build errors
@@ -268,7 +268,7 @@ function TradingSignals() {
             title="Analysis Period"
             value={`${performanceData?.period_days || 0} days`}
             subtitle="Signal performance tracking"
-            icon={<Assessment />}
+            icon={<Analytics />}
             color="#3B82F6"
           />
         </Grid>

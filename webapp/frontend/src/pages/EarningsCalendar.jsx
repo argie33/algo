@@ -34,11 +34,11 @@ import {
   EventNote,
   TrendingUp,
   TrendingDown,
-  Assessment,
-  CalendarToday,
-  MonetizationOn,
-  ShowChart,
-  Timeline
+  HorizontalRule,
+  Analytics,
+  Event,
+  Schedule,
+  AttachMoney
 } from '@mui/icons-material';
 import { formatCurrency, formatPercentage, formatNumber } from '../utils/formatters';
 
@@ -156,8 +156,8 @@ function EarningsCalendar() {
   const getEventTypeChip = (eventType) => {
     const typeConfig = {
       'earnings': { color: '#3B82F6', icon: <ShowChart />, label: 'Earnings' },
-      'dividend': { color: '#10B981', icon: <MonetizationOn />, label: 'Dividend' },
-      'split': { color: '#8B5CF6', icon: <Assessment />, label: 'Stock Split' },
+      'dividend': { color: '#10B981', icon: <AttachMoney />, label: 'Dividend' },
+      'split': { color: '#8B5CF6', icon: <Analytics />, label: 'Stock Split' },
       'meeting': { color: '#F59E0B', icon: <EventNote />, label: 'Meeting' }
     };
 
@@ -409,7 +409,7 @@ function EarningsCalendar() {
             title="Upcoming Events"
             value={calendarData?.summary?.upcoming_events || 0}
             subtitle="Next 30 days"
-            icon={<CalendarToday />}
+            icon={<Schedule />}
             color="#3B82F6"
           />
         </Grid>
@@ -436,7 +436,7 @@ function EarningsCalendar() {
             title="Estimates Updated"
             value={estimatesData?.summary?.recent_updates || 0}
             subtitle="Last 7 days"
-            icon={<Assessment />}
+            icon={<Analytics />}
             color="#8B5CF6"
           />
         </Grid>
@@ -452,12 +452,12 @@ function EarningsCalendar() {
       {/* Tabs */}
       <Box mb={3}>
         <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
-          <Tab label="Calendar Events" icon={<CalendarToday />} />
+          <Tab label="Calendar Events" icon={<Schedule />} />
           <Tab label="Earnings Estimates" icon={<ShowChart />} />
-          <Tab label="Earnings History" icon={<Assessment />} />
+          <Tab label="Earnings History" icon={<Analytics />} />
           <Tab label="EPS Revisions" icon={<TrendingUp />} />
           <Tab label="EPS Trend" icon={<TrendingDown />} />
-          <Tab label="Earnings Metrics" icon={<Timeline />} />
+          <Tab label="Earnings Metrics" icon={<HorizontalRule />} />
         </Tabs>
       </Box>
 
