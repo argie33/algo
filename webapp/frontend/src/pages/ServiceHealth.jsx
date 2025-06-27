@@ -83,11 +83,6 @@ function ServiceHealth() {
   const apiConfig = useMemo(() => getApiConfig(), []);
   const currentBaseURL = useMemo(() => getCurrentBaseURL(), []);
 
-  // Defensive: fallback if diagnosticInfo is missing or not an object
-  if (!diagnosticInfo || typeof diagnosticInfo !== 'object') {
-    return <Container maxWidth="md" sx={{ py: 4 }}><Alert severity="info">Loading diagnostics...</Alert></Container>;
-  }
-
   // Component error handler
   useEffect(() => {
     const handleError = (event) => {
@@ -98,6 +93,7 @@ function ServiceHealth() {
     window.addEventListener('error', handleError);
     return () => window.removeEventListener('error', handleError);
   }, []);
+
   // Early return if component has error
   if (componentError) {
     return (
@@ -115,34 +111,21 @@ function ServiceHealth() {
     );
   }
 
-  // Comprehensive endpoint tests - memoized to prevent recreation
+  // Simplified endpoint tests - only test essential endpoints
   const endpoints = useMemo(() => [
-    { name: 'Health', fn: () => healthCheck(), critical: true },
-    { name: 'Health (Quick)', fn: () => healthCheck('?quick=true'), critical: true },
-    { name: 'Database Health', fn: () => fetch(getCurrentBaseURL() + '/health/database').then(r => r.json()), critical: true },
-    { name: 'Database Connection', fn: () => fetch(getCurrentBaseURL() + '/health/test-connection').then(r => r.json()), critical: true },
-    { name: 'Database Diagnostics', fn: () => fetch(getCurrentBaseURL() + '/health/database/diagnostics').then(r => r.json()), critical: true },
-    { name: 'Financial Tables Debug', fn: () => fetch(getCurrentBaseURL() + '/financials/debug/tables').then(r => r.json()), critical: false },
-    { name: 'Technical Columns Debug', fn: () => fetch(getCurrentBaseURL() + '/technical/debug/columns').then(r => r.json()), critical: false },
+    { name: 'Health Check', fn: () => healthCheck(), critical: true },
     { name: 'API Connection', fn: () => testApiConnection(), critical: true },
     { name: 'Stocks', fn: () => getStocks({ limit: 5 }), critical: true },
-    { name: 'Technical Daily', fn: () => getTechnicalData('daily', { limit: 5 }), critical: true },
-    { name: 'Technical Weekly', fn: () => getTechnicalData('weekly', { limit: 5 }), critical: false },
-    { name: 'Technical Monthly', fn: () => getTechnicalData('monthly', { limit: 5 }), critical: false },
+    { name: 'Technical Data', fn: () => getTechnicalData('daily', { limit: 5 }), critical: true },
     { name: 'Market Overview', fn: () => getMarketOverview(), critical: true },
-    { name: 'Data Validation', fn: () => getDataValidationSummary(), critical: true },
-    { name: 'Stock Screener', fn: () => screenStocks({ limit: 5 }), critical: true },
-    { name: 'Balance Sheet', fn: () => getBalanceSheet('AAPL'), critical: false },
-    { name: 'Income Statement', fn: () => getIncomeStatement('AAPL'), critical: false },
-    { name: 'Cash Flow', fn: () => getCashFlowStatement('AAPL'), critical: false },
-    { name: 'Buy Signals', fn: () => getBuySignals({ limit: 5 }), critical: false },
-    { name: 'Sell Signals', fn: () => getSellSignals({ limit: 5 }), critical: false },
-    { name: 'Earnings Estimates', fn: () => getEarningsEstimates({ limit: 5 }), critical: false },
+    { name: 'Stock Screener', fn: () => screenStocks({ limit: 5 }), critical: false },
+    { name: 'Buy Signals', fn: () => getBuySignals(), critical: false },
+    { name: 'Sell Signals', fn: () => getSellSignals(), critical: false },
     { name: 'NAAIM Data', fn: () => getNaaimData({ limit: 5 }), critical: false },
     { name: 'Fear & Greed', fn: () => getFearGreedData({ limit: 5 }), critical: false }
-  ], []); // Empty dependency array since these functions don't change
+  ], []);
 
-  // Test all endpoints - memoized with useCallback to prevent infinite re-renders
+  // Test all endpoints
   const testAllEndpoints = useCallback(async () => {
     setTestingInProgress(true);
     const results = {};
@@ -177,65 +160,57 @@ function ServiceHealth() {
     }
     setTestResults(results);
     setTestingInProgress(false);
-  }, [endpoints]); // Now depends on the memoized endpoints array
+  }, [endpoints]);
 
-  // Health check query
+  // Health check query - simplified
   const { data: healthData, isLoading: healthLoading, error: healthError, refetch: refetchHealth } = useQuery({
     queryKey: ['serviceHealth'],
     queryFn: async () => {
-      console.log('=== HEALTH CHECK ===');
-      console.log('Testing health endpoint:', getCurrentBaseURL() + '/health');
-      
       try {
         const result = await healthCheck();
-        console.log('Health check success:', result);
         return result;
       } catch (error) {
         console.error('Health check failed:', error);
         throw error;
       }
     },
-    refetchInterval: false, // Don't auto-refresh to avoid spam
+    refetchInterval: false,
     retry: 1,
     staleTime: 30000,
-    enabled: false // Don't auto-run, only run when manually triggered
+    enabled: false // Don't auto-run
   });
-  // Database diagnostics query
-  const { data: dbDiagnostics, isLoading: dbLoading, error: dbError, refetch: refetchDb } = useQuery({
-    queryKey: ['databaseDiagnostics'],
+
+  // Simple database health check - removed complex diagnostics
+  const { data: dbHealth, isLoading: dbLoading, error: dbError, refetch: refetchDb } = useQuery({
+    queryKey: ['databaseHealth'],
     queryFn: async () => {
-      const url = getCurrentBaseURL() + '/health/database/diagnostics';
-      console.log('Fetching database diagnostics from:', url);
-      let response;
       try {
-        response = await fetchWithTimeout(url, { method: 'GET', headers: { 'Content-Type': 'application/json' } }, 10000);
-      } catch (err) {
-        throw new Error(`Failed to fetch ${url}: ${err.message}`);
+        // Try the simple database health endpoint
+        const response = await fetchWithTimeout(
+          getCurrentBaseURL() + '/health/database', 
+          { method: 'GET', headers: { 'Content-Type': 'application/json' } }, 
+          5000
+        );
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error('Database health check failed:', error);
+        throw error;
       }
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
-      }
-      const data = await response.json();
-      if (!data || typeof data !== 'object' || (!data.diagnostics && !data.summary)) {
-        throw new Error('Unexpected diagnostics API response structure: ' + JSON.stringify(data));
-      }
-      return data;
     },
-    refetchInterval: false, // Don't auto-refresh to avoid spam
-    retry: 1, // Only retry once
+    refetchInterval: false,
+    retry: 1,
     staleTime: 30000,
-    enabled: true // Auto-run on mount so diagnostics load automatically
+    enabled: true // Auto-run on mount
   });
+
   // Gather environment information
   useEffect(() => {
-    console.log('=== SERVICE HEALTH DEBUG INFO ===')
-    console.log('API Config:', apiConfig)
-    console.log('Diagnostic Info:', diagnosticInfo)
-    console.log('Current Base URL:', currentBaseURL)
-    console.log('Window Location:', window.location.href)
-    console.log('Environment Variables:', import.meta.env)
-    
     const env = {
       Frontend: {
         ...apiConfig,
@@ -248,50 +223,14 @@ function ServiceHealth() {
       }
     };
     setEnvironmentInfo(env);
-    
-    // Removed testAllEndpoints() call to prevent infinite re-render loop
-    // Tests will only run when user clicks the "Test All Endpoints" button
   }, [apiConfig, diagnosticInfo, currentBaseURL]);
 
-  // Defensive: ensure dbDiagnostics is always an object
-  const safeDbDiagnostics = isObject(dbDiagnostics) ? dbDiagnostics : {};
-  const safeDiagnostics = isObject(safeDbDiagnostics.diagnostics) ? safeDbDiagnostics.diagnostics : {};
-  const safeTables = isObject(safeDiagnostics.tables) ? safeDiagnostics.tables : {};
-  const safeTableList = Array.isArray(safeTables.list) ? safeTables.list : [];
-
-  // Defensive: ensure summary is an object
-  const safeSummary = isObject(safeDbDiagnostics.summary) ? safeDbDiagnostics.summary : {};
-
-  // Defensive: ensure environmentInfo is an object
+  // Safe data extraction
+  const safeHealthData = isObject(healthData) ? healthData : {};
+  const safeDbHealth = isObject(dbHealth) ? dbHealth : {};
+  const safeTestResults = isObject(testResults) ? testResults : {};
   const safeEnvironmentInfo = isObject(environmentInfo) ? environmentInfo : {};
-
-  // Defensive: ensure combinedEnvironmentInfo is always an object
-  const combinedEnvironmentInfo = {
-    ...safeEnvironmentInfo,
-    Backend: isObject(safeDiagnostics.environment) ? safeDiagnostics.environment : {},
-    Database: safeSummary
-  };
-
-  // Defensive: ensure diagnosticInfo is an object
   const safeDiagnosticInfo = isObject(diagnosticInfo) ? diagnosticInfo : {};
-
-  // Defensive: fallback for testResults
-  const safeTestResults = (testResults && typeof testResults === 'object') ? testResults : {};
-
-  // Defensive: fallback for healthData
-  const safeHealthData = (typeof healthData === 'object' && healthData !== null) ? healthData : {};
-
-  // Defensive: fallback for dbError
-  const safeDbError = dbError || null;
-
-  // Defensive: fallback for dbLoading
-  const safeDbLoading = typeof dbLoading === 'boolean' ? dbLoading : false;
-
-  // Defensive: fallback for healthError
-  const safeHealthError = healthError || null;
-
-  // Defensive: fallback for healthLoading
-  const safeHealthLoading = typeof healthLoading === 'boolean' ? healthLoading : false;
 
   const getStatusIcon = (status) => {
     switch (status) {
@@ -341,9 +280,9 @@ function ServiceHealth() {
         <Grid item xs={12} md={3}>
           <Card>
             <CardContent sx={{ textAlign: 'center' }}>
-              {safeHealthLoading ? (
+              {healthLoading ? (
                 <CircularProgress />
-              ) : safeHealthError ? (
+              ) : healthError ? (
                 <>
                   <Error color="error" sx={{ fontSize: 40, mb: 1 }} />
                   <Typography variant="h6" color="error">
@@ -368,7 +307,10 @@ function ServiceHealth() {
                 Refresh
               </Button>
             </CardContent>
-          </Card></Grid> <Grid item xs={12} md={3}>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={3}>
           <Card>
             <CardContent sx={{ textAlign: 'center' }}>
               <Api sx={{ fontSize: 40, mb: 1, color: 'primary.main' }} />
@@ -393,18 +335,13 @@ function ServiceHealth() {
                 Database
               </Typography>
               <Typography variant="body2" color="textSecondary">
-                {(dbDiagnostics && dbDiagnostics.diagnostics && dbDiagnostics.diagnostics.connection?.status === 'connected') ? 'Connected' :
+                {(dbHealth && dbHealth.healthSummary?.dbConnection === 'connected') ? 'Connected' :
                  safeHealthData?.database?.status === 'connected' ? 'Connected' :
-                 safeDbLoading ? 'Checking...' : 'Unknown'}
+                 dbLoading ? 'Checking...' : 'Unknown'}
               </Typography>
-              {(dbDiagnostics && dbDiagnostics.diagnostics && dbDiagnostics.diagnostics.database?.name) && (
-                <Typography variant="caption" display="block" sx={{ mt: 1 }}>
-                  {dbDiagnostics.diagnostics.database.name}
-                </Typography>
-              )}
-              {safeDbError && (
+              {dbError && (
                 <Alert severity="error" sx={{ mt: 2 }}>
-                  Failed to load database diagnostics: {safeDbError.message}
+                  Failed to load database health: {dbError.message}
                 </Alert>
               )}
             </CardContent>
@@ -419,7 +356,6 @@ function ServiceHealth() {
                 Environment
               </Typography>
               <Typography variant="body2" color="textSecondary">
-                {/* Show a friendly environment name. Default to 'Production' if not set. */}
                 {(() => {
                   const env = import.meta.env.VITE_ENV || import.meta.env.MODE || '';
                   if (env.toLowerCase().startsWith('prod')) return 'Production';
@@ -488,10 +424,11 @@ function ServiceHealth() {
                         <TableCell>Endpoint</TableCell>
                         <TableCell>Status</TableCell>
                         <TableCell>Response Time</TableCell>
-                        <TableCell>Error</TableCell>                      </TableRow>
+                        <TableCell>Error</TableCell>
+                      </TableRow>
                     </TableHead>
                     <TableBody>
-                      {safeTestResults && typeof safeTestResults === 'object' && Object.entries(safeTestResults).map(([name, result]) => (
+                      {Object.entries(safeTestResults).map(([name, result]) => (
                         <TableRow key={name}>
                           <TableCell>{name}</TableCell>
                           <TableCell>
@@ -532,85 +469,63 @@ function ServiceHealth() {
                 startIcon={<Refresh />}
                 onClick={refetchDb}
                 sx={{ ml: 'auto', mr: 2 }}
-                disabled={safeDbLoading}
+                disabled={dbLoading}
               >
-                {safeDbLoading ? 'Loading...' : 'Refresh'}
+                {dbLoading ? 'Loading...' : 'Refresh'}
               </Button>
             </AccordionSummary>
             <AccordionDetails>
-              {safeDbLoading && (
+              {dbLoading && (
                 <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
                   <CircularProgress size={24} />
-                  <Typography sx={{ ml: 2 }}>Loading database diagnostics...</Typography>
+                  <Typography sx={{ ml: 2 }}>Loading database health...</Typography>
                 </Box>
               )}
               
-              {safeDbError && (
+              {dbError && (
                 <Alert severity="error" sx={{ mb: 2 }}>
-                  <Typography variant="subtitle2">Failed to load database diagnostics:</Typography>
+                  <Typography variant="subtitle2">Failed to load database health:</Typography>
                   <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
-                    {safeDbError.message || String(safeDbError)}
-                  </Typography>
-                  <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 1, wordBreak: 'break-all' }}>
-                    Endpoint: {getCurrentBaseURL() + '/health/database/diagnostics'}
+                    {dbError.message || String(dbError)}
                   </Typography>
                 </Alert>
               )}
-              {(dbDiagnostics && dbDiagnostics.diagnostics) && (
+
+              {dbHealth && (
                 <Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    {getStatusIcon(dbDiagnostics.diagnostics.connection.status)}
-                    <Typography variant="subtitle2" sx={{ ml: 1 }}>
-                      Status: {dbDiagnostics.diagnostics.connection.status}
-                    </Typography>
-                  </Box>
-                  
-                  <Typography variant="body2" gutterBottom>
-                    Database: {dbDiagnostics.diagnostics.database.name}
-                  </Typography>
-                  
-                  <Typography variant="body2" gutterBottom>
-                    Version: {dbDiagnostics.diagnostics.database.version}
-                  </Typography>
+                  {dbHealth.healthSummary && (
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="subtitle2" gutterBottom>Health Summary:</Typography>
+                      <Typography variant="body2">Status: {dbHealth.healthSummary.status}</Typography>
+                      <Typography variant="body2">Tables with Data: {dbHealth.healthSummary.tablesWithData}/{dbHealth.healthSummary.totalTables}</Typography>
+                      <Typography variant="body2">Health Percentage: {dbHealth.healthSummary.healthPercentage}%</Typography>
+                    </Box>
+                  )}
 
-                  <Typography variant="body2" gutterBottom>
-                    Connection: {dbDiagnostics.diagnostics.connection.method}
-                  </Typography>
-
-                  <Typography variant="body2" gutterBottom>
-                    Environment: {dbDiagnostics.diagnostics.environment.NODE_ENV}
-                  </Typography>
-
-                  {safeTableList.length > 0 && (
+                  {dbHealth.tables && Object.keys(dbHealth.tables).length > 0 && (
                     <Box sx={{ mt: 2 }}>
-                      <Typography variant="subtitle2" gutterBottom>
-                        Table Status ({safeTables.withData || 0}/{safeTables.total || 0} with data):
-                      </Typography>
+                      <Typography variant="subtitle2" gutterBottom>Table Status:</Typography>
                       <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
                         <Table size="small" stickyHeader>
                           <TableHead>
                             <TableRow>
                               <TableCell>Table</TableCell>
                               <TableCell align="right">Records</TableCell>
-                              <TableCell align="right">Columns</TableCell>
                               <TableCell>Status</TableCell>
                             </TableRow>
                           </TableHead>
                           <TableBody>
-                            {safeTableList.map((table) => (
-                              <TableRow key={table.table_name}>
-                                <TableCell>{table.table_name}</TableCell>
+                            {Object.entries(dbHealth.tables).slice(0, 10).map(([tableName, tableInfo]) => (
+                              <TableRow key={tableName}>
+                                <TableCell>{tableName}</TableCell>
                                 <TableCell align="right">
-                                  {typeof table.record_count === 'number' ? table.record_count.toLocaleString() : String(table.record_count)}
-                                </TableCell>
-                                <TableCell align="right">
-                                  {table.column_count}
+                                  {tableInfo.exists && tableInfo.totalRecords ? tableInfo.totalRecords.toLocaleString() : 'N/A'}
                                 </TableCell>
                                 <TableCell>
                                   <Chip
-                                    icon={getStatusIcon(table.record_count > 0 ? 'success' : 'warning')}
-                                    label={table.record_count > 0 ? 'Has Data' : 'Empty'}
-                                    color={getStatusColor(table.record_count > 0 ? 'success' : 'warning')}
+                                    icon={getStatusIcon(tableInfo.exists && tableInfo.totalRecords > 0 ? 'success' : 'warning')}
+                                    label={tableInfo.exists ? (tableInfo.totalRecords > 0 ? 'Has Data' : 'Empty') : 'Missing'}
+                                    color={getStatusColor(tableInfo.exists && tableInfo.totalRecords > 0 ? 'success' : 'warning')}
                                     size="small"
                                   />
                                 </TableCell>
@@ -620,40 +535,6 @@ function ServiceHealth() {
                         </Table>
                       </TableContainer>
                     </Box>
-                  )}
-                </Box>
-              )}
-              
-              {/* Fallback debug info if diagnostics are missing or malformed */}
-              {!(dbDiagnostics && dbDiagnostics.diagnostics) && !safeDbLoading && !safeDbError && (
-                <Alert severity="info" sx={{ mb: 2 }}>
-                  Database diagnostics not available. Check if backend is properly deployed.<br />
-                  <Typography variant="caption" sx={{ display: 'block', mt: 1, wordBreak: 'break-all' }}>
-                    Raw diagnostics object: {dbDiagnostics ? JSON.stringify(dbDiagnostics, null, 2) : 'undefined'}
-                  </Typography>
-                </Alert>
-              )}
-              
-              {safeHealthData?.database && (
-                <Box sx={{ mt: 2 }}>
-                  <Typography variant="subtitle2" gutterBottom>
-                    Basic Database Status:
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                    {getStatusIcon(safeHealthData.database.status)}
-                    <Typography variant="body2" sx={{ ml: 1 }}>
-                      Status: {safeHealthData.database.status}
-                    </Typography>
-                  </Box>
-                  {safeHealthData.database.responseTime && (
-                    <Typography variant="body2">
-                      Response Time: {safeHealthData.database.responseTime}ms
-                    </Typography>
-                  )}
-                  {safeHealthData.database.error && (
-                    <Typography variant="body2" color="error">
-                      Error: {safeHealthData.database.error}
-                    </Typography>
                   )}
                 </Box>
               )}
@@ -671,11 +552,11 @@ function ServiceHealth() {
               </Typography>
             </AccordionSummary>
             <AccordionDetails>
-              {isObject(combinedEnvironmentInfo) && Object.keys(combinedEnvironmentInfo).length > 0 && (
+              {Object.keys(safeEnvironmentInfo).length > 0 && (
                 <TableContainer component={Paper}>
                   <Table size="small">
                     <TableBody>
-                      {Object.entries(combinedEnvironmentInfo).map(([section, values]) => (
+                      {Object.entries(safeEnvironmentInfo).map(([section, values]) => (
                         <React.Fragment key={section}>
                           <TableRow>
                             <TableCell colSpan={2} sx={{ fontWeight: 'bold', backgroundColor: 'grey.100' }}>
@@ -714,7 +595,7 @@ function ServiceHealth() {
               </Typography>
             </AccordionSummary>
             <AccordionDetails>
-              {isObject(safeDiagnosticInfo) && Object.keys(safeDiagnosticInfo).length > 0 && (
+              {Object.keys(safeDiagnosticInfo).length > 0 && (
                 <TableContainer component={Paper}>
                   <Table size="small">
                     <TableBody>
@@ -783,7 +664,7 @@ function ServiceHealth() {
         </Grid>
 
         {/* Error Information */}
-        {(safeHealthError || Object.values(safeTestResults).some(r => r.status === 'error')) && (
+        {(healthError || Object.values(safeTestResults).some(r => r.status === 'error')) && (
           <Grid item xs={12} lg={6}>
             <Accordion>
               <AccordionSummary expandIcon={<ExpandMore />}>
@@ -793,13 +674,13 @@ function ServiceHealth() {
                 </Typography>
               </AccordionSummary>
               <AccordionDetails>
-                {safeHealthError && (
+                {healthError && (
                   <Alert severity="error" sx={{ mb: 2 }}>
                     <Typography variant="subtitle2">Health Check Error:</Typography>
-                    <Typography variant="body2">{safeHealthError.message}</Typography>
+                    <Typography variant="body2">{healthError.message}</Typography>
                   </Alert>
                 )}
-                {safeTestResults && typeof safeTestResults === 'object' && Object.entries(safeTestResults)
+                {Object.entries(safeTestResults)
                   .filter(([, result]) => result?.status === 'error')
                   .map(([name, result]) => (
                     <Alert severity="error" key={name} sx={{ mb: 1 }}>
@@ -811,7 +692,7 @@ function ServiceHealth() {
             </Accordion>
           </Grid>
         )}
-      </Grid>      {/* Redundant API connectivity test removed */}
+      </Grid>
     </Container>
   );
 }
