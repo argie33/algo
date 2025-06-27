@@ -1064,13 +1064,15 @@ export const getDataValidationSummary = async () => {
   }
 };
 
-// Get comprehensive stock price history
+// Get comprehensive stock price history - BULLETPROOF VERSION
 export const getStockPriceHistory = async (ticker, limit = 90) => {
   try {
-    const response = await api.get(`/stocks/${ticker}/prices?limit=${limit}`)
+    console.log(`BULLETPROOF: Fetching price history for ${ticker} with limit ${limit}`);
+    const response = await api.get(`/stocks/price-history/${ticker}?limit=${limit}`)
+    console.log(`BULLETPROOF: Price history response received for ${ticker}:`, response.data);
     return response.data
   } catch (error) {
-    console.error('Error fetching stock price history:', error)
+    console.error('BULLETPROOF: Error fetching stock price history:', error)
     throw error
   }
 }

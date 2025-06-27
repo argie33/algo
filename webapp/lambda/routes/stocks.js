@@ -3,6 +3,88 @@ const { query } = require('../utils/database');
 
 const router = express.Router();
 
+// BULLETPROOF PRICE HISTORY ENDPOINT - Simple and reliable
+// This endpoint is designed to work without any routing conflicts
+router.get('/price-history/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const limit = Math.min(parseInt(req.query.limit) || 90, 365); // Max 1 year for performance
+    
+    console.log(`BULLETPROOF: Price history requested for ${symbol}, limit: ${limit}`);
+    
+    // Simple, direct query to price_daily table
+    const priceQuery = `
+      SELECT 
+        date,
+        open,
+        high,
+        low,
+        close,
+        adj_close,
+        volume
+      FROM price_daily
+      WHERE UPPER(symbol) = UPPER($1)
+      ORDER BY date DESC
+      LIMIT $2
+    `;
+    
+    const result = await query(priceQuery, [symbol.toUpperCase(), limit]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No price data found',
+        symbol: symbol.toUpperCase(),
+        message: 'Price data not available for this symbol',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Calculate basic metrics
+    const prices = result.rows;
+    const latest = prices[0];
+    const oldest = prices[prices.length - 1];
+    
+    const periodReturn = oldest.close > 0 ? 
+      ((latest.close - oldest.close) / oldest.close * 100) : 0;
+    
+    // Format response for frontend
+    const formattedData = prices.map(price => ({
+      date: price.date,
+      open: parseFloat(price.open || 0),
+      high: parseFloat(price.high || 0),
+      low: parseFloat(price.low || 0),
+      close: parseFloat(price.close || 0),
+      adjClose: parseFloat(price.adj_close || price.close || 0),
+      volume: parseInt(price.volume || 0)
+    }));
+    
+    res.json({
+      success: true,
+      symbol: symbol.toUpperCase(),
+      data: formattedData,
+      summary: {
+        latestPrice: parseFloat(latest.close),
+        latestDate: latest.date,
+        periodReturn: parseFloat(periodReturn.toFixed(2)),
+        latestVolume: parseInt(latest.volume || 0),
+        dataPoints: formattedData.length
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('BULLETPROOF price history error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch price history',
+      symbol: req.params.symbol,
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Basic ping endpoint
 router.get('/ping', (req, res) => {
   res.json({

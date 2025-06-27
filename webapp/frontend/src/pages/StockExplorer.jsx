@@ -270,17 +270,17 @@ function StockExplorer() {
       // Open modal immediately with loading state
       setPriceHistoryModal({ open: true, symbol, data: [], loading: true })
       
-      console.log('Fetching comprehensive price history for', symbol)
-      console.log('API base URL:', api.defaults.baseURL)
-      console.log('Full URL will be:', `${api.defaults.baseURL}/stocks/${symbol}/prices?limit=90`)
+      console.log('BULLETPROOF: Fetching price history for', symbol)
+      console.log('BULLETPROOF: API base URL:', api.defaults.baseURL)
+      console.log('BULLETPROOF: Full URL will be:', `${api.defaults.baseURL}/stocks/price-history/${symbol}?limit=90`)
       
-      // Use the new API function for getting stock price history
+      // Use the new BULLETPROOF API function for getting stock price history
       const result = await getStockPriceHistory(symbol, 90)
       
-      console.log('API response received:', result)
+      console.log('BULLETPROOF: API response received:', result)
       
       if (result.success && result.data) {
-        console.log('Comprehensive price history loaded for', symbol, result.data.length, 'records')
+        console.log('BULLETPROOF: Price history loaded for', symbol, result.data.length, 'records')
         
         // Update modal with data
         setPriceHistoryModal({ 
@@ -300,14 +300,15 @@ function StockExplorer() {
         throw new Error(result.error || 'Failed to fetch price data')
       }
     } catch (error) {
-      console.error('Error fetching comprehensive price history for', symbol, error)
-      console.error('Error details:', {
+      console.error('BULLETPROOF: Error fetching price history for', symbol, error)
+      console.error('BULLETPROOF: Error details:', {
         message: error.message,
         status: error.response?.status,
         statusText: error.response?.statusText,
         data: error.response?.data,
         url: error.config?.url,
-        baseURL: error.config?.baseURL
+        baseURL: error.config?.baseURL,
+        fullUrl: `${api.defaults.baseURL}/stocks/price-history/${symbol}?limit=90`
       })
       
       // Show error in modal
@@ -316,7 +317,7 @@ function StockExplorer() {
         symbol, 
         data: [], 
         loading: false, 
-        error: error.message 
+        error: `BULLETPROOF Error: ${error.message}` 
       })
     }
   }
