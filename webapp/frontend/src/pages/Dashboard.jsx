@@ -49,6 +49,7 @@ import { getStockPrices, getStockMetrics, getBuySignals, getSellSignals, api } f
 import { PieChart, Pie, Cell } from 'recharts';
 import { format } from 'date-fns';
 import { getApiConfig } from '../services/api';
+import { formatCurrency, formatNumber, formatPercentage } from '../utils/formatters';
 
 // Logo import with fallback
 let logoSrc = null;
@@ -267,7 +268,7 @@ function MarketOverviewWidget() {
                     gap={0.5}
                   >
                     {item.change >= 0 ? <TrendingUp fontSize="small" /> : <TrendingDown fontSize="small" />}
-                    {formatCurrency(item.change)} ({formatPercent(item.changePercent / 100)})
+                    {formatCurrency(item.change)} ({formatPercentage(item.changePercent / 100)})
                   </Typography>
                 </Box>
               </Grid>
@@ -330,23 +331,30 @@ function EarningsCalendarWidget({ symbol }) {
 
 // --- ANALYST INSIGHTS WIDGET ---
 function AnalystInsightsWidget({ symbol }) {
-  // Fetch analyst data for the selected symbol
+  // Fetch analyst data for the selected symbol using the same endpoint as AnalystInsights page
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-analyst-insights', symbol],
     queryFn: async () => {
-      // Use the correct endpoint that exists
-      const response = await api.get(`/api/analysts/${symbol}/recommendations`);
-      return response.data;
+      // Use the same endpoint as AnalystInsights page - get recent upgrades/downgrades
+      const params = new URLSearchParams({
+        page: 1,
+        limit: 10
+      });
+      const response = await fetch(`${API_BASE}/analysts/upgrades?${params}`);
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Failed to fetch analyst data: ${response.status} ${text}`);
+      }
+      return response.json();
     },
     enabled: !!symbol,
     staleTime: 5 * 60 * 1000
   });
 
-  const recommendations = data?.recommendations || [];
-  const latestRec = recommendations[0];
-  
-  const upgradeCount = latestRec ? (latestRec.strong_buy || 0) + (latestRec.buy || 0) : 0;
-  const downgradeCount = latestRec ? (latestRec.sell || 0) + (latestRec.strong_sell || 0) : 0;
+  // Filter data for the selected symbol
+  const symbolData = data?.data?.filter(item => item.symbol === symbol) || [];
+  const upgrades = symbolData.filter(item => item.action?.toLowerCase() === 'up');
+  const downgrades = symbolData.filter(item => item.action?.toLowerCase() === 'down');
 
   return (
     <Card sx={{ mb: 3 }}>
@@ -366,12 +374,12 @@ function AnalystInsightsWidget({ symbol }) {
             <Typography variant="body2" color="text.secondary" gutterBottom>
               Latest analyst actions for {symbol}
             </Typography>
-            {latestRec ? (
+            {symbolData.length > 0 ? (
               <Grid container spacing={2}>
                 <Grid item xs={6}>
                   <Box textAlign="center" p={2} border={1} borderColor="success.main" borderRadius={1}>
                     <Typography variant="h6" color="success.main" fontWeight="bold">
-                      {upgradeCount}
+                      {upgrades.length}
                     </Typography>
                     <Typography variant="body2">Upgrades</Typography>
                   </Box>
@@ -379,7 +387,7 @@ function AnalystInsightsWidget({ symbol }) {
                 <Grid item xs={6}>
                   <Box textAlign="center" p={2} border={1} borderColor="error.main" borderRadius={1}>
                     <Typography variant="h6" color="error.main" fontWeight="bold">
-                      {downgradeCount}
+                      {downgrades.length}
                     </Typography>
                     <Typography variant="body2">Downgrades</Typography>
                   </Box>
@@ -387,7 +395,7 @@ function AnalystInsightsWidget({ symbol }) {
               </Grid>
             ) : (
               <Typography variant="body2" color="text.secondary">
-                No analyst recommendations available
+                No analyst actions available for {symbol}
               </Typography>
             )}
           </Box>
@@ -399,27 +407,58 @@ function AnalystInsightsWidget({ symbol }) {
 
 // --- FINANCIAL HIGHLIGHTS WIDGET ---
 function FinancialHighlightsWidget({ symbol }) {
-  // Fetch financial data for the selected symbol
+  // Fetch financial data for the selected symbol using the same endpoint as FinancialData page
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-financial-highlights', symbol],
     queryFn: async () => {
-      // Use the correct endpoint that exists
-      const response = await api.get(`/api/stocks/${symbol}/metrics`);
+      // Use the same endpoint as FinancialData page - get key metrics
+      const response = await api.get(`/api/financials/${symbol}/key-metrics`);
       return response.data;
     },
     enabled: !!symbol,
     staleTime: 5 * 60 * 1000
   });
 
-  const metrics = data || {};
+  // Extract metrics from the organized structure returned by the key-metrics endpoint
+  const metrics = data?.data || {};
+  
+  // Get values from the organized categories
+  const getMetricValue = (categoryKey, metricKey) => {
+    const category = metrics[categoryKey];
+    return category?.metrics?.[metricKey];
+  };
   
   const keyMetrics = [
-    { label: 'Market Cap', value: metrics.market_cap, format: formatCurrency },
-    { label: 'P/E Ratio', value: metrics.trailing_pe, format: (val) => val ? formatNumber(val, 2) : 'N/A' },
-    { label: 'EPS', value: metrics.eps_trailing, format: formatCurrency },
-    { label: 'ROE', value: metrics.return_on_equity_pct, format: (val) => val ? formatPercent(val / 100) : 'N/A' },
-    { label: 'Debt/Equity', value: metrics.debt_to_equity, format: (val) => val ? formatNumber(val, 2) : 'N/A' },
-    { label: 'Revenue', value: metrics.total_revenue, format: formatCurrency }
+    { 
+      label: 'Market Cap', 
+      value: getMetricValue('valuation', 'Enterprise Value') || getMetricValue('enterprise', 'Enterprise Value'),
+      format: formatCurrency 
+    },
+    { 
+      label: 'P/E Ratio', 
+      value: getMetricValue('valuation', 'P/E Ratio (Trailing)'),
+      format: (val) => val ? formatNumber(val, 2) : 'N/A' 
+    },
+    { 
+      label: 'EPS', 
+      value: getMetricValue('earnings', 'EPS (Trailing)'),
+      format: formatCurrency 
+    },
+    { 
+      label: 'ROE', 
+      value: getMetricValue('returns', 'Return on Equity'),
+      format: (val) => val ? formatPercentage(val / 100) : 'N/A' 
+    },
+    { 
+      label: 'Debt/Equity', 
+      value: getMetricValue('cash_and_debt', 'Debt to Equity'),
+      format: (val) => val ? formatNumber(val, 2) : 'N/A' 
+    },
+    { 
+      label: 'Revenue', 
+      value: getMetricValue('financial_performance', 'Total Revenue'),
+      format: formatCurrency 
+    }
   ];
 
   return (
