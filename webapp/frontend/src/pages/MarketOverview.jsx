@@ -876,6 +876,19 @@ function MarketOverview() {
             <Chip label="90d" color={econRange === 90 ? 'primary' : 'default'} onClick={() => setEconRange(90)} clickable />
             <Chip label="180d" color={econRange === 180 ? 'primary' : 'default'} onClick={() => setEconRange(180)} clickable />
           </Box>
+          
+          {/* Debug Information */}
+          {process.env.NODE_ENV === 'development' && economicData && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              <Typography variant="body2">
+                <strong>Debug Info:</strong> Found {economicData.data?.length || 0} economic indicators
+              </Typography>
+              <Typography variant="caption" display="block">
+                Available series: {economicData.data?.map(i => i.series_id).join(', ') || 'None'}
+              </Typography>
+            </Alert>
+          )}
+          
           {economicLoading ? (
             <LinearProgress />
           ) : (
@@ -897,7 +910,9 @@ function MarketOverview() {
                       {(() => {
                         const cpi = economicData?.data?.find(i => 
                           i.name?.toLowerCase().includes('cpi') ||
-                          i.series_id?.toLowerCase().includes('cpi')
+                          i.series_id?.toLowerCase().includes('cpi') ||
+                          i.series_id === 'CPI' ||
+                          i.series_id === 'CPILFESL'
                         );
                         const value = cpi?.value || 'N/A';
                         const change = parseFloat(cpi?.change_percent) || 0;
@@ -943,7 +958,9 @@ function MarketOverview() {
                       {(() => {
                         const unemployment = economicData?.data?.find(i => 
                           i.name?.toLowerCase().includes('unemployment') ||
-                          i.series_id?.toLowerCase().includes('unemployment')
+                          i.series_id?.toLowerCase().includes('unemployment') ||
+                          i.series_id === 'UNRATE' ||
+                          i.series_id === 'NFP'
                         );
                         const value = unemployment?.value || 'N/A';
                         const change = parseFloat(unemployment?.change_percent) || 0;
@@ -989,7 +1006,9 @@ function MarketOverview() {
                       {(() => {
                         const gdp = economicData?.data?.find(i => 
                           i.name?.toLowerCase().includes('gdp') ||
-                          i.series_id?.toLowerCase().includes('gdp')
+                          i.series_id?.toLowerCase().includes('gdp') ||
+                          i.series_id === 'GDP' ||
+                          i.series_id === 'GDPC1'
                         );
                         const value = gdp?.value || 'N/A';
                         const change = parseFloat(gdp?.change_percent) || 0;
@@ -1035,7 +1054,9 @@ function MarketOverview() {
                       {(() => {
                         const fedRate = economicData?.data?.find(i => 
                           i.name?.toLowerCase().includes('federal funds') ||
-                          i.series_id?.toLowerCase().includes('fedfunds')
+                          i.series_id?.toLowerCase().includes('fedfunds') ||
+                          i.series_id === 'FEDFUNDS' ||
+                          i.series_id === 'DGS10'
                         );
                         const value = fedRate?.value || 'N/A';
                         const change = parseFloat(fedRate?.change_percent) || 0;
@@ -1066,6 +1087,48 @@ function MarketOverview() {
                   </Card>
                 </Grid>
               </Grid>
+
+              {/* Fallback: Show Available Indicators if Specific Ones Not Found */}
+              {economicData?.data && economicData.data.length > 0 && (
+                (() => {
+                  const hasSpecificIndicators = economicData.data.some(i => 
+                    ['CPI', 'CPILFESL', 'UNRATE', 'NFP', 'GDP', 'GDPC1', 'FEDFUNDS', 'DGS10'].includes(i.series_id)
+                  );
+                  
+                  if (!hasSpecificIndicators) {
+                    return (
+                      <Card sx={{ mb: 3 }}>
+                        <CardContent>
+                          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                            Available Economic Indicators
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                            Specific indicators (CPI, Unemployment, GDP, Fed Rate) not found. Showing available data:
+                          </Typography>
+                          <Grid container spacing={2}>
+                            {economicData.data.slice(0, 8).map((indicator, index) => (
+                              <Grid item xs={12} sm={6} md={3} key={index}>
+                                <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                                  <Typography variant="subtitle2" fontWeight={600}>
+                                    {indicator.name || indicator.series_id}
+                                  </Typography>
+                                  <Typography variant="h6" color="primary">
+                                    {indicator.value} {indicator.unit}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {indicator.category}
+                                  </Typography>
+                                </Box>
+                              </Grid>
+                            ))}
+                          </Grid>
+                        </CardContent>
+                      </Card>
+                    );
+                  }
+                  return null;
+                })()
+              )}
 
               {/* Market Impact Analysis */}
               <Card sx={{ mb: 3 }}>
