@@ -22,7 +22,7 @@ import {
   Button
 } from '@mui/material'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts'
-import { SentimentVerySatisfied, SentimentSatisfied, SentimentNeutral, SentimentDissatisfied, SentimentVeryDissatisfied, TrendingUp, TrendingDown, HorizontalRule, Business, ExpandLess, ExpandMore, AccountBalance } from '@mui/icons-material';
+import { SentimentVerySatisfied, SentimentSatisfied, SentimentNeutral, SentimentDissatisfied, SentimentVeryDissatisfied, TrendingUp, TrendingDown, HorizontalRule, Business, ExpandLess, ExpandMore, AccountBalance, ShowChart } from '@mui/icons-material';
 
 import { 
   getMarketOverview, 
