@@ -18,10 +18,11 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Chip
+  Chip,
+  Button
 } from '@mui/material'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts'
-import { SentimentVerySatisfied, SentimentSatisfied, SentimentNeutral, SentimentDissatisfied, SentimentVeryDissatisfied, TrendingUp, TrendingDown, HorizontalRule } from '@mui/icons-material';
+import { SentimentVerySatisfied, SentimentSatisfied, SentimentNeutral, SentimentDissatisfied, SentimentVeryDissatisfied, TrendingUp, TrendingDown, HorizontalRule, Business, ExpandLess, ExpandMore, AccountBalance } from '@mui/icons-material';
 
 import { 
   getMarketOverview, 
@@ -92,6 +93,7 @@ function MarketOverview() {
   const [sentimentRange, setSentimentRange] = useState(30);
   const [econRange, setEconRange] = useState(90);
   const [tabValue, setTabValue] = useState(0)
+  const [showDetailedEcon, setShowDetailedEcon] = useState(false);
   const { data: marketData, isLoading: marketLoading, error: marketError } = useQuery({
     queryKey: ['market-overview'],
     queryFn: async () => {
@@ -878,125 +880,336 @@ function MarketOverview() {
             <LinearProgress />
           ) : (
             <Box>
-              {/* Economic Indicators Summary Row */}
-              <Card sx={{ mb: 2, background: 'linear-gradient(90deg, #f5f7fa 0%, #c3cfe2 100%)', boxShadow: 2 }}>
+              {/* Economic Indicators Summary Cards */}
+              <Grid container spacing={3} sx={{ mb: 3 }}>
+                {/* Inflation Summary */}
+                <Grid item xs={12} md={6} lg={3}>
+                  <Card sx={{ 
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    boxShadow: 3
+                  }}>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                        <TrendingUp sx={{ mr: 1 }} />
+                        <Typography variant="h6" fontWeight={600}>Inflation</Typography>
+                      </Box>
+                      {(() => {
+                        const cpi = economicData?.data?.find(i => 
+                          i.name?.toLowerCase().includes('cpi') ||
+                          i.series_id?.toLowerCase().includes('cpi')
+                        );
+                        const value = cpi?.value || 'N/A';
+                        const change = parseFloat(cpi?.change_percent) || 0;
+                        const trend = change > 0 ? 'Rising' : change < 0 ? 'Falling' : 'Stable';
+                        const impact = change > 2 ? 'Bearish' : change < 1 ? 'Bullish' : 'Neutral';
+                        
+                        return (
+                          <>
+                            <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>
+                              {value}
+                            </Typography>
+                            <Typography variant="body2" sx={{ mb: 1 }}>
+                              {trend} ({change > 0 ? '+' : ''}{change.toFixed(2)}%)
+                            </Typography>
+                            <Chip 
+                              label={impact} 
+                              size="small" 
+                              sx={{ 
+                                bgcolor: impact === 'Bullish' ? 'success.main' : 
+                                         impact === 'Bearish' ? 'error.main' : 'grey.500',
+                                color: 'white'
+                              }}
+                            />
+                          </>
+                        );
+                      })()}
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+                {/* Employment Summary */}
+                <Grid item xs={12} md={6} lg={3}>
+                  <Card sx={{ 
+                    background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                    color: 'white',
+                    boxShadow: 3
+                  }}>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                        <Business sx={{ mr: 1 }} />
+                        <Typography variant="h6" fontWeight={600}>Employment</Typography>
+                      </Box>
+                      {(() => {
+                        const unemployment = economicData?.data?.find(i => 
+                          i.name?.toLowerCase().includes('unemployment') ||
+                          i.series_id?.toLowerCase().includes('unemployment')
+                        );
+                        const value = unemployment?.value || 'N/A';
+                        const change = parseFloat(unemployment?.change_percent) || 0;
+                        const trend = change > 0 ? 'Rising' : change < 0 ? 'Falling' : 'Stable';
+                        const impact = change > 0 ? 'Bearish' : change < 0 ? 'Bullish' : 'Neutral';
+                        
+                        return (
+                          <>
+                            <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>
+                              {value}%
+                            </Typography>
+                            <Typography variant="body2" sx={{ mb: 1 }}>
+                              {trend} ({change > 0 ? '+' : ''}{change.toFixed(2)}%)
+                            </Typography>
+                            <Chip 
+                              label={impact} 
+                              size="small" 
+                              sx={{ 
+                                bgcolor: impact === 'Bullish' ? 'success.main' : 
+                                         impact === 'Bearish' ? 'error.main' : 'grey.500',
+                                color: 'white'
+                              }}
+                            />
+                          </>
+                        );
+                      })()}
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+                {/* Growth Summary */}
+                <Grid item xs={12} md={6} lg={3}>
+                  <Card sx={{ 
+                    background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+                    color: 'white',
+                    boxShadow: 3
+                  }}>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                        <ShowChart sx={{ mr: 1 }} />
+                        <Typography variant="h6" fontWeight={600}>Growth</Typography>
+                      </Box>
+                      {(() => {
+                        const gdp = economicData?.data?.find(i => 
+                          i.name?.toLowerCase().includes('gdp') ||
+                          i.series_id?.toLowerCase().includes('gdp')
+                        );
+                        const value = gdp?.value || 'N/A';
+                        const change = parseFloat(gdp?.change_percent) || 0;
+                        const trend = change > 0 ? 'Expanding' : change < 0 ? 'Contracting' : 'Stable';
+                        const impact = change > 2 ? 'Bullish' : change < 0 ? 'Bearish' : 'Neutral';
+                        
+                        return (
+                          <>
+                            <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>
+                              {value}%
+                            </Typography>
+                            <Typography variant="body2" sx={{ mb: 1 }}>
+                              {trend} ({change > 0 ? '+' : ''}{change.toFixed(2)}%)
+                            </Typography>
+                            <Chip 
+                              label={impact} 
+                              size="small" 
+                              sx={{ 
+                                bgcolor: impact === 'Bullish' ? 'success.main' : 
+                                         impact === 'Bearish' ? 'error.main' : 'grey.500',
+                                color: 'white'
+                              }}
+                            />
+                          </>
+                        );
+                      })()}
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+                {/* Monetary Policy Summary */}
+                <Grid item xs={12} md={6} lg={3}>
+                  <Card sx={{ 
+                    background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+                    color: 'white',
+                    boxShadow: 3
+                  }}>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                        <AccountBalance sx={{ mr: 1 }} />
+                        <Typography variant="h6" fontWeight={600}>Fed Policy</Typography>
+                      </Box>
+                      {(() => {
+                        const fedRate = economicData?.data?.find(i => 
+                          i.name?.toLowerCase().includes('federal funds') ||
+                          i.series_id?.toLowerCase().includes('fedfunds')
+                        );
+                        const value = fedRate?.value || 'N/A';
+                        const change = parseFloat(fedRate?.change_percent) || 0;
+                        const trend = change > 0 ? 'Tightening' : change < 0 ? 'Easing' : 'Stable';
+                        const impact = change > 0 ? 'Bearish' : change < 0 ? 'Bullish' : 'Neutral';
+                        
+                        return (
+                          <>
+                            <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>
+                              {value}%
+                            </Typography>
+                            <Typography variant="body2" sx={{ mb: 1 }}>
+                              {trend} ({change > 0 ? '+' : ''}{change.toFixed(2)}%)
+                            </Typography>
+                            <Chip 
+                              label={impact} 
+                              size="small" 
+                              sx={{ 
+                                bgcolor: impact === 'Bullish' ? 'success.main' : 
+                                         impact === 'Bearish' ? 'error.main' : 'grey.500',
+                                color: 'white'
+                              }}
+                            />
+                          </>
+                        );
+                      })()}
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
+
+              {/* Market Impact Analysis */}
+              <Card sx={{ mb: 3 }}>
                 <CardContent>
+                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                    Market Impact Analysis
+                  </Typography>
                   <Grid container spacing={2}>
-                    {['CPI', 'Unemployment Rate', 'GDP', 'Fed Funds Rate'].map((key, idx) => {
-                      // Improved search logic to find indicators by name
-                      const ind = economicData?.data?.find(i => 
-                        i.name?.toLowerCase().includes(key.toLowerCase()) ||
-                        i.series_id?.toLowerCase().includes(key.toLowerCase())
-                      );
-                      
-                      // Fallback to first available indicator if specific one not found
-                      const fallbackInd = economicData?.data?.[idx] || null;
-                      const displayInd = ind || fallbackInd;
-                      
-                      return (
-                        <Grid item xs={12} sm={6} md={3} key={key}>
-                          <Box sx={{ p: 2, borderRadius: 2, background: '#fff', boxShadow: 1, textAlign: 'center' }}>
-                            <Typography variant="subtitle2" color="text.secondary">
-                              {displayInd ? displayInd.name : key}
-                            </Typography>
-                            <Typography variant="h5" fontWeight={700} color={displayInd && parseFloat(displayInd.change_percent) > 0 ? 'success.main' : displayInd && parseFloat(displayInd.change_percent) < 0 ? 'error.main' : 'text.primary'}>
-                              {displayInd ? `${displayInd.value} ${displayInd.unit}` : 'N/A'}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              Prev: {displayInd ? `${displayInd.previous_value || 'N/A'} ${displayInd.unit}` : 'N/A'}
-                            </Typography>
-                            <Typography variant="body2" color={displayInd && parseFloat(displayInd.change_percent) > 0 ? 'success.main' : displayInd && parseFloat(displayInd.change_percent) < 0 ? 'error.main' : 'text.secondary'}>
-                              {displayInd && displayInd.change_percent ? `${parseFloat(displayInd.change_percent).toFixed(2)}%` : 'N/A'}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {displayInd && displayInd.timestamp ? new Date(displayInd.timestamp).toLocaleDateString() : 'N/A'}
-                            </Typography>
-                          </Box>
-                        </Grid>
-                      );
-                    })}
+                    <Grid item xs={12} md={6}>
+                      <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+                        <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
+                          Current Economic Environment
+                        </Typography>
+                        {(() => {
+                          const indicators = economicData?.data || [];
+                          const bullishCount = indicators.filter(i => parseFloat(i.change_percent) < 0).length;
+                          const bearishCount = indicators.filter(i => parseFloat(i.change_percent) > 2).length;
+                          const neutralCount = indicators.length - bullishCount - bearishCount;
+                          
+                          return (
+                            <>
+                              <Typography variant="body2" sx={{ mb: 1 }}>
+                                Based on {indicators.length} key indicators:
+                              </Typography>
+                              <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+                                <Chip label={`${bullishCount} Bullish`} size="small" color="success" />
+                                <Chip label={`${neutralCount} Neutral`} size="small" color="default" />
+                                <Chip label={`${bearishCount} Bearish`} size="small" color="error" />
+                              </Box>
+                              <Typography variant="body2" color="text.secondary">
+                                {bullishCount > bearishCount ? 'Overall economic conditions favor risk assets' :
+                                 bearishCount > bullishCount ? 'Economic headwinds suggest defensive positioning' :
+                                 'Mixed signals - selective opportunities likely'}
+                              </Typography>
+                            </>
+                          );
+                        })()}
+                      </Box>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+                        <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
+                          Key Insights
+                        </Typography>
+                        <Box component="ul" sx={{ pl: 2, m: 0 }}>
+                          <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
+                            Inflation trends suggest {(() => {
+                              const cpi = economicData?.data?.find(i => i.name?.toLowerCase().includes('cpi'));
+                              return parseFloat(cpi?.change_percent) > 2 ? 'continued pressure on growth stocks' : 'supportive environment for equities';
+                            })()}
+                          </Typography>
+                          <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
+                            Employment data indicates {(() => {
+                              const unemployment = economicData?.data?.find(i => i.name?.toLowerCase().includes('unemployment'));
+                              return parseFloat(unemployment?.change_percent) > 0 ? 'potential economic slowdown' : 'resilient consumer spending';
+                            })()}
+                          </Typography>
+                          <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
+                            Fed policy stance is {(() => {
+                              const fedRate = economicData?.data?.find(i => i.name?.toLowerCase().includes('federal funds'));
+                              return parseFloat(fedRate?.change_percent) > 0 ? 'restrictive - favor defensive sectors' : 'accommodative - growth opportunities';
+                            })()}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Grid>
                   </Grid>
                 </CardContent>
               </Card>
 
-              {/* Grouped Economic Indicators Table */}
+              {/* Detailed Data Section - Collapsible */}
               <Card>
                 <CardContent>
-                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                    Economic Indicators Table (Grouped)
-                  </Typography>
-                  {economicData?.data && economicData.data.length > 0 ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                      Detailed Economic Data
+                    </Typography>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={() => setShowDetailedEcon(!showDetailedEcon)}
+                      endIcon={showDetailedEcon ? <ExpandLess /> : <ExpandMore />}
+                    >
+                      {showDetailedEcon ? 'Hide Details' : 'View All Data'}
+                    </Button>
+                  </Box>
+                  
+                  {showDetailedEcon && (
                     <>
-                      <TableContainer>
-                        <Table size="small">
-                          <TableHead>
-                            <TableRow sx={{ backgroundColor: 'grey.50' }}>
-                              <TableCell sx={{ fontWeight: 600 }}>Category</TableCell>
-                              <TableCell sx={{ fontWeight: 600 }}>Indicator</TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 600 }}>Current Value</TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 600 }}>Previous Value</TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 600 }}>Change</TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 600 }}>Date</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {economicData.data.sort((a, b) => (a.category || '').localeCompare(b.category || '')).map((indicator, index) => (
-                              <TableRow key={index} hover>
-                                <TableCell>{indicator.category || 'Other'}</TableCell>
-                                <TableCell>
-                                  <Tooltip title={indicator.description || ''} arrow>
-                                    <span>{indicator.name || indicator.series_id || 'N/A'}</span>
-                                  </Tooltip>
-                                </TableCell>
-                                <TableCell align="right">
-                                  {indicator.value !== null && indicator.value !== undefined ? `${indicator.value} ${indicator.unit}` : 'N/A'}
-                                </TableCell>
-                                <TableCell align="right">
-                                  {indicator.previous_value !== null && indicator.previous_value !== undefined ? `${indicator.previous_value} ${indicator.unit}` : 'N/A'}
-                                </TableCell>
-                                <TableCell 
-                                  align="right"
-                                  sx={{ color: getChangeColor(parseFloat(indicator.change_percent) || 0), fontWeight: 600 }}
-                                >
-                                  {indicator.change_percent !== null && indicator.change_percent !== undefined ? `${parseFloat(indicator.change_percent).toFixed(2)}%` : 'N/A'}
-                                </TableCell>
-                                <TableCell align="right">
-                                  {indicator.timestamp ? new Date(indicator.timestamp).toLocaleDateString() : 'N/A'}
-                                </TableCell>
+                      {economicData?.data && economicData.data.length > 0 ? (
+                        <TableContainer>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow sx={{ backgroundColor: 'grey.50' }}>
+                                <TableCell sx={{ fontWeight: 600 }}>Category</TableCell>
+                                <TableCell sx={{ fontWeight: 600 }}>Indicator</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 600 }}>Current Value</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 600 }}>Previous Value</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 600 }}>Change</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 600 }}>Date</TableCell>
                               </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
-                      <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
-                        Data grouped by category. Hover indicator names for definitions. Last updated: {economicData.data[0]?.timestamp ? new Date(economicData.data[0].timestamp).toLocaleString() : 'N/A'}
-                      </Typography>
-                    </>
-                  ) : (
-                    <Box sx={{ textAlign: 'center', py: 4 }}>
-                      <Typography variant="body1" color="text.secondary">
-                        No economic data available for the selected time period.
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                        {economicData?.message || 'Try selecting a different time range or check if economic data is being loaded.'}
-                      </Typography>
-                      {/* Debug information */}
-                      {process.env.NODE_ENV === 'development' && (
-                        <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
-                          <Typography variant="caption" color="text.secondary">
-                            Debug Info: {JSON.stringify({
-                              hasData: !!economicData?.data,
-                              dataLength: economicData?.data?.length || 0,
-                              periodDays: economicData?.period_days,
-                              totalPoints: economicData?.total_data_points,
-                              error: economicData?.error,
-                              message: economicData?.message
-                            }, null, 2)}
+                            </TableHead>
+                            <TableBody>
+                              {economicData.data.sort((a, b) => (a.category || '').localeCompare(b.category || '')).map((indicator, index) => (
+                                <TableRow key={index} hover>
+                                  <TableCell>{indicator.category || 'Other'}</TableCell>
+                                  <TableCell>
+                                    <Tooltip title={indicator.description || ''} arrow>
+                                      <span>{indicator.name || indicator.series_id || 'N/A'}</span>
+                                    </Tooltip>
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    {indicator.value !== null && indicator.value !== undefined ? `${indicator.value} ${indicator.unit}` : 'N/A'}
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    {indicator.previous_value !== null && indicator.previous_value !== undefined ? `${indicator.previous_value} ${indicator.unit}` : 'N/A'}
+                                  </TableCell>
+                                  <TableCell 
+                                    align="right"
+                                    sx={{ color: getChangeColor(parseFloat(indicator.change_percent) || 0), fontWeight: 600 }}
+                                  >
+                                    {indicator.change_percent !== null && indicator.change_percent !== undefined ? `${parseFloat(indicator.change_percent).toFixed(2)}%` : 'N/A'}
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    {indicator.timestamp ? new Date(indicator.timestamp).toLocaleDateString() : 'N/A'}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      ) : (
+                        <Box sx={{ textAlign: 'center', py: 4 }}>
+                          <Typography variant="body1" color="text.secondary">
+                            No economic data available for the selected time period.
                           </Typography>
                         </Box>
                       )}
-                    </Box>
+                    </>
                   )}
+                  
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+                    Last updated: {economicData?.data?.[0]?.timestamp ? new Date(economicData.data[0].timestamp).toLocaleString() : 'N/A'}
+                  </Typography>
                 </CardContent>
               </Card>
             </Box>

@@ -1088,6 +1088,20 @@ export const getStockPriceHistory = async (ticker, limit = 90) => {
   }
 }
 
+export const getRecentAnalystActions = async (limit = 10) => {
+  try {
+    const response = await api.get(`/analysts/recent-actions?limit=${limit}`)
+    return response.data
+  } catch (error) {
+    const errorMessage = handleApiError(error, 'get recent analyst actions')
+    return { 
+      data: [], 
+      summary: { date: null, total_actions: 0, upgrades: 0, downgrades: 0 },
+      error: errorMessage 
+    }
+  }
+}
+
 // Export all methods as a default object for easier importing
 export default {
   healthCheck,
