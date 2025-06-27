@@ -87,12 +87,27 @@ router.get('/database', async (req, res) => {
     // Simple database connection test - just like other working APIs
     const result = await query('SELECT NOW() as current_time, version() as postgres_version');
     
-    // Basic table existence check for key tables
+    // Basic table existence check for key tables - expanded list
     const tableCheck = await query(`
       SELECT table_name 
       FROM information_schema.tables 
       WHERE table_schema = 'public' 
-      AND table_name IN ('stock_symbols', 'fear_greed_index', 'naaim_exposure', 'technical_data_daily')
+      AND table_name IN (
+        'stock_symbols', 'etf_symbols', 'last_updated',
+        'fear_greed_index', 'naaim_exposure', 'aaii_sentiment',
+        'analyst_upgrade_downgrade', 'calendar_events',
+        'earnings_estimates', 'earnings_history', 'revenue_estimates',
+        'economic_data', 'company_profile', 'leadership_team',
+        'governance_scores', 'market_data', 'key_metrics', 'analyst_estimates',
+        'price_daily', 'price_weekly', 'price_monthly',
+        'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly',
+        'technical_data_daily', 'technical_data_weekly', 'technical_data_monthly',
+        'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
+        'balance_sheet_annual', 'balance_sheet_quarterly', 'balance_sheet_ttm',
+        'income_statement_annual', 'income_statement_quarterly', 'income_statement_ttm',
+        'cash_flow_annual', 'cash_flow_quarterly', 'cash_flow_ttm',
+        'financials', 'financials_quarterly', 'financials_ttm'
+      )
     `);
     
     const existingTables = tableCheck.rows.map(row => row.table_name);
@@ -109,7 +124,24 @@ router.get('/database', async (req, res) => {
     }
     
     // Add missing tables as not found
-    ['stock_symbols', 'fear_greed_index', 'naaim_exposure', 'technical_data_daily'].forEach(tableName => {
+    const expectedTables = [
+      'stock_symbols', 'etf_symbols', 'last_updated',
+      'fear_greed_index', 'naaim_exposure', 'aaii_sentiment',
+      'analyst_upgrade_downgrade', 'calendar_events',
+      'earnings_estimates', 'earnings_history', 'revenue_estimates',
+      'economic_data', 'company_profile', 'leadership_team',
+      'governance_scores', 'market_data', 'key_metrics', 'analyst_estimates',
+      'price_daily', 'price_weekly', 'price_monthly',
+      'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly',
+      'technical_data_daily', 'technical_data_weekly', 'technical_data_monthly',
+      'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
+      'balance_sheet_annual', 'balance_sheet_quarterly', 'balance_sheet_ttm',
+      'income_statement_annual', 'income_statement_quarterly', 'income_statement_ttm',
+      'cash_flow_annual', 'cash_flow_quarterly', 'cash_flow_ttm',
+      'financials', 'financials_quarterly', 'financials_ttm'
+    ];
+    
+    expectedTables.forEach(tableName => {
       if (!existingTables.includes(tableName)) {
         tableStats[tableName] = 'not_found';
       }
