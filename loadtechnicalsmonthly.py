@@ -13,7 +13,7 @@ import numpy as np
 import numpy
 
 # ───────────────────────────────────────────────────────────────────
-# Monkey-patch numpy so that "from numpy import NaN" in pandas_ta will succeed
+# Monkey-patch numpy so that "from numpy import NaN" in pandas_ta will succeed 
 numpy.NaN = numpy.nan
 np.NaN    = np.nan
 # ───────────────────────────────────────────────────────────────────
