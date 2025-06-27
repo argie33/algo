@@ -185,12 +185,12 @@ function ServiceHealth() {
     queryKey: ['databaseHealth'],
     queryFn: async () => {
       try {
-        // Try the simple database health endpoint
-        const response = await fetchWithTimeout(
-          getCurrentBaseURL() + '/health/database', 
-          { method: 'GET', headers: { 'Content-Type': 'application/json' } }, 
-          5000
-        );
+        // Simple database health check using the same pattern as other working APIs
+        const response = await fetch(getCurrentBaseURL() + '/health/database', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(10000) // 10 second timeout
+        });
         
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -335,8 +335,8 @@ function ServiceHealth() {
                 Database
               </Typography>
               <Typography variant="body2" color="textSecondary">
-                {(dbHealth && dbHealth.healthSummary?.dbConnection === 'connected') ? 'Connected' :
-                 safeHealthData?.database?.status === 'connected' ? 'Connected' :
+                {dbHealth?.database?.status === 'connected' ? 'Connected' :
+                 dbHealth?.database?.status === 'disconnected' ? 'Disconnected' :
                  dbLoading ? 'Checking...' : 'Unknown'}
               </Typography>
               {dbError && (
@@ -493,16 +493,18 @@ function ServiceHealth() {
 
               {dbHealth && (
                 <Box>
-                  {dbHealth.healthSummary && (
-                    <Box sx={{ mb: 2 }}>
-                      <Typography variant="subtitle2" gutterBottom>Health Summary:</Typography>
-                      <Typography variant="body2">Status: {dbHealth.healthSummary.status}</Typography>
-                      <Typography variant="body2">Tables with Data: {dbHealth.healthSummary.tablesWithData}/{dbHealth.healthSummary.totalTables}</Typography>
-                      <Typography variant="body2">Health Percentage: {dbHealth.healthSummary.healthPercentage}%</Typography>
-                    </Box>
-                  )}
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" gutterBottom>Database Status:</Typography>
+                    <Typography variant="body2">Status: {dbHealth.database?.status || 'Unknown'}</Typography>
+                    {dbHealth.database?.currentTime && (
+                      <Typography variant="body2">Current Time: {new Date(dbHealth.database.currentTime).toLocaleString()}</Typography>
+                    )}
+                    {dbHealth.database?.postgresVersion && (
+                      <Typography variant="body2">PostgreSQL Version: {dbHealth.database.postgresVersion}</Typography>
+                    )}
+                  </Box>
 
-                  {dbHealth.tables && Object.keys(dbHealth.tables).length > 0 && (
+                  {dbHealth.database?.tables && Object.keys(dbHealth.database.tables).length > 0 && (
                     <Box sx={{ mt: 2 }}>
                       <Typography variant="subtitle2" gutterBottom>Table Status:</Typography>
                       <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
@@ -515,17 +517,29 @@ function ServiceHealth() {
                             </TableRow>
                           </TableHead>
                           <TableBody>
-                            {Object.entries(dbHealth.tables).slice(0, 10).map(([tableName, tableInfo]) => (
+                            {Object.entries(dbHealth.database.tables).map(([tableName, tableInfo]) => (
                               <TableRow key={tableName}>
                                 <TableCell>{tableName}</TableCell>
                                 <TableCell align="right">
-                                  {tableInfo.exists && tableInfo.totalRecords ? tableInfo.totalRecords.toLocaleString() : 'N/A'}
+                                  {typeof tableInfo === 'number' ? tableInfo.toLocaleString() : 
+                                   tableInfo === 'not_found' ? 'N/A' : 
+                                   tableInfo.error ? 'Error' : 'N/A'}
                                 </TableCell>
                                 <TableCell>
                                   <Chip
-                                    icon={getStatusIcon(tableInfo.exists && tableInfo.totalRecords > 0 ? 'success' : 'warning')}
-                                    label={tableInfo.exists ? (tableInfo.totalRecords > 0 ? 'Has Data' : 'Empty') : 'Missing'}
-                                    color={getStatusColor(tableInfo.exists && tableInfo.totalRecords > 0 ? 'success' : 'warning')}
+                                    icon={getStatusIcon(
+                                      typeof tableInfo === 'number' && tableInfo > 0 ? 'success' : 
+                                      tableInfo === 'not_found' ? 'warning' : 'error'
+                                    )}
+                                    label={
+                                      typeof tableInfo === 'number' && tableInfo > 0 ? 'Has Data' : 
+                                      typeof tableInfo === 'number' && tableInfo === 0 ? 'Empty' : 
+                                      tableInfo === 'not_found' ? 'Missing' : 'Error'
+                                    }
+                                    color={getStatusColor(
+                                      typeof tableInfo === 'number' && tableInfo > 0 ? 'success' : 
+                                      tableInfo === 'not_found' ? 'warning' : 'error'
+                                    )}
                                     size="small"
                                   />
                                 </TableCell>

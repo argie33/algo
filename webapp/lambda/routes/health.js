@@ -36,158 +36,20 @@ router.get('/', async (req, res) => {
         api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' }
       });
     }
-    // Full health check with database
+    
+    // Full health check with simple database test
     console.log('Starting health check with database...');
-    // Initialize database if not already done
-    try {
-      getPool(); // This will throw if not initialized
-    } catch (initError) {
-      console.log('Database not initialized, initializing now...');
-      try {
-        await initializeDatabase();
-      } catch (dbInitError) {
-        console.error('Failed to initialize database:', dbInitError.message);
-        return res.status(503).json({
-          status: 'unhealthy',
-          healthy: false,
-          service: 'Financial Dashboard API',
-          timestamp: new Date().toISOString(),
-          environment: process.env.NODE_ENV || 'development',
-          database: {
-            status: 'initialization_failed',
-            error: dbInitError.message,
-            lastAttempt: new Date().toISOString(),
-            tables: {}
-          },
-          api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' },
-          memory: process.memoryUsage(),
-          uptime: process.uptime()
-        });
-      }
-    }
-    // Check if database error was passed from middleware
-    if (req.dbError) {
-      return res.status(503).json({
-        status: 'unhealthy',
-        healthy: false,
-        service: 'Financial Dashboard API',
-        timestamp: new Date().toISOString(),
-        environment: process.env.NODE_ENV || 'development',
-        database: {
-          status: 'unavailable',
-          error: req.dbError.message,
-          lastAttempt: new Date().toISOString(),
-          tables: {}
-        },
-        api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' },
-        memory: process.memoryUsage(),
-        uptime: process.uptime()
-      });
-    }
-    // Test database connection with timeout and detailed error reporting
-    const dbStart = Date.now();
-    let result;
-    try {
-      result = await Promise.race([
-        query('SELECT 1 as ok'),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Database health check timeout')), 5000))
-      ]);
-    } catch (dbError) {
-      // Enhanced error logging
-      console.error('Database health check query failed:', dbError);
-      return res.status(503).json({
-        status: 'unhealthy',
-        healthy: false,
-        service: 'Financial Dashboard API',
-        timestamp: new Date().toISOString(),
-        environment: process.env.NODE_ENV || 'development',
-        database: {
-          status: 'disconnected',
-          error: dbError.message,
-          stack: dbError.stack,
-          lastAttempt: new Date().toISOString(),
-          tables: {}
-        },
-        api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' },
-        memory: process.memoryUsage(),
-        uptime: process.uptime()
-      });
-    }
-    // Additional: test a real table if DB connection works
-    try {
-      await query('SELECT COUNT(*) FROM stock_symbols');
-    } catch (tableError) {
-      console.error('Table query failed:', tableError);
-      return res.status(503).json({
-        status: 'unhealthy',
-        healthy: false,
-        service: 'Financial Dashboard API',
-        timestamp: new Date().toISOString(),
-        environment: process.env.NODE_ENV || 'development',
-        database: {
-          status: 'connected_but_table_error',
-          error: tableError.message,
-          stack: tableError.stack,
-          lastAttempt: new Date().toISOString(),
-          tables: {}
-        },
-        api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' },
-        memory: process.memoryUsage(),
-        uptime: process.uptime()
-      });
-    }
-    const dbTime = Date.now() - dbStart;
-    // Get table information (check existence first) with global timeout
-    let tables = {};
-    try {
-      const tableExistenceCheck = await Promise.race([
-        query(`
-          SELECT table_name 
-          FROM information_schema.tables 
-          WHERE table_schema = 'public' 
-          AND table_name IN ('stock_symbols', 'fear_greed_index', 'naaim_exposure', 'technical_data_daily', 'earnings_estimates')
-        `),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Table existence check timeout')), 2000))
-      ]);
-      const existingTables = tableExistenceCheck.rows.map(row => row.table_name);
-      if (existingTables.length > 0) {
-        const countQueries = existingTables.map(tableName => 
-          Promise.race([
-            query(`SELECT COUNT(*) as count FROM ${tableName}`),
-            new Promise((_, reject) => setTimeout(() => reject(new Error(`Count timeout for ${tableName}`)), 3000))
-          ]).then(result => ({
-            table: tableName,
-            count: parseInt(result.rows[0].count)
-          })).catch(err => ({
-            table: tableName,
-            count: null,
-            error: err.message
-          }))
-        );
-        const tableResults = await Promise.race([
-          Promise.all(countQueries),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Table count global timeout')), HEALTH_TIMEOUT_MS))
-        ]);
-        tableResults.forEach(result => {
-          tables[result.table] = result.count !== null ? result.count : `Error: ${result.error}`;
-        });
-      }
-      // Add missing tables as "not_found"
-      ['stock_symbols', 'fear_greed_index', 'naaim_exposure', 'technical_data_daily', 'earnings_estimates'].forEach(tableName => {
-        if (!existingTables.includes(tableName)) {
-          tables[tableName] = 'not_found';
-        }
-      });
-    } catch (tableError) {
-      tables = { error: tableError.message };
-    }
+    
+    // Simple database connection test - just like other working APIs
+    const result = await query('SELECT NOW() as current_time');
+    
     const health = {
       status: 'healthy',
       healthy: true,
       timestamp: new Date().toISOString(),
       database: {
         status: 'connected',
-        tables: tables
+        currentTime: result.rows[0].current_time
       },
       api: {
         version: '1.0.0',
@@ -196,7 +58,9 @@ router.get('/', async (req, res) => {
       memory: process.memoryUsage(),
       uptime: process.uptime()
     };
+    
     res.json(health);
+    
   } catch (error) {
     console.error('Health check failed:', error);
     res.status(503).json({
@@ -206,7 +70,7 @@ router.get('/', async (req, res) => {
       error: error.message,
       database: {
         status: 'disconnected',
-        tables: {}
+        error: error.message
       },
       api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' },
       memory: process.memoryUsage(),
@@ -218,178 +82,59 @@ router.get('/', async (req, res) => {
 // Comprehensive database health check endpoint
 router.get('/database', async (req, res) => {
   console.log('Received request for /health/database');
+  
   try {
-    // Ensure database pool is initialized before running any queries
-    try {
-      getPool(); // Throws if not initialized
-    } catch (initError) {
-      console.log('Database not initialized, initializing now...');
-      try {
-        await initializeDatabase();
-      } catch (dbInitError) {
-        console.error('Failed to initialize database:', dbInitError.message);
-        return res.status(503).json({
-          status: 'unhealthy',
-          healthy: false,
-          service: 'Financial Dashboard API',
-          timestamp: new Date().toISOString(),
-          environment: process.env.NODE_ENV || 'development',
-          database: {
-            status: 'initialization_failed',
-            error: dbInitError.message,
-            lastAttempt: new Date().toISOString(),
-            tables: {}
-          },
-          api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' },
-          memory: process.memoryUsage(),
-          uptime: process.uptime()
-        });
-      }
-    }
-
-    console.log('Database health check endpoint called');
-    const results = {};
-    const warnings = [];
+    // Simple database connection test - just like other working APIs
+    const result = await query('SELECT NOW() as current_time, version() as postgres_version');
     
-    // Simplified table check - only check essential tables
-    const essentialTables = [
-      'stock_symbols',
-      'technical_data_daily',
-      'price_daily',
-      'fear_greed_index',
-      'naaim_exposure'
-    ];
-
-    let totalTables = essentialTables.length;
-    let tablesWithData = 0;
-    let connectionStatus = 'unknown';
-
-    // Test basic connection first
-    try {
-      const connectionTest = await query('SELECT NOW() as current_time, version() as postgres_version');
-      connectionStatus = 'connected';
-      console.log('Database connection successful');
-    } catch (connError) {
-      connectionStatus = 'failed';
-      console.error('Database connection failed:', connError);
-      return res.status(503).json({
-        status: 'unhealthy',
-        healthy: false,
-        service: 'Financial Dashboard API',
-        timestamp: new Date().toISOString(),
-        environment: process.env.NODE_ENV || 'development',
-        database: {
-          status: 'connection_failed',
-          error: connError.message,
-          lastAttempt: new Date().toISOString(),
-          tables: {}
-        },
-        api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' },
-        memory: process.memoryUsage(),
-        uptime: process.uptime()
-      });
-    }
-
-    // Check essential tables
-    for (const table of essentialTables) {
+    // Basic table existence check for key tables
+    const tableCheck = await query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      AND table_name IN ('stock_symbols', 'fear_greed_index', 'naaim_exposure', 'technical_data_daily')
+    `);
+    
+    const existingTables = tableCheck.rows.map(row => row.table_name);
+    
+    // Simple record counts for existing tables
+    const tableStats = {};
+    for (const tableName of existingTables) {
       try {
-        // Check if table exists
-        const tableExistsQuery = `
-          SELECT EXISTS (
-            SELECT FROM information_schema.tables 
-            WHERE table_schema = 'public' 
-            AND table_name = $1
-          );
-        `;
-        const tableExists = await query(tableExistsQuery, [table]);
-        
-        if (tableExists.rows[0].exists) {
-          // Count records with timeout
-          const countQuery = `SELECT COUNT(*) as total FROM ${table}`;
-          const countResult = await query(countQuery);
-          const recordCount = parseInt(countResult.rows[0].total);
-          
-          results[table] = {
-            exists: true,
-            totalRecords: recordCount,
-            lastUpdate: null, // Simplified - skip timestamp checks
-            size: null, // Simplified - skip size checks
-            indexes: [] // Simplified - skip index checks
-          };
-          
-          if (recordCount > 0) {
-            tablesWithData++;
-          } else {
-            warnings.push(`${table} is empty`);
-          }
-        } else {
-          results[table] = {
-            exists: false,
-            totalRecords: 0,
-            lastUpdate: null,
-            size: null,
-            indexes: []
-          };
-          warnings.push(`${table} does not exist`);
-        }
+        const countResult = await query(`SELECT COUNT(*) as count FROM ${tableName}`);
+        tableStats[tableName] = parseInt(countResult.rows[0].count);
       } catch (error) {
-        console.error(`Error checking table ${table}:`, error);
-        results[table] = {
-          exists: false,
-          totalRecords: 0,
-          lastUpdate: null,
-          size: null,
-          indexes: [],
-          error: error.message
-        };
-        warnings.push(`${table} check failed: ${error.message}`);
+        tableStats[tableName] = { error: error.message };
       }
     }
-
-    // Pool stats (if available)
-    let poolStats = null;
-    try {
-      const pool = getPool();
-      poolStats = {
-        totalCount: pool.totalCount,
-        idleCount: pool.idleCount,
-        waitingCount: pool.waitingCount
-      };
-    } catch (e) { 
-      poolStats = null; 
-    }
-
-    // Overall health summary
-    const healthPercentage = totalTables > 0 ? Math.round((tablesWithData / totalTables) * 100) : 0;
-    const overallStatus = healthPercentage >= 80 ? 'healthy' : healthPercentage >= 50 ? 'degraded' : 'unhealthy';
-
-    // Health summary section
-    const healthSummary = {
-      status: overallStatus,
-      timestamp: new Date().toISOString(),
-      uptimeSeconds: process.uptime(),
-      memory: process.memoryUsage(),
-      environment: process.env.NODE_ENV || 'development',
-      dbConnection: connectionStatus,
-      totalTables,
-      existingTables: Object.values(results).filter(r => r.exists).length,
-      tablesWithData,
-      healthPercentage,
-      warnings,
-      poolStats
-    };
-
-    res.json({
-      healthSummary,
-      tables: results
+    
+    // Add missing tables as not found
+    ['stock_symbols', 'fear_greed_index', 'naaim_exposure', 'technical_data_daily'].forEach(tableName => {
+      if (!existingTables.includes(tableName)) {
+        tableStats[tableName] = 'not_found';
+      }
     });
+    
+    res.json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      database: {
+        status: 'connected',
+        currentTime: result.rows[0].current_time,
+        postgresVersion: result.rows[0].postgres_version,
+        tables: tableStats
+      }
+    });
+    
   } catch (error) {
-    console.error('Error in database health check:', error);
-    res.status(500).json({ 
-      status: 'error',
-      error: 'Health check failed', 
-      message: error.message,
-      timestamp: new Date().toISOString()
+    console.error('Database health check failed:', error);
+    res.status(503).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      database: {
+        status: 'disconnected',
+        error: error.message
+      }
     });
   }
 });
