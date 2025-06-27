@@ -3,6 +3,7 @@
  * - Defines HEALTH_TIMEOUT_MS to avoid ReferenceError.
  * - Adds global error handlers for unhandled promise rejections and uncaught exceptions.
  * - Adds Express error middleware to always return JSON.
+ * - Uses cached health status table to avoid expensive COUNT queries.
  */
 const HEALTH_TIMEOUT_MS = 5000; // 5 seconds default for all health timeouts
 
@@ -79,51 +80,92 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Comprehensive database health check endpoint
+// Cached database health check endpoint - reads from health_status table
 router.get('/database', async (req, res) => {
   console.log('Received request for /health/database');
   
   try {
-    // Simple database connection test - just like other working APIs
-    const result = await query('SELECT NOW() as current_time, version() as postgres_version');
-    
-    // Basic table existence check for key tables - expanded list
-    const tableCheck = await query(`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public' 
-      AND table_name IN (
-        'stock_symbols', 'etf_symbols', 'last_updated',
-        'fear_greed_index', 'naaim_exposure', 'aaii_sentiment',
-        'analyst_upgrade_downgrade', 'calendar_events',
-        'earnings_estimates', 'earnings_history', 'revenue_estimates',
-        'economic_data', 'company_profile', 'leadership_team',
-        'governance_scores', 'market_data', 'key_metrics', 'analyst_estimates',
-        'price_daily', 'price_weekly', 'price_monthly',
-        'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly',
-        'technical_data_daily', 'technical_data_weekly', 'technical_data_monthly',
-        'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
-        'balance_sheet_annual', 'balance_sheet_quarterly', 'balance_sheet_ttm',
-        'income_statement_annual', 'income_statement_quarterly', 'income_statement_ttm',
-        'cash_flow_annual', 'cash_flow_quarterly', 'cash_flow_ttm',
-        'financials', 'financials_quarterly', 'financials_ttm'
-      )
+    // First, ensure the health_status table exists
+    await query(`
+      CREATE TABLE IF NOT EXISTS health_status (
+        id SERIAL PRIMARY KEY,
+        table_name VARCHAR(100) NOT NULL,
+        record_count BIGINT,
+        status VARCHAR(20) NOT NULL,
+        last_checked TIMESTAMP NOT NULL DEFAULT NOW(),
+        error_message TEXT,
+        UNIQUE(table_name)
+      );
     `);
     
-    const existingTables = tableCheck.rows.map(row => row.table_name);
+    // Get cached health status
+    const healthResult = await query(`
+      SELECT 
+        table_name, 
+        record_count, 
+        status, 
+        last_checked, 
+        error_message
+      FROM health_status 
+      ORDER BY table_name;
+    `);
     
-    // Simple record counts for existing tables
+    // Get current database time
+    const dbTimeResult = await query('SELECT NOW() as current_time, version() as postgres_version');
+    
     const tableStats = {};
-    for (const tableName of existingTables) {
-      try {
-        const countResult = await query(`SELECT COUNT(*) as count FROM ${tableName}`);
-        tableStats[tableName] = parseInt(countResult.rows[0].count);
-      } catch (error) {
-        tableStats[tableName] = { error: error.message };
-      }
-    }
+    healthResult.rows.forEach(row => {
+      tableStats[row.table_name] = {
+        record_count: row.record_count,
+        status: row.status,
+        last_checked: row.last_checked,
+        error: row.error_message
+      };
+    });
     
-    // Add missing tables as not found
+    res.json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      database: {
+        status: 'connected',
+        currentTime: dbTimeResult.rows[0].current_time,
+        postgresVersion: dbTimeResult.rows[0].postgres_version,
+        tables: tableStats,
+        note: 'Data from cached health status table - run /health/update-status to refresh'
+      }
+    });
+    
+  } catch (error) {
+    console.error('Database health check failed:', error);
+    res.status(503).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      database: {
+        status: 'disconnected',
+        error: error.message
+      }
+    });
+  }
+});
+
+// Background job to update health status table
+router.post('/update-status', async (req, res) => {
+  console.log('Received request to update health status');
+  
+  try {
+    // Ensure the health_status table exists
+    await query(`
+      CREATE TABLE IF NOT EXISTS health_status (
+        id SERIAL PRIMARY KEY,
+        table_name VARCHAR(100) NOT NULL,
+        record_count BIGINT,
+        status VARCHAR(20) NOT NULL,
+        last_checked TIMESTAMP NOT NULL DEFAULT NOW(),
+        error_message TEXT,
+        UNIQUE(table_name)
+      );
+    `);
+    
     const expectedTables = [
       'stock_symbols', 'etf_symbols', 'last_updated',
       'fear_greed_index', 'naaim_exposure', 'aaii_sentiment',
@@ -141,32 +183,82 @@ router.get('/database', async (req, res) => {
       'financials', 'financials_quarterly', 'financials_ttm'
     ];
     
-    expectedTables.forEach(tableName => {
-      if (!existingTables.includes(tableName)) {
-        tableStats[tableName] = 'not_found';
+    let processed = 0;
+    let errors = 0;
+    
+    for (const tableName of expectedTables) {
+      try {
+        // Check if table exists
+        const tableExists = await query(`
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = $1
+          );
+        `, [tableName]);
+        
+        if (tableExists.rows[0].exists) {
+          // Table exists, get count
+          const countResult = await query(`SELECT COUNT(*) as count FROM ${tableName}`);
+          const recordCount = parseInt(countResult.rows[0].count);
+          
+          // Update or insert health status
+          await query(`
+            INSERT INTO health_status (table_name, record_count, status, last_checked)
+            VALUES ($1, $2, 'healthy', NOW())
+            ON CONFLICT (table_name) DO UPDATE SET
+              record_count = EXCLUDED.record_count,
+              status = EXCLUDED.status,
+              last_checked = EXCLUDED.last_checked,
+              error_message = NULL;
+          `, [tableName, recordCount]);
+        } else {
+          // Table doesn't exist
+          await query(`
+            INSERT INTO health_status (table_name, record_count, status, last_checked, error_message)
+            VALUES ($1, NULL, 'not_found', NOW(), 'Table does not exist')
+            ON CONFLICT (table_name) DO UPDATE SET
+              record_count = NULL,
+              status = EXCLUDED.status,
+              last_checked = EXCLUDED.last_checked,
+              error_message = EXCLUDED.error_message;
+          `, [tableName]);
+        }
+        
+        processed++;
+      } catch (error) {
+        console.error(`Error processing table ${tableName}:`, error);
+        
+        // Record error in health status
+        await query(`
+          INSERT INTO health_status (table_name, record_count, status, last_checked, error_message)
+          VALUES ($1, NULL, 'error', NOW(), $2)
+          ON CONFLICT (table_name) DO UPDATE SET
+            record_count = NULL,
+            status = EXCLUDED.status,
+            last_checked = EXCLUDED.last_checked,
+            error_message = EXCLUDED.error_message;
+        `, [tableName, error.message]);
+        
+        errors++;
       }
-    });
+    }
     
     res.json({
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-      database: {
-        status: 'connected',
-        currentTime: result.rows[0].current_time,
-        postgresVersion: result.rows[0].postgres_version,
-        tables: tableStats
-      }
+      status: 'success',
+      message: 'Health status updated',
+      processed,
+      errors,
+      timestamp: new Date().toISOString()
     });
     
   } catch (error) {
-    console.error('Database health check failed:', error);
-    res.status(503).json({
-      status: 'unhealthy',
-      timestamp: new Date().toISOString(),
-      database: {
-        status: 'disconnected',
-        error: error.message
-      }
+    console.error('Failed to update health status:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to update health status',
+      error: error.message,
+      timestamp: new Date().toISOString()
     });
   }
 });
