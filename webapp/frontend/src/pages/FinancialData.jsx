@@ -29,12 +29,11 @@ import {
 } from '@mui/material'
 import {
   AccountBalance,
-  Assessment,
+  Analytics,
   Timeline,
   TrendingUp,
   TrendingDown,
   HorizontalRule,
-  Analytics,
   Search,
   BusinessCenter,
   ShowChart

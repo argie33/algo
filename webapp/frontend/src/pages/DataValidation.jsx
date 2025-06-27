@@ -30,11 +30,10 @@ import {
 } from '@mui/material';
 import {
   Storage,
-  Assessment,
+  Analytics,
   TrendingUp,
   TrendingDown,
   HorizontalRule,
-  Analytics,
   CheckCircle,
   Error,
   Warning,
