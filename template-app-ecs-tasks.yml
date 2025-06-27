@@ -72,13 +72,13 @@ Parameters:
   EarningsHistoryImageTag:
     Type: String
     Description: "Tag for earnings history loader image"
-  AaiiDataImageTag:
+  AaiiImageTag:
     Type: String
     Description: "Tag for AAII sentiment data loader image"
-  FearGreedDataImageTag:
+  FearGreedImageTag:
     Type: String
     Description: "Tag for Fear & Greed data loader image"
-  NaaaimDataImageTag:
+  NaaimImageTag:
     Type: String
     Description: "Tag for NAAIM data loader image"
 
@@ -1757,7 +1757,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: aaiidata-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref AaiiDataImageTag]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref AaiiImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -1817,7 +1817,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: feargreeddata-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref FearGreedDataImageTag]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref FearGreedImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -1880,7 +1880,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: naaimdata-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref NaaaimDataImageTag]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref NaaimImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN

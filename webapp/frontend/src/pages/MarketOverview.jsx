@@ -162,6 +162,14 @@ function MarketOverview() {
       try {
         const result = await getEconomicIndicators(econRange);
         logger.success('getEconomicIndicators', result, { days: econRange });
+        console.log('Economic data received:', result);
+        console.log('Economic data structure:', {
+          hasData: !!result?.data,
+          dataLength: result?.data?.length || 0,
+          firstItem: result?.data?.[0],
+          periodDays: result?.period_days,
+          totalPoints: result?.total_data_points
+        });
         return result;
       } catch (err) {
         logger.error('getEconomicIndicators', err, { days: econRange });
@@ -875,22 +883,33 @@ function MarketOverview() {
                 <CardContent>
                   <Grid container spacing={2}>
                     {['CPI', 'Unemployment Rate', 'GDP', 'Fed Funds Rate'].map((key, idx) => {
-                      const ind = economicData?.data?.find(i => i.name?.toLowerCase().includes(key.toLowerCase()));
+                      // Improved search logic to find indicators by name
+                      const ind = economicData?.data?.find(i => 
+                        i.name?.toLowerCase().includes(key.toLowerCase()) ||
+                        i.series_id?.toLowerCase().includes(key.toLowerCase())
+                      );
+                      
+                      // Fallback to first available indicator if specific one not found
+                      const fallbackInd = economicData?.data?.[idx] || null;
+                      const displayInd = ind || fallbackInd;
+                      
                       return (
                         <Grid item xs={12} sm={6} md={3} key={key}>
                           <Box sx={{ p: 2, borderRadius: 2, background: '#fff', boxShadow: 1, textAlign: 'center' }}>
-                            <Typography variant="subtitle2" color="text.secondary">{key}</Typography>
-                            <Typography variant="h5" fontWeight={700} color={ind && parseFloat(ind.change_percent) > 0 ? 'success.main' : ind && parseFloat(ind.change_percent) < 0 ? 'error.main' : 'text.primary'}>
-                              {ind ? `${ind.value} ${ind.unit}` : 'N/A'}
+                            <Typography variant="subtitle2" color="text.secondary">
+                              {displayInd ? displayInd.name : key}
+                            </Typography>
+                            <Typography variant="h5" fontWeight={700} color={displayInd && parseFloat(displayInd.change_percent) > 0 ? 'success.main' : displayInd && parseFloat(displayInd.change_percent) < 0 ? 'error.main' : 'text.primary'}>
+                              {displayInd ? `${displayInd.value} ${displayInd.unit}` : 'N/A'}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                              Prev: {ind ? `${ind.previous_value} ${ind.unit}` : 'N/A'}
+                              Prev: {displayInd ? `${displayInd.previous_value || 'N/A'} ${displayInd.unit}` : 'N/A'}
                             </Typography>
-                            <Typography variant="body2" color={ind && parseFloat(ind.change_percent) > 0 ? 'success.main' : ind && parseFloat(ind.change_percent) < 0 ? 'error.main' : 'text.secondary'}>
-                              {ind && ind.change_percent ? `${parseFloat(ind.change_percent).toFixed(2)}%` : 'N/A'}
+                            <Typography variant="body2" color={displayInd && parseFloat(displayInd.change_percent) > 0 ? 'success.main' : displayInd && parseFloat(displayInd.change_percent) < 0 ? 'error.main' : 'text.secondary'}>
+                              {displayInd && displayInd.change_percent ? `${parseFloat(displayInd.change_percent).toFixed(2)}%` : 'N/A'}
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
-                              {ind && ind.timestamp ? new Date(ind.timestamp).toLocaleDateString() : 'N/A'}
+                              {displayInd && displayInd.timestamp ? new Date(displayInd.timestamp).toLocaleDateString() : 'N/A'}
                             </Typography>
                           </Box>
                         </Grid>
@@ -906,50 +925,78 @@ function MarketOverview() {
                   <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                     Economic Indicators Table (Grouped)
                   </Typography>
-                  <TableContainer>
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow sx={{ backgroundColor: 'grey.50' }}>
-                          <TableCell sx={{ fontWeight: 600 }}>Category</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>Indicator</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 600 }}>Current Value</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 600 }}>Previous Value</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 600 }}>Change</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 600 }}>Date</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {(economicData?.data || []).sort((a, b) => (a.category || '').localeCompare(b.category || '')).map((indicator, index) => (
-                          <TableRow key={index} hover>
-                            <TableCell>{indicator.category || 'Other'}</TableCell>
-                            <TableCell>
-                              <Tooltip title={indicator.description || ''} arrow>
-                                <span>{indicator.name || 'N/A'}</span>
-                              </Tooltip>
-                            </TableCell>
-                            <TableCell align="right">
-                              {indicator.value} {indicator.unit}
-                            </TableCell>
-                            <TableCell align="right">
-                              {indicator.previous_value || 'N/A'} {indicator.unit}
-                            </TableCell>
-                            <TableCell 
-                              align="right"
-                              sx={{ color: getChangeColor(parseFloat(indicator.change_percent) || 0), fontWeight: 600 }}
-                            >
-                              {indicator.change_percent ? `${parseFloat(indicator.change_percent).toFixed(2)}%` : 'N/A'}
-                            </TableCell>
-                            <TableCell align="right">
-                              {indicator.timestamp ? new Date(indicator.timestamp).toLocaleDateString() : 'N/A'}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
-                    Data grouped by category. Hover indicator names for definitions. Last updated: {economicData?.data?.[0]?.timestamp ? new Date(economicData.data[0].timestamp).toLocaleString() : 'N/A'}
-                  </Typography>
+                  {economicData?.data && economicData.data.length > 0 ? (
+                    <>
+                      <TableContainer>
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow sx={{ backgroundColor: 'grey.50' }}>
+                              <TableCell sx={{ fontWeight: 600 }}>Category</TableCell>
+                              <TableCell sx={{ fontWeight: 600 }}>Indicator</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 600 }}>Current Value</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 600 }}>Previous Value</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 600 }}>Change</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 600 }}>Date</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {economicData.data.sort((a, b) => (a.category || '').localeCompare(b.category || '')).map((indicator, index) => (
+                              <TableRow key={index} hover>
+                                <TableCell>{indicator.category || 'Other'}</TableCell>
+                                <TableCell>
+                                  <Tooltip title={indicator.description || ''} arrow>
+                                    <span>{indicator.name || indicator.series_id || 'N/A'}</span>
+                                  </Tooltip>
+                                </TableCell>
+                                <TableCell align="right">
+                                  {indicator.value !== null && indicator.value !== undefined ? `${indicator.value} ${indicator.unit}` : 'N/A'}
+                                </TableCell>
+                                <TableCell align="right">
+                                  {indicator.previous_value !== null && indicator.previous_value !== undefined ? `${indicator.previous_value} ${indicator.unit}` : 'N/A'}
+                                </TableCell>
+                                <TableCell 
+                                  align="right"
+                                  sx={{ color: getChangeColor(parseFloat(indicator.change_percent) || 0), fontWeight: 600 }}
+                                >
+                                  {indicator.change_percent !== null && indicator.change_percent !== undefined ? `${parseFloat(indicator.change_percent).toFixed(2)}%` : 'N/A'}
+                                </TableCell>
+                                <TableCell align="right">
+                                  {indicator.timestamp ? new Date(indicator.timestamp).toLocaleDateString() : 'N/A'}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+                        Data grouped by category. Hover indicator names for definitions. Last updated: {economicData.data[0]?.timestamp ? new Date(economicData.data[0].timestamp).toLocaleString() : 'N/A'}
+                      </Typography>
+                    </>
+                  ) : (
+                    <Box sx={{ textAlign: 'center', py: 4 }}>
+                      <Typography variant="body1" color="text.secondary">
+                        No economic data available for the selected time period.
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        {economicData?.message || 'Try selecting a different time range or check if economic data is being loaded.'}
+                      </Typography>
+                      {/* Debug information */}
+                      {process.env.NODE_ENV === 'development' && (
+                        <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+                          <Typography variant="caption" color="text.secondary">
+                            Debug Info: {JSON.stringify({
+                              hasData: !!economicData?.data,
+                              dataLength: economicData?.data?.length || 0,
+                              periodDays: economicData?.period_days,
+                              totalPoints: economicData?.total_data_points,
+                              error: economicData?.error,
+                              message: economicData?.message
+                            }, null, 2)}
+                          </Typography>
+                        </Box>
+                      )}
+                    </Box>
+                  )}
                 </CardContent>
               </Card>
             </Box>

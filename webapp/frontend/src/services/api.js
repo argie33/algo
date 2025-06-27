@@ -252,10 +252,21 @@ export const getMarketBreadth = async () => {
 export const getEconomicIndicators = async (days = 90) => {
   try {
     const response = await api.get(`/market/economic?days=${days}`)
-    return normalizeApiResponse(response, true) // Array of economic data
+    console.log('Economic indicators response:', response.data)
+    
+    // The backend returns { data: [...], period_days: ..., total_data_points: ... }
+    // We want to return the entire response structure
+    return response.data
   } catch (error) {
     const errorMessage = handleApiError(error, 'get economic indicators')
-    return { error: errorMessage }
+    console.error('Error fetching economic indicators:', error)
+    return { 
+      data: [], 
+      error: errorMessage,
+      period_days: days,
+      total_data_points: 0,
+      timestamp: new Date().toISOString()
+    }
   }
 }
 

@@ -574,39 +574,58 @@ router.get('/economic', async (req, res) => {
 
     // Hardcoded metadata for economic indicators
     const indicatorMeta = {
-      CPI: { name: 'Consumer Price Index', unit: '%', category: 'Inflation' },
-      CPILFESL: { name: 'Core CPI', unit: '%', category: 'Inflation' },
-      PPIACO: { name: 'Producer Price Index', unit: '%', category: 'Inflation' },
-      CUSR0000SA0L1E: { name: 'Core PPI', unit: '%', category: 'Inflation' },
-      UNRATE: { name: 'Unemployment Rate', unit: '%', category: 'Labor' },
-      NFP: { name: 'Nonfarm Payrolls', unit: 'K', category: 'Labor' },
-      GDP: { name: 'Gross Domestic Product', unit: 'B', category: 'Growth' },
-      GDPC1: { name: 'Real GDP', unit: 'B', category: 'Growth' },
-      FEDFUNDS: { name: 'Fed Funds Rate', unit: '%', category: 'Rates' },
-      DGS10: { name: '10Y Treasury Yield', unit: '%', category: 'Rates' },
-      PCE: { name: 'Personal Consumption Expenditures', unit: '%', category: 'Inflation' },
-      CP: { name: 'Consumer Confidence', unit: '', category: 'Sentiment' },
-      RETAIL: { name: 'Retail Sales', unit: '%', category: 'Consumption' },
-      INDPRO: { name: 'Industrial Production', unit: '%', category: 'Production' },
-      ISM: { name: 'ISM Manufacturing', unit: '', category: 'Manufacturing' },
-      ISMNONMAN: { name: 'ISM Services', unit: '', category: 'Services' },
-      DURABLE: { name: 'Durable Goods Orders', unit: '%', category: 'Manufacturing' },
-      HOUSING: { name: 'Housing Starts', unit: 'K', category: 'Housing' },
-      PERMITS: { name: 'Building Permits', unit: 'K', category: 'Housing' },
-      M2: { name: 'M2 Money Supply', unit: 'B', category: 'Money Supply' },
-      T10Y2Y: { name: '10Y-2Y Treasury Spread', unit: '%', category: 'Rates' },
-      T10Y3M: { name: '10Y-3M Treasury Spread', unit: '%', category: 'Rates' },
-      VIXCLS: { name: 'VIX Volatility Index', unit: '', category: 'Volatility' },
-      SP500: { name: 'S&P 500 Index', unit: '', category: 'Equities' },
-      DJIA: { name: 'Dow Jones Industrial Average', unit: '', category: 'Equities' },
-      NASDAQ: { name: 'NASDAQ Composite', unit: '', category: 'Equities' },
-      CRB: { name: 'CRB Commodity Index', unit: '', category: 'Commodities' },
-      OIL: { name: 'Crude Oil Price', unit: '$', category: 'Commodities' },
-      GOLD: { name: 'Gold Price', unit: '$', category: 'Commodities' },
-      SILVER: { name: 'Silver Price', unit: '$', category: 'Commodities' },
-      COPPER: { name: 'Copper Price', unit: '$', category: 'Commodities' },
-      // Add more as needed for your data coverage
+      CPI: { name: 'Consumer Price Index', unit: '%', category: 'Inflation', description: 'Measures changes in the price level of a weighted average market basket of consumer goods and services' },
+      CPILFESL: { name: 'Core CPI', unit: '%', category: 'Inflation', description: 'Consumer Price Index excluding food and energy' },
+      PPIACO: { name: 'Producer Price Index', unit: '%', category: 'Inflation', description: 'Measures average changes in prices received by domestic producers' },
+      CUSR0000SA0L1E: { name: 'Core PPI', unit: '%', category: 'Inflation', description: 'Producer Price Index excluding food and energy' },
+      UNRATE: { name: 'Unemployment Rate', unit: '%', category: 'Labor', description: 'Percentage of the labor force that is unemployed' },
+      NFP: { name: 'Nonfarm Payrolls', unit: 'K', category: 'Labor', description: 'Total number of paid U.S. workers excluding farm workers' },
+      GDP: { name: 'Gross Domestic Product', unit: 'B', category: 'Growth', description: 'Total monetary value of all finished goods and services produced within a country' },
+      GDPC1: { name: 'Real GDP', unit: 'B', category: 'Growth', description: 'GDP adjusted for inflation' },
+      FEDFUNDS: { name: 'Fed Funds Rate', unit: '%', category: 'Rates', description: 'Target interest rate set by the Federal Reserve' },
+      DGS10: { name: '10Y Treasury Yield', unit: '%', category: 'Rates', description: 'Yield on 10-year Treasury notes' },
+      PCE: { name: 'Personal Consumption Expenditures', unit: '%', category: 'Inflation', description: 'Primary measure of consumer spending on goods and services' },
+      CP: { name: 'Consumer Confidence', unit: '', category: 'Sentiment', description: 'Measure of consumer optimism about the economy' },
+      RETAIL: { name: 'Retail Sales', unit: '%', category: 'Consumption', description: 'Total receipts at stores that sell merchandise and related services' },
+      INDPRO: { name: 'Industrial Production', unit: '%', category: 'Production', description: 'Measures real output of manufacturing, mining, and utilities' },
+      ISM: { name: 'ISM Manufacturing', unit: '', category: 'Manufacturing', description: 'Institute for Supply Management Manufacturing Index' },
+      ISMNONMAN: { name: 'ISM Services', unit: '', category: 'Services', description: 'Institute for Supply Management Services Index' },
+      DURABLE: { name: 'Durable Goods Orders', unit: '%', category: 'Manufacturing', description: 'Orders for goods expected to last more than three years' },
+      HOUSING: { name: 'Housing Starts', unit: 'K', category: 'Housing', description: 'Number of new residential construction projects' },
+      PERMITS: { name: 'Building Permits', unit: 'K', category: 'Housing', description: 'Number of building permits issued for new construction' },
+      M2: { name: 'M2 Money Supply', unit: 'B', category: 'Money Supply', description: 'Measure of money supply including cash and checking deposits' },
+      T10Y2Y: { name: '10Y-2Y Treasury Spread', unit: '%', category: 'Rates', description: 'Difference between 10-year and 2-year Treasury yields' },
+      T10Y3M: { name: '10Y-3M Treasury Spread', unit: '%', category: 'Rates', description: 'Difference between 10-year and 3-month Treasury yields' },
+      VIXCLS: { name: 'VIX Volatility Index', unit: '', category: 'Volatility', description: 'Market volatility index based on S&P 500 options' },
+      SP500: { name: 'S&P 500 Index', unit: '', category: 'Equities', description: 'Market-capitalization-weighted index of 500 large-cap stocks' },
+      DJIA: { name: 'Dow Jones Industrial Average', unit: '', category: 'Equities', description: 'Price-weighted index of 30 large-cap stocks' },
+      NASDAQ: { name: 'NASDAQ Composite', unit: '', category: 'Equities', description: 'Market-capitalization-weighted index of NASDAQ-listed stocks' },
+      CRB: { name: 'CRB Commodity Index', unit: '', category: 'Commodities', description: 'Commodity Research Bureau Index tracking commodity prices' },
+      OIL: { name: 'Crude Oil Price', unit: '$', category: 'Commodities', description: 'Price of crude oil per barrel' },
+      GOLD: { name: 'Gold Price', unit: '$', category: 'Commodities', description: 'Price of gold per ounce' },
+      SILVER: { name: 'Silver Price', unit: '$', category: 'Commodities', description: 'Price of silver per ounce' },
+      COPPER: { name: 'Copper Price', unit: '$', category: 'Commodities', description: 'Price of copper per pound' },
     };
+
+    // Check if economic_data table exists
+    const tableCheck = await query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'economic_data'
+      );
+    `);
+
+    if (!tableCheck.rows[0].exists) {
+      console.log('Economic data table does not exist, returning empty data');
+      return res.json({
+        period_days: days,
+        data: [],
+        total_data_points: 0,
+        timestamp: new Date().toISOString(),
+        message: 'Economic data table not available'
+      });
+    }
 
     // Query the latest 2 records per series_id for change calculation
     const econQuery = `
@@ -617,40 +636,54 @@ router.get('/economic', async (req, res) => {
       FROM economic_data 
       WHERE date >= CURRENT_DATE - INTERVAL '${days} days'
       ORDER BY date DESC, series_id ASC
-      LIMIT 100
+      LIMIT 200
     `;
 
     const result = await query(econQuery);
+    console.log(`Found ${result.rows.length} economic data points`);
+
     // Group by series_id for previous value lookup
     const grouped = {};
     for (const row of result.rows) {
       if (!grouped[row.series_id]) grouped[row.series_id] = [];
       grouped[row.series_id].push(row);
     }
+
     // Build enriched indicators
     const indicators = [];
     for (const [series_id, rows] of Object.entries(grouped)) {
-      const meta = indicatorMeta[series_id] || { name: series_id, unit: '', category: 'Other' };
+      const meta = indicatorMeta[series_id] || { 
+        name: series_id, 
+        unit: '', 
+        category: 'Other',
+        description: `Economic indicator: ${series_id}`
+      };
       const current = rows[0];
       const previous = rows[1];
+      
       let change_percent = null;
       if (current && previous && previous.value != null && previous.value !== 0) {
         change_percent = ((current.value - previous.value) / Math.abs(previous.value)) * 100;
       }
+
       indicators.push({
         series_id,
         name: meta.name,
         unit: meta.unit,
         category: meta.category,
+        description: meta.description,
         value: current.value,
         previous_value: previous ? previous.value : null,
         change_percent,
         timestamp: current.date
       });
     }
+
+    console.log(`Processed ${indicators.length} economic indicators`);
+
     res.json({
       period_days: days,
-      data: indicators, // Return all indicators (fix: was flatIndicators)
+      data: indicators,
       total_data_points: result.rows.length,
       timestamp: new Date().toISOString()
     });
