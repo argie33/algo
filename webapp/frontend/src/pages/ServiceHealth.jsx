@@ -181,7 +181,7 @@ function ServiceHealth() {
     refetchInterval: false,
     retry: 1,
     staleTime: 30000,
-    enabled: false // Don't auto-run
+    enabled: true // Auto-run on mount
   });
 
   // Cached database health check - uses new cached system
@@ -212,6 +212,12 @@ function ServiceHealth() {
     staleTime: 30000,
     enabled: true // Auto-run on mount
   });
+
+  // Auto-run API tests on component mount
+  useEffect(() => {
+    // Run API tests automatically when component mounts
+    testAllEndpoints();
+  }, [testAllEndpoints]);
 
   // Refresh health status background job
   const refreshHealthStatus = async () => {
