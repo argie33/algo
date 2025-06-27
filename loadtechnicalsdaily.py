@@ -65,99 +65,97 @@ def sanitize_value(x):
 
 def pivot_high_vectorized(df, left_bars=3, right_bars=3):
     """
-    Calculate pivot high values - a true pivot high is the highest point 
-    within left_bars + 1 + right_bars period (including current bar)
-    
-    Ensures data is sorted and handles edge cases properly.
+    Calculate pivot high values - Pine Script style pivothigh()
+    Returns the hypothetical trigger value that would cause a pivot high signal
     """
-    # Ensure data is sorted by date (index)
     series = df['high'].sort_index()
-    
-    # Create a rolling window that includes current bar and surrounding bars
     pivot_highs = pd.Series(index=series.index, dtype=float)
     
-    for i in range(len(series)):
-        # Calculate window boundaries
-        start_idx = max(0, i - left_bars)
-        end_idx = min(len(series), i + right_bars + 1)
-        
+    for i in range(left_bars, len(series) - right_bars):
         # Get the window around current bar
-        window = series.iloc[start_idx:end_idx]
+        left_window = series.iloc[i-left_bars:i]
+        current_value = series.iloc[i]
+        right_window = series.iloc[i+1:i+right_bars+1]
         
-        # Current bar position in the window
-        current_pos_in_window = i - start_idx
-        current_value = window.iloc[current_pos_in_window]
-        
-        # Check if we have enough data for a proper pivot calculation
-        if len(window) < 3:  # Need at least 3 bars for a meaningful pivot
-            pivot_highs.iloc[i] = np.nan
+        # Check if current bar is the highest in the window
+        if current_value > left_window.max() and current_value > right_window.max():
+            # This is a pivot high - return the hypothetical trigger value
+            # In Pine Script, this would be the high value that triggers the signal
+            pivot_highs.iloc[i] = current_value
         else:
-            # Check if current bar is the highest in the window
-            if current_value == window.max():
-                # Additional check: ensure it's not just a flat line
-                if window.max() != window.min():
-                    pivot_highs.iloc[i] = current_value
-                else:
-                    pivot_highs.iloc[i] = np.nan
-            else:
-                pivot_highs.iloc[i] = np.nan
+            pivot_highs.iloc[i] = np.nan
     
     return pivot_highs
 
 def pivot_low_vectorized(df, left_bars=3, right_bars=3):
     """
-    Calculate pivot low values - a true pivot low is the lowest point 
-    within left_bars + 1 + right_bars period (including current bar)
-    
-    Ensures data is sorted and handles edge cases properly.
+    Calculate pivot low values - Pine Script style pivotlow()
+    Returns the hypothetical trigger value that would cause a pivot low signal
     """
-    # Ensure data is sorted by date (index)
     series = df['low'].sort_index()
-    
-    # Create a rolling window that includes current bar and surrounding bars
     pivot_lows = pd.Series(index=series.index, dtype=float)
     
-    for i in range(len(series)):
-        # Calculate window boundaries
-        start_idx = max(0, i - left_bars)
-        end_idx = min(len(series), i + right_bars + 1)
-        
+    for i in range(left_bars, len(series) - right_bars):
         # Get the window around current bar
-        window = series.iloc[start_idx:end_idx]
+        left_window = series.iloc[i-left_bars:i]
+        current_value = series.iloc[i]
+        right_window = series.iloc[i+1:i+right_bars+1]
         
-        # Current bar position in the window
-        current_pos_in_window = i - start_idx
-        current_value = window.iloc[current_pos_in_window]
-        
-        # Check if we have enough data for a proper pivot calculation
-        if len(window) < 3:  # Need at least 3 bars for a meaningful pivot
-            pivot_lows.iloc[i] = np.nan
+        # Check if current bar is the lowest in the window
+        if current_value < left_window.min() and current_value < right_window.min():
+            # This is a pivot low - return the hypothetical trigger value
+            # In Pine Script, this would be the low value that triggers the signal
+            pivot_lows.iloc[i] = current_value
         else:
-            # Check if current bar is the lowest in the window
-            if current_value == window.min():
-                # Additional check: ensure it's not just a flat line
-                if window.max() != window.min():
-                    pivot_lows.iloc[i] = current_value
-                else:
-                    pivot_lows.iloc[i] = np.nan
-            else:
-                pivot_lows.iloc[i] = np.nan
+            pivot_lows.iloc[i] = np.nan
     
     return pivot_lows
 
 def pivot_high_triggered_vectorized(df, left_bars=3, right_bars=3):
     """
-    Calculate pivot high triggers - same as pivot_high_vectorized but 
-    returns the actual pivot high values when triggered
+    Calculate pivot high triggers - returns actual pivot values only when triggered
+    This represents when a pivot high signal is actually generated
     """
-    return pivot_high_vectorized(df, left_bars, right_bars)
+    series = df['high'].sort_index()
+    pivot_highs = pd.Series(index=series.index, dtype=float)
+    
+    for i in range(left_bars, len(series) - right_bars):
+        # Get the window around current bar
+        left_window = series.iloc[i-left_bars:i]
+        current_value = series.iloc[i]
+        right_window = series.iloc[i+1:i+right_bars+1]
+        
+        # Check if current bar is the highest in the window
+        if current_value > left_window.max() and current_value > right_window.max():
+            # This is a confirmed pivot high - signal is triggered
+            pivot_highs.iloc[i] = current_value
+        else:
+            pivot_highs.iloc[i] = np.nan
+    
+    return pivot_highs
 
 def pivot_low_triggered_vectorized(df, left_bars=3, right_bars=3):
     """
-    Calculate pivot low triggers - same as pivot_low_vectorized but 
-    returns the actual pivot low values when triggered
+    Calculate pivot low triggers - returns actual pivot values only when triggered
+    This represents when a pivot low signal is actually generated
     """
-    return pivot_low_vectorized(df, left_bars, right_bars)
+    series = df['low'].sort_index()
+    pivot_lows = pd.Series(index=series.index, dtype=float)
+    
+    for i in range(left_bars, len(series) - right_bars):
+        # Get the window around current bar
+        left_window = series.iloc[i-left_bars:i]
+        current_value = series.iloc[i]
+        right_window = series.iloc[i+1:i+right_bars+1]
+        
+        # Check if current bar is the lowest in the window
+        if current_value < left_window.min() and current_value < right_window.min():
+            # This is a confirmed pivot low - signal is triggered
+            pivot_lows.iloc[i] = current_value
+        else:
+            pivot_lows.iloc[i] = np.nan
+    
+    return pivot_lows
 
 def td_sequential(close, lookback=4):
     count = np.zeros(len(close), dtype=np.float64)

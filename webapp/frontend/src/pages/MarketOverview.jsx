@@ -21,7 +21,7 @@ import {
   Chip
 } from '@mui/material'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts'
-import { SentimentVerySatisfied, SentimentSatisfied, SentimentNeutral, SentimentDissatisfied, SentimentVeryDissatisfied, TrendingUp, TrendingDown, TrendingFlat } from '@mui/icons-material';
+import { SentimentVerySatisfied, SentimentSatisfied, SentimentNeutral, SentimentDissatisfied, SentimentVeryDissatisfied, TrendingUp, TrendingDown, HorizontalRule } from '@mui/icons-material';
 
 import { 
   getMarketOverview, 
@@ -313,7 +313,7 @@ function MarketOverview() {
           <Card sx={{ borderLeft: '6px solid #8e24aa', boxShadow: 2, height: '100%' }}>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                <TrendingFlat sx={{ color: '#8e24aa', fontSize: 32, mr: 1 }} />
+                <HorizontalRule sx={{ color: '#8e24aa', fontSize: 32, mr: 1 }} />
                 <Typography variant="h6" sx={{ fontWeight: 700, ml: 1 }}>
                   NAAIM Exposure Index
                 </Typography>

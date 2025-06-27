@@ -20,6 +20,7 @@ import {
 import {
   TrendingUp,
   TrendingDown,
+  HorizontalRule,
   ArrowUpward,
   ArrowDownward,
   Business,
@@ -751,7 +752,7 @@ const Dashboard = () => {
           <Card sx={{ boxShadow: 3, borderLeft: '6px solid #43a047' }}>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                <TrendingFlat sx={{ color: 'info.main', mr: 1 }} />
+                <HorizontalRule sx={{ color: 'info.main', mr: 1 }} />
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>Watchlist</Typography>
                 <Tooltip title="Your selected stocks for monitoring" arrow><Info sx={{ color: 'grey.500', ml: 1, fontSize: 18 }} /></Tooltip>
               </Box>

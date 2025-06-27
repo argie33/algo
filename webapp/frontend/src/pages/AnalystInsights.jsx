@@ -27,7 +27,7 @@ import {
 import {
   TrendingUp,
   TrendingDown,
-  TrendingFlat,
+  HorizontalRule,
   Assessment,
   Person
 } from '@mui/icons-material';
@@ -90,10 +90,10 @@ function AnalystInsights() {
     const actionConfig = {
       'up': { color: '#10B981', icon: <TrendingUp />, label: 'Upgrade' },
       'down': { color: '#DC2626', icon: <TrendingDown />, label: 'Downgrade' },
-      'main': { color: '#3B82F6', icon: <TrendingFlat />, label: 'Maintains' },
+      'main': { color: '#3B82F6', icon: <HorizontalRule />, label: 'Maintains' },
       'init': { color: '#8B5CF6', icon: <Assessment />, label: 'Initiates' },
       'resume': { color: '#10B981', icon: <TrendingUp />, label: 'Resume' },
-      'reit': { color: '#F59E0B', icon: <TrendingFlat />, label: 'Reiterate' }
+      'reit': { color: '#F59E0B', icon: <HorizontalRule />, label: 'Reiterate' }
     };
 
     const config = actionConfig[action?.toLowerCase()] || actionConfig['main'];
