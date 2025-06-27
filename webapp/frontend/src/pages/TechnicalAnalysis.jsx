@@ -38,7 +38,7 @@ import {
   Clear,
   TrendingUp,
   TrendingDown,
-  TrendingFlat,
+  HorizontalRule,
   ShowChart,
   InfoOutlined
 } from '@mui/icons-material';
@@ -52,7 +52,7 @@ function TechnicalAnalysis() {
   const [symbolFilter, setSymbolFilter] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [orderBy, setOrderBy] = useState('symbol');
   const [order, setOrder] = useState('asc');
   const [activeFilters, setActiveFilters] = useState(0);
@@ -185,7 +185,7 @@ function TechnicalAnalysis() {
       case 'down':
         return <TrendingDown fontSize="small" color="inherit" />;
       case 'flat':
-        return <TrendingFlat fontSize="small" color="inherit" />;
+        return <HorizontalRule fontSize="small" color="inherit" />;
       case 'neutral':
         return <ShowChart fontSize="small" color="inherit" />;
       case 'info':

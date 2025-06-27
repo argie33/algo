@@ -27,7 +27,7 @@ router.get('/:timeframe', async (req, res) => {
       });
     }
     const page = parseInt(req.query.page) || 1;
-    const limit = Math.min(parseInt(req.query.limit) || 25, 100);
+    const limit = Math.min(parseInt(req.query.limit) || 10, 100);
     const offset = (page - 1) * limit;
     const symbol = req.query.symbol;
     console.log(`[DEBUG] Pagination: page=${page}, limit=${limit}, offset=${offset}`);
