@@ -18,7 +18,7 @@ import requests
 from io import BytesIO
 
 # -------------------------------
-# Script metadata & logging setup
+# Script metadata & logging setup  
 # -------------------------------
 SCRIPT_NAME = "loadaaiidata.py"
 logging.basicConfig(

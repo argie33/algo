@@ -17,7 +17,7 @@ import pandas as pd
 import requests
 
 # -------------------------------
-# Script metadata & logging setup
+# Script metadata & logging setup  
 # -------------------------------
 SCRIPT_NAME = "loadnaaim.py"
 logging.basicConfig(
