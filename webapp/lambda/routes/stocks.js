@@ -730,101 +730,102 @@ router.get('/full/data', async (req, res) => {
 
 // Get comprehensive stock details by ticker
 // SIMPLIFIED Individual Stock Endpoint - Fast and reliable
-router.get('/:ticker', async (req, res) => {
-  try {
-    const { ticker } = req.params;
-    const tickerUpper = ticker.toUpperCase();
-    
-    console.log(`SIMPLIFIED stock endpoint called for: ${tickerUpper}`);
-    
-    // SINGLE OPTIMIZED QUERY - Get everything we need in one go
-    const stockQuery = `
-      SELECT 
-        ss.symbol,
-        ss.security_name,
-        ss.exchange,
-        ss.market_category,
-        ss.financial_status,
-        ss.etf,
-        pd.date as latest_date,
-        pd.open,
-        pd.high,
-        pd.low,
-        pd.close,
-        pd.volume,
-        pd.adj_close
-      FROM stock_symbols ss
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol) 
-          symbol, date, open, high, low, close, volume, adj_close
-        FROM price_daily
-        WHERE symbol = $1
-        ORDER BY symbol, date DESC
-      ) pd ON ss.symbol = pd.symbol
-      WHERE ss.symbol = $1
-    `;
-    
-    const result = await query(stockQuery, [tickerUpper]);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        error: 'Stock not found',
-        symbol: tickerUpper,
-        message: `Symbol '${tickerUpper}' not found in database`,
-        timestamp: new Date().toISOString()
-      });
-    }
-    
-    const stock = result.rows[0];
-    
-    // SIMPLE RESPONSE - Just the essential data
-    const response = {
-      symbol: tickerUpper,
-      ticker: tickerUpper,
-      companyInfo: {
-        name: stock.security_name,
-        exchange: stock.exchange,
-        marketCategory: stock.market_category,
-        financialStatus: stock.financial_status,
-        isETF: stock.etf === 't' || stock.etf === true
-      },
-      currentPrice: stock.close ? {
-        date: stock.latest_date,
-        open: parseFloat(stock.open || 0),
-        high: parseFloat(stock.high || 0),
-        low: parseFloat(stock.low || 0),
-        close: parseFloat(stock.close || 0),
-        adjClose: parseFloat(stock.adj_close || stock.close || 0),
-        volume: parseInt(stock.volume || 0)
-      } : null,
-      metadata: {
-        requestedSymbol: ticker,
-        resolvedSymbol: tickerUpper,
-        dataAvailability: {
-          basicInfo: true,
-          priceData: stock.close !== null,
-          technicalIndicators: false, // Disabled for speed
-          fundamentals: false // Disabled for speed
-        },
-        timestamp: new Date().toISOString()
-      }
-    };
-    
-    console.log(`✅ SIMPLIFIED: Successfully returned basic data for ${tickerUpper}`);
-    
-    res.json(response);
-    
-  } catch (error) {
-    console.error('Error in simplified stock endpoint:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch stock data', 
-      symbol: req.params.ticker,
-      message: error.message,
-      data: [], // Always return data as an array for frontend safety
-      timestamp: new Date().toISOString()
-    });
-  }
-});
+// TEMPORARILY COMMENTED OUT - This route conflicts with /:ticker/prices
+// router.get('/:ticker', async (req, res) => {
+//   try {
+//     const { ticker } = req.params;
+//     const tickerUpper = ticker.toUpperCase();
+//     
+//     console.log(`SIMPLIFIED stock endpoint called for: ${tickerUpper}`);
+//     
+//     // SINGLE OPTIMIZED QUERY - Get everything we need in one go
+//     const stockQuery = `
+//       SELECT 
+//         ss.symbol,
+//         ss.security_name,
+//         ss.exchange,
+//         ss.market_category,
+//         ss.financial_status,
+//         ss.etf,
+//         pd.date as latest_date,
+//         pd.open,
+//         pd.high,
+//         pd.low,
+//         pd.close,
+//         pd.volume,
+//         pd.adj_close
+//       FROM stock_symbols ss
+//       LEFT JOIN (
+//         SELECT DISTINCT ON (symbol) 
+//           symbol, date, open, high, low, close, volume, adj_close
+//         FROM price_daily
+//         WHERE symbol = $1
+//         ORDER BY symbol, date DESC
+//       ) pd ON ss.symbol = pd.symbol
+//       WHERE ss.symbol = $1
+//     `;
+//     
+//     const result = await query(stockQuery, [tickerUpper]);
+//     
+//     if (result.rows.length === 0) {
+//       return res.status(404).json({
+//         error: 'Stock not found',
+//         symbol: tickerUpper,
+//         message: `Symbol '${tickerUpper}' not found in database`,
+//         timestamp: new Date().toISOString()
+//       });
+//     }
+//     
+//     const stock = result.rows[0];
+//     
+//     // SIMPLE RESPONSE - Just the essential data
+//     const response = {
+//       symbol: tickerUpper,
+//       ticker: tickerUpper,
+//       companyInfo: {
+//         name: stock.security_name,
+//         exchange: stock.exchange,
+//         marketCategory: stock.market_category,
+//         financialStatus: stock.financial_status,
+//         isETF: stock.etf === 't' || stock.etf === true
+//       },
+//       currentPrice: stock.close ? {
+//         date: stock.latest_date,
+//         open: parseFloat(stock.open || 0),
+//         high: parseFloat(stock.high || 0),
+//         low: parseFloat(stock.low || 0),
+//         close: parseFloat(stock.close || 0),
+//         adjClose: parseFloat(stock.adj_close || stock.close || 0),
+//         volume: parseInt(stock.volume || 0)
+//       } : null,
+//       metadata: {
+//         requestedSymbol: ticker,
+//         resolvedSymbol: tickerUpper,
+//         dataAvailability: {
+//           basicInfo: true,
+//           priceData: stock.close !== null,
+//           technicalIndicators: false, // Disabled for speed
+//           fundamentals: false // Disabled for speed
+//         },
+//         timestamp: new Date().toISOString()
+//       }
+//     };
+//     
+//     console.log(`✅ SIMPLIFIED: Successfully returned basic data for ${tickerUpper}`);
+//     
+//     res.json(response);
+//     
+//   } catch (error) {
+//     console.error('Error in simplified stock endpoint:', error);
+//     res.status(500).json({ 
+//       error: 'Failed to fetch stock data', 
+//       symbol: req.params.ticker,
+//       message: error.message,
+//       data: [], // Always return data as an array for frontend safety
+//       timestamp: new Date().toISOString()
+//     });
+//   }
+// });
 
 // Get stock price history
 // SIMPLIFIED Get stock price history
@@ -2400,6 +2401,104 @@ router.get('/api/stocks/:symbol/price-data', async (req, res) => {
   } catch (error) {
     console.error('Error in price-data endpoint:', error);
     res.status(500).json({ error: 'Failed to fetch price data', details: error.message });
+  }
+});
+
+// Get comprehensive stock details by ticker - MOVED TO END to avoid routing conflicts
+// This route must come AFTER all specific /:ticker/* routes
+router.get('/:ticker', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    const tickerUpper = ticker.toUpperCase();
+    
+    console.log(`SIMPLIFIED stock endpoint called for: ${tickerUpper}`);
+    
+    // SINGLE OPTIMIZED QUERY - Get everything we need in one go
+    const stockQuery = `
+      SELECT 
+        ss.symbol,
+        ss.security_name,
+        ss.exchange,
+        ss.market_category,
+        ss.financial_status,
+        ss.etf,
+        pd.date as latest_date,
+        pd.open,
+        pd.high,
+        pd.low,
+        pd.close,
+        pd.volume,
+        pd.adj_close
+      FROM stock_symbols ss
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol) 
+          symbol, date, open, high, low, close, volume, adj_close
+        FROM price_daily
+        WHERE symbol = $1
+        ORDER BY symbol, date DESC
+      ) pd ON ss.symbol = pd.symbol
+      WHERE ss.symbol = $1
+    `;
+    
+    const result = await query(stockQuery, [tickerUpper]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Stock not found',
+        symbol: tickerUpper,
+        message: `Symbol '${tickerUpper}' not found in database`,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const stock = result.rows[0];
+    
+    // SIMPLE RESPONSE - Just the essential data
+    const response = {
+      symbol: tickerUpper,
+      ticker: tickerUpper,
+      companyInfo: {
+        name: stock.security_name,
+        exchange: stock.exchange,
+        marketCategory: stock.market_category,
+        financialStatus: stock.financial_status,
+        isETF: stock.etf === 't' || stock.etf === true
+      },
+      currentPrice: stock.close ? {
+        date: stock.latest_date,
+        open: parseFloat(stock.open || 0),
+        high: parseFloat(stock.high || 0),
+        low: parseFloat(stock.low || 0),
+        close: parseFloat(stock.close || 0),
+        adjClose: parseFloat(stock.adj_close || stock.close || 0),
+        volume: parseInt(stock.volume || 0)
+      } : null,
+      metadata: {
+        requestedSymbol: ticker,
+        resolvedSymbol: tickerUpper,
+        dataAvailability: {
+          basicInfo: true,
+          priceData: stock.close !== null,
+          technicalIndicators: false, // Disabled for speed
+          fundamentals: false // Disabled for speed
+        },
+        timestamp: new Date().toISOString()
+      }
+    };
+    
+    console.log(`✅ SIMPLIFIED: Successfully returned basic data for ${tickerUpper}`);
+    
+    res.json(response);
+    
+  } catch (error) {
+    console.error('Error in simplified stock endpoint:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch stock data', 
+      symbol: req.params.ticker,
+      message: error.message,
+      data: [], // Always return data as an array for frontend safety
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
