@@ -271,7 +271,11 @@ function ServiceHealth() {
       case 'disconnected':
         return <Error color="error" />;
       case 'warning':
+      case 'stale':
+      case 'incomplete':
         return <Warning color="warning" />;
+      case 'empty':
+        return <Info color="info" />;
       default:
         return <Info color="info" />;
     }
@@ -288,7 +292,11 @@ function ServiceHealth() {
       case 'disconnected':
         return 'error';
       case 'warning':
+      case 'stale':
+      case 'incomplete':
         return 'warning';
+      case 'empty':
+        return 'info';
       default:
         return 'default';
     }
@@ -302,6 +310,24 @@ function ServiceHealth() {
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleString();
+  };
+
+  const formatTimeAgo = (dateString) => {
+    if (!dateString) return 'N/A';
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffMs = now - date;
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffHours / 24);
+    
+    if (diffDays > 0) {
+      return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    } else if (diffHours > 0) {
+      return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    } else {
+      const diffMinutes = Math.floor(diffMs / (1000 * 60));
+      return `${diffMinutes} minute${diffMinutes > 1 ? 's' : ''} ago`;
+    }
   };
 
   return (
@@ -545,16 +571,67 @@ function ServiceHealth() {
                     )}
                   </Box>
 
+                  {/* Summary Statistics */}
+                  {safeDbHealth.database?.summary && (
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="subtitle2" gutterBottom>Summary:</Typography>
+                      <Grid container spacing={1}>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="body2" color="text.secondary">
+                            Total Tables: {safeDbHealth.database.summary.total_tables}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="body2" color="success.main">
+                            Healthy: {safeDbHealth.database.summary.healthy_tables}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="body2" color="warning.main">
+                            Stale: {safeDbHealth.database.summary.stale_tables}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="body2" color="error.main">
+                            Errors: {safeDbHealth.database.summary.error_tables}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="body2" color="info.main">
+                            Empty: {safeDbHealth.database.summary.empty_tables}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="body2" color="text.secondary">
+                            Missing: {safeDbHealth.database.summary.missing_tables}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="body2" color="text.secondary">
+                            Total Records: {formatNumber(safeDbHealth.database.summary.total_records)}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="body2" color="warning.main">
+                            Missing Data: {formatNumber(safeDbHealth.database.summary.total_missing_data)}
+                          </Typography>
+                        </Grid>
+                      </Grid>
+                    </Box>
+                  )}
+
                   {safeDbHealth.database?.tables && Object.keys(safeDbHealth.database.tables).length > 0 && (
                     <Box sx={{ mt: 2 }}>
-                      <Typography variant="subtitle2" gutterBottom>Table Status (Cached):</Typography>
-                      <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
+                      <Typography variant="subtitle2" gutterBottom>Table Status (Enhanced):</Typography>
+                      <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
                         <Table size="small" stickyHeader>
                           <TableHead>
                             <TableRow>
                               <TableCell>Table</TableCell>
                               <TableCell align="right">Records</TableCell>
                               <TableCell>Status</TableCell>
+                              <TableCell>Last Updated</TableCell>
+                              <TableCell>Missing Data</TableCell>
                               <TableCell>Last Checked</TableCell>
                               <TableCell>Error</TableCell>
                             </TableRow>
@@ -562,9 +639,15 @@ function ServiceHealth() {
                           <TableBody>
                             {Object.entries(safeDbHealth.database.tables).map(([tableName, tableData]) => (
                               <TableRow key={tableName}>
-                                <TableCell>{tableName}</TableCell>
+                                <TableCell component="th" scope="row">
+                                  <Typography variant="body2" fontFamily="monospace">
+                                    {tableName}
+                                  </Typography>
+                                </TableCell>
                                 <TableCell align="right">
-                                  {formatNumber(tableData.record_count)}
+                                  <Typography variant="body2">
+                                    {formatNumber(tableData.record_count)}
+                                  </Typography>
                                 </TableCell>
                                 <TableCell>
                                   <Chip
@@ -573,9 +656,40 @@ function ServiceHealth() {
                                     color={getStatusColor(tableData.status)}
                                     size="small"
                                   />
+                                  {tableData.is_stale && (
+                                    <Chip
+                                      label="Stale"
+                                      color="warning"
+                                      size="small"
+                                      sx={{ ml: 0.5 }}
+                                    />
+                                  )}
                                 </TableCell>
                                 <TableCell>
-                                  {formatDate(tableData.last_checked)}
+                                  <Box>
+                                    <Typography variant="body2">
+                                      {formatDate(tableData.last_updated)}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                      {formatTimeAgo(tableData.last_updated)}
+                                    </Typography>
+                                  </Box>
+                                </TableCell>
+                                <TableCell align="right">
+                                  {tableData.missing_data_count > 0 ? (
+                                    <Typography variant="body2" color="warning.main">
+                                      {formatNumber(tableData.missing_data_count)}
+                                    </Typography>
+                                  ) : (
+                                    <Typography variant="body2" color="success.main">
+                                      0
+                                    </Typography>
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="body2">
+                                    {formatDate(tableData.last_checked)}
+                                  </Typography>
                                 </TableCell>
                                 <TableCell>
                                   {tableData.error && (

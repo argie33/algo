@@ -85,7 +85,7 @@ router.get('/database', async (req, res) => {
   console.log('Received request for /health/database');
   
   try {
-    // First, ensure the health_status table exists
+    // First, ensure the health_status table exists with enhanced schema
     await query(`
       CREATE TABLE IF NOT EXISTS health_status (
         id SERIAL PRIMARY KEY,
@@ -94,6 +94,10 @@ router.get('/database', async (req, res) => {
         status VARCHAR(20) NOT NULL,
         last_checked TIMESTAMP NOT NULL DEFAULT NOW(),
         error_message TEXT,
+        last_updated TIMESTAMP,
+        stale_threshold_hours INTEGER DEFAULT 24,
+        is_stale BOOLEAN DEFAULT FALSE,
+        missing_data_count BIGINT DEFAULT 0,
         UNIQUE(table_name)
       );
     `);
@@ -105,7 +109,11 @@ router.get('/database', async (req, res) => {
         record_count, 
         status, 
         last_checked, 
-        error_message
+        error_message,
+        last_updated,
+        stale_threshold_hours,
+        is_stale,
+        missing_data_count
       FROM health_status 
       ORDER BY table_name;
     `);
@@ -119,13 +127,17 @@ router.get('/database', async (req, res) => {
         record_count: row.record_count,
         status: row.status,
         last_checked: row.last_checked,
-        error: row.error_message
+        error: row.error_message,
+        last_updated: row.last_updated,
+        stale_threshold_hours: row.stale_threshold_hours,
+        is_stale: row.is_stale,
+        missing_data_count: row.missing_data_count
       };
     });
     
-    // If no cached data exists, populate it automatically
+    // If no cached data exists, populate it automatically with enhanced analysis
     if (Object.keys(tableStats).length === 0) {
-      console.log('No cached health data found, populating automatically...');
+      console.log('No cached health data found, populating automatically with enhanced analysis...');
       
       const expectedTables = [
         'stock_symbols', 'etf_symbols', 'last_updated',
@@ -156,26 +168,122 @@ router.get('/database', async (req, res) => {
           `, [tableName]);
           
           if (tableExists.rows[0].exists) {
-            // Table exists, get count
+            // Get record count
             const countResult = await query(`SELECT COUNT(*) as count FROM ${tableName}`);
             const recordCount = parseInt(countResult.rows[0].count);
             
-            // Insert health status
+            // Check for fetched_at column and get last updated
+            let lastUpdated = null;
+            let isStale = false;
+            let missingDataCount = 0;
+            let staleThresholdHours = 24; // Default threshold
+            
+            try {
+              // Check if fetched_at column exists
+              const columnExists = await query(`
+                SELECT EXISTS (
+                  SELECT FROM information_schema.columns 
+                  WHERE table_name = $1 
+                  AND column_name = 'fetched_at'
+                );
+              `, [tableName]);
+              
+              if (columnExists.rows[0].exists) {
+                // Get last updated timestamp
+                const lastUpdateResult = await query(`
+                  SELECT MAX(fetched_at) as last_updated 
+                  FROM ${tableName} 
+                  WHERE fetched_at IS NOT NULL
+                `);
+                
+                if (lastUpdateResult.rows[0].last_updated) {
+                  lastUpdated = lastUpdateResult.rows[0].last_updated;
+                  
+                  // Check if data is stale (older than threshold)
+                  const hoursSinceUpdate = (new Date() - new Date(lastUpdated)) / (1000 * 60 * 60);
+                  isStale = hoursSinceUpdate > staleThresholdHours;
+                  
+                  // Count records with missing fetched_at
+                  const missingDataResult = await query(`
+                    SELECT COUNT(*) as missing_count 
+                    FROM ${tableName} 
+                    WHERE fetched_at IS NULL
+                  `);
+                  missingDataCount = parseInt(missingDataResult.rows[0].missing_count);
+                }
+              } else {
+                // Try alternative timestamp columns
+                const altColumns = ['updated_at', 'created_at', 'date', 'period_end', 'timestamp'];
+                for (const col of altColumns) {
+                  try {
+                    const altColumnExists = await query(`
+                      SELECT EXISTS (
+                        SELECT FROM information_schema.columns 
+                        WHERE table_name = $1 
+                        AND column_name = $2
+                      );
+                    `, [tableName, col]);
+                    
+                    if (altColumnExists.rows[0].exists) {
+                      const altLastUpdateResult = await query(`
+                        SELECT MAX(${col}) as last_updated 
+                        FROM ${tableName} 
+                        WHERE ${col} IS NOT NULL
+                      `);
+                      
+                      if (altLastUpdateResult.rows[0].last_updated) {
+                        lastUpdated = altLastUpdateResult.rows[0].last_updated;
+                        const hoursSinceUpdate = (new Date() - new Date(lastUpdated)) / (1000 * 60 * 60);
+                        isStale = hoursSinceUpdate > staleThresholdHours;
+                        break;
+                      }
+                    }
+                  } catch (e) {
+                    // Continue to next column
+                  }
+                }
+              }
+            } catch (e) {
+              console.log(`Could not analyze timestamp for table ${tableName}:`, e.message);
+            }
+            
+            // Determine status based on analysis
+            let status = 'healthy';
+            if (recordCount === 0) {
+              status = 'empty';
+            } else if (isStale) {
+              status = 'stale';
+            } else if (missingDataCount > 0) {
+              status = 'incomplete';
+            }
+            
+            // Insert enhanced health status
             await query(`
-              INSERT INTO health_status (table_name, record_count, status, last_checked)
-              VALUES ($1, $2, 'healthy', NOW())
+              INSERT INTO health_status (
+                table_name, record_count, status, last_checked, 
+                last_updated, stale_threshold_hours, is_stale, missing_data_count
+              )
+              VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7)
               ON CONFLICT (table_name) DO UPDATE SET
                 record_count = EXCLUDED.record_count,
                 status = EXCLUDED.status,
                 last_checked = EXCLUDED.last_checked,
+                last_updated = EXCLUDED.last_updated,
+                stale_threshold_hours = EXCLUDED.stale_threshold_hours,
+                is_stale = EXCLUDED.is_stale,
+                missing_data_count = EXCLUDED.missing_data_count,
                 error_message = NULL;
-            `, [tableName, recordCount]);
+            `, [tableName, recordCount, status, lastUpdated, staleThresholdHours, isStale, missingDataCount]);
             
             tableStats[tableName] = {
               record_count: recordCount,
-              status: 'healthy',
+              status: status,
               last_checked: new Date().toISOString(),
-              error: null
+              error: null,
+              last_updated: lastUpdated,
+              stale_threshold_hours: staleThresholdHours,
+              is_stale: isStale,
+              missing_data_count: missingDataCount
             };
           } else {
             // Table doesn't exist
@@ -193,7 +301,11 @@ router.get('/database', async (req, res) => {
               record_count: null,
               status: 'not_found',
               last_checked: new Date().toISOString(),
-              error: 'Table does not exist'
+              error: 'Table does not exist',
+              last_updated: null,
+              stale_threshold_hours: 24,
+              is_stale: false,
+              missing_data_count: 0
             };
           }
         } catch (error) {
@@ -214,11 +326,27 @@ router.get('/database', async (req, res) => {
             record_count: null,
             status: 'error',
             last_checked: new Date().toISOString(),
-            error: error.message
+            error: error.message,
+            last_updated: null,
+            stale_threshold_hours: 24,
+            is_stale: false,
+            missing_data_count: 0
           };
         }
       }
     }
+    
+    // Calculate summary statistics
+    const summary = {
+      total_tables: Object.keys(tableStats).length,
+      healthy_tables: Object.values(tableStats).filter(t => t.status === 'healthy').length,
+      stale_tables: Object.values(tableStats).filter(t => t.is_stale).length,
+      empty_tables: Object.values(tableStats).filter(t => t.status === 'empty').length,
+      error_tables: Object.values(tableStats).filter(t => t.status === 'error').length,
+      missing_tables: Object.values(tableStats).filter(t => t.status === 'not_found').length,
+      total_records: Object.values(tableStats).reduce((sum, t) => sum + (t.record_count || 0), 0),
+      total_missing_data: Object.values(tableStats).reduce((sum, t) => sum + (t.missing_data_count || 0), 0)
+    };
     
     res.json({
       status: 'healthy',
@@ -228,6 +356,7 @@ router.get('/database', async (req, res) => {
         currentTime: dbTimeResult.rows[0].current_time,
         postgresVersion: dbTimeResult.rows[0].postgres_version,
         tables: tableStats,
+        summary: summary,
         note: Object.keys(tableStats).length === 0 ? 'No tables found' : 
               'Data from cached health status table - run /health/update-status to refresh'
       }

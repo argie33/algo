@@ -469,43 +469,142 @@ function FinancialHighlightsWidget({ symbol }) {
     return category?.metrics?.[metricKey];
   };
   
-  const keyMetrics = [
+  // Enhanced financial metrics with better organization
+  const valuationMetrics = [
     { 
       label: 'Market Cap', 
+      value: getMetricValue('valuation', 'Market Cap') || getMetricValue('enterprise', 'Market Cap'),
+      format: formatCurrency,
+      color: 'primary.main'
+    },
+    { 
+      label: 'Enterprise Value', 
       value: getMetricValue('valuation', 'Enterprise Value') || getMetricValue('enterprise', 'Enterprise Value'),
-      format: formatCurrency 
+      format: formatCurrency,
+      color: 'primary.main'
     },
     { 
       label: 'P/E Ratio', 
       value: getMetricValue('valuation', 'P/E Ratio (Trailing)'),
-      format: (val) => val ? formatNumber(val, 2) : 'N/A' 
+      format: (val) => val ? formatNumber(val, 2) : 'N/A',
+      color: 'info.main'
+    },
+    { 
+      label: 'P/B Ratio', 
+      value: getMetricValue('valuation', 'Price to Book'),
+      format: (val) => val ? formatNumber(val, 2) : 'N/A',
+      color: 'info.main'
+    }
+  ];
+
+  const performanceMetrics = [
+    { 
+      label: 'Revenue', 
+      value: getMetricValue('financial_performance', 'Total Revenue'),
+      format: formatCurrency,
+      color: 'success.main'
+    },
+    { 
+      label: 'Net Income', 
+      value: getMetricValue('financial_performance', 'Net Income'),
+      format: formatCurrency,
+      color: 'success.main'
     },
     { 
       label: 'EPS', 
       value: getMetricValue('earnings', 'EPS (Trailing)'),
-      format: formatCurrency 
+      format: formatCurrency,
+      color: 'success.main'
     },
+    { 
+      label: 'Revenue Growth', 
+      value: getMetricValue('financial_performance', 'Revenue Growth'),
+      format: (val) => val ? formatPercentage(val / 100) : 'N/A',
+      color: 'success.main'
+    }
+  ];
+
+  const efficiencyMetrics = [
     { 
       label: 'ROE', 
       value: getMetricValue('returns', 'Return on Equity'),
-      format: (val) => val ? formatPercentage(val / 100) : 'N/A' 
+      format: (val) => val ? formatPercentage(val / 100) : 'N/A',
+      color: 'warning.main'
     },
+    { 
+      label: 'ROA', 
+      value: getMetricValue('returns', 'Return on Assets'),
+      format: (val) => val ? formatPercentage(val / 100) : 'N/A',
+      color: 'warning.main'
+    },
+    { 
+      label: 'Profit Margin', 
+      value: getMetricValue('financial_performance', 'Net Profit Margin'),
+      format: (val) => val ? formatPercentage(val / 100) : 'N/A',
+      color: 'warning.main'
+    },
+    { 
+      label: 'Operating Margin', 
+      value: getMetricValue('financial_performance', 'Operating Margin'),
+      format: (val) => val ? formatPercentage(val / 100) : 'N/A',
+      color: 'warning.main'
+    }
+  ];
+
+  const financialHealthMetrics = [
     { 
       label: 'Debt/Equity', 
       value: getMetricValue('cash_and_debt', 'Debt to Equity'),
-      format: (val) => val ? formatNumber(val, 2) : 'N/A' 
+      format: (val) => val ? formatNumber(val, 2) : 'N/A',
+      color: 'error.main'
     },
     { 
-      label: 'Revenue', 
-      value: getMetricValue('financial_performance', 'Total Revenue'),
-      format: formatCurrency 
+      label: 'Current Ratio', 
+      value: getMetricValue('cash_and_debt', 'Current Ratio'),
+      format: (val) => val ? formatNumber(val, 2) : 'N/A',
+      color: 'error.main'
+    },
+    { 
+      label: 'Cash Flow', 
+      value: getMetricValue('cash_and_debt', 'Operating Cash Flow'),
+      format: formatCurrency,
+      color: 'error.main'
+    },
+    { 
+      label: 'Free Cash Flow', 
+      value: getMetricValue('cash_and_debt', 'Free Cash Flow'),
+      format: formatCurrency,
+      color: 'error.main'
     }
   ];
+
+  // Calculate summary statistics
+  const calculateSummary = () => {
+    const allMetrics = [...valuationMetrics, ...performanceMetrics, ...efficiencyMetrics, ...financialHealthMetrics];
+    const validMetrics = allMetrics.filter(m => m.value !== null && m.value !== undefined && m.value !== 'N/A');
+    
+    return {
+      total_metrics: allMetrics.length,
+      available_metrics: validMetrics.length,
+      coverage_percentage: allMetrics.length > 0 ? Math.round((validMetrics.length / allMetrics.length) * 100) : 0
+    };
+  };
+
+  const summary = calculateSummary();
 
   return (
     <Card sx={{ mb: 3 }}>
       <CardContent>
-        <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>Financial Highlights</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>Financial Highlights</Typography>
+          <Chip 
+            label={`${summary.coverage_percentage}% Complete`} 
+            size="small" 
+            color={summary.coverage_percentage >= 80 ? 'success' : summary.coverage_percentage >= 60 ? 'warning' : 'error'} 
+            variant="outlined"
+          />
+        </Box>
+        
         {isLoading ? (
           <Box display="flex" alignItems="center" gap={2}>
             <CircularProgress size={20} />
@@ -520,20 +619,124 @@ function FinancialHighlightsWidget({ symbol }) {
             <Typography variant="body2" color="text.secondary" gutterBottom>
               Key financial metrics for {symbol}
             </Typography>
-            <Grid container spacing={2}>
-              {keyMetrics.map((metric, index) => (
-                <Grid item xs={6} sm={4} key={index}>
-                  <Box textAlign="center" p={1}>
-                    <Typography variant="body2" color="text.secondary">
-                      {metric.label}
-                    </Typography>
-                    <Typography variant="body1" fontWeight="bold">
-                      {metric.format(metric.value)}
-                    </Typography>
-                  </Box>
-                </Grid>
-              ))}
+
+            {/* Summary stats */}
+            <Grid container spacing={1} sx={{ mb: 2 }}>
+              <Grid item xs={4}>
+                <Box textAlign="center" p={1} border={1} borderColor="primary.main" borderRadius={1}>
+                  <Typography variant="h6" color="primary.main" fontWeight="bold">
+                    {summary.total_metrics}
+                  </Typography>
+                  <Typography variant="caption">Total Metrics</Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={4}>
+                <Box textAlign="center" p={1} border={1} borderColor="success.main" borderRadius={1}>
+                  <Typography variant="h6" color="success.main" fontWeight="bold">
+                    {summary.available_metrics}
+                  </Typography>
+                  <Typography variant="caption">Available</Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={4}>
+                <Box textAlign="center" p={1} border={1} borderColor="info.main" borderRadius={1}>
+                  <Typography variant="h6" color="info.main" fontWeight="bold">
+                    {summary.coverage_percentage}%
+                  </Typography>
+                  <Typography variant="caption">Coverage</Typography>
+                </Box>
+              </Grid>
             </Grid>
+
+            {/* Valuation Metrics */}
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="subtitle2" color="primary.main" gutterBottom>
+                Valuation Metrics
+              </Typography>
+              <Grid container spacing={1}>
+                {valuationMetrics.map((metric, index) => (
+                  <Grid item xs={6} key={index}>
+                    <Box sx={{ p: 1, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        {metric.label}
+                      </Typography>
+                      <Typography variant="body2" fontWeight="bold" color={metric.color}>
+                        {metric.format(metric.value)}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                ))}
+              </Grid>
+            </Box>
+
+            {/* Performance Metrics */}
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="subtitle2" color="success.main" gutterBottom>
+                Performance Metrics
+              </Typography>
+              <Grid container spacing={1}>
+                {performanceMetrics.map((metric, index) => (
+                  <Grid item xs={6} key={index}>
+                    <Box sx={{ p: 1, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        {metric.label}
+                      </Typography>
+                      <Typography variant="body2" fontWeight="bold" color={metric.color}>
+                        {metric.format(metric.value)}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                ))}
+              </Grid>
+            </Box>
+
+            {/* Efficiency Metrics */}
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="subtitle2" color="warning.main" gutterBottom>
+                Efficiency & Returns
+              </Typography>
+              <Grid container spacing={1}>
+                {efficiencyMetrics.map((metric, index) => (
+                  <Grid item xs={6} key={index}>
+                    <Box sx={{ p: 1, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        {metric.label}
+                      </Typography>
+                      <Typography variant="body2" fontWeight="bold" color={metric.color}>
+                        {metric.format(metric.value)}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                ))}
+              </Grid>
+            </Box>
+
+            {/* Financial Health Metrics */}
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="subtitle2" color="error.main" gutterBottom>
+                Financial Health
+              </Typography>
+              <Grid container spacing={1}>
+                {financialHealthMetrics.map((metric, index) => (
+                  <Grid item xs={6} key={index}>
+                    <Box sx={{ p: 1, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        {metric.label}
+                      </Typography>
+                      <Typography variant="body2" fontWeight="bold" color={metric.color}>
+                        {metric.format(metric.value)}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                ))}
+              </Grid>
+            </Box>
+
+            {summary.coverage_percentage < 50 && (
+              <Alert severity="warning" sx={{ mt: 2 }}>
+                Limited financial data available for {symbol}. Consider checking the detailed Financial Data page for more information.
+              </Alert>
+            )}
           </Box>
         )}
       </CardContent>
