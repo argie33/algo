@@ -658,8 +658,8 @@ def main():
             logging.info("✨ All symbols processed successfully")
 
         # Update last_run timestamp
-        conn_pool = create_connection_pool()
-        conn = conn_pool.getconn()
+        main_conn_pool = create_connection_pool()
+        conn = main_conn_pool.getconn()
         cursor = conn.cursor()
         now = datetime.now()
         cursor.execute("""
@@ -670,9 +670,9 @@ def main():
         """, (SCRIPT_NAME, now))
         conn.commit()
         cursor.close()
-        conn_pool.putconn(conn)
+        main_conn_pool.putconn(conn)
         # Close the connection pool
-        conn_pool.closeall()
+        main_conn_pool.closeall()
     
     except Exception as e:
         logging.exception(f"Unhandled error in script: {e}")
