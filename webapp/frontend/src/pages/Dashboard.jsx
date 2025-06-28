@@ -578,19 +578,83 @@ function FinancialHighlightsWidget({ symbol }) {
     }
   ];
 
-  // Calculate summary statistics
+  // Calculate summary statistics and averages
   const calculateSummary = () => {
     const allMetrics = [...valuationMetrics, ...performanceMetrics, ...efficiencyMetrics, ...financialHealthMetrics];
     const validMetrics = allMetrics.filter(m => m.value !== null && m.value !== undefined && m.value !== 'N/A');
     
+    // Calculate averages for key metrics
+    const peRatios = valuationMetrics.filter(m => m.label === 'P/E Ratio' && m.value && m.value !== 'N/A').map(m => m.value);
+    const roeValues = efficiencyMetrics.filter(m => m.label === 'ROE' && m.value && m.value !== 'N/A').map(m => m.value);
+    const profitMargins = efficiencyMetrics.filter(m => m.label === 'Profit Margin' && m.value && m.value !== 'N/A').map(m => m.value);
+    const debtEquityRatios = financialHealthMetrics.filter(m => m.label === 'Debt/Equity' && m.value && m.value !== 'N/A').map(m => m.value);
+    
+    // Calculate averages
+    const avgPERatio = peRatios.length > 0 ? peRatios.reduce((a, b) => a + b, 0) / peRatios.length : null;
+    const avgROE = roeValues.length > 0 ? roeValues.reduce((a, b) => a + b, 0) / roeValues.length : null;
+    const avgProfitMargin = profitMargins.length > 0 ? profitMargins.reduce((a, b) => a + b, 0) / profitMargins.length : null;
+    const avgDebtEquity = debtEquityRatios.length > 0 ? debtEquityRatios.reduce((a, b) => a + b, 0) / debtEquityRatios.length : null;
+    
+    // Determine health indicators
+    const getHealthIndicator = (value, metricType) => {
+      if (!value) return 'unknown';
+      switch (metricType) {
+        case 'pe_ratio':
+          return value < 15 ? 'excellent' : value < 25 ? 'good' : value < 35 ? 'fair' : 'poor';
+        case 'roe':
+          return value > 15 ? 'excellent' : value > 10 ? 'good' : value > 5 ? 'fair' : 'poor';
+        case 'profit_margin':
+          return value > 20 ? 'excellent' : value > 10 ? 'good' : value > 5 ? 'fair' : 'poor';
+        case 'debt_equity':
+          return value < 0.5 ? 'excellent' : value < 1 ? 'good' : value < 2 ? 'fair' : 'poor';
+        default:
+          return 'unknown';
+      }
+    };
+    
     return {
       total_metrics: allMetrics.length,
       available_metrics: validMetrics.length,
-      coverage_percentage: allMetrics.length > 0 ? Math.round((validMetrics.length / allMetrics.length) * 100) : 0
+      coverage_percentage: allMetrics.length > 0 ? Math.round((validMetrics.length / allMetrics.length) * 100) : 0,
+      averages: {
+        pe_ratio: avgPERatio,
+        roe: avgROE,
+        profit_margin: avgProfitMargin,
+        debt_equity: avgDebtEquity
+      },
+      health_indicators: {
+        pe_ratio: getHealthIndicator(avgPERatio, 'pe_ratio'),
+        roe: getHealthIndicator(avgROE, 'roe'),
+        profit_margin: getHealthIndicator(avgProfitMargin, 'profit_margin'),
+        debt_equity: getHealthIndicator(avgDebtEquity, 'debt_equity')
+      },
+      summary_date: new Date().toISOString()
     };
   };
 
   const summary = calculateSummary();
+
+  // Get health indicator color
+  const getHealthColor = (health) => {
+    switch (health) {
+      case 'excellent': return 'success';
+      case 'good': return 'primary';
+      case 'fair': return 'warning';
+      case 'poor': return 'error';
+      default: return 'default';
+    }
+  };
+
+  // Get health indicator text
+  const getHealthText = (health) => {
+    switch (health) {
+      case 'excellent': return 'Excellent';
+      case 'good': return 'Good';
+      case 'fair': return 'Fair';
+      case 'poor': return 'Poor';
+      default: return 'Unknown';
+    }
+  };
 
   return (
     <Card sx={{ mb: 3 }}>
@@ -622,7 +686,7 @@ function FinancialHighlightsWidget({ symbol }) {
 
             {/* Summary stats */}
             <Grid container spacing={1} sx={{ mb: 2 }}>
-              <Grid item xs={4}>
+              <Grid item xs={3}>
                 <Box textAlign="center" p={1} border={1} borderColor="primary.main" borderRadius={1}>
                   <Typography variant="h6" color="primary.main" fontWeight="bold">
                     {summary.total_metrics}
@@ -630,7 +694,7 @@ function FinancialHighlightsWidget({ symbol }) {
                   <Typography variant="caption">Total Metrics</Typography>
                 </Box>
               </Grid>
-              <Grid item xs={4}>
+              <Grid item xs={3}>
                 <Box textAlign="center" p={1} border={1} borderColor="success.main" borderRadius={1}>
                   <Typography variant="h6" color="success.main" fontWeight="bold">
                     {summary.available_metrics}
@@ -638,7 +702,7 @@ function FinancialHighlightsWidget({ symbol }) {
                   <Typography variant="caption">Available</Typography>
                 </Box>
               </Grid>
-              <Grid item xs={4}>
+              <Grid item xs={3}>
                 <Box textAlign="center" p={1} border={1} borderColor="info.main" borderRadius={1}>
                   <Typography variant="h6" color="info.main" fontWeight="bold">
                     {summary.coverage_percentage}%
@@ -646,7 +710,92 @@ function FinancialHighlightsWidget({ symbol }) {
                   <Typography variant="caption">Coverage</Typography>
                 </Box>
               </Grid>
+              <Grid item xs={3}>
+                <Box textAlign="center" p={1} border={1} borderColor="warning.main" borderRadius={1}>
+                  <Typography variant="h6" color="warning.main" fontWeight="bold">
+                    {symbol}
+                  </Typography>
+                  <Typography variant="caption">Symbol</Typography>
+                </Box>
+              </Grid>
             </Grid>
+
+            {/* Key Averages & Health Indicators */}
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="subtitle2" color="primary.main" gutterBottom>
+                Key Averages & Health
+              </Typography>
+              <Grid container spacing={1}>
+                <Grid item xs={6} sm={3}>
+                  <Box sx={{ p: 1, border: 1, borderColor: 'divider', borderRadius: 1, textAlign: 'center' }}>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      Avg P/E Ratio
+                    </Typography>
+                    <Typography variant="body2" fontWeight="bold" color="info.main">
+                      {summary.averages.pe_ratio ? formatNumber(summary.averages.pe_ratio, 2) : 'N/A'}
+                    </Typography>
+                    <Chip 
+                      label={getHealthText(summary.health_indicators.pe_ratio)} 
+                      size="small" 
+                      color={getHealthColor(summary.health_indicators.pe_ratio)}
+                      variant="outlined"
+                      sx={{ mt: 0.5 }}
+                    />
+                  </Box>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Box sx={{ p: 1, border: 1, borderColor: 'divider', borderRadius: 1, textAlign: 'center' }}>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      Avg ROE
+                    </Typography>
+                    <Typography variant="body2" fontWeight="bold" color="warning.main">
+                      {summary.averages.roe ? formatPercentage(summary.averages.roe / 100) : 'N/A'}
+                    </Typography>
+                    <Chip 
+                      label={getHealthText(summary.health_indicators.roe)} 
+                      size="small" 
+                      color={getHealthColor(summary.health_indicators.roe)}
+                      variant="outlined"
+                      sx={{ mt: 0.5 }}
+                    />
+                  </Box>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Box sx={{ p: 1, border: 1, borderColor: 'divider', borderRadius: 1, textAlign: 'center' }}>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      Avg Profit Margin
+                    </Typography>
+                    <Typography variant="body2" fontWeight="bold" color="warning.main">
+                      {summary.averages.profit_margin ? formatPercentage(summary.averages.profit_margin / 100) : 'N/A'}
+                    </Typography>
+                    <Chip 
+                      label={getHealthText(summary.health_indicators.profit_margin)} 
+                      size="small" 
+                      color={getHealthColor(summary.health_indicators.profit_margin)}
+                      variant="outlined"
+                      sx={{ mt: 0.5 }}
+                    />
+                  </Box>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Box sx={{ p: 1, border: 1, borderColor: 'divider', borderRadius: 1, textAlign: 'center' }}>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      Avg Debt/Equity
+                    </Typography>
+                    <Typography variant="body2" fontWeight="bold" color="error.main">
+                      {summary.averages.debt_equity ? formatNumber(summary.averages.debt_equity, 2) : 'N/A'}
+                    </Typography>
+                    <Chip 
+                      label={getHealthText(summary.health_indicators.debt_equity)} 
+                      size="small" 
+                      color={getHealthColor(summary.health_indicators.debt_equity)}
+                      variant="outlined"
+                      sx={{ mt: 0.5 }}
+                    />
+                  </Box>
+                </Grid>
+              </Grid>
+            </Box>
 
             {/* Valuation Metrics */}
             <Box sx={{ mb: 2 }}>

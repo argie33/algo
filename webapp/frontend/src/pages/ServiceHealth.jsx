@@ -63,8 +63,11 @@ import {
 
 // Utility: fetch with timeout for DB diagnostics
 function fetchWithTimeout(resource, options = {}, timeout = 10000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  
   return Promise.race([
-    fetch(resource, options),
+    fetch(resource, { ...options, signal: controller.signal }).finally(() => clearTimeout(timeoutId)),
     new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout after ' + timeout + 'ms')), timeout))
   ]);
 }
@@ -189,11 +192,10 @@ function ServiceHealth() {
     queryKey: ['databaseHealth'],
     queryFn: async () => {
       try {
-        // Use the new cached database health endpoint
-        const response = await fetch(getCurrentBaseURL() + '/health/database', {
+        // Use the new cached database health endpoint with compatible timeout
+        const response = await fetchWithTimeout(getCurrentBaseURL() + '/health/database', {
           method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-          signal: AbortSignal.timeout(10000) // 10 second timeout
+          headers: { 'Content-Type': 'application/json' }
         });
         
         if (!response.ok) {
@@ -223,11 +225,13 @@ function ServiceHealth() {
   const refreshHealthStatus = async () => {
     try {
       setRefreshing(true);
-      await fetch(getCurrentBaseURL() + '/health/update-status', {
+      
+      // Use compatible timeout implementation
+      await fetchWithTimeout(getCurrentBaseURL() + '/health/update-status', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(30000) // 30 second timeout for background job
+        headers: { 'Content-Type': 'application/json' }
       });
+      
       await refetchDb(); // Refresh the display
     } catch (error) {
       console.error('Failed to refresh health status:', error);
