@@ -1,0 +1,5 @@
+FROM public.ecr.aws/lambda/python:3.11
+COPY requirements-loadannualbalancesheet.txt ./
+RUN pip install -r requirements-loadannualbalancesheet.txt
+COPY loadannualbalancesheet.py ./
+CMD ["loadannualbalancesheet.py"] 

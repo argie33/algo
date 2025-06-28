@@ -1,0 +1,5 @@
+FROM public.ecr.aws/lambda/python:3.11
+COPY requirements-loadquarterlycashflow.txt ./
+RUN pip install -r requirements-loadquarterlycashflow.txt
+COPY loadquarterlycashflow.py ./
+CMD ["loadquarterlycashflow.py"] 

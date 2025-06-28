@@ -1,0 +1,5 @@
+FROM public.ecr.aws/lambda/python:3.11
+COPY requirements-loadquarterlyincomestatement.txt ./
+RUN pip install -r requirements-loadquarterlyincomestatement.txt
+COPY loadquarterlyincomestatement.py ./
+CMD ["loadquarterlyincomestatement.py"] 

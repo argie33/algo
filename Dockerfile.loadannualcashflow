@@ -1,0 +1,5 @@
+FROM public.ecr.aws/lambda/python:3.11
+COPY requirements-loadannualcashflow.txt ./
+RUN pip install -r requirements-loadannualcashflow.txt
+COPY loadannualcashflow.py ./
+CMD ["loadannualcashflow.py"] 
