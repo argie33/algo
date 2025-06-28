@@ -90,6 +90,7 @@ async function initializeDatabase() {
             dbInitialized = false;
             pool = null;
             // Attach config and env info to the error for debugging
+            if (typeof config === 'undefined') config = null;
             error.config = config;
             error.env = {
                 DB_SECRET_ARN: process.env.DB_SECRET_ARN,

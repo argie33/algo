@@ -95,7 +95,15 @@ const ensureDatabase = async () => {
   if (!dbInitPromise) {
     console.log('Initializing database connection...');
     dbInitPromise = Promise.race([
-      initializeDatabase(),
+      initializeDatabase().catch(err => {
+        console.error('Database initialization error details:', {
+          message: err.message,
+          stack: err.stack,
+          config: err.config,
+          env: err.env
+        });
+        throw err;
+      }),
       new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Database initialization timeout after 15 seconds')), 15000)
       )
@@ -132,7 +140,12 @@ app.use(async (req, res, next) => {
     console.log('Database connection verified for database-dependent endpoint');
     next();
   } catch (error) {
-    console.error('Database initialization failed for database-dependent endpoint:', error.message);
+    console.error('Database initialization failed for database-dependent endpoint:', {
+      message: error.message,
+      stack: error.stack,
+      config: error.config,
+      env: error.env
+    });
     
     // For health endpoint (non-quick), still allow it to proceed with DB error info
     if (req.path === '/health') {
@@ -145,7 +158,11 @@ app.use(async (req, res, next) => {
       error: 'Service temporarily unavailable - database connection failed',
       message: 'The database is currently unavailable. Please try again later.',
       timestamp: new Date().toISOString(),
-      details: !isProduction ? error.message : undefined
+      details: !isProduction ? error.message : undefined,
+      debug: !isProduction ? {
+        config: error.config,
+        env: error.env
+      } : undefined
     });
   }
 });

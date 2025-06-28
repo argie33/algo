@@ -850,45 +850,6 @@ router.get('/db-test', async (req, res) => {
   }
 });
 
-// Simple database test endpoint
-router.get('/test-db', async (req, res) => {
-  console.log('Testing database connection...');
-  
-  try {
-    // Test database initialization
-    const pool = await initializeDatabase();
-    console.log('Database pool created successfully');
-    
-    // Test simple query
-    const result = await query('SELECT NOW() as current_time, version() as postgres_version');
-    console.log('Database query successful');
-    
-    res.json({
-      status: 'success',
-      message: 'Database connection test passed',
-      timestamp: new Date().toISOString(),
-      database: {
-        currentTime: result.rows[0].current_time,
-        postgresVersion: result.rows[0].postgres_version,
-        poolStatus: pool ? 'connected' : 'disconnected'
-      }
-    });
-  } catch (error) {
-    console.error('Database test failed:', error);
-    res.status(503).json({
-      status: 'error',
-      message: 'Database connection test failed',
-      details: error.message,
-      timestamp: new Date().toISOString(),
-      debug: {
-        config: error.config,
-        env: error.env,
-        stack: error.stack
-      }
-    });
-  }
-});
-
 // Express error-handling middleware to always return JSON
 router.use((err, req, res, next) => {
   console.error('Express error handler:', err);
