@@ -104,7 +104,26 @@ router.get('/database', async (req, res) => {
     }
 
     console.log('Step 1: Creating health_status table...');
-    // First, ensure the health_status table exists with enhanced schema
+    // First, check if health_status table exists and has the correct schema
+    try {
+      const tableCheck = await query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'health_status' 
+        AND column_name = 'last_updated';
+      `);
+      
+      // If table exists but doesn't have last_updated column, drop and recreate it
+      if (tableCheck.rows.length === 0) {
+        console.log('Step 1a: Migrating health_status table schema...');
+        await query('DROP TABLE IF EXISTS health_status;');
+      }
+    } catch (e) {
+      console.log('Step 1a: Error checking table schema, dropping table:', e.message);
+      await query('DROP TABLE IF EXISTS health_status;');
+    }
+    
+    // Create the health_status table with enhanced schema
     await query(`
       CREATE TABLE IF NOT EXISTS health_status (
         id SERIAL PRIMARY KEY,
