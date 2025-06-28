@@ -380,7 +380,7 @@ router.post('/update-status', async (req, res) => {
   console.log('Received request to update health status');
   
   try {
-    // Ensure the health_status table exists
+    // Ensure the health_status table exists with enhanced schema
     await query(`
       CREATE TABLE IF NOT EXISTS health_status (
         id SERIAL PRIMARY KEY,
@@ -389,6 +389,10 @@ router.post('/update-status', async (req, res) => {
         status VARCHAR(20) NOT NULL,
         last_checked TIMESTAMP NOT NULL DEFAULT NOW(),
         error_message TEXT,
+        last_updated TIMESTAMP,
+        stale_threshold_hours INTEGER DEFAULT 24,
+        is_stale BOOLEAN DEFAULT FALSE,
+        missing_data_count BIGINT DEFAULT 0,
         UNIQUE(table_name)
       );
     `);
@@ -425,20 +429,112 @@ router.post('/update-status', async (req, res) => {
         `, [tableName]);
         
         if (tableExists.rows[0].exists) {
-          // Table exists, get count
+          // Get record count
           const countResult = await query(`SELECT COUNT(*) as count FROM ${tableName}`);
           const recordCount = parseInt(countResult.rows[0].count);
           
-          // Update or insert health status
+          // Check for fetched_at column and get last updated
+          let lastUpdated = null;
+          let isStale = false;
+          let missingDataCount = 0;
+          let staleThresholdHours = 24; // Default threshold
+          
+          try {
+            // Check if fetched_at column exists
+            const columnExists = await query(`
+              SELECT EXISTS (
+                SELECT FROM information_schema.columns 
+                WHERE table_name = $1 
+                AND column_name = 'fetched_at'
+              );
+            `, [tableName]);
+            
+            if (columnExists.rows[0].exists) {
+              // Get last updated timestamp
+              const lastUpdateResult = await query(`
+                SELECT MAX(fetched_at) as last_updated 
+                FROM ${tableName} 
+                WHERE fetched_at IS NOT NULL
+              `);
+              
+              if (lastUpdateResult.rows[0].last_updated) {
+                lastUpdated = lastUpdateResult.rows[0].last_updated;
+                
+                // Check if data is stale (older than threshold)
+                const hoursSinceUpdate = (new Date() - new Date(lastUpdated)) / (1000 * 60 * 60);
+                isStale = hoursSinceUpdate > staleThresholdHours;
+                
+                // Count records with missing fetched_at
+                const missingDataResult = await query(`
+                  SELECT COUNT(*) as missing_count 
+                  FROM ${tableName} 
+                  WHERE fetched_at IS NULL
+                `);
+                missingDataCount = parseInt(missingDataResult.rows[0].missing_count);
+              }
+            } else {
+              // Try alternative timestamp columns
+              const altColumns = ['updated_at', 'created_at', 'date', 'period_end', 'timestamp'];
+              for (const col of altColumns) {
+                try {
+                  const altColumnExists = await query(`
+                    SELECT EXISTS (
+                      SELECT FROM information_schema.columns 
+                      WHERE table_name = $1 
+                      AND column_name = $2
+                    );
+                  `, [tableName, col]);
+                  
+                  if (altColumnExists.rows[0].exists) {
+                    const altLastUpdateResult = await query(`
+                      SELECT MAX(${col}) as last_updated 
+                      FROM ${tableName} 
+                      WHERE ${col} IS NOT NULL
+                    `);
+                    
+                    if (altLastUpdateResult.rows[0].last_updated) {
+                      lastUpdated = altLastUpdateResult.rows[0].last_updated;
+                      const hoursSinceUpdate = (new Date() - new Date(lastUpdated)) / (1000 * 60 * 60);
+                      isStale = hoursSinceUpdate > staleThresholdHours;
+                      break;
+                    }
+                  }
+                } catch (e) {
+                  // Continue to next column
+                }
+              }
+            }
+          } catch (e) {
+            console.log(`Could not analyze timestamp for table ${tableName}:`, e.message);
+          }
+          
+          // Determine status based on analysis
+          let status = 'healthy';
+          if (recordCount === 0) {
+            status = 'empty';
+          } else if (isStale) {
+            status = 'stale';
+          } else if (missingDataCount > 0) {
+            status = 'incomplete';
+          }
+          
+          // Update or insert enhanced health status
           await query(`
-            INSERT INTO health_status (table_name, record_count, status, last_checked)
-            VALUES ($1, $2, 'healthy', NOW())
+            INSERT INTO health_status (
+              table_name, record_count, status, last_checked, 
+              last_updated, stale_threshold_hours, is_stale, missing_data_count
+            )
+            VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7)
             ON CONFLICT (table_name) DO UPDATE SET
               record_count = EXCLUDED.record_count,
               status = EXCLUDED.status,
               last_checked = EXCLUDED.last_checked,
+              last_updated = EXCLUDED.last_updated,
+              stale_threshold_hours = EXCLUDED.stale_threshold_hours,
+              is_stale = EXCLUDED.is_stale,
+              missing_data_count = EXCLUDED.missing_data_count,
               error_message = NULL;
-          `, [tableName, recordCount]);
+          `, [tableName, recordCount, status, lastUpdated, staleThresholdHours, isStale, missingDataCount]);
         } else {
           // Table doesn't exist
           await query(`
@@ -481,7 +577,7 @@ router.post('/update-status', async (req, res) => {
     
   } catch (error) {
     console.error('Failed to update health status:', error);
-    res.status(500).json({
+    res.status(500).json({ 
       status: 'error',
       message: 'Failed to update health status',
       error: error.message,

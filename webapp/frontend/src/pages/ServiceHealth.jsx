@@ -126,6 +126,13 @@ function ServiceHealth() {
         });
         
         console.log('Database health response:', response.data);
+        console.log('Response structure:', {
+          hasData: !!response.data,
+          hasDatabase: !!response.data?.database,
+          hasTables: !!response.data?.database?.tables,
+          hasSummary: !!response.data?.database?.summary,
+          tableCount: response.data?.database?.tables ? Object.keys(response.data.database.tables).length : 0
+        });
         
         // Ensure we return a proper object structure
         if (response.data && typeof response.data === 'object') {
@@ -136,6 +143,11 @@ function ServiceHealth() {
         
       } catch (error) {
         console.error('Database health check failed:', error);
+        console.error('Error details:', {
+          message: error.message,
+          response: error.response?.data,
+          status: error.response?.status
+        });
         
         // Return a structured error object instead of throwing
         return {
@@ -453,6 +465,7 @@ function ServiceHealth() {
                  dbError ? 'Error' : 
                  safeDbHealth?.database?.status === 'connected' ? 'Connected' :
                  safeDbHealth?.database?.status === 'disconnected' ? 'Disconnected' : 
+                 safeDbHealth?.error ? 'Error' :
                  'Unknown'}
               </Typography>
               {dbError && (
@@ -460,6 +473,14 @@ function ServiceHealth() {
                   <Typography variant="subtitle2">Failed to load database health:</Typography>
                   <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
                     {typeof dbError === 'string' ? dbError : dbError?.message || 'Unknown error'}
+                  </Typography>
+                </Alert>
+              )}
+              {safeDbHealth?.error && (
+                <Alert severity="error" sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2">Database Error:</Typography>
+                  <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
+                    {safeDbHealth.message || 'Unknown error'}
                   </Typography>
                 </Alert>
               )}
@@ -623,18 +644,18 @@ function ServiceHealth() {
                     )}
                   </Box>
 
-                  {/* Debug information - remove this after confirming data structure */}
-                  {process.env.NODE_ENV === 'development' && (
-                    <Alert severity="info" sx={{ mb: 2 }}>
-                      <Typography variant="subtitle2">Debug Info:</Typography>
-                      <Typography variant="body2">
-                        Has summary: {safeDbHealth.database?.summary ? 'Yes' : 'No'}<br/>
-                        Has tables: {safeDbHealth.database?.tables ? 'Yes' : 'No'}<br/>
-                        Tables count: {safeDbHealth.database?.tables ? Object.keys(safeDbHealth.database.tables).length : 0}<br/>
-                        Summary keys: {safeDbHealth.database?.summary ? Object.keys(safeDbHealth.database.summary).join(', ') : 'None'}
-                      </Typography>
-                    </Alert>
-                  )}
+                  {/* Debug information - always show for troubleshooting */}
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2">Debug Info:</Typography>
+                    <Typography variant="body2">
+                      Has summary: {safeDbHealth.database?.summary ? 'Yes' : 'No'}<br/>
+                      Has tables: {safeDbHealth.database?.tables ? 'Yes' : 'No'}<br/>
+                      Tables count: {safeDbHealth.database?.tables ? Object.keys(safeDbHealth.database.tables).length : 0}<br/>
+                      Summary keys: {safeDbHealth.database?.summary ? Object.keys(safeDbHealth.database.summary).join(', ') : 'None'}<br/>
+                      Raw data keys: {Object.keys(safeDbHealth).join(', ')}<br/>
+                      Database keys: {safeDbHealth.database ? Object.keys(safeDbHealth.database).join(', ') : 'None'}
+                    </Typography>
+                  </Alert>
 
                   {/* Summary Statistics */}
                   {safeDbHealth.database?.summary && (
@@ -688,7 +709,7 @@ function ServiceHealth() {
                   {/* Detailed Table List */}
                   {safeDbHealth.database?.tables && Object.keys(safeDbHealth.database.tables).length > 0 && (
                     <Box sx={{ mt: 2 }}>
-                      <Typography variant="subtitle2" gutterBottom>Table Details:</Typography>
+                      <Typography variant="subtitle2" gutterBottom>Table Details ({Object.keys(safeDbHealth.database.tables).length} tables):</Typography>
                       <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
                         <Table size="small" stickyHeader>
                           <TableHead>
@@ -772,6 +793,17 @@ function ServiceHealth() {
                         </Table>
                       </TableContainer>
                     </Box>
+                  )}
+
+                  {/* Show if no tables found */}
+                  {(!safeDbHealth.database?.tables || Object.keys(safeDbHealth.database.tables).length === 0) && (
+                    <Alert severity="warning" sx={{ mt: 2 }}>
+                      <Typography variant="subtitle2">No table data found</Typography>
+                      <Typography variant="body2">
+                        The database health check did not return any table information. 
+                        This could mean the health_status table is empty or the backend is not properly configured.
+                      </Typography>
+                    </Alert>
                   )}
 
                   {safeDbHealth.database?.note && (
