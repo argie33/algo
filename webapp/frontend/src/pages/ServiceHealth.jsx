@@ -644,6 +644,28 @@ function ServiceHealth() {
                     )}
                   </Box>
 
+                  {/* Backend error/message display */}
+                  {safeDbHealth.error || safeDbHealth.message || safeDbHealth.details ? (
+                    <Alert severity="error" sx={{ mb: 2 }}>
+                      <Typography variant="subtitle2">Backend Error:</Typography>
+                      {safeDbHealth.error && (
+                        <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
+                          <b>Error:</b> {safeDbHealth.error}
+                        </Typography>
+                      )}
+                      {safeDbHealth.message && (
+                        <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
+                          <b>Message:</b> {safeDbHealth.message}
+                        </Typography>
+                      )}
+                      {safeDbHealth.details && (
+                        <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
+                          <b>Details:</b> {safeDbHealth.details}
+                        </Typography>
+                      )}
+                    </Alert>
+                  ) : null}
+
                   {/* Debug information - always show for troubleshooting */}
                   <Alert severity="info" sx={{ mb: 2 }}>
                     <Typography variant="subtitle2">Debug Info:</Typography>

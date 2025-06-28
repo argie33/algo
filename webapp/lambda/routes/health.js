@@ -367,6 +367,8 @@ router.get('/database', async (req, res) => {
     res.status(503).json({
       status: 'unhealthy',
       timestamp: new Date().toISOString(),
+      error: error.message,
+      errorStack: error.stack,
       database: {
         status: 'disconnected',
         error: error.message
