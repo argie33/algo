@@ -14,6 +14,8 @@ let initPromise = null;
 // Database configuration cache
 let dbConfig = null;
 
+console.log('*** DATABASE.JS PATCHED VERSION RUNNING ***');
+
 /**
  * Get database configuration from AWS Secrets Manager
  */
