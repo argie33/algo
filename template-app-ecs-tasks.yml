@@ -414,113 +414,7 @@ Resources:
           AssignPublicIp: ENABLED
 
   ########################################
-  # E) monthly-price loader              #
-  ########################################
-  PriceMonthlyTaskDefinition:
-    Type: AWS::ECS::TaskDefinition
-    Properties:
-      Family: pricemonthly-loader
-      Cpu: "256"
-      Memory: "512"
-      NetworkMode: awsvpc
-      RequiresCompatibilities:
-        - FARGATE
-      RuntimePlatform:
-        CpuArchitecture: ARM64
-        OperatingSystemFamily: LINUX
-      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
-      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
-      ContainerDefinitions:
-        - Name: pricemonthly-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref PriceMonthlyImageTag]]
-          Essential: true
-          Environment:
-            - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksApp-SecretArn
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: /ecs/pricemonthly-loader
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: ecs
-              awslogs-create-group: 'true'
-
-  PriceMonthlyService:
-    Type: AWS::ECS::Service
-    Properties:
-      ServiceName: pricemonthly-loader-service
-      Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
-      DesiredCount: 0
-      TaskDefinition: !Ref PriceMonthlyTaskDefinition
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          Subnets:
-            - !ImportValue StocksCore-PublicSubnet1Id
-            - !ImportValue StocksCore-PublicSubnet2Id
-          SecurityGroups:
-            - !ImportValue StocksApp-EcsTasksSecurityGroupId
-          AssignPublicIp: ENABLED
-
-  ########################################
-  # F) findata loader                    #
-  ########################################
-  FindataTaskDefinition:
-    Type: AWS::ECS::TaskDefinition
-    Properties:
-      Family: findata-loader
-      Cpu: "256"
-      Memory: "512"
-      NetworkMode: awsvpc
-      RequiresCompatibilities:
-        - FARGATE
-      RuntimePlatform:
-        CpuArchitecture: ARM64
-        OperatingSystemFamily: LINUX
-      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
-      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
-      ContainerDefinitions:
-        - Name: findata-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref FindataImageTag]]
-          Essential: true
-          Environment:
-            - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksApp-SecretArn
-            - Name: DB_HOST
-              Value: !ImportValue StocksApp-DBEndpoint
-            - Name: DB_PORT
-              Value: !ImportValue StocksApp-DBPort
-            - Name: DB_NAME
-              Value: !ImportValue StocksApp-DBName
-            - Name: DB_USER
-              Value: !ImportValue StocksApp-DBUsername
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: /ecs/findata-loader
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: ecs
-              awslogs-create-group: 'true'
-
-  FindataLoaderService:
-    Type: AWS::ECS::Service
-    Properties:
-      ServiceName: findata-loader-service
-      Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
-      DesiredCount: 0
-      TaskDefinition: !Ref FindataTaskDefinition
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          Subnets:
-            - !ImportValue StocksCore-PublicSubnet1Id
-            - !ImportValue StocksCore-PublicSubnet2Id
-          SecurityGroups:
-            - !ImportValue StocksApp-EcsTasksSecurityGroupId
-          AssignPublicIp: ENABLED
-
-  ########################################
-  # G) pricedaily loader                 #
+  # E) pricedaily loader                 #
   ########################################
   PriceTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -577,7 +471,7 @@ Resources:
           AssignPublicIp: ENABLED
 
   ########################################
-  # H) priceweekly loader                #
+  # F) priceweekly loader                #
   ########################################
   PriceWeeklyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -632,8 +526,9 @@ Resources:
           SecurityGroups:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
+
   ########################################
-  # I) pricemonthly loader               #
+  # G) pricemonthly loader                #
   ########################################
   PriceMonthlyTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -682,6 +577,69 @@ Resources:
           AssignPublicIp: ENABLED
 
   ########################################
+  # H) findata loader                    #
+  ########################################
+  FindataTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: findata-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: findata-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref FindataImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/findata-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  FindataLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: findata-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref FindataTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ########################################
+  # I) pricemonthly loader                #
+  ########################################
+  # REMOVED: Duplicate PriceMonthlyTaskDefinition and PriceMonthlyService
+  # These are already defined in section E above
+
+  ########################################
   # J) TechnicalsDaily loader             #
   ########################################
   TechnicalsDailyTaskDefinition:
@@ -716,7 +674,7 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: /ecs/technicals-daily
+              awslogs-group: /ecs/technicalsdaily-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
@@ -1862,4 +1820,52 @@ Outputs:
     Description: ARN of the ECS TaskDefinition for NAAIM data loader
     Value: !Ref NaaaimDataTaskDefinition
     Export:
-      Name: NaaaimDataTaskDefArn  
+      Name: NaaaimDataTaskDefArn
+
+  EarningsHistoryTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for earnings history loader
+    Value: !Ref EarningsHistoryTaskDefinition
+    Export:
+      Name: EarningsHistoryTaskDefArn
+
+  EarningsMetricsTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for earnings metrics loader
+    Value: !Ref EarningsMetricsTaskDefinition
+    Export:
+      Name: EarningsMetricsTaskDefArn
+
+  BuySellDailyTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for buysell daily loader
+    Value: !Ref BuySellTaskDefinition
+    Export:
+      Name: BuySellDailyTaskDefArn
+
+  BuySellWeeklyTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for buysell weekly loader
+    Value: !Ref BuySellTaskDefinition
+    Export:
+      Name: BuySellWeeklyTaskDefArn
+
+  BuySellMonthlyTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for buysell monthly loader
+    Value: !Ref BuySellTaskDefinition
+    Export:
+      Name: BuySellMonthlyTaskDefArn
+
+  AaiiTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for AAII sentiment data loader
+    Value: !Ref AaiiDataTaskDefinition
+    Export:
+      Name: AaiiTaskDefArn
+
+  FearGreedTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for Fear & Greed data loader
+    Value: !Ref FearGreedDataTaskDefinition
+    Export:
+      Name: FearGreedTaskDefArn
+
+  NaaimTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for NAAIM data loader
+    Value: !Ref NaaaimDataTaskDefinition
+    Export:
+      Name: NaaimTaskDefArn  
