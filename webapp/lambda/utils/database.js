@@ -61,45 +61,37 @@ async function getDbConfig() {
  * Initialize database connection pool
  */
 async function initializeDatabase() {
-    // Return existing initialization promise if in progress
-    if (initPromise) {
-        return initPromise;
-    }
-
-    // Return immediately if already initialized
-    if (dbInitialized && pool) {
-        return pool;
-    }
+    if (initPromise) return initPromise;
+    if (dbInitialized && pool) return pool;
 
     initPromise = (async () => {
+        let config;
         try {
             console.log('Initializing database connection pool...');
-            
-            // Get database configuration
-            const config = await getDbConfig();
-            
-            // Create connection pool
+            config = await getDbConfig();
+            if (!config) {
+                throw new Error('Database configuration could not be loaded. Check DB_SECRET_ARN and AWS Secrets Manager.');
+            }
             pool = new Pool(config);
-            
-            // Test the connection
             const client = await pool.connect();
             await client.query('SELECT NOW()');
             client.release();
-            
             dbInitialized = true;
             console.log('✅ Database connection pool initialized successfully');
-            
-            // Handle pool errors
             pool.on('error', (err) => {
                 console.error('Database pool error:', err);
                 dbInitialized = false;
             });
-            
             return pool;
         } catch (error) {
-            console.error('Failed to initialize database:', error);
             dbInitialized = false;
             pool = null;
+            // Attach config and env info to the error for debugging
+            error.config = config;
+            error.env = {
+                DB_SECRET_ARN: process.env.DB_SECRET_ARN,
+                DB_ENDPOINT: process.env.DB_ENDPOINT
+            };
             throw error;
         } finally {
             initPromise = null;

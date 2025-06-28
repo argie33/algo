@@ -85,6 +85,7 @@ router.get('/database', async (req, res) => {
   console.log('Received request for /health/database');
   
   try {
+    console.log('Step 1: Creating health_status table...');
     // First, ensure the health_status table exists with enhanced schema
     await query(`
       CREATE TABLE IF NOT EXISTS health_status (
@@ -102,6 +103,7 @@ router.get('/database', async (req, res) => {
       );
     `);
     
+    console.log('Step 2: Getting cached health status...');
     // Get cached health status
     const healthResult = await query(`
       SELECT 
@@ -118,9 +120,11 @@ router.get('/database', async (req, res) => {
       ORDER BY table_name;
     `);
     
+    console.log('Step 3: Getting database time...');
     // Get current database time
     const dbTimeResult = await query('SELECT NOW() as current_time, version() as postgres_version');
     
+    console.log('Step 4: Processing table stats...');
     const tableStats = {};
     healthResult.rows.forEach(row => {
       tableStats[row.table_name] = {
@@ -137,7 +141,7 @@ router.get('/database', async (req, res) => {
     
     // If no cached data exists, populate it automatically with enhanced analysis
     if (Object.keys(tableStats).length === 0) {
-      console.log('No cached health data found, populating automatically with enhanced analysis...');
+      console.log('Step 5: No cached data found, populating automatically...');
       
       const expectedTables = [
         'stock_symbols', 'etf_symbols', 'last_updated',
@@ -158,6 +162,7 @@ router.get('/database', async (req, res) => {
       
       for (const tableName of expectedTables) {
         try {
+          console.log(`Processing table: ${tableName}`);
           // Check if table exists
           const tableExists = await query(`
             SELECT EXISTS (
@@ -336,6 +341,7 @@ router.get('/database', async (req, res) => {
       }
     }
     
+    console.log('Step 6: Calculating summary statistics...');
     // Calculate summary statistics
     const summary = {
       total_tables: Object.keys(tableStats).length,
@@ -348,6 +354,7 @@ router.get('/database', async (req, res) => {
       total_missing_data: Object.values(tableStats).reduce((sum, t) => sum + (t.missing_data_count || 0), 0)
     };
     
+    console.log('Step 7: Sending response...');
     res.json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
@@ -364,6 +371,7 @@ router.get('/database', async (req, res) => {
     
   } catch (error) {
     console.error('Database health check failed:', error);
+    console.error('Error stack:', error.stack);
     res.status(503).json({
       status: 'unhealthy',
       timestamp: new Date().toISOString(),
