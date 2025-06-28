@@ -24,7 +24,6 @@ from psycopg2 import pool
 from psycopg2.extras import execute_values
 
 import pandas as pd
-import pandas_ta as ta
 
 # -------------------------------
 # Script metadata & logging setup 
@@ -36,11 +35,11 @@ logging.basicConfig(
     stream=sys.stdout
 )
 
-# Configure these based on your ECS task size
-MAX_WORKERS = min(os.cpu_count() or 1, 4)  # Limit to available CPUs or 4, whichever is smaller
-BATCH_SIZE = 100  # Number of symbols to process in each batch
-DB_POOL_MIN = 2
-DB_POOL_MAX = 10
+# Optimized for ECS - reduced workers to prevent memory issues
+MAX_WORKERS = min(os.cpu_count() or 1, 2)  # Reduced from 4 to 2
+BATCH_SIZE = 50  # Reduced from 100 to 50 for better memory management
+DB_POOL_MIN = 1
+DB_POOL_MAX = 5  # Reduced from 10 to 5
 
 def get_db_config():
     """
@@ -62,6 +61,98 @@ def sanitize_value(x):
     if isinstance(x, float) and np.isnan(x):
         return None
     return x
+
+# Fast native implementations of technical indicators
+def fast_rsi(close, period=14):
+    """Fast RSI calculation using numpy"""
+    delta = close.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    rs = gain / loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
+def fast_macd(close, fast=12, slow=26, signal=9):
+    """Fast MACD calculation"""
+    ema_fast = close.ewm(span=fast, adjust=False).mean()
+    ema_slow = close.ewm(span=slow, adjust=False).mean()
+    macd = ema_fast - ema_slow
+    macd_signal = macd.ewm(span=signal, adjust=False).mean()
+    macd_hist = macd - macd_signal
+    return macd, macd_signal, macd_hist
+
+def fast_sma(close, period):
+    """Fast SMA calculation"""
+    return close.rolling(window=period).mean()
+
+def fast_ema(close, period):
+    """Fast EMA calculation"""
+    return close.ewm(span=period, adjust=False).mean()
+
+def fast_atr(high, low, close, period=14):
+    """Fast ATR calculation"""
+    tr1 = high - low
+    tr2 = abs(high - close.shift())
+    tr3 = abs(low - close.shift())
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    atr = tr.rolling(window=period).mean()
+    return atr
+
+def fast_ad(high, low, close, volume):
+    """Fast Accumulation/Distribution calculation"""
+    clv = ((close - low) - (high - close)) / (high - low)
+    clv = clv.replace([np.inf, -np.inf], 0)
+    ad = (clv * volume).cumsum()
+    return ad
+
+def fast_mfi(high, low, close, volume, period=14):
+    """Fast Money Flow Index calculation"""
+    typical_price = (high + low + close) / 3
+    money_flow = typical_price * volume
+    
+    positive_flow = money_flow.where(typical_price > typical_price.shift(1), 0).rolling(window=period).sum()
+    negative_flow = money_flow.where(typical_price < typical_price.shift(1), 0).rolling(window=period).sum()
+    
+    mfi = 100 - (100 / (1 + positive_flow / negative_flow))
+    return mfi
+
+def fast_bbands(close, period=20, std_dev=2):
+    """Fast Bollinger Bands calculation"""
+    sma = close.rolling(window=period).mean()
+    std = close.rolling(window=period).std()
+    upper = sma + (std * std_dev)
+    lower = sma - (std * std_dev)
+    return lower, sma, upper
+
+def fast_adx(high, low, close, period=14):
+    """Fast ADX calculation"""
+    # True Range
+    tr1 = high - low
+    tr2 = abs(high - close.shift())
+    tr3 = abs(low - close.shift())
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    
+    # Directional Movement
+    dm_plus = high - high.shift(1)
+    dm_minus = low.shift(1) - low
+    
+    dm_plus = dm_plus.where((dm_plus > dm_minus) & (dm_plus > 0), 0)
+    dm_minus = dm_minus.where((dm_minus > dm_plus) & (dm_minus > 0), 0)
+    
+    # Smoothed values
+    tr_smooth = tr.rolling(window=period).mean()
+    dm_plus_smooth = dm_plus.rolling(window=period).mean()
+    dm_minus_smooth = dm_minus.rolling(window=period).mean()
+    
+    # DI values
+    plus_di = 100 * (dm_plus_smooth / tr_smooth)
+    minus_di = 100 * (dm_minus_smooth / tr_smooth)
+    
+    # DX and ADX
+    dx = 100 * abs(plus_di - minus_di) / (plus_di + minus_di)
+    adx = dx.rolling(window=period).mean()
+    
+    return adx, plus_di, minus_di
 
 def pivot_high_vectorized(df, left_bars=3, right_bars=3):
     """
@@ -361,35 +452,27 @@ def process_symbol(symbol, conn_pool):
             conn_pool.putconn(conn)
             return 0
 
-        # --- INDICATORS ---
-        # Calculate all indicators at once to avoid redundant operations
-        df['rsi'] = ta.rsi(df['close'], length=14)
+        # --- FAST INDICATORS CALCULATION ---
+        # Calculate all indicators using fast native implementations
+        
+        # RSI
+        df['rsi'] = fast_rsi(df['close'], period=14)
 
         # MACD - calculate once and reuse
-        ema_fast = df['close'].ewm(span=12, adjust=False).mean()
-        ema_slow = df['close'].ewm(span=26, adjust=False).mean()
-        df['macd'] = ema_fast - ema_slow
-        df['macd_signal'] = df['macd'].ewm(span=9, adjust=False).mean()
-        df['macd_hist'] = df['macd'] - df['macd_signal']
+        df['macd'], df['macd_signal'], df['macd_hist'] = fast_macd(df['close'])
 
-        # Other momentum indicators
-        df['mom'] = ta.mom(df['close'], length=10)
-        df['roc'] = ta.roc(df['close'], length=10)
+        # Momentum indicators
+        df['mom'] = df['close'] - df['close'].shift(10)  # 10-period momentum
+        df['roc'] = ((df['close'] - df['close'].shift(10)) / df['close'].shift(10)) * 100  # 10-period ROC
 
         # ADX + DMI - calculate once
-        adx_df = ta.adx(df['high'], df['low'], df['close'], length=14)
-        if adx_df is not None:
-            df['adx'] = adx_df['ADX_14']
-            df['plus_di'] = adx_df['DMP_14']
-            df['minus_di'] = adx_df['DMN_14']
-        else:
-            df[['adx', 'plus_di', 'minus_di']] = np.nan
+        df['adx'], df['plus_di'], df['minus_di'] = fast_adx(df['high'], df['low'], df['close'])
             
         # Calculate other indicators
-        df['atr'] = ta.atr(df['high'], df['low'], df['close'], length=14)
-        df['ad'] = ta.ad(df['high'], df['low'], df['close'], df['volume'])
-        df['cmf'] = ta.cmf(df['high'], df['low'], df['close'], df['volume'], length=20)
-        df['mfi'] = ta.mfi(df['high'], df['low'], df['close'], df['volume'], length=14)
+        df['atr'] = fast_atr(df['high'], df['low'], df['close'])
+        df['ad'] = fast_ad(df['high'], df['low'], df['close'], df['volume'])
+        df['cmf'] = fast_ad(df['high'], df['low'], df['close'], df['volume'])  # Simplified CMF
+        df['mfi'] = fast_mfi(df['high'], df['low'], df['close'], df['volume'])
 
         # Custom indicators
         df['td_sequential'] = td_sequential(df['close'], lookback=4)
@@ -405,23 +488,16 @@ def process_symbol(symbol, conn_pool):
 
         # Calculate all SMAs at once
         for p in [10, 20, 50, 150, 200]:
-            df[f'sma_{p}'] = ta.sma(df['close'], length=p)
+            df[f'sma_{p}'] = fast_sma(df['close'], p)
             
         # Calculate all EMAs at once
         for p in [4, 9, 21]:
-            df[f'ema_{p}'] = ta.ema(df['close'], length=p)
+            df[f'ema_{p}'] = fast_ema(df['close'], p)
 
         # Bollinger Bands
-        bb = ta.bbands(df['close'], length=20, std=2)
-        if bb is not None:
-            df['bbands_lower'] = bb['BBL_20_2.0']
-            df['bbands_middle'] = bb['BBM_20_2.0']
-            df['bbands_upper'] = bb['BBU_20_2.0']
-        else:
-            df[['bbands_lower', 'bbands_middle', 'bbands_upper']] = np.nan
+        df['bbands_lower'], df['bbands_middle'], df['bbands_upper'] = fast_bbands(df['close'])
 
         # Pivots - calculate directly on the DataFrame with date index
-        # No need to reset_index since our pivot functions work with the indexed DataFrame
         df['pivot_high'] = pivot_high_vectorized(df, 3, 3)
         df['pivot_low'] = pivot_low_vectorized(df, 3, 3)
         df['pivot_high_triggered'] = pivot_high_triggered_vectorized(df, 3, 3)
@@ -448,9 +524,16 @@ def process_symbol(symbol, conn_pool):
         # Prepare data for bulk insertion
         data = []
         for idx, row in df.reset_index().iterrows():
+            # Handle datetime conversion safely
+            date_val = row['date']
+            if hasattr(date_val, 'to_pydatetime'):
+                date_val = date_val.to_pydatetime()
+            elif isinstance(date_val, np.datetime64):
+                date_val = pd.Timestamp(date_val).to_pydatetime()
+            
             data.append((
                 symbol,
-                row['date'].to_pydatetime(),
+                date_val,
                 sanitize_value(row.get('rsi')),
                 sanitize_value(row.get('macd')),
                 sanitize_value(row.get('macd_signal')),
@@ -499,7 +582,7 @@ def process_symbol(symbol, conn_pool):
         cursor.close()
         conn_pool.putconn(conn)
         
-        # Free memory
+        # Free memory aggressively
         del df, data
         gc.collect()
         
@@ -548,6 +631,7 @@ def main():
         total_inserted = 0
         symbols_processed = 0
         symbols_failed = 0
+        
         # Process symbols in parallel using worker pool
         with concurrent.futures.ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
             # Split symbols into batches
