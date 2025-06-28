@@ -74,11 +74,32 @@ function ServiceHealth() {
   const [refreshing, setRefreshing] = useState(false);
 
   // Memoize diagnosticInfo to prevent infinite re-renders
-  const diagnosticInfo = useMemo(() => getDiagnosticInfo(), []);
+  const diagnosticInfo = useMemo(() => {
+    try {
+      return getDiagnosticInfo();
+    } catch (error) {
+      console.error('Error getting diagnostic info:', error);
+      return {};
+    }
+  }, []);
   
   // Memoize other API config calls to prevent infinite re-renders
-  const apiConfig = useMemo(() => getApiConfig(), []);
-  const currentBaseURL = useMemo(() => getCurrentBaseURL(), []);
+  const apiConfig = useMemo(() => {
+    try {
+      return getApiConfig();
+    } catch (error) {
+      console.error('Error getting API config:', error);
+      return {};
+    }
+  }, []);
+  const currentBaseURL = useMemo(() => {
+    try {
+      return getCurrentBaseURL();
+    } catch (error) {
+      console.error('Error getting current base URL:', error);
+      return '';
+    }
+  }, []);
 
   // Component error handler
   useEffect(() => {
@@ -90,6 +111,67 @@ function ServiceHealth() {
     window.addEventListener('error', handleError);
     return () => window.removeEventListener('error', handleError);
   }, []);
+
+  // Cached database health check - uses the backend's cached health_status table
+  const { data: dbHealth, isLoading: dbLoading, error: dbError, refetch: refetchDb } = useQuery({
+    queryKey: ['databaseHealth'],
+    queryFn: async () => {
+      try {
+        console.log('Starting cached database health check...');
+        
+        // Use the standard api instance but with better error handling
+        const response = await api.get('/health/database', {
+          timeout: 15000, // 15 second timeout
+          validateStatus: (status) => status < 500 // Don't throw on 4xx errors
+        });
+        
+        console.log('Database health response:', response.data);
+        
+        // Ensure we return a proper object structure
+        if (response.data && typeof response.data === 'object') {
+          return response.data;
+        } else {
+          throw new Error('Invalid response structure from database health endpoint');
+        }
+        
+      } catch (error) {
+        console.error('Database health check failed:', error);
+        
+        // Return a structured error object instead of throwing
+        return {
+          error: true,
+          message: error.message || 'Unknown database health error',
+          details: error.response?.data || error.response?.status || 'No additional details',
+          timestamp: new Date().toISOString(),
+          // Provide fallback data structure that matches the expected format
+          database: { 
+            status: 'error',
+            currentTime: new Date().toISOString(),
+            postgresVersion: 'unknown',
+            tables: {},
+            summary: { 
+              total_tables: 0, 
+              healthy_tables: 0, 
+              stale_tables: 0, 
+              empty_tables: 0,
+              error_tables: 1,
+              missing_tables: 0,
+              total_records: 0,
+              total_missing_data: 0
+            }
+          }
+        };
+      }
+    },
+    refetchInterval: false,
+    retry: 1,
+    staleTime: 30000,
+    enabled: true, // Auto-run on mount
+    // Add error handling to prevent React Query from throwing
+    onError: (error) => {
+      console.error('React Query database health error:', error);
+    }
+  });
 
   // Early return if component has error
   if (componentError) {
@@ -177,66 +259,6 @@ function ServiceHealth() {
     enabled: true // Auto-run on mount
   });
 
-  // Cached database health check - uses new cached system
-  const { data: dbHealth, isLoading: dbLoading, error: dbError, refetch: refetchDb } = useQuery({
-    queryKey: ['databaseHealth'],
-    queryFn: async () => {
-      try {
-        console.log('Starting database health check...');
-        
-        // Temporarily return a mock response to test if the error is from the API call
-        return {
-          database: {
-            status: 'connected',
-            currentTime: new Date().toISOString()
-          },
-          tables: {
-            test: {
-              record_count: 1000,
-              status: 'healthy',
-              last_updated: new Date().toISOString()
-            }
-          },
-          summary: {
-            total_tables: 1,
-            healthy_tables: 1,
-            stale_tables: 0,
-            empty_tables: 0
-          }
-        };
-        
-        // Comment out the actual API call for now
-        // const response = await api.get('/health/database');
-        // console.log('Database health response:', response);
-        
-        // // Ensure we return a proper object structure
-        // if (response && response.data) {
-        //   return response.data;
-        // } else {
-        //   throw new Error('Invalid response structure from database health endpoint');
-        // }
-      } catch (error) {
-        console.error('Database health check failed:', error);
-        
-        // Return a structured error object instead of throwing
-        return {
-          error: true,
-          message: error.message || 'Unknown database health error',
-          details: error.response?.data || error.response?.status || 'No additional details',
-          timestamp: new Date().toISOString()
-        };
-      }
-    },
-    refetchInterval: false,
-    retry: 1,
-    staleTime: 30000,
-    enabled: true, // Auto-run on mount
-    // Add error handling to prevent React Query from throwing
-    onError: (error) => {
-      console.error('React Query database health error:', error);
-    }
-  });
-
   // Auto-run API tests on component mount
   useEffect(() => {
     // Run API tests automatically when component mounts
@@ -248,9 +270,12 @@ function ServiceHealth() {
     try {
       setRefreshing(true);
       
-      // Use the standard api instance
+      // Use the standard api instance to trigger background update
       await api.post('/health/update-status');
-      await refetchDb(); // Refresh the display
+      
+      // Use React Query's refetch to get updated data
+      await refetchDb();
+      
     } catch (error) {
       console.error('Failed to refresh health status:', error);
       // Don't throw - just log the error
@@ -424,19 +449,18 @@ function ServiceHealth() {
                 Database
               </Typography>
               <Typography variant="body2" color="textSecondary">
-                {safeDbHealth?.database?.status === 'connected' ? 'Connected' :
-                 safeDbHealth?.database?.status === 'disconnected' ? 'Disconnected' :
-                 safeDbHealth?.error ? 'Error' :
-                 dbLoading ? 'Checking...' : 'Unknown'}
+                {dbLoading ? 'Checking...' : 
+                 dbError ? 'Error' : 
+                 safeDbHealth?.database?.status === 'connected' ? 'Connected' :
+                 safeDbHealth?.database?.status === 'disconnected' ? 'Disconnected' : 
+                 'Unknown'}
               </Typography>
-              {safeDbHealth?.error && (
+              {dbError && (
                 <Alert severity="error" sx={{ mt: 2 }}>
-                  Database Error: {safeDbHealth.message || 'Unknown error'}
-                </Alert>
-              )}
-              {dbError && !safeDbHealth?.error && (
-                <Alert severity="error" sx={{ mt: 2 }}>
-                  Failed to load database health: {dbError.message || 'Unknown error'}
+                  <Typography variant="subtitle2">Failed to load database health:</Typography>
+                  <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
+                    {typeof dbError === 'string' ? dbError : dbError?.message || 'Unknown error'}
+                  </Typography>
                 </Alert>
               )}
             </CardContent>
@@ -581,7 +605,7 @@ function ServiceHealth() {
                 <Alert severity="error" sx={{ mb: 2 }}>
                   <Typography variant="subtitle2">Failed to load database health:</Typography>
                   <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
-                    {dbError.message || String(dbError)}
+                    {typeof dbError === 'string' ? dbError : dbError?.message || 'Unknown error'}
                   </Typography>
                 </Alert>
               )}
