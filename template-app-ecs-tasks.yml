@@ -81,6 +81,9 @@ Parameters:
   NaaimImageTag:
     Type: String
     Description: "Tag for NAAIM data loader image"
+  EarningsMetricsImageTag:
+    Type: String
+    Description: "Tag for earnings metrics loader image"
 
   FREDApiKey:
     Type: String
@@ -198,6 +201,12 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/earningsestimate-loader
+      RetentionInDays: 14
+
+  EarningsMetricsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/earningsmetrics-loader
       RetentionInDays: 14
 
   TechnicalsWeeklyLogGroup:
@@ -1118,6 +1127,55 @@ Resources:
       LaunchType: FARGATE
       DesiredCount: 0
       TaskDefinition: !Ref EarningsHistoryTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ########################################
+  # K) earningsmetrics loader            #
+  ########################################
+  EarningsMetricsTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: earningsmetrics-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: earningsmetrics-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref EarningsMetricsImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/earningsmetrics-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  EarningsMetricsLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: earningsmetrics-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref EarningsMetricsTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets:
