@@ -613,6 +613,29 @@ function ServiceHealth() {
               >
                 {refreshing ? 'Updating...' : 'Update Status'}
               </Button>
+              <Button 
+                variant="contained" 
+                size="small" 
+                startIcon={<Refresh />}
+                onClick={async () => {
+                  try {
+                    setRefreshing(true);
+                    // First trigger the background update
+                    await api.post('/health/update-status');
+                    // Then refresh the cached data
+                    await refetchDb();
+                  } catch (error) {
+                    console.error('Failed to refresh all tables:', error);
+                  } finally {
+                    setRefreshing(false);
+                  }
+                }}
+                sx={{ mr: 2 }}
+                disabled={refreshing}
+                color="primary"
+              >
+                {refreshing ? 'Refreshing...' : 'Refresh All Tables'}
+              </Button>
             </AccordionSummary>
             <AccordionDetails>
               {dbLoading && (
