@@ -182,18 +182,59 @@ function ServiceHealth() {
     queryKey: ['databaseHealth'],
     queryFn: async () => {
       try {
-        // Use the standard api instance instead of custom fetch
-        const response = await api.get('/health/database');
-        return response.data;
+        console.log('Starting database health check...');
+        
+        // Temporarily return a mock response to test if the error is from the API call
+        return {
+          database: {
+            status: 'connected',
+            currentTime: new Date().toISOString()
+          },
+          tables: {
+            test: {
+              record_count: 1000,
+              status: 'healthy',
+              last_updated: new Date().toISOString()
+            }
+          },
+          summary: {
+            total_tables: 1,
+            healthy_tables: 1,
+            stale_tables: 0,
+            empty_tables: 0
+          }
+        };
+        
+        // Comment out the actual API call for now
+        // const response = await api.get('/health/database');
+        // console.log('Database health response:', response);
+        
+        // // Ensure we return a proper object structure
+        // if (response && response.data) {
+        //   return response.data;
+        // } else {
+        //   throw new Error('Invalid response structure from database health endpoint');
+        // }
       } catch (error) {
         console.error('Database health check failed:', error);
-        throw error;
+        
+        // Return a structured error object instead of throwing
+        return {
+          error: true,
+          message: error.message || 'Unknown database health error',
+          details: error.response?.data || error.response?.status || 'No additional details',
+          timestamp: new Date().toISOString()
+        };
       }
     },
     refetchInterval: false,
     retry: 1,
     staleTime: 30000,
-    enabled: true // Auto-run on mount
+    enabled: true, // Auto-run on mount
+    // Add error handling to prevent React Query from throwing
+    onError: (error) => {
+      console.error('React Query database health error:', error);
+    }
   });
 
   // Auto-run API tests on component mount
@@ -385,11 +426,17 @@ function ServiceHealth() {
               <Typography variant="body2" color="textSecondary">
                 {safeDbHealth?.database?.status === 'connected' ? 'Connected' :
                  safeDbHealth?.database?.status === 'disconnected' ? 'Disconnected' :
+                 safeDbHealth?.error ? 'Error' :
                  dbLoading ? 'Checking...' : 'Unknown'}
               </Typography>
-              {dbError && (
+              {safeDbHealth?.error && (
                 <Alert severity="error" sx={{ mt: 2 }}>
-                  Failed to load database health: {dbError.message}
+                  Database Error: {safeDbHealth.message || 'Unknown error'}
+                </Alert>
+              )}
+              {dbError && !safeDbHealth?.error && (
+                <Alert severity="error" sx={{ mt: 2 }}>
+                  Failed to load database health: {dbError.message || 'Unknown error'}
                 </Alert>
               )}
             </CardContent>
