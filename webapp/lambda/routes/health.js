@@ -181,46 +181,20 @@ router.get('/database', async (req, res) => {
       console.log('Step 5: No cached data found, populating automatically...');
       
       const expectedTables = [
-        // Core symbol tables
         'stock_symbols', 'etf_symbols', 'last_updated',
-        
-        // Market sentiment and indicators
         'fear_greed_index', 'naaim_exposure', 'aaii_sentiment',
-        
-        // Analyst and earnings data
         'analyst_upgrade_downgrade', 'calendar_events',
         'earnings_estimates', 'earnings_history', 'revenue_estimates',
-        'earnings_metrics',
-        
-        // Economic and company data
         'economic_data', 'company_profile', 'leadership_team',
         'governance_scores', 'market_data', 'key_metrics', 'analyst_estimates',
-        
-        // Price data tables
         'price_daily', 'price_weekly', 'price_monthly',
         'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly',
-        'latest_price_daily', 'latest_price_weekly', 'latest_price_monthly',
-        
-        // Technical analysis tables
         'technical_data_daily', 'technical_data_weekly', 'technical_data_monthly',
-        'latest_technicals_daily', 'latest_technicals_weekly', 'latest_technicals_monthly',
-        
-        // Trading signals
         'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
-        
-        // Financial statements
         'balance_sheet_annual', 'balance_sheet_quarterly', 'balance_sheet_ttm',
         'income_statement_annual', 'income_statement_quarterly', 'income_statement_ttm',
         'cash_flow_annual', 'cash_flow_quarterly', 'cash_flow_ttm',
-        
-        // Financial data
-        'financials', 'financials_quarterly', 'financials_ttm',
-        
-        // AI and additional data
-        'aaii_data',
-        
-        // Health status table itself
-        'health_status'
+        'financials', 'financials_quarterly', 'financials_ttm'
       ];
       
       for (const tableName of expectedTables) {
@@ -471,46 +445,20 @@ router.post('/update-status', async (req, res) => {
     `);
     
     const expectedTables = [
-      // Core symbol tables
       'stock_symbols', 'etf_symbols', 'last_updated',
-      
-      // Market sentiment and indicators
       'fear_greed_index', 'naaim_exposure', 'aaii_sentiment',
-      
-      // Analyst and earnings data
       'analyst_upgrade_downgrade', 'calendar_events',
       'earnings_estimates', 'earnings_history', 'revenue_estimates',
-      'earnings_metrics',
-      
-      // Economic and company data
       'economic_data', 'company_profile', 'leadership_team',
       'governance_scores', 'market_data', 'key_metrics', 'analyst_estimates',
-      
-      // Price data tables
       'price_daily', 'price_weekly', 'price_monthly',
       'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly',
-      'latest_price_daily', 'latest_price_weekly', 'latest_price_monthly',
-      
-      // Technical analysis tables
       'technical_data_daily', 'technical_data_weekly', 'technical_data_monthly',
-      'latest_technicals_daily', 'latest_technicals_weekly', 'latest_technicals_monthly',
-      
-      // Trading signals
       'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
-      
-      // Financial statements
       'balance_sheet_annual', 'balance_sheet_quarterly', 'balance_sheet_ttm',
       'income_statement_annual', 'income_statement_quarterly', 'income_statement_ttm',
       'cash_flow_annual', 'cash_flow_quarterly', 'cash_flow_ttm',
-      
-      // Financial data
-      'financials', 'financials_quarterly', 'financials_ttm',
-      
-      // AI and additional data
-      'aaii_data',
-      
-      // Health status table itself
-      'health_status'
+      'financials', 'financials_quarterly', 'financials_ttm'
     ];
     
     let processed = 0;
