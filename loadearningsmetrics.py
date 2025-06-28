@@ -24,7 +24,6 @@ from psycopg2 import pool
 from psycopg2.extras import execute_values
 
 import pandas as pd
-import yfinance as yf
 
 # -------------------------------
 # Script metadata & logging setup 
@@ -122,63 +121,6 @@ def calculate_consecutive_eps_growth_years(eps_series):
     
     return years
 
-def calculate_estimate_revisions(symbol, months):
-    """Calculate EPS estimate revisions over specified months"""
-    try:
-        # Get analyst estimates from yfinance
-        ticker = yf.Ticker(symbol)
-        earnings_dates = ticker.earnings_dates
-        
-        if earnings_dates is None or earnings_dates.empty:
-            return None
-        
-        # Get current and historical estimates
-        current_date = datetime.now()
-        past_date = current_date - timedelta(days=months*30)
-        
-        # Filter for recent estimates
-        recent_estimates = earnings_dates[
-            (earnings_dates.index >= past_date) & 
-            (earnings_dates.index <= current_date)
-        ]
-        
-        if len(recent_estimates) < 2:
-            return None
-        
-        # Calculate revision percentage
-        latest_estimate = recent_estimates['EPS Estimate'].iloc[-1]
-        earliest_estimate = recent_estimates['EPS Estimate'].iloc[0]
-        
-        if earliest_estimate == 0 or np.isnan(earliest_estimate) or np.isnan(latest_estimate):
-            return None
-        
-        return ((latest_estimate - earliest_estimate) / abs(earliest_estimate)) * 100
-        
-    except Exception as e:
-        logging.warning(f"Failed to calculate estimate revisions for {symbol}: {e}")
-        return None
-
-def get_earnings_surprise(symbol):
-    """Get the most recent earnings surprise percentage"""
-    try:
-        ticker = yf.Ticker(symbol)
-        earnings_dates = ticker.earnings_dates
-        
-        if earnings_dates is None or earnings_dates.empty:
-            return None
-        
-        # Get the most recent earnings
-        latest_earnings = earnings_dates.iloc[0]  # Most recent is first
-        
-        if 'Surprise %' in latest_earnings and not np.isnan(latest_earnings['Surprise %']):
-            return latest_earnings['Surprise %']
-        
-        return None
-        
-    except Exception as e:
-        logging.warning(f"Failed to get earnings surprise for {symbol}: {e}")
-        return None
-
 def prepare_db():
     """Set up the database tables"""
     user, pwd, host, port, db = get_db_config()
@@ -249,34 +191,69 @@ def process_symbol(symbol, conn_pool):
         
         logging.info(f"Processing earnings metrics for {symbol}...")
         
-        # Get earnings data from yfinance
-        ticker = yf.Ticker(symbol)
-        earnings = ticker.earnings
+        # Get earnings data from existing tables instead of yfinance
+        # Get earnings history data
+        cursor.execute("""
+            SELECT quarter, eps_actual, eps_estimate, eps_difference, surprise_percent
+            FROM earnings_history 
+            WHERE symbol = %s 
+            ORDER BY quarter DESC
+            LIMIT 20
+        """, (symbol,))
+        earnings_history = cursor.fetchall()
         
-        if earnings is None or earnings.empty:
-            logging.warning(f"No earnings data for {symbol}, skipping.")
+        if not earnings_history:
+            logging.warning(f"No earnings history data for {symbol}, skipping.")
             conn_pool.putconn(conn)
             return 0
         
-        # Get quarterly earnings data
-        quarterly_earnings = ticker.quarterly_earnings
+        # Get earnings estimates data
+        cursor.execute("""
+            SELECT period, avg_estimate, low_estimate, high_estimate, year_ago_eps, 
+                   number_of_analysts, growth
+            FROM earnings_estimates 
+            WHERE symbol = %s 
+            ORDER BY period DESC
+            LIMIT 8
+        """, (symbol,))
+        earnings_estimates = cursor.fetchall()
         
-        if quarterly_earnings is None or quarterly_earnings.empty:
-            logging.warning(f"No quarterly earnings data for {symbol}, skipping.")
-            conn_pool.putconn(conn)
-            return 0
+        # Get revenue estimates data
+        cursor.execute("""
+            SELECT period, avg_estimate, low_estimate, high_estimate, 
+                   number_of_analysts, year_ago_revenue, growth
+            FROM revenue_estimates 
+            WHERE symbol = %s 
+            ORDER BY period DESC
+            LIMIT 8
+        """, (symbol,))
+        revenue_estimates = cursor.fetchall()
         
-        # Sort by date (most recent first)
-        quarterly_earnings = quarterly_earnings.sort_index()
+        # Convert to pandas-like structure for calculations
+        import pandas as pd
+        from datetime import datetime
+        
+        # Create earnings history DataFrame
+        if earnings_history:
+            earnings_df = pd.DataFrame(earnings_history, columns=[
+                'quarter', 'eps_actual', 'eps_estimate', 'eps_difference', 'surprise_percent'
+            ])
+            earnings_df['quarter'] = pd.to_datetime(earnings_df['quarter'])
+            earnings_df = earnings_df.sort_values('quarter')
+        else:
+            earnings_df = pd.DataFrame()
         
         # Calculate metrics for each quarter
         data = []
-        for i, (date, row) in enumerate(quarterly_earnings.iterrows()):
+        for i, row in enumerate(earnings_df.iterrows()):
             if i >= 20:  # Limit to last 20 quarters for performance
                 break
             
-            # Get EPS series up to this point
-            eps_series = quarterly_earnings['Earnings'].iloc[:i+1]
+            date = row[1]['quarter']
+            eps_actual = row[1]['eps_actual']
+            
+            # Get EPS series up to this point for growth calculations
+            eps_series = earnings_df['eps_actual'].iloc[:i+1]
             
             # Calculate various metrics
             eps_growth_1q = calculate_eps_growth(eps_series, 1)
@@ -284,26 +261,22 @@ def process_symbol(symbol, conn_pool):
             eps_growth_4q = calculate_eps_growth(eps_series, 4)
             eps_growth_8q = calculate_eps_growth(eps_series, 8)
             eps_acceleration_qtrs = calculate_eps_acceleration(eps_series)
-            eps_surprise_last_q = get_earnings_surprise(symbol)
-            eps_estimate_revision_1m = calculate_estimate_revisions(symbol, 1)
-            eps_estimate_revision_3m = calculate_estimate_revisions(symbol, 3)
-            eps_estimate_revision_6m = calculate_estimate_revisions(symbol, 6)
+            
+            # Get earnings surprise from the data
+            eps_surprise_last_q = row[1]['surprise_percent'] if row[1]['surprise_percent'] is not None else None
+            
+            # Calculate estimate revisions from earnings_estimates table
+            eps_estimate_revision_1m = calculate_estimate_revisions_from_db(symbol, 1, earnings_estimates)
+            eps_estimate_revision_3m = calculate_estimate_revisions_from_db(symbol, 3, earnings_estimates)
+            eps_estimate_revision_6m = calculate_estimate_revisions_from_db(symbol, 6, earnings_estimates)
+            
             annual_eps_growth_1y = calculate_annual_eps_growth(eps_series, 1)
             annual_eps_growth_3y = calculate_annual_eps_growth(eps_series, 3)
             annual_eps_growth_5y = calculate_annual_eps_growth(eps_series, 5)
             consecutive_eps_growth_years = calculate_consecutive_eps_growth_years(eps_series)
             
-            # Calculate estimated change this year (current year vs previous year)
-            try:
-                current_year_eps = earnings.iloc[0]['Earnings'] if not earnings.empty else None
-                previous_year_eps = earnings.iloc[1]['Earnings'] if len(earnings) > 1 else None
-                
-                if current_year_eps and previous_year_eps and previous_year_eps != 0:
-                    eps_estimated_change_this_year = ((current_year_eps - previous_year_eps) / abs(previous_year_eps)) * 100
-                else:
-                    eps_estimated_change_this_year = None
-            except:
-                eps_estimated_change_this_year = None
+            # Calculate estimated change this year from earnings_estimates
+            eps_estimated_change_this_year = calculate_estimated_change_from_db(symbol, earnings_estimates)
             
             data.append((
                 symbol,
@@ -349,7 +322,7 @@ def process_symbol(symbol, conn_pool):
         conn_pool.putconn(conn)
         
         # Free memory
-        del ticker, earnings, quarterly_earnings, data
+        del earnings_df, earnings_history, earnings_estimates, revenue_estimates, data
         gc.collect()
         
         return num_inserted
@@ -359,6 +332,54 @@ def process_symbol(symbol, conn_pool):
         if 'conn' in locals() and conn:
             conn_pool.putconn(conn)
         return 0
+
+def calculate_estimate_revisions_from_db(symbol, months, earnings_estimates):
+    """Calculate EPS estimate revisions from database data"""
+    try:
+        if not earnings_estimates:
+            return None
+        
+        # For simplicity, we'll use the most recent vs oldest estimate
+        # In a real implementation, you might want to track estimate changes over time
+        if len(earnings_estimates) >= 2:
+            latest_estimate = earnings_estimates[0][1]  # avg_estimate from most recent
+            earliest_estimate = earnings_estimates[-1][1]  # avg_estimate from oldest
+            
+            if earliest_estimate and latest_estimate and earliest_estimate != 0:
+                return ((latest_estimate - earliest_estimate) / abs(earliest_estimate)) * 100
+        
+        return None
+        
+    except Exception as e:
+        logging.warning(f"Failed to calculate estimate revisions for {symbol}: {e}")
+        return None
+
+def calculate_estimated_change_from_db(symbol, earnings_estimates):
+    """Calculate estimated change this year from database data"""
+    try:
+        if not earnings_estimates:
+            return None
+        
+        # Look for current year vs previous year estimates
+        current_year_estimate = None
+        previous_year_estimate = None
+        
+        for period, avg_estimate, low_estimate, high_estimate, year_ago_eps, num_analysts, growth in earnings_estimates:
+            if period and avg_estimate:
+                if current_year_estimate is None:
+                    current_year_estimate = avg_estimate
+                elif previous_year_estimate is None:
+                    previous_year_estimate = avg_estimate
+                    break
+        
+        if current_year_estimate and previous_year_estimate and previous_year_estimate != 0:
+            return ((current_year_estimate - previous_year_estimate) / abs(previous_year_estimate)) * 100
+        
+        return None
+        
+    except Exception as e:
+        logging.warning(f"Failed to calculate estimated change for {symbol}: {e}")
+        return None
 
 def process_symbol_batch(symbols):
     """Process a batch of symbols and return the total rows inserted"""

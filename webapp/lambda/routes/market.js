@@ -382,7 +382,31 @@ router.get('/sentiment/history', async (req, res) => {
   try {
     const days = parseInt(req.query.days) || 30;
     console.log(`Sentiment history endpoint called for ${days} days`);
-      const fearGreedQuery = `
+    
+    // Get current values first
+    const currentFearGreedQuery = `
+      SELECT index_value, rating, date
+      FROM fear_greed_index 
+      ORDER BY date DESC 
+      LIMIT 1
+    `;
+
+    const currentNaaimQuery = `
+      SELECT mean_exposure, bearish_exposure, bullish_exposure, date
+      FROM naaim_exposure 
+      ORDER BY date DESC 
+      LIMIT 1
+    `;
+
+    const currentAaiiQuery = `
+      SELECT bullish, neutral, bearish, date
+      FROM aaii_sentiment 
+      ORDER BY date DESC 
+      LIMIT 1
+    `;
+
+    // Get historical data
+    const fearGreedQuery = `
       SELECT index_value, rating, date
       FROM fear_greed_index 
       WHERE date >= NOW() - INTERVAL '${days} days'
@@ -406,7 +430,13 @@ router.get('/sentiment/history', async (req, res) => {
       LIMIT 100
     `;
 
-    const [fearGreedResult, naaimResult, aaiiResult] = await Promise.all([
+    const [
+      currentFearGreed, currentNaaim, currentAaii,
+      fearGreedHistory, naaimHistory, aaiiHistory
+    ] = await Promise.all([
+      query(currentFearGreedQuery),
+      query(currentNaaimQuery),
+      query(currentAaiiQuery),
       query(fearGreedQuery),
       query(naaimQuery),
       query(aaiiQuery)
@@ -414,9 +444,18 @@ router.get('/sentiment/history', async (req, res) => {
 
     res.json({
       period_days: days,
-      fear_greed_history: fearGreedResult.rows,
-      naaim_history: naaimResult.rows,
-      aaii_history: aaiiResult.rows,
+      fear_greed: {
+        current: currentFearGreed.rows[0] || null,
+        history: fearGreedHistory.rows || []
+      },
+      naaim: {
+        current: currentNaaim.rows[0] || null,
+        history: naaimHistory.rows || []
+      },
+      aaii: {
+        current: currentAaii.rows[0] || null,
+        history: aaiiHistory.rows || []
+      },
       timestamp: new Date().toISOString()
     });
 

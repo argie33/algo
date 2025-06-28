@@ -19,7 +19,10 @@ import {
   TableHead,
   TableRow,
   Chip,
-  Button
+  Button,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails
 } from '@mui/material'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts'
 import { SentimentVerySatisfied, SentimentSatisfied, SentimentNeutral, SentimentDissatisfied, SentimentVeryDissatisfied, TrendingUp, TrendingDown, HorizontalRule, Business, ExpandLess, ExpandMore, AccountBalance, ShowChart } from '@mui/icons-material';
@@ -217,12 +220,12 @@ function MarketOverview() {
     advanceDeclineRatio: parseFloat(sector.advance_decline_ratio) || 0
   }))
 
-  // Prepare sentiment chart data
-  const fearGreedHistory = sentimentHistory.fear_greed_history || []
+  // Prepare sentiment chart data - updated for new API structure
+  const fearGreedHistory = sentimentData?.fear_greed?.history || []
   const sentimentChartData = fearGreedHistory.slice(0, 30).map(item => ({
-    date: new Date(item.timestamp).toLocaleDateString(),
-    value: item.value,
-    text: item.value_text
+    date: new Date(item.date).toLocaleDateString(),
+    value: item.index_value,
+    text: item.rating
   })).reverse()
 
   // Helper: get icon and color for sentiment
@@ -607,105 +610,467 @@ function MarketOverview() {
             <Chip label="30d" color={sentimentRange === 30 ? 'primary' : 'default'} onClick={() => setSentimentRange(30)} clickable />
             <Chip label="90d" color={sentimentRange === 90 ? 'primary' : 'default'} onClick={() => setSentimentRange(90)} clickable />
           </Box>
+          
           {sentimentLoading ? (
             <LinearProgress />
           ) : (
             <Box>
-              {/* Professional Sentiment Summary Row */}
-              <Grid container spacing={3} sx={{ mb: 2 }}>
-                <Grid item xs={12} md={4}>
-                  <Card variant="outlined" sx={{ bgcolor: 'background.paper', boxShadow: 1 }}>
-                    <CardContent>
-                      <Typography variant="subtitle2" color="text.secondary">Fear & Greed</Typography>
-                      <Typography variant="h4" color="primary" fontWeight={700}>
-                        {sentimentChartData.length > 0 ? sentimentChartData[sentimentChartData.length-1].value : 'N/A'}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {sentimentChartData.length > 0 ? sentimentChartData[sentimentChartData.length-1].text : ''}
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <Card variant="outlined" sx={{ bgcolor: 'background.paper', boxShadow: 1 }}>
-                    <CardContent>
-                      <Typography variant="subtitle2" color="text.secondary">AAII Sentiment</Typography>
-                      <Typography variant="body2" color="success.main">Bullish: {sentimentHistory?.aaii_history?.length && typeof sentimentHistory.aaii_history[sentimentHistory.aaii_history.length-1].bullish === 'number' ? (sentimentHistory.aaii_history[sentimentHistory.aaii_history.length-1].bullish*100).toFixed(1)+'%' : 'N/A'}</Typography>
-                      <Typography variant="body2" color="info.main">Neutral: {sentimentHistory?.aaii_history?.length && typeof sentimentHistory.aaii_history[sentimentHistory.aaii_history.length-1].neutral === 'number' ? (sentimentHistory.aaii_history[sentimentHistory.aaii_history.length-1].neutral*100).toFixed(1)+'%' : 'N/A'}</Typography>
-                      <Typography variant="body2" color="error.main">Bearish: {sentimentHistory?.aaii_history?.length && typeof sentimentHistory.aaii_history[sentimentHistory.aaii_history.length-1].bearish === 'number' ? (sentimentHistory.aaii_history[sentimentHistory.aaii_history.length-1].bearish*100).toFixed(1)+'%' : 'N/A'}</Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Week ending: {sentimentHistory?.aaii_history?.length ? new Date(sentimentHistory.aaii_history[sentimentHistory.aaii_history.length-1].date).toLocaleDateString() : 'N/A'}
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <Card variant="outlined" sx={{ bgcolor: 'background.paper', boxShadow: 1 }}>
-                    <CardContent>
-                      <Typography variant="subtitle2" color="text.secondary">NAAIM Exposure</Typography>
-                      <Typography variant="h4" color="primary" fontWeight={700}>
-                        {sentimentHistory?.naaim_history?.length && typeof sentimentHistory.naaim_history[sentimentHistory.naaim_history.length-1].average === 'number' ? sentimentHistory.naaim_history[sentimentHistory.naaim_history.length-1].average.toFixed(1)+'%' : 'N/A'}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Week ending: {sentimentHistory?.naaim_history?.length ? new Date(sentimentHistory.naaim_history[sentimentHistory.naaim_history.length-1].week_ending).toLocaleDateString() : 'N/A'}
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              </Grid>
-
-              {/* Multi-line Sentiment History Chart */}
+              {/* Fear & Greed Accordion */}
               <Card sx={{ mb: 2 }}>
-                <CardContent>
-                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                    Sentiment History (30 Days)
-                  </Typography>
-                  <ResponsiveContainer width="100%" height={350}>
-                    <LineChart>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" type="category" tick={{ fontSize: 12 }} />
-                      <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
-                      <Tooltip formatter={(value, name) => [`${value.toFixed(1)}%`, name]} />
-                      <Legend verticalAlign="top" height={36} />
-                      {/* Fear & Greed */}
-                      <Line
-                        dataKey="fearGreed"
-                        data={sentimentChartData.map(d => ({ date: d.date, fearGreed: d.value }))}
-                        name="Fear & Greed"
-                        stroke="#8884d8"
-                        strokeWidth={2}
-                        dot={false}
-                      />
-                      {/* AAII Bullish */}
-                      <Line
-                        dataKey="aaiiBullish"
-                        data={sentimentHistory?.aaii_history?.map(item => ({ date: new Date(item.date).toLocaleDateString(), aaiiBullish: item.bullish*100 })) || []}
-                        name="AAII Bullish"
-                        stroke="#43a047"
-                        strokeWidth={2}
-                        dot={false}
-                      />
-                      {/* AAII Bearish */}
-                      <Line
-                        dataKey="aaiiBearish"
-                        data={sentimentHistory?.aaii_history?.map(item => ({ date: new Date(item.date).toLocaleDateString(), aaiiBearish: item.bearish*100 })) || []}
-                        name="AAII Bearish"
-                        stroke="#e53935"
-                        strokeWidth={2}
-                        dot={false}
-                      />
-                      {/* NAAIM Average */}
-                      <Line
-                        dataKey="naaimAvg"
-                        data={sentimentHistory?.naaim_history?.map(item => ({ date: new Date(item.week_ending).toLocaleDateString(), naaimAvg: item.average })) || []}
-                        name="NAAIM Avg"
-                        stroke="#1976d2"
-                        strokeWidth={2}
-                        dot={false}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </CardContent>
+                <Accordion>
+                  <AccordionSummary expandIcon={<ExpandMore />}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                        {getFGIcon(Number(sentimentData?.fear_greed?.current?.index_value))}
+                        <Typography variant="h6" sx={{ fontWeight: 600, ml: 1 }}>
+                          Fear & Greed Index
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Typography variant="h4" color="primary" sx={{ fontWeight: 700 }}>
+                          {sentimentData?.fear_greed?.current?.index_value ? 
+                            Number(sentimentData.fear_greed.current.index_value).toFixed(1) : 'N/A'}
+                        </Typography>
+                        <Chip 
+                          label={sentimentData?.fear_greed?.current?.rating || 'N/A'} 
+                          color="primary" 
+                          variant="outlined"
+                        />
+                      </Box>
+                    </Box>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <Grid container spacing={3}>
+                      <Grid item xs={12} md={8}>
+                        <Card>
+                          <CardContent>
+                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                              Fear & Greed Index History ({sentimentRange} Days)
+                            </Typography>
+                            <ResponsiveContainer width="100%" height={300}>
+                              <LineChart data={sentimentData?.fear_greed?.history?.map(item => ({
+                                date: new Date(item.date).toLocaleDateString(),
+                                value: item.index_value,
+                                rating: item.rating
+                              })).reverse() || []}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="date" />
+                                <YAxis domain={[0, 100]} />
+                                <Tooltip 
+                                  formatter={(value, name) => [`${value}`, 'Index Value']}
+                                  labelFormatter={(label) => `Date: ${label}`}
+                                />
+                                <Line 
+                                  type="monotone" 
+                                  dataKey="value" 
+                                  stroke="#8884d8" 
+                                  strokeWidth={3}
+                                  dot={{ fill: '#8884d8', strokeWidth: 2, r: 4 }}
+                                />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12} md={4}>
+                        <Card>
+                          <CardContent>
+                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                              Current Status
+                            </Typography>
+                            <Box sx={{ mb: 2 }}>
+                              <Typography variant="body2" color="text.secondary">Index Value:</Typography>
+                              <Typography variant="h4" color="primary" fontWeight={700}>
+                                {sentimentData?.fear_greed?.current?.index_value ? 
+                                  Number(sentimentData.fear_greed.current.index_value).toFixed(1) : 'N/A'}
+                              </Typography>
+                            </Box>
+                            <Box sx={{ mb: 2 }}>
+                              <Typography variant="body2" color="text.secondary">Rating:</Typography>
+                              <Chip 
+                                label={sentimentData?.fear_greed?.current?.rating || 'N/A'} 
+                                color="primary"
+                                sx={{ mt: 1 }}
+                              />
+                            </Box>
+                            <Box>
+                              <Typography variant="body2" color="text.secondary">Last Updated:</Typography>
+                              <Typography variant="body2">
+                                {sentimentData?.fear_greed?.current?.date ? 
+                                  new Date(sentimentData.fear_greed.current.date).toLocaleDateString() : 'N/A'}
+                              </Typography>
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12}>
+                        <Card>
+                          <CardContent>
+                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                              Historical Data
+                            </Typography>
+                            <TableContainer>
+                              <Table size="small">
+                                <TableHead>
+                                  <TableRow>
+                                    <TableCell>Date</TableCell>
+                                    <TableCell align="right">Index Value</TableCell>
+                                    <TableCell>Rating</TableCell>
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  {sentimentData?.fear_greed?.history?.slice(0, 20).map((item, index) => (
+                                    <TableRow key={index} hover>
+                                      <TableCell>
+                                        {new Date(item.date).toLocaleDateString()}
+                                      </TableCell>
+                                      <TableCell align="right" sx={{ fontWeight: 600 }}>
+                                        {Number(item.index_value).toFixed(1)}
+                                      </TableCell>
+                                      <TableCell>
+                                        <Chip 
+                                          label={item.rating} 
+                                          size="small" 
+                                          variant="outlined"
+                                        />
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    </Grid>
+                  </AccordionDetails>
+                </Accordion>
+              </Card>
+
+              {/* AAII Sentiment Accordion */}
+              <Card sx={{ mb: 2 }}>
+                <Accordion>
+                  <AccordionSummary expandIcon={<ExpandMore />}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                        <TrendingUp sx={{ color: '#43a047', fontSize: 32, mr: 1 }} />
+                        <Typography variant="h6" sx={{ fontWeight: 600, ml: 1 }}>
+                          AAII Investor Sentiment
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Box sx={{ textAlign: 'center' }}>
+                          <Typography variant="body2" color="success.main">Bullish</Typography>
+                          <Typography variant="h5" color="success.main" fontWeight={700}>
+                            {sentimentData?.aaii?.current?.bullish ? 
+                              (Number(sentimentData.aaii.current.bullish) * 100).toFixed(1) + '%' : 'N/A'}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ textAlign: 'center' }}>
+                          <Typography variant="body2" color="error.main">Bearish</Typography>
+                          <Typography variant="h5" color="error.main" fontWeight={700}>
+                            {sentimentData?.aaii?.current?.bearish ? 
+                              (Number(sentimentData.aaii.current.bearish) * 100).toFixed(1) + '%' : 'N/A'}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Box>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <Grid container spacing={3}>
+                      <Grid item xs={12} md={8}>
+                        <Card>
+                          <CardContent>
+                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                              AAII Sentiment History ({sentimentRange} Days)
+                            </Typography>
+                            <ResponsiveContainer width="100%" height={300}>
+                              <LineChart data={sentimentData?.aaii?.history?.map(item => ({
+                                date: new Date(item.date).toLocaleDateString(),
+                                bullish: Number(item.bullish) * 100,
+                                neutral: Number(item.neutral) * 100,
+                                bearish: Number(item.bearish) * 100
+                              })).reverse() || []}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="date" />
+                                <YAxis domain={[0, 100]} />
+                                <Tooltip 
+                                  formatter={(value, name) => [`${value.toFixed(1)}%`, name]}
+                                  labelFormatter={(label) => `Date: ${label}`}
+                                />
+                                <Legend />
+                                <Line 
+                                  type="monotone" 
+                                  dataKey="bullish" 
+                                  stroke="#43a047" 
+                                  strokeWidth={2}
+                                  name="Bullish"
+                                />
+                                <Line 
+                                  type="monotone" 
+                                  dataKey="neutral" 
+                                  stroke="#ffb300" 
+                                  strokeWidth={2}
+                                  name="Neutral"
+                                />
+                                <Line 
+                                  type="monotone" 
+                                  dataKey="bearish" 
+                                  stroke="#e53935" 
+                                  strokeWidth={2}
+                                  name="Bearish"
+                                />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12} md={4}>
+                        <Card>
+                          <CardContent>
+                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                              Current Sentiment
+                            </Typography>
+                            <Box sx={{ mb: 2 }}>
+                              <Typography variant="body2" color="success.main">Bullish:</Typography>
+                              <Typography variant="h5" color="success.main" fontWeight={700}>
+                                {sentimentData?.aaii?.current?.bullish ? 
+                                  (Number(sentimentData.aaii.current.bullish) * 100).toFixed(1) + '%' : 'N/A'}
+                              </Typography>
+                            </Box>
+                            <Box sx={{ mb: 2 }}>
+                              <Typography variant="body2" color="info.main">Neutral:</Typography>
+                              <Typography variant="h5" color="info.main" fontWeight={700}>
+                                {sentimentData?.aaii?.current?.neutral ? 
+                                  (Number(sentimentData.aaii.current.neutral) * 100).toFixed(1) + '%' : 'N/A'}
+                              </Typography>
+                            </Box>
+                            <Box sx={{ mb: 2 }}>
+                              <Typography variant="body2" color="error.main">Bearish:</Typography>
+                              <Typography variant="h5" color="error.main" fontWeight={700}>
+                                {sentimentData?.aaii?.current?.bearish ? 
+                                  (Number(sentimentData.aaii.current.bearish) * 100).toFixed(1) + '%' : 'N/A'}
+                              </Typography>
+                            </Box>
+                            <Box>
+                              <Typography variant="body2" color="text.secondary">Week Ending:</Typography>
+                              <Typography variant="body2">
+                                {sentimentData?.aaii?.current?.date ? 
+                                  new Date(sentimentData.aaii.current.date).toLocaleDateString() : 'N/A'}
+                              </Typography>
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12}>
+                        <Card>
+                          <CardContent>
+                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                              Historical Data
+                            </Typography>
+                            <TableContainer>
+                              <Table size="small">
+                                <TableHead>
+                                  <TableRow>
+                                    <TableCell>Date</TableCell>
+                                    <TableCell align="right">Bullish (%)</TableCell>
+                                    <TableCell align="right">Neutral (%)</TableCell>
+                                    <TableCell align="right">Bearish (%)</TableCell>
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  {sentimentData?.aaii?.history?.slice(0, 20).map((item, index) => (
+                                    <TableRow key={index} hover>
+                                      <TableCell>
+                                        {new Date(item.date).toLocaleDateString()}
+                                      </TableCell>
+                                      <TableCell align="right" sx={{ color: 'success.main', fontWeight: 600 }}>
+                                        {(Number(item.bullish) * 100).toFixed(1)}%
+                                      </TableCell>
+                                      <TableCell align="right" sx={{ color: 'info.main', fontWeight: 600 }}>
+                                        {(Number(item.neutral) * 100).toFixed(1)}%
+                                      </TableCell>
+                                      <TableCell align="right" sx={{ color: 'error.main', fontWeight: 600 }}>
+                                        {(Number(item.bearish) * 100).toFixed(1)}%
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    </Grid>
+                  </AccordionDetails>
+                </Accordion>
+              </Card>
+
+              {/* NAAIM Exposure Accordion */}
+              <Card sx={{ mb: 2 }}>
+                <Accordion>
+                  <AccordionSummary expandIcon={<ExpandMore />}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                        <HorizontalRule sx={{ color: '#8e24aa', fontSize: 32, mr: 1 }} />
+                        <Typography variant="h6" sx={{ fontWeight: 600, ml: 1 }}>
+                          NAAIM Exposure Index
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Box sx={{ textAlign: 'center' }}>
+                          <Typography variant="body2">Average</Typography>
+                          <Typography variant="h5" color="primary" fontWeight={700}>
+                            {sentimentData?.naaim?.current?.mean_exposure ? 
+                              Number(sentimentData.naaim.current.mean_exposure).toFixed(1) + '%' : 'N/A'}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ textAlign: 'center' }}>
+                          <Typography variant="body2" color="success.main">Bullish</Typography>
+                          <Typography variant="h5" color="success.main" fontWeight={700}>
+                            {sentimentData?.naaim?.current?.bullish_exposure ? 
+                              Number(sentimentData.naaim.current.bullish_exposure).toFixed(1) + '%' : 'N/A'}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ textAlign: 'center' }}>
+                          <Typography variant="body2" color="error.main">Bearish</Typography>
+                          <Typography variant="h5" color="error.main" fontWeight={700}>
+                            {sentimentData?.naaim?.current?.bearish_exposure ? 
+                              Number(sentimentData.naaim.current.bearish_exposure).toFixed(1) + '%' : 'N/A'}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Box>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <Grid container spacing={3}>
+                      <Grid item xs={12} md={8}>
+                        <Card>
+                          <CardContent>
+                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                              NAAIM Exposure History ({sentimentRange} Days)
+                            </Typography>
+                            <ResponsiveContainer width="100%" height={300}>
+                              <LineChart data={sentimentData?.naaim?.history?.map(item => ({
+                                date: new Date(item.date).toLocaleDateString(),
+                                average: Number(item.mean_exposure),
+                                bullish: Number(item.bullish_exposure),
+                                bearish: Number(item.bearish_exposure)
+                              })).reverse() || []}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="date" />
+                                <YAxis />
+                                <Tooltip 
+                                  formatter={(value, name) => [`${value.toFixed(1)}%`, name]}
+                                  labelFormatter={(label) => `Date: ${label}`}
+                                />
+                                <Legend />
+                                <Line 
+                                  type="monotone" 
+                                  dataKey="average" 
+                                  stroke="#1976d2" 
+                                  strokeWidth={3}
+                                  name="Average Exposure"
+                                  dot={{ fill: '#1976d2', strokeWidth: 2, r: 4 }}
+                                />
+                                <Line 
+                                  type="monotone" 
+                                  dataKey="bullish" 
+                                  stroke="#43a047" 
+                                  strokeWidth={2}
+                                  name="Bullish Exposure"
+                                />
+                                <Line 
+                                  type="monotone" 
+                                  dataKey="bearish" 
+                                  stroke="#e53935" 
+                                  strokeWidth={2}
+                                  name="Bearish Exposure"
+                                />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12} md={4}>
+                        <Card>
+                          <CardContent>
+                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                              Current Exposure
+                            </Typography>
+                            <Box sx={{ mb: 2 }}>
+                              <Typography variant="body2">Average Exposure:</Typography>
+                              <Typography variant="h5" color="primary" fontWeight={700}>
+                                {sentimentData?.naaim?.current?.mean_exposure ? 
+                                  Number(sentimentData.naaim.current.mean_exposure).toFixed(1) + '%' : 'N/A'}
+                              </Typography>
+                            </Box>
+                            <Box sx={{ mb: 2 }}>
+                              <Typography variant="body2" color="success.main">Bullish Exposure:</Typography>
+                              <Typography variant="h5" color="success.main" fontWeight={700}>
+                                {sentimentData?.naaim?.current?.bullish_exposure ? 
+                                  Number(sentimentData.naaim.current.bullish_exposure).toFixed(1) + '%' : 'N/A'}
+                              </Typography>
+                            </Box>
+                            <Box sx={{ mb: 2 }}>
+                              <Typography variant="body2" color="error.main">Bearish Exposure:</Typography>
+                              <Typography variant="h5" color="error.main" fontWeight={700}>
+                                {sentimentData?.naaim?.current?.bearish_exposure ? 
+                                  Number(sentimentData.naaim.current.bearish_exposure).toFixed(1) + '%' : 'N/A'}
+                              </Typography>
+                            </Box>
+                            <Box>
+                              <Typography variant="body2" color="text.secondary">Week Ending:</Typography>
+                              <Typography variant="body2">
+                                {sentimentData?.naaim?.current?.date ? 
+                                  new Date(sentimentData.naaim.current.date).toLocaleDateString() : 'N/A'}
+                              </Typography>
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12}>
+                        <Card>
+                          <CardContent>
+                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                              Historical Data
+                            </Typography>
+                            <TableContainer>
+                              <Table size="small">
+                                <TableHead>
+                                  <TableRow>
+                                    <TableCell>Date</TableCell>
+                                    <TableCell align="right">Average (%)</TableCell>
+                                    <TableCell align="right">Bullish (%)</TableCell>
+                                    <TableCell align="right">Bearish (%)</TableCell>
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  {sentimentData?.naaim?.history?.slice(0, 20).map((item, index) => (
+                                    <TableRow key={index} hover>
+                                      <TableCell>
+                                        {new Date(item.date).toLocaleDateString()}
+                                      </TableCell>
+                                      <TableCell align="right" sx={{ fontWeight: 600 }}>
+                                        {Number(item.mean_exposure).toFixed(1)}%
+                                      </TableCell>
+                                      <TableCell align="right" sx={{ color: 'success.main', fontWeight: 600 }}>
+                                        {Number(item.bullish_exposure).toFixed(1)}%
+                                      </TableCell>
+                                      <TableCell align="right" sx={{ color: 'error.main', fontWeight: 600 }}>
+                                        {Number(item.bearish_exposure).toFixed(1)}%
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    </Grid>
+                  </AccordionDetails>
+                </Accordion>
               </Card>
             </Box>
           )}
