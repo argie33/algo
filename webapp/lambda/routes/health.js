@@ -85,6 +85,24 @@ router.get('/database', async (req, res) => {
   console.log('Received request for /health/database');
   
   try {
+    // Ensure database is initialized first
+    try {
+      await initializeDatabase();
+      console.log('Database initialized successfully');
+    } catch (dbInitError) {
+      console.error('Database initialization failed:', dbInitError);
+      return res.status(503).json({
+        status: 'error',
+        message: 'Database initialization failed',
+        details: dbInitError.message,
+        timestamp: new Date().toISOString(),
+        debug: {
+          config: dbInitError.config,
+          env: dbInitError.env
+        }
+      });
+    }
+
     console.log('Step 1: Creating health_status table...');
     // First, ensure the health_status table exists with enhanced schema
     await query(`
@@ -829,6 +847,45 @@ router.get('/db-test', async (req, res) => {
     res.json({ ok: true, result: result.rows });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// Simple database test endpoint
+router.get('/test-db', async (req, res) => {
+  console.log('Testing database connection...');
+  
+  try {
+    // Test database initialization
+    const pool = await initializeDatabase();
+    console.log('Database pool created successfully');
+    
+    // Test simple query
+    const result = await query('SELECT NOW() as current_time, version() as postgres_version');
+    console.log('Database query successful');
+    
+    res.json({
+      status: 'success',
+      message: 'Database connection test passed',
+      timestamp: new Date().toISOString(),
+      database: {
+        currentTime: result.rows[0].current_time,
+        postgresVersion: result.rows[0].postgres_version,
+        poolStatus: pool ? 'connected' : 'disconnected'
+      }
+    });
+  } catch (error) {
+    console.error('Database test failed:', error);
+    res.status(503).json({
+      status: 'error',
+      message: 'Database connection test failed',
+      details: error.message,
+      timestamp: new Date().toISOString(),
+      debug: {
+        config: error.config,
+        env: error.env,
+        stack: error.stack
+      }
+    });
   }
 });
 

@@ -14,7 +14,8 @@ let initPromise = null;
 // Database configuration cache
 let dbConfig = null;
 
-console.log('*** DATABASE.JS PATCHED VERSION RUNNING ***');
+console.log('*** DATABASE.JS PATCHED VERSION RUNNING - v2.1.0 ***');
+console.log('*** CONFIG SCOPE FIX APPLIED - ' + new Date().toISOString() + ' ***');
 
 /**
  * Get database configuration from AWS Secrets Manager
@@ -67,7 +68,7 @@ async function initializeDatabase() {
     if (dbInitialized && pool) return pool;
 
     initPromise = (async () => {
-        let config;
+        let config = null;
         try {
             console.log('Initializing database connection pool...');
             config = await getDbConfig();
@@ -92,8 +93,17 @@ async function initializeDatabase() {
             error.config = config;
             error.env = {
                 DB_SECRET_ARN: process.env.DB_SECRET_ARN,
-                DB_ENDPOINT: process.env.DB_ENDPOINT
+                DB_ENDPOINT: process.env.DB_ENDPOINT,
+                DB_HOST: process.env.DB_HOST,
+                DB_PORT: process.env.DB_PORT,
+                DB_NAME: process.env.DB_NAME,
+                DB_USER: process.env.DB_USER
             };
+            console.error('Database initialization failed:', {
+                error: error.message,
+                config: config,
+                env: error.env
+            });
             throw error;
         } finally {
             initPromise = null;
