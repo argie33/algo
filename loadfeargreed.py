@@ -171,32 +171,44 @@ async def load_fear_greed_data(cur, conn):
             logging.warning("No Fear & Greed data scraped")
             return 0, 0, []
         
-        # Convert data to list of tuples for batch insert
-        rows = []
+        # Convert data to list of tuples for batch insert and deduplicate by date
+        rows_dict = {}  # Use dict to deduplicate by date
         for item in data_array:
             try:
                 dt = timestamptodatestr(item['x'])
                 index_value = float(item['y']) if item['y'] is not None else None
                 rating = str(item['rating']) if item['rating'] else None
                 
-                rows.append([dt, index_value, rating])
+                # Keep the most recent data for each date (if duplicates exist)
+                rows_dict[dt] = [dt, index_value, rating]
             except Exception as e:
                 logging.warning(f"Failed to process item {item}: {e}")
                 continue
+        
+        # Convert back to list
+        rows = list(rows_dict.values())
         
         if not rows:
             logging.warning("No valid rows after processing")
             return 0, 0, []
         
-        # Batch insert the data
-        sql = f"INSERT INTO fear_greed_index ({COL_LIST}) VALUES %s ON CONFLICT (date) DO UPDATE SET index_value = EXCLUDED.index_value, rating = EXCLUDED.rating"
-        execute_values(cur, sql, rows)
-        conn.commit()
+        logging.info(f"Processing {len(rows)} unique Fear & Greed records (deduplicated from {len(data_array)} total)")
         
-        inserted = len(rows)
-        logging.info(f"Successfully inserted {inserted} Fear & Greed records")
-        
-        return len(data_array), inserted, []
+        # Batch insert the data with proper error handling
+        try:
+            sql = f"INSERT INTO fear_greed_index ({COL_LIST}) VALUES %s ON CONFLICT (date) DO UPDATE SET index_value = EXCLUDED.index_value, rating = EXCLUDED.rating, fetched_at = CURRENT_TIMESTAMP"
+            execute_values(cur, sql, rows)
+            conn.commit()
+            
+            inserted = len(rows)
+            logging.info(f"Successfully inserted {inserted} Fear & Greed records")
+            
+            return len(data_array), inserted, []
+            
+        except Exception as insert_error:
+            logging.error(f"Database insert error: {insert_error}")
+            conn.rollback()  # Rollback the failed transaction
+            return 0, 0, [str(insert_error)]
         
     except Exception as e:
         logging.error(f"Error loading Fear & Greed data: {e}")
@@ -228,6 +240,14 @@ async def main():
             index_value DOUBLE PRECISION,
             rating      VARCHAR(50),
             fetched_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    
+    # Ensure last_updated table exists
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS last_updated (
+            script_name VARCHAR(100) PRIMARY KEY,
+            last_run    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
     """)
     conn.commit()

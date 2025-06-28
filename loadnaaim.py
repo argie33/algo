@@ -15,6 +15,7 @@ from datetime import datetime
 import boto3
 import pandas as pd
 import requests
+from bs4 import BeautifulSoup
 
 # -------------------------------
 # Script metadata & logging setup 
@@ -100,36 +101,111 @@ def get_naaim_data():
             response = requests.get(NAAIM_URL, headers=headers, timeout=30)
             response.raise_for_status()
             
-            # Get list of dataframes from HTML tables
+            # Debug: Log the first 1000 characters of the response
+            logging.info(f"Response status: {response.status_code}")
+            logging.info(f"Response content preview: {response.text[:1000]}...")
+            
+            # Try to find tables in the HTML
             logging.info("Parsing HTML tables...")
-            dfs = pd.read_html(response.text)
             
-            if not dfs:
-                raise ValueError("No HTML tables found on the page")
+            # Method 1: Try pandas read_html
+            try:
+                from io import StringIO
+                dfs = pd.read_html(StringIO(response.text))
+                logging.info(f"Found {len(dfs)} tables with pandas read_html")
+                
+                if dfs:
+                    # Get the first dataframe (NAAIM data table)
+                    data = dfs[0]
+                    logging.info(f"Found table with shape: {data.shape}")
+                    logging.info(f"Table columns: {list(data.columns)}")
+                    logging.info(f"First few rows: {data.head()}")
+                    
+                    # Check if this looks like NAAIM data
+                    if len(data.columns) >= 7:  # Expected columns
+                        # Assign meaningful column names
+                        data.columns = ['Date', 'NAAIM Number Mean/Average', 'Bearish', 'Quart1', 'Quart2', 'Quart3', 'Bullish', 'Deviation']
+                        
+                        # Clean the data
+                        data = data.where(pd.notnull(data), None)
+                        
+                        # Convert date column to proper format
+                        data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
+                        data = data.dropna(subset=['Date'])  # Drop rows where date conversion failed
+                        data['Date'] = data['Date'].dt.strftime('%Y-%m-%d')
+                        
+                        # Convert numeric columns
+                        numeric_columns = ['NAAIM Number Mean/Average', 'Bearish', 'Quart1', 'Quart2', 'Quart3', 'Bullish', 'Deviation']
+                        for col in numeric_columns:
+                            if col in data.columns:
+                                data[col] = pd.to_numeric(data[col], errors='coerce')
+                        
+                        logging.info(f"Successfully downloaded NAAIM data: {len(data)} records")
+                        return data
+                    else:
+                        logging.warning(f"Table found but doesn't look like NAAIM data. Columns: {list(data.columns)}")
+                        
+            except Exception as e:
+                logging.warning(f"pandas read_html failed: {e}")
             
-            # Get the first dataframe (NAAIM data table)
-            data = dfs[0]
-            logging.info(f"Found table with shape: {data.shape}")
+            # Method 2: Try to find table elements manually
+            try:
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(response.text, 'html.parser')
+                tables = soup.find_all('table')
+                logging.info(f"Found {len(tables)} table elements with BeautifulSoup")
+                
+                for i, table in enumerate(tables):
+                    logging.info(f"Table {i}: {table.get('class', 'no-class')} - {table.get('id', 'no-id')}")
+                    rows = table.find_all('tr')
+                    logging.info(f"  Rows: {len(rows)}")
+                    if rows:
+                        first_row = rows[0]
+                        cells = first_row.find_all(['td', 'th'])
+                        logging.info(f"  First row cells: {len(cells)}")
+                        if cells:
+                            logging.info(f"  First cell content: {cells[0].get_text(strip=True)}")
+                
+                # If we found tables, try to parse the largest one
+                if tables:
+                    largest_table = max(tables, key=lambda t: len(t.find_all('tr')))
+                    logging.info(f"Attempting to parse largest table with {len(largest_table.find_all('tr'))} rows")
+                    
+                    # Convert to DataFrame
+                    rows = []
+                    for tr in largest_table.find_all('tr'):
+                        row = [td.get_text(strip=True) for td in tr.find_all(['td', 'th'])]
+                        if row:  # Skip empty rows
+                            rows.append(row)
+                    
+                    if rows:
+                        data = pd.DataFrame(rows[1:], columns=rows[0])  # First row as headers
+                        logging.info(f"Parsed table with shape: {data.shape}")
+                        logging.info(f"Columns: {list(data.columns)}")
+                        
+                        # Check if this looks like NAAIM data
+                        if len(data.columns) >= 7:
+                            # Clean and process the data
+                            data = data.where(pd.notnull(data), None)
+                            
+                            # Try to convert date column
+                            date_col = data.columns[0]  # Assume first column is date
+                            data[date_col] = pd.to_datetime(data[date_col], errors='coerce')
+                            data = data.dropna(subset=[date_col])
+                            data[date_col] = data[date_col].dt.strftime('%Y-%m-%d')
+                            
+                            # Convert numeric columns
+                            for col in data.columns[1:]:  # Skip date column
+                                data[col] = pd.to_numeric(data[col], errors='coerce')
+                            
+                            logging.info(f"Successfully parsed NAAIM data: {len(data)} records")
+                            return data
+                            
+            except Exception as e:
+                logging.warning(f"BeautifulSoup parsing failed: {e}")
             
-            # Assign meaningful column names
-            data.columns = ['Date', 'NAAIM Number Mean/Average', 'Bearish', 'Quart1', 'Quart2', 'Quart3', 'Bullish', 'Deviation']
-            
-            # Clean the data
-            data = data.where(pd.notnull(data), None)
-            
-            # Convert date column to proper format
-            data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
-            data = data.dropna(subset=['Date'])  # Drop rows where date conversion failed
-            data['Date'] = data['Date'].dt.strftime('%Y-%m-%d')
-            
-            # Convert numeric columns
-            numeric_columns = ['NAAIM Number Mean/Average', 'Bearish', 'Quart1', 'Quart2', 'Quart3', 'Bullish', 'Deviation']
-            for col in numeric_columns:
-                if col in data.columns:
-                    data[col] = pd.to_numeric(data[col], errors='coerce')
-            
-            logging.info(f"Successfully downloaded NAAIM data: {len(data)} records")
-            return data
+            # If we get here, no valid table was found
+            raise ValueError("No valid NAAIM data tables found on the page")
             
         except Exception as e:
             logging.warning(f"Download attempt {attempt} failed: {e}")
@@ -219,6 +295,14 @@ if __name__ == "__main__":
             bullish             DOUBLE PRECISION,
             deviation           DOUBLE PRECISION,
             fetched_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    
+    # Ensure last_updated table exists
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS last_updated (
+            script_name VARCHAR(100) PRIMARY KEY,
+            last_run    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
     """)
     conn.commit()
