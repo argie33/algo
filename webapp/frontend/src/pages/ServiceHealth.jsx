@@ -623,6 +623,19 @@ function ServiceHealth() {
                     )}
                   </Box>
 
+                  {/* Debug information - remove this after confirming data structure */}
+                  {process.env.NODE_ENV === 'development' && (
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                      <Typography variant="subtitle2">Debug Info:</Typography>
+                      <Typography variant="body2">
+                        Has summary: {safeDbHealth.database?.summary ? 'Yes' : 'No'}<br/>
+                        Has tables: {safeDbHealth.database?.tables ? 'Yes' : 'No'}<br/>
+                        Tables count: {safeDbHealth.database?.tables ? Object.keys(safeDbHealth.database.tables).length : 0}<br/>
+                        Summary keys: {safeDbHealth.database?.summary ? Object.keys(safeDbHealth.database.summary).join(', ') : 'None'}
+                      </Typography>
+                    </Alert>
+                  )}
+
                   {/* Summary Statistics */}
                   {safeDbHealth.database?.summary && (
                     <Box sx={{ mb: 2 }}>
@@ -672,9 +685,10 @@ function ServiceHealth() {
                     </Box>
                   )}
 
+                  {/* Detailed Table List */}
                   {safeDbHealth.database?.tables && Object.keys(safeDbHealth.database.tables).length > 0 && (
                     <Box sx={{ mt: 2 }}>
-                      <Typography variant="subtitle2" gutterBottom>Table Status (Enhanced):</Typography>
+                      <Typography variant="subtitle2" gutterBottom>Table Details:</Typography>
                       <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
                         <Table size="small" stickyHeader>
                           <TableHead>
