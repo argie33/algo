@@ -151,15 +151,30 @@ function Deploy-Infrastructure {
     
     Write-Info "Using database secret: $DbSecretArn"
     
+    # Get database endpoint
+    Write-Info "Looking up database endpoint..."
+    $DbEndpoint = aws rds describe-db-instances `
+        --query "DBInstances[0].Endpoint.Address" `
+        --output text `
+        --region $Region
+    
+    if ($DbEndpoint -eq "None" -or [string]::IsNullOrEmpty($DbEndpoint)) {
+        Write-Error "Database endpoint not found. Please ensure RDS is deployed first."
+        exit 1
+    }
+    
+    Write-Info "Using database endpoint: $DbEndpoint"
+    
     # Deploy with SAM
     Write-Info "Deploying CloudFormation stack..."
     sam deploy `
-        --template-file webapp\template-webapp-lambda.yml `
+        --template-file ..\template-webapp-lambda.yml `
         --stack-name $StackName `
         --capabilities CAPABILITY_IAM `
         --parameter-overrides `
             EnvironmentName=$Environment `
             DatabaseSecretArn=$DbSecretArn `
+            DatabaseEndpoint=$DbEndpoint `
         --no-fail-on-empty-changeset `
         --region $Region
     
