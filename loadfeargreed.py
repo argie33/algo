@@ -18,7 +18,7 @@ import pandas as pd
 from pyppeteer import launch
 
 # -------------------------------
-# Script metadata & logging setup 
+# Script metadata & logging setup
 # -------------------------------
 SCRIPT_NAME = "loadfeargreed.py"
 logging.basicConfig(
