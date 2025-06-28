@@ -58,19 +58,9 @@ import {
   getFearGreedData,
   getApiConfig,
   getDiagnosticInfo,
-  getCurrentBaseURL
+  getCurrentBaseURL,
+  api
 } from '../services/api';
-
-// Utility: fetch with timeout for DB diagnostics
-function fetchWithTimeout(resource, options = {}, timeout = 10000) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-  
-  return Promise.race([
-    fetch(resource, { ...options, signal: controller.signal }).finally(() => clearTimeout(timeoutId)),
-    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout after ' + timeout + 'ms')), timeout))
-  ]);
-}
 
 function isObject(val) {
   return val && typeof val === 'object' && !Array.isArray(val);
@@ -192,18 +182,9 @@ function ServiceHealth() {
     queryKey: ['databaseHealth'],
     queryFn: async () => {
       try {
-        // Use the new cached database health endpoint with compatible timeout
-        const response = await fetchWithTimeout(getCurrentBaseURL() + '/health/database', {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' }
-        });
-        
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        return data;
+        // Use the standard api instance instead of custom fetch
+        const response = await api.get('/health/database');
+        return response.data;
       } catch (error) {
         console.error('Database health check failed:', error);
         throw error;
@@ -226,12 +207,8 @@ function ServiceHealth() {
     try {
       setRefreshing(true);
       
-      // Use compatible timeout implementation
-      await fetchWithTimeout(getCurrentBaseURL() + '/health/update-status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      
+      // Use the standard api instance
+      await api.post('/health/update-status');
       await refetchDb(); // Refresh the display
     } catch (error) {
       console.error('Failed to refresh health status:', error);
