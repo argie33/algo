@@ -145,11 +145,16 @@ def pivot_high_triggered_vectorized(df, left_bars=3, right_bars=3):
             last_pivot = pivot_highs[i]
         pivot_highs[i] = last_pivot
     
-    # Now check for breakouts - only return value when price crosses above pivot
+    # Now check for breakouts - only return value on the FIRST bar where price crosses above pivot
     triggered = np.full(n, np.nan)
+    last_triggered_pivot = np.nan  # Track the last pivot that was triggered
+    
     for i in range(1, n):
         if not np.isnan(pivot_highs[i-1]) and high_series[i] > pivot_highs[i-1]:
-            triggered[i] = pivot_highs[i-1]  # Return the pivot level that was broken
+            # Only trigger if this is a new pivot level (not the same one we already triggered)
+            if pivot_highs[i-1] != last_triggered_pivot:
+                triggered[i] = pivot_highs[i-1]  # Return the pivot level that was broken
+                last_triggered_pivot = pivot_highs[i-1]  # Mark this pivot as triggered
     
     return pd.Series(triggered, index=df.index)
 
@@ -179,11 +184,16 @@ def pivot_low_triggered_vectorized(df, left_bars=3, right_bars=3):
             last_pivot = pivot_lows[i]
         pivot_lows[i] = last_pivot
     
-    # Now check for breakdowns - only return value when price crosses below pivot
+    # Now check for breakdowns - only return value on the FIRST bar where price crosses below pivot
     triggered = np.full(n, np.nan)
+    last_triggered_pivot = np.nan  # Track the last pivot that was triggered
+    
     for i in range(1, n):
         if not np.isnan(pivot_lows[i-1]) and low_series[i] < pivot_lows[i-1]:
-            triggered[i] = pivot_lows[i-1]  # Return the pivot level that was broken
+            # Only trigger if this is a new pivot level (not the same one we already triggered)
+            if pivot_lows[i-1] != last_triggered_pivot:
+                triggered[i] = pivot_lows[i-1]  # Return the pivot level that was broken
+                last_triggered_pivot = pivot_lows[i-1]  # Mark this pivot as triggered
     
     return pd.Series(triggered, index=df.index)
 
