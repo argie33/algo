@@ -221,7 +221,7 @@ function MarketOverview() {
   }))
 
   // Prepare sentiment chart data - updated for new API structure
-  const fearGreedHistory = sentimentData?.fear_greed?.history || []
+  const fearGreedHistory = sentimentData?.fear_greed?.history || sentimentData?.data?.fear_greed?.history || []
   const sentimentChartData = fearGreedHistory.slice(0, 30).map(item => ({
     date: new Date(item.date).toLocaleDateString(),
     value: item.index_value,

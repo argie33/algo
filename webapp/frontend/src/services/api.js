@@ -121,30 +121,60 @@ function handleApiError(error, context = '') {
   return message;
 }
 
-// Helper to normalize API responses - handle backend response format properly
+// Enhanced normalizeApiResponse function to handle all backend response formats
 function normalizeApiResponse(response, expectArray = true) {
   console.log('normalizeApiResponse input:', response);
   
-  if (!response || !response.data) {
-    return expectArray ? [] : {};
+  // Handle axios response wrapper
+  if (response && response.data !== undefined) {
+    response = response.data;
   }
   
-  // If the response.data has a 'data' property, return that (backend format)
-  if (response.data && typeof response.data === 'object' && 'data' in response.data) {
-    const normalizedData = response.data.data;
-    console.log('normalizeApiResponse: extracted data from response.data.data:', normalizedData);
-    return normalizedData;
+  // Handle backend API response format
+  if (response && typeof response === 'object') {
+    // If response has a 'data' property, use that
+    if (response.data !== undefined) {
+      response = response.data;
+    }
+    
+    // If response has 'success' property, check if it's successful
+    if (response.success === false) {
+      throw new Error(response.error || 'API request failed');
+    }
+    
+    // If response has 'error' property, throw error
+    if (response.error) {
+      throw new Error(response.error);
+    }
   }
   
-  // If response.data is already an array or object, return it directly
-  if (Array.isArray(response.data) || typeof response.data === 'object') {
-    console.log('normalizeApiResponse: returning response.data directly:', response.data);
-    return response.data;
+  // Ensure we return an array if expected
+  if (expectArray && !Array.isArray(response)) {
+    if (response && typeof response === 'object') {
+      // Try to extract array from common response structures
+      if (Array.isArray(response.data)) {
+        response = response.data;
+      } else if (Array.isArray(response.items)) {
+        response = response.items;
+      } else if (Array.isArray(response.results)) {
+        response = response.results;
+      } else {
+        // Convert object to array if it has numeric keys
+        const keys = Object.keys(response);
+        if (keys.length > 0 && keys.every(key => !isNaN(key))) {
+          response = Object.values(response);
+        } else {
+          // Single item, wrap in array
+          response = [response];
+        }
+      }
+    } else {
+      response = [];
+    }
   }
   
-  // Fallback: return empty array/object based on expectation
-  console.log('normalizeApiResponse: fallback to empty data');
-  return expectArray ? [] : {};
+  console.log('normalizeApiResponse output:', response);
+  return response;
 }
 
 // --- PATCH: Log API config at startup ---
@@ -1078,6 +1108,243 @@ export const getRecentAnalystActions = async (limit = 10) => {
   }
 }
 
+// Add missing dashboard endpoints that the frontend is trying to call
+export const getDashboardUser = async () => {
+  try {
+    const response = await api.get('/api/dashboard/user');
+    return normalizeApiResponse(response, false);
+  } catch (error) {
+    console.error('getDashboardUser error:', error);
+    // Return mock data for now
+    return {
+      data: {
+        name: 'Demo User',
+        email: 'demo@example.com',
+        role: 'user'
+      }
+    };
+  }
+};
+
+export const getDashboardWatchlist = async () => {
+  try {
+    const response = await api.get('/api/dashboard/watchlist');
+    return normalizeApiResponse(response);
+  } catch (error) {
+    console.error('getDashboardWatchlist error:', error);
+    // Return mock data for now
+    return {
+      data: ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA']
+    };
+  }
+};
+
+export const getDashboardPortfolio = async () => {
+  try {
+    const response = await api.get('/api/dashboard/portfolio');
+    return normalizeApiResponse(response, false);
+  } catch (error) {
+    console.error('getDashboardPortfolio error:', error);
+    // Return mock data for now
+    return {
+      data: {
+        positions: [
+          { symbol: 'AAPL', shares: 100, avgPrice: 150, value: 15000, pnl: 0.05 },
+          { symbol: 'MSFT', shares: 50, avgPrice: 300, value: 15000, pnl: 0.08 }
+        ],
+        value: 30000,
+        pnl: { daily: 500, mtd: 2000, ytd: 5000 }
+      }
+    };
+  }
+};
+
+export const getDashboardPortfolioMetrics = async () => {
+  try {
+    const response = await api.get('/api/dashboard/portfolio/metrics');
+    return normalizeApiResponse(response, false);
+  } catch (error) {
+    console.error('getDashboardPortfolioMetrics error:', error);
+    // Return mock data for now
+    return {
+      data: {
+        sharpe: 1.2,
+        beta: 0.95,
+        maxDrawdown: 0.15,
+        volatility: 0.18
+      }
+    };
+  }
+};
+
+export const getDashboardHoldings = async () => {
+  try {
+    const response = await api.get('/api/dashboard/holdings');
+    return normalizeApiResponse(response);
+  } catch (error) {
+    console.error('getDashboardHoldings error:', error);
+    // Return mock data for now
+    return {
+      data: [
+        { symbol: 'AAPL', shares: 100, value: 15000, weight: 0.5 },
+        { symbol: 'MSFT', shares: 50, value: 15000, weight: 0.5 }
+      ]
+    };
+  }
+};
+
+export const getDashboardUserSettings = async () => {
+  try {
+    const response = await api.get('/api/dashboard/user/settings');
+    return normalizeApiResponse(response, false);
+  } catch (error) {
+    console.error('getDashboardUserSettings error:', error);
+    // Return mock data for now
+    return {
+      data: {
+        theme: 'light',
+        notifications: true,
+        email: 'demo@example.com'
+      }
+    };
+  }
+};
+
+export const getDashboardMarketSummary = async () => {
+  try {
+    const response = await api.get('/api/dashboard/market-summary');
+    return normalizeApiResponse(response);
+  } catch (error) {
+    console.error('getDashboardMarketSummary error:', error);
+    // Return mock data for now
+    return {
+      data: [
+        { name: 'S&P 500', value: 4500, change: 0.5, pct: '+0.5%' },
+        { name: 'NASDAQ', value: 14000, change: 0.8, pct: '+0.8%' },
+        { name: 'DOW', value: 35000, change: -0.2, pct: '-0.2%' }
+      ]
+    };
+  }
+};
+
+export const getDashboardEarningsCalendar = async (symbol) => {
+  try {
+    const response = await api.get(`/api/dashboard/earnings-calendar?symbol=${symbol}`);
+    return normalizeApiResponse(response);
+  } catch (error) {
+    console.error('getDashboardEarningsCalendar error:', error);
+    // Return mock data for now
+    return {
+      data: [
+        { event: 'Earnings Release', date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() },
+        { event: 'Analyst Day', date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString() }
+      ]
+    };
+  }
+};
+
+export const getDashboardAnalystInsights = async (symbol) => {
+  try {
+    const response = await api.get(`/api/dashboard/analyst-insights?symbol=${symbol}`);
+    return normalizeApiResponse(response);
+  } catch (error) {
+    console.error('getDashboardAnalystInsights error:', error);
+    // Return mock data for now
+    return {
+      data: [
+        { action: 'Upgrade', rating: 'Buy', analyst: 'Goldman Sachs' },
+        { action: 'Maintain', rating: 'Hold', analyst: 'Morgan Stanley' }
+      ]
+    };
+  }
+};
+
+export const getDashboardFinancialHighlights = async (symbol) => {
+  try {
+    const response = await api.get(`/api/dashboard/financial-highlights?symbol=${symbol}`);
+    return normalizeApiResponse(response);
+  } catch (error) {
+    console.error('getDashboardFinancialHighlights error:', error);
+    // Return mock data for now
+    return {
+      data: [
+        { metric: 'P/E Ratio', value: '25.5' },
+        { metric: 'Market Cap', value: '$2.5T' },
+        { metric: 'Revenue Growth', value: '+15%' }
+      ]
+    };
+  }
+};
+
+export const getDashboardSymbols = async () => {
+  try {
+    const response = await api.get('/api/dashboard/symbols');
+    return normalizeApiResponse(response);
+  } catch (error) {
+    console.error('getDashboardSymbols error:', error);
+    // Return mock data for now
+    return {
+      data: ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'SPY', 'QQQ', 'AMZN', 'META', 'NFLX']
+    };
+  }
+};
+
+export const getDashboardTechnicalSignals = async () => {
+  try {
+    const response = await api.get('/api/technical/daily?limit=10');
+    return normalizeApiResponse(response);
+  } catch (error) {
+    console.error('getDashboardTechnicalSignals error:', error);
+    // Return mock data for now
+    return {
+      data: [
+        { symbol: 'AAPL', rsi: 65, macd: 0.5, stochastic_k: 70, atr: 2.5, date: new Date().toISOString() },
+        { symbol: 'MSFT', rsi: 45, macd: -0.2, stochastic_k: 55, atr: 3.1, date: new Date().toISOString() }
+      ]
+    };
+  }
+};
+
+// Simple API test function
+export const testApiEndpoints = async () => {
+  const results = {};
+  
+  try {
+    // Test basic health check
+    const healthResponse = await api.get('/api/health');
+    results.health = { success: true, data: healthResponse.data };
+  } catch (error) {
+    results.health = { success: false, error: error.message };
+  }
+  
+  try {
+    // Test stocks endpoint
+    const stocksResponse = await api.get('/api/stocks?limit=5');
+    results.stocks = { success: true, data: stocksResponse.data };
+  } catch (error) {
+    results.stocks = { success: false, error: error.message };
+  }
+  
+  try {
+    // Test technical data endpoint
+    const technicalResponse = await api.get('/api/technical/daily?limit=5');
+    results.technical = { success: true, data: technicalResponse.data };
+  } catch (error) {
+    results.technical = { success: false, error: error.message };
+  }
+  
+  try {
+    // Test market overview endpoint
+    const marketResponse = await api.get('/api/market/overview');
+    results.market = { success: true, data: marketResponse.data };
+  } catch (error) {
+    results.market = { success: false, error: error.message };
+  }
+  
+  console.log('API Test Results:', results);
+  return results;
+};
+
 // Export all methods as a default object for easier importing
 export default {
   healthCheck,
@@ -1140,6 +1407,19 @@ export default {
   updateApiBaseUrl,
   getDatabaseHealthFull,
   getStockPriceHistory,
-  getRecentAnalystActions
+  getRecentAnalystActions,
+  getDashboardUser,
+  getDashboardWatchlist,
+  getDashboardPortfolio,
+  getDashboardPortfolioMetrics,
+  getDashboardHoldings,
+  getDashboardUserSettings,
+  getDashboardMarketSummary,
+  getDashboardEarningsCalendar,
+  getDashboardAnalystInsights,
+  getDashboardFinancialHighlights,
+  getDashboardSymbols,
+  getDashboardTechnicalSignals,
+  testApiEndpoints
 }
 

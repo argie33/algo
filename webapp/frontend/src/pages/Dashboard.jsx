@@ -63,7 +63,28 @@ import {
 } from '@mui/icons-material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getStockPrices, getStockMetrics, getBuySignals, getSellSignals, getRecentAnalystActions, getKeyMetrics, api } from '../services/api';
+import { 
+  getStockPrices, 
+  getStockMetrics, 
+  getBuySignals, 
+  getSellSignals, 
+  getRecentAnalystActions, 
+  getKeyMetrics, 
+  api,
+  getDashboardUser,
+  getDashboardWatchlist,
+  getDashboardPortfolio,
+  getDashboardPortfolioMetrics,
+  getDashboardHoldings,
+  getDashboardUserSettings,
+  getDashboardMarketSummary,
+  getDashboardEarningsCalendar,
+  getDashboardAnalystInsights,
+  getDashboardFinancialHighlights,
+  getDashboardSymbols,
+  getDashboardTechnicalSignals,
+  testApiEndpoints
+} from '../services/api';
 import { PieChart, Pie, Cell } from 'recharts';
 import { format } from 'date-fns';
 import { getApiConfig } from '../services/api';
@@ -88,8 +109,8 @@ function useUser() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-user'],
     queryFn: async () => {
-      const response = await api.get('/api/dashboard/user');
-      return response.data;
+      const response = await getDashboardUser();
+      return response;
     },
     staleTime: 5 * 60 * 1000
   });
@@ -109,8 +130,8 @@ function useWatchlist() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-watchlist'],
     queryFn: async () => {
-      const response = await api.get('/api/dashboard/watchlist');
-      return response.data;
+      const response = await getDashboardWatchlist();
+      return response;
     },
     staleTime: 5 * 60 * 1000
   });
@@ -151,8 +172,8 @@ function usePortfolio() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-portfolio'],
     queryFn: async () => {
-      const response = await api.get('/api/dashboard/portfolio');
-      return response.data;
+      const response = await getDashboardPortfolio();
+      return response;
     },
     staleTime: 5 * 60 * 1000
   });
@@ -180,8 +201,8 @@ function usePortfolioMetrics() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-portfolio-metrics'],
     queryFn: async () => {
-      const response = await api.get('/api/dashboard/portfolio/metrics');
-      return response.data;
+      const response = await getDashboardPortfolioMetrics();
+      return response;
     },
     staleTime: 5 * 60 * 1000
   });
@@ -198,8 +219,8 @@ function useHoldings() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-holdings'],
     queryFn: async () => {
-      const response = await api.get('/api/dashboard/holdings');
-      return response.data;
+      const response = await getDashboardHoldings();
+      return response;
     },
     staleTime: 5 * 60 * 1000
   });
@@ -216,8 +237,8 @@ function useUserSettings() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-user-settings'],
     queryFn: async () => {
-      const response = await api.get('/api/dashboard/user/settings');
-      return response.data;
+      const response = await getDashboardUserSettings();
+      return response;
     },
     staleTime: 5 * 60 * 1000
   });
@@ -331,8 +352,8 @@ function TechnicalSignalsWidget() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-technical-signals'],
     queryFn: async () => {
-      const response = await api.get('/api/technical/daily?limit=10');
-      return response.data;
+      const response = await getDashboardTechnicalSignals();
+      return response;
     },
     refetchInterval: 300000
   });
@@ -426,8 +447,8 @@ function MarketOverviewWidget() {
   const { data: marketData, isLoading, error } = useQuery({
     queryKey: ['dashboard-market-summary'],
     queryFn: async () => {
-      const response = await api.get('/api/dashboard/market-summary');
-      return response.data;
+      const response = await getDashboardMarketSummary();
+      return response;
     },
     staleTime: 5 * 60 * 1000
   });
@@ -471,8 +492,8 @@ function EarningsCalendarWidget({ symbol }) {
   const { data: calendarData, isLoading, error } = useQuery({
     queryKey: ['dashboard-earnings-calendar', symbol],
     queryFn: async () => {
-      const response = await api.get(`/api/dashboard/earnings-calendar?symbol=${symbol}`);
-      return response.data;
+      const response = await getDashboardEarningsCalendar(symbol);
+      return response;
     },
     enabled: !!symbol,
     staleTime: 5 * 60 * 1000
@@ -509,8 +530,8 @@ function AnalystInsightsWidget({ symbol }) {
   const { data: insightsData, isLoading, error } = useQuery({
     queryKey: ['dashboard-analyst-insights', symbol],
     queryFn: async () => {
-      const response = await api.get(`/api/dashboard/analyst-insights?symbol=${symbol}`);
-      return response.data;
+      const response = await getDashboardAnalystInsights(symbol);
+      return response;
     },
     enabled: !!symbol,
     staleTime: 5 * 60 * 1000
@@ -550,8 +571,8 @@ function FinancialHighlightsWidget({ symbol }) {
   const { data: highlightsData, isLoading, error } = useQuery({
     queryKey: ['dashboard-financial-highlights', symbol],
     queryFn: async () => {
-      const response = await api.get(`/api/dashboard/financial-highlights?symbol=${symbol}`);
-      return response.data;
+      const response = await getDashboardFinancialHighlights(symbol);
+      return response;
     },
     enabled: !!symbol,
     staleTime: 5 * 60 * 1000
@@ -674,6 +695,7 @@ const Dashboard = () => {
   const [selectedSymbol, setSelectedSymbol] = useState('AAPL');
   const [addPositionOpen, setAddPositionOpen] = useState(false);
   const [addWatchlistOpen, setAddWatchlistOpen] = useState(false);
+  const [debugResults, setDebugResults] = useState(null);
 
   // User context
   const { user, isLoading: userLoading, isAuthenticated } = useUser();
@@ -691,8 +713,8 @@ const Dashboard = () => {
   const { data: symbolsData } = useQuery({
     queryKey: ['dashboard-symbols'],
     queryFn: async () => {
-      const response = await api.get('/api/dashboard/symbols');
-      return response.data;
+      const response = await getDashboardSymbols();
+      return response;
     },
     staleTime: 5 * 60 * 1000
   });
@@ -722,6 +744,18 @@ const Dashboard = () => {
   // Handle adding to watchlist
   const handleAddToWatchlist = (symbol) => {
     addSymbol.mutate(symbol);
+  };
+
+  // Debug function to test API endpoints
+  const handleDebugTest = async () => {
+    try {
+      const results = await testApiEndpoints();
+      setDebugResults(results);
+      console.log('Debug test completed:', results);
+    } catch (error) {
+      console.error('Debug test failed:', error);
+      setDebugResults({ error: error.message });
+    }
   };
 
   return (
@@ -782,9 +816,30 @@ const Dashboard = () => {
               Logout
             </Button>
           )}
+          {/* Debug button */}
+          {import.meta.env.DEV && (
+            <Button 
+              size="small" 
+              variant="outlined" 
+              onClick={handleDebugTest}
+              sx={{ ml: 1 }}
+            >
+              Debug API
+            </Button>
+          )}
         </Box>
       </Box>
       <Divider sx={{ mb: 3 }} />
+
+      {/* Debug Results */}
+      {debugResults && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          <Typography variant="subtitle2" gutterBottom>API Debug Results:</Typography>
+          <pre style={{ fontSize: '12px', overflow: 'auto', maxHeight: '200px' }}>
+            {JSON.stringify(debugResults, null, 2)}
+          </pre>
+        </Alert>
+      )}
 
       {/* Top Row: Portfolio, Watchlist */}
       <Grid container spacing={3} sx={{ mb: 3 }}>

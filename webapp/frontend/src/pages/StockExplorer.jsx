@@ -454,6 +454,24 @@ function StockExplorer() {
     } else if (stocksData.data && Array.isArray(stocksData.data.data)) {
       stocksList = stocksData.data.data;
       console.log('StockExplorer: Using stocksData.data.data, length:', stocksList.length);
+    } else if (stocksData.data && typeof stocksData.data === 'object') {
+      // Handle case where data is an object with pagination info
+      if (Array.isArray(stocksData.data.results)) {
+        stocksList = stocksData.data.results;
+        console.log('StockExplorer: Using stocksData.data.results, length:', stocksList.length);
+      } else if (Array.isArray(stocksData.data.items)) {
+        stocksList = stocksData.data.items;
+        console.log('StockExplorer: Using stocksData.data.items, length:', stocksList.length);
+      } else {
+        // Try to extract array from object keys
+        const keys = Object.keys(stocksData.data);
+        if (keys.length > 0 && keys.every(key => !isNaN(key))) {
+          stocksList = Object.values(stocksData.data);
+          console.log('StockExplorer: Using Object.values(stocksData.data), length:', stocksList.length);
+        } else {
+          console.log('StockExplorer: No valid data structure found in stocksData');
+        }
+      }
     } else {
       console.log('StockExplorer: No valid data structure found in stocksData');
     }
