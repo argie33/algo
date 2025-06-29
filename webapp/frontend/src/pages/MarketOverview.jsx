@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+﻿import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createComponentLogger } from '../utils/errorLogger'
 import {
@@ -92,7 +92,7 @@ const MetricTable = ({ data, columns, title }) => (
 const logger = createComponentLogger('MarketOverview');
 
 function MarketOverview() {
-  console.log('🚀 MarketOverview: Component rendering...');
+  console.log('ðŸš€ MarketOverview: Component rendering...');
   
   const [selectedIndex, setSelectedIndex] = useState('^GSPC') // S&P 500
   const [timeframe, setTimeframe] = useState('1D')
@@ -103,11 +103,11 @@ function MarketOverview() {
     queryKey: ['marketOverview'],
     queryFn: getMarketOverview,
     staleTime: 5 * 60 * 1000, // 5 minutes
-    onSuccess: (data) => console.log('✅ MarketOverview: Market data loaded:', data),
-    onError: (error) => console.error('❌ MarketOverview: Market data error:', error)
+    onSuccess: (data) => console.log('âœ… MarketOverview: Market data loaded:', data),
+    onError: (error) => console.error('âŒ MarketOverview: Market data error:', error)
   });
 
-  console.log('📊 MarketOverview: Market data summary:', {
+  console.log('ðŸ“Š MarketOverview: Market data summary:', {
     hasData: !!marketData,
     isLoading: marketLoading,
     hasError: !!marketError,
@@ -119,11 +119,11 @@ function MarketOverview() {
     queryKey: ['marketIndices'],
     queryFn: getMarketIndices,
     staleTime: 5 * 60 * 1000, // 5 minutes
-    onSuccess: (data) => console.log('✅ MarketOverview: Indices data loaded:', data),
-    onError: (error) => console.error('❌ MarketOverview: Indices data error:', error)
+    onSuccess: (data) => console.log('âœ… MarketOverview: Indices data loaded:', data),
+    onError: (error) => console.error('âŒ MarketOverview: Indices data error:', error)
   });
 
-  console.log('📊 MarketOverview: Indices data summary:', {
+  console.log('ðŸ“Š MarketOverview: Indices data summary:', {
     hasData: !!indicesData,
     isLoading: indicesLoading,
     hasError: !!indicesError
@@ -134,11 +134,11 @@ function MarketOverview() {
     queryKey: ['sectorPerformance'],
     queryFn: getSectorPerformance,
     staleTime: 5 * 60 * 1000, // 5 minutes
-    onSuccess: (data) => console.log('✅ MarketOverview: Sector data loaded:', data),
-    onError: (error) => console.error('❌ MarketOverview: Sector data error:', error)
+    onSuccess: (data) => console.log('âœ… MarketOverview: Sector data loaded:', data),
+    onError: (error) => console.error('âŒ MarketOverview: Sector data error:', error)
   });
 
-  console.log('📊 MarketOverview: Sector data summary:', {
+  console.log('ðŸ“Š MarketOverview: Sector data summary:', {
     hasData: !!sectorData,
     isLoading: sectorLoading,
     hasError: !!sectorError
@@ -149,11 +149,11 @@ function MarketOverview() {
     queryKey: ['marketBreadth'],
     queryFn: getMarketBreadth,
     staleTime: 5 * 60 * 1000, // 5 minutes
-    onSuccess: (data) => console.log('✅ MarketOverview: Breadth data loaded:', data),
-    onError: (error) => console.error('❌ MarketOverview: Breadth data error:', error)
+    onSuccess: (data) => console.log('âœ… MarketOverview: Breadth data loaded:', data),
+    onError: (error) => console.error('âŒ MarketOverview: Breadth data error:', error)
   });
 
-  console.log('📊 MarketOverview: Breadth data summary:', {
+  console.log('ðŸ“Š MarketOverview: Breadth data summary:', {
     hasData: !!breadthData,
     isLoading: breadthLoading,
     hasError: !!breadthError
@@ -164,11 +164,11 @@ function MarketOverview() {
     queryKey: ['marketVolatility'],
     queryFn: getMarketVolatility,
     staleTime: 5 * 60 * 1000, // 5 minutes
-    onSuccess: (data) => console.log('✅ MarketOverview: Volatility data loaded:', data),
-    onError: (error) => console.error('❌ MarketOverview: Volatility data error:', error)
+    onSuccess: (data) => console.log('âœ… MarketOverview: Volatility data loaded:', data),
+    onError: (error) => console.error('âŒ MarketOverview: Volatility data error:', error)
   });
 
-  console.log('📊 MarketOverview: Volatility data summary:', {
+  console.log('ðŸ“Š MarketOverview: Volatility data summary:', {
     hasData: !!volatilityData,
     isLoading: volatilityLoading,
     hasError: !!volatilityError
@@ -179,17 +179,17 @@ function MarketOverview() {
     queryKey: ['economicCalendar'],
     queryFn: getEconomicCalendar,
     staleTime: 5 * 60 * 1000, // 5 minutes
-    onSuccess: (data) => console.log('✅ MarketOverview: Calendar data loaded:', data),
-    onError: (error) => console.error('❌ MarketOverview: Calendar data error:', error)
+    onSuccess: (data) => console.log('âœ… MarketOverview: Calendar data loaded:', data),
+    onError: (error) => console.error('âŒ MarketOverview: Calendar data error:', error)
   });
 
-  console.log('📊 MarketOverview: Calendar data summary:', {
+  console.log('ðŸ“Š MarketOverview: Calendar data summary:', {
     hasData: !!calendarData,
     isLoading: calendarLoading,
     hasError: !!calendarError
   });
 
-  console.log('📊 MarketOverview: Overall data summary:', {
+  console.log('ðŸ“Š MarketOverview: Overall data summary:', {
     marketData: { hasData: !!marketData, isLoading: marketLoading, hasError: !!marketError },
     indicesData: { hasData: !!indicesData, isLoading: indicesLoading, hasError: !!indicesError },
     sectorData: { hasData: !!sectorData, isLoading: sectorLoading, hasError: !!sectorError },
@@ -218,36 +218,6 @@ function MarketOverview() {
     enabled: tabValue === 1,
     onError: (err) => logger.queryError('market-sentiment-history', err)
   });
-
-  const { data: sectorData, isLoading: sectorLoading } = useQuery({
-    queryKey: ['market-sector-performance'],
-    queryFn: async () => {
-      try {
-        const result = await getMarketSectorPerformance();
-        logger.success('getMarketSectorPerformance', result);
-        return result;
-      } catch (err) {
-        logger.error('getMarketSectorPerformance', err);
-        throw err;
-      }
-    },
-    enabled: tabValue === 2,
-    onError: (err) => logger.queryError('market-sector-performance', err)
-  });
-
-  const { data: breadthData, isLoading: breadthLoading } = useQuery({
-    queryKey: ['market-breadth'],
-    queryFn: async () => {
-      try {
-        const result = await getMarketBreadth();
-        logger.success('getMarketBreadth', result);
-        return result;
-      } catch (err) {
-        logger.error('getMarketBreadth', err);
-        throw err;
-      }
-    },
-    enabled: tabValue === 3,
     onError: (err) => logger.queryError('market-breadth', err)
   });
 
