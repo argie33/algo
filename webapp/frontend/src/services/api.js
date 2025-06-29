@@ -765,35 +765,36 @@ export const getFinancialMetrics = async (params = {}) => {
 // Patch all API methods to always return normalizeApiResponse 
 export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
   try {
-    const queryParams = new URLSearchParams()
+    const queryParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
-        queryParams.append(key, value)
+        queryParams.append(key, value);
       }
-    })
-    const response = await api.get(`/api/technical/${timeframe}?${queryParams.toString()}`)
-    
-    // The backend returns { data: [...], pagination: {...}, metadata: {...} }
-    // We need to return this structure directly, not normalize it
+    });
+    const response = await api.get(`/api/technical/${timeframe}?${queryParams.toString()}`);
+    // Always return { data, pagination, metadata }
     if (response.data && typeof response.data === 'object') {
-      console.log('getTechnicalData: returning backend response structure:', response.data);
-      return response.data;
+      const { data, pagination, metadata } = response.data;
+      return {
+        data: Array.isArray(data) ? data : [],
+        pagination: pagination || {},
+        metadata: metadata || {},
+        ...response.data
+      };
     }
-    
-    // Fallback to normalized response
-    return normalizeApiResponse(response, true);
+    // Fallback
+    return { data: [], pagination: {}, metadata: {} };
   } catch (error) {
-    console.error('Error in getTechnicalData:', error)
-    const errorMessage = handleApiError(error, 'get technical data')
-    return { 
-      success: false,
-      data: [], 
-      error: errorMessage,
-      pagination: { page: 1, limit: 25, total: 0, totalPages: 0, hasNext: false, hasPrev: false },
-      metadata: { timeframe, timestamp: new Date().toISOString() }
-    }
+    console.error('Error in getTechnicalData:', error);
+    const errorMessage = handleApiError(error, 'get technical data');
+    return {
+      data: [],
+      pagination: {},
+      metadata: {},
+      error: errorMessage
+    };
   }
-}
+};
 
 // EPS Revisions endpoint
 export const getEpsRevisions = async (params = {}) => {

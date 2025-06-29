@@ -34,7 +34,8 @@ router.get('/', async (req, res) => {
         uptime: process.uptime(),
         note: 'Quick health check - database not tested',
         database: { status: 'not_tested' },
-        api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' }
+        api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' },
+        api_endpoints: getApiEndpoints()
       });
     }
     
@@ -57,7 +58,8 @@ router.get('/', async (req, res) => {
         environment: process.env.NODE_ENV || 'development'
       },
       memory: process.memoryUsage(),
-      uptime: process.uptime()
+      uptime: process.uptime(),
+      api_endpoints: getApiEndpoints()
     };
     
     res.json(health);
@@ -953,5 +955,125 @@ router.use((err, req, res, next) => {
     timestamp: new Date().toISOString()
   });
 });
+
+// Helper function to return exhaustive list of all API endpoints
+function getApiEndpoints() {
+  return {
+    stocks: [
+      '/api/stocks',
+      '/api/stocks/:symbol',
+      '/api/stocks/price-history/:symbol',
+      '/api/stocks/filters/sectors',
+      '/api/stocks/quick/overview',
+      '/api/stocks/chunk/:chunkIndex',
+      '/api/stocks/full/data',
+    ],
+    market: [
+      '/api/market/overview',
+      '/api/market/sentiment/history',
+      '/api/market/sectors/performance',
+      '/api/market/breadth',
+      '/api/market/economic',
+      '/api/market/naaim',
+      '/api/market/fear-greed',
+      '/api/market/ping',
+      '/api/market/debug',
+      '/api/market/test',
+    ],
+    dashboard: [
+      '/api/dashboard/market-summary',
+      '/api/dashboard/earnings-calendar',
+      '/api/dashboard/analyst-insights',
+      '/api/dashboard/financial-highlights',
+      '/api/dashboard/user',
+      '/api/dashboard/watchlist',
+      '/api/dashboard/portfolio',
+      '/api/dashboard/portfolio/metrics',
+      '/api/dashboard/holdings',
+      '/api/dashboard/user/settings',
+      '/api/dashboard/news',
+      '/api/dashboard/activity',
+      '/api/dashboard/calendar',
+      '/api/dashboard/signals',
+      '/api/dashboard/symbols',
+    ],
+    technical: [
+      '/api/technical/:timeframe',
+      '/api/technical/:timeframe/summary',
+      '/api/technical',
+      '/api/technical/ping',
+    ],
+    financials: [
+      '/api/financials/:ticker/balance-sheet',
+      '/api/financials/:ticker/income-statement',
+      '/api/financials/:ticker/cash-flow',
+      '/api/financials/:ticker/financials',
+      '/api/financials/:ticker/key-metrics',
+      '/api/financials/ping',
+    ],
+    signals: [
+      '/api/signals/buy',
+      '/api/signals/sell',
+    ],
+    metrics: [
+      '/api/metrics/overview',
+      '/api/metrics/valuation',
+      '/api/metrics/growth',
+      '/api/metrics/dividends',
+      '/api/metrics/financial-strength',
+      '/api/metrics/screener',
+    ],
+    calendar: [
+      '/api/calendar/events',
+      '/api/calendar/summary',
+      '/api/calendar/earnings-estimates',
+      '/api/calendar/earnings-history',
+      '/api/calendar/earnings-metrics',
+      '/api/calendar/debug',
+      '/api/calendar/test',
+    ],
+    analysts: [
+      '/api/analysts/upgrades',
+      '/api/analysts/:ticker/recommendations',
+      '/api/analysts/:ticker/earnings-estimates',
+      '/api/analysts/:ticker/revenue-estimates',
+      '/api/analysts/:ticker/earnings-history',
+      '/api/analysts/:ticker/eps-revisions',
+      '/api/analysts/:ticker/eps-trend',
+      '/api/analysts/:ticker/growth-estimates',
+      '/api/analysts/:ticker/overview',
+      '/api/analysts/recent-actions',
+    ],
+    trading: [
+      '/api/trading/signals/:timeframe',
+      '/api/trading/summary/:timeframe',
+      '/api/trading/swing-signals',
+      '/api/trading/:ticker/technicals',
+      '/api/trading/performance',
+    ],
+    health: [
+      '/api/health',
+      '/api/health/database',
+      '/api/health/test-connection',
+      '/api/health/database/diagnostics',
+      '/api/health/db-test',
+      '/api/health/full',
+      '/api/health/clear-cache',
+      '/api/health/update-status',
+    ],
+    data: [
+      '/api/data/eps-revisions',
+      '/api/data/eps-trend',
+      '/api/data/growth-estimates',
+      '/api/data/economic',
+      '/api/data/economic/data',
+      '/api/data/naaim',
+      '/api/data/fear-greed',
+      '/api/data/validation-summary',
+      '/api/data/financials/:symbol',
+      '/api/data/financial-metrics',
+    ]
+  };
+}
 
 module.exports = router;

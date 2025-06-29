@@ -181,7 +181,7 @@ function TechnicalHistory() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {data.map((row, i) => (
+              {(Array.isArray(data) ? data : []).map((row, i) => (
                 <TableRow key={row.date + '-' + i} hover sx={{ '&:hover': { background: '#f0f4ff' } }}>
                   {columns.map(col => (
                     <TableCell key={col.id} align={typeof row[col.id] === 'number' ? 'right' : 'left'} sx={{ whiteSpace: 'nowrap', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', color: getIndicatorColor(getTechStatus(col.id, row[col.id]).color) }}>
