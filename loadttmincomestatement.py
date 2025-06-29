@@ -83,6 +83,11 @@ def load_ttm_income_statement(symbols, cur, conn):
                     income_statement = ticker.quarterly_financials
                     if income_statement is None or income_statement.empty:
                         raise ValueError("No TTM income statement data received")
+                    
+                    # Additional validation to ensure we have data
+                    if income_statement.shape[0] == 0 or income_statement.shape[1] == 0:
+                        raise ValueError("Empty income statement data received")
+                    
                     break
                 except Exception as e:
                     logging.warning(f"Attempt {attempt} failed for {orig_sym}: {e}")
@@ -95,39 +100,83 @@ def load_ttm_income_statement(symbols, cur, conn):
                 continue
                 
             try:
-                # For TTM, sum the last 4 quarters
-                if income_statement.shape[1] >= 4:
-                    ttm_data = income_statement.iloc[:, :4].sum(axis=1)
+                # For TTM, sum the last 4 quarters - but handle cases where we don't have 4 quarters
+                num_quarters = min(income_statement.shape[1], 4)  # Use available quarters, max 4
+                
+                if num_quarters > 0:
+                    # Sum the available quarters
+                    ttm_data = income_statement.iloc[:, :num_quarters].sum(axis=1)
                     latest_date = income_statement.columns[0]
                 else:
-                    # Use whatever data we have
-                    ttm_data = income_statement.iloc[:, 0]
-                    latest_date = income_statement.columns[0]
+                    # No data available
+                    logging.warning(f"No income statement data available for {orig_sym}")
+                    continue
                 
-                row_data = [orig_sym, latest_date.date() if hasattr(latest_date, 'date') else latest_date]
-                for metric in income_statement.index:
-                    value = ttm_data[metric]
-                    if pd.isna(value) or value is None:
+                # Convert pandas Timestamp to date properly
+                if hasattr(latest_date, 'date'):
+                    latest_date_obj = latest_date.date()
+                elif hasattr(latest_date, 'to_pydatetime'):
+                    latest_date_obj = latest_date.to_pydatetime().date()
+                else:
+                    latest_date_obj = latest_date
+                
+                # Build row data with proper error handling
+                row_data = [orig_sym, latest_date_obj]
+                
+                # Get the predefined columns from the table structure
+                predefined_columns = [
+                    "Total Revenue", "Cost Of Revenue", "Gross Profit", "Research And Development",
+                    "Selling General And Administration", "Operating Income", "Operating Expense",
+                    "Interest Expense", "Interest Income", "Net Interest Income", "Other Income Expense",
+                    "Income Tax Expense", "Net Income", "Net Income Common Stockholders",
+                    "Net Income From Continuing Ops", "Net Income Including Noncontrolling Interests",
+                    "Net Income Continuous Operations", "EBIT", "EBITDA", "EBITDAR",
+                    "Reconciled Cost Of Revenue", "Reconciled Depreciation",
+                    "Net Income From Continuing And Discontinued Operation", "Total Expenses",
+                    "Total Revenue As Reported", "Operating Revenue", "Operating Income Loss",
+                    "Net Income Available To Common Stockholders Basic",
+                    "Net Income Available To Common Stockholders Diluted", "Basic Average Shares",
+                    "Basic EPS", "Diluted Average Shares", "Diluted EPS", "Total Unusual Items",
+                    "Total Unusual Items Excluding Goodwill", "Normalized Income", "Tax Rate For Calcs",
+                    "Tax Effect Of Unusual Items", "Interest Income After Tax", "Net Interest Income After Tax",
+                    "Change In Net Income", "Net Income From Continuing Operation Net Minority Interest",
+                    "Net Income Including Noncontrolling Interests Net Minority Interest",
+                    "Net Income Continuous Operations Net Minority Interest"
+                ]
+                
+                # Map yfinance data to predefined columns
+                for column in predefined_columns:
+                    try:
+                        # Try to find the column in the yfinance data (case-insensitive)
+                        matching_keys = [key for key in ttm_data.index if key.lower() == column.lower()]
+                        if matching_keys:
+                            value = ttm_data[matching_keys[0]]
+                            if pd.isna(value) or value is None:
+                                row_data.append(None)
+                            else:
+                                row_data.append(float(value))
+                        else:
+                            row_data.append(None)
+                    except (KeyError, IndexError, ValueError) as e:
+                        logging.debug(f"Could not get {column} for {orig_sym}: {e}")
                         row_data.append(None)
-                    else:
-                        row_data.append(float(value))
                 
-                # Get column names for the table
-                columns = ['symbol', 'date'] + list(income_statement.index.astype(str))
+                # Build the INSERT statement with predefined columns
+                columns = ['symbol', 'date'] + predefined_columns
                 placeholders = ', '.join(['%s'] * len(columns))
-                column_names = ', '.join(columns)
+                column_names = ', '.join([f'"{col}"' if ' ' in col else col for col in columns])
                 
-                # Build the INSERT statement dynamically
                 insert_sql = f"""
                     INSERT INTO ttm_income_statement ({column_names})
                     VALUES ({placeholders})
                     ON CONFLICT (symbol, date) DO UPDATE SET
                 """
                 
-                # Build the UPDATE part dynamically
+                # Build the UPDATE part
                 update_parts = []
-                for col in columns[2:]:  # Skip symbol and date
-                    update_parts.append(f"{col} = EXCLUDED.{col}")
+                for col in predefined_columns:
+                    col_name = f'"{col}"' if ' ' in col else col
+                    update_parts.append(f"{col_name} = EXCLUDED.{col_name}")
                 insert_sql += ', '.join(update_parts)
                 
                 cur.execute(insert_sql, row_data)

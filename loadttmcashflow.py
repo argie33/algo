@@ -83,6 +83,11 @@ def load_ttm_cash_flow(symbols, cur, conn):
                     cash_flow = ticker.quarterly_cashflow
                     if cash_flow is None or cash_flow.empty:
                         raise ValueError("No TTM cash flow data received")
+                    
+                    # Additional validation to ensure we have data
+                    if cash_flow.shape[0] == 0 or cash_flow.shape[1] == 0:
+                        raise ValueError("Empty cash flow data received")
+                    
                     break
                 except Exception as e:
                     logging.warning(f"Attempt {attempt} failed for {orig_sym}: {e}")
@@ -95,14 +100,17 @@ def load_ttm_cash_flow(symbols, cur, conn):
                 continue
                 
             try:
-                # For TTM, sum the last 4 quarters
-                if cash_flow.shape[1] >= 4:
-                    ttm_data = cash_flow.iloc[:, :4].sum(axis=1)
+                # For TTM, sum the last 4 quarters - but handle cases where we don't have 4 quarters
+                num_quarters = min(cash_flow.shape[1], 4)  # Use available quarters, max 4
+                
+                if num_quarters > 0:
+                    # Sum the available quarters
+                    ttm_data = cash_flow.iloc[:, :num_quarters].sum(axis=1)
                     latest_date = cash_flow.columns[0]
                 else:
-                    # Use whatever data we have
-                    ttm_data = cash_flow.iloc[:, 0]
-                    latest_date = cash_flow.columns[0]
+                    # No data available
+                    logging.warning(f"No cash flow data available for {orig_sym}")
+                    continue
                 
                 # Convert pandas Timestamp to date properly
                 if hasattr(latest_date, 'date'):
@@ -112,30 +120,64 @@ def load_ttm_cash_flow(symbols, cur, conn):
                 else:
                     latest_date_obj = latest_date
                 
+                # Build row data with proper error handling
                 row_data = [orig_sym, latest_date_obj]
-                for metric in cash_flow.index:
-                    value = ttm_data[metric]
-                    if pd.isna(value) or value is None:
+                
+                # Get the predefined columns from the table structure
+                predefined_columns = [
+                    "Operating Cash Flow", "Investing Cash Flow", "Financing Cash Flow",
+                    "End Cash Position", "Income Tax Paid Supplemental Data", 
+                    "Interest Paid Supplemental Data", "Capital Expenditure",
+                    "Issuance Of Capital Stock", "Issuance Of Debt", "Repayment Of Debt",
+                    "Repurchase Of Capital Stock", "Free Cash Flow", "Net Income",
+                    "Net Income From Continuing Ops", "Change In Cash And Cash Equivalents",
+                    "Change In Receivables", "Change In Inventory", "Change In Net Working Capital",
+                    "Change In Accounts Payable", "Change In Other Working Capital",
+                    "Change In Other Non Cash Items", "Depreciation And Amortization",
+                    "Depreciation", "Amortization", "Amortization Of Intangibles",
+                    "Amortization Of Debt", "Deferred Income Tax", "Deferred Tax",
+                    "Stock Based Compensation", "Change In Deferred Tax", "Other Non Cash Items",
+                    "Change In Working Capital", "Change In Other Assets", "Change In Other Liabilities",
+                    "Change In Other Operating Activities", "Net Cash Flow From Operating Activities",
+                    "Net Cash Flow From Investing Activities", "Net Cash Flow From Financing Activities",
+                    "Net Cash Flow", "Cash At Beginning Of Period", "Cash At End Of Period",
+                    "Operating Cash Flow Growth", "Free Cash Flow Growth", "Cap Ex As A % Of Sales",
+                    "Free Cash Flow/Sales", "Free Cash Flow/Net Income"
+                ]
+                
+                # Map yfinance data to predefined columns
+                for column in predefined_columns:
+                    try:
+                        # Try to find the column in the yfinance data (case-insensitive)
+                        matching_keys = [key for key in ttm_data.index if key.lower() == column.lower()]
+                        if matching_keys:
+                            value = ttm_data[matching_keys[0]]
+                            if pd.isna(value) or value is None:
+                                row_data.append(None)
+                            else:
+                                row_data.append(float(value))
+                        else:
+                            row_data.append(None)
+                    except (KeyError, IndexError, ValueError) as e:
+                        logging.debug(f"Could not get {column} for {orig_sym}: {e}")
                         row_data.append(None)
-                    else:
-                        row_data.append(float(value))
                 
-                # Get column names for the table
-                columns = ['symbol', 'date'] + list(cash_flow.index.astype(str))
+                # Build the INSERT statement with predefined columns
+                columns = ['symbol', 'date'] + predefined_columns
                 placeholders = ', '.join(['%s'] * len(columns))
-                column_names = ', '.join(columns)
+                column_names = ', '.join([f'"{col}"' if ' ' in col else col for col in columns])
                 
-                # Build the INSERT statement dynamically
                 insert_sql = f"""
                     INSERT INTO ttm_cash_flow ({column_names})
                     VALUES ({placeholders})
                     ON CONFLICT (symbol, date) DO UPDATE SET
                 """
                 
-                # Build the UPDATE part dynamically
+                # Build the UPDATE part
                 update_parts = []
-                for col in columns[2:]:  # Skip symbol and date
-                    update_parts.append(f"{col} = EXCLUDED.{col}")
+                for col in predefined_columns:
+                    col_name = f'"{col}"' if ' ' in col else col
+                    update_parts.append(f"{col_name} = EXCLUDED.{col_name}")
                 insert_sql += ', '.join(update_parts)
                 
                 cur.execute(insert_sql, row_data)
