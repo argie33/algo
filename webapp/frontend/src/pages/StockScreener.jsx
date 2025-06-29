@@ -240,21 +240,26 @@ function StockScreener() {
     { id: 'symbol', label: 'Symbol', sortable: true },
     { id: 'company_name', label: 'Company', sortable: true },
     { id: 'price', label: 'Price', sortable: true, format: formatCurrency },
-    { id: 'market_capitalization', label: 'Market Cap', sortable: true, format: formatCurrency },
+    { id: 'market_capitalization', label: 'Market Cap', sortable: true, format: (val) => val ? formatCurrency(val) : 'N/A' },
     { id: 'pe_ratio', label: 'P/E', sortable: true, format: (val) => val ? formatNumber(val, 2) : 'N/A' },
-    { id: 'dividend_yield', label: 'Div Yield', sortable: true, format: (val) => val ? formatPercent(val) : 'N/A' },
-    { id: 'return_on_equity', label: 'ROE', sortable: true, format: (val) => val ? formatPercent(val) : 'N/A' },
-    { id: 'revenue_growth', label: 'Rev Growth', sortable: true, format: (val) => val ? formatPercent(val) : 'N/A' },
+    { id: 'dividend_yield', label: 'Div Yield', sortable: true, format: (val) => val ? formatPercent(val * 100) : 'N/A' },
+    { id: 'return_on_equity', label: 'ROE', sortable: true, format: (val) => val ? formatPercent(val * 100) : 'N/A' },
+    { id: 'revenue_growth', label: 'Rev Growth', sortable: true, format: (val) => val ? formatPercent(val * 100) : 'N/A' },
     { id: 'sector', label: 'Sector', sortable: true }
   ]
 
   // Normalize stocks list to handle both { data: [...] } and { data: { data: [...] } } API responses
   let stocksList = [];
+  let totalCount = 0;
+  
   if (screenResults) {
+    // Handle the backend response structure: { data: [...], total: number }
     if (Array.isArray(screenResults.data)) {
       stocksList = screenResults.data;
+      totalCount = screenResults.total || screenResults.data.length;
     } else if (screenResults.data && Array.isArray(screenResults.data.data)) {
       stocksList = screenResults.data.data;
+      totalCount = screenResults.data.total || screenResults.data.data.length;
     }
   }
 
@@ -453,9 +458,9 @@ function StockScreener() {
               <Box display="flex" alignItems="center" justifyContent="between" mb={3}>
                 <Typography variant="h6">
                   Screening Results
-                  {screenResults?.total && (
+                  {totalCount > 0 && (
                     <Chip 
-                      label={`${screenResults.total} stocks found`} 
+                      label={`${totalCount} stocks found`} 
                       color="primary" 
                       variant="outlined" 
                       sx={{ ml: 2 }} 
@@ -573,7 +578,7 @@ function StockScreener() {
                   <TablePagination
                     rowsPerPageOptions={[10, 25, 50, 100]}
                     component="div"
-                    count={screenResults.total || 0}
+                    count={totalCount}
                     rowsPerPage={rowsPerPage}
                     page={page}
                     onPageChange={handlePageChange}
@@ -583,7 +588,7 @@ function StockScreener() {
               )}
 
               {/* No Results */}
-              {screenResults && screenResults.data?.length === 0 && !isLoading && (
+              {screenResults && stocksList.length === 0 && !isLoading && (
                 <Box textAlign="center" py={6}>
                   <Typography variant="h6" color="text.secondary" gutterBottom>
                     No stocks match your criteria
