@@ -180,12 +180,24 @@ router.get('/database', async (req, res) => {
     if (Object.keys(tableStats).length === 0) {
       console.log('Step 5: No cached data found, populating automatically...');
       
+      // First, get all actual tables from the database
+      const allTablesResult = await query(`
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_type = 'BASE TABLE'
+        ORDER BY table_name;
+      `);
+      
+      const actualTables = allTablesResult.rows.map(row => row.table_name);
+      console.log(`Found ${actualTables.length} actual tables in database:`, actualTables);
+      
       const expectedTables = [
         // Core symbol tables
         'stock_symbols', 'etf_symbols', 'last_updated',
         
         // Market sentiment and indicators
-        'fear_greed_index', 'naaim_exposure', 'aaii_sentiment',
+        'fear_greed_index', 'naaim_exposure', 'aaii_sentiment', 'naaim',
         
         // Analyst and earnings data
         'analyst_upgrade_downgrade', 'calendar_events',
@@ -199,6 +211,7 @@ router.get('/database', async (req, res) => {
         // Price data tables
         'price_daily', 'price_weekly', 'price_monthly',
         'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly',
+        'price_data_montly', // from test file (with typo)
         
         // Technical analysis tables
         'technical_data_daily', 'technical_data_weekly', 'technical_data_monthly',
@@ -218,16 +231,19 @@ router.get('/database', async (req, res) => {
         'quarterly_cash_flow', 'annual_cash_flow',
         'ttm_income_statement', 'ttm_cash_flow',
         
-        // Latest price and technical data
+        // Latest price and technical data (these use the same tables as regular price/technical)
         'latest_price_daily', 'latest_price_weekly', 'latest_price_monthly',
         'latest_technical_data_daily', 'latest_technical_data_weekly', 'latest_technical_data_monthly',
         
         // Additional tables that might be created
-        'naaim', // from loadnaaim.py (if different from naaim_exposure)
         'health_status' // the health check table itself
       ];
       
-      for (const tableName of expectedTables) {
+      // Combine expected tables with actual tables to ensure we check everything
+      const allTablesToCheck = [...new Set([...expectedTables, ...actualTables])];
+      console.log(`Will check ${allTablesToCheck.length} tables total (${expectedTables.length} expected + ${actualTables.length} actual)`);
+      
+      for (const tableName of allTablesToCheck) {
         try {
           console.log(`Processing table: ${tableName}`);
           // Check if table exists
@@ -479,7 +495,7 @@ router.post('/update-status', async (req, res) => {
       'stock_symbols', 'etf_symbols', 'last_updated',
       
       // Market sentiment and indicators
-      'fear_greed_index', 'naaim_exposure', 'aaii_sentiment',
+      'fear_greed_index', 'naaim_exposure', 'aaii_sentiment', 'naaim',
       
       // Analyst and earnings data
       'analyst_upgrade_downgrade', 'calendar_events',
@@ -493,6 +509,7 @@ router.post('/update-status', async (req, res) => {
       // Price data tables
       'price_daily', 'price_weekly', 'price_monthly',
       'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly',
+      'price_data_montly', // from test file (with typo)
       
       // Technical analysis tables
       'technical_data_daily', 'technical_data_weekly', 'technical_data_monthly',
@@ -512,19 +529,34 @@ router.post('/update-status', async (req, res) => {
       'quarterly_cash_flow', 'annual_cash_flow',
       'ttm_income_statement', 'ttm_cash_flow',
       
-      // Latest price and technical data
+      // Latest price and technical data (these use the same tables as regular price/technical)
       'latest_price_daily', 'latest_price_weekly', 'latest_price_monthly',
       'latest_technical_data_daily', 'latest_technical_data_weekly', 'latest_technical_data_monthly',
       
       // Additional tables that might be created
-      'naaim', // from loadnaaim.py (if different from naaim_exposure)
       'health_status' // the health check table itself
     ];
+    
+    // Get all actual tables from the database for comprehensive checking
+    const allTablesResult = await query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      AND table_type = 'BASE TABLE'
+      ORDER BY table_name;
+    `);
+    
+    const actualTables = allTablesResult.rows.map(row => row.table_name);
+    console.log(`Found ${actualTables.length} actual tables in database:`, actualTables);
+    
+    // Combine expected tables with actual tables to ensure we check everything
+    const allTablesToCheck = [...new Set([...expectedTables, ...actualTables])];
+    console.log(`Will check ${allTablesToCheck.length} tables total (${expectedTables.length} expected + ${actualTables.length} actual)`);
     
     let processed = 0;
     let errors = 0;
     
-    for (const tableName of expectedTables) {
+    for (const tableName of allTablesToCheck) {
       try {
         // Check if table exists
         const tableExists = await query(`
