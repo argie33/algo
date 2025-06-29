@@ -160,28 +160,54 @@ if __name__ == "__main__":
         DROP TABLE IF EXISTS annual_balance_sheet CASCADE;
     """)
 
-    # Get sample data to create table structure
-    sample_ticker = yf.Ticker("AAPL")
-    sample_balance_sheet = sample_ticker.balance_sheet
-    
-    if sample_balance_sheet is not None and not sample_balance_sheet.empty:
-        # Create table with dynamic columns based on sample data
-        columns = ['symbol VARCHAR(10) NOT NULL', 'date DATE NOT NULL']
-        for metric in sample_balance_sheet.index:
-            columns.append(f'"{metric}" DOUBLE PRECISION')
-        columns.append('PRIMARY KEY(symbol, date)')
-        
-        create_table_sql = f"""
-            CREATE TABLE annual_balance_sheet (
-                {', '.join(columns)}
-            );
-        """
-        cur.execute(create_table_sql)
-        conn.commit()
-        logging.info("Created annual balance sheet table with dynamic columns")
-    else:
-        logging.error("Could not get sample data to create table structure")
-        sys.exit(1)
+    # Create table with predefined structure for common balance sheet columns
+    create_table_sql = """
+        CREATE TABLE annual_balance_sheet (
+            symbol VARCHAR(10) NOT NULL,
+            date DATE NOT NULL,
+            "Total Assets" DOUBLE PRECISION,
+            "Total Current Assets" DOUBLE PRECISION,
+            "Cash And Cash Equivalents" DOUBLE PRECISION,
+            "Short Term Investments" DOUBLE PRECISION,
+            "Net Receivables" DOUBLE PRECISION,
+            "Inventory" DOUBLE PRECISION,
+            "Other Current Assets" DOUBLE PRECISION,
+            "Total Non Current Assets" DOUBLE PRECISION,
+            "Property Plant Equipment Net" DOUBLE PRECISION,
+            "Intangible Assets" DOUBLE PRECISION,
+            "Goodwill" DOUBLE PRECISION,
+            "Long Term Investments" DOUBLE PRECISION,
+            "Other Assets" DOUBLE PRECISION,
+            "Total Liabilities Net Minority Interest" DOUBLE PRECISION,
+            "Total Current Liabilities" DOUBLE PRECISION,
+            "Accounts Payable" DOUBLE PRECISION,
+            "Short Term Debt" DOUBLE PRECISION,
+            "Other Current Liabilities" DOUBLE PRECISION,
+            "Total Non Current Liabilities Net Minority Interest" DOUBLE PRECISION,
+            "Long Term Debt" DOUBLE PRECISION,
+            "Other Liabilities" DOUBLE PRECISION,
+            "Total Equity Gross Minority Interest" DOUBLE PRECISION,
+            "Total Equity" DOUBLE PRECISION,
+            "Retained Earnings" DOUBLE PRECISION,
+            "Common Stock" DOUBLE PRECISION,
+            "Treasury Stock" DOUBLE PRECISION,
+            "Other Equity" DOUBLE PRECISION,
+            "Total Capitalization" DOUBLE PRECISION,
+            "Working Capital" DOUBLE PRECISION,
+            "Net Tangible Assets" DOUBLE PRECISION,
+            "Invested Capital" DOUBLE PRECISION,
+            "Tangible Book Value" DOUBLE PRECISION,
+            "Total Debt" DOUBLE PRECISION,
+            "Net Debt" DOUBLE PRECISION,
+            "Share Issued" DOUBLE PRECISION,
+            "Ordinary Shares Number" DOUBLE PRECISION,
+            "Treasury Shares Number" DOUBLE PRECISION,
+            PRIMARY KEY(symbol, date)
+        );
+    """
+    cur.execute(create_table_sql)
+    conn.commit()
+    logging.info("Created annual balance sheet table with predefined structure")
 
     # Load stock symbols
     cur.execute("SELECT symbol FROM stock_symbols;")

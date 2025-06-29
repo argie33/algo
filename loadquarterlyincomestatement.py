@@ -160,28 +160,62 @@ if __name__ == "__main__":
         DROP TABLE IF EXISTS quarterly_income_statement CASCADE;
     """)
 
-    # Get sample data to create table structure
-    sample_ticker = yf.Ticker("AAPL")
-    sample_income_statement = sample_ticker.quarterly_financials
-    
-    if sample_income_statement is not None and not sample_income_statement.empty:
-        # Create table with dynamic columns based on sample data
-        columns = ['symbol VARCHAR(10) NOT NULL', 'date DATE NOT NULL']
-        for metric in sample_income_statement.index:
-            columns.append(f'"{metric}" DOUBLE PRECISION')
-        columns.append('PRIMARY KEY(symbol, date)')
-        
-        create_table_sql = f"""
-            CREATE TABLE quarterly_income_statement (
-                {', '.join(columns)}
-            );
-        """
-        cur.execute(create_table_sql)
-        conn.commit()
-        logging.info("Created quarterly income statement table with dynamic columns")
-    else:
-        logging.error("Could not get sample data to create table structure")
-        sys.exit(1)
+    # Create table with predefined structure for common income statement columns
+    create_table_sql = """
+        CREATE TABLE quarterly_income_statement (
+            symbol VARCHAR(10) NOT NULL,
+            date DATE NOT NULL,
+            "Total Revenue" DOUBLE PRECISION,
+            "Cost Of Revenue" DOUBLE PRECISION,
+            "Gross Profit" DOUBLE PRECISION,
+            "Research And Development" DOUBLE PRECISION,
+            "Selling General And Administration" DOUBLE PRECISION,
+            "Operating Income" DOUBLE PRECISION,
+            "Operating Expense" DOUBLE PRECISION,
+            "Interest Expense" DOUBLE PRECISION,
+            "Interest Income" DOUBLE PRECISION,
+            "Net Interest Income" DOUBLE PRECISION,
+            "Other Income Expense" DOUBLE PRECISION,
+            "Income Tax Expense" DOUBLE PRECISION,
+            "Net Income" DOUBLE PRECISION,
+            "Net Income Common Stockholders" DOUBLE PRECISION,
+            "Net Income From Continuing Ops" DOUBLE PRECISION,
+            "Net Income Including Noncontrolling Interests" DOUBLE PRECISION,
+            "Net Income Continuous Operations" DOUBLE PRECISION,
+            "EBIT" DOUBLE PRECISION,
+            "EBITDA" DOUBLE PRECISION,
+            "EBITDAR" DOUBLE PRECISION,
+            "Reconciled Cost Of Revenue" DOUBLE PRECISION,
+            "Reconciled Depreciation" DOUBLE PRECISION,
+            "Net Income From Continuing And Discontinued Operation" DOUBLE PRECISION,
+            "Total Expenses" DOUBLE PRECISION,
+            "Net Income Continuous Operations" DOUBLE PRECISION,
+            "Total Revenue As Reported" DOUBLE PRECISION,
+            "Operating Revenue" DOUBLE PRECISION,
+            "Operating Income Loss" DOUBLE PRECISION,
+            "Net Income Available To Common Stockholders Basic" DOUBLE PRECISION,
+            "Net Income Available To Common Stockholders Diluted" DOUBLE PRECISION,
+            "Basic Average Shares" DOUBLE PRECISION,
+            "Basic EPS" DOUBLE PRECISION,
+            "Diluted Average Shares" DOUBLE PRECISION,
+            "Diluted EPS" DOUBLE PRECISION,
+            "Total Unusual Items" DOUBLE PRECISION,
+            "Total Unusual Items Excluding Goodwill" DOUBLE PRECISION,
+            "Normalized Income" DOUBLE PRECISION,
+            "Tax Rate For Calcs" DOUBLE PRECISION,
+            "Tax Effect Of Unusual Items" DOUBLE PRECISION,
+            "Interest Income After Tax" DOUBLE PRECISION,
+            "Net Interest Income After Tax" DOUBLE PRECISION,
+            "Change In Net Income" DOUBLE PRECISION,
+            "Net Income From Continuing Operation Net Minority Interest" DOUBLE PRECISION,
+            "Net Income Including Noncontrolling Interests Net Minority Interest" DOUBLE PRECISION,
+            "Net Income Continuous Operations Net Minority Interest" DOUBLE PRECISION,
+            PRIMARY KEY(symbol, date)
+        );
+    """
+    cur.execute(create_table_sql)
+    conn.commit()
+    logging.info("Created quarterly income statement table with predefined structure")
 
     # Load stock symbols
     cur.execute("SELECT symbol FROM stock_symbols;")

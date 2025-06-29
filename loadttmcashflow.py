@@ -140,24 +140,64 @@ if __name__ == "__main__":
     cur.execute("""
         DROP TABLE IF EXISTS ttm_cash_flow CASCADE;
     """)
-    sample_ticker = yf.Ticker("AAPL")
-    sample_cash_flow = sample_ticker.quarterly_cashflow
-    if sample_cash_flow is not None and not sample_cash_flow.empty:
-        columns = ['symbol VARCHAR(10) NOT NULL', 'date DATE NOT NULL']
-        for metric in sample_cash_flow.index:
-            columns.append(f'"{metric}" DOUBLE PRECISION')
-        columns.append('PRIMARY KEY(symbol, date)')
-        create_table_sql = f"""
-            CREATE TABLE ttm_cash_flow (
-                {', '.join(columns)}
-            );
-        """
-        cur.execute(create_table_sql)
-        conn.commit()
-        logging.info("Created TTM cash flow table with dynamic columns")
-    else:
-        logging.error("Could not get sample data to create table structure")
-        sys.exit(1)
+
+    # Create table with predefined structure for common cash flow columns
+    create_table_sql = """
+        CREATE TABLE ttm_cash_flow (
+            symbol VARCHAR(10) NOT NULL,
+            date DATE NOT NULL,
+            "Operating Cash Flow" DOUBLE PRECISION,
+            "Investing Cash Flow" DOUBLE PRECISION,
+            "Financing Cash Flow" DOUBLE PRECISION,
+            "End Cash Position" DOUBLE PRECISION,
+            "Income Tax Paid Supplemental Data" DOUBLE PRECISION,
+            "Interest Paid Supplemental Data" DOUBLE PRECISION,
+            "Capital Expenditure" DOUBLE PRECISION,
+            "Issuance Of Capital Stock" DOUBLE PRECISION,
+            "Issuance Of Debt" DOUBLE PRECISION,
+            "Repayment Of Debt" DOUBLE PRECISION,
+            "Repurchase Of Capital Stock" DOUBLE PRECISION,
+            "Free Cash Flow" DOUBLE PRECISION,
+            "Net Income" DOUBLE PRECISION,
+            "Net Income From Continuing Ops" DOUBLE PRECISION,
+            "Change In Cash And Cash Equivalents" DOUBLE PRECISION,
+            "Change In Receivables" DOUBLE PRECISION,
+            "Change In Inventory" DOUBLE PRECISION,
+            "Change In Net Working Capital" DOUBLE PRECISION,
+            "Change In Accounts Payable" DOUBLE PRECISION,
+            "Change In Other Working Capital" DOUBLE PRECISION,
+            "Change In Other Non Cash Items" DOUBLE PRECISION,
+            "Depreciation And Amortization" DOUBLE PRECISION,
+            "Depreciation" DOUBLE PRECISION,
+            "Amortization" DOUBLE PRECISION,
+            "Amortization Of Intangibles" DOUBLE PRECISION,
+            "Amortization Of Debt" DOUBLE PRECISION,
+            "Deferred Income Tax" DOUBLE PRECISION,
+            "Deferred Tax" DOUBLE PRECISION,
+            "Stock Based Compensation" DOUBLE PRECISION,
+            "Change In Deferred Tax" DOUBLE PRECISION,
+            "Other Non Cash Items" DOUBLE PRECISION,
+            "Change In Working Capital" DOUBLE PRECISION,
+            "Change In Other Assets" DOUBLE PRECISION,
+            "Change In Other Liabilities" DOUBLE PRECISION,
+            "Change In Other Operating Activities" DOUBLE PRECISION,
+            "Net Cash Flow From Operating Activities" DOUBLE PRECISION,
+            "Net Cash Flow From Investing Activities" DOUBLE PRECISION,
+            "Net Cash Flow From Financing Activities" DOUBLE PRECISION,
+            "Net Cash Flow" DOUBLE PRECISION,
+            "Cash At Beginning Of Period" DOUBLE PRECISION,
+            "Cash At End Of Period" DOUBLE PRECISION,
+            "Operating Cash Flow Growth" DOUBLE PRECISION,
+            "Free Cash Flow Growth" DOUBLE PRECISION,
+            "Cap Ex As A % Of Sales" DOUBLE PRECISION,
+            "Free Cash Flow/Sales" DOUBLE PRECISION,
+            "Free Cash Flow/Net Income" DOUBLE PRECISION,
+            PRIMARY KEY(symbol, date)
+        );
+    """
+    cur.execute(create_table_sql)
+    conn.commit()
+    logging.info("Created TTM cash flow table with predefined structure")
     cur.execute("SELECT symbol FROM stock_symbols;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
     t_s, p_s, f_s = load_ttm_cash_flow(stock_syms, cur, conn)
