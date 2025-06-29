@@ -5,6 +5,15 @@ export const getApiConfig = () => {
   // Dynamic API URL resolution: runtime > build-time > fallback
   let runtimeApiUrl = (typeof window !== 'undefined' && window.__CONFIG__ && window.__CONFIG__.API_URL) ? window.__CONFIG__.API_URL : null;
   const apiUrl = runtimeApiUrl || import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  
+  console.log('🔧 [API CONFIG] URL Resolution:', {
+    runtimeApiUrl,
+    envApiUrl: import.meta.env.VITE_API_URL,
+    finalApiUrl: apiUrl,
+    windowConfig: typeof window !== 'undefined' ? window.__CONFIG__ : 'undefined',
+    allEnvVars: import.meta.env
+  });
+  
   return {
     baseURL: apiUrl,
     isServerless: !!apiUrl && !apiUrl.includes('localhost'),
@@ -192,94 +201,288 @@ function normalizeApiResponse(response, expectArray = true) {
 }
 
 // --- PATCH: Log API config at startup ---
-console.log('[API CONFIG]', getApiConfig());
-console.log('[AXIOS DEFAULT BASE URL]', api.defaults.baseURL);
+console.log('🚀 [API STARTUP] Initializing API configuration...');
+console.log('🔧 [API CONFIG]', getApiConfig());
+console.log('📡 [AXIOS DEFAULT BASE URL]', api.defaults.baseURL);
+
+// Test connection on startup
+setTimeout(async () => {
+  try {
+    console.log('🔍 [API STARTUP] Testing connection...');
+    const testResponse = await api.get('/health', { timeout: 5000 });
+    console.log('✅ [API STARTUP] Connection test successful:', testResponse.status);
+  } catch (error) {
+    console.warn('⚠️ [API STARTUP] Connection test failed:', error.message);
+    console.log('🔧 [API STARTUP] Trying alternative health endpoints...');
+    
+    const altEndpoints = ['/api/health', '/api', '/'];
+    for (const endpoint of altEndpoints) {
+      try {
+        const response = await api.get(endpoint, { timeout: 3000 });
+        console.log(`✅ [API STARTUP] Alternative endpoint ${endpoint} successful:`, response.status);
+        break;
+      } catch (err) {
+        console.log(`❌ [API STARTUP] Alternative endpoint ${endpoint} failed:`, err.message);
+      }
+    }
+  }
+}, 1000);
 
 // --- PATCH: Wrap all API methods with normalizeApiResponse ---
 // Market overview
 export const getMarketOverview = async () => {
   console.log('📈 [API] Fetching market overview...');
+  console.log('📈 [API] Current config:', getApiConfig());
+  console.log('📈 [API] Axios baseURL:', api.defaults.baseURL);
+  
   try {
-    const response = await api.get('/market/overview');
-    console.log('📈 [API] Market overview response:', response);
-    return normalizeApiResponse(response, false);
+    // Try multiple endpoint variations to catch URL issues
+    const endpoints = ['/market/overview', '/api/market/overview'];
+    let response = null;
+    let lastError = null;
+    
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`📈 [API] Trying endpoint: ${endpoint}`);
+        response = await api.get(endpoint);
+        console.log(`📈 [API] SUCCESS with endpoint: ${endpoint}`, response);
+        break;
+      } catch (err) {
+        console.log(`📈 [API] FAILED endpoint: ${endpoint}`, err.message);
+        lastError = err;
+        continue;
+      }
+    }
+    
+    if (!response) {
+      console.error('📈 [API] All endpoints failed, throwing last error:', lastError);
+      throw lastError;
+    }
+    
+    console.log('📈 [API] Market overview raw response:', response);
+    const result = normalizeApiResponse(response, false);
+    console.log('📈 [API] Market overview normalized result:', result);
+    return result;
   } catch (error) {
-    console.error('❌ [API] Market overview error:', error);
+    console.error('❌ [API] Market overview error details:', {
+      message: error.message,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      config: error.config,
+      stack: error.stack
+    });
     throw new Error(handleApiError(error, 'Failed to fetch market overview'));
   }
 };
 
 export const getMarketSentimentHistory = async (days = 30) => {
+  console.log(`📊 [API] Fetching market sentiment history for ${days} days...`);
+  
   try {
-    const response = await api.get(`/api/market/sentiment/history?days=${days}`)
+    // Try multiple endpoint variations
+    const endpoints = [
+      `/market/sentiment/history?days=${days}`,
+      `/api/market/sentiment/history?days=${days}`
+    ];
+    
+    let response = null;
+    let lastError = null;
+    
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`📊 [API] Trying sentiment endpoint: ${endpoint}`);
+        response = await api.get(endpoint);
+        console.log(`📊 [API] SUCCESS with sentiment endpoint: ${endpoint}`, response);
+        break;
+      } catch (err) {
+        console.log(`📊 [API] FAILED sentiment endpoint: ${endpoint}`, err.message);
+        lastError = err;
+        continue;
+      }
+    }
+    
+    if (!response) {
+      console.error('📊 [API] All sentiment endpoints failed:', lastError);
+      throw lastError;
+    }
     
     // The backend returns { data: [...], metadata: {...} }
     // We need to return this structure directly, not normalize it
     if (response.data && typeof response.data === 'object') {
-      console.log('getMarketSentimentHistory: returning backend response structure:', response.data);
+      console.log('📊 [API] Returning sentiment data structure directly:', response.data);
       return response.data;
     }
     
     // Fallback to normalized response
-    return normalizeApiResponse(response, true);
+    const result = normalizeApiResponse(response, true);
+    console.log('📊 [API] Sentiment fallback normalized result:', result);
+    return result;
   } catch (error) {
+    console.error('❌ [API] Sentiment history error details:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    });
     const errorMessage = handleApiError(error, 'get market sentiment history')
     return { error: errorMessage }
   }
 }
 
 export const getMarketSectorPerformance = async () => {
+  console.log(`📊 [API] Fetching market sector performance...`);
+  
   try {
-    const response = await api.get('/api/market/sectors/performance')
+    // Try multiple endpoint variations
+    const endpoints = [
+      `/market/sectors/performance`,
+      `/api/market/sectors/performance`
+    ];
+    
+    let response = null;
+    let lastError = null;
+    
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`📊 [API] Trying sector endpoint: ${endpoint}`);
+        response = await api.get(endpoint);
+        console.log(`📊 [API] SUCCESS with sector endpoint: ${endpoint}`, response);
+        break;
+      } catch (err) {
+        console.log(`📊 [API] FAILED sector endpoint: ${endpoint}`, err.message);
+        lastError = err;
+        continue;
+      }
+    }
+    
+    if (!response) {
+      console.error('📊 [API] All sector endpoints failed:', lastError);
+      throw lastError;
+    }
     
     // The backend returns { data: [...], metadata: {...} }
     // We need to return this structure directly, not normalize it
     if (response.data && typeof response.data === 'object') {
-      console.log('getMarketSectorPerformance: returning backend response structure:', response.data);
+      console.log('📊 [API] Returning sector data structure directly:', response.data);
       return response.data;
     }
     
     // Fallback to normalized response
-    return normalizeApiResponse(response, true);
+    const result = normalizeApiResponse(response, true);
+    console.log('📊 [API] Sector fallback normalized result:', result);
+    return result;
   } catch (error) {
+    console.error('❌ [API] Sector performance error details:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    });
     const errorMessage = handleApiError(error, 'get market sector performance')
     return { error: errorMessage }
   }
 }
 
 export const getMarketBreadth = async () => {
+  console.log(`📊 [API] Fetching market breadth...`);
+  
   try {
-    const response = await api.get('/api/market/breadth')
+    // Try multiple endpoint variations
+    const endpoints = [
+      `/market/breadth`,
+      `/api/market/breadth`
+    ];
+    
+    let response = null;
+    let lastError = null;
+    
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`📊 [API] Trying breadth endpoint: ${endpoint}`);
+        response = await api.get(endpoint);
+        console.log(`📊 [API] SUCCESS with breadth endpoint: ${endpoint}`, response);
+        break;
+      } catch (err) {
+        console.log(`📊 [API] FAILED breadth endpoint: ${endpoint}`, err.message);
+        lastError = err;
+        continue;
+      }
+    }
+    
+    if (!response) {
+      console.error('📊 [API] All breadth endpoints failed:', lastError);
+      throw lastError;
+    }
     
     // The backend returns { data: {...}, metadata: {...} }
     // We need to return this structure directly, not normalize it
     if (response.data && typeof response.data === 'object') {
-      console.log('getMarketBreadth: returning backend response structure:', response.data);
+      console.log('📊 [API] Returning breadth data structure directly:', response.data);
       return response.data;
     }
     
     // Fallback to normalized response
-    return normalizeApiResponse(response, false);
+    const result = normalizeApiResponse(response, false);
+    console.log('📊 [API] Breadth fallback normalized result:', result);
+    return result;
   } catch (error) {
+    console.error('❌ [API] Market breadth error details:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    });
     const errorMessage = handleApiError(error, 'get market breadth')
     return { error: errorMessage }
   }
 }
 
 export const getEconomicIndicators = async (days = 90) => {
+  console.log(`📊 [API] Fetching economic indicators for ${days} days...`);
+  
   try {
-    const response = await api.get(`/api/market/economic?days=${days}`)
+    // Try multiple endpoint variations
+    const endpoints = [
+      `/market/economic?days=${days}`,
+      `/api/market/economic?days=${days}`
+    ];
+    
+    let response = null;
+    let lastError = null;
+    
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`📊 [API] Trying economic endpoint: ${endpoint}`);
+        response = await api.get(endpoint);
+        console.log(`📊 [API] SUCCESS with economic endpoint: ${endpoint}`, response);
+        break;
+      } catch (err) {
+        console.log(`📊 [API] FAILED economic endpoint: ${endpoint}`, err.message);
+        lastError = err;
+        continue;
+      }
+    }
+    
+    if (!response) {
+      console.error('📊 [API] All economic endpoints failed:', lastError);
+      throw lastError;
+    }
     
     // The backend returns { data: [...], period_days: number, total_data_points: number }
     // We need to return this structure directly, not normalize it
     if (response.data && typeof response.data === 'object') {
-      console.log('getEconomicIndicators: returning backend response structure:', response.data);
+      console.log('📊 [API] Returning economic data structure directly:', response.data);
       return response.data;
     }
     
     // Fallback to normalized response
-    return normalizeApiResponse(response, true);
+    const result = normalizeApiResponse(response, true);
+    console.log('📊 [API] Economic fallback normalized result:', result);
+    return result;
   } catch (error) {
+    console.error('❌ [API] Economic indicators error details:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    });
     const errorMessage = handleApiError(error, 'get economic indicators')
     console.error('Error fetching economic indicators:', error)
     return { 
@@ -295,6 +498,8 @@ export const getEconomicIndicators = async (days = 90) => {
 // Stocks - Updated to use optimized endpoints
 export const getStocks = async (params = {}) => {
   console.log('🚀 getStocks: Starting API call with params:', params);
+  console.log('🚀 getStocks: Current config:', getApiConfig());
+  
   try {
     const queryParams = new URLSearchParams()
     Object.entries(params).forEach(([key, value]) => {
@@ -303,12 +508,34 @@ export const getStocks = async (params = {}) => {
       }
     })
     
-    const url = `/api/stocks?${queryParams.toString()}`
-    console.log('📡 getStocks: Calling URL:', url);
+    // Try multiple endpoint variations
+    const endpoints = [
+      `/stocks?${queryParams.toString()}`,
+      `/api/stocks?${queryParams.toString()}`
+    ];
     
-    const response = await api.get(url, {
-      baseURL: currentConfig.baseURL
-    })
+    let response = null;
+    let lastError = null;
+    
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`� getStocks: Trying endpoint: ${endpoint}`);
+        response = await api.get(endpoint, {
+          baseURL: currentConfig.baseURL
+        });
+        console.log(`🚀 getStocks: SUCCESS with endpoint: ${endpoint}`, response);
+        break;
+      } catch (err) {
+        console.log(`🚀 getStocks: FAILED endpoint: ${endpoint}`, err.message);
+        lastError = err;
+        continue;
+      }
+    }
+    
+    if (!response) {
+      console.error('🚀 getStocks: All endpoints failed:', lastError);
+      throw lastError;
+    }
     
     console.log('📊 getStocks: Raw response:', {
       status: response.status,
@@ -329,7 +556,13 @@ export const getStocks = async (params = {}) => {
     console.log('🔄 getStocks: using normalized response:', normalized);
     return normalized;
   } catch (error) {
-    console.error('❌ Error fetching stocks:', error)
+    console.error('❌ getStocks error details:', {
+      message: error.message,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      config: error.config
+    });
     const errorMessage = handleApiError(error, 'get stocks')
     return { 
       success: false,
@@ -841,6 +1074,8 @@ export const getFinancialMetrics = async (params = {}) => {
 
 // Patch all API methods to always return normalizeApiResponse 
 export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
+  console.log(`📊 [API] Fetching technical data for timeframe: ${timeframe}`, params);
+  
   try {
     const queryParams = new URLSearchParams();
     queryParams.append('timeframe', timeframe);
@@ -849,10 +1084,40 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
         queryParams.append(key, value);
       }
     });
-    const response = await api.get(`/api/technical/data?${queryParams.toString()}`);
+    
+    // Try multiple endpoint variations
+    const endpoints = [
+      `/technical/${timeframe}?${queryParams.toString()}`,
+      `/api/technical/${timeframe}?${queryParams.toString()}`,
+      `/technical/data?${queryParams.toString()}`,
+      `/api/technical/data?${queryParams.toString()}`
+    ];
+    
+    let response = null;
+    let lastError = null;
+    
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`📊 [API] Trying technical endpoint: ${endpoint}`);
+        response = await api.get(endpoint);
+        console.log(`📊 [API] SUCCESS with technical endpoint: ${endpoint}`, response);
+        break;
+      } catch (err) {
+        console.log(`📊 [API] FAILED technical endpoint: ${endpoint}`, err.message);
+        lastError = err;
+        continue;
+      }
+    }
+    
+    if (!response) {
+      console.error('📊 [API] All technical endpoints failed:', lastError);
+      throw lastError;
+    }
+    
     // Always return { data, pagination, metadata }
     if (response.data && typeof response.data === 'object') {
       const { data, pagination, metadata } = response.data;
+      console.log('📊 [API] Technical data structure:', { data: Array.isArray(data), pagination, metadata });
       return {
         data: Array.isArray(data) ? data : [],
         pagination: pagination || {},
@@ -861,9 +1126,14 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
       };
     }
     // Fallback
+    console.log('📊 [API] Technical data fallback structure');
     return { data: [], pagination: {}, metadata: {} };
   } catch (error) {
-    console.error('Error in getTechnicalData:', error);
+    console.error('❌ [API] Technical data error details:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    });
     const errorMessage = handleApiError(error, 'get technical data');
     return {
       data: [],

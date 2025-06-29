@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react'
+import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createComponentLogger } from '../utils/errorLogger'
 import {
@@ -18,14 +18,9 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Chip,
-  Button,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails
+  Chip
 } from '@mui/material'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts'
-import { SentimentVerySatisfied, SentimentSatisfied, SentimentNeutral, SentimentDissatisfied, SentimentVeryDissatisfied, TrendingUp, TrendingDown, HorizontalRule, Business, ExpandLess, ExpandMore, AccountBalance, ShowChart } from '@mui/icons-material';
 
 import { 
   getMarketOverview, 
@@ -91,183 +86,152 @@ const MetricTable = ({ data, columns, title }) => (
 // Create component-specific logger
 const logger = createComponentLogger('MarketOverview');
 
-function MarketOverview() {
-  console.log('ðŸš€ MarketOverview: Component rendering...');
-  
-  const [selectedIndex, setSelectedIndex] = useState('^GSPC') // S&P 500
-  const [timeframe, setTimeframe] = useState('1D')
-  const [selectedSector, setSelectedSector] = useState('all')
-
-  // Market overview data
-  const { data: marketData, isLoading: marketLoading, error: marketError } = useQuery({
-    queryKey: ['marketOverview'],
-    queryFn: getMarketOverview,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    onSuccess: (data) => console.log('âœ… MarketOverview: Market data loaded:', data),
-    onError: (error) => console.error('âŒ MarketOverview: Market data error:', error)
-  });
-
-  console.log('ðŸ“Š MarketOverview: Market data summary:', {
-    hasData: !!marketData,
-    isLoading: marketLoading,
-    hasError: !!marketError,
-    dataKeys: marketData ? Object.keys(marketData) : []
-  });
-
-  // Market indices data
-  const { data: indicesData, isLoading: indicesLoading, error: indicesError } = useQuery({
-    queryKey: ['marketIndices'],
-    queryFn: getMarketIndices,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    onSuccess: (data) => console.log('âœ… MarketOverview: Indices data loaded:', data),
-    onError: (error) => console.error('âŒ MarketOverview: Indices data error:', error)
-  });
-
-  console.log('ðŸ“Š MarketOverview: Indices data summary:', {
-    hasData: !!indicesData,
-    isLoading: indicesLoading,
-    hasError: !!indicesError
-  });
-
-  // Sector performance data
-  const { data: sectorData, isLoading: sectorLoading, error: sectorError } = useQuery({
-    queryKey: ['sectorPerformance'],
-    queryFn: getSectorPerformance,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    onSuccess: (data) => console.log('âœ… MarketOverview: Sector data loaded:', data),
-    onError: (error) => console.error('âŒ MarketOverview: Sector data error:', error)
-  });
-
-  console.log('ðŸ“Š MarketOverview: Sector data summary:', {
-    hasData: !!sectorData,
-    isLoading: sectorLoading,
-    hasError: !!sectorError
-  });
-
-  // Market breadth data
-  const { data: breadthData, isLoading: breadthLoading, error: breadthError } = useQuery({
-    queryKey: ['marketBreadth'],
-    queryFn: getMarketBreadth,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    onSuccess: (data) => console.log('âœ… MarketOverview: Breadth data loaded:', data),
-    onError: (error) => console.error('âŒ MarketOverview: Breadth data error:', error)
-  });
-
-  console.log('ðŸ“Š MarketOverview: Breadth data summary:', {
-    hasData: !!breadthData,
-    isLoading: breadthLoading,
-    hasError: !!breadthError
-  });
-
-  // Volatility data
-  const { data: volatilityData, isLoading: volatilityLoading, error: volatilityError } = useQuery({
-    queryKey: ['marketVolatility'],
-    queryFn: getMarketVolatility,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    onSuccess: (data) => console.log('âœ… MarketOverview: Volatility data loaded:', data),
-    onError: (error) => console.error('âŒ MarketOverview: Volatility data error:', error)
-  });
-
-  console.log('ðŸ“Š MarketOverview: Volatility data summary:', {
-    hasData: !!volatilityData,
-    isLoading: volatilityLoading,
-    hasError: !!volatilityError
-  });
-
-  // Economic calendar data
-  const { data: calendarData, isLoading: calendarLoading, error: calendarError } = useQuery({
-    queryKey: ['economicCalendar'],
-    queryFn: getEconomicCalendar,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    onSuccess: (data) => console.log('âœ… MarketOverview: Calendar data loaded:', data),
-    onError: (error) => console.error('âŒ MarketOverview: Calendar data error:', error)
-  });
-
-  console.log('ðŸ“Š MarketOverview: Calendar data summary:', {
-    hasData: !!calendarData,
-    isLoading: calendarLoading,
-    hasError: !!calendarError
-  });
-
-  console.log('ðŸ“Š MarketOverview: Overall data summary:', {
-    marketData: { hasData: !!marketData, isLoading: marketLoading, hasError: !!marketError },
-    indicesData: { hasData: !!indicesData, isLoading: indicesLoading, hasError: !!indicesError },
-    sectorData: { hasData: !!sectorData, isLoading: sectorLoading, hasError: !!sectorError },
-    breadthData: { hasData: !!breadthData, isLoading: breadthLoading, hasError: !!breadthError },
-    volatilityData: { hasData: !!volatilityData, isLoading: volatilityLoading, hasError: !!volatilityError },
-    calendarData: { hasData: !!calendarData, isLoading: calendarLoading, hasError: !!calendarError }
-  });
-
-  // Restore original sentiment indicator boxes at the top, before the tabs
-  const [sentimentRange, setSentimentRange] = useState(30);
-  const [econRange, setEconRange] = useState(90);
-  const [tabValue, setTabValue] = useState(0)
-  const [showDetailedEcon, setShowDetailedEcon] = useState(false);
-  const { data: sentimentData, isLoading: sentimentLoading } = useQuery({
-    queryKey: ['market-sentiment-history'],
-    queryFn: async () => {
+function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
+  const { data: marketData, isLoading: marketLoading, error: marketError } = useQuery(
+    'market-overview',
+    async () => {
       try {
-        const result = await getMarketSentimentHistory();
-        logger.success('getMarketSentimentHistory', result);
+        const result = await getMarketOverview();
+        logger.success('getMarketOverview', result);
         return result;
       } catch (err) {
-        logger.error('getMarketSentimentHistory', err);
+        logger.error('getMarketOverview', err);
         throw err;
       }
     },
-    enabled: tabValue === 1,
-    onError: (err) => logger.queryError('market-sentiment-history', err)
-  });
+    { 
+      refetchInterval: 60000,
+      onError: (err) => logger.queryError('market-overview', err)
+    }
+  )
 
-  const { data: economicData, isLoading: economicLoading } = useQuery({
-    queryKey: ['economic-indicators', econRange],
-    queryFn: async () => {
+  const { data: sentimentData, isLoading: sentimentLoading } = useQuery(
+    'market-sentiment-history',
+    async () => {
       try {
-        const result = await getEconomicIndicators(econRange);
-        logger.success('getEconomicIndicators', result, { days: econRange });
-        console.log('Economic data received:', result);
-        console.log('Economic data structure:', {
-          hasData: !!result?.data,
-          dataLength: result?.data?.length || 0,
-          firstItem: result?.data?.[0],
-          periodDays: result?.period_days,
-          totalPoints: result?.total_data_points
-        });
+        const result = await getMarketSentimentHistory(30);
+        logger.success('getMarketSentimentHistory', result, { days: 30 });
         return result;
       } catch (err) {
-        logger.error('getEconomicIndicators', err, { days: econRange });
+        logger.error('getMarketSentimentHistory', err, { days: 30 });
         throw err;
       }
     },
-    enabled: tabValue === 4,
-    onError: (err) => logger.queryError('economic-indicators', err)
-  });
+    { 
+      enabled: tabValue === 1,
+      onError: (err) => logger.queryError('market-sentiment-history', err)
+    }
+  )
+
+  const { data: sectorData, isLoading: sectorLoading } = useQuery(
+    'market-sector-performance',
+    async () => {
+      try {
+        const result = await getMarketSectorPerformance();
+        logger.success('getMarketSectorPerformance', result);
+        return result;
+      } catch (err) {
+        logger.error('getMarketSectorPerformance', err);
+        throw err;
+      }
+    },
+    { 
+      enabled: tabValue === 2,
+      onError: (err) => logger.queryError('market-sector-performance', err)
+    }
+  )
+
+  const { data: breadthData, isLoading: breadthLoading } = useQuery(
+    'market-breadth',
+    async () => {
+      try {
+        const result = await getMarketBreadth();
+        logger.success('getMarketBreadth', result);
+        return result;
+      } catch (err) {
+        logger.error('getMarketBreadth', err);
+        throw err;
+      }
+    },
+    { 
+      enabled: tabValue === 3,
+      onError: (err) => logger.queryError('market-breadth', err)
+    }
+  )
+
+  const { data: economicData, isLoading: economicLoading } = useQuery(
+    'economic-indicators',
+    async () => {
+      try {
+        const result = await getEconomicIndicators(90);
+        logger.success('getEconomicIndicators', result, { days: 90 });
+        return result;
+      } catch (err) {
+        logger.error('getEconomicIndicators', err, { days: 90 });
+        throw err;
+      }
+    },
+    { 
+      enabled: tabValue === 4,
+      onError: (err) => logger.queryError('economic-indicators', err)
+    }
+  )
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue)
   }
   if (marketError) {
+    console.error('❌ [MARKET OVERVIEW] Error details:', {
+      error: marketError,
+      message: marketError?.message,
+      stack: marketError?.stack,
+      response: marketError?.response,
+      config: marketError?.config
+    });
+    
     return (
       <Box>
         <Typography variant="h4" sx={{ mb: 3, fontWeight: 600 }}>
           Market Overview
         </Typography>
-        <Alert severity="error">
-          Failed to load market data: {marketError.message}
+        <Alert severity="error" sx={{ mb: 2 }}>
+          <Typography variant="h6" sx={{ mb: 1 }}>Failed to load market data</Typography>
+          <Typography variant="body2" sx={{ mb: 1 }}>
+            Error: {marketError.message}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            Check browser console for detailed error information. Possible causes:
+          </Typography>
+          <Box component="ul" sx={{ mt: 1, pl: 2, fontSize: '0.75rem' }}>
+            <li>Backend server not running or unreachable</li>
+            <li>API endpoint URL misconfigured</li>
+            <li>Network connectivity issues</li>
+            <li>CORS configuration problems</li>
+          </Box>
+        </Alert>
+        <Alert severity="info">
+          <Typography variant="h6">Debug Information:</Typography>
+          <Typography variant="body2">
+            Error Type: {marketError.name || 'Unknown'}<br/>
+            Status: {marketError.response?.status || 'No status'}<br/>
+            URL: {marketError.config?.url || 'No URL'}<br/>
+            Base URL: {marketError.config?.baseURL || 'No base URL'}<br/>
+            Full URL: {marketError.config?.baseURL + marketError.config?.url || 'Unknown'}
+          </Typography>
         </Alert>
       </Box>
     )
   }
 
-  // Extract data from the new market API structure (robust to both old and new API shapes)
-  const sentimentIndicators = marketData?.data?.sentiment_indicators ?? marketData?.sentiment_indicators ?? {};
-  const marketBreadth = marketData?.data?.market_breadth ?? marketData?.market_breadth ?? {};
-  const marketCap = marketData?.data?.market_cap ?? marketData?.market_cap ?? {};
-  const economicIndicators = marketData?.data?.economic_indicators ?? marketData?.economic_indicators ?? [];
+  // Extract data from the new market API structure
+  const sentimentIndicators = marketData?.data?.sentiment_indicators || {}
+  const marketBreadth = marketData?.data?.market_breadth || {}
+  const marketCap = marketData?.data?.market_cap || {}
+  const economicIndicators = marketData?.data?.economic_indicators || []
   
-  const sectors = sectorData?.data?.sectors ?? sectorData?.sectors ?? [];
-  const breadthInfo = breadthData?.data ?? breadthData ?? {};
-  const sentimentHistory = sentimentData?.data ?? sentimentData ?? {}
+  const sectors = sectorData?.data?.sectors || []
+  const breadthInfo = breadthData?.data || {}
+  const sentimentHistory = sentimentData?.data || {}
 
   // Prepare chart data for sectors
   const sectorChartData = sectors.slice(0, 8).map(sector => ({
@@ -278,78 +242,147 @@ function MarketOverview() {
     advanceDeclineRatio: parseFloat(sector.advance_decline_ratio) || 0
   }))
 
-  // Prepare sentiment chart data - updated for new API structure
-  const fearGreedHistory = sentimentData?.fear_greed?.history || sentimentData?.data?.fear_greed?.history || []
-  const sentimentChartData = fearGreedHistory.slice(0, 30).map(item => ({
-    date: new Date(item.date).toLocaleDateString(),
-    value: item.index_value,
-    text: item.rating
-  })).reverse()
+  // Prepare sentiment chart data for all indicators
+  const fearGreedHistory = sentimentHistory.fear_greed_history || [];
+  const naaimHistory = sentimentHistory.naaim_history || [];
+  const aaiiHistory = sentimentHistory.aaii_history || [];
 
-  // Helper: get icon and color for sentiment
-  const getFGIcon = (value) => {
-    if (value >= 75) return <SentimentVerySatisfied sx={{ color: '#43a047', fontSize: 36, mr: 1 }} />;
-    if (value >= 55) return <SentimentSatisfied sx={{ color: '#8bc34a', fontSize: 36, mr: 1 }} />;
-    if (value >= 45) return <SentimentNeutral sx={{ color: '#ffb300', fontSize: 36, mr: 1 }} />;
-    if (value >= 25) return <SentimentDissatisfied sx={{ color: '#fb8c00', fontSize: 36, mr: 1 }} />;
-    return <SentimentVeryDissatisfied sx={{ color: '#e53935', fontSize: 36, mr: 1 }} />;
-  };
+  // Merge by date for multi-line chart (assume all have 'date' or 'timestamp')
+  const dateMap = {};
+  fearGreedHistory.forEach(item => {
+    const date = item.date || item.timestamp;
+    if (!dateMap[date]) dateMap[date] = { date };
+    dateMap[date].fear_greed = item.value;
+    dateMap[date].fear_greed_text = item.value_text;
+  });
+  naaimHistory.forEach(item => {
+    const date = item.date || item.timestamp;
+    if (!dateMap[date]) dateMap[date] = { date };
+    dateMap[date].naaim = item.mean_exposure || item.average;
+  });
+  aaiiHistory.forEach(item => {
+    const date = item.date || item.timestamp;
+    if (!dateMap[date]) dateMap[date] = { date };
+    dateMap[date].aaii_bullish = item.bullish;
+    dateMap[date].aaii_bearish = item.bearish;
+    dateMap[date].aaii_neutral = item.neutral;
+  });
+  const sentimentChartData = Object.values(dateMap)
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .slice(-30);
+
+  // Latest stats for summary cards
+  const latestFG = fearGreedHistory[0] || {};
+  const latestNAAIM = naaimHistory[0] || {};
+  const latestAAII = aaiiHistory[0] || {};
+
+  // --- Sentiment History Tab ---
+  const SentimentHistoryPanel = () => (
+    <Box>
+      <Grid container spacing={2} mb={2}>
+        <Grid item xs={12} md={4}>
+          <Card>
+            <CardContent>
+              <Typography variant="subtitle2" color="text.secondary">Fear & Greed Index</Typography>
+              <Typography variant="h5" fontWeight={700} color={getChangeColor(latestFG.value)}>
+                {latestFG.value ?? 'N/A'}
+              </Typography>
+              <Typography variant="body2">{latestFG.value_text || ''}</Typography>
+              <Typography variant="caption" color="text.secondary">Measures market sentiment (0=Extreme Fear, 100=Extreme Greed)</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <Card>
+            <CardContent>
+              <Typography variant="subtitle2" color="text.secondary">NAAIM Exposure</Typography>
+              <Typography variant="h5" fontWeight={700} color={getChangeColor(latestNAAIM.mean_exposure)}>
+                {latestNAAIM.mean_exposure ?? latestNAAIM.average ?? 'N/A'}
+              </Typography>
+              <Typography variant="body2">Active manager equity exposure</Typography>
+              <Typography variant="caption" color="text.secondary">0 = fully out, 100 = fully in</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <Card>
+            <CardContent>
+              <Typography variant="subtitle2" color="text.secondary">AAII Sentiment</Typography>
+              <Typography variant="body2">Bullish: <b style={{color:'#10B981'}}>{latestAAII.bullish ?? 'N/A'}%</b> | Neutral: <b style={{color:'#8884d8'}}>{latestAAII.neutral ?? 'N/A'}%</b> | Bearish: <b style={{color:'#DC2626'}}>{latestAAII.bearish ?? 'N/A'}%</b></Typography>
+              <Typography variant="caption" color="text.secondary">% of retail investors bullish, neutral, or bearish</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+      <Card>
+        <CardContent>
+          <Typography variant="h6" mb={2}>Sentiment History (Last 30 Days)</Typography>
+          <ResponsiveContainer width="100%" height={350}>
+            <LineChart data={sentimentChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+              <YAxis yAxisId="left" label={{ value: 'FG/NAAIM', angle: -90, position: 'insideLeft', fontSize: 12 }} />
+              <YAxis yAxisId="right" orientation="right" label={{ value: 'AAII %', angle: 90, position: 'insideRight', fontSize: 12 }} />
+              <Tooltip formatter={(value, name) => [`${value}`, name]} />
+              <Legend verticalAlign="top" height={36} />
+              <Line yAxisId="left" type="monotone" dataKey="fear_greed" name="Fear & Greed" stroke="#FF8042" strokeWidth={2} dot={false} />
+              <Line yAxisId="left" type="monotone" dataKey="naaim" name="NAAIM Exposure" stroke="#0088FE" strokeWidth={2} dot={false} />
+              <Line yAxisId="right" type="monotone" dataKey="aaii_bullish" name="AAII Bullish" stroke="#10B981" strokeWidth={2} dot={false} />
+              <Line yAxisId="right" type="monotone" dataKey="aaii_bearish" name="AAII Bearish" stroke="#DC2626" strokeWidth={2} dot={false} />
+              <Line yAxisId="right" type="monotone" dataKey="aaii_neutral" name="AAII Neutral" stroke="#8884d8" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+    </Box>
+  );
 
   return (
     <Box>
-      {/* Executive Summary & Key Takeaways */}
-      <Card sx={{ mb: 3, p: 2, background: 'linear-gradient(90deg, #f5f7fa 0%, #c3cfe2 100%)', boxShadow: 3 }}>
-        <CardContent>
-          <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={8}>
-              <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
-                Executive Market Summary
-              </Typography>
-              <Typography variant="body1" color="text.secondary">
-                {marketData?.summary || (
-                  <>
-                    Stocks are mixed as investors weigh recent economic data and earnings. Sentiment remains <b>{sentimentIndicators.fear_greed?.value_text || 'neutral'}</b>, with sector rotation favoring <b>{sectors[0]?.sector || 'Technology'}</b>. Watch for upcoming macro events and volatility in global markets.
-                  </>
-                )}
-              </Typography>
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <Typography variant="subtitle2" color="text.secondary">S&P 500</Typography>
-                <Typography variant="h6" color={getChangeColor(marketData?.sp500_change || 0)}>
-                  {marketData?.sp500_level ? formatNumber(marketData.sp500_level) : 'N/A'} ({marketData?.sp500_change ? formatPercentage(marketData.sp500_change) : 'N/A'})
-                </Typography>
-                <Typography variant="subtitle2" color="text.secondary">VIX</Typography>
-                <Typography variant="h6" color={getChangeColor(marketData?.vix_change || 0)}>
-                  {marketData?.vix_level ? marketData.vix_level.toFixed(2) : 'N/A'} ({marketData?.vix_change ? formatPercentage(marketData.vix_change) : 'N/A'})
-                </Typography>
-              </Box>
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
+      <Typography variant="h4" sx={{ mb: 3, fontWeight: 600 }}>
+        Market Overview
+      </Typography>
 
-      {/* Sentiment indicator boxes with icons and color cues */}
+      {/* Debug Info */}
+      <Alert severity="info" sx={{ mb: 2 }}>
+        <Typography variant="body2">
+          API Status: {marketLoading ? 'Loading...' : marketError ? 'Error' : marketData ? 'Connected' : 'Unknown'}<br/>
+          Data Available: {marketData ? 'Yes' : 'No'}<br/>
+          Market Data Keys: {marketData ? Object.keys(marketData).join(', ') : 'None'}<br/>
+          Sentiment Indicators: {marketData?.data?.sentiment_indicators ? 'Available' : 'Missing'}<br/>
+          Market Breadth: {marketData?.data?.market_breadth ? 'Available' : 'Missing'}
+        </Typography>
+      </Alert>
+
+      {marketLoading && <LinearProgress sx={{ mb: 2 }} />}
+
+      {/* Market Sentiment Indicators */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} md={4}>
-          <Card sx={{ borderLeft: '6px solid #1976d2', boxShadow: 2, height: '100%' }}>
+          <Card>
             <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                {getFGIcon(Number(sentimentIndicators.fear_greed?.value))}
-                <Typography variant="h6" sx={{ fontWeight: 700, ml: 1 }}>
-                  Fear & Greed Index
-                </Typography>
-              </Box>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                Fear & Greed Index
+              </Typography>
               {sentimentIndicators.fear_greed ? (
-                <>
-                  <Typography variant="h3" color="primary" sx={{ fontWeight: 700, mb: 1 }}>
-                    {sentimentIndicators.fear_greed.value !== undefined ? Number(sentimentIndicators.fear_greed.value).toFixed(1) : 'N/A'}
+                <Box>
+                  <Typography variant="h3" color="primary" sx={{ mb: 1 }}>
+                    {sentimentIndicators.fear_greed.value}
                   </Typography>
-                  <Chip label={sentimentIndicators.fear_greed.value_text} sx={{ mb: 1 }} />
+                  <Chip 
+                    label={sentimentIndicators.fear_greed.value_text} 
+                    color={
+                      sentimentIndicators.fear_greed.value > 75 ? 'error' :
+                      sentimentIndicators.fear_greed.value > 55 ? 'warning' :
+                      sentimentIndicators.fear_greed.value > 45 ? 'info' :
+                      sentimentIndicators.fear_greed.value > 25 ? 'warning' : 'error'
+                    }
+                    sx={{ mb: 1 }}
+                  />
                   <Typography variant="body2" color="text.secondary">
                     Last updated: {sentimentIndicators.fear_greed.timestamp ? new Date(sentimentIndicators.fear_greed.timestamp).toLocaleDateString() : 'N/A'}
                   </Typography>
-                </>
+                </Box>
               ) : (
                 <Typography variant="body2" color="text.secondary">No data available</Typography>
               )}
@@ -357,23 +390,35 @@ function MarketOverview() {
           </Card>
         </Grid>
         <Grid item xs={12} md={4}>
-          <Card sx={{ borderLeft: '6px solid #43a047', boxShadow: 2, height: '100%' }}>
+          <Card>
             <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                <TrendingUp sx={{ color: '#43a047', fontSize: 32, mr: 1 }} />
-                <Typography variant="h6" sx={{ fontWeight: 700, ml: 1 }}>
-                  AAII Investor Sentiment
-                </Typography>
-              </Box>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                AAII Investor Sentiment
+              </Typography>
               {sentimentIndicators.aaii ? (
-                <>
-                  <Typography variant="body2" color="success.main">Bullish: <b>{sentimentIndicators.aaii.bullish !== undefined ? (Number(sentimentIndicators.aaii.bullish) * 100).toFixed(1) + '%' : 'N/A'}</b></Typography>
-                  <Typography variant="body2" color="info.main">Neutral: <b>{sentimentIndicators.aaii.neutral !== undefined ? (Number(sentimentIndicators.aaii.neutral) * 100).toFixed(1) + '%' : 'N/A'}</b></Typography>
-                  <Typography variant="body2" color="error.main">Bearish: <b>{sentimentIndicators.aaii.bearish !== undefined ? (Number(sentimentIndicators.aaii.bearish) * 100).toFixed(1) + '%' : 'N/A'}</b></Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                    Week ending: {sentimentIndicators.aaii.week_ending ? new Date(sentimentIndicators.aaii.week_ending).toLocaleDateString() : 'N/A'}
+                <Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2">Bullish:</Typography>
+                    <Typography variant="body2" color="success.main">
+                      {sentimentIndicators.aaii.bullish !== undefined ? (sentimentIndicators.aaii.bullish * 100).toFixed(1) + '%' : 'N/A'}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2">Neutral:</Typography>
+                    <Typography variant="body2" color="info.main">
+                      {sentimentIndicators.aaii.neutral !== undefined ? (sentimentIndicators.aaii.neutral * 100).toFixed(1) + '%' : 'N/A'}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2">Bearish:</Typography>
+                    <Typography variant="body2" color="error.main">
+                      {sentimentIndicators.aaii.bearish !== undefined ? (sentimentIndicators.aaii.bearish * 100).toFixed(1) + '%' : 'N/A'}
+                    </Typography>
+                  </Box>
+                  <Typography variant="body2" color="text.secondary">
+                    Week ending: {sentimentIndicators.aaii.date ? new Date(sentimentIndicators.aaii.date).toLocaleDateString() : 'N/A'}
                   </Typography>
-                </>
+                </Box>
               ) : (
                 <Typography variant="body2" color="text.secondary">No data available</Typography>
               )}
@@ -381,23 +426,32 @@ function MarketOverview() {
           </Card>
         </Grid>
         <Grid item xs={12} md={4}>
-          <Card sx={{ borderLeft: '6px solid #8e24aa', boxShadow: 2, height: '100%' }}>
+          <Card>
             <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                <HorizontalRule sx={{ color: '#8e24aa', fontSize: 32, mr: 1 }} />
-                <Typography variant="h6" sx={{ fontWeight: 700, ml: 1 }}>
-                  NAAIM Exposure Index
-                </Typography>
-              </Box>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                NAAIM Exposure Index
+              </Typography>
               {sentimentIndicators.naaim ? (
-                <>
-                  <Typography variant="body2">Average: <b>{sentimentIndicators.naaim.average !== undefined ? Number(sentimentIndicators.naaim.average).toFixed(1) + '%' : 'N/A'}</b></Typography>
-                  <Typography variant="body2">Bullish: <b>{sentimentIndicators.naaim.bullish_8100 !== undefined ? Number(sentimentIndicators.naaim.bullish_8100).toFixed(1) + '%' : 'N/A'}</b></Typography>
-                  <Typography variant="body2">Bearish: <b>{sentimentIndicators.naaim.bearish !== undefined ? Number(sentimentIndicators.naaim.bearish).toFixed(1) + '%' : 'N/A'}</b></Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                <Box>
+                  <Typography variant="h3" color="primary" sx={{ mb: 1 }}>
+                    {sentimentIndicators.naaim.average !== undefined ? sentimentIndicators.naaim.average.toFixed(1) + '%' : 'N/A'}
+                  </Typography>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2">Bullish:</Typography>
+                    <Typography variant="body2" color="success.main">
+                      {sentimentIndicators.naaim.bullish_8100 !== undefined ? sentimentIndicators.naaim.bullish_8100.toFixed(1) + '%' : 'N/A'}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2">Bearish:</Typography>
+                    <Typography variant="body2" color="error.main">
+                      {sentimentIndicators.naaim.bearish !== undefined ? sentimentIndicators.naaim.bearish.toFixed(1) + '%' : 'N/A'}
+                    </Typography>
+                  </Box>
+                  <Typography variant="body2" color="text.secondary">
                     Week ending: {sentimentIndicators.naaim.week_ending ? new Date(sentimentIndicators.naaim.week_ending).toLocaleDateString() : 'N/A'}
                   </Typography>
-                </>
+                </Box>
               ) : (
                 <Typography variant="body2" color="text.secondary">No data available</Typography>
               )}
@@ -405,123 +459,6 @@ function MarketOverview() {
           </Card>
         </Grid>
       </Grid>
-
-      {/* Key Market Movers & Sector Rotation */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={6}>
-          <Card sx={{ height: '100%' }}>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Top Gainers & Losers
-              </Typography>
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Ticker</TableCell>
-                      <TableCell>Change</TableCell>
-                      <TableCell>Sector</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {(marketData?.top_movers || []).slice(0, 5).map((mover, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell>{mover.ticker}</TableCell>
-                        <TableCell sx={{ color: getChangeColor(mover.change) }}>{formatPercentage(mover.change)}</TableCell>
-                        <TableCell>{mover.sector}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={6}>
-          <Card sx={{ height: '100%' }}>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Sector Rotation
-              </Typography>
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={sectorChartData}>
-                  <XAxis dataKey="name" hide />
-                  <YAxis hide />
-                  <Bar dataKey="performance">
-                    {sectorChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-              <Box sx={{ mt: 1 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Leading: <b>{sectorChartData[0]?.name || 'N/A'}</b>
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Lagging: <b>{sectorChartData[sectorChartData.length-1]?.name || 'N/A'}</b>
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* Global Markets Snapshot */}
-      <Card sx={{ mb: 4 }}>
-        <CardContent>
-          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-            Global Markets Snapshot
-          </Typography>
-          <Grid container spacing={2}>
-            {(marketData?.global_indices || [
-              { name: 'S&P 500', value: marketData?.sp500_level, change: marketData?.sp500_change },
-              { name: 'NASDAQ', value: marketData?.nasdaq_level, change: marketData?.nasdaq_change },
-              { name: 'Dow Jones', value: marketData?.dow_level, change: marketData?.dow_change },
-              { name: 'FTSE 100', value: 8200, change: 0.2 },
-              { name: 'DAX', value: 18000, change: -0.1 },
-              { name: 'Nikkei 225', value: 39000, change: 0.3 },
-              { name: 'Hang Seng', value: 18000, change: -0.4 }
-            ]).slice(0, 6).map((idx, i) => (
-              <Grid item xs={6} md={2} key={i}>
-                <Paper sx={{ p: 2, textAlign: 'center', background: '#f8fafc', borderRadius: 2, boxShadow: 1 }}>
-                  <Typography variant="subtitle2">{idx.name}</Typography>
-                  <Typography variant="h6" color={getChangeColor(idx.change)}>
-                    {idx.value ? formatNumber(idx.value) : 'N/A'}
-                  </Typography>
-                  <Typography variant="body2" color={getChangeColor(idx.change)}>
-                    {idx.change ? formatPercentage(idx.change) : 'N/A'}
-                  </Typography>
-                </Paper>
-              </Grid>
-            ))}
-          </Grid>
-        </CardContent>
-      </Card>
-
-      {/* Macro & Event Radar */}
-      <Card sx={{ mb: 4 }}>
-        <CardContent>
-          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-            Macro & Event Radar
-          </Typography>
-          <Grid container spacing={2}>
-            {(marketData?.macro_events || [
-              { date: new Date().toLocaleDateString(), event: 'FOMC Rate Decision', impact: 'High' },
-              { date: new Date(Date.now() + 86400000).toLocaleDateString(), event: 'CPI Release', impact: 'High' },
-              { date: new Date(Date.now() + 2*86400000).toLocaleDateString(), event: 'Jobs Report', impact: 'Medium' }
-            ]).slice(0, 3).map((evt, i) => (
-              <Grid item xs={12} md={4} key={i}>
-                <Paper sx={{ p: 2, background: evt.impact === 'High' ? '#ffe0e0' : '#e0f7fa', borderRadius: 2, boxShadow: 1 }}>
-                  <Typography variant="subtitle2">{evt.event}</Typography>
-                  <Typography variant="body2" color="text.secondary">{evt.date}</Typography>
-                  <Chip label={evt.impact} color={evt.impact === 'High' ? 'error' : 'info'} size="small" sx={{ mt: 1 }} />
-                </Paper>
-              </Grid>
-            ))}
-          </Grid>
-        </CardContent>
-      </Card>
 
       {/* Market Breadth */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
@@ -662,475 +599,36 @@ function MarketOverview() {
         </TabPanel>
 
         <TabPanel value={tabValue} index={1}>
-          <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Typography variant="body2">Range:</Typography>
-            <Chip label="7d" color={sentimentRange === 7 ? 'primary' : 'default'} onClick={() => setSentimentRange(7)} clickable />
-            <Chip label="30d" color={sentimentRange === 30 ? 'primary' : 'default'} onClick={() => setSentimentRange(30)} clickable />
-            <Chip label="90d" color={sentimentRange === 90 ? 'primary' : 'default'} onClick={() => setSentimentRange(90)} clickable />
-          </Box>
-          
           {sentimentLoading ? (
             <LinearProgress />
           ) : (
-            <Box>
-              {/* Fear & Greed Accordion */}
-              <Card sx={{ mb: 2 }}>
-                <Accordion>
-                  <AccordionSummary expandIcon={<ExpandMore />}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                        {getFGIcon(Number(sentimentData?.fear_greed?.current?.index_value))}
-                        <Typography variant="h6" sx={{ fontWeight: 600, ml: 1 }}>
-                          Fear & Greed Index
-                        </Typography>
-                      </Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Typography variant="h4" color="primary" sx={{ fontWeight: 700 }}>
-                          {sentimentData?.fear_greed?.current?.index_value ? 
-                            Number(sentimentData.fear_greed.current.index_value).toFixed(1) : 'N/A'}
-                        </Typography>
-                        <Chip 
-                          label={sentimentData?.fear_greed?.current?.rating || 'N/A'} 
-                          color="primary" 
-                          variant="outlined"
-                        />
-                      </Box>
-                    </Box>
-                  </AccordionSummary>
-                  <AccordionDetails>
-                    <Grid container spacing={3}>
-                      <Grid item xs={12} md={8}>
-                        <Card>
-                          <CardContent>
-                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                              Fear & Greed Index History ({sentimentRange} Days)
-                            </Typography>
-                            <ResponsiveContainer width="100%" height={300}>
-                              <LineChart data={sentimentData?.fear_greed?.history?.map(item => ({
-                                date: new Date(item.date).toLocaleDateString(),
-                                value: item.index_value,
-                                rating: item.rating
-                              })).reverse() || []}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="date" />
-                                <YAxis domain={[0, 100]} />
-                                <Tooltip 
-                                  formatter={(value, name) => [`${value}`, 'Index Value']}
-                                  labelFormatter={(label) => `Date: ${label}`}
-                                />
-                                <Line 
-                                  type="monotone" 
-                                  dataKey="value" 
-                                  stroke="#8884d8" 
-                                  strokeWidth={3}
-                                  dot={{ fill: '#8884d8', strokeWidth: 2, r: 4 }}
-                                />
-                              </LineChart>
-                            </ResponsiveContainer>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                      <Grid item xs={12} md={4}>
-                        <Card>
-                          <CardContent>
-                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                              Current Status
-                            </Typography>
-                            <Box sx={{ mb: 2 }}>
-                              <Typography variant="body2" color="text.secondary">Index Value:</Typography>
-                              <Typography variant="h4" color="primary" fontWeight={700}>
-                                {sentimentData?.fear_greed?.current?.index_value ? 
-                                  Number(sentimentData.fear_greed.current.index_value).toFixed(1) : 'N/A'}
-                              </Typography>
-                            </Box>
-                            <Box sx={{ mb: 2 }}>
-                              <Typography variant="body2" color="text.secondary">Rating:</Typography>
-                              <Chip 
-                                label={sentimentData?.fear_greed?.current?.rating || 'N/A'} 
-                                color="primary"
-                                sx={{ mt: 1 }}
-                              />
-                            </Box>
-                            <Box>
-                              <Typography variant="body2" color="text.secondary">Last Updated:</Typography>
-                              <Typography variant="body2">
-                                {sentimentData?.fear_greed?.current?.date ? 
-                                  new Date(sentimentData.fear_greed.current.date).toLocaleDateString() : 'N/A'}
-                              </Typography>
-                            </Box>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                      <Grid item xs={12}>
-                        <Card>
-                          <CardContent>
-                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                              Historical Data
-                            </Typography>
-                            <TableContainer>
-                              <Table size="small">
-                                <TableHead>
-                                  <TableRow>
-                                    <TableCell>Date</TableCell>
-                                    <TableCell align="right">Index Value</TableCell>
-                                    <TableCell>Rating</TableCell>
-                                  </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                  {sentimentData?.fear_greed?.history?.slice(0, 20).map((item, index) => (
-                                    <TableRow key={index} hover>
-                                      <TableCell>
-                                        {new Date(item.date).toLocaleDateString()}
-                                      </TableCell>
-                                      <TableCell align="right" sx={{ fontWeight: 600 }}>
-                                        {Number(item.index_value).toFixed(1)}
-                                      </TableCell>
-                                      <TableCell>
-                                        <Chip 
-                                          label={item.rating} 
-                                          size="small" 
-                                          variant="outlined"
-                                        />
-                                      </TableCell>
-                                    </TableRow>
-                                  ))}
-                                </TableBody>
-                              </Table>
-                            </TableContainer>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                    </Grid>
-                  </AccordionDetails>
-                </Accordion>
-              </Card>
-
-              {/* AAII Sentiment Accordion */}
-              <Card sx={{ mb: 2 }}>
-                <Accordion>
-                  <AccordionSummary expandIcon={<ExpandMore />}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                        <TrendingUp sx={{ color: '#43a047', fontSize: 32, mr: 1 }} />
-                        <Typography variant="h6" sx={{ fontWeight: 600, ml: 1 }}>
-                          AAII Investor Sentiment
-                        </Typography>
-                      </Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Box sx={{ textAlign: 'center' }}>
-                          <Typography variant="body2" color="success.main">Bullish</Typography>
-                          <Typography variant="h5" color="success.main" fontWeight={700}>
-                            {sentimentData?.aaii?.current?.bullish ? 
-                              (Number(sentimentData.aaii.current.bullish) * 100).toFixed(1) + '%' : 'N/A'}
-                          </Typography>
-                        </Box>
-                        <Box sx={{ textAlign: 'center' }}>
-                          <Typography variant="body2" color="error.main">Bearish</Typography>
-                          <Typography variant="h5" color="error.main" fontWeight={700}>
-                            {sentimentData?.aaii?.current?.bearish ? 
-                              (Number(sentimentData.aaii.current.bearish) * 100).toFixed(1) + '%' : 'N/A'}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </Box>
-                  </AccordionSummary>
-                  <AccordionDetails>
-                    <Grid container spacing={3}>
-                      <Grid item xs={12} md={8}>
-                        <Card>
-                          <CardContent>
-                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                              AAII Sentiment History ({sentimentRange} Days)
-                            </Typography>
-                            <ResponsiveContainer width="100%" height={300}>
-                              <LineChart data={sentimentData?.aaii?.history?.map(item => ({
-                                date: new Date(item.date).toLocaleDateString(),
-                                bullish: Number(item.bullish) * 100,
-                                neutral: Number(item.neutral) * 100,
-                                bearish: Number(item.bearish) * 100
-                              })).reverse() || []}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="date" />
-                                <YAxis domain={[0, 100]} />
-                                <Tooltip 
-                                  formatter={(value, name) => [`${value.toFixed(1)}%`, name]}
-                                  labelFormatter={(label) => `Date: ${label}`}
-                                />
-                                <Legend />
-                                <Line 
-                                  type="monotone" 
-                                  dataKey="bullish" 
-                                  stroke="#43a047" 
-                                  strokeWidth={2}
-                                  name="Bullish"
-                                />
-                                <Line 
-                                  type="monotone" 
-                                  dataKey="neutral" 
-                                  stroke="#ffb300" 
-                                  strokeWidth={2}
-                                  name="Neutral"
-                                />
-                                <Line 
-                                  type="monotone" 
-                                  dataKey="bearish" 
-                                  stroke="#e53935" 
-                                  strokeWidth={2}
-                                  name="Bearish"
-                                />
-                              </LineChart>
-                            </ResponsiveContainer>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                      <Grid item xs={12} md={4}>
-                        <Card>
-                          <CardContent>
-                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                              Current Sentiment
-                            </Typography>
-                            <Box sx={{ mb: 2 }}>
-                              <Typography variant="body2" color="success.main">Bullish:</Typography>
-                              <Typography variant="h5" color="success.main" fontWeight={700}>
-                                {sentimentData?.aaii?.current?.bullish ? 
-                                  (Number(sentimentData.aaii.current.bullish) * 100).toFixed(1) + '%' : 'N/A'}
-                              </Typography>
-                            </Box>
-                            <Box sx={{ mb: 2 }}>
-                              <Typography variant="body2" color="info.main">Neutral:</Typography>
-                              <Typography variant="h5" color="info.main" fontWeight={700}>
-                                {sentimentData?.aaii?.current?.neutral ? 
-                                  (Number(sentimentData.aaii.current.neutral) * 100).toFixed(1) + '%' : 'N/A'}
-                              </Typography>
-                            </Box>
-                            <Box sx={{ mb: 2 }}>
-                              <Typography variant="body2" color="error.main">Bearish:</Typography>
-                              <Typography variant="h5" color="error.main" fontWeight={700}>
-                                {sentimentData?.aaii?.current?.bearish ? 
-                                  (Number(sentimentData.aaii.current.bearish) * 100).toFixed(1) + '%' : 'N/A'}
-                              </Typography>
-                            </Box>
-                            <Box>
-                              <Typography variant="body2" color="text.secondary">Week Ending:</Typography>
-                              <Typography variant="body2">
-                                {sentimentData?.aaii?.current?.date ? 
-                                  new Date(sentimentData.aaii.current.date).toLocaleDateString() : 'N/A'}
-                              </Typography>
-                            </Box>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                      <Grid item xs={12}>
-                        <Card>
-                          <CardContent>
-                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                              Historical Data
-                            </Typography>
-                            <TableContainer>
-                              <Table size="small">
-                                <TableHead>
-                                  <TableRow>
-                                    <TableCell>Date</TableCell>
-                                    <TableCell align="right">Bullish (%)</TableCell>
-                                    <TableCell align="right">Neutral (%)</TableCell>
-                                    <TableCell align="right">Bearish (%)</TableCell>
-                                  </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                  {sentimentData?.aaii?.history?.slice(0, 20).map((item, index) => (
-                                    <TableRow key={index} hover>
-                                      <TableCell>
-                                        {new Date(item.date).toLocaleDateString()}
-                                      </TableCell>
-                                      <TableCell align="right" sx={{ color: 'success.main', fontWeight: 600 }}>
-                                        {(Number(item.bullish) * 100).toFixed(1)}%
-                                      </TableCell>
-                                      <TableCell align="right" sx={{ color: 'info.main', fontWeight: 600 }}>
-                                        {(Number(item.neutral) * 100).toFixed(1)}%
-                                      </TableCell>
-                                      <TableCell align="right" sx={{ color: 'error.main', fontWeight: 600 }}>
-                                        {(Number(item.bearish) * 100).toFixed(1)}%
-                                      </TableCell>
-                                    </TableRow>
-                                  ))}
-                                </TableBody>
-                              </Table>
-                            </TableContainer>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                    </Grid>
-                  </AccordionDetails>
-                </Accordion>
-              </Card>
-
-              {/* NAAIM Exposure Accordion */}
-              <Card sx={{ mb: 2 }}>
-                <Accordion>
-                  <AccordionSummary expandIcon={<ExpandMore />}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                        <HorizontalRule sx={{ color: '#8e24aa', fontSize: 32, mr: 1 }} />
-                        <Typography variant="h6" sx={{ fontWeight: 600, ml: 1 }}>
-                          NAAIM Exposure Index
-                        </Typography>
-                      </Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Box sx={{ textAlign: 'center' }}>
-                          <Typography variant="body2">Average</Typography>
-                          <Typography variant="h5" color="primary" fontWeight={700}>
-                            {sentimentData?.naaim?.current?.mean_exposure ? 
-                              Number(sentimentData.naaim.current.mean_exposure).toFixed(1) + '%' : 'N/A'}
-                          </Typography>
-                        </Box>
-                        <Box sx={{ textAlign: 'center' }}>
-                          <Typography variant="body2" color="success.main">Bullish</Typography>
-                          <Typography variant="h5" color="success.main" fontWeight={700}>
-                            {sentimentData?.naaim?.current?.bullish_exposure ? 
-                              Number(sentimentData.naaim.current.bullish_exposure).toFixed(1) + '%' : 'N/A'}
-                          </Typography>
-                        </Box>
-                        <Box sx={{ textAlign: 'center' }}>
-                          <Typography variant="body2" color="error.main">Bearish</Typography>
-                          <Typography variant="h5" color="error.main" fontWeight={700}>
-                            {sentimentData?.naaim?.current?.bearish_exposure ? 
-                              Number(sentimentData.naaim.current.bearish_exposure).toFixed(1) + '%' : 'N/A'}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </Box>
-                  </AccordionSummary>
-                  <AccordionDetails>
-                    <Grid container spacing={3}>
-                      <Grid item xs={12} md={8}>
-                        <Card>
-                          <CardContent>
-                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                              NAAIM Exposure History ({sentimentRange} Days)
-                            </Typography>
-                            <ResponsiveContainer width="100%" height={300}>
-                              <LineChart data={sentimentData?.naaim?.history?.map(item => ({
-                                date: new Date(item.date).toLocaleDateString(),
-                                average: Number(item.mean_exposure),
-                                bullish: Number(item.bullish_exposure),
-                                bearish: Number(item.bearish_exposure)
-                              })).reverse() || []}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="date" />
-                                <YAxis />
-                                <Tooltip 
-                                  formatter={(value, name) => [`${value.toFixed(1)}%`, name]}
-                                  labelFormatter={(label) => `Date: ${label}`}
-                                />
-                                <Legend />
-                                <Line 
-                                  type="monotone" 
-                                  dataKey="average" 
-                                  stroke="#1976d2" 
-                                  strokeWidth={3}
-                                  name="Average Exposure"
-                                  dot={{ fill: '#1976d2', strokeWidth: 2, r: 4 }}
-                                />
-                                <Line 
-                                  type="monotone" 
-                                  dataKey="bullish" 
-                                  stroke="#43a047" 
-                                  strokeWidth={2}
-                                  name="Bullish Exposure"
-                                />
-                                <Line 
-                                  type="monotone" 
-                                  dataKey="bearish" 
-                                  stroke="#e53935" 
-                                  strokeWidth={2}
-                                  name="Bearish Exposure"
-                                />
-                              </LineChart>
-                            </ResponsiveContainer>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                      <Grid item xs={12} md={4}>
-                        <Card>
-                          <CardContent>
-                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                              Current Exposure
-                            </Typography>
-                            <Box sx={{ mb: 2 }}>
-                              <Typography variant="body2">Average Exposure:</Typography>
-                              <Typography variant="h5" color="primary" fontWeight={700}>
-                                {sentimentData?.naaim?.current?.mean_exposure ? 
-                                  Number(sentimentData.naaim.current.mean_exposure).toFixed(1) + '%' : 'N/A'}
-                              </Typography>
-                            </Box>
-                            <Box sx={{ mb: 2 }}>
-                              <Typography variant="body2" color="success.main">Bullish Exposure:</Typography>
-                              <Typography variant="h5" color="success.main" fontWeight={700}>
-                                {sentimentData?.naaim?.current?.bullish_exposure ? 
-                                  Number(sentimentData.naaim.current.bullish_exposure).toFixed(1) + '%' : 'N/A'}
-                              </Typography>
-                            </Box>
-                            <Box sx={{ mb: 2 }}>
-                              <Typography variant="body2" color="error.main">Bearish Exposure:</Typography>
-                              <Typography variant="h5" color="error.main" fontWeight={700}>
-                                {sentimentData?.naaim?.current?.bearish_exposure ? 
-                                  Number(sentimentData.naaim.current.bearish_exposure).toFixed(1) + '%' : 'N/A'}
-                              </Typography>
-                            </Box>
-                            <Box>
-                              <Typography variant="body2" color="text.secondary">Week Ending:</Typography>
-                              <Typography variant="body2">
-                                {sentimentData?.naaim?.current?.date ? 
-                                  new Date(sentimentData.naaim.current.date).toLocaleDateString() : 'N/A'}
-                              </Typography>
-                            </Box>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                      <Grid item xs={12}>
-                        <Card>
-                          <CardContent>
-                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                              Historical Data
-                            </Typography>
-                            <TableContainer>
-                              <Table size="small">
-                                <TableHead>
-                                  <TableRow>
-                                    <TableCell>Date</TableCell>
-                                    <TableCell align="right">Average (%)</TableCell>
-                                    <TableCell align="right">Bullish (%)</TableCell>
-                                    <TableCell align="right">Bearish (%)</TableCell>
-                                  </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                  {sentimentData?.naaim?.history?.slice(0, 20).map((item, index) => (
-                                    <TableRow key={index} hover>
-                                      <TableCell>
-                                        {new Date(item.date).toLocaleDateString()}
-                                      </TableCell>
-                                      <TableCell align="right" sx={{ fontWeight: 600 }}>
-                                        {Number(item.mean_exposure).toFixed(1)}%
-                                      </TableCell>
-                                      <TableCell align="right" sx={{ color: 'success.main', fontWeight: 600 }}>
-                                        {Number(item.bullish_exposure).toFixed(1)}%
-                                      </TableCell>
-                                      <TableCell align="right" sx={{ color: 'error.main', fontWeight: 600 }}>
-                                        {Number(item.bearish_exposure).toFixed(1)}%
-                                      </TableCell>
-                                    </TableRow>
-                                  ))}
-                                </TableBody>
-                              </Table>
-                            </TableContainer>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                    </Grid>
-                  </AccordionDetails>
-                </Accordion>
-              </Card>
-            </Box>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  Fear & Greed Index History (30 Days)
+                </Typography>
+                <ResponsiveContainer width="100%" height={400}>
+                  <LineChart data={sentimentChartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis domain={[0, 100]} />
+                    <Tooltip 
+                      formatter={(value, name, props) => [
+                        `${value} (${props.payload.text})`,
+                        'Fear & Greed Index'
+                      ]}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="value" 
+                      stroke="#8884d8" 
+                      strokeWidth={2}
+                      dot={{ r: 4 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
           )}
         </TabPanel>
 
@@ -1293,412 +791,58 @@ function MarketOverview() {
         </TabPanel>
 
         <TabPanel value={tabValue} index={4}>
-          <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Typography variant="body2">Range:</Typography>
-            <Chip label="30d" color={econRange === 30 ? 'primary' : 'default'} onClick={() => setEconRange(30)} clickable />
-            <Chip label="90d" color={econRange === 90 ? 'primary' : 'default'} onClick={() => setEconRange(90)} clickable />
-            <Chip label="180d" color={econRange === 180 ? 'primary' : 'default'} onClick={() => setEconRange(180)} clickable />
-          </Box>
-          
-          {/* Debug Information */}
-          {process.env.NODE_ENV === 'development' && economicData && (
-            <Alert severity="info" sx={{ mb: 2 }}>
-              <Typography variant="body2">
-                <strong>Debug Info:</strong> Found {economicData.data?.length || 0} economic indicators
-              </Typography>
-              <Typography variant="caption" display="block">
-                Available series: {economicData.data?.map(i => i.series_id).join(', ') || 'None'}
-              </Typography>
-            </Alert>
-          )}
-          
           {economicLoading ? (
             <LinearProgress />
           ) : (
-            <Box>
-              {/* Economic Indicators Summary Cards */}
-              <Grid container spacing={3} sx={{ mb: 3 }}>
-                {/* Inflation Summary */}
-                <Grid item xs={12} md={6} lg={3}>
-                  <Card sx={{ 
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    color: 'white',
-                    boxShadow: 3
-                  }}>
-                    <CardContent>
-                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                        <TrendingUp sx={{ mr: 1 }} />
-                        <Typography variant="h6" fontWeight={600}>Inflation</Typography>
-                      </Box>
-                      {(() => {
-                        const cpi = economicData?.data?.find(i => 
-                          i.name?.toLowerCase().includes('cpi') ||
-                          i.series_id?.toLowerCase().includes('cpi') ||
-                          i.series_id === 'CPI' ||
-                          i.series_id === 'CPILFESL'
-                        );
-                        const value = cpi?.value || 'N/A';
-                        const change = parseFloat(cpi?.change_percent) || 0;
-                        const trend = change > 0 ? 'Rising' : change < 0 ? 'Falling' : 'Stable';
-                        const impact = change > 2 ? 'Bearish' : change < 1 ? 'Bullish' : 'Neutral';
-                        
-                        return (
-                          <>
-                            <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>
-                              {value}
-                            </Typography>
-                            <Typography variant="body2" sx={{ mb: 1 }}>
-                              {trend} ({change > 0 ? '+' : ''}{change.toFixed(2)}%)
-                            </Typography>
-                            <Chip 
-                              label={impact} 
-                              size="small" 
-                              sx={{ 
-                                bgcolor: impact === 'Bullish' ? 'success.main' : 
-                                         impact === 'Bearish' ? 'error.main' : 'grey.500',
-                                color: 'white'
-                              }}
-                            />
-                          </>
-                        );
-                      })()}
-                    </CardContent>
-                  </Card>
-                </Grid>
-
-                {/* Employment Summary */}
-                <Grid item xs={12} md={6} lg={3}>
-                  <Card sx={{ 
-                    background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                    color: 'white',
-                    boxShadow: 3
-                  }}>
-                    <CardContent>
-                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                        <Business sx={{ mr: 1 }} />
-                        <Typography variant="h6" fontWeight={600}>Employment</Typography>
-                      </Box>
-                      {(() => {
-                        const unemployment = economicData?.data?.find(i => 
-                          i.name?.toLowerCase().includes('unemployment') ||
-                          i.series_id?.toLowerCase().includes('unemployment') ||
-                          i.series_id === 'UNRATE' ||
-                          i.series_id === 'NFP'
-                        );
-                        const value = unemployment?.value || 'N/A';
-                        const change = parseFloat(unemployment?.change_percent) || 0;
-                        const trend = change > 0 ? 'Rising' : change < 0 ? 'Falling' : 'Stable';
-                        const impact = change > 0 ? 'Bearish' : change < 0 ? 'Bullish' : 'Neutral';
-                        
-                        return (
-                          <>
-                            <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>
-                              {value}%
-                            </Typography>
-                            <Typography variant="body2" sx={{ mb: 1 }}>
-                              {trend} ({change > 0 ? '+' : ''}{change.toFixed(2)}%)
-                            </Typography>
-                            <Chip 
-                              label={impact} 
-                              size="small" 
-                              sx={{ 
-                                bgcolor: impact === 'Bullish' ? 'success.main' : 
-                                         impact === 'Bearish' ? 'error.main' : 'grey.500',
-                                color: 'white'
-                              }}
-                            />
-                          </>
-                        );
-                      })()}
-                    </CardContent>
-                  </Card>
-                </Grid>
-
-                {/* Growth Summary */}
-                <Grid item xs={12} md={6} lg={3}>
-                  <Card sx={{ 
-                    background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-                    color: 'white',
-                    boxShadow: 3
-                  }}>
-                    <CardContent>
-                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                        <ShowChart sx={{ mr: 1 }} />
-                        <Typography variant="h6" fontWeight={600}>Growth</Typography>
-                      </Box>
-                      {(() => {
-                        const gdp = economicData?.data?.find(i => 
-                          i.name?.toLowerCase().includes('gdp') ||
-                          i.series_id?.toLowerCase().includes('gdp') ||
-                          i.series_id === 'GDP' ||
-                          i.series_id === 'GDPC1'
-                        );
-                        const value = gdp?.value || 'N/A';
-                        const change = parseFloat(gdp?.change_percent) || 0;
-                        const trend = change > 0 ? 'Expanding' : change < 0 ? 'Contracting' : 'Stable';
-                        const impact = change > 2 ? 'Bullish' : change < 0 ? 'Bearish' : 'Neutral';
-                        
-                        return (
-                          <>
-                            <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>
-                              {value}%
-                            </Typography>
-                            <Typography variant="body2" sx={{ mb: 1 }}>
-                              {trend} ({change > 0 ? '+' : ''}{change.toFixed(2)}%)
-                            </Typography>
-                            <Chip 
-                              label={impact} 
-                              size="small" 
-                              sx={{ 
-                                bgcolor: impact === 'Bullish' ? 'success.main' : 
-                                         impact === 'Bearish' ? 'error.main' : 'grey.500',
-                                color: 'white'
-                              }}
-                            />
-                          </>
-                        );
-                      })()}
-                    </CardContent>
-                  </Card>
-                </Grid>
-
-                {/* Monetary Policy Summary */}
-                <Grid item xs={12} md={6} lg={3}>
-                  <Card sx={{ 
-                    background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-                    color: 'white',
-                    boxShadow: 3
-                  }}>
-                    <CardContent>
-                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                        <AccountBalance sx={{ mr: 1 }} />
-                        <Typography variant="h6" fontWeight={600}>Fed Policy</Typography>
-                      </Box>
-                      {(() => {
-                        const fedRate = economicData?.data?.find(i => 
-                          i.name?.toLowerCase().includes('federal funds') ||
-                          i.series_id?.toLowerCase().includes('fedfunds') ||
-                          i.series_id === 'FEDFUNDS' ||
-                          i.series_id === 'DGS10'
-                        );
-                        const value = fedRate?.value || 'N/A';
-                        const change = parseFloat(fedRate?.change_percent) || 0;
-                        const trend = change > 0 ? 'Tightening' : change < 0 ? 'Easing' : 'Stable';
-                        const impact = change > 0 ? 'Bearish' : change < 0 ? 'Bullish' : 'Neutral';
-                        
-                        return (
-                          <>
-                            <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>
-                              {value}%
-                            </Typography>
-                            <Typography variant="body2" sx={{ mb: 1 }}>
-                              {trend} ({change > 0 ? '+' : ''}{change.toFixed(2)}%)
-                            </Typography>
-                            <Chip 
-                              label={impact} 
-                              size="small" 
-                              sx={{ 
-                                bgcolor: impact === 'Bullish' ? 'success.main' : 
-                                         impact === 'Bearish' ? 'error.main' : 'grey.500',
-                                color: 'white'
-                              }}
-                            />
-                          </>
-                        );
-                      })()}
-                    </CardContent>
-                  </Card>
-                </Grid>
-              </Grid>
-
-              {/* Fallback: Show Available Indicators if Specific Ones Not Found */}
-              {economicData?.data && economicData.data.length > 0 && (
-                (() => {
-                  const hasSpecificIndicators = economicData.data.some(i => 
-                    ['CPI', 'CPILFESL', 'UNRATE', 'NFP', 'GDP', 'GDPC1', 'FEDFUNDS', 'DGS10'].includes(i.series_id)
-                  );
-                  
-                  if (!hasSpecificIndicators) {
-                    return (
-                      <Card sx={{ mb: 3 }}>
-                        <CardContent>
-                          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                            Available Economic Indicators
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                            Specific indicators (CPI, Unemployment, GDP, Fed Rate) not found. Showing available data:
-                          </Typography>
-                          <Grid container spacing={2}>
-                            {economicData.data.slice(0, 8).map((indicator, index) => (
-                              <Grid item xs={12} sm={6} md={3} key={index}>
-                                <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-                                  <Typography variant="subtitle2" fontWeight={600}>
-                                    {indicator.name || indicator.series_id}
-                                  </Typography>
-                                  <Typography variant="h6" color="primary">
-                                    {indicator.value} {indicator.unit}
-                                  </Typography>
-                                  <Typography variant="caption" color="text.secondary">
-                                    {indicator.category}
-                                  </Typography>
-                                </Box>
-                              </Grid>
-                            ))}
-                          </Grid>
-                        </CardContent>
-                      </Card>
-                    );
-                  }
-                  return null;
-                })()
-              )}
-
-              {/* Market Impact Analysis */}
-              <Card sx={{ mb: 3 }}>
-                <CardContent>
-                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                    Market Impact Analysis
-                  </Typography>
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} md={6}>
-                      <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
-                        <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
-                          Current Economic Environment
-                        </Typography>
-                        {(() => {
-                          const indicators = economicData?.data || [];
-                          const bullishCount = indicators.filter(i => parseFloat(i.change_percent) < 0).length;
-                          const bearishCount = indicators.filter(i => parseFloat(i.change_percent) > 2).length;
-                          const neutralCount = indicators.length - bullishCount - bearishCount;
-                          
-                          return (
-                            <>
-                              <Typography variant="body2" sx={{ mb: 1 }}>
-                                Based on {indicators.length} key indicators:
-                              </Typography>
-                              <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                                <Chip label={`${bullishCount} Bullish`} size="small" color="success" />
-                                <Chip label={`${neutralCount} Neutral`} size="small" color="default" />
-                                <Chip label={`${bearishCount} Bearish`} size="small" color="error" />
-                              </Box>
-                              <Typography variant="body2" color="text.secondary">
-                                {bullishCount > bearishCount ? 'Overall economic conditions favor risk assets' :
-                                 bearishCount > bullishCount ? 'Economic headwinds suggest defensive positioning' :
-                                 'Mixed signals - selective opportunities likely'}
-                              </Typography>
-                            </>
-                          );
-                        })()}
-                      </Box>
-                    </Grid>
-                    <Grid item xs={12} md={6}>
-                      <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
-                        <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
-                          Key Insights
-                        </Typography>
-                        <Box component="ul" sx={{ pl: 2, m: 0 }}>
-                          <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
-                            Inflation trends suggest {(() => {
-                              const cpi = economicData?.data?.find(i => i.name?.toLowerCase().includes('cpi'));
-                              return parseFloat(cpi?.change_percent) > 2 ? 'continued pressure on growth stocks' : 'supportive environment for equities';
-                            })()}
-                          </Typography>
-                          <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
-                            Employment data indicates {(() => {
-                              const unemployment = economicData?.data?.find(i => i.name?.toLowerCase().includes('unemployment'));
-                              return parseFloat(unemployment?.change_percent) > 0 ? 'potential economic slowdown' : 'resilient consumer spending';
-                            })()}
-                          </Typography>
-                          <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
-                            Fed policy stance is {(() => {
-                              const fedRate = economicData?.data?.find(i => i.name?.toLowerCase().includes('federal funds'));
-                              return parseFloat(fedRate?.change_percent) > 0 ? 'restrictive - favor defensive sectors' : 'accommodative - growth opportunities';
-                            })()}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </Grid>
-                  </Grid>
-                </CardContent>
-              </Card>
-
-              {/* Detailed Data Section - Collapsible */}
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                      Detailed Economic Data
+            <Grid container spacing={3}>
+              <Grid item xs={12}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                      Economic Indicators (Last 90 Days)
                     </Typography>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      onClick={() => setShowDetailedEcon(!showDetailedEcon)}
-                      endIcon={showDetailedEcon ? <ExpandLess /> : <ExpandMore />}
-                    >
-                      {showDetailedEcon ? 'Hide Details' : 'View All Data'}
-                    </Button>
-                  </Box>
-                  
-                  {showDetailedEcon && (
-                    <>
-                      {economicData?.data && economicData.data.length > 0 ? (
-                        <TableContainer>
-                          <Table size="small">
-                            <TableHead>
-                              <TableRow sx={{ backgroundColor: 'grey.50' }}>
-                                <TableCell sx={{ fontWeight: 600 }}>Category</TableCell>
-                                <TableCell sx={{ fontWeight: 600 }}>Indicator</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 600 }}>Current Value</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 600 }}>Previous Value</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 600 }}>Change</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 600 }}>Date</TableCell>
-                              </TableRow>
-                            </TableHead>
-                            <TableBody>
-                              {economicData.data.sort((a, b) => (a.category || '').localeCompare(b.category || '')).map((indicator, index) => (
-                                <TableRow key={index} hover>
-                                  <TableCell>{indicator.category || 'Other'}</TableCell>
-                                  <TableCell>
-                                    <Tooltip title={indicator.description || ''} arrow>
-                                      <span>{indicator.name || indicator.series_id || 'N/A'}</span>
-                                    </Tooltip>
-                                  </TableCell>
-                                  <TableCell align="right">
-                                    {indicator.value !== null && indicator.value !== undefined ? `${indicator.value} ${indicator.unit}` : 'N/A'}
-                                  </TableCell>
-                                  <TableCell align="right">
-                                    {indicator.previous_value !== null && indicator.previous_value !== undefined ? `${indicator.previous_value} ${indicator.unit}` : 'N/A'}
-                                  </TableCell>
-                                  <TableCell 
-                                    align="right"
-                                    sx={{ color: getChangeColor(parseFloat(indicator.change_percent) || 0), fontWeight: 600 }}
-                                  >
-                                    {indicator.change_percent !== null && indicator.change_percent !== undefined ? `${parseFloat(indicator.change_percent).toFixed(2)}%` : 'N/A'}
-                                  </TableCell>
-                                  <TableCell align="right">
-                                    {indicator.timestamp ? new Date(indicator.timestamp).toLocaleDateString() : 'N/A'}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </TableContainer>
-                      ) : (
-                        <Box sx={{ textAlign: 'center', py: 4 }}>
-                          <Typography variant="body1" color="text.secondary">
-                            No economic data available for the selected time period.
-                          </Typography>
-                        </Box>
-                      )}
-                    </>
-                  )}
-                  
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
-                    Last updated: {economicData?.data?.[0]?.timestamp ? new Date(economicData.data[0].timestamp).toLocaleString() : 'N/A'}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Box>
+                    <TableContainer>
+                      <Table>
+                        <TableHead>
+                          <TableRow sx={{ backgroundColor: 'grey.50' }}>
+                            <TableCell sx={{ fontWeight: 600 }}>Indicator</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 600 }}>Current Value</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 600 }}>Previous Value</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 600 }}>Change</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 600 }}>Date</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {economicData?.data?.slice(0, 10).map((indicator, index) => (
+                            <TableRow key={index} hover>
+                              <TableCell>{indicator.name || 'N/A'}</TableCell>
+                              <TableCell align="right">
+                                {indicator.value} {indicator.unit}
+                              </TableCell>
+                              <TableCell align="right">
+                                {indicator.previous_value || 'N/A'} {indicator.unit}
+                              </TableCell>
+                              <TableCell 
+                                align="right"
+                                sx={{ 
+                                  color: getChangeColor(parseFloat(indicator.change_percent) || 0),
+                                  fontWeight: 600
+                                }}
+                              >
+                                {indicator.change_percent ? formatPercentage(parseFloat(indicator.change_percent)) : 'N/A'}
+                              </TableCell>
+                              <TableCell align="right">
+                                {indicator.timestamp ? new Date(indicator.timestamp).toLocaleDateString() : 'N/A'}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
           )}
         </TabPanel>
       </Card>
