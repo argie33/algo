@@ -269,6 +269,38 @@ router.get('/economic', async (req, res) => {
   }
 });
 
+// Get economic data (for DataValidation page - matches frontend expectation)
+router.get('/economic/data', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+    console.log(`Economic data endpoint called with limit: ${limit}`);
+    
+    const economicQuery = `
+      SELECT series_id, date, value
+      FROM economic_data 
+      ORDER BY date DESC, series_id ASC
+      LIMIT $1
+    `;
+    
+    const result = await query(economicQuery, [limit]);
+    
+    res.json({
+      data: result.rows,
+      count: result.rows.length,
+      limit: limit,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error fetching economic data:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch economic data',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Get NAAIM exposure data
 router.get('/naaim', async (req, res) => {
   try {
@@ -276,12 +308,10 @@ router.get('/naaim', async (req, res) => {
     const naaimQuery = `
       SELECT 
         date,
-        mean_exposure,
-        bearish_exposure,
-        bullish_exposure,
-        exposure_deviation,
-        fetched_at
-      FROM naaim_exposure
+        naaim_number_mean,
+        bearish,
+        bullish
+      FROM naaim
       ORDER BY date DESC
       LIMIT $1
     `;

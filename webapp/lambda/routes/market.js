@@ -34,7 +34,7 @@ router.get('/debug', async (req, res) => {
           let latestQuery;          if (table === 'fear_greed_index') {
             latestQuery = `SELECT index_value, rating, date FROM ${table} ORDER BY date DESC LIMIT 1`;
           } else if (table === 'naaim') {
-            latestQuery = `SELECT naaim_number_mean, bearish, bullish, date FROM ${table} ORDER BY date DESC LIMIT 1`;
+            latestQuery = `SELECT naaim_number_mean as mean_exposure, bearish as bearish_exposure, bullish as bullish_exposure, date FROM ${table} ORDER BY date DESC LIMIT 1`;
           } else if (table === 'aaii_sentiment') {
             latestQuery = `SELECT bullish, neutral, bearish, date FROM ${table} ORDER BY date DESC LIMIT 1`;
           } else {
@@ -176,7 +176,7 @@ router.get('/overview', async (req, res) => {
 
     if (tableExists['naaim']) {
       const naaimQuery = `
-        SELECT naaim_number_mean, bearish, bullish, date
+        SELECT naaim_number_mean as mean_exposure, bearish as bearish_exposure, bullish as bullish_exposure, date
         FROM naaim 
         ORDER BY date DESC 
         LIMIT 1
@@ -244,9 +244,9 @@ router.get('/overview', async (req, res) => {
     function mapNaaim(row) {
       if (!row) return null;
       return {
-        average: row.naaim_number_mean,
-        bullish_8100: row.bullish,
-        bearish: row.bearish,
+        average: row.mean_exposure,
+        bullish_8100: row.bullish_exposure,
+        bearish: row.bearish_exposure,
         week_ending: row.date
       };
     }
@@ -392,7 +392,7 @@ router.get('/sentiment/history', async (req, res) => {
     `;
 
     const currentNaaimQuery = `
-      SELECT naaim_number_mean, bearish, bullish, date
+      SELECT naaim_number_mean as mean_exposure, bearish as bearish_exposure, bullish as bullish_exposure, date
       FROM naaim 
       ORDER BY date DESC 
       LIMIT 1
@@ -415,7 +415,7 @@ router.get('/sentiment/history', async (req, res) => {
     `;
 
     const naaimQuery = `
-      SELECT naaim_number_mean, bearish, bullish, date
+      SELECT naaim_number_mean as mean_exposure, bearish as bearish_exposure, bullish as bullish_exposure, date
       FROM naaim 
       WHERE date >= NOW() - INTERVAL '${days} days'
       ORDER BY date DESC
@@ -731,6 +731,102 @@ router.get('/economic', async (req, res) => {
     console.error('Error fetching economic indicators:', error);
     res.status(500).json({ 
       error: 'Failed to fetch economic indicators',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Get NAAIM data (for DataValidation page)
+router.get('/naaim', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+    console.log(`NAAIM data endpoint called with limit: ${limit}`);
+    
+    const naaimQuery = `
+      SELECT naaim_number_mean, bearish, bullish, date
+      FROM naaim 
+      ORDER BY date DESC 
+      LIMIT $1
+    `;
+    
+    const result = await query(naaimQuery, [limit]);
+    
+    res.json({
+      data: result.rows,
+      count: result.rows.length,
+      limit: limit,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error fetching NAAIM data:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch NAAIM data',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Get fear & greed data (for DataValidation page)
+router.get('/fear-greed', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+    console.log(`Fear & Greed data endpoint called with limit: ${limit}`);
+    
+    const fearGreedQuery = `
+      SELECT index_value, rating, date
+      FROM fear_greed_index 
+      ORDER BY date DESC 
+      LIMIT $1
+    `;
+    
+    const result = await query(fearGreedQuery, [limit]);
+    
+    res.json({
+      data: result.rows,
+      count: result.rows.length,
+      limit: limit,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error fetching fear & greed data:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch fear & greed data',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Get economic data (for DataValidation page)
+router.get('/economic', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+    console.log(`Economic data endpoint called with limit: ${limit}`);
+    
+    const economicQuery = `
+      SELECT series_id, date, value
+      FROM economic_data 
+      ORDER BY date DESC, series_id ASC
+      LIMIT $1
+    `;
+    
+    const result = await query(economicQuery, [limit]);
+    
+    res.json({
+      data: result.rows,
+      count: result.rows.length,
+      limit: limit,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error fetching economic data:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch economic data',
       details: error.message,
       timestamp: new Date().toISOString()
     });
