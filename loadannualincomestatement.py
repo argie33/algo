@@ -75,9 +75,11 @@ def load_annual_income_statement(symbols, cur, conn):
         log_mem(f"Batch {batch_idx+1} start")
 
         for yq_sym, orig_sym in mapping.items():
+            income_statement = None
             for attempt in range(1, MAX_BATCH_RETRIES+1):
                 try:
                     ticker = yf.Ticker(yq_sym)
+                    # Use the correct YFinance API method for annual income statement
                     income_statement = ticker.financials
                     if income_statement is None or income_statement.empty:
                         raise ValueError("No annual income statement data received")
@@ -89,11 +91,14 @@ def load_annual_income_statement(symbols, cur, conn):
                         continue
                     time.sleep(RETRY_DELAY)
             
+            if income_statement is None:
+                continue
+                
             try:
                 # Convert DataFrame to list of tuples for insertion
                 income_statement_data = []
                 for date in income_statement.columns:
-                    row_data = [orig_sym, date.date()]
+                    row_data = [orig_sym, date.date() if hasattr(date, 'date') else date]
                     for metric in income_statement.index:
                         value = income_statement.loc[metric, date]
                         if pd.isna(value) or value is None:
@@ -189,7 +194,6 @@ if __name__ == "__main__":
             "Reconciled Depreciation" DOUBLE PRECISION,
             "Net Income From Continuing And Discontinued Operation" DOUBLE PRECISION,
             "Total Expenses" DOUBLE PRECISION,
-            "Net Income Continuous Operations" DOUBLE PRECISION,
             "Total Revenue As Reported" DOUBLE PRECISION,
             "Operating Revenue" DOUBLE PRECISION,
             "Operating Income Loss" DOUBLE PRECISION,

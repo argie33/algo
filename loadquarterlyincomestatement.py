@@ -75,9 +75,11 @@ def load_quarterly_income_statement(symbols, cur, conn):
         log_mem(f"Batch {batch_idx+1} start")
 
         for yq_sym, orig_sym in mapping.items():
+            income_statement = None
             for attempt in range(1, MAX_BATCH_RETRIES+1):
                 try:
                     ticker = yf.Ticker(yq_sym)
+                    # Use the correct YFinance API method for quarterly income statement
                     income_statement = ticker.quarterly_financials
                     if income_statement is None or income_statement.empty:
                         raise ValueError("No quarterly income statement data received")
@@ -89,6 +91,9 @@ def load_quarterly_income_statement(symbols, cur, conn):
                         continue
                     time.sleep(RETRY_DELAY)
             
+            if income_statement is None:
+                continue
+                
             try:
                 # Convert DataFrame to list of tuples for insertion
                 income_statement_data = []

@@ -75,10 +75,11 @@ def load_ttm_income_statement(symbols, cur, conn):
         log_mem(f"Batch {batch_idx+1} start")
 
         for yq_sym, orig_sym in mapping.items():
+            income_statement = None
             for attempt in range(1, MAX_BATCH_RETRIES+1):
                 try:
                     ticker = yf.Ticker(yq_sym)
-                    # For TTM, we'll use the most recent quarterly data as TTM
+                    # Use the correct YFinance API method for quarterly income statement
                     income_statement = ticker.quarterly_financials
                     if income_statement is None or income_statement.empty:
                         raise ValueError("No TTM income statement data received")
@@ -90,6 +91,9 @@ def load_ttm_income_statement(symbols, cur, conn):
                         continue
                     time.sleep(RETRY_DELAY)
             
+            if income_statement is None:
+                continue
+                
             try:
                 # For TTM, sum the last 4 quarters
                 if income_statement.shape[1] >= 4:

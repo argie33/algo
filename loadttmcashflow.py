@@ -75,9 +75,11 @@ def load_ttm_cash_flow(symbols, cur, conn):
         log_mem(f"Batch {batch_idx+1} start")
 
         for yq_sym, orig_sym in mapping.items():
+            cash_flow = None
             for attempt in range(1, MAX_BATCH_RETRIES+1):
                 try:
                     ticker = yf.Ticker(yq_sym)
+                    # Use the correct YFinance API method for quarterly cash flow
                     cash_flow = ticker.quarterly_cashflow
                     if cash_flow is None or cash_flow.empty:
                         raise ValueError("No TTM cash flow data received")
@@ -89,45 +91,69 @@ def load_ttm_cash_flow(symbols, cur, conn):
                         continue
                     time.sleep(RETRY_DELAY)
             
+            if cash_flow is None:
+                continue
+                
             try:
+                # For TTM, sum the last 4 quarters
                 if cash_flow.shape[1] >= 4:
                     ttm_data = cash_flow.iloc[:, :4].sum(axis=1)
                     latest_date = cash_flow.columns[0]
-                    row_data = [orig_sym, pd.Timestamp(latest_date).date()]
-                    for metric in cash_flow.index:
-                        value = ttm_data[metric]
-                        if pd.isna(value) or value is None:
-                            row_data.append(None)
-                        else:
-                            row_data.append(float(value))
-                    columns = ['symbol', 'date'] + list(cash_flow.index.astype(str))
-                    placeholders = ', '.join(['%s'] * len(columns))
-                    column_names = ', '.join(columns)
-                    insert_sql = f"""
-                        INSERT INTO ttm_cash_flow ({column_names})
-                        VALUES ({placeholders})
-                        ON CONFLICT (symbol, date) DO UPDATE SET
-                    """
-                    update_parts = []
-                    for col in columns[2:]:
-                        update_parts.append(f"{col} = EXCLUDED.{col}")
-                    insert_sql += ', '.join(update_parts)
-                    cur.execute(insert_sql, row_data)
-                    conn.commit()
-                    processed += 1
-                    logging.info(f"Successfully processed TTM cash flow for {orig_sym}")
+                else:
+                    # Use whatever data we have
+                    ttm_data = cash_flow.iloc[:, 0]
+                    latest_date = cash_flow.columns[0]
+                
+                row_data = [orig_sym, latest_date.date() if hasattr(latest_date, 'date') else latest_date]
+                for metric in cash_flow.index:
+                    value = ttm_data[metric]
+                    if pd.isna(value) or value is None:
+                        row_data.append(None)
+                    else:
+                        row_data.append(float(value))
+                
+                # Get column names for the table
+                columns = ['symbol', 'date'] + list(cash_flow.index.astype(str))
+                placeholders = ', '.join(['%s'] * len(columns))
+                column_names = ', '.join(columns)
+                
+                # Build the INSERT statement dynamically
+                insert_sql = f"""
+                    INSERT INTO ttm_cash_flow ({column_names})
+                    VALUES ({placeholders})
+                    ON CONFLICT (symbol, date) DO UPDATE SET
+                """
+                
+                # Build the UPDATE part dynamically
+                update_parts = []
+                for col in columns[2:]:  # Skip symbol and date
+                    update_parts.append(f"{col} = EXCLUDED.{col}")
+                insert_sql += ', '.join(update_parts)
+                
+                cur.execute(insert_sql, row_data)
+                conn.commit()
+                processed += 1
+                logging.info(f"Successfully processed TTM cash flow for {orig_sym}")
+
             except Exception as e:
                 logging.error(f"Failed to process TTM cash flow for {orig_sym}: {str(e)}")
                 failed.append(orig_sym)
                 conn.rollback()
+
         del batch, yq_batch, mapping
         gc.collect()
         log_mem(f"Batch {batch_idx+1} end")
         time.sleep(PAUSE)
+
     return total, processed, failed
 
+# -------------------------------
+# Entrypoint
+# -------------------------------
 if __name__ == "__main__":
     log_mem("startup")
+
+    # Connect to DB
     cfg = get_db_config()
     conn = psycopg2.connect(
         host=cfg["host"], port=cfg["port"],
@@ -136,6 +162,8 @@ if __name__ == "__main__":
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    # Create TTM cash flow table
     logging.info("Creating TTM cash flow table...")
     cur.execute("""
         DROP TABLE IF EXISTS ttm_cash_flow CASCADE;
@@ -198,12 +226,18 @@ if __name__ == "__main__":
     cur.execute(create_table_sql)
     conn.commit()
     logging.info("Created TTM cash flow table with predefined structure")
+
+    # Load stock symbols
     cur.execute("SELECT symbol FROM stock_symbols;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
     t_s, p_s, f_s = load_ttm_cash_flow(stock_syms, cur, conn)
+
+    # Load ETF symbols
     cur.execute("SELECT symbol FROM etf_symbols;")
     etf_syms = [r["symbol"] for r in cur.fetchall()]
     t_e, p_e, f_e = load_ttm_cash_flow(etf_syms, cur, conn)
+
+    # Record last run
     cur.execute("""
         INSERT INTO last_updated (script_name, last_run)
         VALUES (%s, NOW())
@@ -211,10 +245,12 @@ if __name__ == "__main__":
             SET last_run = EXCLUDED.last_run;
     """, (SCRIPT_NAME,))
     conn.commit()
+
     peak = get_rss_mb()
     logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
     logging.info(f"Stocks — total: {t_s}, processed: {p_s}, failed: {len(f_s)}")
     logging.info(f"ETFs   — total: {t_e}, processed: {p_e}, failed: {len(f_e)}")
+
     cur.close()
     conn.close()
     logging.info("All done.") 

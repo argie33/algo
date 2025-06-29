@@ -75,9 +75,11 @@ def load_quarterly_balance_sheet(symbols, cur, conn):
         log_mem(f"Batch {batch_idx+1} start")
 
         for yq_sym, orig_sym in mapping.items():
+            balance_sheet = None
             for attempt in range(1, MAX_BATCH_RETRIES+1):
                 try:
                     ticker = yf.Ticker(yq_sym)
+                    # Use the correct YFinance API method for quarterly balance sheet
                     balance_sheet = ticker.quarterly_balance_sheet
                     if balance_sheet is None or balance_sheet.empty:
                         raise ValueError("No quarterly balance sheet data received")
@@ -89,6 +91,9 @@ def load_quarterly_balance_sheet(symbols, cur, conn):
                         continue
                     time.sleep(RETRY_DELAY)
             
+            if balance_sheet is None:
+                continue
+                
             try:
                 # Convert DataFrame to list of tuples for insertion
                 balance_sheet_data = []

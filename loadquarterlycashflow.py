@@ -75,9 +75,11 @@ def load_quarterly_cash_flow(symbols, cur, conn):
         log_mem(f"Batch {batch_idx+1} start")
 
         for yq_sym, orig_sym in mapping.items():
+            cash_flow = None
             for attempt in range(1, MAX_BATCH_RETRIES+1):
                 try:
                     ticker = yf.Ticker(yq_sym)
+                    # Use the correct YFinance API method for quarterly cash flow
                     cash_flow = ticker.quarterly_cashflow
                     if cash_flow is None or cash_flow.empty:
                         raise ValueError("No quarterly cash flow data received")
@@ -89,6 +91,9 @@ def load_quarterly_cash_flow(symbols, cur, conn):
                         continue
                     time.sleep(RETRY_DELAY)
             
+            if cash_flow is None:
+                continue
+                
             try:
                 # Convert DataFrame to list of tuples for insertion
                 cash_flow_data = []

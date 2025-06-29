@@ -75,10 +75,12 @@ def load_annual_balance_sheet(symbols, cur, conn):
         log_mem(f"Batch {batch_idx+1} start")
 
         for yq_sym, orig_sym in mapping.items():
+            annual_balance_sheet = None
             for attempt in range(1, MAX_BATCH_RETRIES+1):
                 try:
                     ticker = yf.Ticker(yq_sym)
-                    annual_balance_sheet = ticker.annual_balance_sheet
+                    # Use the correct YFinance API method for annual balance sheet
+                    annual_balance_sheet = ticker.balance_sheet
                     if annual_balance_sheet is None or annual_balance_sheet.empty:
                         raise ValueError("No annual balance sheet data received")
                     break
@@ -89,6 +91,9 @@ def load_annual_balance_sheet(symbols, cur, conn):
                         continue
                     time.sleep(RETRY_DELAY)
             
+            if annual_balance_sheet is None:
+                continue
+                
             try:
                 # Convert DataFrame to list of tuples for insertion
                 annual_balance_sheet_data = []

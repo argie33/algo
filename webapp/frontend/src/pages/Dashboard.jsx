@@ -88,7 +88,7 @@ function useUser() {
   return useQuery({
     queryKey: ['dashboard-user'],
     queryFn: async () => {
-      const response = await api.get('/dashboard/user');
+      const response = await api.get('/api/dashboard/user');
       return response.data;
     },
     staleTime: 5 * 60 * 1000
@@ -102,7 +102,7 @@ function useWatchlist() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-watchlist'],
     queryFn: async () => {
-      const response = await api.get('/dashboard/watchlist');
+      const response = await api.get('/api/dashboard/watchlist');
       return response.data;
     },
     staleTime: 5 * 60 * 1000
@@ -110,7 +110,7 @@ function useWatchlist() {
 
   const addSymbol = useMutation({
     mutationFn: async (symbol) => {
-      const response = await api.post('/dashboard/watchlist', { symbol });
+      const response = await api.post('/api/dashboard/watchlist', { symbol });
       return response.data;
     },
     onSuccess: () => {
@@ -120,7 +120,7 @@ function useWatchlist() {
 
   const removeSymbol = useMutation({
     mutationFn: async (symbol) => {
-      const response = await api.delete('/dashboard/watchlist', { data: { symbol } });
+      const response = await api.delete('/api/dashboard/watchlist', { data: { symbol } });
       return response.data;
     },
     onSuccess: () => {
@@ -144,7 +144,7 @@ function usePortfolio() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-portfolio'],
     queryFn: async () => {
-      const response = await api.get('/dashboard/portfolio');
+      const response = await api.get('/api/dashboard/portfolio');
       return response.data;
     },
     staleTime: 5 * 60 * 1000
@@ -152,7 +152,7 @@ function usePortfolio() {
 
   const updatePositions = useMutation({
     mutationFn: async (positions) => {
-      const response = await api.post('/dashboard/portfolio', { positions });
+      const response = await api.post('/api/dashboard/portfolio', { positions });
       return response.data;
     },
     onSuccess: () => {
@@ -173,7 +173,7 @@ function usePortfolioMetrics() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-portfolio-metrics'],
     queryFn: async () => {
-      const response = await api.get('/dashboard/portfolio/metrics');
+      const response = await api.get('/api/dashboard/portfolio/metrics');
       return response.data;
     },
     staleTime: 5 * 60 * 1000
@@ -191,7 +191,7 @@ function useHoldings() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-holdings'],
     queryFn: async () => {
-      const response = await api.get('/dashboard/holdings');
+      const response = await api.get('/api/dashboard/holdings');
       return response.data;
     },
     staleTime: 5 * 60 * 1000
