@@ -1,5 +1,0 @@
-FROM public.ecr.aws/lambda/python:3.11
-COPY requirements-loadttmcashflow.txt ./
-RUN pip install -r requirements-loadttmcashflow.txt
-COPY loadttmcashflow.py ./
-CMD ["loadttmcashflow.py"] 

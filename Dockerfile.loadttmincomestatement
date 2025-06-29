@@ -1,5 +1,0 @@
-FROM public.ecr.aws/lambda/python:3.11
-COPY requirements-loadttmincomestatement.txt ./
-RUN pip install -r requirements-loadttmincomestatement.txt
-COPY loadttmincomestatement.py ./
-CMD ["loadttmincomestatement.py"] 

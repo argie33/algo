@@ -1,5 +1,0 @@
-FROM public.ecr.aws/lambda/python:3.11
-COPY requirements-loadquarterlybalancesheet.txt ./
-RUN pip install -r requirements-loadquarterlybalancesheet.txt
-COPY loadquarterlybalancesheet.py ./
-CMD ["loadquarterlybalancesheet.py"] 

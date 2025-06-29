@@ -1,5 +1,0 @@
-FROM public.ecr.aws/lambda/python:3.11
-COPY requirements-loadannualincomestatement.txt ./
-RUN pip install -r requirements-loadannualincomestatement.txt
-COPY loadannualincomestatement.py ./
-CMD ["loadannualincomestatement.py"] 
