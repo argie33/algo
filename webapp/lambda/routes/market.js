@@ -8,17 +8,12 @@ router.get('/debug', async (req, res) => {
   // console.log('Market debug endpoint called');
   
   try {
-    const db = await getDatabase();
-    if (!db) {
-      return res.status(503).json({ error: 'Database unavailable' });
-    }
-
     // Check table existence
     const tables = ['market_data', 'economic_data', 'fear_greed_index', 'naaim'];
     const tableStatus = {};
 
     for (const table of tables) {
-      const tableExists = await db.query(`
+      const tableExists = await query(`
         SELECT EXISTS (
           SELECT FROM information_schema.tables 
           WHERE table_schema = 'public' 
@@ -45,11 +40,6 @@ router.get('/test', async (req, res) => {
   // console.log('Market test endpoint called');
   
   try {
-    const db = await getDatabase();
-    if (!db) {
-      return res.status(503).json({ error: 'Database unavailable' });
-    }
-
     // Test market data table
     const marketDataQuery = `
       SELECT 
@@ -63,7 +53,7 @@ router.get('/test', async (req, res) => {
 
     let marketData = null;
     try {
-      const marketResult = await db.query(marketDataQuery);
+      const marketResult = await query(marketDataQuery);
       marketData = marketResult.rows[0];
     } catch (e) {
       marketData = { error: e.message };
@@ -81,7 +71,7 @@ router.get('/test', async (req, res) => {
 
     let economicData = null;
     try {
-      const economicResult = await db.query(economicDataQuery);
+      const economicResult = await query(economicDataQuery);
       economicData = economicResult.rows[0];
     } catch (e) {
       economicData = { error: e.message };
@@ -112,13 +102,8 @@ router.get('/overview', async (req, res) => {
   // console.log('Market overview endpoint called');
   
   try {
-    const db = await getDatabase();
-    if (!db) {
-      return res.status(503).json({ error: 'Database unavailable' });
-    }
-
     // Check if market_data table exists
-    const tableExists = await db.query(`
+    const tableExists = await query(`
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public' 
@@ -152,7 +137,7 @@ router.get('/overview', async (req, res) => {
       LIMIT 50
     `;
 
-    const result = await db.query(overviewQuery);
+    const result = await query(overviewQuery);
 
     res.json({
       data: result.rows,
@@ -172,11 +157,6 @@ router.get('/sentiment/history', async (req, res) => {
   // console.log(`Sentiment history endpoint called for ${days} days`);
   
   try {
-    const db = await getDatabase();
-    if (!db) {
-      return res.status(503).json({ error: 'Database unavailable' });
-    }
-
     // Get fear & greed data
     const fearGreedQuery = `
       SELECT 
@@ -191,7 +171,7 @@ router.get('/sentiment/history', async (req, res) => {
 
     let fearGreedData = [];
     try {
-      const fearGreedResult = await db.query(fearGreedQuery);
+      const fearGreedResult = await query(fearGreedQuery);
       fearGreedData = fearGreedResult.rows;
     } catch (e) {
       // Table might not exist
@@ -212,16 +192,19 @@ router.get('/sentiment/history', async (req, res) => {
 
     let naaimData = [];
     try {
-      const naaimResult = await db.query(naaimQuery);
+      const naaimResult = await query(naaimQuery);
       naaimData = naaimResult.rows;
     } catch (e) {
       // Table might not exist
     }
 
     res.json({
-      fear_greed: fearGreedData,
-      naaim: naaimData,
-      days: parseInt(days)
+      data: {
+        fear_greed: fearGreedData,
+        naaim: naaimData
+      },
+      count: fearGreedData.length + naaimData.length,
+      period_days: days
     });
   } catch (error) {
     console.error('Error fetching sentiment history:', error);
@@ -234,11 +217,6 @@ router.get('/sectors/performance', async (req, res) => {
   // console.log('Sector performance endpoint called');
   
   try {
-    const db = await getDatabase();
-    if (!db) {
-      return res.status(503).json({ error: 'Database unavailable' });
-    }
-
     // Get sector performance data
     const sectorQuery = `
       SELECT 
@@ -256,7 +234,7 @@ router.get('/sectors/performance', async (req, res) => {
       LIMIT 20
     `;
 
-    const result = await db.query(sectorQuery);
+    const result = await query(sectorQuery);
 
     res.json({
       data: result.rows,
@@ -273,11 +251,6 @@ router.get('/breadth', async (req, res) => {
   // console.log('Market breadth endpoint called');
   
   try {
-    const db = await getDatabase();
-    if (!db) {
-      return res.status(503).json({ error: 'Database unavailable' });
-    }
-
     // Get market breadth data
     const breadthQuery = `
       SELECT 
@@ -293,7 +266,7 @@ router.get('/breadth', async (req, res) => {
       WHERE date = (SELECT MAX(date) FROM market_data)
     `;
 
-    const result = await db.query(breadthQuery);
+    const result = await query(breadthQuery);
     const breadth = result.rows[0];
 
     res.json({
@@ -314,19 +287,14 @@ router.get('/breadth', async (req, res) => {
 });
 
 // Get economic indicators
-router.get('/economic/indicators', async (req, res) => {
+router.get('/economic', async (req, res) => {
   const { days = 90 } = req.query;
   
   // console.log(`Economic indicators endpoint called for ${days} days`);
   
   try {
-    const db = await getDatabase();
-    if (!db) {
-      return res.status(503).json({ error: 'Database unavailable' });
-    }
-
     // Check if economic_data table exists
-    const tableExists = await db.query(`
+    const tableExists = await query(`
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public' 
@@ -357,7 +325,7 @@ router.get('/economic/indicators', async (req, res) => {
       LIMIT 500
     `;
 
-    const result = await db.query(economicQuery);
+    const result = await query(economicQuery);
     // console.log(`Found ${result.rows.length} economic data points`);
 
     // Group by indicator
@@ -393,12 +361,7 @@ router.get('/naaim', async (req, res) => {
   // console.log(`NAAIM data endpoint called with limit: ${limit}`);
   
   try {
-    const db = await getDatabase();
-    if (!db) {
-      return res.status(503).json({ error: 'Database unavailable' });
-    }
-
-    const query = `
+    const naaimQuery = `
       SELECT 
         date,
         exposure_index,
@@ -409,7 +372,7 @@ router.get('/naaim', async (req, res) => {
       LIMIT $1
     `;
 
-    const result = await db.query(query, [parseInt(limit)]);
+    const result = await query(naaimQuery, [parseInt(limit)]);
 
     res.json({
       data: result.rows,
@@ -428,12 +391,7 @@ router.get('/fear-greed', async (req, res) => {
   // console.log(`Fear & Greed data endpoint called with limit: ${limit}`);
   
   try {
-    const db = await getDatabase();
-    if (!db) {
-      return res.status(503).json({ error: 'Database unavailable' });
-    }
-
-    const query = `
+    const fearGreedQuery = `
       SELECT 
         date,
         value,
@@ -443,51 +401,15 @@ router.get('/fear-greed', async (req, res) => {
       LIMIT $1
     `;
 
-    const result = await db.query(query, [parseInt(limit)]);
+    const result = await query(fearGreedQuery, [parseInt(limit)]);
 
     res.json({
       data: result.rows,
       count: result.rows.length
     });
   } catch (error) {
-    console.error('Error fetching Fear & Greed data:', error);
-    res.status(500).json({ error: 'Failed to fetch Fear & Greed data' });
-  }
-});
-
-// Get economic data (for DataValidation page)
-router.get('/economic', async (req, res) => {
-  const { limit = 30 } = req.query;
-  
-  // console.log(`Economic data endpoint called with limit: ${limit}`);
-  
-  try {
-    const db = await getDatabase();
-    if (!db) {
-      return res.status(503).json({ error: 'Database unavailable' });
-    }
-
-    const query = `
-      SELECT 
-        date,
-        indicator_name,
-        value,
-        unit,
-        frequency
-      FROM economic_data
-      ORDER BY date DESC, indicator_name
-      LIMIT $1
-    `;
-
-    const result = await db.query(query, [parseInt(limit)]);
-
-    res.json({
-      data: result.rows,
-      count: result.rows.length
-    });
-  } catch (error) {
-    console.error('Error fetching economic data:', error);
-    res.status(500).json({ error: 'Failed to fetch economic data' });
+    console.error('Error fetching fear & greed data:', error);
+    res.status(500).json({ error: 'Failed to fetch fear & greed data' });
   }
 });
 

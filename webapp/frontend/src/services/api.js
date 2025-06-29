@@ -121,11 +121,21 @@ function handleApiError(error, context = '') {
   return message;
 }
 
-// Helper to normalize API responses - return Axios response.data directly
+// Helper to normalize API responses - handle backend response format properly
 function normalizeApiResponse(response, expectArray = true) {
   console.log('normalizeApiResponse input:', response);
-  if (response && response.data) return response.data;
-  return expectArray ? [] : {};
+  
+  if (!response || !response.data) {
+    return expectArray ? [] : {};
+  }
+  
+  // If the response.data has a 'data' property, return that (backend format)
+  if (response.data && typeof response.data === 'object' && 'data' in response.data) {
+    return response.data.data;
+  }
+  
+  // Otherwise return the response.data directly
+  return response.data;
 }
 
 // --- PATCH: Log API config at startup ---
@@ -181,7 +191,7 @@ export const getMarketBreadth = async () => {
 export const getEconomicIndicators = async (days = 90) => {
   try {
     const response = await api.get(`/api/market/economic?days=${days}`)
-    return response.data
+    return normalizeApiResponse(response, true) // Expect array of economic indicators
   } catch (error) {
     const errorMessage = handleApiError(error, 'get economic indicators')
     console.error('Error fetching economic indicators:', error)
@@ -211,7 +221,7 @@ export const getStocks = async (params = {}) => {
     const response = await api.get(url, {
       baseURL: currentConfig.baseURL
     });
-    return response.data
+    return normalizeApiResponse(response, true) // Expect array of stocks
   } catch (error) {
     console.error('Error fetching stocks:', error)
     const errorMessage = handleApiError(error, 'get stocks')
@@ -438,7 +448,7 @@ export const screenStocks = async (params) => {
     const response = await api.get(url, {
       baseURL: currentConfig.baseURL
     })
-    return response.data
+    return normalizeApiResponse(response, true) // Expect array of stocks
   } catch (error) {
     console.error('Error screening stocks:', error)
     const errorMessage = handleApiError(error, 'screen stocks')
@@ -699,7 +709,7 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
       }
     })
     const response = await api.get(`/api/technical/${timeframe}?${queryParams.toString()}`)
-    return response.data
+    return normalizeApiResponse(response, true) // Expect array of technical data
   } catch (error) {
     console.error('Error in getTechnicalData:', error)
     const errorMessage = handleApiError(error, 'get technical data')
@@ -974,7 +984,7 @@ export const getStockPriceHistory = async (ticker, limit = 90) => {
     console.log(`BULLETPROOF: Fetching price history for ${ticker} with limit ${limit}`);
     const response = await api.get(`/api/stocks/price-history/${ticker}?limit=${limit}`)
     console.log(`BULLETPROOF: Price history response received for ${ticker}:`, response.data);
-    return response.data
+    return normalizeApiResponse(response, true) // Expect array of price data
   } catch (error) {
     console.error('BULLETPROOF: Error fetching stock price history:', error)
     throw error
@@ -984,7 +994,7 @@ export const getStockPriceHistory = async (ticker, limit = 90) => {
 export const getRecentAnalystActions = async (limit = 10) => {
   try {
     const response = await api.get(`/api/analysts/recent-actions?limit=${limit}`)
-    return response.data
+    return normalizeApiResponse(response, true) // Expect array of analyst actions
   } catch (error) {
     const errorMessage = handleApiError(error, 'get recent analyst actions')
     return { 

@@ -24,11 +24,6 @@ router.get('/:timeframe', async (req, res) => {
   }
 
   try {
-    const db = await getDatabase();
-    if (!db) {
-      return res.status(503).json({ error: 'Database unavailable' });
-    }
-
     const offset = (parseInt(page) - 1) * parseInt(limit);
     const maxLimit = Math.min(parseInt(limit), 200);
 
@@ -42,8 +37,6 @@ router.get('/:timeframe', async (req, res) => {
       whereClause += ` AND symbol = $${paramIndex}`;
       params.push(symbol.toUpperCase());
       paramIndex++;
-    } else {
-      // console.log('[DEBUG] No symbol filter provided');
     }
 
     // Date filters
@@ -51,14 +44,12 @@ router.get('/:timeframe', async (req, res) => {
       whereClause += ` AND date >= $${paramIndex}`;
       params.push(start_date);
       paramIndex++;
-      // console.log(`[DEBUG] Start date filter: ${req.query.start_date}`);
     }
 
     if (end_date) {
       whereClause += ` AND date <= $${paramIndex}`;
       params.push(end_date);
       paramIndex++;
-      // console.log(`[DEBUG] End date filter: ${req.query.end_date}`);
     }
 
     // Technical indicator filters
@@ -66,7 +57,6 @@ router.get('/:timeframe', async (req, res) => {
       whereClause += ` AND rsi >= $${paramIndex}`;
       params.push(parseFloat(rsi_min));
       paramIndex++;
-      // console.log(`[DEBUG] Indicator min filter: ${indicator} >= ${indicatorMin}`);
     }
 
     if (rsi_max !== undefined && rsi_max !== '') {
@@ -99,14 +89,11 @@ router.get('/:timeframe', async (req, res) => {
       paramIndex++;
     }
 
-    // console.log('[DEBUG] Using whereClause:', whereClause, 'params:', params);
-
     // Determine table name based on timeframe
     const tableName = `technical_data_${timeframe}`;
-    // console.log('[DEBUG] Using tableName:', tableName);
 
     // Check if table exists
-    const tableExists = await db.query(`
+    const tableExists = await query(`
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public' 
@@ -127,7 +114,7 @@ router.get('/:timeframe', async (req, res) => {
       FROM ${tableName}
       ${whereClause}
     `;
-    const countResult = await db.query(countQuery, params);
+    const countResult = await query(countQuery, params);
     const total = parseInt(countResult.rows[0].total);
 
     // Get technical data
@@ -219,26 +206,19 @@ router.get('/:timeframe', async (req, res) => {
         williams_alligator_jaw,
         williams_alligator_teeth,
         williams_alligator_lips,
-        williams_fractal_bearish,
-        williams_fractal_bullish,
-        zero_lag_exponential_moving_average
+        williams_fractal_high,
+        williams_fractal_low,
+        zigzag
       FROM ${tableName}
       ${whereClause}
-      ORDER BY date DESC, symbol ASC
+      ORDER BY date DESC, symbol
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
-    // console.log('[DEBUG] Executing queries with limit:', limit, 'offset:', offset);
-    // console.log('[DEBUG] Final SQL Query:', dataQuery);
-    // console.log('[DEBUG] Query Parameters:', [...params, limit, offset]);
+    const finalParams = [...params, maxLimit, offset];
+    const dataResult = await query(dataQuery, finalParams);
 
-    const dataResult = await db.query(dataQuery, [...params, maxLimit, offset]);
-
-    // console.log('[DEBUG] Query results - data:', dataResult.rows.length, 'total:', countResult.rows[0].total);
-    
-    if (dataResult.rows.length > 0) {
-      // console.log('[DEBUG] Sample data row:', dataResult.rows[0]);
-    }
+    const totalPages = Math.ceil(total / maxLimit);
 
     res.json({
       data: dataResult.rows,
@@ -246,27 +226,23 @@ router.get('/:timeframe', async (req, res) => {
         page: parseInt(page),
         limit: maxLimit,
         total,
-        pages: Math.ceil(total / maxLimit)
-      },
-      filters: {
-        timeframe,
-        symbol: symbol || null,
-        start_date: start_date || null,
-        end_date: end_date || null,
-        rsi_range: rsi_min && rsi_max ? [rsi_min, rsi_max] : null,
-        macd_range: macd_min && macd_max ? [macd_min, macd_max] : null,
-        sma_range: sma_min && sma_max ? [sma_min, sma_max] : null
+        totalPages,
+        hasNext: parseInt(page) < totalPages,
+        hasPrev: parseInt(page) > 1
       },
       metadata: {
-        table: tableName,
         timeframe,
-        totalRecords: total,
-        showingRecords: dataResult.rows.length,
-        availableIndicators: [
-          'rsi', 'macd', 'sma_20', 'sma_50', 'ema_12', 'ema_26',
-          'bollinger_upper', 'bollinger_lower', 'stochastic_k', 'stochastic_d',
-          'williams_r', 'cci', 'adx', 'atr', 'obv', 'mfi', 'roc', 'momentum'
-        ]
+        filters: {
+          symbol: symbol || null,
+          start_date: start_date || null,
+          end_date: end_date || null,
+          rsi_min: rsi_min || null,
+          rsi_max: rsi_max || null,
+          macd_min: macd_min || null,
+          macd_max: macd_max || null,
+          sma_min: sma_min || null,
+          sma_max: sma_max || null
+        }
       }
     });
   } catch (error) {
@@ -282,15 +258,10 @@ router.get('/:timeframe/summary', async (req, res) => {
   // console.log(`Technical summary endpoint called for timeframe: ${timeframe}`);
 
   try {
-    const db = await getDatabase();
-    if (!db) {
-      return res.status(503).json({ error: 'Database unavailable' });
-    }
-
     const tableName = `technical_data_${timeframe}`;
 
     // Check if table exists
-    const tableExists = await db.query(`
+    const tableExists = await query(`
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public' 
@@ -319,7 +290,7 @@ router.get('/:timeframe/summary', async (req, res) => {
       WHERE rsi IS NOT NULL OR macd IS NOT NULL
     `;
 
-    const summaryResult = await db.query(summaryQuery);
+    const summaryResult = await query(summaryQuery);
     const summary = summaryResult.rows[0];
 
     // Get top symbols by record count
@@ -331,7 +302,7 @@ router.get('/:timeframe/summary', async (req, res) => {
       LIMIT 10
     `;
 
-    const topSymbolsResult = await db.query(topSymbolsQuery);
+    const topSymbolsResult = await query(topSymbolsQuery);
 
     res.json({
       timeframe,
