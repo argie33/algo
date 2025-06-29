@@ -14,8 +14,8 @@ let initPromise = null;
 // Database configuration cache
 let dbConfig = null;
 
-console.log('*** DATABASE.JS PATCHED VERSION RUNNING - v2.1.0 ***');
-console.log('*** CONFIG SCOPE FIX APPLIED - ' + new Date().toISOString() + ' ***');
+// console.log('*** DATABASE.JS PATCHED VERSION RUNNING - v2.1.0 ***');
+// console.log('*** CONFIG SCOPE FIX APPLIED - ' + new Date().toISOString() + ' ***');
 
 /**
  * Get database configuration from AWS Secrets Manager
@@ -26,7 +26,7 @@ async function getDbConfig() {
     }
 
     try {
-        console.log('Getting DB credentials from Secrets Manager...');
+        // console.log('Getting DB credentials from Secrets Manager...');
         const secretArn = process.env.DB_SECRET_ARN;
         if (!secretArn) {
             throw new Error('DB_SECRET_ARN environment variable not set');
@@ -52,7 +52,7 @@ async function getDbConfig() {
             }
         };
         
-        console.log(`Database config loaded: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`);
+        // console.log(`Database config loaded: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`);
         return dbConfig;
     } catch (error) {
         console.error('Error getting DB config:', error);
@@ -70,7 +70,7 @@ async function initializeDatabase() {
     initPromise = (async () => {
         let config = null;
         try {
-            console.log('Initializing database connection pool...');
+            // console.log('Initializing database connection pool...');
             config = await getDbConfig();
             if (!config) {
                 throw new Error('Database configuration could not be loaded. Check DB_SECRET_ARN and AWS Secrets Manager.');
@@ -80,7 +80,7 @@ async function initializeDatabase() {
             await client.query('SELECT NOW()');
             client.release();
             dbInitialized = true;
-            console.log('✅ Database connection pool initialized successfully');
+            // console.log('✅ Database connection pool initialized successfully');
             pool.on('error', (err) => {
                 console.error('Database pool error:', err);
                 dbInitialized = false;
@@ -131,7 +131,7 @@ async function query(text, params = []) {
     try {
         // Ensure database is initialized
         if (!dbInitialized || !pool) {
-            console.log('Database not initialized, initializing now...');
+            // console.log('Database not initialized, initializing now...');
             await initializeDatabase();
         }
         
@@ -139,10 +139,13 @@ async function query(text, params = []) {
         const result = await pool.query(text, params);
         const duration = Date.now() - start;
         
-        console.log(`Query executed in ${duration}ms`, {
-            rows: result.rowCount,
-            query: text.slice(0, 100) + (text.length > 100 ? '...' : '')
-        });
+        // Only log slow queries (> 1000ms) or errors
+        if (duration > 1000) {
+            // console.log(`Query executed in ${duration}ms`, {
+            //     rows: result.rowCount,
+            //     query: text.slice(0, 100) + (text.length > 100 ? '...' : '')
+            // });
+        }
         
         return result;
     } catch (error) {
@@ -179,12 +182,12 @@ async function transaction(callback) {
  */
 async function closeDatabase() {
     if (pool) {
-        console.log('Closing database connections...');
+        // console.log('Closing database connections...');
         await pool.end();
         pool = null;
         dbInitialized = false;
         dbConfig = null;
-        console.log('Database connections closed');
+        // console.log('Database connections closed');
     }
 }
 

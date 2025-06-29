@@ -21,14 +21,6 @@ export const getApiConfig = () => {
 // Create API instance that can be updated
 let currentConfig = getApiConfig()
 
-console.log('API Configuration:', {
-  baseURL: currentConfig.baseURL,
-  isServerless: currentConfig.isServerless,
-  hostname: typeof window !== 'undefined' ? window.location.hostname : 'SSR',
-  viteMode: import.meta.env.MODE,
-  apiUrl: currentConfig.apiUrl
-})
-
 // Warn if API URL is fallback (localhost)
 if (!currentConfig.apiUrl || currentConfig.apiUrl.includes('localhost')) {
   console.warn('[API CONFIG] Using fallback API URL:', currentConfig.baseURL + '\nSet window.__CONFIG__.API_URL at runtime or VITE_API_URL at build time to override.')
@@ -54,7 +46,6 @@ export const getCurrentBaseURL = () => {
 export const updateApiBaseUrl = (newUrl) => {
   currentConfig = { ...currentConfig, baseURL: newUrl, apiUrl: newUrl }
   api.defaults.baseURL = newUrl
-  console.log('API base URL updated to:', newUrl)
 }
 
 // Retry configuration for Lambda cold starts
@@ -72,8 +63,6 @@ const retryRequest = async (error) => {
       (error.response && error.response.status >= 500)) {
     
     const delay = Math.pow(2, requestConfig.retryCount) * 1000 // Exponential backoff
-    console.log(`Retrying request (attempt ${requestConfig.retryCount}) after ${delay}ms...`)
-    
     await new Promise(resolve => setTimeout(resolve, delay))
     return api(requestConfig)
   }
@@ -85,8 +74,6 @@ const retryRequest = async (error) => {
 api.interceptors.request.use(
   (config) => {
     const fullUrl = `${config.baseURL || api.defaults.baseURL}${config.url}`
-    console.log(`[API REQUEST] ${config.method?.toUpperCase()} ${fullUrl}`)
-      // Add headers for Lambda optimization
     if (config.isServerless) {
       config.headers['X-Lambda-Request'] = 'true'
       config.headers['X-Request-Time'] = new Date().toISOString()
@@ -104,12 +91,10 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => {
     const fullUrl = `${response.config.baseURL || api.defaults.baseURL}${response.config.url}`
-    console.log(`[API RESPONSE] ${response.status} from ${fullUrl}`, response.data)
-    // Log Lambda execution details if available
     if (response.headers['x-amzn-requestid']) {
-      console.log(`✅ Lambda Request ID: ${response.headers['x-amzn-requestid']}`)
+      // console.log(`✅ Lambda Request ID: ${response.headers['x-amzn-requestid']}`)
     }
-    console.log(`✅ API Response: ${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`)
+    // console.log(`✅ API Response: ${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`)
     return response
   },
   async (error) => {
@@ -175,28 +160,18 @@ function handleApiError(error, context = '') {
 
 // Helper to normalize API responses - return Axios response.data directly
 function normalizeApiResponse(response, expectArray = true) {
-  console.log('normalizeApiResponse input:', response)
-  
-  // If response is null or undefined, return appropriate default
   if (response == null) {
-    console.log('normalizeApiResponse: null/undefined input, returning default')
     return expectArray ? [] : {};
   }
 
-  // If response is an Axios response object, extract the data directly
   if (response && typeof response === 'object' && 'data' in response && ('status' in response || 'headers' in response)) {
-    console.log('normalizeApiResponse: Axios response detected, returning data directly:', response.data)
     return response.data;
   }
 
-  // If response is already the data (not an Axios response), return as-is
   if (Array.isArray(response) || (typeof response === 'object' && !('status' in response) && !('headers' in response))) {
-    console.log('normalizeApiResponse: direct data, returning as-is')
     return response;
   }
 
-  // Fallback to appropriate default
-  console.log('normalizeApiResponse: fallback to default')
   return expectArray ? [] : {};
 }
 
@@ -207,10 +182,7 @@ export const getMarketOverview = async () => {
     const response = await api.get('/market/overview', {
       baseURL: currentConfig.baseURL
     })
-    console.log('Market overview raw response:', response)
-    console.log('Market overview response data:', response.data)
     const normalized = normalizeApiResponse(response, false) // Market overview is an object
-    console.log('Market overview normalized:', normalized)
     return normalized
   } catch (error) {
     console.error('Error fetching market overview:', error)
@@ -252,10 +224,6 @@ export const getMarketBreadth = async () => {
 export const getEconomicIndicators = async (days = 90) => {
   try {
     const response = await api.get(`/market/economic?days=${days}`)
-    console.log('Economic indicators response:', response.data)
-    
-    // The backend returns { data: [...], period_days: ..., total_data_points: ... }
-    // We want to return the entire response structure
     return response.data
   } catch (error) {
     const errorMessage = handleApiError(error, 'get economic indicators')
@@ -283,23 +251,9 @@ export const getStocks = async (params = {}) => {
       }
     });
     const url = `/stocks?${queryParams.toString()}`
-    console.log('Fetching stocks from:', url)
     const response = await api.get(url, {
       baseURL: currentConfig.baseURL
     });
-    console.log('Raw Axios Response:', response)
-    console.log('Response data:', response.data)
-    console.log('Response status:', response.status);
-    console.log('Stocks response structure:', {
-      hasSuccess: 'success' in response.data,
-      hasData: 'data' in response.data,
-      hasPagination: 'pagination' in response.data,
-      hasMetadata: 'metadata' in response.data,
-      dataLength: response.data.data?.length || 0
-    })
-    
-    // The backend returns {success: true, data: [...], pagination: {...}, metadata: {...}}
-    // We need to return the entire response structure, not just the data array
     return response.data
   } catch (error) {
     console.error('Error fetching stocks:', error)
@@ -524,15 +478,9 @@ export const getFinancialStrengthMetrics = async (params = {}) => {
 export const screenStocks = async (params) => {
   try {
     const url = `/stocks?${params.toString()}`
-    console.log('Screen stocks URL:', url)
     const response = await api.get(url, {
       baseURL: currentConfig.baseURL
     })
-    console.log('Screen stocks raw response:', response)
-    console.log('Screen stocks response data:', response.data)
-    
-    // Return the response.data directly since the backend returns the correct structure
-    // { success: true, data: [...], pagination: {...} }
     return response.data
   } catch (error) {
     console.error('Error screening stocks:', error)
@@ -794,18 +742,6 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
       }
     })
     const response = await api.get(`/technical/${timeframe}?${queryParams.toString()}`)
-    console.log('Technical data raw response:', response)
-    console.log('Technical data response data:', response.data)
-    console.log('Technical data response structure:', {
-      hasSuccess: 'success' in response.data,
-      hasData: 'data' in response.data,
-      hasPagination: 'pagination' in response.data,
-      hasMetadata: 'metadata' in response.data,
-      dataLength: response.data.data?.length || 0
-    })
-    
-    // The backend returns {success: true, data: [...], pagination: {...}, metadata: {...}}
-    // We need to return the entire response structure, not just the data array
     return response.data
   } catch (error) {
     console.error('Error in getTechnicalData:', error)

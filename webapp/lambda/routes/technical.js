@@ -14,373 +14,349 @@ router.get('/ping', (req, res) => {
 
 // Main technical data endpoint - timeframe-based (daily, weekly, monthly)
 router.get('/:timeframe', async (req, res) => {
+  const { timeframe } = req.params;
+  const { page = 1, limit = 50, symbol, start_date, end_date, rsi_min, rsi_max, macd_min, macd_max, sma_min, sma_max } = req.query;
+
+  // Validate timeframe
+  const validTimeframes = ['daily', 'weekly', 'monthly'];
+  if (!validTimeframes.includes(timeframe)) {
+    return res.status(400).json({ error: 'Invalid timeframe. Use daily, weekly, or monthly.' });
+  }
+
   try {
-    const { timeframe } = req.params;
-    console.log(`[DEBUG] Technical data endpoint called for timeframe: ${timeframe}, params:`, req.query);
-    const validTimeframes = ['daily', 'weekly', 'monthly'];
-    if (!validTimeframes.includes(timeframe)) {
-      console.log(`[DEBUG] Invalid timeframe: ${timeframe}`);
-      return res.status(400).json({
-        error: 'Unsupported timeframe',
-        message: `Supported timeframes: ${validTimeframes.join(', ')}, got: ${timeframe}`,
-        availableTimeframes: validTimeframes
-      });
+    const db = await getDatabase();
+    if (!db) {
+      return res.status(503).json({ error: 'Database unavailable' });
     }
-    const page = parseInt(req.query.page) || 1;
-    const limit = Math.min(parseInt(req.query.limit) || 10, 100);
-    const offset = (page - 1) * limit;
-    const symbol = req.query.symbol;
-    console.log(`[DEBUG] Pagination: page=${page}, limit=${limit}, offset=${offset}`);
-    const tableName = `technical_data_${timeframe}`;
+
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const maxLimit = Math.min(parseInt(limit), 200);
+
+    // Build WHERE clause
     let whereClause = 'WHERE 1=1';
     const params = [];
     let paramIndex = 1;
-    if (symbol) {
-      console.log(`[DEBUG] Symbol filter provided: ${symbol}`);
-      whereClause += ` AND t.symbol = $${paramIndex}`;
+
+    // Symbol filter
+    if (symbol && symbol.trim()) {
+      whereClause += ` AND symbol = $${paramIndex}`;
       params.push(symbol.toUpperCase());
       paramIndex++;
     } else {
-      console.log('[DEBUG] No symbol filter provided');
+      // console.log('[DEBUG] No symbol filter provided');
     }
-    if (req.query.start_date) {
-      console.log(`[DEBUG] Start date filter: ${req.query.start_date}`);
-      whereClause += ` AND t.date >= $${paramIndex}`;
-      params.push(req.query.start_date);
+
+    // Date filters
+    if (start_date) {
+      whereClause += ` AND date >= $${paramIndex}`;
+      params.push(start_date);
+      paramIndex++;
+      // console.log(`[DEBUG] Start date filter: ${req.query.start_date}`);
+    }
+
+    if (end_date) {
+      whereClause += ` AND date <= $${paramIndex}`;
+      params.push(end_date);
+      paramIndex++;
+      // console.log(`[DEBUG] End date filter: ${req.query.end_date}`);
+    }
+
+    // Technical indicator filters
+    if (rsi_min !== undefined && rsi_min !== '') {
+      whereClause += ` AND rsi >= $${paramIndex}`;
+      params.push(parseFloat(rsi_min));
+      paramIndex++;
+      // console.log(`[DEBUG] Indicator min filter: ${indicator} >= ${indicatorMin}`);
+    }
+
+    if (rsi_max !== undefined && rsi_max !== '') {
+      whereClause += ` AND rsi <= $${paramIndex}`;
+      params.push(parseFloat(rsi_max));
       paramIndex++;
     }
-    if (req.query.end_date) {
-      console.log(`[DEBUG] End date filter: ${req.query.end_date}`);
-      whereClause += ` AND t.date <= $${paramIndex}`;
-      params.push(req.query.end_date);
+
+    if (macd_min !== undefined && macd_min !== '') {
+      whereClause += ` AND macd >= $${paramIndex}`;
+      params.push(parseFloat(macd_min));
       paramIndex++;
     }
-    const indicator = req.query.indicator;
-    const indicatorMin = req.query.indicatorMin;
-    const indicatorMax = req.query.indicatorMax;
-    const allowedIndicators = [
-      'rsi','macd','macd_signal','macd_hist','adx','atr','mfi','roc','mom','sma_10','sma_20','sma_50','sma_150','sma_200','ema_4','ema_9','ema_21','bbands_upper','bbands_middle','bbands_lower','ad','cmf','td_sequential','td_combo','marketwatch','dm','pivot_high','pivot_low','pivot_high_triggered','pivot_low_triggered'
-    ];
-    if (indicator && allowedIndicators.includes(indicator)) {
-      if (indicatorMin !== undefined && indicatorMin !== '') {
-        console.log(`[DEBUG] Indicator min filter: ${indicator} >= ${indicatorMin}`);
-        whereClause += ` AND t.${indicator} >= $${paramIndex}`;
-        params.push(Number(indicatorMin));
-        paramIndex++;
-      }
-      if (indicatorMax !== undefined && indicatorMax !== '') {
-        console.log(`[DEBUG] Indicator max filter: ${indicator} <= ${indicatorMax}`);
-        whereClause += ` AND t.${indicator} <= $${paramIndex}`;
-        params.push(Number(indicatorMax));
-        paramIndex++;
-      }
+
+    if (macd_max !== undefined && macd_max !== '') {
+      whereClause += ` AND macd <= $${paramIndex}`;
+      params.push(parseFloat(macd_max));
+      paramIndex++;
     }
-    let sortBy = req.query.sortBy || 'date';
-    let sortOrder = req.query.sortOrder === 'asc' ? 'ASC' : 'DESC';
-    const allowedSorts = [
-      'symbol','date','rsi','macd','macd_signal','macd_hist','adx','atr','mfi','roc','mom','sma_10','sma_20','sma_50','sma_150','sma_200','ema_4','ema_9','ema_21','bbands_upper','bbands_middle','bbands_lower','ad','cmf','td_sequential','td_combo','marketwatch','dm','pivot_high','pivot_low','pivot_high_triggered','pivot_low_triggered'
-    ];
-    if (!allowedSorts.includes(sortBy)) sortBy = 'date';
-    console.log('[DEBUG] Using whereClause:', whereClause, 'params:', params);
-    console.log('[DEBUG] Using tableName:', tableName);
-    // Detect if no filters are present (only pagination/sorting)
-    let dataQuery, countQuery;
-    // If no filters, return only the latest record per symbol (alphabetical, paginated)
-    const noFilters = !symbol && !req.query.start_date && !req.query.end_date && !indicator;
-    if (noFilters) {
-      dataQuery = `
-        SELECT 
-          t.symbol,
-          t.date,
-          t.rsi,
-          t.macd,
-          t.macd_signal,
-          t.macd_hist,
-          t.mom,
-          t.roc,
-          t.adx,
-          t.atr,
-          t.ad,
-          t.cmf,
-          t.mfi,
-          t.td_sequential,
-          t.td_combo,
-          t.marketwatch,
-          t.dm,
-          t.sma_10,
-          t.sma_20,
-          t.sma_50,
-          t.sma_150,
-          t.sma_200,
-          t.ema_4,
-          t.ema_9,
-          t.ema_21,
-          t.bbands_lower,
-          t.bbands_middle,
-          t.bbands_upper,
-          t.pivot_high,
-          t.pivot_low,
-          t.pivot_high_triggered,
-          t.pivot_low_triggered,
-          ss.security_name as company_name,
-          p.close as current_price,
-          p.open as open_price,
-          p.high as high_price,
-          p.low as low_price,
-          p.volume as volume,
-          CASE 
-            WHEN p.close > p.open THEN 'up'
-            WHEN p.close < p.open THEN 'down'
-            ELSE 'flat'
-          END as price_direction,
-          CASE 
-            WHEN p.close > p.open THEN ((p.close - p.open) / p.open * 100)
-            WHEN p.close < p.open THEN ((p.close - p.open) / p.open * 100)
-            ELSE 0
-          END as price_change_percent
-        FROM ${tableName} t
-        LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
-        LEFT JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
-        INNER JOIN (
-          SELECT symbol, MAX(date) as max_date
-          FROM ${tableName}
-          GROUP BY symbol
-        ) latest ON t.symbol = latest.symbol AND t.date = latest.max_date
-        ORDER BY t.symbol ASC
-        LIMIT $1 OFFSET $2
-      `;
-      countQuery = `
-        SELECT COUNT(*) as total
-        FROM (
-          SELECT symbol, MAX(date) as max_date
-          FROM ${tableName}
-          GROUP BY symbol
-        ) sub
-      `;
-      params.length = 0; // no filters, so params is empty
-    } else {
-      dataQuery = `
-        SELECT 
-          t.symbol,
-          t.date,
-          t.rsi,
-          t.macd,
-          t.macd_signal,
-          t.macd_hist,
-          t.mom,
-          t.roc,
-          t.adx,
-          t.atr,
-          t.ad,
-          t.cmf,
-          t.mfi,
-          t.td_sequential,
-          t.td_combo,
-          t.marketwatch,
-          t.dm,
-          t.sma_10,
-          t.sma_20,
-          t.sma_50,
-          t.sma_150,
-          t.sma_200,
-          t.ema_4,
-          t.ema_9,
-          t.ema_21,
-          t.bbands_lower,
-          t.bbands_middle,
-          t.bbands_upper,
-          t.pivot_high,
-          t.pivot_low,
-          t.pivot_high_triggered,
-          t.pivot_low_triggered,
-          ss.security_name as company_name,
-          p.close as current_price,
-          p.open as open_price,
-          p.high as high_price,
-          p.low as low_price,
-          p.volume as volume,
-          CASE 
-            WHEN p.close > p.open THEN 'up'
-            WHEN p.close < p.open THEN 'down'
-            ELSE 'flat'
-          END as price_direction,
-          CASE 
-            WHEN p.close > p.open THEN ((p.close - p.open) / p.open * 100)
-            WHEN p.close < p.open THEN ((p.close - p.open) / p.open * 100)
-            ELSE 0
-          END as price_change_percent
-        FROM ${tableName} t
-        LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
-        LEFT JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
-        ${whereClause}
-        ORDER BY t.${sortBy} ${sortOrder}, t.symbol ASC
-        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
-      `;
-      countQuery = `
-        SELECT COUNT(*) as total
-        FROM ${tableName} t
-        ${whereClause}
-      `;
+
+    if (sma_min !== undefined && sma_min !== '') {
+      whereClause += ` AND sma_20 >= $${paramIndex}`;
+      params.push(parseFloat(sma_min));
+      paramIndex++;
     }
+
+    if (sma_max !== undefined && sma_max !== '') {
+      whereClause += ` AND sma_20 <= $${paramIndex}`;
+      params.push(parseFloat(sma_max));
+      paramIndex++;
+    }
+
+    // console.log('[DEBUG] Using whereClause:', whereClause, 'params:', params);
+
+    // Determine table name based on timeframe
+    const tableName = `technical_data_${timeframe}`;
+    // console.log('[DEBUG] Using tableName:', tableName);
+
+    // Check if table exists
+    const tableExists = await db.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = $1
+      );
+    `, [tableName]);
+
+    if (!tableExists.rows[0].exists) {
+      return res.status(404).json({ 
+        error: `Technical data table for ${timeframe} timeframe not found`,
+        availableTimeframes: validTimeframes
+      });
+    }
+
+    // Get total count
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM ${tableName}
+      ${whereClause}
+    `;
+    const countResult = await db.query(countQuery, params);
+    const total = parseInt(countResult.rows[0].total);
+
+    // Get technical data
+    const dataQuery = `
+      SELECT 
+        symbol,
+        date,
+        open,
+        high,
+        low,
+        close,
+        volume,
+        rsi,
+        macd,
+        macd_signal,
+        macd_histogram,
+        sma_20,
+        sma_50,
+        ema_12,
+        ema_26,
+        bollinger_upper,
+        bollinger_lower,
+        bollinger_middle,
+        stochastic_k,
+        stochastic_d,
+        williams_r,
+        cci,
+        adx,
+        atr,
+        obv,
+        mfi,
+        roc,
+        momentum,
+        kst,
+        tsi,
+        ultimate_oscillator,
+        aroon_up,
+        aroon_down,
+        aroon_oscillator,
+        chaikin_money_flow,
+        money_flow_index,
+        on_balance_volume,
+        price_volume_trend,
+        accumulation_distribution,
+        coppock_curve,
+        detrended_price_oscillator,
+        ease_of_movement,
+        force_index,
+        ichimoku_conversion,
+        ichimoku_base,
+        ichimoku_span_a,
+        ichimoku_span_b,
+        ichimoku_lagging,
+        klinger_oscillator,
+        know_sure_thing,
+        mass_index,
+        median_price,
+        mid_point,
+        mid_price,
+        parabolic_sar,
+        percentage_price_oscillator,
+        percentage_volume_oscillator,
+        pivot_points_high,
+        pivot_points_low,
+        pivot_points_close,
+        pivot_points_pp,
+        pivot_points_r1,
+        pivot_points_r2,
+        pivot_points_r3,
+        pivot_points_s1,
+        pivot_points_s2,
+        pivot_points_s3,
+        price_oscillator,
+        price_volume_oscillator,
+        rate_of_change,
+        relative_strength_index,
+        relative_vigor_index,
+        standard_deviation,
+        stochastic_fast,
+        stochastic_slow,
+        stochastic_rsi,
+        triple_exponential_average,
+        triple_exponential_moving_average,
+        true_strength_index,
+        ultimate_oscillator,
+        volume_price_trend,
+        volume_weighted_average_price,
+        volume_weighted_moving_average,
+        williams_alligator_jaw,
+        williams_alligator_teeth,
+        williams_alligator_lips,
+        williams_fractal_bearish,
+        williams_fractal_bullish,
+        zero_lag_exponential_moving_average
+      FROM ${tableName}
+      ${whereClause}
+      ORDER BY date DESC, symbol ASC
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+
     // console.log('[DEBUG] Executing queries with limit:', limit, 'offset:', offset);
     // console.log('[DEBUG] Final SQL Query:', dataQuery);
     // console.log('[DEBUG] Query Parameters:', [...params, limit, offset]);
-    let dataResult, countResult;
-    if (noFilters) {
-      [dataResult, countResult] = await Promise.all([
-        query(dataQuery, [limit, offset]),
-        query(countQuery)
-      ]);
-    } else {
-      [dataResult, countResult] = await Promise.all([
-        query(dataQuery, [...params, limit, offset]),
-        query(countQuery, params)
-      ]);
-    }
+
+    const dataResult = await db.query(dataQuery, [...params, maxLimit, offset]);
+
     // console.log('[DEBUG] Query results - data:', dataResult.rows.length, 'total:', countResult.rows[0].total);
-    if (dataResult.rows && dataResult.rows.length > 0) {
-      console.log('[DEBUG] Sample data row:', dataResult.rows[0]);
-    } else {
-      console.warn('[DEBUG] No technical data found for query:', dataQuery, 'params:', [...params, limit, offset]);
+    
+    if (dataResult.rows.length > 0) {
+      // console.log('[DEBUG] Sample data row:', dataResult.rows[0]);
     }
-    const total = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(total / limit);
-    function sanitizeRow(row) {
-      const indicators = [
-        'rsi','macd','macd_signal','macd_hist','adx','atr','mfi','roc','mom','sma_10','sma_20','sma_50','sma_150','sma_200','ema_4','ema_9','ema_21','bbands_upper','bbands_middle','bbands_lower','ad','cmf','td_sequential','td_combo','marketwatch','dm','pivot_high','pivot_low','pivot_high_triggered','pivot_low_triggered'
-      ];
-      const priceFields = [
-        'current_price','open_price','high_price','low_price','volume','price_change_percent'
-      ];
-      
-      const sanitized = { ...row };
-      
-      // Sanitize technical indicators
-      indicators.forEach(key => {
-        if (sanitized[key] === undefined || sanitized[key] === null || isNaN(sanitized[key])) {
-          sanitized[key] = null;
-        } else {
-          sanitized[key] = Number(sanitized[key]);
-        }
-      });
-      
-      // Sanitize price fields
-      priceFields.forEach(key => {
-        if (sanitized[key] === undefined || sanitized[key] === null || isNaN(sanitized[key])) {
-          sanitized[key] = null;
-        } else {
-          sanitized[key] = Number(sanitized[key]);
-        }
-      });
-      
-      // Ensure price_direction is a string
-      if (sanitized.price_direction === undefined || sanitized.price_direction === null) {
-        sanitized.price_direction = 'flat';
-      }
-      
-      return sanitized;
-    }
+
     res.json({
-      success: true,
-      data: dataResult.rows.map(sanitizeRow),
+      data: dataResult.rows,
       pagination: {
-        page,
-        limit,
+        page: parseInt(page),
+        limit: maxLimit,
         total,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
+        pages: Math.ceil(total / maxLimit)
+      },
+      filters: {
+        timeframe,
+        symbol: symbol || null,
+        start_date: start_date || null,
+        end_date: end_date || null,
+        rsi_range: rsi_min && rsi_max ? [rsi_min, rsi_max] : null,
+        macd_range: macd_min && macd_max ? [macd_min, macd_max] : null,
+        sma_range: sma_min && sma_max ? [sma_min, sma_max] : null
       },
       metadata: {
+        table: tableName,
         timeframe,
-        symbol: symbol || 'all',
-        count: dataResult.rows.length,
-        start_date: req.query.start_date || null,
-        end_date: req.query.end_date || null,
-        timestamp: new Date().toISOString(),
-        queryDebug: {
-          sql: dataQuery,
-          params: [...params, limit, offset]
-        },
-        warning: dataResult.rows.length === 0 ? 'No technical data found for the given query. Check your database and query parameters.' : undefined
+        totalRecords: total,
+        showingRecords: dataResult.rows.length,
+        availableIndicators: [
+          'rsi', 'macd', 'sma_20', 'sma_50', 'ema_12', 'ema_26',
+          'bollinger_upper', 'bollinger_lower', 'stochastic_k', 'stochastic_d',
+          'williams_r', 'cci', 'adx', 'atr', 'obv', 'mfi', 'roc', 'momentum'
+        ]
       }
     });
   } catch (error) {
-    console.error('[DEBUG] Error in technical endpoint:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch technical data',
-      details: error.message,
-      data: [], // Always return data as an array for frontend safety
-      timestamp: new Date().toISOString()
-    });
+    console.error('Error fetching technical data:', error);
+    res.status(500).json({ error: 'Failed to fetch technical data' });
   }
 });
 
 // Technical summary endpoint
 router.get('/:timeframe/summary', async (req, res) => {
+  const { timeframe } = req.params;
+  
+  // console.log(`Technical summary endpoint called for timeframe: ${timeframe}`);
+
   try {
-    const { timeframe } = req.params;
-    console.log(`Technical summary endpoint called for timeframe: ${timeframe}`);
-    
-    const validTimeframes = ['daily', 'weekly', 'monthly'];
-    if (!validTimeframes.includes(timeframe)) {
-      return res.status(400).json({
-        error: 'Unsupported timeframe',
-        message: `Supported timeframes: ${validTimeframes.join(', ')}, got: ${timeframe}`,
-        availableTimeframes: validTimeframes
-      });
+    const db = await getDatabase();
+    if (!db) {
+      return res.status(503).json({ error: 'Database unavailable' });
     }
 
     const tableName = `technical_data_${timeframe}`;
-    
+
+    // Check if table exists
+    const tableExists = await db.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = $1
+      );
+    `, [tableName]);
+
+    if (!tableExists.rows[0].exists) {
+      return res.status(404).json({ 
+        error: `Technical data table for ${timeframe} timeframe not found` 
+      });
+    }
+
+    // Get summary statistics
     const summaryQuery = `
       SELECT 
         COUNT(*) as total_records,
         COUNT(DISTINCT symbol) as unique_symbols,
-        MAX(date) as latest_date,
         MIN(date) as earliest_date,
-        COUNT(CASE WHEN rsi > 70 THEN 1 END) as overbought_count,
-        COUNT(CASE WHEN rsi < 30 THEN 1 END) as oversold_count,
-        COUNT(CASE WHEN macd > macd_signal THEN 1 END) as macd_bullish_count,
+        MAX(date) as latest_date,
         AVG(rsi) as avg_rsi,
-        AVG(sma_20) as avg_sma_20
+        AVG(macd) as avg_macd,
+        AVG(sma_20) as avg_sma_20,
+        AVG(volume) as avg_volume
       FROM ${tableName}
-      WHERE date = (SELECT MAX(date) FROM ${tableName})
+      WHERE rsi IS NOT NULL OR macd IS NOT NULL
     `;
 
-    const result = await query(summaryQuery);
-    const summary = result.rows[0];
+    const summaryResult = await db.query(summaryQuery);
+    const summary = summaryResult.rows[0];
+
+    // Get top symbols by record count
+    const topSymbolsQuery = `
+      SELECT symbol, COUNT(*) as record_count
+      FROM ${tableName}
+      GROUP BY symbol
+      ORDER BY record_count DESC
+      LIMIT 10
+    `;
+
+    const topSymbolsResult = await db.query(topSymbolsQuery);
 
     res.json({
-      success: true,
-      data: {
-        timeframe,
-        summary: {
-          total_records: parseInt(summary.total_records),
-          unique_symbols: parseInt(summary.unique_symbols),
-          latest_date: summary.latest_date,
-          earliest_date: summary.earliest_date,
-          market_conditions: {
-            overbought_stocks: parseInt(summary.overbought_count),
-            oversold_stocks: parseInt(summary.oversold_count),
-            macd_bullish_stocks: parseInt(summary.macd_bullish_count),
-            average_rsi: parseFloat(summary.avg_rsi || 0).toFixed(2),
-            average_sma_20: parseFloat(summary.avg_sma_20 || 0).toFixed(2)
-          }
+      timeframe,
+      summary: {
+        totalRecords: parseInt(summary.total_records),
+        uniqueSymbols: parseInt(summary.unique_symbols),
+        dateRange: {
+          earliest: summary.earliest_date,
+          latest: summary.latest_date
+        },
+        averages: {
+          rsi: summary.avg_rsi ? parseFloat(summary.avg_rsi).toFixed(2) : null,
+          macd: summary.avg_macd ? parseFloat(summary.avg_macd).toFixed(4) : null,
+          sma20: summary.avg_sma_20 ? parseFloat(summary.avg_sma_20).toFixed(2) : null,
+          volume: summary.avg_volume ? parseInt(summary.avg_volume) : null
         }
       },
-      metadata: {
-        timestamp: new Date().toISOString()
-      }
+      topSymbols: topSymbolsResult.rows.map(row => ({
+        symbol: row.symbol,
+        recordCount: parseInt(row.record_count)
+      }))
     });
-
   } catch (error) {
     console.error('Error fetching technical summary:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch technical summary', 
-      details: error.message,
-      timestamp: new Date().toISOString()
-    });
+    res.status(500).json({ error: 'Failed to fetch technical summary' });
   }
 });
 

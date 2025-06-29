@@ -7,79 +7,115 @@ const router = express.Router();
 // Supports ?limit=N&offset=M for pagination/expansion
 // Default: limit=10, offset=0, max limit=90
 router.get('/price-history/:symbol', async (req, res) => {
+  const { symbol } = req.params;
+  const { limit = 10, offset = 0 } = req.query;
+  
+  // console.log(`ULTRA-FAST: Price history requested for ${symbol}, limit: ${limit}, offset: ${offset}`);
+  
   try {
-    const { symbol } = req.params;
-    const limit = Math.min(parseInt(req.query.limit) || 10, 90); // Default 10, max 90
-    const offset = Math.max(parseInt(req.query.offset) || 0, 0); // Default 0
+    const db = await getDatabase();
+    if (!db) {
+      return res.status(503).json({ error: 'Database unavailable' });
+    }
+
+    const maxLimit = Math.min(parseInt(limit), 90);
+    const tableName = 'price_daily';
     
-    console.log(`ULTRA-FAST: Price history requested for ${symbol}, limit: ${limit}, offset: ${offset}`);
-    
-    // Efficient query with LIMIT/OFFSET for pagination
-    const priceQuery = `
-      SELECT date, open, high, low, close, adj_close, volume
-      FROM price_daily
-      WHERE UPPER(symbol) = UPPER($1)
+    // Check if table exists
+    const tableExists = await db.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = $1
+      );
+    `, [tableName]);
+
+    if (!tableExists.rows[0].exists) {
+      return res.status(404).json({ error: 'Price data not available' });
+    }
+
+    // Get price history with pagination
+    const query = `
+      SELECT 
+        date,
+        open,
+        high,
+        low,
+        close,
+        volume
+      FROM ${tableName}
+      WHERE symbol = $1
       ORDER BY date DESC
       LIMIT $2 OFFSET $3
     `;
-    
-    const result = await query(priceQuery, [symbol.toUpperCase(), limit, offset]);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'No price data found',
-        symbol: symbol.toUpperCase(),
-        message: 'Price data not available for this symbol',
-        timestamp: new Date().toISOString()
-      });
-    }
-    
-    // Calculate basic metrics
-    const prices = result.rows;
-    const latest = prices[0];
-    const oldest = prices[prices.length - 1];
-    
-    const periodReturn = oldest.close > 0 ? 
-      ((latest.close - oldest.close) / oldest.close * 100) : 0;
-    
-    // Format response for frontend - minimal processing
-    const formattedData = prices.map(price => ({
-      date: price.date,
-      open: parseFloat(price.open || 0),
-      high: parseFloat(price.high || 0),
-      low: parseFloat(price.low || 0),
-      close: parseFloat(price.close || 0),
-      adjClose: parseFloat(price.adj_close || price.close || 0),
-      volume: parseInt(price.volume || 0)
-    }));
+
+    const result = await db.query(query, [symbol.toUpperCase(), maxLimit, parseInt(offset)]);
     
     res.json({
-      success: true,
       symbol: symbol.toUpperCase(),
-      data: formattedData,
-      summary: {
-        latestPrice: parseFloat(latest.close),
-        latestDate: latest.date,
-        periodReturn: parseFloat(periodReturn.toFixed(2)),
-        latestVolume: parseInt(latest.volume || 0),
-        dataPoints: formattedData.length,
-        offset,
-        limit
-      },
-      performance: 'ULTRA-FAST_OPTIMIZED',
-      timestamp: new Date().toISOString()
+      data: result.rows,
+      pagination: {
+        limit: maxLimit,
+        offset: parseInt(offset),
+        total: result.rows.length
+      }
     });
-    
   } catch (error) {
-    console.error('ULTRA-FAST price history error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch price history',
-      symbol: req.params.symbol,
-      details: error.message,
-      timestamp: new Date().toISOString()
+    console.error('Error fetching price history:', error);
+    res.status(500).json({ error: 'Failed to fetch price history' });
+  }
+});
+
+router.get('/price-history/:symbol/quick', async (req, res) => {
+  const { symbol } = req.params;
+  const { limit = 5 } = req.query;
+  
+  // console.log(`LIGHTNING-FAST: Quick price data for ${symbol}, limit: ${limit}`);
+  
+  try {
+    const db = await getDatabase();
+    if (!db) {
+      return res.status(503).json({ error: 'Database unavailable' });
+    }
+
+    const maxLimit = Math.min(parseInt(limit), 20);
+    const tableName = 'price_daily';
+    
+    // Check if table exists
+    const tableExists = await db.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = $1
+      );
+    `, [tableName]);
+
+    if (!tableExists.rows[0].exists) {
+      return res.status(404).json({ error: 'Price data not available' });
+    }
+
+    // Get recent price data only
+    const query = `
+      SELECT 
+        date,
+        close,
+        volume
+      FROM ${tableName}
+      WHERE symbol = $1
+      ORDER BY date DESC
+      LIMIT $2
+    `;
+
+    const result = await db.query(query, [symbol.toUpperCase(), maxLimit]);
+    
+    res.json({
+      symbol: symbol.toUpperCase(),
+      data: result.rows,
+      count: result.rows.length
     });
+  } catch (error) {
+    console.error('Error fetching quick price data:', error);
+    res.status(500).json({ error: 'Failed to fetch price data' });
   }
 });
 
@@ -165,495 +201,116 @@ router.get('/ping', (req, res) => {
 
 // OPTIMIZED: Main stocks endpoint with fast queries and all data visible
 router.get('/', async (req, res) => {
+  // console.log('OPTIMIZED Stocks main endpoint called with params:', req.query);
+  
   try {
-    console.log('OPTIMIZED Stocks main endpoint called with params:', req.query);
-    
-    const page = parseInt(req.query.page) || 1;
-    const limit = Math.min(parseInt(req.query.limit) || 50, 200); // Increased limit
-    const offset = (page - 1) * limit;
-    const search = req.query.search || '';
-    const sector = req.query.sector || '';
-    const exchange = req.query.exchange || '';
-    const sortBy = req.query.sortBy || 'symbol';
-    const sortOrder = req.query.sortOrder || 'asc';
-    
+    const db = await getDatabase();
+    if (!db) {
+      return res.status(503).json({ error: 'Database unavailable' });
+    }
+
+    const { 
+      page = 1, 
+      limit = 50, 
+      search = '', 
+      sector = '', 
+      industry = '',
+      sort_by = 'symbol',
+      sort_order = 'asc'
+    } = req.query;
+
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const maxLimit = Math.min(parseInt(limit), 200);
+
+    // Build WHERE clause
     let whereClause = 'WHERE 1=1';
     const params = [];
-    let paramCount = 0;
+    let paramIndex = 1;
 
-    // Add search filter
     if (search) {
-      paramCount++;
-      whereClause += ` AND (ss.symbol ILIKE $${paramCount} OR ss.security_name ILIKE $${paramCount})`;
+      whereClause += ` AND (symbol ILIKE $${paramIndex} OR company_name ILIKE $${paramIndex})`;
       params.push(`%${search}%`);
+      paramIndex++;
     }
 
-    // Add sector filter (on cp.sector)
-    if (sector && sector.trim() !== '') {
-      paramCount++;
-      whereClause += ` AND cp.sector = $${paramCount}`;
+    if (sector) {
+      whereClause += ` AND sector = $${paramIndex}`;
       params.push(sector);
+      paramIndex++;
     }
 
-    // Add exchange filter (on ss.exchange)
-    if (exchange && exchange.trim() !== '') {
-      paramCount++;
-      whereClause += ` AND ss.exchange = $${paramCount}`;
-      params.push(exchange);
+    if (industry) {
+      whereClause += ` AND industry = $${paramIndex}`;
+      params.push(industry);
+      paramIndex++;
     }
 
-    // FAST sort columns
-    const validSortColumns = {
-      'ticker': 'ss.symbol',
-      'symbol': 'ss.symbol', 
-      'name': 'ss.security_name',
-      'exchange': 'ss.exchange',
-      'market_category': 'ss.market_category'
-    };
+    // Validate sort parameters
+    const validSortColumns = ['symbol', 'company_name', 'sector', 'industry', 'market_cap', 'pe_ratio', 'price'];
+    const sortColumn = validSortColumns.includes(sort_by) ? sort_by : 'symbol';
+    const sortDirection = sort_order.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
 
-    const sortColumn = validSortColumns[sortBy] || 'ss.symbol';
-    const sortDirection = sortOrder.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+    // console.log('OPTIMIZED query params:', { whereClause, params, limit, offset });
 
-    console.log('OPTIMIZED query params:', { whereClause, params, limit, offset });    // COMPREHENSIVE QUERY: Include ALL data from loadinfo script
-    const stocksQuery = `
-      SELECT 
-        -- Stock symbols data
-        ss.symbol,
-        ss.security_name,
-        ss.exchange,
-        ss.market_category,
-        ss.cqs_symbol,
-        ss.financial_status,
-        ss.round_lot_size,
-        ss.etf,
-        ss.secondary_symbol,
-        ss.test_issue,
-        
-        -- Company profile data from loadinfo
-        cp.short_name,
-        cp.long_name,
-        cp.display_name,
-        cp.quote_type,
-        cp.sector,
-        cp.sector_disp,
-        cp.industry,
-        cp.industry_disp,
-        cp.business_summary,
-        cp.employee_count,
-        cp.website_url,
-        cp.ir_website_url,
-        cp.address1,
-        cp.city,
-        cp.state,
-        cp.postal_code,
-        cp.country,
-        cp.phone_number,
-        cp.currency,
-        cp.market,
-        cp.full_exchange_name,
-        
-        -- Market data from loadinfo
-        md.current_price,
-        md.previous_close,
-        md.open_price,
-        md.day_low,
-        md.day_high,
-        md.volume,
-        md.average_volume,
-        md.market_cap,
-        md.fifty_two_week_low,
-        md.fifty_two_week_high,
-        md.fifty_day_avg,
-        md.two_hundred_day_avg,
-        md.bid_price,
-        md.ask_price,
-        md.market_state,
-        
-        -- Key financial metrics from loadinfo
-        km.trailing_pe,
-        km.forward_pe,
-        km.price_to_sales_ttm,
-        km.price_to_book,
-        km.book_value,
-        km.peg_ratio,
-        km.enterprise_value,
-        km.ev_to_revenue,
-        km.ev_to_ebitda,
-        km.total_revenue,
-        km.net_income,
-        km.ebitda,
-        km.gross_profit,
-        km.eps_trailing,
-        km.eps_forward,
-        km.eps_current_year,
-        km.price_eps_current_year,
-        km.earnings_q_growth_pct,
-        km.total_cash,
-        km.cash_per_share,
-        km.operating_cashflow,
-        km.free_cashflow,
-        km.total_debt,
-        km.debt_to_equity,
-        km.quick_ratio,
-        km.current_ratio,
-        km.profit_margin_pct,
-        km.gross_margin_pct,
-        km.ebitda_margin_pct,
-        km.operating_margin_pct,
-        km.return_on_assets_pct,
-        km.return_on_equity_pct,
-        km.revenue_growth_pct,
-        km.earnings_growth_pct,
-        km.dividend_rate,
-        km.dividend_yield,
-        km.five_year_avg_dividend_yield,
-        km.payout_ratio,
-        
-        -- Analyst estimates from loadinfo
-        ae.target_high_price,
-        ae.target_low_price,
-        ae.target_mean_price,
-        ae.target_median_price,
-        ae.recommendation_key,
-        ae.recommendation_mean,
-        ae.analyst_opinion_count,
-        ae.average_analyst_rating,
-        
-        -- Governance scores from loadinfo
-        gs.audit_risk,
-        gs.board_risk,
-        gs.compensation_risk,
-        gs.shareholder_rights_risk,
-        gs.overall_risk,
-        
-        -- Leadership team count (subquery)
-        COALESCE(lt_count.executive_count, 0) as leadership_count
-        
-      FROM stock_symbols ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-      LEFT JOIN market_data md ON ss.symbol = md.ticker
-      LEFT JOIN key_metrics km ON ss.symbol = km.ticker
-      LEFT JOIN analyst_estimates ae ON ss.symbol = ae.ticker
-      LEFT JOIN governance_scores gs ON ss.symbol = gs.ticker
-      LEFT JOIN (
-        SELECT ticker, COUNT(*) as executive_count 
-        FROM leadership_team 
-        GROUP BY ticker
-      ) lt_count ON ss.symbol = lt_count.ticker
-      ${whereClause}
-      ORDER BY ${sortColumn} ${sortDirection}
-      LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
-    `;
-
-    params.push(limit, offset);
-
-    // Count query - also fast
+    // Get total count
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM stock_symbols ss
+      FROM stock_symbols
       ${whereClause}
     `;
-
-    console.log('Executing FAST queries...');
-
-    const [stocksResult, countResult] = await Promise.all([
-      query(stocksQuery, params),
-      query(countQuery, params.slice(0, -2))
-    ]);
-
+    const countResult = await db.query(countQuery, params);
     const total = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(total / limit);
 
-    console.log(`FAST query results: ${stocksResult.rows.length} stocks, ${total} total`);    // Professional formatting with ALL comprehensive data from loadinfo
-    const formattedStocks = stocksResult.rows.map(stock => ({
-      // Core identification
-      ticker: stock.symbol,
-      symbol: stock.symbol,
-      name: stock.security_name,
-      fullName: stock.long_name || stock.security_name,
-      shortName: stock.short_name,
-      displayName: stock.display_name,
-      
-      // Exchange & categorization 
-      exchange: stock.exchange,
-      fullExchangeName: stock.full_exchange_name,
-      marketCategory: stock.market_category,
-      market: stock.market,
-      
-      // Business information
-      sector: stock.sector,
-      sectorDisplay: stock.sector_disp,
-      industry: stock.industry,
-      industryDisplay: stock.industry_disp,
-      businessSummary: stock.business_summary,
-      employeeCount: stock.employee_count,
-      
-      // Contact information
-      website: stock.website_url,
-      investorRelationsWebsite: stock.ir_website_url,
-      address: {
-        street: stock.address1,
-        city: stock.city,
-        state: stock.state,
-        postalCode: stock.postal_code,
-        country: stock.country
-      },
-      phoneNumber: stock.phone_number,
-      
-      // Financial details
-      currency: stock.currency,
-      quoteType: stock.quote_type,
-      
-      // Current market data
-      price: {
-        current: stock.current_price,
-        previousClose: stock.previous_close,
-        open: stock.open_price,
-        dayLow: stock.day_low,
-        dayHigh: stock.day_high,
-        fiftyTwoWeekLow: stock.fifty_two_week_low,
-        fiftyTwoWeekHigh: stock.fifty_two_week_high,
-        fiftyDayAverage: stock.fifty_day_avg,
-        twoHundredDayAverage: stock.two_hundred_day_avg,
-        bid: stock.bid_price,
-        ask: stock.ask_price,
-        marketState: stock.market_state
-      },
-      
-      // Volume data
-      volume: stock.volume,
-      averageVolume: stock.average_volume,
-      marketCap: stock.market_cap,
-      
-      // Comprehensive financial metrics
-      financialMetrics: {
-        // Valuation ratios
-        trailingPE: stock.trailing_pe,
-        forwardPE: stock.forward_pe,
-        priceToSales: stock.price_to_sales_ttm,
-        priceToBook: stock.price_to_book,
-        pegRatio: stock.peg_ratio,
-        bookValue: stock.book_value,
-        
-        // Enterprise metrics
-        enterpriseValue: stock.enterprise_value,
-        evToRevenue: stock.ev_to_revenue,
-        evToEbitda: stock.ev_to_ebitda,
-        
-        // Financial results
-        totalRevenue: stock.total_revenue,
-        netIncome: stock.net_income,
-        ebitda: stock.ebit,
-        grossProfit: stock.gross_profit,
-        
-        // Earnings per share
-        epsTrailing: stock.eps_trailing,
-        epsForward: stock.eps_forward,
-        epsCurrent: stock.eps_current_year,
-        priceEpsCurrent: stock.price_eps_current_year,
-        
-        // Growth metrics
-        earningsGrowthQuarterly: stock.earnings_q_growth_pct,
-        revenueGrowth: stock.revenue_growth_pct,
-        earningsGrowth: stock.earnings_growth_pct,
-        
-        // Cash & debt
-        totalCash: stock.total_cash,
-        cashPerShare: stock.cash_per_share,
-        operatingCashflow: stock.operating_cashflow,
-        freeCashflow: stock.free_cashflow,
-        totalDebt: stock.total_debt,
-        debtToEquity: stock.debt_to_equity,
-        
-        // Liquidity ratios
-        quickRatio: stock.quick_ratio,
-        currentRatio: stock.current_ratio,
-        
-        // Profitability margins
-        profitMargin: stock.profit_margin_pct,
-        grossMargin: stock.gross_margin_pct,
-        ebitdaMargin: stock.ebitda_margin_pct,
-        operatingMargin: stock.operating_margin_pct,
-        
-        // Return metrics
-        returnOnAssets: stock.return_on_assets_pct,
-        returnOnEquity: stock.return_on_equity_pct,
-        
-        // Dividend information
-        dividendRate: stock.dividend_rate,
-        dividendYield: stock.dividend_yield,
-        fiveYearAvgDividendYield: stock.five_year_avg_dividend_yield,
-        payoutRatio: stock.payout_ratio
-      },
-      
-      // Analyst estimates and recommendations
-      analystData: {
-        targetPrices: {
-          high: stock.target_high_price,
-          low: stock.target_low_price,
-          mean: stock.target_mean_price,
-          median: stock.target_median_price
-        },
-        recommendation: {
-          key: stock.recommendation_key,
-          mean: stock.recommendation_mean,
-          rating: stock.average_analyst_rating
-        },
-        analystCount: stock.analyst_opinion_count
-      },
-        // Governance data
-      governance: {
-        auditRisk: stock.audit_risk,
-        boardRisk: stock.board_risk,
-        compensationRisk: stock.compensation_risk,
-        shareholderRightsRisk: stock.shareholder_rights_risk,
-        overallRisk: stock.overall_risk
-      },
-      
-      // Leadership team summary
-      leadership: {
-        executiveCount: stock.leadership_count,
-        hasLeadershipData: stock.leadership_count > 0,
-        // Full leadership data available via /leadership/:ticker endpoint
-        detailsAvailable: true
-      },
-      
-      // Additional identifiers
-      cqsSymbol: stock.cqs_symbol,
-      secondarySymbol: stock.secondary_symbol,
-      
-      // Status & type
-      financialStatus: stock.financial_status,
-      isEtf: stock.etf === 'Y',
-      testIssue: stock.test_issue === 'Y',
-      roundLotSize: stock.round_lot_size,
-        // Comprehensive data availability indicators
-      hasData: true,
-      dataSource: 'comprehensive_loadinfo_query',
-      hasCompanyProfile: !!stock.long_name,
-      hasMarketData: !!stock.current_price,
-      hasFinancialMetrics: !!stock.trailing_pe || !!stock.total_revenue,
-      hasAnalystData: !!stock.target_mean_price || !!stock.recommendation_key,
-      hasGovernanceData: !!stock.overall_risk,
-      hasLeadershipData: stock.leadership_count > 0,
-      
-      // Professional presentation with rich data
-      displayData: {
-        primaryExchange: stock.full_exchange_name || stock.exchange || 'Unknown',
-        category: stock.market_category || 'Standard',
-        type: stock.etf === 'Y' ? 'ETF' : 'Stock',
-        tradeable: stock.financial_status !== 'D' && stock.test_issue !== 'Y',
-        sector: stock.sector_disp || stock.sector || 'Unknown',
-        industry: stock.industry_disp || stock.industry || 'Unknown',
-        
-        // Key financial highlights for quick view
-        keyMetrics: {
-          pe: stock.trailing_pe,
-          marketCap: stock.market_cap,
-          revenue: stock.total_revenue,
-          profitMargin: stock.profit_margin_pct,
-          dividendYield: stock.dividend_yield,
-          analystRating: stock.recommendation_key,
-          targetPrice: stock.target_mean_price
-        },
-        
-        // Risk summary
-        riskProfile: {
-          overall: stock.overall_risk,
-          hasHighRisk: (stock.overall_risk && stock.overall_risk >= 8),
-          hasModerateRisk: (stock.overall_risk && stock.overall_risk >= 5 && stock.overall_risk < 8),
-          hasLowRisk: (stock.overall_risk && stock.overall_risk < 5)
-        }
-      }
-    }));    res.json({
-      success: true,
-      performance: 'COMPREHENSIVE LOADINFO DATA - All company profiles, market data, financial metrics, analyst estimates, and governance scores from loadinfo tables',
-      data: formattedStocks,
+    // Get stocks data
+    const dataQuery = `
+      SELECT 
+        symbol,
+        company_name,
+        sector,
+        industry,
+        market_cap,
+        pe_ratio,
+        price,
+        volume,
+        change_percent,
+        exchange,
+        country,
+        currency,
+        is_etf,
+        ipo_date,
+        website,
+        description
+      FROM stock_symbols
+      ${whereClause}
+      ORDER BY ${sortColumn} ${sortDirection}
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+
+    // console.log('Executing FAST queries...');
+    const stocksResult = await db.query(dataQuery, [...params, maxLimit, offset]);
+    // console.log(`FAST query results: ${stocksResult.rows.length} stocks, ${total} total`);
+
+    res.json({
+      data: stocksResult.rows,
       pagination: {
-        page,
-        limit,
+        page: parseInt(page),
+        limit: maxLimit,
         total,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
+        pages: Math.ceil(total / maxLimit)
       },
       filters: {
-        search: search || null,
-        exchange: exchange || null,
-        sortBy,
-        sortOrder
+        search,
+        sector,
+        industry
       },
-      metadata: {
-        totalStocks: total,
-        currentPage: page,
-        showingRecords: stocksResult.rows.length,
-        dataFields: [
-          // Basic stock symbol data
-          'symbol', 'security_name', 'exchange', 'market_category',
-          'cqs_symbol', 'financial_status', 'etf', 'round_lot_size', 
-          'test_issue', 'secondary_symbol',
-          
-          // Company profile data
-          'short_name', 'long_name', 'display_name', 'quote_type',
-          'sector', 'sector_disp', 'industry', 'industry_disp',
-          'business_summary', 'employee_count', 'website_url', 
-          'ir_website_url', 'address1', 'city', 'state', 'postal_code',
-          'country', 'phone_number', 'currency', 'market', 'full_exchange_name',
-          
-          // Market data
-          'current_price', 'previous_close', 'open_price', 'day_low', 'day_high',
-          'volume', 'average_volume', 'market_cap', 'fifty_two_week_low',
-          'fifty_two_week_high', 'fifty_day_avg', 'two_hundred_day_avg',
-          'bid_price', 'ask_price', 'market_state',
-          
-          // Financial metrics
-          'trailing_pe', 'forward_pe', 'price_to_sales_ttm', 'price_to_book',
-          'book_value', 'peg_ratio', 'enterprise_value', 'ev_to_revenue',
-          'ev_to_ebitda', 'total_revenue', 'net_income', 'ebitda', 'gross_profit',
-          'eps_trailing', 'eps_forward', 'eps_current_year', 'earnings_q_growth_pct',
-          'total_cash', 'cash_per_share', 'operating_cashflow', 'free_cashflow',
-          'total_debt', 'debt_to_equity', 'quick_ratio', 'current_ratio',
-          'profit_margin_pct', 'gross_margin_pct', 'ebitda_margin_pct',
-          'operating_margin_pct', 'return_on_assets_pct', 'return_on_equity_pct',
-          'revenue_growth_pct', 'earnings_growth_pct', 'dividend_rate',
-          'dividend_yield', 'five_year_avg_dividend_yield', 'payout_ratio',
-          
-          // Analyst estimates
-          'target_high_price', 'target_low_price', 'target_mean_price',
-          'target_median_price', 'recommendation_key', 'recommendation_mean',
-          'analyst_opinion_count', 'average_analyst_rating',
-          
-          // Governance data
-          'audit_risk', 'board_risk', 'compensation_risk', 'shareholder_rights_risk',
-          'overall_risk'
-        ],        dataSources: [
-          'stock_symbols', 'company_profile', 'market_data', 'key_metrics',
-          'analyst_estimates', 'governance_scores', 'leadership_team'
-        ],
-        comprehensiveData: {
-          includesCompanyProfiles: true,
-          includesMarketData: true,
-          includesFinancialMetrics: true,
-          includesAnalystEstimates: true,
-          includesGovernanceScores: true,
-          includesLeadershipTeam: true // Count included, details via /leadership/:ticker
-        },
-        endpoints: {
-          leadershipDetails: '/api/stocks/leadership/:ticker',
-          leadershipSummary: '/api/stocks/leadership'
-        }
-      },
-      timestamp: new Date().toISOString()
+      sort: {
+        by: sortColumn,
+        order: sortDirection
+      }
     });
-
   } catch (error) {
-    console.error('OPTIMIZED endpoint error:', error);
-    res.status(500).json({ 
-      error: 'Optimized query failed',
-      details: error.message,
-      data: [], // Always return data as an array for frontend safety
-      timestamp: new Date().toISOString()
-    });
+    console.error('Error fetching stocks:', error);
+    res.status(500).json({ error: 'Failed to fetch stocks' });
   }
 });
 
@@ -741,65 +398,47 @@ router.get('/quick/overview', async (req, res) => {
 
 // Chunked stocks loading
 router.get('/chunk/:chunkIndex', async (req, res) => {
+  const { chunkIndex } = req.params;
+  const { limit = 100 } = req.query;
+  
+  // console.log(`Stocks chunk endpoint called for chunk: ${chunkIndex}`);
+  
   try {
-    const chunkIndex = parseInt(req.params.chunkIndex) || 0;
-    const chunkSize = 50; // Small chunks for performance
-    
-    console.log(`Stocks chunk endpoint called for chunk: ${chunkIndex}`);
-    
-    const offset = chunkIndex * chunkSize;
+    const db = await getDatabase();
+    if (!db) {
+      return res.status(503).json({ error: 'Database unavailable' });
+    }
 
-    // Use actual tables - get stocks with latest price data
-    const dataQuery = `
+    const offset = parseInt(chunkIndex) * parseInt(limit);
+    const maxLimit = Math.min(parseInt(limit), 500);
+
+    const query = `
       SELECT 
-        ss.symbol,
-        ss.security_name,
-        ss.exchange,
-        ss.market_category,
-        pd.close as current_price,
-        pd.volume as current_volume,
-        pd.date as price_date
-      FROM stock_symbols ss
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol) symbol, close, volume, date
-        FROM price_daily
-        ORDER BY symbol, date DESC
-      ) pd ON ss.symbol = pd.symbol
-      ORDER BY ss.symbol ASC
+        symbol,
+        company_name,
+        sector,
+        industry,
+        price,
+        change_percent,
+        volume,
+        market_cap
+      FROM stock_symbols
+      ORDER BY symbol
       LIMIT $1 OFFSET $2
     `;
 
-    const result = await query(dataQuery, [chunkSize, offset]);
-
-    // Format response to match expected structure
-    const formattedData = result.rows.map(row => ({
-      ticker: row.symbol,
-      short_name: row.security_name,
-      sector: row.exchange, // Using exchange as sector substitute
-      regular_market_price: row.current_price,
-      market_cap: null, // Not available in current schema
-      trailing_pe: null, // Not available in current schema
-      volume: row.current_volume,
-      price_date: row.price_date
-    }));
+    const result = await db.query(query, [maxLimit, offset]);
 
     res.json({
-      chunk: chunkIndex,
-      chunkSize: chunkSize,
-      dataCount: result.rows.length,
-      data: formattedData,
-      hasMore: result.rows.length === chunkSize,
-      timestamp: new Date().toISOString()
+      data: result.rows,
+      chunk: parseInt(chunkIndex),
+      limit: maxLimit,
+      offset,
+      count: result.rows.length
     });
-
   } catch (error) {
     console.error('Error fetching stocks chunk:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch stocks chunk', 
-      details: error.message,
-      data: [], // Always return data as an array for frontend safety
-      timestamp: new Date().toISOString()
-    });
+    res.status(500).json({ error: 'Failed to fetch stocks chunk' });
   }
 });
 

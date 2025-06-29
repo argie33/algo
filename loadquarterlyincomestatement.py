@@ -189,7 +189,6 @@ if __name__ == "__main__":
             "Reconciled Depreciation" DOUBLE PRECISION,
             "Net Income From Continuing And Discontinued Operation" DOUBLE PRECISION,
             "Total Expenses" DOUBLE PRECISION,
-            "Net Income Continuous Operations" DOUBLE PRECISION,
             "Total Revenue As Reported" DOUBLE PRECISION,
             "Operating Revenue" DOUBLE PRECISION,
             "Operating Income Loss" DOUBLE PRECISION,

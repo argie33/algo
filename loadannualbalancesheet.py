@@ -36,32 +36,11 @@ def get_rss_mb():
     return usage / (1024 * 1024)
 
 def log_mem(stage: str):
-    logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
-
-# -------------------------------
-# Retry settings
-# -------------------------------
-MAX_BATCH_RETRIES = 3
-RETRY_DELAY = 0.2  # seconds between download retries
-
-# -------------------------------
-# DB config loader
-# -------------------------------
-def get_db_config():
-    secret_str = boto3.client("secretsmanager") \
-                     .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
-    sec = json.loads(secret_str)
-    return {
-        "host": sec["host"],
-        "port": int(sec.get("port", 5432)),
-        "user": sec["username"],
-        "password": sec["password"],
-        "dbname": sec["dbname"]
-    }
+    # logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
 def load_annual_balance_sheet(symbols, cur, conn):
     total = len(symbols)
-    logging.info(f"Loading annual balance sheet for {total} symbols")
+    # logging.info(f"Loading annual balance sheet for {total} symbols")
     processed, failed = 0, []
     CHUNK_SIZE, PAUSE = 20, 0.1
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
@@ -71,14 +50,20 @@ def load_annual_balance_sheet(symbols, cur, conn):
         yq_batch = [s.replace('.', '-').replace('$','-').upper() for s in batch]
         mapping = dict(zip(yq_batch, batch))
 
-        logging.info(f"Processing batch {batch_idx+1}/{batches}")
+        # logging.info(f"Processing batch {batch_idx+1}/{batches}")
         log_mem(f"Batch {batch_idx+1} start")
 
         for yq_sym, orig_sym in mapping.items():
             for attempt in range(1, MAX_BATCH_RETRIES+1):
                 try:
                     ticker = yf.Ticker(yq_sym)
-                    balance_sheet = ticker.balance_sheet
+                    # Use the new API structure - try different methods
+                    try:
+                        balance_sheet = ticker.balance_sheet
+                    except:
+                        # Fallback to quarterly if annual fails
+                        balance_sheet = ticker.quarterly_balance_sheet
+                    
                     if balance_sheet is None or balance_sheet.empty:
                         raise ValueError("No annual balance sheet data received")
                     break
@@ -124,7 +109,7 @@ def load_annual_balance_sheet(symbols, cur, conn):
                     cur.executemany(insert_sql, balance_sheet_data)
                     conn.commit()
                     processed += 1
-                    logging.info(f"Successfully processed annual balance sheet for {orig_sym}")
+                    # logging.info(f"Successfully processed annual balance sheet for {orig_sym}")
 
             except Exception as e:
                 logging.error(f"Failed to process annual balance sheet for {orig_sym}: {str(e)}")
@@ -144,18 +129,38 @@ def load_annual_balance_sheet(symbols, cur, conn):
 if __name__ == "__main__":
     log_mem("startup")
 
-    # Connect to DB
-    cfg = get_db_config()
-    conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
-        dbname=cfg["dbname"]
-    )
-    conn.autocommit = False
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    # Connect to DB with retry logic
+    max_db_retries = 3
+    for db_attempt in range(max_db_retries):
+        try:
+            cfg = get_db_config()
+            conn = psycopg2.connect(
+                host=cfg["host"], 
+                port=cfg["port"],
+                user=cfg["user"], 
+                password=cfg["password"],
+                dbname=cfg["dbname"],
+                # Add SSL and connection parameters for better stability
+                sslmode='require',
+                connect_timeout=30,
+                keepalives=1,
+                keepalives_idle=30,
+                keepalives_interval=10,
+                keepalives_count=5
+            )
+            conn.autocommit = False
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            # logging.info(f"Database connection successful on attempt {db_attempt + 1}")
+            break
+        except Exception as e:
+            logging.error(f"Database connection attempt {db_attempt + 1} failed: {e}")
+            if db_attempt == max_db_retries - 1:
+                logging.error("All database connection attempts failed. Exiting.")
+                sys.exit(1)
+            time.sleep(5)  # Wait 5 seconds before retry
 
     # Create annual balance sheet table
-    logging.info("Creating annual balance sheet table...")
+    # logging.info("Creating annual balance sheet table...")
     cur.execute("""
         DROP TABLE IF EXISTS annual_balance_sheet CASCADE;
     """)
@@ -207,7 +212,7 @@ if __name__ == "__main__":
     """
     cur.execute(create_table_sql)
     conn.commit()
-    logging.info("Created annual balance sheet table with predefined structure")
+    # logging.info("Created annual balance sheet table with predefined structure")
 
     # Load stock symbols
     cur.execute("SELECT symbol FROM stock_symbols;")
