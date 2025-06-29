@@ -2588,3 +2588,4 @@ Outputs:
     Description: ARN of the ECS TaskDefinition for TTM cash flow loader
     Value: !Ref TTMCashFlowTaskDefinition
     Export:
+      Name: TTMCashFlowTaskDefArn
