@@ -85,20 +85,14 @@ const BRAND_NAME = 'Edgebrooke Capital';
 
 // User authentication hook
 function useUser() {
-  const { data, isLoading, error } = useQuery({
+  return useQuery({
     queryKey: ['dashboard-user'],
     queryFn: async () => {
-      const response = await api.get('/dashboard/user');
+      const response = await api.get('/api/dashboard/user');
       return response.data;
     },
-    staleTime: 10 * 60 * 1000
+    staleTime: 5 * 60 * 1000
   });
-  return {
-    user: data?.data || null,
-    isLoading,
-    error,
-    isAuthenticated: !!data?.data
-  };
 }
 
 // Watchlist management hook
@@ -108,7 +102,7 @@ function useWatchlist() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-watchlist'],
     queryFn: async () => {
-      const response = await api.get('/dashboard/watchlist');
+      const response = await api.get('/api/dashboard/watchlist');
       return response.data;
     },
     staleTime: 5 * 60 * 1000
@@ -150,7 +144,7 @@ function usePortfolio() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-portfolio'],
     queryFn: async () => {
-      const response = await api.get('/dashboard/portfolio');
+      const response = await api.get('/api/dashboard/portfolio');
       return response.data;
     },
     staleTime: 5 * 60 * 1000
@@ -179,7 +173,7 @@ function usePortfolioMetrics() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-portfolio-metrics'],
     queryFn: async () => {
-      const response = await api.get('/dashboard/portfolio/metrics');
+      const response = await api.get('/api/dashboard/portfolio/metrics');
       return response.data;
     },
     staleTime: 5 * 60 * 1000
@@ -197,7 +191,7 @@ function useHoldings() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-holdings'],
     queryFn: async () => {
-      const response = await api.get('/dashboard/holdings');
+      const response = await api.get('/api/dashboard/holdings');
       return response.data;
     },
     staleTime: 5 * 60 * 1000
@@ -215,10 +209,10 @@ function useUserSettings() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-user-settings'],
     queryFn: async () => {
-      const response = await api.get('/dashboard/user/settings');
+      const response = await api.get('/api/dashboard/user/settings');
       return response.data;
     },
-    staleTime: 10 * 60 * 1000
+    staleTime: 5 * 60 * 1000
   });
 
   return {
@@ -369,6 +363,8 @@ function TechnicalSignalsWidget() {
                   <th align="left" style={{ padding: '8px 0' }}>Symbol</th>
                   <th align="left" style={{ padding: '8px 0' }}>RSI</th>
                   <th align="left" style={{ padding: '8px 0' }}>MACD</th>
+                  <th align="left" style={{ padding: '8px 0' }}>Stochastic</th>
+                  <th align="left" style={{ padding: '8px 0' }}>ATR</th>
                   <th align="left" style={{ padding: '8px 0' }}>Signal</th>
                   <th align="right" style={{ padding: '8px 0' }}>Date</th>
                 </tr>
@@ -390,6 +386,8 @@ function TechnicalSignalsWidget() {
                       ) : 'N/A'}
                     </td>
                     <td style={{ padding: '8px 0' }}>{sig.macd ? formatNumber(sig.macd, 4) : 'N/A'}</td>
+                    <td style={{ padding: '8px 0' }}>{sig.stochastic ? formatNumber(sig.stochastic, 1) : 'N/A'}</td>
+                    <td style={{ padding: '8px 0' }}>{sig.atr ? formatNumber(sig.atr, 2) : 'N/A'}</td>
                     <td style={{ padding: '8px 0' }}>
                       {sig.rsi && sig.macd ? (
                         <Chip 
@@ -416,77 +414,77 @@ function TechnicalSignalsWidget() {
   );
 }
 
-// Market Overview Widget - Keep existing
+// Market Overview Widget
 function MarketOverviewWidget() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-market-summary'],
     queryFn: async () => {
-      const response = await api.get('/dashboard/market-summary');
+      const response = await api.get('/api/dashboard/market-summary');
       return response.data;
     },
-    refetchInterval: 60000
+    staleTime: 5 * 60 * 1000
   });
 
-  const marketData = data?.data || [
-    { name: 'S&P 500', value: 5432.10, change: 0.42, pct: '+0.8%' },
-    { name: 'NASDAQ', value: 17890.55, change: -0.22, pct: '-0.1%' },
-    { name: 'DOW', value: 38900.12, change: 0.15, pct: '+0.4%' }
-  ];
+  const marketData = data?.data || [];
 
   return (
-    <Card sx={{ mb: 3 }}>
+    <Card>
       <CardContent>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-          <Business sx={{ color: 'primary.main', mr: 1 }} />
+          <TrendingUp sx={{ color: 'primary.main', mr: 1 }} />
           <Typography variant="h6" sx={{ fontWeight: 600 }}>Market Overview</Typography>
           <Tooltip title="Real-time market indices" arrow>
             <Info sx={{ color: 'grey.500', ml: 1, fontSize: 18 }} />
           </Tooltip>
         </Box>
-        <Grid container spacing={2}>
-          {marketData.map((mkt, idx) => (
-            <Grid item xs={12} sm={4} key={mkt.name}>
-              <Card sx={{ 
-                boxShadow: 1, 
-                borderLeft: `4px solid ${WIDGET_COLORS[idx % WIDGET_COLORS.length]}`,
-                bgcolor: 'grey.50'
-              }}>
-                <CardContent sx={{ py: 2, px: 2 }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, mb: 1 }}>
-                    {mkt.name}
+        {isLoading ? (
+          <Box display="flex" alignItems="center" gap={2}>
+            <CircularProgress size={20} />
+            <Typography>Loading market data...</Typography>
+          </Box>
+        ) : error ? (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            Failed to load market data: {error.message}
+          </Alert>
+        ) : (
+          <Grid container spacing={2}>
+            {marketData.map((index, idx) => (
+              <Grid item xs={4} key={idx}>
+                <Box sx={{ textAlign: 'center', p: 1 }}>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    {index.name}
                   </Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
-                    {mkt.value?.toLocaleString?.() ?? '--'}
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 0.5 }}>
+                    {index.value?.toLocaleString()}
                   </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    {mkt.change >= 0 ? (
-                      <ArrowUpward sx={{ color: 'success.main', fontSize: 16 }} />
-                    ) : (
-                      <ArrowDownward sx={{ color: 'error.main', fontSize: 16 }} />
-                    )}
-                    <Typography variant="body2" sx={{ 
-                      fontWeight: 600, 
-                      color: mkt.change >= 0 ? 'success.main' : 'error.main' 
-                    }}>
-                      {mkt.pct ?? '--'}
-                    </Typography>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      color: index.change >= 0 ? 'success.main' : 'error.main',
+                      fontWeight: 600
+                    }}
+                  >
+                    {index.pct}
+                  </Typography>
+                </Box>
+              </Grid>
+            ))}
+          </Grid>
+        )}
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+          Live market indices with real-time updates
+        </Typography>
       </CardContent>
     </Card>
   );
 }
 
-// Earnings Calendar Widget - Improved
+// Earnings Calendar Widget
 function EarningsCalendarWidget({ symbol }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-earnings-calendar', symbol],
     queryFn: async () => {
-      const response = await api.get(`/dashboard/earnings-calendar?symbol=${symbol}`);
+      const response = await api.get(`/api/dashboard/earnings-calendar?symbol=${symbol}`);
       return response.data;
     },
     staleTime: 5 * 60 * 1000
@@ -549,7 +547,7 @@ function AnalystInsightsWidget({ symbol }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-analyst-insights', symbol],
     queryFn: async () => {
-      const response = await api.get(`/dashboard/analyst-insights?symbol=${symbol}`);
+      const response = await api.get(`/api/dashboard/analyst-insights?symbol=${symbol}`);
       return response.data;
     },
     staleTime: 5 * 60 * 1000
@@ -623,7 +621,7 @@ function FinancialHighlightsWidget({ symbol }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-financial-highlights', symbol],
     queryFn: async () => {
-      const response = await api.get(`/dashboard/financial-highlights?symbol=${symbol}`);
+      const response = await api.get(`/api/dashboard/financial-highlights?symbol=${symbol}`);
       return response.data;
     },
     staleTime: 5 * 60 * 1000
@@ -813,7 +811,7 @@ const Dashboard = () => {
   const { data: symbolListData } = useQuery({
     queryKey: ['dashboard-symbol-list'],
     queryFn: async () => {
-      const response = await api.get('/dashboard/symbols');
+      const response = await api.get('/api/dashboard/symbols');
       return response.data;
     },
     staleTime: 60 * 60 * 1000
