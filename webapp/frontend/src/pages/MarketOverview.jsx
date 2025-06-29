@@ -218,8 +218,6 @@ function MarketOverview() {
     enabled: tabValue === 1,
     onError: (err) => logger.queryError('market-sentiment-history', err)
   });
-    onError: (err) => logger.queryError('market-breadth', err)
-  });
 
   const { data: economicData, isLoading: economicLoading } = useQuery({
     queryKey: ['economic-indicators', econRange],
