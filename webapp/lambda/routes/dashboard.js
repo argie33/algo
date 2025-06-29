@@ -10,24 +10,78 @@ initializeDatabase().catch(err => {
 
 /**
  * GET /api/dashboard/summary
- * Get dashboard summary data
+ * Get comprehensive dashboard summary data
  */
 router.get('/summary', async (req, res) => {
     try {
         console.log('📊 Dashboard summary request received');
         
-        // Get market overview data
+        // Get market overview data (major indices)
         const marketQuery = `
             SELECT 
                 symbol,
                 close_price,
                 volume,
                 change_percent,
+                change_amount,
+                high,
+                low,
                 updated_at
             FROM latest_price_daily 
-            WHERE symbol IN ('SPY', 'QQQ', 'IWM', 'DIA')
-            ORDER BY updated_at DESC
-            LIMIT 4
+            WHERE symbol IN ('^GSPC', '^DJI', '^IXIC', '^RUT', '^VIX', 'SPY', 'QQQ', 'IWM', 'DIA')
+            ORDER BY symbol
+        `;
+        
+        // Get top gainers
+        const gainersQuery = `
+            SELECT 
+                symbol,
+                close_price,
+                change_percent,
+                change_amount,
+                volume,
+                market_cap
+            FROM latest_price_daily 
+            WHERE change_percent > 0 
+                AND volume > 1000000
+                AND market_cap > 1000000000
+            ORDER BY change_percent DESC
+            LIMIT 10
+        `;
+        
+        // Get top losers
+        const losersQuery = `
+            SELECT 
+                symbol,
+                close_price,
+                change_percent,
+                change_amount,
+                volume,
+                market_cap
+            FROM latest_price_daily 
+            WHERE change_percent < 0 
+                AND volume > 1000000
+                AND market_cap > 1000000000
+            ORDER BY change_percent ASC
+            LIMIT 10
+        `;
+        
+        // Get sector performance
+        const sectorQuery = `
+            SELECT 
+                sector,
+                COUNT(*) as stock_count,
+                AVG(change_percent) as avg_change,
+                AVG(volume) as avg_volume,
+                SUM(market_cap) as total_market_cap
+            FROM latest_price_daily lpd
+            JOIN stocks s ON lpd.symbol = s.symbol
+            WHERE s.sector IS NOT NULL 
+                AND s.sector != ''
+                AND lpd.change_percent IS NOT NULL
+            GROUP BY sector
+            ORDER BY avg_change DESC
+            LIMIT 10
         `;
         
         // Get recent earnings
@@ -37,11 +91,12 @@ router.get('/summary', async (req, res) => {
                 actual_eps,
                 estimated_eps,
                 surprise_percent,
-                report_date
+                report_date,
+                company_name
             FROM earnings_history 
             WHERE report_date >= CURRENT_DATE - INTERVAL '30 days'
             ORDER BY report_date DESC
-            LIMIT 10
+            LIMIT 15
         `;
         
         // Get market sentiment
@@ -49,30 +104,77 @@ router.get('/summary', async (req, res) => {
             SELECT 
                 fear_greed_value,
                 fear_greed_classification,
+                fear_greed_text,
                 updated_at
             FROM fear_greed 
             ORDER BY updated_at DESC 
             LIMIT 1
         `;
         
-        console.log('🔍 Executing dashboard queries...');
+        // Get trading volume leaders
+        const volumeQuery = `
+            SELECT 
+                symbol,
+                close_price,
+                volume,
+                change_percent,
+                market_cap
+            FROM latest_price_daily 
+            WHERE volume > 10000000
+            ORDER BY volume DESC
+            LIMIT 10
+        `;
         
-        const [marketResult, earningsResult, sentimentResult] = await Promise.all([
+        // Get market breadth
+        const breadthQuery = `
+            SELECT 
+                COUNT(*) as total_stocks,
+                COUNT(CASE WHEN change_percent > 0 THEN 1 END) as advancing,
+                COUNT(CASE WHEN change_percent < 0 THEN 1 END) as declining,
+                COUNT(CASE WHEN change_percent = 0 THEN 1 END) as unchanged,
+                AVG(change_percent) as avg_change,
+                AVG(volume) as avg_volume
+            FROM latest_price_daily
+            WHERE change_percent IS NOT NULL
+        `;
+        
+        console.log('🔍 Executing comprehensive dashboard queries...');
+        
+        const [
+            marketResult, 
+            gainersResult, 
+            losersResult, 
+            sectorResult, 
+            earningsResult, 
+            sentimentResult,
+            volumeResult,
+            breadthResult
+        ] = await Promise.all([
             query(marketQuery),
+            query(gainersQuery),
+            query(losersQuery),
+            query(sectorQuery),
             query(earningsQuery),
-            query(sentimentQuery)
+            query(sentimentQuery),
+            query(volumeQuery),
+            query(breadthQuery)
         ]);
         
-        console.log(`✅ Dashboard queries completed: ${marketResult.rowCount} market, ${earningsResult.rowCount} earnings, ${sentimentResult.rowCount} sentiment`);
+        console.log(`✅ Dashboard queries completed: ${marketResult.rowCount} market, ${gainersResult.rowCount} gainers, ${losersResult.rowCount} losers, ${sectorResult.rowCount} sectors, ${earningsResult.rowCount} earnings, ${sentimentResult.rowCount} sentiment, ${volumeResult.rowCount} volume, ${breadthResult.rowCount} breadth`);
         
         const summary = {
             market_overview: marketResult.rows,
+            top_gainers: gainersResult.rows,
+            top_losers: losersResult.rows,
+            sector_performance: sectorResult.rows,
             recent_earnings: earningsResult.rows,
             market_sentiment: sentimentResult.rows[0] || null,
+            volume_leaders: volumeResult.rows,
+            market_breadth: breadthResult.rows[0] || null,
             timestamp: new Date().toISOString()
         };
         
-        console.log('📤 Sending dashboard summary response');
+        console.log('📤 Sending comprehensive dashboard summary response');
         res.json({
             success: true,
             data: summary
@@ -90,7 +192,7 @@ router.get('/summary', async (req, res) => {
 
 /**
  * GET /api/dashboard/holdings
- * Get portfolio holdings data
+ * Get portfolio holdings data with more details
  */
 router.get('/holdings', async (req, res) => {
     try {
@@ -105,20 +207,40 @@ router.get('/holdings', async (req, res) => {
                 total_value,
                 gain_loss,
                 gain_loss_percent,
+                sector,
+                company_name,
                 updated_at
-            FROM portfolio_holdings 
+            FROM portfolio_holdings ph
+            LEFT JOIN stocks s ON ph.symbol = s.symbol
             ORDER BY total_value DESC
         `;
         
-        console.log('🔍 Executing holdings query...');
-        const result = await query(holdingsQuery);
+        // Get portfolio summary
+        const summaryQuery = `
+            SELECT 
+                COUNT(*) as total_positions,
+                SUM(total_value) as total_portfolio_value,
+                SUM(gain_loss) as total_gain_loss,
+                AVG(gain_loss_percent) as avg_gain_loss_percent,
+                SUM(shares * current_price) as market_value
+            FROM portfolio_holdings
+        `;
         
-        console.log(`✅ Holdings query completed: ${result.rowCount} holdings found`);
+        console.log('🔍 Executing holdings queries...');
+        const [holdingsResult, summaryResult] = await Promise.all([
+            query(holdingsQuery),
+            query(summaryQuery)
+        ]);
+        
+        console.log(`✅ Holdings queries completed: ${holdingsResult.rowCount} holdings found`);
         
         res.json({
             success: true,
-            data: result.rows,
-            count: result.rowCount
+            data: {
+                holdings: holdingsResult.rows,
+                summary: summaryResult.rows[0] || null,
+                count: holdingsResult.rowCount
+            }
         });
         
     } catch (error) {
@@ -133,7 +255,7 @@ router.get('/holdings', async (req, res) => {
 
 /**
  * GET /api/dashboard/performance
- * Get portfolio performance data
+ * Get portfolio performance data with charts
  */
 router.get('/performance', async (req, res) => {
     try {
@@ -144,21 +266,41 @@ router.get('/performance', async (req, res) => {
                 date,
                 total_value,
                 daily_return,
-                cumulative_return
+                cumulative_return,
+                benchmark_return,
+                excess_return
             FROM portfolio_performance 
-            WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+            WHERE date >= CURRENT_DATE - INTERVAL '90 days'
             ORDER BY date ASC
         `;
         
-        console.log('🔍 Executing performance query...');
-        const result = await query(performanceQuery);
+        // Get performance metrics
+        const metricsQuery = `
+            SELECT 
+                AVG(daily_return) as avg_daily_return,
+                STDDEV(daily_return) as volatility,
+                MAX(cumulative_return) as max_return,
+                MIN(cumulative_return) as min_return,
+                COUNT(*) as trading_days
+            FROM portfolio_performance 
+            WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+        `;
         
-        console.log(`✅ Performance query completed: ${result.rowCount} data points`);
+        console.log('🔍 Executing performance queries...');
+        const [performanceResult, metricsResult] = await Promise.all([
+            query(performanceQuery),
+            query(metricsQuery)
+        ]);
+        
+        console.log(`✅ Performance queries completed: ${performanceResult.rowCount} data points`);
         
         res.json({
             success: true,
-            data: result.rows,
-            count: result.rowCount
+            data: {
+                performance: performanceResult.rows,
+                metrics: metricsResult.rows[0] || null,
+                count: performanceResult.rowCount
+            }
         });
         
     } catch (error) {
@@ -173,7 +315,7 @@ router.get('/performance', async (req, res) => {
 
 /**
  * GET /api/dashboard/alerts
- * Get trading alerts and signals
+ * Get trading alerts and signals with more details
  */
 router.get('/alerts', async (req, res) => {
     try {
@@ -185,22 +327,43 @@ router.get('/alerts', async (req, res) => {
                 alert_type,
                 message,
                 price,
+                target_price,
+                stop_loss,
+                priority,
+                status,
                 created_at
             FROM trading_alerts 
             WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'
-            ORDER BY created_at DESC
-            LIMIT 20
+            ORDER BY priority DESC, created_at DESC
+            LIMIT 25
         `;
         
-        console.log('🔍 Executing alerts query...');
-        const result = await query(alertsQuery);
+        // Get alert summary
+        const alertSummaryQuery = `
+            SELECT 
+                alert_type,
+                COUNT(*) as count,
+                COUNT(CASE WHEN status = 'active' THEN 1 END) as active_count
+            FROM trading_alerts 
+            WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'
+            GROUP BY alert_type
+        `;
         
-        console.log(`✅ Alerts query completed: ${result.rowCount} alerts found`);
+        console.log('🔍 Executing alerts queries...');
+        const [alertsResult, summaryResult] = await Promise.all([
+            query(alertsQuery),
+            query(alertSummaryQuery)
+        ]);
+        
+        console.log(`✅ Alerts queries completed: ${alertsResult.rowCount} alerts found`);
         
         res.json({
             success: true,
-            data: result.rows,
-            count: result.rowCount
+            data: {
+                alerts: alertsResult.rows,
+                summary: summaryResult.rows,
+                count: alertsResult.rowCount
+            }
         });
         
     } catch (error) {
@@ -208,6 +371,92 @@ router.get('/alerts', async (req, res) => {
         res.status(500).json({
             success: false,
             error: 'Failed to fetch alerts',
+            details: error.message
+        });
+    }
+});
+
+/**
+ * GET /api/dashboard/market-data
+ * Get additional market data for dashboard
+ */
+router.get('/market-data', async (req, res) => {
+    try {
+        console.log('📊 Market data request received');
+        
+        // Get economic indicators
+        const econQuery = `
+            SELECT 
+                indicator_name,
+                value,
+                change_percent,
+                date
+            FROM economic_data 
+            WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+            ORDER BY date DESC, indicator_name
+            LIMIT 20
+        `;
+        
+        // Get sector rotation
+        const sectorRotationQuery = `
+            SELECT 
+                sector,
+                AVG(change_percent) as avg_change,
+                COUNT(*) as stock_count,
+                SUM(market_cap) as total_market_cap
+            FROM latest_price_daily lpd
+            JOIN stocks s ON lpd.symbol = s.symbol
+            WHERE s.sector IS NOT NULL 
+                AND lpd.change_percent IS NOT NULL
+            GROUP BY sector
+            ORDER BY avg_change DESC
+        `;
+        
+        // Get market internals
+        const internalsQuery = `
+            SELECT 
+                'advancing' as type,
+                COUNT(*) as count
+            FROM latest_price_daily 
+            WHERE change_percent > 0
+            UNION ALL
+            SELECT 
+                'declining' as type,
+                COUNT(*) as count
+            FROM latest_price_daily 
+            WHERE change_percent < 0
+            UNION ALL
+            SELECT 
+                'unchanged' as type,
+                COUNT(*) as count
+            FROM latest_price_daily 
+            WHERE change_percent = 0
+        `;
+        
+        console.log('🔍 Executing market data queries...');
+        const [econResult, sectorResult, internalsResult] = await Promise.all([
+            query(econQuery),
+            query(sectorRotationQuery),
+            query(internalsQuery)
+        ]);
+        
+        console.log(`✅ Market data queries completed: ${econResult.rowCount} econ, ${sectorResult.rowCount} sectors, ${internalsResult.rowCount} internals`);
+        
+        res.json({
+            success: true,
+            data: {
+                economic_indicators: econResult.rows,
+                sector_rotation: sectorResult.rows,
+                market_internals: internalsResult.rows,
+                timestamp: new Date().toISOString()
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Market data error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch market data',
             details: error.message
         });
     }
@@ -243,7 +492,10 @@ router.get('/debug', async (req, res) => {
             'fear_greed',
             'portfolio_holdings',
             'portfolio_performance',
-            'trading_alerts'
+            'trading_alerts',
+            'economic_data',
+            'stocks',
+            'technical_data_daily'
         ];
         
         for (const table of tables) {
@@ -261,7 +513,8 @@ router.get('/debug', async (req, res) => {
                 SELECT 
                     (SELECT COUNT(*) FROM latest_price_daily) as price_count,
                     (SELECT COUNT(*) FROM earnings_history) as earnings_count,
-                    (SELECT COUNT(*) FROM fear_greed) as sentiment_count
+                    (SELECT COUNT(*) FROM fear_greed) as sentiment_count,
+                    (SELECT COUNT(*) FROM stocks) as stocks_count
             `);
             debugData.sample_data = sampleResult.rows[0];
         } catch (error) {

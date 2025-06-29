@@ -651,4 +651,174 @@ router.get('/support-resistance/:symbol', async (req, res) => {
   }
 });
 
+// Get technical data with filtering and pagination
+router.get('/data', async (req, res) => {
+  const { 
+    symbol,
+    timeframe = 'daily',
+    limit = 25,
+    page = 1,
+    startDate,
+    endDate,
+    sortBy = 'date',
+    sortOrder = 'desc'
+  } = req.query;
+
+  console.log(`📊 [TECHNICAL] Fetching technical data with params:`, {
+    symbol, timeframe, limit, page, startDate, endDate, sortBy, sortOrder
+  });
+
+  try {
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const maxLimit = Math.min(parseInt(limit), 200);
+
+    // Build WHERE clause
+    let whereClause = 'WHERE 1=1';
+    const params = [];
+    let paramIndex = 1;
+
+    // Symbol filter
+    if (symbol && symbol.trim()) {
+      whereClause += ` AND symbol = $${paramIndex}`;
+      params.push(symbol.toUpperCase());
+      paramIndex++;
+    }
+
+    // Date filters
+    if (startDate) {
+      whereClause += ` AND date >= $${paramIndex}`;
+      params.push(startDate);
+      paramIndex++;
+    }
+
+    if (endDate) {
+      whereClause += ` AND date <= $${paramIndex}`;
+      params.push(endDate);
+      paramIndex++;
+    }
+
+    // Determine table name based on timeframe
+    const validTimeframes = ['daily', 'weekly', 'monthly'];
+    if (!validTimeframes.includes(timeframe)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid timeframe',
+        message: `Supported timeframes: ${validTimeframes.join(', ')}, got: ${timeframe}`
+      });
+    }
+
+    const tableName = `technical_data_${timeframe}`;
+
+    // Get total count
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM ${tableName}
+      ${whereClause}
+    `;
+    const countResult = await query(countQuery, params);
+    const total = parseInt(countResult.rows[0].total);
+
+    // Validate sortBy field
+    const validSortFields = [
+      'date', 'symbol', 'open', 'high', 'low', 'close', 'volume',
+      'rsi', 'macd', 'macd_signal', 'macd_histogram', 'sma_20', 'sma_50',
+      'ema_12', 'ema_26', 'bollinger_upper', 'bollinger_lower', 'bollinger_middle'
+    ];
+    const safeSortBy = validSortFields.includes(sortBy) ? sortBy : 'date';
+    const safeSortOrder = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+
+    // Get technical data
+    const dataQuery = `
+      SELECT 
+        symbol,
+        date,
+        open,
+        high,
+        low,
+        close,
+        volume,
+        rsi,
+        macd,
+        macd_signal,
+        macd_histogram,
+        sma_10,
+        sma_20,
+        sma_50,
+        sma_150,
+        sma_200,
+        ema_4,
+        ema_9,
+        ema_21,
+        ema_12,
+        ema_26,
+        bollinger_upper,
+        bollinger_lower,
+        bollinger_middle,
+        stochastic_k,
+        stochastic_d,
+        williams_r,
+        cci,
+        adx,
+        atr,
+        obv,
+        mfi,
+        roc,
+        momentum,
+        ad,
+        cmf,
+        td_sequential,
+        td_combo,
+        marketwatch,
+        dm,
+        pivot_high,
+        pivot_low,
+        pivot_high_triggered,
+        pivot_low_triggered
+      FROM ${tableName}
+      ${whereClause}
+      ORDER BY ${safeSortBy} ${safeSortOrder}
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+
+    const finalParams = [...params, maxLimit, offset];
+    const dataResult = await query(dataQuery, finalParams);
+
+    const totalPages = Math.ceil(total / maxLimit);
+
+    console.log(`✅ [TECHNICAL] Data query completed: ${dataResult.rows.length} results, total: ${total}`);
+
+    res.json({
+      success: true,
+      data: dataResult.rows,
+      total: total,
+      pagination: {
+        page: parseInt(page),
+        limit: maxLimit,
+        total,
+        totalPages,
+        hasNext: parseInt(page) < totalPages,
+        hasPrev: parseInt(page) > 1
+      },
+      filters: {
+        symbol: symbol || null,
+        timeframe,
+        startDate: startDate || null,
+        endDate: endDate || null
+      },
+      sorting: {
+        sortBy: safeSortBy,
+        sortOrder: safeSortOrder
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ [TECHNICAL] Technical data error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch technical data',
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;

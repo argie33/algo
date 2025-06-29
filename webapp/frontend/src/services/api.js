@@ -575,7 +575,7 @@ export const getFinancialStrengthMetrics = async (params = {}) => {
 // New method for stock screening with proper parameter handling
 export const screenStocks = async (params) => {
   try {
-    const url = `/api/stocks?${params.toString()}`
+    const url = `/api/stocks/screen?${params.toString()}`
     const response = await api.get(url, {
       baseURL: currentConfig.baseURL
     })
@@ -843,12 +843,13 @@ export const getFinancialMetrics = async (params = {}) => {
 export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
   try {
     const queryParams = new URLSearchParams();
+    queryParams.append('timeframe', timeframe);
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
         queryParams.append(key, value);
       }
     });
-    const response = await api.get(`/api/technical/${timeframe}?${queryParams.toString()}`);
+    const response = await api.get(`/api/technical/data?${queryParams.toString()}`);
     // Always return { data, pagination, metadata }
     if (response.data && typeof response.data === 'object') {
       const { data, pagination, metadata } = response.data;

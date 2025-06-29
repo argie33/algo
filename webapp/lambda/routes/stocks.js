@@ -795,4 +795,323 @@ router.get('/search', async (req, res) => {
   }
 });
 
+// Screen stocks with advanced filtering
+router.get('/screen', async (req, res) => {
+  const { 
+    search,
+    sector,
+    industry,
+    country,
+    exchange,
+    priceMin,
+    priceMax,
+    marketCapMin,
+    marketCapMax,
+    peRatioMin,
+    peRatioMax,
+    pegRatioMin,
+    pegRatioMax,
+    pbRatioMin,
+    pbRatioMax,
+    roeMin,
+    roeMax,
+    roaMin,
+    roaMax,
+    netMarginMin,
+    netMarginMax,
+    revenueGrowthMin,
+    revenueGrowthMax,
+    earningsGrowthMin,
+    earningsGrowthMax,
+    dividendYieldMin,
+    dividendYieldMax,
+    payoutRatioMin,
+    payoutRatioMax,
+    currentRatioMin,
+    currentRatioMax,
+    debtToEquityMin,
+    debtToEquityMax,
+    minAnalystRating,
+    hasEarningsGrowth,
+    hasPositiveCashFlow,
+    paysDividends,
+    page = 1,
+    limit = 25,
+    sortBy = 'symbol',
+    sortOrder = 'asc'
+  } = req.query;
+
+  console.log('🔍 [STOCKS] Screening stocks with filters:', {
+    search, sector, priceMin, priceMax, marketCapMin, marketCapMax,
+    page, limit, sortBy, sortOrder
+  });
+
+  try {
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const maxLimit = Math.min(parseInt(limit), 200);
+
+    // Build WHERE clause
+    let whereClause = 'WHERE 1=1';
+    const params = [];
+    let paramIndex = 1;
+
+    // Search filter
+    if (search && search.trim()) {
+      whereClause += ` AND (symbol ILIKE $${paramIndex} OR company_name ILIKE $${paramIndex})`;
+      params.push(`%${search.trim()}%`);
+      paramIndex++;
+    }
+
+    // Sector filter
+    if (sector && sector.trim()) {
+      whereClause += ` AND sector = $${paramIndex}`;
+      params.push(sector);
+      paramIndex++;
+    }
+
+    // Industry filter
+    if (industry && industry.trim()) {
+      whereClause += ` AND industry = $${paramIndex}`;
+      params.push(industry);
+      paramIndex++;
+    }
+
+    // Country filter
+    if (country && country.trim()) {
+      whereClause += ` AND country = $${paramIndex}`;
+      params.push(country);
+      paramIndex++;
+    }
+
+    // Exchange filter
+    if (exchange && exchange.trim()) {
+      whereClause += ` AND exchange = $${paramIndex}`;
+      params.push(exchange);
+      paramIndex++;
+    }
+
+    // Price filters
+    if (priceMin) {
+      whereClause += ` AND current_price >= $${paramIndex}`;
+      params.push(parseFloat(priceMin));
+      paramIndex++;
+    }
+
+    if (priceMax) {
+      whereClause += ` AND current_price <= $${paramIndex}`;
+      params.push(parseFloat(priceMax));
+      paramIndex++;
+    }
+
+    // Market cap filters
+    if (marketCapMin) {
+      whereClause += ` AND market_cap >= $${paramIndex}`;
+      params.push(parseFloat(marketCapMin) * 1e9); // Convert billions to actual value
+      paramIndex++;
+    }
+
+    if (marketCapMax) {
+      whereClause += ` AND market_cap <= $${paramIndex}`;
+      params.push(parseFloat(marketCapMax) * 1e9); // Convert billions to actual value
+      paramIndex++;
+    }
+
+    // P/E ratio filters
+    if (peRatioMin) {
+      whereClause += ` AND pe_ratio >= $${paramIndex}`;
+      params.push(parseFloat(peRatioMin));
+      paramIndex++;
+    }
+
+    if (peRatioMax) {
+      whereClause += ` AND pe_ratio <= $${paramIndex}`;
+      params.push(parseFloat(peRatioMax));
+      paramIndex++;
+    }
+
+    // ROE filters
+    if (roeMin) {
+      whereClause += ` AND return_on_equity >= $${paramIndex}`;
+      params.push(parseFloat(roeMin) / 100); // Convert percentage to decimal
+      paramIndex++;
+    }
+
+    if (roeMax) {
+      whereClause += ` AND return_on_equity <= $${paramIndex}`;
+      params.push(parseFloat(roeMax) / 100); // Convert percentage to decimal
+      paramIndex++;
+    }
+
+    // Revenue growth filters
+    if (revenueGrowthMin) {
+      whereClause += ` AND revenue_growth >= $${paramIndex}`;
+      params.push(parseFloat(revenueGrowthMin) / 100); // Convert percentage to decimal
+      paramIndex++;
+    }
+
+    if (revenueGrowthMax) {
+      whereClause += ` AND revenue_growth <= $${paramIndex}`;
+      params.push(parseFloat(revenueGrowthMax) / 100); // Convert percentage to decimal
+      paramIndex++;
+    }
+
+    // Dividend yield filters
+    if (dividendYieldMin) {
+      whereClause += ` AND dividend_yield >= $${paramIndex}`;
+      params.push(parseFloat(dividendYieldMin) / 100); // Convert percentage to decimal
+      paramIndex++;
+    }
+
+    if (dividendYieldMax) {
+      whereClause += ` AND dividend_yield <= $${paramIndex}`;
+      params.push(parseFloat(dividendYieldMax) / 100); // Convert percentage to decimal
+      paramIndex++;
+    }
+
+    // Current ratio filters
+    if (currentRatioMin) {
+      whereClause += ` AND current_ratio >= $${paramIndex}`;
+      params.push(parseFloat(currentRatioMin));
+      paramIndex++;
+    }
+
+    if (currentRatioMax) {
+      whereClause += ` AND current_ratio <= $${paramIndex}`;
+      params.push(parseFloat(currentRatioMax));
+      paramIndex++;
+    }
+
+    // Debt to equity filters
+    if (debtToEquityMin) {
+      whereClause += ` AND debt_to_equity >= $${paramIndex}`;
+      params.push(parseFloat(debtToEquityMin));
+      paramIndex++;
+    }
+
+    if (debtToEquityMax) {
+      whereClause += ` AND debt_to_equity <= $${paramIndex}`;
+      params.push(parseFloat(debtToEquityMax));
+      paramIndex++;
+    }
+
+    // Boolean filters
+    if (hasEarningsGrowth === 'true') {
+      whereClause += ` AND revenue_growth > 0`;
+    }
+
+    if (hasPositiveCashFlow === 'true') {
+      whereClause += ` AND current_ratio > 1`;
+    }
+
+    if (paysDividends === 'true') {
+      whereClause += ` AND dividend_yield > 0`;
+    }
+
+    // Get total count
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM stocks
+      ${whereClause}
+    `;
+    const countResult = await query(countQuery, params);
+    const total = parseInt(countResult.rows[0].total);
+
+    // Validate sortBy field
+    const validSortFields = [
+      'symbol', 'company_name', 'current_price', 'market_cap', 'pe_ratio', 
+      'dividend_yield', 'return_on_equity', 'revenue_growth', 'sector',
+      'volume', 'change_percent'
+    ];
+    const safeSortBy = validSortFields.includes(sortBy) ? sortBy : 'symbol';
+    const safeSortOrder = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+
+    // Get screened stocks data
+    const dataQuery = `
+      SELECT 
+        symbol,
+        company_name,
+        sector,
+        industry,
+        exchange,
+        current_price,
+        previous_close,
+        change_percent,
+        change_amount,
+        volume,
+        market_cap,
+        pe_ratio,
+        dividend_yield,
+        beta,
+        fifty_two_week_high,
+        fifty_two_week_low,
+        avg_volume,
+        COALESCE(return_on_equity, 0) as return_on_equity,
+        COALESCE(revenue_growth, 0) as revenue_growth,
+        COALESCE(current_ratio, 0) as current_ratio,
+        COALESCE(debt_to_equity, 0) as debt_to_equity,
+        last_updated
+      FROM stocks
+      ${whereClause}
+      ORDER BY ${safeSortBy} ${safeSortOrder}
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+
+    const finalParams = [...params, maxLimit, offset];
+    const dataResult = await query(dataQuery, finalParams);
+
+    const totalPages = Math.ceil(total / maxLimit);
+
+    console.log(`✅ [STOCKS] Screening completed: ${dataResult.rows.length} results, total: ${total}`);
+
+    res.json({
+      success: true,
+      data: dataResult.rows,
+      total: total,
+      pagination: {
+        page: parseInt(page),
+        limit: maxLimit,
+        total,
+        totalPages,
+        hasNext: parseInt(page) < totalPages,
+        hasPrev: parseInt(page) > 1
+      },
+      filters: {
+        search: search || null,
+        sector: sector || null,
+        industry: industry || null,
+        country: country || null,
+        exchange: exchange || null,
+        priceMin: priceMin || null,
+        priceMax: priceMax || null,
+        marketCapMin: marketCapMin || null,
+        marketCapMax: marketCapMax || null,
+        peRatioMin: peRatioMin || null,
+        peRatioMax: peRatioMax || null,
+        roeMin: roeMin || null,
+        roeMax: roeMax || null,
+        revenueGrowthMin: revenueGrowthMin || null,
+        revenueGrowthMax: revenueGrowthMax || null,
+        dividendYieldMin: dividendYieldMin || null,
+        dividendYieldMax: dividendYieldMax || null,
+        currentRatioMin: currentRatioMin || null,
+        currentRatioMax: currentRatioMax || null,
+        debtToEquityMin: debtToEquityMin || null,
+        debtToEquityMax: debtToEquityMax || null
+      },
+      sorting: {
+        sortBy: safeSortBy,
+        sortOrder: safeSortOrder
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ [STOCKS] Stock screening error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to screen stocks',
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;
