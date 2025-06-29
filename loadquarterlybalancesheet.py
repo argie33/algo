@@ -17,7 +17,7 @@ import yfinance as yf
 import pandas as pd
 
 # -------------------------------
-# Script metadata & logging setup
+# Script metadata & logging setup 
 # -------------------------------
 SCRIPT_NAME = "loadquarterlybalancesheet.py"
 logging.basicConfig(
