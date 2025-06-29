@@ -344,84 +344,95 @@ router.get('/financial-highlights', async (req, res) => {
   }
 });
 
-// Portfolio endpoint
-router.get('/portfolio', async (req, res) => {
-  try {
-    // Mock portfolio data for now
-    const portfolio = {
-      value: 1250000,
-      pnl: {
-        daily: 3200,
-        mtd: 18000,
-        ytd: 92000
-      },
-      allocation: [
-        { name: 'AAPL', value: 38 },
-        { name: 'MSFT', value: 27 },
-        { name: 'GOOGL', value: 18 },
-        { name: 'Cash', value: 10 },
-        { name: 'Other', value: 7 }
-      ]
-    };
-
-    res.json({
-      success: true,
-      data: portfolio,
-      message: 'Portfolio data retrieved successfully'
-    });
-  } catch (error) {
-    console.error('Error fetching portfolio:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch portfolio',
-      message: error.message
-    });
-  }
+// --- USER AUTH & INFO (stub) ---
+router.get('/user', async (req, res) => {
+  // In production, get user from session/JWT
+  res.json({
+    success: true,
+    data: {
+      id: 1,
+      name: 'Test User',
+      email: 'testuser@example.com',
+      joined: '2024-01-01',
+      brokerConnected: false
+    }
+  });
 });
 
-// Watchlist endpoint
-router.get('/watchlist', async (req, res) => {
-  try {
-    // Get watchlist from database or return mock data
-    const watchlistData = await query(`
-      SELECT 
-        ticker as symbol,
-        regular_market_price as price,
-        regular_market_change_percent as change
-      FROM market_data 
-      WHERE ticker IN ('AAPL', 'TSLA', 'NVDA', 'MSFT', 'GOOGL')
-        AND fetched_at = (SELECT MAX(fetched_at) FROM market_data)
-      ORDER BY ticker
-    `);
+// --- WATCHLIST ---
+// For demo, store in-memory (replace with DB in production)
+let userWatchlists = { 1: ['AAPL', 'MSFT', 'GOOGL'] };
+router.get('/watchlist', (req, res) => {
+  const userId = 1;
+  res.json({ success: true, data: userWatchlists[userId] || [] });
+});
+router.post('/watchlist', (req, res) => {
+  const userId = 1;
+  const { symbol } = req.body;
+  if (!symbol) return res.status(400).json({ success: false, error: 'Symbol required' });
+  userWatchlists[userId] = userWatchlists[userId] || [];
+  if (!userWatchlists[userId].includes(symbol)) userWatchlists[userId].push(symbol);
+  res.json({ success: true, data: userWatchlists[userId] });
+});
+router.delete('/watchlist', (req, res) => {
+  const userId = 1;
+  const { symbol } = req.body;
+  if (!symbol) return res.status(400).json({ success: false, error: 'Symbol required' });
+  userWatchlists[userId] = (userWatchlists[userId] || []).filter(s => s !== symbol);
+  res.json({ success: true, data: userWatchlists[userId] });
+});
 
-    const watchlist = watchlistData.rows.length > 0 
-      ? watchlistData.rows 
-      : [
-          { symbol: 'AAPL', price: 195.12, change: 2.1 },
-          { symbol: 'TSLA', price: 710.22, change: -1.8 },
-          { symbol: 'NVDA', price: 1200, change: 3.5 },
-          { symbol: 'MSFT', price: 420.5, change: 0.7 }
-        ];
+// --- PORTFOLIO ---
+let userPortfolios = { 1: { positions: [], value: 0, pnl: { daily: 0, mtd: 0, ytd: 0 } } };
+router.get('/portfolio', (req, res) => {
+  const userId = 1;
+  res.json({ success: true, data: userPortfolios[userId] });
+});
+router.post('/portfolio', (req, res) => {
+  const userId = 1;
+  const { positions } = req.body;
+  if (!Array.isArray(positions)) return res.status(400).json({ success: false, error: 'Positions array required' });
+  userPortfolios[userId] = { ...userPortfolios[userId], positions };
+  res.json({ success: true, data: userPortfolios[userId] });
+});
 
-    res.json({
-      success: true,
-      data: watchlist,
-      message: 'Watchlist retrieved successfully'
-    });
-  } catch (error) {
-    console.error('Error fetching watchlist:', error);
-    // Return mock data on error
-    res.json({
-      success: true,
-      data: [
-        { symbol: 'AAPL', price: 195.12, change: 2.1 },
-        { symbol: 'TSLA', price: 710.22, change: -1.8 },
-        { symbol: 'NVDA', price: 1200, change: 3.5 },
-        { symbol: 'MSFT', price: 420.5, change: 0.7 }
-      ],
-      message: 'Watchlist retrieved successfully (fallback data)'
-    });
-  }
+// --- PORTFOLIO METRICS (stub) ---
+router.get('/portfolio/metrics', (req, res) => {
+  // In production, calculate from actual positions
+  res.json({
+    success: true,
+    data: {
+      sharpe: 1.25,
+      beta: 0.98,
+      maxDrawdown: 0.12,
+      volatility: 0.18
+    }
+  });
+});
+
+// --- HOLDINGS (manual + API) ---
+router.get('/holdings', (req, res) => {
+  // For now, just return manual positions
+  const userId = 1;
+  res.json({ success: true, data: userPortfolios[userId]?.positions || [] });
+});
+
+// --- CONNECT BROKER (stub) ---
+router.post('/connect-broker', (req, res) => {
+  // Save API key for Alpaca, etc. (stub)
+  res.json({ success: true, message: 'Broker API key saved (stub)' });
+});
+
+// --- USER SETTINGS (stub) ---
+router.get('/user/settings', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      theme: 'light',
+      notifications: true,
+      email: 'testuser@example.com'
+    }
+  });
 });
 
 // News endpoint

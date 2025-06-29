@@ -15,7 +15,18 @@ import {
   TextField,
   Autocomplete,
   CircularProgress,
-  Alert
+  Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
+  Fab,
+  Link
 } from '@mui/material';
 import {
   TrendingUp,
@@ -42,10 +53,16 @@ import {
   ListAlt,
   Download,
   ContactSupport,
-  Info
+  Info,
+  Add,
+  Remove,
+  Settings,
+  Person,
+  Link as LinkIcon,
+  Close
 } from '@mui/icons-material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getStockPrices, getStockMetrics, getBuySignals, getSellSignals, getRecentAnalystActions, getKeyMetrics, api } from '../services/api';
 import { PieChart, Pie, Cell } from 'recharts';
 import { format } from 'date-fns';
@@ -55,73 +72,23 @@ import { formatCurrency, formatNumber, formatPercentage } from '../utils/formatt
 // Logo import with fallback
 let logoSrc = null;
 try {
-  // Use dynamic import for assets in Vite
   logoSrc = new URL('../assets/logo.png', import.meta.url).href;
 } catch (e) {
   logoSrc = null;
 }
 
-// Get API configuration
 const { apiUrl: API_BASE } = getApiConfig();
-
 const DEFAULT_TICKER = 'AAPL';
 const WIDGET_COLORS = ['#1976d2', '#43a047', '#ffb300', '#8e24aa', '#e53935'];
 
-const mockPortfolio = {
-  value: 1250000,
-  pnl: { daily: 3200, mtd: 18000, ytd: 92000 },
-  allocation: [
-    { name: 'AAPL', value: 38 },
-    { name: 'MSFT', value: 27 },
-    { name: 'GOOGL', value: 18 },
-    { name: 'Cash', value: 10 },
-    { name: 'Other', value: 7 }
-  ]
-};
-const mockWatchlist = [
-  { symbol: 'AAPL', price: 195.12, change: 2.1 },
-  { symbol: 'TSLA', price: 710.22, change: -1.8 },
-  { symbol: 'NVDA', price: 1200, change: 3.5 },
-  { symbol: 'MSFT', price: 420.5, change: 0.7 }
-];
-const mockActivity = [
-  { type: 'Trade', desc: 'Bought 100 AAPL', date: '2025-06-21' },
-  { type: 'Alert', desc: 'TSLA price alert triggered', date: '2025-06-20' },
-  { type: 'Trade', desc: 'Sold 50 NVDA', date: '2025-06-19' }
-];
-const mockCalendar = [
-  { event: 'FOMC Rate Decision', date: '2025-06-25' },
-  { event: 'AAPL Earnings', date: '2025-07-01' },
-  { event: 'Nonfarm Payrolls', date: '2025-07-05' }
-];
-const mockSignals = [
-  { symbol: 'AAPL', action: 'Buy', confidence: 0.92 },
-  { symbol: 'TSLA', action: 'Sell', confidence: 0.87 }
-];
-const mockNews = [
-  { title: 'Fed Holds Rates Steady, Signals Caution', date: '2025-06-21' },
-  { title: 'AAPL Surges on Strong Earnings', date: '2025-06-20' },
-  { title: 'Global Markets Mixed Ahead of FOMC', date: '2025-06-19' }
-];
-
 const BRAND_NAME = 'Edgebrooke Capital';
-// Remove user/advisor names for now 
-const USER_NAME = '';
-const ADVISOR_NAME = '';
-const ADVISOR_EMAIL = '';
 
-const marketSummary = [
-  { name: 'S&P 500', value: 5432.10, change: +0.42, pct: '+0.8%', icon: <ArrowUpward sx={{ color: 'success.main', fontSize: 18 }} /> },
-  { name: 'NASDAQ', value: 17890.55, change: -0.22, pct: '-0.1%', icon: <ArrowDownward sx={{ color: 'error.main', fontSize: 18 }} /> },
-  { name: 'DOW', value: 38900.12, change: +0.15, pct: '+0.4%', icon: <ArrowUpward sx={{ color: 'success.main', fontSize: 18 }} /> },
-];
-
-// Example: fetch user info and auth status from backend
+// User authentication hook
 function useUser() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-user'],
     queryFn: async () => {
-      const response = await api.get('/auth/user');
+      const response = await api.get('/dashboard/user');
       return response.data;
     },
     staleTime: 10 * 60 * 1000
@@ -134,13 +101,235 @@ function useUser() {
   };
 }
 
-// --- TECHNICAL SIGNALS WIDGET ---
+// Watchlist management hook
+function useWatchlist() {
+  const queryClient = useQueryClient();
+  
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['dashboard-watchlist'],
+    queryFn: async () => {
+      const response = await api.get('/dashboard/watchlist');
+      return response.data;
+    },
+    staleTime: 5 * 60 * 1000
+  });
+
+  const addSymbol = useMutation({
+    mutationFn: async (symbol) => {
+      const response = await api.post('/dashboard/watchlist', { symbol });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['dashboard-watchlist']);
+    }
+  });
+
+  const removeSymbol = useMutation({
+    mutationFn: async (symbol) => {
+      const response = await api.delete('/dashboard/watchlist', { data: { symbol } });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['dashboard-watchlist']);
+    }
+  });
+
+  return {
+    watchlist: data?.data || [],
+    isLoading,
+    error,
+    addSymbol,
+    removeSymbol
+  };
+}
+
+// Portfolio management hook
+function usePortfolio() {
+  const queryClient = useQueryClient();
+  
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['dashboard-portfolio'],
+    queryFn: async () => {
+      const response = await api.get('/dashboard/portfolio');
+      return response.data;
+    },
+    staleTime: 5 * 60 * 1000
+  });
+
+  const updatePositions = useMutation({
+    mutationFn: async (positions) => {
+      const response = await api.post('/dashboard/portfolio', { positions });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['dashboard-portfolio']);
+    }
+  });
+
+  return {
+    portfolio: data?.data || { positions: [], value: 0, pnl: { daily: 0, mtd: 0, ytd: 0 } },
+    isLoading,
+    error,
+    updatePositions
+  };
+}
+
+// Portfolio metrics hook
+function usePortfolioMetrics() {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['dashboard-portfolio-metrics'],
+    queryFn: async () => {
+      const response = await api.get('/dashboard/portfolio/metrics');
+      return response.data;
+    },
+    staleTime: 5 * 60 * 1000
+  });
+
+  return {
+    metrics: data?.data || {},
+    isLoading,
+    error
+  };
+}
+
+// Holdings hook
+function useHoldings() {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['dashboard-holdings'],
+    queryFn: async () => {
+      const response = await api.get('/dashboard/holdings');
+      return response.data;
+    },
+    staleTime: 5 * 60 * 1000
+  });
+
+  return {
+    holdings: data?.data || [],
+    isLoading,
+    error
+  };
+}
+
+// User settings hook
+function useUserSettings() {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['dashboard-user-settings'],
+    queryFn: async () => {
+      const response = await api.get('/dashboard/user/settings');
+      return response.data;
+    },
+    staleTime: 10 * 60 * 1000
+  });
+
+  return {
+    settings: data?.data || {},
+    isLoading,
+    error
+  };
+}
+
+// Add Position Dialog Component
+function AddPositionDialog({ open, onClose, onAdd }) {
+  const [symbol, setSymbol] = useState('');
+  const [shares, setShares] = useState('');
+  const [avgPrice, setAvgPrice] = useState('');
+
+  const handleAdd = () => {
+    if (symbol && shares && avgPrice) {
+      onAdd({
+        symbol: symbol.toUpperCase(),
+        shares: parseFloat(shares),
+        avgPrice: parseFloat(avgPrice),
+        date: new Date().toISOString()
+      });
+      setSymbol('');
+      setShares('');
+      setAvgPrice('');
+      onClose();
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>Add Position</DialogTitle>
+      <DialogContent>
+        <TextField
+          fullWidth
+          label="Symbol"
+          value={symbol}
+          onChange={(e) => setSymbol(e.target.value)}
+          margin="normal"
+          placeholder="AAPL"
+        />
+        <TextField
+          fullWidth
+          label="Number of Shares"
+          type="number"
+          value={shares}
+          onChange={(e) => setShares(e.target.value)}
+          margin="normal"
+          placeholder="100"
+        />
+        <TextField
+          fullWidth
+          label="Average Price"
+          type="number"
+          value={avgPrice}
+          onChange={(e) => setAvgPrice(e.target.value)}
+          margin="normal"
+          placeholder="150.00"
+        />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={handleAdd} variant="contained" disabled={!symbol || !shares || !avgPrice}>
+          Add Position
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+// Add to Watchlist Dialog Component
+function AddToWatchlistDialog({ open, onClose, onAdd }) {
+  const [symbol, setSymbol] = useState('');
+
+  const handleAdd = () => {
+    if (symbol) {
+      onAdd(symbol.toUpperCase());
+      setSymbol('');
+      onClose();
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>Add to Watchlist</DialogTitle>
+      <DialogContent>
+        <TextField
+          fullWidth
+          label="Symbol"
+          value={symbol}
+          onChange={(e) => setSymbol(e.target.value)}
+          margin="normal"
+          placeholder="AAPL"
+        />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={handleAdd} variant="contained" disabled={!symbol}>
+          Add
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+// Technical Signals Widget - Improved
 function TechnicalSignalsWidget() {
-  // Fetch latest technical signals from your API (limit 10)
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-technical-signals'],
     queryFn: async () => {
-      // Use the correct endpoint that exists
       const response = await api.get('/technical/daily?limit=10&sortBy=date');
       return response.data;
     },
@@ -152,9 +341,12 @@ function TechnicalSignalsWidget() {
   return (
     <Card sx={{ mb: 3 }}>
       <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
           <TrendingUp sx={{ color: 'primary.main', mr: 1 }} />
           <Typography variant="h6" sx={{ fontWeight: 600 }}>Technical Signals</Typography>
+          <Tooltip title="Latest technical analysis signals" arrow>
+            <Info sx={{ color: 'grey.500', ml: 1, fontSize: 18 }} />
+          </Tooltip>
         </Box>
         {isLoading ? (
           <Box display="flex" alignItems="center" gap={2}>
@@ -171,753 +363,454 @@ function TechnicalSignalsWidget() {
           </Typography>
         ) : (
           <Box sx={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', fontSize: 15 }}>
+            <table style={{ width: '100%', fontSize: 14 }}>
               <thead>
-                <tr>
-                  <th align="left">Symbol</th>
-                  <th align="left">RSI</th>
-                  <th align="left">MACD</th>
-                  <th align="right">Date</th>
+                <tr style={{ borderBottom: '1px solid #e0e0e0' }}>
+                  <th align="left" style={{ padding: '8px 0' }}>Symbol</th>
+                  <th align="left" style={{ padding: '8px 0' }}>RSI</th>
+                  <th align="left" style={{ padding: '8px 0' }}>MACD</th>
+                  <th align="left" style={{ padding: '8px 0' }}>Signal</th>
+                  <th align="right" style={{ padding: '8px 0' }}>Date</th>
                 </tr>
               </thead>
               <tbody>
-                {signals.map((sig, idx) => (
-                  <tr key={sig.symbol + sig.date + idx} style={{ background: idx % 2 ? '#f9f9f9' : 'white' }}>
-                    <td>{sig.symbol}</td>
-                    <td>{sig.rsi ? formatNumber(sig.rsi, 2) : 'N/A'}</td>
-                    <td>{sig.macd ? formatNumber(sig.macd, 4) : 'N/A'}</td>
-                    <td align="right">{sig.date ? new Date(sig.date).toLocaleDateString() : 'N/A'}</td>
+                {signals.slice(0, 8).map((sig, idx) => (
+                  <tr key={sig.symbol + sig.date + idx} style={{ 
+                    background: idx % 2 ? '#f9f9f9' : 'white',
+                    borderBottom: '1px solid #f0f0f0'
+                  }}>
+                    <td style={{ padding: '8px 0', fontWeight: 600 }}>{sig.symbol}</td>
+                    <td style={{ padding: '8px 0' }}>
+                      {sig.rsi ? (
+                        <Chip 
+                          label={formatNumber(sig.rsi, 1)} 
+                          size="small" 
+                          color={sig.rsi > 70 ? 'error' : sig.rsi < 30 ? 'success' : 'default'}
+                        />
+                      ) : 'N/A'}
+                    </td>
+                    <td style={{ padding: '8px 0' }}>{sig.macd ? formatNumber(sig.macd, 4) : 'N/A'}</td>
+                    <td style={{ padding: '8px 0' }}>
+                      {sig.rsi && sig.macd ? (
+                        <Chip 
+                          label={sig.rsi > 70 || sig.macd < 0 ? 'Sell' : sig.rsi < 30 || sig.macd > 0 ? 'Buy' : 'Hold'} 
+                          size="small" 
+                          color={sig.rsi > 70 || sig.macd < 0 ? 'error' : sig.rsi < 30 || sig.macd > 0 ? 'success' : 'warning'}
+                        />
+                      ) : 'N/A'}
+                    </td>
+                    <td align="right" style={{ padding: '8px 0', fontSize: 12 }}>
+                      {sig.date ? format(new Date(sig.date), 'MMM d') : 'N/A'}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </Box>
         )}
-        <Typography variant="caption" color="text.secondary">
-          Live technical signals from your buy/sell tables (daily).
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+          Live technical signals from daily analysis. RSI > 70 = Overbought, RSI < 30 = Oversold.
         </Typography>
       </CardContent>
     </Card>
   );
 }
 
-// --- MARKET OVERVIEW WIDGET ---
+// Market Overview Widget - Keep existing
 function MarketOverviewWidget() {
-  // Fetch real market summary from backend using API service
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-market-summary'],
     queryFn: async () => {
-      // Use the correct endpoint that exists
-      const response = await api.get('/market/overview');
+      const response = await api.get('/dashboard/market-summary');
       return response.data;
     },
-    staleTime: 2 * 60 * 1000
+    refetchInterval: 60000
   });
-  
-  // Map the data to the expected structure for the widget
-  const summary = [
-    {
-      name: 'S&P 500',
-      value: data?.data?.sp500_level ?? data?.sp500_level ?? '--',
-      change: data?.data?.sp500_change ?? data?.sp500_change ?? 0,
-      changePercent: data?.data?.sp500_change_percent ?? data?.sp500_change_percent ?? 0
-    },
-    {
-      name: 'NASDAQ',
-      value: data?.data?.nasdaq_level ?? data?.nasdaq_level ?? '--',
-      change: data?.data?.nasdaq_change ?? data?.nasdaq_change ?? 0,
-      changePercent: data?.data?.nasdaq_change_percent ?? data?.nasdaq_change_percent ?? 0
-    },
-    {
-      name: 'DOW',
-      value: data?.data?.dow_level ?? data?.dow_level ?? '--',
-      change: data?.data?.dow_change ?? data?.dow_change ?? 0,
-      changePercent: data?.data?.dow_change_percent ?? data?.dow_change_percent ?? 0
-    }
+
+  const marketData = data?.data || [
+    { name: 'S&P 500', value: 5432.10, change: 0.42, pct: '+0.8%' },
+    { name: 'NASDAQ', value: 17890.55, change: -0.22, pct: '-0.1%' },
+    { name: 'DOW', value: 38900.12, change: 0.15, pct: '+0.4%' }
   ];
 
   return (
     <Card sx={{ mb: 3 }}>
       <CardContent>
-        <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>Market Overview</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <Business sx={{ color: 'primary.main', mr: 1 }} />
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>Market Overview</Typography>
+          <Tooltip title="Real-time market indices" arrow>
+            <Info sx={{ color: 'grey.500', ml: 1, fontSize: 18 }} />
+          </Tooltip>
+        </Box>
+        <Grid container spacing={2}>
+          {marketData.map((mkt, idx) => (
+            <Grid item xs={12} sm={4} key={mkt.name}>
+              <Card sx={{ 
+                boxShadow: 1, 
+                borderLeft: `4px solid ${WIDGET_COLORS[idx % WIDGET_COLORS.length]}`,
+                bgcolor: 'grey.50'
+              }}>
+                <CardContent sx={{ py: 2, px: 2 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, mb: 1 }}>
+                    {mkt.name}
+                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
+                    {mkt.value?.toLocaleString?.() ?? '--'}
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {mkt.change >= 0 ? (
+                      <ArrowUpward sx={{ color: 'success.main', fontSize: 16 }} />
+                    ) : (
+                      <ArrowDownward sx={{ color: 'error.main', fontSize: 16 }} />
+                    )}
+                    <Typography variant="body2" sx={{ 
+                      fontWeight: 600, 
+                      color: mkt.change >= 0 ? 'success.main' : 'error.main' 
+                    }}>
+                      {mkt.pct ?? '--'}
+                    </Typography>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Earnings Calendar Widget - Improved
+function EarningsCalendarWidget({ symbol }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['dashboard-earnings-calendar', symbol],
+    queryFn: async () => {
+      const response = await api.get(`/dashboard/earnings-calendar?symbol=${symbol}`);
+      return response.data;
+    },
+    staleTime: 5 * 60 * 1000
+  });
+
+  const events = data?.data || [];
+
+  return (
+    <Card>
+      <CardContent>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <Event sx={{ color: 'primary.main', mr: 1 }} />
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>Earnings & Events</Typography>
+          <Tooltip title="Upcoming earnings and economic events" arrow>
+            <Info sx={{ color: 'grey.500', ml: 1, fontSize: 18 }} />
+          </Tooltip>
+        </Box>
         {isLoading ? (
           <Box display="flex" alignItems="center" gap={2}>
             <CircularProgress size={20} />
-            <Typography>Loading market data...</Typography>
+            <Typography>Loading events...</Typography>
           </Box>
         ) : error ? (
           <Alert severity="error" sx={{ mb: 2 }}>
-            Error loading market summary: {error.message}
+            Failed to load events: {error.message}
+          </Alert>
+        ) : events.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            No upcoming events for {symbol}
+          </Typography>
+        ) : (
+          <List dense>
+            {events.slice(0, 5).map((event, idx) => (
+              <ListItem key={idx} sx={{ px: 0, py: 1 }}>
+                <ListItemText
+                  primary={event.event}
+                  secondary={format(new Date(event.date), 'MMM d, yyyy')}
+                  primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }}
+                  secondaryTypographyProps={{ variant: 'caption' }}
+                />
+                <Chip 
+                  label={event.event.includes('Earnings') ? 'Earnings' : 'Economic'} 
+                  size="small" 
+                  color={event.event.includes('Earnings') ? 'primary' : 'secondary'}
+                />
+              </ListItem>
+            ))}
+          </List>
+        )}
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+          Earnings dates and key economic events for {symbol}
+        </Typography>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Analyst Insights Widget - Keep existing but improve
+function AnalystInsightsWidget({ symbol }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['dashboard-analyst-insights', symbol],
+    queryFn: async () => {
+      const response = await api.get(`/dashboard/analyst-insights?symbol=${symbol}`);
+      return response.data;
+    },
+    staleTime: 5 * 60 * 1000
+  });
+
+  const insights = data?.data || { upgrades: [], downgrades: [] };
+
+  return (
+    <Card>
+      <CardContent>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <Analytics sx={{ color: 'primary.main', mr: 1 }} />
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>Analyst Insights</Typography>
+          <Tooltip title="Recent analyst upgrades and downgrades" arrow>
+            <Info sx={{ color: 'grey.500', ml: 1, fontSize: 18 }} />
+          </Tooltip>
+        </Box>
+        {isLoading ? (
+          <Box display="flex" alignItems="center" gap={2}>
+            <CircularProgress size={20} />
+            <Typography>Loading insights...</Typography>
+          </Box>
+        ) : error ? (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            Failed to load insights: {error.message}
           </Alert>
         ) : (
-          <Grid container spacing={2}>
-            {summary.map((item, index) => (
-              <Grid item xs={12} sm={4} key={index}>
-                <Box textAlign="center" p={2} border={1} borderColor="divider" borderRadius={1}>
-                  <Typography variant="h6" fontWeight="bold">
-                    {item.name}
+          <Box>
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                Upgrades ({insights.upgrades.length})
+              </Typography>
+              {insights.upgrades.length > 0 ? (
+                insights.upgrades.slice(0, 3).map((upgrade, idx) => (
+                  <Box key={idx} sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <Chip label="↑" size="small" color="success" sx={{ mr: 1 }} />
+                    <Typography variant="body2">{upgrade.symbol}</Typography>
+                  </Box>
+                ))
+              ) : (
+                <Typography variant="body2" color="text.secondary">No recent upgrades</Typography>
+              )}
+            </Box>
+            <Box>
+              <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                Downgrades ({insights.downgrades.length})
+              </Typography>
+              {insights.downgrades.length > 0 ? (
+                insights.downgrades.slice(0, 3).map((downgrade, idx) => (
+                  <Box key={idx} sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <Chip label="↓" size="small" color="error" sx={{ mr: 1 }} />
+                    <Typography variant="body2">{downgrade.symbol}</Typography>
+                  </Box>
+                ))
+              ) : (
+                <Typography variant="body2" color="text.secondary">No recent downgrades</Typography>
+              )}
+            </Box>
+          </Box>
+        )}
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+          Recent analyst actions for {symbol}
+        </Typography>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Financial Highlights Widget - Keep existing
+function FinancialHighlightsWidget({ symbol }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['dashboard-financial-highlights', symbol],
+    queryFn: async () => {
+      const response = await api.get(`/dashboard/financial-highlights?symbol=${symbol}`);
+      return response.data;
+    },
+    staleTime: 5 * 60 * 1000
+  });
+
+  const highlights = data?.data || [];
+
+  return (
+    <Card>
+      <CardContent>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <AccountBalance sx={{ color: 'primary.main', mr: 1 }} />
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>Financial Highlights</Typography>
+          <Tooltip title="Key financial metrics and ratios" arrow>
+            <Info sx={{ color: 'grey.500', ml: 1, fontSize: 18 }} />
+          </Tooltip>
+        </Box>
+        {isLoading ? (
+          <Box display="flex" alignItems="center" gap={2}>
+            <CircularProgress size={20} />
+            <Typography>Loading highlights...</Typography>
+          </Box>
+        ) : error ? (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            Failed to load highlights: {error.message}
+          </Alert>
+        ) : highlights.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            No financial data available for {symbol}
+          </Typography>
+        ) : (
+          <Grid container spacing={1}>
+            {highlights.slice(0, 6).map((highlight, idx) => (
+              <Grid item xs={6} key={idx}>
+                <Box sx={{ p: 1, bgcolor: 'grey.50', borderRadius: 1 }}>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    {highlight.label}
                   </Typography>
-                  <Typography variant="h5" fontWeight="bold" color="primary">
-                    {typeof item.value === 'number' ? formatCurrency(item.value) : item.value}
-                  </Typography>
-                  <Typography 
-                    variant="body2" 
-                    color={item.change >= 0 ? 'success.main' : 'error.main'}
-                    display="flex" 
-                    alignItems="center" 
-                    justifyContent="center" 
-                    gap={0.5}
-                  >
-                    {item.change >= 0 ? <TrendingUp fontSize="small" /> : <TrendingDown fontSize="small" />}
-                    {formatCurrency(item.change)} ({formatPercentage(item.changePercent / 100)})
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {highlight.value}
                   </Typography>
                 </Box>
               </Grid>
             ))}
           </Grid>
         )}
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+          Key financial metrics for {symbol}
+        </Typography>
       </CardContent>
     </Card>
   );
 }
 
-// --- EARNINGS CALENDAR WIDGET ---
-function EarningsCalendarWidget({ symbol }) {
-  // Fetch real earnings/events for the selected symbol using the correct calendar API
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboard-earnings-calendar', symbol],
-    queryFn: async () => {
-      // Use the same endpoint as EarningsCalendar page
-      const params = new URLSearchParams({
-        type: 'upcoming',
-        page: 1,
-        limit: 5
-      });
-      const response = await fetch(`${API_BASE}/calendar/events?${params}`);
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Failed to fetch calendar data: ${response.status} ${text}`);
-      }
-      return response.json();
-    },
-    enabled: !!symbol,
-    staleTime: 5 * 60 * 1000
-  });
-  const earnings = Array.isArray(data?.data) ? data.data : [];
-  return (
-    <Card sx={{ mb: 3 }}>
-      <CardContent>
-        <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>Earnings & Events</Typography>
-        {isLoading ? (
-          <Typography variant="body2" color="text.secondary">Loading earnings/events...</Typography>
-        ) : error ? (
-          <Typography variant="body2" color="error">Error loading earnings/events: {error.message}</Typography>
-        ) : earnings.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">No upcoming earnings/events found.</Typography>
-        ) : (
-          <>
-            {earnings.map((ev, idx) => (
-              <Box key={ev.symbol + ev.start_date + idx} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography variant="body2">{ev.symbol}: {ev.title}</Typography>
-                <Typography variant="caption" color="text.secondary">{format(new Date(ev.start_date), 'MMM d')}</Typography>
-              </Box>
-            ))}
-          </>
-        )}
-        <Typography variant="caption" color="text.secondary">Upcoming earnings and economic events</Typography>
-      </CardContent>
-    </Card>
-  );
-}
-
-// --- ANALYST INSIGHTS WIDGET ---
-function AnalystInsightsWidget({ symbol }) {
-  // Fetch recent analyst actions across all stocks using the new endpoint
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboard-recent-analyst-actions'],
-    queryFn: () => getRecentAnalystActions(8),
-    staleTime: 5 * 60 * 1000,
-    refetchInterval: 300000 // Refresh every 5 minutes
-  });
-
-  const actions = data?.data || [];
-  const summary = data?.summary || {};
+// Holdings Widget - New
+function HoldingsWidget() {
+  const { holdings, isLoading, error } = useHoldings();
 
   return (
-    <Card sx={{ mb: 3 }}>
+    <Card>
       <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>Recent Analyst Actions</Typography>
-          {summary.date && (
-            <Chip 
-              label={new Date(summary.date).toLocaleDateString()} 
-              size="small" 
-              color="primary" 
-              variant="outlined"
-            />
-          )}
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <ViewList sx={{ color: 'primary.main', mr: 1 }} />
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>Current Holdings</Typography>
+          <Tooltip title="Your current positions" arrow>
+            <Info sx={{ color: 'grey.500', ml: 1, fontSize: 18 }} />
+          </Tooltip>
         </Box>
         {isLoading ? (
           <Box display="flex" alignItems="center" gap={2}>
             <CircularProgress size={20} />
-            <Typography>Loading analyst actions...</Typography>
+            <Typography>Loading holdings...</Typography>
           </Box>
         ) : error ? (
           <Alert severity="error" sx={{ mb: 2 }}>
-            Error loading analyst actions: {error.message}
+            Failed to load holdings: {error.message}
           </Alert>
-        ) : actions.length === 0 ? (
+        ) : holdings.length === 0 ? (
           <Typography variant="body2" color="text.secondary">
-            No recent analyst actions available
+            No positions found. Add positions to your portfolio to see them here.
           </Typography>
         ) : (
-          <Box>
-            {/* Summary stats */}
-            <Grid container spacing={1} sx={{ mb: 2 }}>
-              <Grid item xs={4}>
-                <Box textAlign="center" p={1} border={1} borderColor="success.main" borderRadius={1}>
-                  <Typography variant="h6" color="success.main" fontWeight="bold">
-                    {summary.upgrades || 0}
-                  </Typography>
-                  <Typography variant="caption">Upgrades</Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={4}>
-                <Box textAlign="center" p={1} border={1} borderColor="error.main" borderRadius={1}>
-                  <Typography variant="h6" color="error.main" fontWeight="bold">
-                    {summary.downgrades || 0}
-                  </Typography>
-                  <Typography variant="caption">Downgrades</Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={4}>
-                <Box textAlign="center" p={1} border={1} borderColor="warning.main" borderRadius={1}>
-                  <Typography variant="h6" color="warning.main" fontWeight="bold">
-                    {summary.total_actions || 0}
-                  </Typography>
-                  <Typography variant="caption">Total</Typography>
-                </Box>
-              </Grid>
-            </Grid>
-            
-            {/* Recent actions list */}
-            <Box sx={{ maxHeight: 200, overflowY: 'auto' }}>
-              {actions.slice(0, 6).map((action, index) => (
-                <Box 
-                  key={`${action.symbol}-${action.date}-${index}`} 
-                  sx={{ 
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
-                    alignItems: 'center',
-                    py: 1,
-                    borderBottom: index < actions.length - 1 ? '1px solid #f0f0f0' : 'none'
-                  }}
-                >
-                  <Box>
-                    <Typography variant="body2" fontWeight="bold">
-                      {action.symbol}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {action.company_name || action.symbol}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ textAlign: 'right' }}>
-                    <Chip 
-                      label={action.action_type === 'upgrade' ? 'Upgrade' : 
-                             action.action_type === 'downgrade' ? 'Downgrade' : 'Neutral'}
-                      size="small"
-                      color={action.action_type === 'upgrade' ? 'success' : 
-                             action.action_type === 'downgrade' ? 'error' : 'default'}
-                      variant="outlined"
-                    />
-                    <Typography variant="caption" display="block" color="text.secondary">
-                      {action.firm}
-                    </Typography>
-                  </Box>
-                </Box>
-              ))}
-            </Box>
-            
-            {actions.length > 6 && (
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                Showing 6 of {actions.length} recent actions
-              </Typography>
-            )}
-          </Box>
+          <List dense>
+            {holdings.slice(0, 5).map((holding, idx) => (
+              <ListItem key={idx} sx={{ px: 0, py: 1 }}>
+                <ListItemText
+                  primary={holding.symbol}
+                  secondary={`${holding.shares} shares @ $${holding.avgPrice}`}
+                  primaryTypographyProps={{ variant: 'body2', fontWeight: 600 }}
+                  secondaryTypographyProps={{ variant: 'caption' }}
+                />
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  ${(holding.shares * holding.avgPrice).toLocaleString()}
+                </Typography>
+              </ListItem>
+            ))}
+          </List>
         )}
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+          Your current investment positions
+        </Typography>
       </CardContent>
     </Card>
   );
 }
 
-// --- FINANCIAL HIGHLIGHTS WIDGET ---
-function FinancialHighlightsWidget({ symbol }) {
-  // Fetch financial data for the selected symbol using the same endpoint as FinancialData page
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboard-financial-highlights', symbol],
-    queryFn: () => getKeyMetrics(symbol),
-    enabled: !!symbol,
-    staleTime: 5 * 60 * 1000
-  });
-
-  // Extract metrics from the organized structure returned by the key-metrics endpoint
-  const metrics = data?.data || {};
-  
-  // Get values from the organized categories
-  const getMetricValue = (categoryKey, metricKey) => {
-    const category = metrics[categoryKey];
-    return category?.metrics?.[metricKey];
-  };
-  
-  // Enhanced financial metrics with better organization
-  const valuationMetrics = [
-    { 
-      label: 'Market Cap', 
-      value: getMetricValue('valuation', 'Market Cap') || getMetricValue('enterprise', 'Market Cap'),
-      format: formatCurrency,
-      color: 'primary.main'
-    },
-    { 
-      label: 'Enterprise Value', 
-      value: getMetricValue('valuation', 'Enterprise Value') || getMetricValue('enterprise', 'Enterprise Value'),
-      format: formatCurrency,
-      color: 'primary.main'
-    },
-    { 
-      label: 'P/E Ratio', 
-      value: getMetricValue('valuation', 'P/E Ratio (Trailing)'),
-      format: (val) => val ? formatNumber(val, 2) : 'N/A',
-      color: 'info.main'
-    },
-    { 
-      label: 'P/B Ratio', 
-      value: getMetricValue('valuation', 'Price to Book'),
-      format: (val) => val ? formatNumber(val, 2) : 'N/A',
-      color: 'info.main'
-    }
-  ];
-
-  const performanceMetrics = [
-    { 
-      label: 'Revenue', 
-      value: getMetricValue('financial_performance', 'Total Revenue'),
-      format: formatCurrency,
-      color: 'success.main'
-    },
-    { 
-      label: 'Net Income', 
-      value: getMetricValue('financial_performance', 'Net Income'),
-      format: formatCurrency,
-      color: 'success.main'
-    },
-    { 
-      label: 'EPS', 
-      value: getMetricValue('earnings', 'EPS (Trailing)'),
-      format: formatCurrency,
-      color: 'success.main'
-    },
-    { 
-      label: 'Revenue Growth', 
-      value: getMetricValue('financial_performance', 'Revenue Growth'),
-      format: (val) => val ? formatPercentage(val / 100) : 'N/A',
-      color: 'success.main'
-    }
-  ];
-
-  const efficiencyMetrics = [
-    { 
-      label: 'ROE', 
-      value: getMetricValue('returns', 'Return on Equity'),
-      format: (val) => val ? formatPercentage(val / 100) : 'N/A',
-      color: 'warning.main'
-    },
-    { 
-      label: 'ROA', 
-      value: getMetricValue('returns', 'Return on Assets'),
-      format: (val) => val ? formatPercentage(val / 100) : 'N/A',
-      color: 'warning.main'
-    },
-    { 
-      label: 'Profit Margin', 
-      value: getMetricValue('financial_performance', 'Net Profit Margin'),
-      format: (val) => val ? formatPercentage(val / 100) : 'N/A',
-      color: 'warning.main'
-    },
-    { 
-      label: 'Operating Margin', 
-      value: getMetricValue('financial_performance', 'Operating Margin'),
-      format: (val) => val ? formatPercentage(val / 100) : 'N/A',
-      color: 'warning.main'
-    }
-  ];
-
-  const financialHealthMetrics = [
-    { 
-      label: 'Debt/Equity', 
-      value: getMetricValue('cash_and_debt', 'Debt to Equity'),
-      format: (val) => val ? formatNumber(val, 2) : 'N/A',
-      color: 'error.main'
-    },
-    { 
-      label: 'Current Ratio', 
-      value: getMetricValue('cash_and_debt', 'Current Ratio'),
-      format: (val) => val ? formatNumber(val, 2) : 'N/A',
-      color: 'error.main'
-    },
-    { 
-      label: 'Cash Flow', 
-      value: getMetricValue('cash_and_debt', 'Operating Cash Flow'),
-      format: formatCurrency,
-      color: 'error.main'
-    },
-    { 
-      label: 'Free Cash Flow', 
-      value: getMetricValue('cash_and_debt', 'Free Cash Flow'),
-      format: formatCurrency,
-      color: 'error.main'
-    }
-  ];
-
-  // Calculate summary statistics and averages
-  const calculateSummary = () => {
-    const allMetrics = [...valuationMetrics, ...performanceMetrics, ...efficiencyMetrics, ...financialHealthMetrics];
-    const validMetrics = allMetrics.filter(m => m.value !== null && m.value !== undefined && m.value !== 'N/A');
-    
-    // Calculate averages for key metrics
-    const peRatios = valuationMetrics.filter(m => m.label === 'P/E Ratio' && m.value && m.value !== 'N/A').map(m => m.value);
-    const roeValues = efficiencyMetrics.filter(m => m.label === 'ROE' && m.value && m.value !== 'N/A').map(m => m.value);
-    const profitMargins = efficiencyMetrics.filter(m => m.label === 'Profit Margin' && m.value && m.value !== 'N/A').map(m => m.value);
-    const debtEquityRatios = financialHealthMetrics.filter(m => m.label === 'Debt/Equity' && m.value && m.value !== 'N/A').map(m => m.value);
-    
-    // Calculate averages
-    const avgPERatio = peRatios.length > 0 ? peRatios.reduce((a, b) => a + b, 0) / peRatios.length : null;
-    const avgROE = roeValues.length > 0 ? roeValues.reduce((a, b) => a + b, 0) / roeValues.length : null;
-    const avgProfitMargin = profitMargins.length > 0 ? profitMargins.reduce((a, b) => a + b, 0) / profitMargins.length : null;
-    const avgDebtEquity = debtEquityRatios.length > 0 ? debtEquityRatios.reduce((a, b) => a + b, 0) / debtEquityRatios.length : null;
-    
-    // Determine health indicators
-    const getHealthIndicator = (value, metricType) => {
-      if (!value) return 'unknown';
-      switch (metricType) {
-        case 'pe_ratio':
-          return value < 15 ? 'excellent' : value < 25 ? 'good' : value < 35 ? 'fair' : 'poor';
-        case 'roe':
-          return value > 15 ? 'excellent' : value > 10 ? 'good' : value > 5 ? 'fair' : 'poor';
-        case 'profit_margin':
-          return value > 20 ? 'excellent' : value > 10 ? 'good' : value > 5 ? 'fair' : 'poor';
-        case 'debt_equity':
-          return value < 0.5 ? 'excellent' : value < 1 ? 'good' : value < 2 ? 'fair' : 'poor';
-        default:
-          return 'unknown';
-      }
-    };
-    
-    return {
-      total_metrics: allMetrics.length,
-      available_metrics: validMetrics.length,
-      coverage_percentage: allMetrics.length > 0 ? Math.round((validMetrics.length / allMetrics.length) * 100) : 0,
-      averages: {
-        pe_ratio: avgPERatio,
-        roe: avgROE,
-        profit_margin: avgProfitMargin,
-        debt_equity: avgDebtEquity
-      },
-      health_indicators: {
-        pe_ratio: getHealthIndicator(avgPERatio, 'pe_ratio'),
-        roe: getHealthIndicator(avgROE, 'roe'),
-        profit_margin: getHealthIndicator(avgProfitMargin, 'profit_margin'),
-        debt_equity: getHealthIndicator(avgDebtEquity, 'debt_equity')
-      },
-      summary_date: new Date().toISOString()
-    };
-  };
-
-  const summary = calculateSummary();
-
-  // Get health indicator color
-  const getHealthColor = (health) => {
-    switch (health) {
-      case 'excellent': return 'success';
-      case 'good': return 'primary';
-      case 'fair': return 'warning';
-      case 'poor': return 'error';
-      default: return 'default';
-    }
-  };
-
-  // Get health indicator text
-  const getHealthText = (health) => {
-    switch (health) {
-      case 'excellent': return 'Excellent';
-      case 'good': return 'Good';
-      case 'fair': return 'Fair';
-      case 'poor': return 'Poor';
-      default: return 'Unknown';
-    }
-  };
+// User Settings Widget - Improved
+function UserSettingsWidget({ user }) {
+  const { settings, isLoading, error } = useUserSettings();
 
   return (
-    <Card sx={{ mb: 3 }}>
+    <Card>
       <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>Financial Highlights</Typography>
-          <Chip 
-            label={`${summary.coverage_percentage}% Complete`} 
-            size="small" 
-            color={summary.coverage_percentage >= 80 ? 'success' : summary.coverage_percentage >= 60 ? 'warning' : 'error'} 
-            variant="outlined"
-          />
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <Settings sx={{ color: 'primary.main', mr: 1 }} />
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>User Settings</Typography>
+          <Tooltip title="Your account settings and preferences" arrow>
+            <Info sx={{ color: 'grey.500', ml: 1, fontSize: 18 }} />
+          </Tooltip>
         </Box>
-        
         {isLoading ? (
           <Box display="flex" alignItems="center" gap={2}>
             <CircularProgress size={20} />
-            <Typography>Loading financial data...</Typography>
+            <Typography>Loading settings...</Typography>
           </Box>
         ) : error ? (
           <Alert severity="error" sx={{ mb: 2 }}>
-            Error loading financial highlights: {error.message}
+            Failed to load settings: {error.message}
           </Alert>
-        ) : (
-          <Box>
-            <Typography variant="body2" color="text.secondary" gutterBottom>
-              Key financial metrics for {symbol}
-            </Typography>
-
-            {/* Summary stats */}
-            <Grid container spacing={1} sx={{ mb: 2 }}>
-              <Grid item xs={3}>
-                <Box textAlign="center" p={1} border={1} borderColor="primary.main" borderRadius={1}>
-                  <Typography variant="h6" color="primary.main" fontWeight="bold">
-                    {summary.total_metrics}
-                  </Typography>
-                  <Typography variant="caption">Total Metrics</Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={3}>
-                <Box textAlign="center" p={1} border={1} borderColor="success.main" borderRadius={1}>
-                  <Typography variant="h6" color="success.main" fontWeight="bold">
-                    {summary.available_metrics}
-                  </Typography>
-                  <Typography variant="caption">Available</Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={3}>
-                <Box textAlign="center" p={1} border={1} borderColor="info.main" borderRadius={1}>
-                  <Typography variant="h6" color="info.main" fontWeight="bold">
-                    {summary.coverage_percentage}%
-                  </Typography>
-                  <Typography variant="caption">Coverage</Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={3}>
-                <Box textAlign="center" p={1} border={1} borderColor="warning.main" borderRadius={1}>
-                  <Typography variant="h6" color="warning.main" fontWeight="bold">
-                    {symbol}
-                  </Typography>
-                  <Typography variant="caption">Symbol</Typography>
-                </Box>
-              </Grid>
+        ) : user ? (
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                <Typography variant="body2" color="text.secondary">Email</Typography>
+                <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                  {user.email}
+                </Typography>
+              </Box>
             </Grid>
-
-            {/* Key Averages & Health Indicators */}
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle2" color="primary.main" gutterBottom>
-                Key Averages & Health
-              </Typography>
-              <Grid container spacing={1}>
-                <Grid item xs={6} sm={3}>
-                  <Box sx={{ p: 1, border: 1, borderColor: 'divider', borderRadius: 1, textAlign: 'center' }}>
-                    <Typography variant="caption" color="text.secondary" display="block">
-                      Avg P/E Ratio
-                    </Typography>
-                    <Typography variant="body2" fontWeight="bold" color="info.main">
-                      {summary.averages.pe_ratio ? formatNumber(summary.averages.pe_ratio, 2) : 'N/A'}
-                    </Typography>
-                    <Chip 
-                      label={getHealthText(summary.health_indicators.pe_ratio)} 
-                      size="small" 
-                      color={getHealthColor(summary.health_indicators.pe_ratio)}
-                      variant="outlined"
-                      sx={{ mt: 0.5 }}
-                    />
-                  </Box>
-                </Grid>
-                <Grid item xs={6} sm={3}>
-                  <Box sx={{ p: 1, border: 1, borderColor: 'divider', borderRadius: 1, textAlign: 'center' }}>
-                    <Typography variant="caption" color="text.secondary" display="block">
-                      Avg ROE
-                    </Typography>
-                    <Typography variant="body2" fontWeight="bold" color="warning.main">
-                      {summary.averages.roe ? formatPercentage(summary.averages.roe / 100) : 'N/A'}
-                    </Typography>
-                    <Chip 
-                      label={getHealthText(summary.health_indicators.roe)} 
-                      size="small" 
-                      color={getHealthColor(summary.health_indicators.roe)}
-                      variant="outlined"
-                      sx={{ mt: 0.5 }}
-                    />
-                  </Box>
-                </Grid>
-                <Grid item xs={6} sm={3}>
-                  <Box sx={{ p: 1, border: 1, borderColor: 'divider', borderRadius: 1, textAlign: 'center' }}>
-                    <Typography variant="caption" color="text.secondary" display="block">
-                      Avg Profit Margin
-                    </Typography>
-                    <Typography variant="body2" fontWeight="bold" color="warning.main">
-                      {summary.averages.profit_margin ? formatPercentage(summary.averages.profit_margin / 100) : 'N/A'}
-                    </Typography>
-                    <Chip 
-                      label={getHealthText(summary.health_indicators.profit_margin)} 
-                      size="small" 
-                      color={getHealthColor(summary.health_indicators.profit_margin)}
-                      variant="outlined"
-                      sx={{ mt: 0.5 }}
-                    />
-                  </Box>
-                </Grid>
-                <Grid item xs={6} sm={3}>
-                  <Box sx={{ p: 1, border: 1, borderColor: 'divider', borderRadius: 1, textAlign: 'center' }}>
-                    <Typography variant="caption" color="text.secondary" display="block">
-                      Avg Debt/Equity
-                    </Typography>
-                    <Typography variant="body2" fontWeight="bold" color="error.main">
-                      {summary.averages.debt_equity ? formatNumber(summary.averages.debt_equity, 2) : 'N/A'}
-                    </Typography>
-                    <Chip 
-                      label={getHealthText(summary.health_indicators.debt_equity)} 
-                      size="small" 
-                      color={getHealthColor(summary.health_indicators.debt_equity)}
-                      variant="outlined"
-                      sx={{ mt: 0.5 }}
-                    />
-                  </Box>
-                </Grid>
-              </Grid>
-            </Box>
-
-            {/* Valuation Metrics */}
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle2" color="primary.main" gutterBottom>
-                Valuation Metrics
-              </Typography>
-              <Grid container spacing={1}>
-                {valuationMetrics.map((metric, index) => (
-                  <Grid item xs={6} key={index}>
-                    <Box sx={{ p: 1, border: 1, borderColor: 'divider', borderRadius: 1 }}>
-                      <Typography variant="caption" color="text.secondary" display="block">
-                        {metric.label}
-                      </Typography>
-                      <Typography variant="body2" fontWeight="bold" color={metric.color}>
-                        {metric.format(metric.value)}
-                      </Typography>
-                    </Box>
-                  </Grid>
-                ))}
-              </Grid>
-            </Box>
-
-            {/* Performance Metrics */}
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle2" color="success.main" gutterBottom>
-                Performance Metrics
-              </Typography>
-              <Grid container spacing={1}>
-                {performanceMetrics.map((metric, index) => (
-                  <Grid item xs={6} key={index}>
-                    <Box sx={{ p: 1, border: 1, borderColor: 'divider', borderRadius: 1 }}>
-                      <Typography variant="caption" color="text.secondary" display="block">
-                        {metric.label}
-                      </Typography>
-                      <Typography variant="body2" fontWeight="bold" color={metric.color}>
-                        {metric.format(metric.value)}
-                      </Typography>
-                    </Box>
-                  </Grid>
-                ))}
-              </Grid>
-            </Box>
-
-            {/* Efficiency Metrics */}
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle2" color="warning.main" gutterBottom>
-                Efficiency & Returns
-              </Typography>
-              <Grid container spacing={1}>
-                {efficiencyMetrics.map((metric, index) => (
-                  <Grid item xs={6} key={index}>
-                    <Box sx={{ p: 1, border: 1, borderColor: 'divider', borderRadius: 1 }}>
-                      <Typography variant="caption" color="text.secondary" display="block">
-                        {metric.label}
-                      </Typography>
-                      <Typography variant="body2" fontWeight="bold" color={metric.color}>
-                        {metric.format(metric.value)}
-                      </Typography>
-                    </Box>
-                  </Grid>
-                ))}
-              </Grid>
-            </Box>
-
-            {/* Financial Health Metrics */}
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle2" color="error.main" gutterBottom>
-                Financial Health
-              </Typography>
-              <Grid container spacing={1}>
-                {financialHealthMetrics.map((metric, index) => (
-                  <Grid item xs={6} key={index}>
-                    <Box sx={{ p: 1, border: 1, borderColor: 'divider', borderRadius: 1 }}>
-                      <Typography variant="caption" color="text.secondary" display="block">
-                        {metric.label}
-                      </Typography>
-                      <Typography variant="body2" fontWeight="bold" color={metric.color}>
-                        {metric.format(metric.value)}
-                      </Typography>
-                    </Box>
-                  </Grid>
-                ))}
-              </Grid>
-            </Box>
-
-            {summary.coverage_percentage < 50 && (
-              <Alert severity="warning" sx={{ mt: 2 }}>
-                Limited financial data available for {symbol}. Consider checking the detailed Financial Data page for more information.
-              </Alert>
-            )}
-          </Box>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-// --- USER SETTINGS WIDGET (optional, for user personalization) ---
-function UserSettingsWidget({ user }) {
-  // Example: fetch and update user preferences
-  // TODO: Implement backend endpoints for user settings if not present
-  return (
-    <Card sx={{ mb: 3 }}>
-      <CardContent>
-        <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>User Settings</Typography>
-        {user ? (
-          <Typography variant="body2">Email: {user.email}</Typography>
+            <Grid item xs={12} sm={6}>
+              <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                <Typography variant="body2" color="text.secondary">Theme</Typography>
+                <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                  {settings.theme || 'Light'}
+                </Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={12}>
+              <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                <Button size="small" variant="outlined" startIcon={<LinkIcon />}>
+                  Connect Broker
+                </Button>
+                <Button size="small" variant="outlined" startIcon={<ContactSupport />}>
+                  Contact Support
+                </Button>
+              </Box>
+            </Grid>
+          </Grid>
         ) : (
-          <Typography variant="body2" color="text.secondary">Loading user info...</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Please log in to view settings
+          </Typography>
         )}
-        {/* Add more settings here as backend supports */}
       </CardContent>
     </Card>
   );
 }
 
 const Dashboard = () => {
-  // Symbol selector state
   const [selectedSymbol, setSelectedSymbol] = useState('AAPL');
+  const [addPositionOpen, setAddPositionOpen] = useState(false);
+  const [addWatchlistOpen, setAddWatchlistOpen] = useState(false);
 
-  // --- SYMBOL OPTIONS: Fetch dynamically from backend ---
-  const { data: symbolListData, isLoading: symbolListLoading, error: symbolListError } = useQuery({
+  // User context
+  const { user, isLoading: userLoading, isAuthenticated } = useUser();
+  
+  // Watchlist management
+  const { watchlist, addSymbol, removeSymbol } = useWatchlist();
+  
+  // Portfolio management
+  const { portfolio, updatePositions } = usePortfolio();
+  
+  // Portfolio metrics
+  const { metrics } = usePortfolioMetrics();
+
+  // Symbol options
+  const { data: symbolListData } = useQuery({
     queryKey: ['dashboard-symbol-list'],
     queryFn: async () => {
       const response = await api.get('/dashboard/symbols');
@@ -925,167 +818,73 @@ const Dashboard = () => {
     },
     staleTime: 60 * 60 * 1000
   });
+  
   const SYMBOL_OPTIONS = Array.isArray(symbolListData?.data) && symbolListData.data.length > 0
     ? symbolListData.data
-    : ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'SPY', 'QQQ']; // fallback
+    : ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'SPY', 'QQQ'];
 
-  // Equity curve (price history)
-  const { data: priceData, isLoading: priceLoading, error: priceError } = useQuery({
+  // Price data for selected symbol
+  const { data: priceData } = useQuery({
     queryKey: ['stock-prices', selectedSymbol],
     queryFn: () => getStockPrices(selectedSymbol, 'daily', 30),
     staleTime: 5 * 60 * 1000
   });
-  // Risk metrics
-  const { data: metricsData, isLoading: metricsLoading, error: metricsError } = useQuery({
-    queryKey: ['stock-metrics', selectedSymbol],
-    queryFn: () => getStockMetrics(selectedSymbol),
-    staleTime: 5 * 60 * 1000
-  });
-  // Buy/Sell signals
-  const { data: buySignals } = useQuery({
-    queryKey: ['buy-signals'],
-    queryFn: getBuySignals,
-    staleTime: 2 * 60 * 1000
-  });
-  const { data: sellSignals } = useQuery({
-    queryKey: ['sell-signals'],
-    queryFn: getSellSignals,
-    staleTime: 2 * 60 * 1000
-  });
-
-  // --- Replace mock data with real API calls ---
-  // Portfolio: fetch from backend
-  const { data: portfolioData, isLoading: portfolioLoading, error: portfolioError } = useQuery({
-    queryKey: ['dashboard-portfolio'],
-    queryFn: async () => {
-      const response = await api.get('/dashboard/portfolio');
-      return response.data;
-    },
-    staleTime: 5 * 60 * 1000
-  });
-  const safePortfolio = portfolioData?.data && typeof portfolioData.data === 'object'
-    ? portfolioData.data
-    : { value: 0, pnl: { daily: 0, mtd: 0, ytd: 0 }, allocation: [] };
-
-  // Watchlist: fetch from backend
-  const { data: watchlistData, isLoading: watchlistLoading, error: watchlistError } = useQuery({
-    queryKey: ['dashboard-watchlist'],
-    queryFn: async () => {
-      const response = await api.get('/dashboard/watchlist');
-      return response.data;
-    },
-    staleTime: 5 * 60 * 1000
-  });
-  const safeWatchlist = Array.isArray(watchlistData?.data) ? watchlistData.data : [];
-
-  // News: fetch from backend
-  const { data: newsData, isLoading: newsLoading, error: newsError } = useQuery({
-    queryKey: ['dashboard-news'],
-    queryFn: async () => {
-      const response = await api.get('/dashboard/news');
-      return response.data;
-    },
-    staleTime: 5 * 60 * 1000
-  });
-  const safeNews = Array.isArray(newsData?.data) ? newsData.data : [];
-
-  // Activity: fetch from backend
-  const { data: activityData, isLoading: activityLoading, error: activityError } = useQuery({
-    queryKey: ['dashboard-activity'],
-    queryFn: async () => {
-      const response = await api.get('/dashboard/activity');
-      return response.data;
-    },
-    staleTime: 5 * 60 * 1000
-  });
-  const safeActivity = Array.isArray(activityData?.data) ? activityData.data : [];
-
-  // Calendar: fetch from backend
-  const { data: calendarData, isLoading: calendarLoading, error: calendarError } = useQuery({
-    queryKey: ['dashboard-calendar'],
-    queryFn: async () => {
-      const response = await api.get('/dashboard/calendar');
-      return response.data;
-    },
-    staleTime: 5 * 60 * 1000
-  });
-  const safeCalendar = Array.isArray(calendarData?.data) ? calendarData.data : [];
-
-  // Alerts/Signals: fetch from backend
-  const { data: signalsData, isLoading: signalsLoading, error: signalsError } = useQuery({
-    queryKey: ['dashboard-signals'],
-    queryFn: async () => {
-      const response = await api.get('/dashboard/signals');
-      return response.data;
-    },
-    staleTime: 2 * 60 * 1000
-  });
-  const safeSignals = Array.isArray(signalsData?.data) ? signalsData.data : [];
 
   // Prepare equity curve for chart
   const equityCurve = Array.isArray(priceData?.data)
     ? priceData.data.map(p => ({ date: p.date || p.timestamp, equity: p.close || p.price })).reverse()
     : [];
 
-  // Prepare risk stats
-  const riskStats = metricsData?.data
-    ? [
-        { label: 'Beta', value: metricsData.data.beta ?? 'N/A' },
-        { label: 'Volatility', value: metricsData.data.volatility ? (metricsData.data.volatility * 100).toFixed(2) + '%' : 'N/A' },
-        { label: 'Sharpe Ratio', value: metricsData.data.sharpe_ratio ?? 'N/A' },
-        { label: 'Max Drawdown', value: metricsData.data.max_drawdown ? (metricsData.data.max_drawdown * 100).toFixed(2) + '%' : 'N/A' }
-      ]
-    : [];
+  // Handle adding position
+  const handleAddPosition = (position) => {
+    const newPositions = [...portfolio.positions, position];
+    updatePositions.mutate(newPositions);
+  };
 
-  // Defensive: fallback for missing/errored data
-  // (Removed mock-based safe* variables; now using API-based safe* variables above)
-
-  // User context
-  const { user, isLoading: userLoading, error: userError, isAuthenticated } = useUser();
-
-  // Optionally redirect to login if not authenticated
-  // useEffect(() => {
-  //   if (!userLoading && !isAuthenticated) {
-  //     window.location.href = '/login';
-  //   }
-  // }, [userLoading, isAuthenticated]);
+  // Handle adding to watchlist
+  const handleAddToWatchlist = (symbol) => {
+    addSymbol.mutate(symbol);
+  };
 
   return (
     <Box>
-      {/* Institutional Header */}
+      {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          {/* <img src={Logo} alt="Fund Logo" style={{ height: 48, marginRight: 16 }} /> */}
           {logoSrc ? (
             <img src={logoSrc} alt="Logo" style={{ height: 48, width: 48, borderRadius: '50%' }} />
           ) : (
             <Avatar sx={{ bgcolor: 'primary.main', width: 48, height: 48, fontSize: 28 }}>
-              {/* Fallback initials or icon */}
               FD
             </Avatar>
           )}
           <Box>
-            <Typography variant="h5" sx={{ fontWeight: 700, letterSpacing: 1 }}>{BRAND_NAME} Client Portal</Typography>
-            <Typography variant="caption" color="text.secondary">Professional Investor Dashboard</Typography>
+            <Typography variant="h5" sx={{ fontWeight: 700, letterSpacing: 1 }}>
+              {BRAND_NAME} Client Portal
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Professional Investor Dashboard
+            </Typography>
             {userLoading ? (
               <Skeleton width={120} height={18} />
             ) : user ? (
-              <Typography variant="caption" color="text.secondary">Welcome, {user.name || user.email}</Typography>
+              <Typography variant="caption" color="text.secondary">
+                Welcome, {user.name || user.email}
+              </Typography>
             ) : null}
           </Box>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          {/* Symbol Selector */}
           <Autocomplete
             options={SYMBOL_OPTIONS}
             value={selectedSymbol}
             onChange={(_, newValue) => newValue && setSelectedSymbol(newValue)}
             sx={{ width: 180, mr: 2 }}
-            renderInput={(params) => <TextField {...params} label="Symbol" size="small" />} />
+            renderInput={(params) => <TextField {...params} label="Symbol" size="small" />}
+          />
           <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
             {format(new Date(), 'MMMM d, yyyy')}
           </Typography>
-          {/* User Avatar/Logout */}
           {user && (
             <Tooltip title={user.email || user.name} arrow>
               <Avatar sx={{ bgcolor: 'secondary.main', width: 36, height: 36, ml: 1 }}>
@@ -1101,200 +900,121 @@ const Dashboard = () => {
                   console.error('Logout error:', error);
                   window.location.href = '/login';
                 });
-            }}>Logout</Button>
+            }}>
+              Logout
+            </Button>
           )}
         </Box>
       </Box>
       <Divider sx={{ mb: 3 }} />
 
-      {/* Top Row: Portfolio Snapshot, Watchlist, Quick Actions */}
+      {/* Top Row: Portfolio, Watchlist */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={4}>
+        <Grid item xs={12} md={6}>
           <Card sx={{ bgcolor: 'grey.50', boxShadow: 3, borderLeft: '6px solid #1976d2' }}>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                 <AccountBalance sx={{ color: 'primary.main', mr: 1 }} />
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>Portfolio Value</Typography>
-                <Tooltip title="Total value of all holdings" arrow TransitionComponent={Fade} placement="top">
-                  <Info sx={{ color: 'grey.500', ml: 1, fontSize: 18 }} />
+                <Tooltip title="Click to add positions" arrow>
+                  <IconButton size="small" onClick={() => setAddPositionOpen(true)}>
+                    <Add />
+                  </IconButton>
                 </Tooltip>
               </Box>
               <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main', letterSpacing: 1 }}>
-                ${safePortfolio.value.toLocaleString()}
+                ${portfolio.value.toLocaleString()}
               </Typography>
               <Box sx={{ display: 'flex', gap: 2, mt: 1 }}>
-                <Tooltip title="Today's profit or loss" arrow><Chip label={`Daily: $${safePortfolio.pnl.daily.toLocaleString()}`} color={safePortfolio.pnl.daily >= 0 ? 'success' : 'error'} size="small" /></Tooltip>
-                <Tooltip title="Month-to-date P&L" arrow><Chip label={`MTD: $${safePortfolio.pnl.mtd.toLocaleString()}`} color={safePortfolio.pnl.mtd >= 0 ? 'success' : 'error'} size="small" /></Tooltip>
-                <Tooltip title="Year-to-date P&L" arrow><Chip label={`YTD: $${safePortfolio.pnl.ytd.toLocaleString()}`} color={safePortfolio.pnl.ytd >= 0 ? 'success' : 'error'} size="small" /></Tooltip>
+                <Chip label={`Daily: $${portfolio.pnl.daily.toLocaleString()}`} 
+                      color={portfolio.pnl.daily >= 0 ? 'success' : 'error'} size="small" />
+                <Chip label={`MTD: $${portfolio.pnl.mtd.toLocaleString()}`} 
+                      color={portfolio.pnl.mtd >= 0 ? 'success' : 'error'} size="small" />
+                <Chip label={`YTD: $${portfolio.pnl.ytd.toLocaleString()}`} 
+                      color={portfolio.pnl.ytd >= 0 ? 'success' : 'error'} size="small" />
               </Box>
-              <Box sx={{ height: 120, mt: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <PieChart width={120} height={120}>
-                  <Pie data={safePortfolio.allocation} cx="50%" cy="50%" outerRadius={50} fill="#8884d8" dataKey="value" label>
-                    {safePortfolio.allocation.map((entry, idx) => (
-                      <Cell key={`cell-${idx}`} fill={WIDGET_COLORS[idx % WIDGET_COLORS.length]} />
-                    ))}
-                  </Pie>
-                </PieChart>
+              
+              {/* Portfolio Metrics */}
+              <Box sx={{ mt: 2, p: 2, bgcolor: 'white', borderRadius: 1 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Portfolio Metrics</Typography>
+                <Grid container spacing={1}>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Sharpe Ratio</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{metrics.sharpe?.toFixed(2) || 'N/A'}</Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Beta</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{metrics.beta?.toFixed(2) || 'N/A'}</Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Max Drawdown</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{(metrics.maxDrawdown * 100)?.toFixed(1) || 'N/A'}%</Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Volatility</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{(metrics.volatility * 100)?.toFixed(1) || 'N/A'}%</Typography>
+                  </Grid>
+                </Grid>
               </Box>
-              <Typography variant="caption" color="text.secondary">Asset allocation</Typography>
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} md={5}>
+        <Grid item xs={12} md={6}>
           <Card sx={{ boxShadow: 3, borderLeft: '6px solid #43a047' }}>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                <HorizontalRule sx={{ color: 'info.main', mr: 1 }} />
+                <Bookmark sx={{ color: 'info.main', mr: 1 }} />
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>Watchlist</Typography>
-                <Tooltip title="Your selected stocks for monitoring" arrow><Info sx={{ color: 'grey.500', ml: 1, fontSize: 18 }} /></Tooltip>
+                <Tooltip title="Add symbol to watchlist" arrow>
+                  <IconButton size="small" onClick={() => setAddWatchlistOpen(true)}>
+                    <Add />
+                  </IconButton>
+                </Tooltip>
               </Box>
-              <Box sx={{ maxHeight: 140, overflowY: 'auto' }}>
-                <table style={{ width: '100%', fontSize: 15 }}>
-                  <thead>
-                    <tr>
-                      <th align="left">Symbol</th>
-                      <th align="right">Price</th>
-                      <th align="right">Change</th>
-                      <th align="center">Trade</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {safeWatchlist.map((item, idx) => (
-                      <tr key={item.symbol || idx} style={{ background: idx % 2 ? '#f9f9f9' : 'white' }}>
-                        <td>{item.symbol}</td>
-                        <td align="right">${item.price?.toLocaleString?.() ?? '--'}</td>
-                        <td align="right" style={{ color: item.change >= 0 ? '#43a047' : '#e53935', fontWeight: 600 }}>{item.change >= 0 ? '+' : ''}{item.change ?? '--'}%</td>
-                        <td align="center">
-                          <Tooltip title="Buy" arrow><Button size="small" variant="outlined" color="primary" aria-label={`Buy ${item.symbol}`}>Buy</Button></Tooltip>
-                          <Tooltip title="Sell" arrow><Button size="small" variant="outlined" color="secondary" sx={{ ml: 1 }} aria-label={`Sell ${item.symbol}`}>Sell</Button></Tooltip>
-                        </td>
+              <Box sx={{ maxHeight: 200, overflowY: 'auto' }}>
+                {watchlist.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">
+                    No symbols in watchlist. Click + to add.
+                  </Typography>
+                ) : (
+                  <table style={{ width: '100%', fontSize: 14 }}>
+                    <thead>
+                      <tr>
+                        <th align="left">Symbol</th>
+                        <th align="right">Price</th>
+                        <th align="right">Change</th>
+                        <th align="center">Action</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <Card sx={{ boxShadow: 3, bgcolor: 'grey.50', borderLeft: '6px solid #ffb300' }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                <Download sx={{ color: 'primary.main', mr: 1 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>Quick Actions</Typography>
-                <Tooltip title="Access common actions quickly" arrow><Info sx={{ color: 'grey.500', ml: 1, fontSize: 18 }} /></Tooltip>
-              </Box>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <Button variant="contained" color="primary" fullWidth startIcon={<TrendingUp />} aria-label="Trade">Trade</Button>
-                <Button variant="outlined" color="primary" fullWidth startIcon={<AccountBalance />} aria-label="Transfer Funds">Transfer Funds</Button>
-                <Button variant="outlined" color="secondary" fullWidth startIcon={<Download />} aria-label="Download Report">Download Report</Button>
-                <Button variant="outlined" color="info" fullWidth startIcon={<ContactSupport />} aria-label="Contact Support">Contact Support</Button>
+                    </thead>
+                    <tbody>
+                      {watchlist.map((symbol, idx) => (
+                        <tr key={symbol} style={{ background: idx % 2 ? '#f9f9f9' : 'white' }}>
+                          <td>{symbol}</td>
+                          <td align="right">$--</td>
+                          <td align="right">--%</td>
+                          <td align="center">
+                            <IconButton size="small" onClick={() => removeSymbol.mutate(symbol)}>
+                              <Remove />
+                            </IconButton>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </Box>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
 
-      {/* Market Summary Row */}
-      <Grid container spacing={2} sx={{ mb: 2 }}>
-        {marketSummary.map((mkt, idx) => (
-          <Grid item xs={12} sm={4} key={mkt.name}>
-            <Card sx={{ boxShadow: 1, borderLeft: `4px solid ${WIDGET_COLORS[idx % WIDGET_COLORS.length]}` }}>
-              <CardContent sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1 }}>
-                <Box>
-                  <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>{mkt.name}</Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 700 }}>{mkt.value?.toLocaleString?.() ?? '--'}</Typography>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  {mkt.icon}
-                  <Typography variant="body2" sx={{ fontWeight: 600, color: mkt.change >= 0 ? '#43a047' : '#e53935' }}>{mkt.pct ?? '--'}</Typography>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
+      {/* Market Overview */}
+      <MarketOverviewWidget />
 
-      {/* Technical Signals Widget */}
+      {/* Technical Signals */}
       <TechnicalSignalsWidget />
 
-      {/* Insights Row: Alerts, Calendar, Activity */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                <Notifications sx={{ color: 'warning.main', mr: 1 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>Alerts & Signals</Typography>
-                <Tooltip title="Latest actionable trade signals" arrow><Info sx={{ color: 'grey.500', ml: 1, fontSize: 18 }} /></Tooltip>
-              </Box>
-              {safeSignals.length === 0 ? (
-                <Typography variant="body2" color="text.secondary">No new alerts.</Typography>
-              ) : (
-                <>
-                  {safeSignals.map((sig, idx) => (
-                    <Box key={sig.symbol || idx} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography variant="body2"><b>{sig.symbol}</b> {sig.action}</Typography>
-                      <Chip label={`Conf: ${(sig.confidence * 100).toFixed(0)}%`} color={sig.action === 'Buy' ? 'success' : 'error'} size="small" />
-                    </Box>
-                  ))}
-                </>
-              )}
-              <Divider sx={{ my: 1 }} />
-              <Typography variant="body2" color="text.secondary">Latest news:</Typography>
-              <Typography variant="body2" color="primary.main">Fed Holds Rates Steady, Signals Caution</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                <Event sx={{ color: 'info.main', mr: 1 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>Economic Calendar</Typography>
-                <Tooltip title="Upcoming economic events and earnings" arrow><Info sx={{ color: 'grey.500', ml: 1, fontSize: 18 }} /></Tooltip>
-              </Box>
-              {safeCalendar.length === 0 ? (
-                <Typography variant="body2" color="text.secondary">No upcoming events.</Typography>
-              ) : (
-                <>
-                  {safeCalendar.map((ev, idx) => (
-                    <Box key={ev.event || idx} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography variant="body2">{ev.event}</Typography>
-                      <Typography variant="caption" color="text.secondary">{format(new Date(ev.date), 'MMM d')}</Typography>
-                    </Box>
-                  ))}
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                <ListAlt sx={{ color: 'success.main', mr: 1 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>Recent Activity</Typography>
-                <Tooltip title="Your most recent trades and actions" arrow><Info sx={{ color: 'grey.500', ml: 1, fontSize: 18 }} /></Tooltip>
-              </Box>
-              {safeActivity.length === 0 ? (
-                <Typography variant="body2" color="text.secondary">No recent activity.</Typography>
-              ) : (
-                <>
-                  {safeActivity.map((act, idx) => (
-                    <Box key={act.type + act.desc + idx} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography variant="body2">{act.type}: {act.desc}</Typography>
-                      <Typography variant="caption" color="text.secondary">{format(new Date(act.date), 'MMM d')}</Typography>
-                    </Box>
-                  ))}
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* Performance Analytics & Risk */}
+      {/* Performance Analytics */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid item xs={12} md={8}>
           <Card>
@@ -1303,55 +1023,26 @@ const Dashboard = () => {
                 <ShowChart sx={{ color: 'primary.main', mr: 1 }} />
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>Performance Analytics ({selectedSymbol})</Typography>
               </Box>
-              {priceLoading ? (
-                <Typography variant="body2" color="text.secondary">Loading equity curve...</Typography>
-              ) : priceError ? (
-                <Typography variant="body2" color="error">Error loading price data</Typography>
-              ) : (
-                <ResponsiveContainer width="100%" height={220}>
-                  <LineChart data={equityCurve} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                    <YAxis tick={{ fontSize: 12 }} domain={['auto', 'auto']} />
-                    <RechartsTooltip formatter={(v) => `$${v?.toLocaleString?.() ?? v}`}/>
-                    <Line type="monotone" dataKey="equity" stroke="#1976d2" strokeWidth={2} dot={false} name="Equity" />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={equityCurve} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} domain={['auto', 'auto']} />
+                  <RechartsTooltip formatter={(v) => `$${v?.toLocaleString?.() ?? v}`}/>
+                  <Line type="monotone" dataKey="equity" stroke="#1976d2" strokeWidth={2} dot={false} name="Equity" />
+                </LineChart>
+              </ResponsiveContainer>
               <Typography variant="caption" color="text.secondary">Equity curve for {selectedSymbol}</Typography>
             </CardContent>
           </Card>
         </Grid>
         <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                <Analytics sx={{ color: 'secondary.main', mr: 1 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>Risk & Stats ({selectedSymbol})</Typography>
-              </Box>
-              {metricsLoading ? (
-                <Typography variant="body2" color="text.secondary">Loading risk stats...</Typography>
-              ) : metricsError ? (
-                <Typography variant="body2" color="error">Error loading metrics</Typography>
-              ) : (
-                <>
-                  {riskStats.map((stat, idx) => (
-                    <Box key={idx} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography variant="body2" color="text.secondary">{stat.label}</Typography>
-                      <Typography variant="body2" fontWeight={600}>{stat.value}</Typography>
-                    </Box>
-                  ))}
-                </>
-              )}
-              <Typography variant="caption" color="text.secondary">Live risk stats for {selectedSymbol}</Typography>
-            </CardContent>
-          </Card>
+          <HoldingsWidget />
         </Grid>
       </Grid>
 
-      {/* Summary/Insight Widgets */}
-      <MarketOverviewWidget />
-      <Grid container spacing={3}>
+      {/* Insights Row */}
+      <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid item xs={12} md={4}>
           <EarningsCalendarWidget symbol={selectedSymbol} />
         </Grid>
@@ -1361,19 +1052,35 @@ const Dashboard = () => {
         <Grid item xs={12} md={4}>
           <FinancialHighlightsWidget symbol={selectedSymbol} />
         </Grid>
-        <Grid item xs={12} md={12}>
-          <UserSettingsWidget user={user} />
-        </Grid>
       </Grid>
 
-      {/* TODO: Add new summary/insight widgets here (Market Overview, Earnings, Analyst, Financial Highlights, Data Health, etc.) */}
-      {/* TODO: Replace mock data with real API calls for watchlist, portfolio, news, etc. */}
-      {/* ...existing code... */}
+      {/* User Settings */}
+      <UserSettingsWidget user={user} />
+
+      {/* Contact Support - Subtle link */}
+      <Box sx={{ mt: 3, textAlign: 'center' }}>
+        <Link href="#" color="text.secondary" sx={{ textDecoration: 'none' }}>
+          <ContactSupport sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'middle' }} />
+          Contact Support
+        </Link>
+      </Box>
+
+      {/* Dialogs */}
+      <AddPositionDialog 
+        open={addPositionOpen} 
+        onClose={() => setAddPositionOpen(false)} 
+        onAdd={handleAddPosition} 
+      />
+      <AddToWatchlistDialog 
+        open={addWatchlistOpen} 
+        onClose={() => setAddWatchlistOpen(false)} 
+        onAdd={handleAddToWatchlist} 
+      />
 
       {/* Compliance Disclaimer */}
       <Box sx={{ mt: 4, mb: 2, textAlign: 'center' }}>
         <Typography variant="caption" color="text.secondary">
-          For institutional use only. Not investment advice. Data may be delayed or incomplete. &copy; {new Date().getFullYear()} Hedge Fund Name. All rights reserved.
+          For institutional use only. Not investment advice. Data may be delayed or incomplete. &copy; {new Date().getFullYear()} {BRAND_NAME}. All rights reserved.
         </Typography>
       </Box>
     </Box>
