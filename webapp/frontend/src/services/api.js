@@ -77,10 +77,12 @@ api.interceptors.request.use(
     if (config.url && config.url.startsWith('/api/api')) {
       config.url = config.url.replace('/api/api', '/api');
     }
-    // Ensure all URLs start with /api
-    if (config.url && !config.url.startsWith('/api/')) {
+    
+    // Only add /api prefix if the URL doesn't already start with /api
+    if (config.url && !config.url.startsWith('/api')) {
       config.url = '/api' + (config.url.startsWith('/') ? config.url : '/' + config.url);
     }
+    
     const fullUrl = `${config.baseURL || api.defaults.baseURL}${config.url}`;
     console.log('[API REQUEST FINAL URL]', fullUrl, config);
     if (config.isServerless) {
