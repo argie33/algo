@@ -85,7 +85,7 @@ const BRAND_NAME = 'Edgebrooke Capital';
 
 // User authentication hook
 function useUser() {
-  return useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-user'],
     queryFn: async () => {
       const response = await api.get('/api/dashboard/user');
@@ -93,6 +93,13 @@ function useUser() {
     },
     staleTime: 5 * 60 * 1000
   });
+
+  return {
+    user: data?.data || null,
+    isLoading,
+    error,
+    isAuthenticated: !!data?.data
+  };
 }
 
 // Watchlist management hook
@@ -324,7 +331,7 @@ function TechnicalSignalsWidget() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-technical-signals'],
     queryFn: async () => {
-      const response = await api.get('/technical/daily?limit=10&sortBy=date');
+      const response = await api.get('/api/technical/daily?limit=10');
       return response.data;
     },
     refetchInterval: 300000
@@ -386,7 +393,7 @@ function TechnicalSignalsWidget() {
                       ) : 'N/A'}
                     </td>
                     <td style={{ padding: '8px 0' }}>{sig.macd ? formatNumber(sig.macd, 4) : 'N/A'}</td>
-                    <td style={{ padding: '8px 0' }}>{sig.stochastic ? formatNumber(sig.stochastic, 1) : 'N/A'}</td>
+                    <td style={{ padding: '8px 0' }}>{sig.stochastic_k ? formatNumber(sig.stochastic_k, 1) : 'N/A'}</td>
                     <td style={{ padding: '8px 0' }}>{sig.atr ? formatNumber(sig.atr, 2) : 'N/A'}</td>
                     <td style={{ padding: '8px 0' }}>
                       {sig.rsi && sig.macd ? (
@@ -628,6 +635,8 @@ function UserSettingsWidget({ user }) {
   if (isLoading) return <Skeleton variant="rectangular" height={150} />;
   if (error) return <Alert severity="error">Failed to load settings: {error.message}</Alert>;
 
+  const settingsData = settings?.data || {};
+
   return (
     <Card>
       <CardContent>
@@ -638,14 +647,24 @@ function UserSettingsWidget({ user }) {
         <Typography variant="body2" color="text.secondary" gutterBottom>
           Account preferences and configuration
         </Typography>
-        {settings?.data?.slice(0, 3).map((setting, idx) => (
-          <Box key={idx} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-            <Typography variant="body2">{setting.name}</Typography>
-            <Typography variant="body2" color="text.secondary">
-              {setting.value}
-            </Typography>
-          </Box>
-        ))}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+          <Typography variant="body2">Theme</Typography>
+          <Typography variant="body2" color="text.secondary">
+            {settingsData.theme || 'light'}
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+          <Typography variant="body2">Notifications</Typography>
+          <Typography variant="body2" color="text.secondary">
+            {settingsData.notifications ? 'Enabled' : 'Disabled'}
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+          <Typography variant="body2">Email</Typography>
+          <Typography variant="body2" color="text.secondary">
+            {settingsData.email || 'N/A'}
+          </Typography>
+        </Box>
       </CardContent>
     </Card>
   );

@@ -601,4 +601,100 @@ router.get('/symbols', async (req, res) => {
   }
 });
 
+// --- INSIGHTS endpoint ---
+router.get('/insights', async (req, res) => {
+  try {
+    const { symbol } = req.query;
+    
+    if (!symbol) {
+      return res.status(400).json({
+        success: false,
+        error: 'Symbol parameter is required'
+      });
+    }
+
+    // Mock insights data for now
+    const insights = [
+      { type: 'Technical', message: `${symbol} showing bullish momentum with RSI at 65`, date: new Date().toISOString().split('T')[0] },
+      { type: 'Fundamental', message: `${symbol} P/E ratio below industry average`, date: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0] },
+      { type: 'Analyst', message: '3 analysts upgraded ${symbol} this week', date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] }
+    ];
+
+    res.json({
+      success: true,
+      data: insights,
+      message: 'Insights retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Error fetching insights:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch insights',
+      message: error.message
+    });
+  }
+});
+
+// --- HIGHLIGHTS endpoint ---
+router.get('/highlights', async (req, res) => {
+  try {
+    const { symbol } = req.query;
+    
+    if (!symbol) {
+      return res.status(400).json({
+        success: false,
+        error: 'Symbol parameter is required'
+      });
+    }
+
+    // Mock highlights data for now
+    const highlights = [
+      { metric: 'Market Cap', value: '$2.5T', change: '+2.1%' },
+      { metric: 'P/E Ratio', value: '25.4', change: '-0.3' },
+      { metric: 'Dividend Yield', value: '0.5%', change: '0.0%' },
+      { metric: 'Beta', value: '1.2', change: '+0.1' }
+    ];
+
+    res.json({
+      success: true,
+      data: highlights,
+      message: 'Highlights retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Error fetching highlights:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch highlights',
+      message: error.message
+    });
+  }
+});
+
+// --- SETTINGS endpoint ---
+router.get('/settings', async (req, res) => {
+  try {
+    // Mock settings data for now
+    const settings = {
+      theme: 'light',
+      notifications: true,
+      email: 'testuser@example.com',
+      refreshInterval: 300,
+      defaultSymbol: 'AAPL'
+    };
+
+    res.json({
+      success: true,
+      data: settings,
+      message: 'Settings retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Error fetching settings:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch settings',
+      message: error.message
+    });
+  }
+});
+
 module.exports = router;
