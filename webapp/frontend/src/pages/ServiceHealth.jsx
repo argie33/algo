@@ -666,19 +666,6 @@ function ServiceHealth() {
                     </Alert>
                   ) : null}
 
-                  {/* Debug information - always show for troubleshooting */}
-                  <Alert severity="info" sx={{ mb: 2 }}>
-                    <Typography variant="subtitle2">Debug Info:</Typography>
-                    <Typography variant="body2">
-                      Has summary: {safeDbHealth.database?.summary ? 'Yes' : 'No'}<br/>
-                      Has tables: {safeDbHealth.database?.tables ? 'Yes' : 'No'}<br/>
-                      Tables count: {safeDbHealth.database?.tables ? Object.keys(safeDbHealth.database.tables).length : 0}<br/>
-                      Summary keys: {safeDbHealth.database?.summary ? Object.keys(safeDbHealth.database.summary).join(', ') : 'None'}<br/>
-                      Raw data keys: {Object.keys(safeDbHealth).join(', ')}<br/>
-                      Database keys: {safeDbHealth.database ? Object.keys(safeDbHealth.database).join(', ') : 'None'}
-                    </Typography>
-                  </Alert>
-
                   {/* Summary Statistics */}
                   {safeDbHealth.database?.summary && (
                     <Box sx={{ mb: 2 }}>

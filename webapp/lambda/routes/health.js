@@ -212,6 +212,16 @@ router.get('/database', async (req, res) => {
         'cash_flow_annual', 'cash_flow_quarterly', 'cash_flow_ttm',
         'financials', 'financials_quarterly', 'financials_ttm',
         
+        // New modular financial data loaders
+        'quarterly_balance_sheet', 'annual_balance_sheet',
+        'quarterly_income_statement', 'annual_income_statement',
+        'quarterly_cash_flow', 'annual_cash_flow',
+        'ttm_income_statement', 'ttm_cash_flow',
+        
+        // Latest price and technical data
+        'latest_price_daily', 'latest_price_weekly', 'latest_price_monthly',
+        'latest_technical_data_daily', 'latest_technical_data_weekly', 'latest_technical_data_monthly',
+        
         // Additional tables that might be created
         'naaim', // from loadnaaim.py (if different from naaim_exposure)
         'health_status' // the health check table itself
@@ -495,6 +505,16 @@ router.post('/update-status', async (req, res) => {
       'income_statement_annual', 'income_statement_quarterly', 'income_statement_ttm',
       'cash_flow_annual', 'cash_flow_quarterly', 'cash_flow_ttm',
       'financials', 'financials_quarterly', 'financials_ttm',
+      
+      // New modular financial data loaders
+      'quarterly_balance_sheet', 'annual_balance_sheet',
+      'quarterly_income_statement', 'annual_income_statement',
+      'quarterly_cash_flow', 'annual_cash_flow',
+      'ttm_income_statement', 'ttm_cash_flow',
+      
+      // Latest price and technical data
+      'latest_price_daily', 'latest_price_weekly', 'latest_price_monthly',
+      'latest_technical_data_daily', 'latest_technical_data_weekly', 'latest_technical_data_monthly',
       
       // Additional tables that might be created
       'naaim', // from loadnaaim.py (if different from naaim_exposure)
