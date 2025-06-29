@@ -203,7 +203,7 @@ jobs:
               - 'requirements-loadcalendar.txt'
             buyselldaily:
               - 'loadbuyselldaily.py'
-              - 'Dockerfile.buysell'
+              - 'Dockerfile.buyselldaily'
               - 'requirements-loadbuysell.txt'
             buysellweekly:
               - 'loadbuysellweekly.py'
@@ -399,9 +399,9 @@ jobs:
             technicalsmonthly)DOCKERFILE=Dockerfile.technicalsmonthly;PARAM=TechnicalsMonthlyImageTag;;\
             swingtrader)      DOCKERFILE=Dockerfile.swingtrader;    PARAM=SwingTraderImageTag;;\
             calendar)         DOCKERFILE=Dockerfile.loadcalendar;   PARAM=CalendarImageTag;;\
-            buyselldaily)     DOCKERFILE=Dockerfile.buysell;        PARAM=BuySellDailyImageTag;;\
-            buysellweekly)    DOCKERFILE=Dockerfile.buysell;        PARAM=BuySellWeeklyImageTag;;\
-            buysellmonthly)   DOCKERFILE=Dockerfile.buysell;        PARAM=BuySellMonthlyImageTag;;\
+            buyselldaily)     DOCKERFILE=Dockerfile.buyselldaily;        PARAM=BuySellDailyImageTag;;\
+            buysellweekly)    DOCKERFILE=Dockerfile.buysellweekly;        PARAM=BuySellWeeklyImageTag;;\
+            buysellmonthly)   DOCKERFILE=Dockerfile.buysellmonthly;        PARAM=BuySellMonthlyImageTag;;\
             latesttechnicalsdaily)   DOCKERFILE=Dockerfile.latesttechnicalsdaily;   PARAM=LatestTechnicalsDailyImageTag;;\
             latesttechnicalsweekly)  DOCKERFILE=Dockerfile.latesttechnicalsweekly;  PARAM=LatestTechnicalsWeeklyImageTag;;\
             latesttechnicalsmonthly) DOCKERFILE=Dockerfile.latesttechnicalsmonthly; PARAM=LatestTechnicalsMonthlyImageTag;;\

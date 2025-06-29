@@ -42,6 +42,15 @@ Parameters:
   BuySellImageTag:
     Type: String
     Description: "Tag for buysell loader image"
+  BuySellDailyImageTag:
+    Type: String
+    Description: "Tag for buysell daily loader image"
+  BuySellWeeklyImageTag:
+    Type: String
+    Description: "Tag for buysell weekly loader image"
+  BuySellMonthlyImageTag:
+    Type: String
+    Description: "Tag for buysell monthly loader image"
   SwingTraderImageTag:
     Type: String
     Description: "Tag for swingtrader loader image"
@@ -244,6 +253,24 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/buysell-loader
+      RetentionInDays: 14
+
+  BuySellDailyLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/buyselldaily-loader
+      RetentionInDays: 14
+
+  BuySellWeeklyLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/buysellweekly-loader
+      RetentionInDays: 14
+
+  BuySellMonthlyLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/buysellmonthly-loader
       RetentionInDays: 14
 
   SwingTraderLogGroup:
@@ -2296,19 +2323,19 @@ Outputs:
 
   BuySellDailyTaskDefArn:
     Description: ARN of the ECS TaskDefinition for buysell daily loader
-    Value: !Ref BuySellTaskDefinition
+    Value: !Ref BuySellDailyTaskDefinition
     Export:
       Name: BuySellDailyTaskDefArn
 
   BuySellWeeklyTaskDefArn:
     Description: ARN of the ECS TaskDefinition for buysell weekly loader
-    Value: !Ref BuySellTaskDefinition
+    Value: !Ref BuySellWeeklyTaskDefinition
     Export:
       Name: BuySellWeeklyTaskDefArn
 
   BuySellMonthlyTaskDefArn:
     Description: ARN of the ECS TaskDefinition for buysell monthly loader
-    Value: !Ref BuySellTaskDefinition
+    Value: !Ref BuySellMonthlyTaskDefinition
     Export:
       Name: BuySellMonthlyTaskDefArn
 
@@ -2377,3 +2404,189 @@ Outputs:
     Value: !Ref TTMCashFlowTaskDefinition
     Export:
       Name: TTMCashFlowTaskDefArn  
+
+  ########################################
+  # P1) buysell daily loader             #
+  ########################################
+  BuySellDailyTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: buyselldaily-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: buyselldaily-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref BuySellDailyImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+          Secrets:
+            - Name: IBKR_USERNAME
+              ValueFrom: !Ref IBKRUsernameSecret
+            - Name: IBKR_PASSWORD
+              ValueFrom: !Ref IBKRPasswordSecret
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/buyselldaily-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  BuySellDailyLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: buyselldaily-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref BuySellDailyTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ########################################
+  # P2) buysell weekly loader            #
+  ########################################
+  BuySellWeeklyTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: buysellweekly-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: buysellweekly-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref BuySellWeeklyImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+          Secrets:
+            - Name: IBKR_USERNAME
+              ValueFrom: !Ref IBKRUsernameSecret
+            - Name: IBKR_PASSWORD
+              ValueFrom: !Ref IBKRPasswordSecret
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/buysellweekly-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  BuySellWeeklyLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: buysellweekly-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref BuySellWeeklyTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ########################################
+  # P3) buysell monthly loader           #
+  ########################################
+  BuySellMonthlyTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: buysellmonthly-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: buysellmonthly-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref BuySellMonthlyImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+          Secrets:
+            - Name: IBKR_USERNAME
+              ValueFrom: !Ref IBKRUsernameSecret
+            - Name: IBKR_PASSWORD
+              ValueFrom: !Ref IBKRPasswordSecret
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/buysellmonthly-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  BuySellMonthlyLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: buysellmonthly-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref BuySellMonthlyTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
