@@ -511,4 +511,288 @@ router.get('/filters/sectors', async (req, res) => {
   }
 });
 
+// Get market cap categories
+router.get('/market-cap-categories', async (req, res) => {
+  try {
+    // Get market cap categories from stocks table
+    const categoriesQuery = `
+      SELECT DISTINCT market_cap_category
+      FROM stocks
+      WHERE market_cap_category IS NOT NULL
+        AND market_cap_category != ''
+      ORDER BY market_cap_category
+    `;
+    
+    const result = await query(categoriesQuery);
+    
+    const categories = result.rows.map(row => ({
+      category: row.market_cap_category,
+      label: getMarketCapLabel(row.market_cap_category)
+    }));
+
+    res.json({
+      data: categories,
+      count: categories.length
+    });
+  } catch (error) {
+    console.error('Error fetching market cap categories:', error);
+    res.status(500).json({ error: 'Failed to fetch market cap categories' });
+  }
+});
+
+// Get volume data for a specific stock
+router.get('/:symbol/volume', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { timeframe = 'daily' } = req.query;
+    
+    const validTimeframes = ['daily', 'weekly', 'monthly'];
+    if (!validTimeframes.includes(timeframe)) {
+      return res.status(400).json({
+        error: 'Unsupported timeframe',
+        message: `Supported timeframes: ${validTimeframes.join(', ')}, got: ${timeframe}`
+      });
+    }
+    
+    const tableName = `technical_data_${timeframe}`;
+    
+    const volumeQuery = `
+      SELECT 
+        symbol,
+        date,
+        volume,
+        close,
+        high,
+        low
+      FROM ${tableName}
+      WHERE symbol = $1
+      ORDER BY date DESC
+      LIMIT 100
+    `;
+    
+    const result = await query(volumeQuery, [symbol.toUpperCase()]);
+    
+    res.json({
+      data: result.rows,
+      count: result.rows.length,
+      symbol: symbol.toUpperCase(),
+      timeframe
+    });
+  } catch (error) {
+    console.error('Error fetching volume data:', error);
+    res.status(500).json({ error: 'Failed to fetch volume data' });
+  }
+});
+
+// Helper function to get market cap labels
+function getMarketCapLabel(category) {
+  const labels = {
+    'Q': 'Large Cap',
+    'G': 'Mid Cap', 
+    'S': 'Small Cap',
+    'N': 'Nano Cap'
+  };
+  return labels[category] || category;
+}
+
+// Get stock info for a specific symbol
+router.get('/info/:symbol', async (req, res) => {
+  const { symbol } = req.params;
+  console.log(`ℹ️ [STOCKS] Fetching stock info for ${symbol}`);
+  
+  try {
+    // Get stock information
+    const infoQuery = `
+      SELECT 
+        symbol,
+        company_name,
+        sector,
+        industry,
+        exchange,
+        country,
+        market_cap,
+        current_price,
+        volume,
+        pe_ratio,
+        dividend_yield,
+        return_on_equity,
+        revenue_growth,
+        current_ratio,
+        debt_to_equity,
+        updated_at
+      FROM stocks
+      WHERE symbol = $1
+    `;
+
+    const result = await query(infoQuery, [symbol.toUpperCase()]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `No stock info found for symbol ${symbol}`
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+      symbol: symbol.toUpperCase()
+    });
+  } catch (error) {
+    console.error(`❌ [STOCKS] Error fetching stock info for ${symbol}:`, error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch stock info',
+      details: error.message
+    });
+  }
+});
+
+// Get stock price for a specific symbol
+router.get('/price/:symbol', async (req, res) => {
+  const { symbol } = req.params;
+  console.log(`💰 [STOCKS] Fetching stock price for ${symbol}`);
+  
+  try {
+    // Get latest price data
+    const priceQuery = `
+      SELECT 
+        symbol,
+        current_price,
+        previous_close,
+        change_amount,
+        change_percent,
+        volume,
+        market_cap,
+        date
+      FROM latest_price_daily
+      WHERE symbol = $1
+      ORDER BY date DESC
+      LIMIT 1
+    `;
+
+    const result = await query(priceQuery, [symbol.toUpperCase()]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `No price data found for symbol ${symbol}`
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+      symbol: symbol.toUpperCase()
+    });
+  } catch (error) {
+    console.error(`❌ [STOCKS] Error fetching stock price for ${symbol}:`, error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch stock price',
+      details: error.message
+    });
+  }
+});
+
+// Get stock history for a specific symbol
+router.get('/history/:symbol', async (req, res) => {
+  const { symbol } = req.params;
+  const { days = 90 } = req.query;
+  console.log(`📊 [STOCKS] Fetching stock history for ${symbol} (${days} days)`);
+  
+  try {
+    // Get price history
+    const historyQuery = `
+      SELECT 
+        symbol,
+        date,
+        open,
+        high,
+        low,
+        close,
+        volume,
+        adjusted_close
+      FROM price_daily
+      WHERE symbol = $1
+        AND date >= CURRENT_DATE - INTERVAL '${days} days'
+      ORDER BY date ASC
+    `;
+
+    const result = await query(historyQuery, [symbol.toUpperCase()]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `No price history found for symbol ${symbol}`
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows,
+      count: result.rows.length,
+      symbol: symbol.toUpperCase(),
+      period_days: days
+    });
+  } catch (error) {
+    console.error(`❌ [STOCKS] Error fetching stock history for ${symbol}:`, error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch stock history',
+      details: error.message
+    });
+  }
+});
+
+// Search stocks
+router.get('/search', async (req, res) => {
+  const { q } = req.query;
+  console.log(`🔍 [STOCKS] Searching stocks with query: ${q}`);
+  
+  if (!q || q.trim().length === 0) {
+    return res.status(400).json({
+      success: false,
+      error: 'Search query is required'
+    });
+  }
+  
+  try {
+    // Search stocks by symbol or company name
+    const searchQuery = `
+      SELECT 
+        symbol,
+        company_name,
+        sector,
+        industry,
+        exchange,
+        current_price,
+        market_cap
+      FROM stocks
+      WHERE symbol ILIKE $1 
+        OR company_name ILIKE $1
+      ORDER BY 
+        CASE WHEN symbol ILIKE $1 THEN 1 ELSE 2 END,
+        market_cap DESC
+      LIMIT 20
+    `;
+
+    const result = await query(searchQuery, [`%${q.trim()}%`]);
+
+    res.json({
+      success: true,
+      data: result.rows,
+      count: result.rows.length,
+      query: q.trim()
+    });
+  } catch (error) {
+    console.error(`❌ [STOCKS] Error searching stocks:`, error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to search stocks',
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;

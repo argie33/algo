@@ -104,7 +104,15 @@ def load_ttm_cash_flow(symbols, cur, conn):
                     ttm_data = cash_flow.iloc[:, 0]
                     latest_date = cash_flow.columns[0]
                 
-                row_data = [orig_sym, latest_date.date() if hasattr(latest_date, 'date') else latest_date]
+                # Convert pandas Timestamp to date properly
+                if hasattr(latest_date, 'date'):
+                    latest_date_obj = latest_date.date()
+                elif hasattr(latest_date, 'to_pydatetime'):
+                    latest_date_obj = latest_date.to_pydatetime().date()
+                else:
+                    latest_date_obj = latest_date
+                
+                row_data = [orig_sym, latest_date_obj]
                 for metric in cash_flow.index:
                     value = ttm_data[metric]
                     if pd.isna(value) or value is None:

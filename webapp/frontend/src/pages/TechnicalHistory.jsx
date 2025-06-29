@@ -9,6 +9,8 @@ import { formatNumber, formatDate, getTechStatus } from '../utils/formatters';
 import { useTheme } from '@mui/material/styles';
 
 function TechnicalHistory() {
+  console.log('🚀 TechnicalHistory: Component rendering...');
+  
   const { symbol } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState([]);
@@ -20,6 +22,18 @@ function TechnicalHistory() {
   const [dateTo, setDateTo] = useState('');
   const [total, setTotal] = useState(0);
   const theme = useTheme();
+
+  console.log('📊 TechnicalHistory: Component state:', {
+    symbol,
+    dataLength: data.length,
+    loading,
+    hasError: !!error,
+    page,
+    rowsPerPage,
+    dateFrom,
+    dateTo,
+    total
+  });
 
   // --- Summary/overview ---
   const latest = data && data.length > 0 ? data[0] : null;
@@ -33,6 +47,14 @@ function TechnicalHistory() {
   ];
 
   const fetchData = async () => {
+    console.log('🔍 TechnicalHistory: Fetching data with params:', {
+      symbol,
+      limit: rowsPerPage,
+      page: page + 1,
+      startDate: dateFrom,
+      endDate: dateTo
+    });
+    
     setLoading(true);
     setError(null);
     try {
@@ -44,9 +66,18 @@ function TechnicalHistory() {
         endDate: dateTo
       };
       const result = await getTechnicalData('daily', params);
+      
+      console.log('✅ TechnicalHistory: Data fetched successfully:', {
+        hasData: !!result,
+        dataLength: result?.data?.length || 0,
+        total: result?.pagination?.total || 0,
+        firstItem: result?.data?.[0]
+      });
+      
       setData(result.data || []);
       setTotal(result.pagination?.total || 0);
     } catch (e) {
+      console.error('❌ TechnicalHistory: Error fetching data:', e);
       setError(e.message || 'Failed to load history');
     }
     setLoading(false);

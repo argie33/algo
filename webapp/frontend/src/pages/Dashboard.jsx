@@ -104,610 +104,60 @@ const WIDGET_COLORS = ['#1976d2', '#43a047', '#ffb300', '#8e24aa', '#e53935'];
 
 const BRAND_NAME = 'Edgebrooke Capital';
 
-// User authentication hook
-function useUser() {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboard-user'],
-    queryFn: async () => {
-      const response = await getDashboardUser();
-      return response;
-    },
-    staleTime: 5 * 60 * 1000
-  });
-
-  return {
-    user: data?.data || null,
-    isLoading,
-    error,
-    isAuthenticated: !!data?.data
-  };
-}
-
-// Watchlist management hook
-function useWatchlist() {
-  const queryClient = useQueryClient();
-  
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboard-watchlist'],
-    queryFn: async () => {
-      const response = await getDashboardWatchlist();
-      return response;
-    },
-    staleTime: 5 * 60 * 1000
-  });
-
-  const addSymbol = useMutation({
-    mutationFn: async (symbol) => {
-      const response = await api.post('/api/dashboard/watchlist', { symbol });
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries(['dashboard-watchlist']);
-    }
-  });
-
-  const removeSymbol = useMutation({
-    mutationFn: async (symbol) => {
-      const response = await api.delete('/api/dashboard/watchlist', { data: { symbol } });
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries(['dashboard-watchlist']);
-    }
-  });
-
-  return {
-    watchlist: data?.data || [],
-    isLoading,
-    error,
-    addSymbol,
-    removeSymbol
-  };
-}
-
-// Portfolio management hook
-function usePortfolio() {
-  const queryClient = useQueryClient();
-  
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboard-portfolio'],
-    queryFn: async () => {
-      const response = await getDashboardPortfolio();
-      return response;
-    },
-    staleTime: 5 * 60 * 1000
-  });
-
-  const updatePositions = useMutation({
-    mutationFn: async (positions) => {
-      const response = await api.post('/api/dashboard/portfolio', { positions });
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries(['dashboard-portfolio']);
-    }
-  });
-
-  return {
-    portfolio: data?.data || { positions: [], value: 0, pnl: { daily: 0, mtd: 0, ytd: 0 } },
-    isLoading,
-    error,
-    updatePositions
-  };
-}
-
-// Portfolio metrics hook
-function usePortfolioMetrics() {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboard-portfolio-metrics'],
-    queryFn: async () => {
-      const response = await getDashboardPortfolioMetrics();
-      return response;
-    },
-    staleTime: 5 * 60 * 1000
-  });
-
-  return {
-    metrics: data?.data || {},
-    isLoading,
-    error
-  };
-}
-
-// Holdings hook
-function useHoldings() {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboard-holdings'],
-    queryFn: async () => {
-      const response = await getDashboardHoldings();
-      return response;
-    },
-    staleTime: 5 * 60 * 1000
-  });
-
-  return {
-    holdings: data?.data || [],
-    isLoading,
-    error
-  };
-}
-
-// User settings hook
-function useUserSettings() {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboard-user-settings'],
-    queryFn: async () => {
-      const response = await getDashboardUserSettings();
-      return response;
-    },
-    staleTime: 5 * 60 * 1000
-  });
-
-  return {
-    settings: data?.data || {},
-    isLoading,
-    error
-  };
-}
-
-// Add Position Dialog Component
-function AddPositionDialog({ open, onClose, onAdd }) {
-  const [symbol, setSymbol] = useState('');
-  const [shares, setShares] = useState('');
-  const [avgPrice, setAvgPrice] = useState('');
-
-  const handleAdd = () => {
-    if (symbol && shares && avgPrice) {
-      onAdd({
-        symbol: symbol.toUpperCase(),
-        shares: parseFloat(shares),
-        avgPrice: parseFloat(avgPrice),
-        date: new Date().toISOString()
-      });
-      setSymbol('');
-      setShares('');
-      setAvgPrice('');
-      onClose();
-    }
-  };
-
-  return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Add Position</DialogTitle>
-      <DialogContent>
-        <TextField
-          fullWidth
-          label="Symbol"
-          value={symbol}
-          onChange={(e) => setSymbol(e.target.value)}
-          margin="normal"
-          placeholder="AAPL"
-        />
-        <TextField
-          fullWidth
-          label="Number of Shares"
-          type="number"
-          value={shares}
-          onChange={(e) => setShares(e.target.value)}
-          margin="normal"
-          placeholder="100"
-        />
-        <TextField
-          fullWidth
-          label="Average Price"
-          type="number"
-          value={avgPrice}
-          onChange={(e) => setAvgPrice(e.target.value)}
-          margin="normal"
-          placeholder="150.00"
-        />
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={handleAdd} variant="contained" disabled={!symbol || !shares || !avgPrice}>
-          Add Position
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-}
-
-// Add to Watchlist Dialog Component
-function AddToWatchlistDialog({ open, onClose, onAdd }) {
-  const [symbol, setSymbol] = useState('');
-
-  const handleAdd = () => {
-    if (symbol) {
-      onAdd(symbol.toUpperCase());
-      setSymbol('');
-      onClose();
-    }
-  };
-
-  return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Add to Watchlist</DialogTitle>
-      <DialogContent>
-        <TextField
-          fullWidth
-          label="Symbol"
-          value={symbol}
-          onChange={(e) => setSymbol(e.target.value)}
-          margin="normal"
-          placeholder="AAPL"
-        />
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={handleAdd} variant="contained" disabled={!symbol}>
-          Add
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-}
-
-// Technical Signals Widget - Improved
-function TechnicalSignalsWidget() {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboard-technical-signals'],
-    queryFn: async () => {
-      const response = await getDashboardTechnicalSignals();
-      return response;
-    },
-    refetchInterval: 300000
-  });
-  
-  const signals = data?.data || [];
-  
-  return (
-    <Card sx={{ mb: 3 }}>
-      <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-          <TrendingUp sx={{ color: 'primary.main', mr: 1 }} />
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>Technical Signals</Typography>
-          <Tooltip title="Latest technical analysis signals" arrow>
-            <Info sx={{ color: 'grey.500', ml: 1, fontSize: 18 }} />
-          </Tooltip>
-        </Box>
-        {isLoading ? (
-          <Box display="flex" alignItems="center" gap={2}>
-            <CircularProgress size={20} />
-            <Typography>Loading technical signals...</Typography>
-          </Box>
-        ) : error ? (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            Failed to fetch technical signals: {error.message}
-          </Alert>
-        ) : signals.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">
-            No technical signals available
-          </Typography>
-        ) : (
-          <Box sx={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', fontSize: 14 }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid #e0e0e0' }}>
-                  <th align="left" style={{ padding: '8px 0' }}>Symbol</th>
-                  <th align="left" style={{ padding: '8px 0' }}>RSI</th>
-                  <th align="left" style={{ padding: '8px 0' }}>MACD</th>
-                  <th align="left" style={{ padding: '8px 0' }}>Stochastic</th>
-                  <th align="left" style={{ padding: '8px 0' }}>ATR</th>
-                  <th align="left" style={{ padding: '8px 0' }}>Signal</th>
-                  <th align="right" style={{ padding: '8px 0' }}>Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {signals.slice(0, 8).map((sig, idx) => (
-                  <tr key={sig.symbol + sig.date + idx} style={{ 
-                    background: idx % 2 ? '#f9f9f9' : 'white',
-                    borderBottom: '1px solid #f0f0f0'
-                  }}>
-                    <td style={{ padding: '8px 0', fontWeight: 600 }}>{sig.symbol}</td>
-                    <td style={{ padding: '8px 0' }}>
-                      {sig.rsi ? (
-                        <Chip 
-                          label={formatNumber(sig.rsi, 1)} 
-                          size="small" 
-                          color={sig.rsi > 70 ? 'error' : sig.rsi < 30 ? 'success' : 'default'}
-                        />
-                      ) : 'N/A'}
-                    </td>
-                    <td style={{ padding: '8px 0' }}>{sig.macd ? formatNumber(sig.macd, 4) : 'N/A'}</td>
-                    <td style={{ padding: '8px 0' }}>{sig.stochastic_k ? formatNumber(sig.stochastic_k, 1) : 'N/A'}</td>
-                    <td style={{ padding: '8px 0' }}>{sig.atr ? formatNumber(sig.atr, 2) : 'N/A'}</td>
-                    <td style={{ padding: '8px 0' }}>
-                      {sig.rsi && sig.macd ? (
-                        <Chip 
-                          label={sig.rsi > 70 || sig.macd < 0 ? 'Sell' : sig.rsi < 30 || sig.macd > 0 ? 'Buy' : 'Hold'} 
-                          size="small" 
-                          color={sig.rsi > 70 || sig.macd < 0 ? 'error' : sig.rsi < 30 || sig.macd > 0 ? 'success' : 'warning'}
-                        />
-                      ) : 'N/A'}
-                    </td>
-                    <td align="right" style={{ padding: '8px 0', fontSize: 12 }}>
-                      {sig.date ? format(new Date(sig.date), 'MMM d') : 'N/A'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Box>
-        )}
-        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-          Live technical signals from daily analysis. RSI &gt; 70 = Overbought, RSI &lt; 30 = Oversold.
-        </Typography>
-      </CardContent>
-    </Card>
-  );
-}
-
-// Market Overview Widget
-function MarketOverviewWidget() {
-  const { data: marketData, isLoading, error } = useQuery({
-    queryKey: ['dashboard-market-summary'],
-    queryFn: async () => {
-      const response = await getDashboardMarketSummary();
-      return response;
-    },
-    staleTime: 5 * 60 * 1000
-  });
-
-  if (isLoading) return <Skeleton variant="rectangular" height={200} />;
-  if (error) return <Alert severity="error">Failed to load market data: {error.message}</Alert>;
-
-  return (
-    <Card>
-      <CardContent>
-        <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
-          <Business />
-          <Box sx={{ ml: 1 }}>Market Overview</Box>
-        </Typography>
-        <Typography variant="body2" color="text.secondary" gutterBottom>
-          Live market indices with real-time updates
-        </Typography>
-        {marketData?.data?.map((index, idx) => (
-          <Box key={idx} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-            <Typography variant="body2">{index.name}</Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <Typography variant="body2" sx={{ mr: 1 }}>
-                {formatCurrency(index.value)}
-              </Typography>
-              <Chip 
-                label={index.pct} 
-                size="small" 
-                color={index.change >= 0 ? 'success' : 'error'}
-                variant="outlined"
-              />
-            </Box>
-          </Box>
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
-
-// Earnings Calendar Widget
-function EarningsCalendarWidget({ symbol }) {
-  const { data: calendarData, isLoading, error } = useQuery({
-    queryKey: ['dashboard-earnings-calendar', symbol],
-    queryFn: async () => {
-      const response = await getDashboardEarningsCalendar(symbol);
-      return response;
-    },
-    enabled: !!symbol,
-    staleTime: 5 * 60 * 1000
-  });
-
-  if (isLoading) return <Skeleton variant="rectangular" height={150} />;
-  if (error) return <Alert severity="error">Failed to load events: {error.message}</Alert>;
-
-  return (
-    <Card>
-      <CardContent>
-        <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
-          <Event />
-          <Box sx={{ ml: 1 }}>Earnings & Events</Box>
-        </Typography>
-        <Typography variant="body2" color="text.secondary" gutterBottom>
-          Earnings dates and key economic events for {symbol}
-        </Typography>
-        {calendarData?.data?.slice(0, 3).map((event, idx) => (
-          <Box key={idx} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-            <Typography variant="body2">{event.event}</Typography>
-            <Typography variant="body2" color="text.secondary">
-              {new Date(event.date).toLocaleDateString()}
-            </Typography>
-          </Box>
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
-
-// Analyst Insights Widget
-function AnalystInsightsWidget({ symbol }) {
-  const { data: insightsData, isLoading, error } = useQuery({
-    queryKey: ['dashboard-analyst-insights', symbol],
-    queryFn: async () => {
-      const response = await getDashboardAnalystInsights(symbol);
-      return response;
-    },
-    enabled: !!symbol,
-    staleTime: 5 * 60 * 1000
-  });
-
-  if (isLoading) return <Skeleton variant="rectangular" height={150} />;
-  if (error) return <Alert severity="error">Failed to load insights: {error.message}</Alert>;
-
-  return (
-    <Card>
-      <CardContent>
-        <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
-          <Analytics />
-          <Box sx={{ ml: 1 }}>Analyst Insights</Box>
-        </Typography>
-        <Typography variant="body2" color="text.secondary" gutterBottom>
-          Recent analyst actions for {symbol}
-        </Typography>
-        {insightsData?.data?.slice(0, 3).map((insight, idx) => (
-          <Box key={idx} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-            <Typography variant="body2">{insight.action}</Typography>
-            <Chip 
-              label={insight.rating} 
-              size="small" 
-              color={insight.action.includes('Upgrade') ? 'success' : 'error'}
-              variant="outlined"
-            />
-          </Box>
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
-
-// Financial Highlights Widget
-function FinancialHighlightsWidget({ symbol }) {
-  const { data: highlightsData, isLoading, error } = useQuery({
-    queryKey: ['dashboard-financial-highlights', symbol],
-    queryFn: async () => {
-      const response = await getDashboardFinancialHighlights(symbol);
-      return response;
-    },
-    enabled: !!symbol,
-    staleTime: 5 * 60 * 1000
-  });
-
-  if (isLoading) return <Skeleton variant="rectangular" height={150} />;
-  if (error) return <Alert severity="error">Failed to load highlights: {error.message}</Alert>;
-
-  return (
-    <Card>
-      <CardContent>
-        <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
-          <AccountBalance />
-          <Box sx={{ ml: 1 }}>Financial Highlights</Box>
-        </Typography>
-        <Typography variant="body2" color="text.secondary" gutterBottom>
-          Key financial metrics for {symbol}
-        </Typography>
-        {highlightsData?.data?.slice(0, 3).map((highlight, idx) => (
-          <Box key={idx} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-            <Typography variant="body2">{highlight.metric}</Typography>
-            <Typography variant="body2" color="text.secondary">
-              {highlight.value}
-            </Typography>
-          </Box>
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
-
-// Holdings Widget
-function HoldingsWidget() {
-  const { portfolio, isLoading, error } = usePortfolio();
-
-  if (isLoading) return <Skeleton variant="rectangular" height={200} />;
-  if (error) return <Alert severity="error">Failed to load holdings: {error.message}</Alert>;
-
-  return (
-    <Card>
-      <CardContent>
-        <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
-          <ShowChart />
-          <Box sx={{ ml: 1 }}>Current Holdings</Box>
-        </Typography>
-        <Typography variant="body2" color="text.secondary" gutterBottom>
-          Your current investment positions
-        </Typography>
-        {portfolio.positions?.slice(0, 5).map((position, idx) => (
-          <Box key={idx} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-            <Typography variant="body2">{position.symbol}</Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <Typography variant="body2" sx={{ mr: 1 }}>
-                {formatCurrency(position.value)}
-              </Typography>
-              <Chip 
-                label={formatPercentage(position.pnl)} 
-                size="small" 
-                color={position.pnl >= 0 ? 'success' : 'error'}
-                variant="outlined"
-              />
-            </Box>
-          </Box>
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
-
-// User Settings Widget
-function UserSettingsWidget({ user }) {
-  const { data: settings, isLoading, error } = useQuery({
-    queryKey: ['dashboard-user-settings'],
-    queryFn: async () => {
-      const response = await api.get('/api/dashboard/user/settings');
-      return response.data;
-    },
-    staleTime: 5 * 60 * 1000
-  });
-
-  if (isLoading) return <Skeleton variant="rectangular" height={150} />;
-  if (error) return <Alert severity="error">Failed to load settings: {error.message}</Alert>;
-
-  const settingsData = settings?.data || {};
-
-  return (
-    <Card>
-      <CardContent>
-        <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
-          <Settings />
-          <Box sx={{ ml: 1 }}>User Settings</Box>
-        </Typography>
-        <Typography variant="body2" color="text.secondary" gutterBottom>
-          Account preferences and configuration
-        </Typography>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-          <Typography variant="body2">Theme</Typography>
-          <Typography variant="body2" color="text.secondary">
-            {settingsData.theme || 'light'}
-          </Typography>
-        </Box>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-          <Typography variant="body2">Notifications</Typography>
-          <Typography variant="body2" color="text.secondary">
-            {settingsData.notifications ? 'Enabled' : 'Disabled'}
-          </Typography>
-        </Box>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-          <Typography variant="body2">Email</Typography>
-          <Typography variant="body2" color="text.secondary">
-            {settingsData.email || 'N/A'}
-          </Typography>
-        </Box>
-      </CardContent>
-    </Card>
-  );
-}
-
 const Dashboard = () => {
+  console.log('🚀 Dashboard: Component rendering...');
+  
   const [selectedSymbol, setSelectedSymbol] = useState('AAPL');
   const [addPositionOpen, setAddPositionOpen] = useState(false);
   const [addWatchlistOpen, setAddWatchlistOpen] = useState(false);
   const [debugResults, setDebugResults] = useState(null);
 
-  // User context
-  const { user, isLoading: userLoading, isAuthenticated } = useUser();
-  
-  // Watchlist management
-  const { watchlist, addSymbol, removeSymbol } = useWatchlist();
-  
-  // Portfolio management
-  const { portfolio, updatePositions } = usePortfolio();
-  
+  // User data
+  const { user, isLoading: userLoading, error: userError } = useUser();
+
+  // Watchlist data
+  const { watchlist, isLoading: watchlistLoading, error: watchlistError } = useWatchlist();
+
+  // Portfolio data
+  const { portfolio, isLoading: portfolioLoading, error: portfolioError } = usePortfolio();
+
   // Portfolio metrics
-  const { metrics } = usePortfolioMetrics();
+  const { portfolioMetrics, isLoading: metricsLoading, error: metricsError } = usePortfolioMetrics();
+
+  // Holdings data
+  const { holdings, isLoading: holdingsLoading, error: holdingsError } = useHoldings();
+
+  // User settings
+  const { userSettings, isLoading: settingsLoading, error: settingsError } = useUserSettings();
+
+  // Market summary
+  const { data: marketSummary, isLoading: marketLoading, error: marketError } = useQuery({
+    queryKey: ['dashboardMarketSummary'],
+    queryFn: getDashboardMarketSummary,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    onSuccess: (data) => console.log('✅ Dashboard: Market summary loaded:', data),
+    onError: (error) => console.error('❌ Dashboard: Market summary error:', error)
+  });
+
+  // Technical signals
+  const { data: technicalSignals, isLoading: signalsLoading, error: signalsError } = useQuery({
+    queryKey: ['dashboardTechnicalSignals'],
+    queryFn: getDashboardTechnicalSignals,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    onSuccess: (data) => console.log('✅ Dashboard: Technical signals loaded:', data),
+    onError: (error) => console.error('❌ Dashboard: Technical signals error:', error)
+  });
+
+  console.log('📊 Dashboard: Data summary:', {
+    user: { hasData: !!user, isLoading: userLoading, hasError: !!userError },
+    watchlist: { hasData: !!watchlist, isLoading: watchlistLoading, hasError: !!watchlistError },
+    portfolio: { hasData: !!portfolio, isLoading: portfolioLoading, hasError: !!portfolioError },
+    portfolioMetrics: { hasData: !!portfolioMetrics, isLoading: metricsLoading, hasError: !!metricsError },
+    holdings: { hasData: !!holdings, isLoading: holdingsLoading, hasError: !!holdingsError },
+    userSettings: { hasData: !!userSettings, isLoading: settingsLoading, hasError: !!settingsError },
+    marketSummary: { hasData: !!marketSummary, isLoading: marketLoading, hasError: !!marketError },
+    technicalSignals: { hasData: !!technicalSignals, isLoading: signalsLoading, hasError: !!signalsError }
+  });
 
   // Get available symbols for dropdown
   const { data: symbolsData } = useQuery({
@@ -873,19 +323,19 @@ const Dashboard = () => {
                 <Grid container spacing={1}>
                   <Grid item xs={6}>
                     <Typography variant="caption" color="text.secondary">Sharpe Ratio</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{metrics.sharpe?.toFixed(2) || 'N/A'}</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{portfolioMetrics.sharpe?.toFixed(2) || 'N/A'}</Typography>
                   </Grid>
                   <Grid item xs={6}>
                     <Typography variant="caption" color="text.secondary">Beta</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{metrics.beta?.toFixed(2) || 'N/A'}</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{portfolioMetrics.beta?.toFixed(2) || 'N/A'}</Typography>
                   </Grid>
                   <Grid item xs={6}>
                     <Typography variant="caption" color="text.secondary">Max Drawdown</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{(metrics.maxDrawdown * 100)?.toFixed(1) || 'N/A'}%</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{(portfolioMetrics.maxDrawdown * 100)?.toFixed(1) || 'N/A'}%</Typography>
                   </Grid>
                   <Grid item xs={6}>
                     <Typography variant="caption" color="text.secondary">Volatility</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{(metrics.volatility * 100)?.toFixed(1) || 'N/A'}%</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{(portfolioMetrics.volatility * 100)?.toFixed(1) || 'N/A'}%</Typography>
                   </Grid>
                 </Grid>
               </Box>
@@ -1019,5 +469,89 @@ const Dashboard = () => {
     </Box>
   );
 };
+
+function useUser() {
+  console.log('🔍 useUser: Hook called');
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['dashboardUser'],
+    queryFn: getDashboardUser,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    onSuccess: (data) => console.log('✅ useUser: Data loaded successfully:', data),
+    onError: (error) => console.error('❌ useUser: Error loading data:', error)
+  });
+  
+  console.log('📊 useUser: Hook result:', { hasData: !!data, isLoading, hasError: !!error });
+  return { user: data?.data, isLoading, error };
+}
+
+function useWatchlist() {
+  console.log('🔍 useWatchlist: Hook called');
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['dashboardWatchlist'],
+    queryFn: getDashboardWatchlist,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    onSuccess: (data) => console.log('✅ useWatchlist: Data loaded successfully:', data),
+    onError: (error) => console.error('❌ useWatchlist: Error loading data:', error)
+  });
+  
+  console.log('📊 useWatchlist: Hook result:', { hasData: !!data, isLoading, hasError: !!error });
+  return { watchlist: data?.data || [], isLoading, error };
+}
+
+function usePortfolio() {
+  console.log('🔍 usePortfolio: Hook called');
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['dashboardPortfolio'],
+    queryFn: getDashboardPortfolio,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    onSuccess: (data) => console.log('✅ usePortfolio: Data loaded successfully:', data),
+    onError: (error) => console.error('❌ usePortfolio: Error loading data:', error)
+  });
+  
+  console.log('📊 usePortfolio: Hook result:', { hasData: !!data, isLoading, hasError: !!error });
+  return { portfolio: data?.data || defaultPortfolio, isLoading, error };
+}
+
+function usePortfolioMetrics() {
+  console.log('🔍 usePortfolioMetrics: Hook called');
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['dashboardPortfolioMetrics'],
+    queryFn: getDashboardPortfolioMetrics,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    onSuccess: (data) => console.log('✅ usePortfolioMetrics: Data loaded successfully:', data),
+    onError: (error) => console.error('❌ usePortfolioMetrics: Error loading data:', error)
+  });
+  
+  console.log('📊 usePortfolioMetrics: Hook result:', { hasData: !!data, isLoading, hasError: !!error });
+  return { portfolioMetrics: data?.data || defaultMetrics, isLoading, error };
+}
+
+function useHoldings() {
+  console.log('🔍 useHoldings: Hook called');
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['dashboardHoldings'],
+    queryFn: getDashboardHoldings,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    onSuccess: (data) => console.log('✅ useHoldings: Data loaded successfully:', data),
+    onError: (error) => console.error('❌ useHoldings: Error loading data:', error)
+  });
+  
+  console.log('📊 useHoldings: Hook result:', { hasData: !!data, isLoading, hasError: !!error });
+  return { holdings: data?.data || [], isLoading, error };
+}
+
+function useUserSettings() {
+  console.log('🔍 useUserSettings: Hook called');
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['dashboardUserSettings'],
+    queryFn: getDashboardUserSettings,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    onSuccess: (data) => console.log('✅ useUserSettings: Data loaded successfully:', data),
+    onError: (error) => console.error('❌ useUserSettings: Error loading data:', error)
+  });
+  
+  console.log('📊 useUserSettings: Hook result:', { hasData: !!data, isLoading, hasError: !!error });
+  return { userSettings: data?.data || defaultSettings, isLoading, error };
+}
 
 export default Dashboard;

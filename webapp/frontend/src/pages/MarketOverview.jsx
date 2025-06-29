@@ -92,27 +92,117 @@ const MetricTable = ({ data, columns, title }) => (
 const logger = createComponentLogger('MarketOverview');
 
 function MarketOverview() {
+  console.log('🚀 MarketOverview: Component rendering...');
+  
+  const [selectedIndex, setSelectedIndex] = useState('^GSPC') // S&P 500
+  const [timeframe, setTimeframe] = useState('1D')
+  const [selectedSector, setSelectedSector] = useState('all')
+
+  // Market overview data
+  const { data: marketData, isLoading: marketLoading, error: marketError } = useQuery({
+    queryKey: ['marketOverview'],
+    queryFn: getMarketOverview,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    onSuccess: (data) => console.log('✅ MarketOverview: Market data loaded:', data),
+    onError: (error) => console.error('❌ MarketOverview: Market data error:', error)
+  });
+
+  console.log('📊 MarketOverview: Market data summary:', {
+    hasData: !!marketData,
+    isLoading: marketLoading,
+    hasError: !!marketError,
+    dataKeys: marketData ? Object.keys(marketData) : []
+  });
+
+  // Market indices data
+  const { data: indicesData, isLoading: indicesLoading, error: indicesError } = useQuery({
+    queryKey: ['marketIndices'],
+    queryFn: getMarketIndices,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    onSuccess: (data) => console.log('✅ MarketOverview: Indices data loaded:', data),
+    onError: (error) => console.error('❌ MarketOverview: Indices data error:', error)
+  });
+
+  console.log('📊 MarketOverview: Indices data summary:', {
+    hasData: !!indicesData,
+    isLoading: indicesLoading,
+    hasError: !!indicesError
+  });
+
+  // Sector performance data
+  const { data: sectorData, isLoading: sectorLoading, error: sectorError } = useQuery({
+    queryKey: ['sectorPerformance'],
+    queryFn: getSectorPerformance,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    onSuccess: (data) => console.log('✅ MarketOverview: Sector data loaded:', data),
+    onError: (error) => console.error('❌ MarketOverview: Sector data error:', error)
+  });
+
+  console.log('📊 MarketOverview: Sector data summary:', {
+    hasData: !!sectorData,
+    isLoading: sectorLoading,
+    hasError: !!sectorError
+  });
+
+  // Market breadth data
+  const { data: breadthData, isLoading: breadthLoading, error: breadthError } = useQuery({
+    queryKey: ['marketBreadth'],
+    queryFn: getMarketBreadth,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    onSuccess: (data) => console.log('✅ MarketOverview: Breadth data loaded:', data),
+    onError: (error) => console.error('❌ MarketOverview: Breadth data error:', error)
+  });
+
+  console.log('📊 MarketOverview: Breadth data summary:', {
+    hasData: !!breadthData,
+    isLoading: breadthLoading,
+    hasError: !!breadthError
+  });
+
+  // Volatility data
+  const { data: volatilityData, isLoading: volatilityLoading, error: volatilityError } = useQuery({
+    queryKey: ['marketVolatility'],
+    queryFn: getMarketVolatility,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    onSuccess: (data) => console.log('✅ MarketOverview: Volatility data loaded:', data),
+    onError: (error) => console.error('❌ MarketOverview: Volatility data error:', error)
+  });
+
+  console.log('📊 MarketOverview: Volatility data summary:', {
+    hasData: !!volatilityData,
+    isLoading: volatilityLoading,
+    hasError: !!volatilityError
+  });
+
+  // Economic calendar data
+  const { data: calendarData, isLoading: calendarLoading, error: calendarError } = useQuery({
+    queryKey: ['economicCalendar'],
+    queryFn: getEconomicCalendar,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    onSuccess: (data) => console.log('✅ MarketOverview: Calendar data loaded:', data),
+    onError: (error) => console.error('❌ MarketOverview: Calendar data error:', error)
+  });
+
+  console.log('📊 MarketOverview: Calendar data summary:', {
+    hasData: !!calendarData,
+    isLoading: calendarLoading,
+    hasError: !!calendarError
+  });
+
+  console.log('📊 MarketOverview: Overall data summary:', {
+    marketData: { hasData: !!marketData, isLoading: marketLoading, hasError: !!marketError },
+    indicesData: { hasData: !!indicesData, isLoading: indicesLoading, hasError: !!indicesError },
+    sectorData: { hasData: !!sectorData, isLoading: sectorLoading, hasError: !!sectorError },
+    breadthData: { hasData: !!breadthData, isLoading: breadthLoading, hasError: !!breadthError },
+    volatilityData: { hasData: !!volatilityData, isLoading: volatilityLoading, hasError: !!volatilityError },
+    calendarData: { hasData: !!calendarData, isLoading: calendarLoading, hasError: !!calendarError }
+  });
+
   // Restore original sentiment indicator boxes at the top, before the tabs
   const [sentimentRange, setSentimentRange] = useState(30);
   const [econRange, setEconRange] = useState(90);
   const [tabValue, setTabValue] = useState(0)
   const [showDetailedEcon, setShowDetailedEcon] = useState(false);
-  const { data: marketData, isLoading: marketLoading, error: marketError } = useQuery({
-    queryKey: ['market-overview'],
-    queryFn: async () => {
-      try {
-        const result = await getMarketOverview();
-        logger.success('getMarketOverview', result);
-        return result;
-      } catch (err) {
-        logger.error('getMarketOverview', err);
-        throw err;
-      }
-    },
-    refetchInterval: 60000,
-    onError: (err) => logger.queryError('market-overview', err)
-  });
-
   const { data: sentimentData, isLoading: sentimentLoading } = useQuery({
     queryKey: ['market-sentiment-history', sentimentRange],
     queryFn: async () => {

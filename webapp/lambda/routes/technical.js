@@ -376,4 +376,279 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Get technical data for a specific symbol
+router.get('/data/:symbol', async (req, res) => {
+  const { symbol } = req.params;
+  console.log(`📊 [TECHNICAL] Fetching technical data for ${symbol}`);
+  
+  try {
+    // Get latest technical data for the symbol
+    const dataQuery = `
+      SELECT 
+        symbol,
+        date,
+        open,
+        high,
+        low,
+        close,
+        volume,
+        rsi,
+        macd,
+        macd_signal,
+        macd_histogram,
+        sma_20,
+        sma_50,
+        ema_12,
+        ema_26,
+        bollinger_upper,
+        bollinger_lower,
+        bollinger_middle,
+        stochastic_k,
+        stochastic_d,
+        williams_r,
+        cci,
+        adx,
+        atr,
+        obv,
+        mfi,
+        roc,
+        momentum
+      FROM technical_data_daily
+      WHERE symbol = $1
+      ORDER BY date DESC
+      LIMIT 1
+    `;
+
+    const result = await query(dataQuery, [symbol.toUpperCase()]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `No technical data found for symbol ${symbol}`
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+      symbol: symbol.toUpperCase()
+    });
+  } catch (error) {
+    console.error(`❌ [TECHNICAL] Error fetching technical data for ${symbol}:`, error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch technical data',
+      details: error.message
+    });
+  }
+});
+
+// Get technical indicators for a specific symbol
+router.get('/indicators/:symbol', async (req, res) => {
+  const { symbol } = req.params;
+  console.log(`📈 [TECHNICAL] Fetching technical indicators for ${symbol}`);
+  
+  try {
+    // Get latest technical indicators for the symbol
+    const indicatorsQuery = `
+      SELECT 
+        symbol,
+        date,
+        rsi,
+        macd,
+        macd_signal,
+        macd_histogram,
+        sma_20,
+        sma_50,
+        ema_12,
+        ema_26,
+        bollinger_upper,
+        bollinger_lower,
+        bollinger_middle,
+        stochastic_k,
+        stochastic_d,
+        williams_r,
+        cci,
+        adx,
+        atr,
+        obv,
+        mfi,
+        roc,
+        momentum
+      FROM technical_data_daily
+      WHERE symbol = $1
+      ORDER BY date DESC
+      LIMIT 30
+    `;
+
+    const result = await query(indicatorsQuery, [symbol.toUpperCase()]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `No technical indicators found for symbol ${symbol}`
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows,
+      count: result.rows.length,
+      symbol: symbol.toUpperCase()
+    });
+  } catch (error) {
+    console.error(`❌ [TECHNICAL] Error fetching technical indicators for ${symbol}:`, error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch technical indicators',
+      details: error.message
+    });
+  }
+});
+
+// Get technical history for a specific symbol
+router.get('/history/:symbol', async (req, res) => {
+  const { symbol } = req.params;
+  const { days = 90 } = req.query;
+  console.log(`📊 [TECHNICAL] Fetching technical history for ${symbol} (${days} days)`);
+  
+  try {
+    // Get technical history for the symbol
+    const historyQuery = `
+      SELECT 
+        symbol,
+        date,
+        open,
+        high,
+        low,
+        close,
+        volume,
+        rsi,
+        macd,
+        macd_signal,
+        macd_histogram,
+        sma_20,
+        sma_50,
+        ema_12,
+        ema_26,
+        bollinger_upper,
+        bollinger_lower,
+        bollinger_middle,
+        stochastic_k,
+        stochastic_d,
+        williams_r,
+        cci,
+        adx,
+        atr,
+        obv,
+        mfi,
+        roc,
+        momentum
+      FROM technical_data_daily
+      WHERE symbol = $1
+        AND date >= CURRENT_DATE - INTERVAL '${days} days'
+      ORDER BY date ASC
+    `;
+
+    const result = await query(historyQuery, [symbol.toUpperCase()]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `No technical history found for symbol ${symbol}`
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows,
+      count: result.rows.length,
+      symbol: symbol.toUpperCase(),
+      period_days: days
+    });
+  } catch (error) {
+    console.error(`❌ [TECHNICAL] Error fetching technical history for ${symbol}:`, error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch technical history',
+      details: error.message
+    });
+  }
+});
+
+// Get support and resistance levels for a symbol
+router.get('/support-resistance/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { timeframe = 'daily' } = req.query;
+    
+    const validTimeframes = ['daily', 'weekly', 'monthly'];
+    if (!validTimeframes.includes(timeframe)) {
+      return res.status(400).json({
+        error: 'Unsupported timeframe',
+        message: `Supported timeframes: ${validTimeframes.join(', ')}, got: ${timeframe}`
+      });
+    }
+    
+    const tableName = `technical_data_${timeframe}`;
+    
+    // Get recent price data and pivot points
+    const query = `
+      SELECT 
+        symbol,
+        date,
+        high,
+        low,
+        close,
+        pivot_high,
+        pivot_low,
+        bbands_upper,
+        bbands_lower,
+        sma_20,
+        sma_50,
+        sma_200
+      FROM ${tableName}
+      WHERE symbol = $1
+      ORDER BY date DESC
+      LIMIT 50
+    `;
+    
+    const result = await query(query, [symbol.toUpperCase()]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'No technical data found for symbol' });
+    }
+    
+    // Calculate support and resistance levels
+    const latest = result.rows[0];
+    const recentData = result.rows.slice(0, 20); // Last 20 periods
+    
+    const highs = recentData.map(d => d.high).filter(h => h !== null);
+    const lows = recentData.map(d => d.low).filter(l => l !== null);
+    
+    const resistance = Math.max(...highs);
+    const support = Math.min(...lows);
+    
+    res.json({
+      symbol: symbol.toUpperCase(),
+      timeframe,
+      current_price: latest.close,
+      support_levels: [
+        { level: support, type: 'dynamic', strength: 'strong' },
+        { level: latest.bbands_lower, type: 'bollinger', strength: 'medium' },
+        { level: latest.sma_200, type: 'moving_average', strength: 'strong' }
+      ],
+      resistance_levels: [
+        { level: resistance, type: 'dynamic', strength: 'strong' },
+        { level: latest.bbands_upper, type: 'bollinger', strength: 'medium' },
+        { level: latest.sma_50, type: 'moving_average', strength: 'medium' }
+      ],
+      last_updated: latest.date
+    });
+  } catch (error) {
+    console.error('Error fetching support resistance levels:', error);
+    res.status(500).json({ error: 'Failed to fetch support resistance levels' });
+  }
+});
+
 module.exports = router;

@@ -652,4 +652,182 @@ router.get('/:ticker/key-metrics', async (req, res) => {
   }
 });
 
+// Get financial data for a specific symbol
+router.get('/data/:symbol', async (req, res) => {
+  const { symbol } = req.params;
+  console.log(`💰 [FINANCIALS] Fetching financial data for ${symbol}`);
+  
+  try {
+    // Get comprehensive financial data
+    const dataQuery = `
+      SELECT 
+        symbol,
+        date,
+        item_name,
+        value,
+        statement_type
+      FROM (
+        SELECT symbol, date, item_name, value, 'balance_sheet' as statement_type
+        FROM annual_balance_sheet 
+        WHERE symbol = $1
+        UNION ALL
+        SELECT symbol, date, item_name, value, 'income_statement' as statement_type
+        FROM annual_income_statement 
+        WHERE symbol = $1
+        UNION ALL
+        SELECT symbol, date, item_name, value, 'cash_flow' as statement_type
+        FROM annual_cash_flow 
+        WHERE symbol = $1
+      ) combined_data
+      ORDER BY date DESC, statement_type, item_name
+      LIMIT 100
+    `;
+
+    const result = await query(dataQuery, [symbol.toUpperCase()]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `No financial data found for symbol ${symbol}`
+      });
+    }
+
+    // Group by statement type
+    const groupedData = {
+      balance_sheet: [],
+      income_statement: [],
+      cash_flow: []
+    };
+
+    result.rows.forEach(row => {
+      groupedData[row.statement_type].push({
+        date: row.date,
+        item_name: row.item_name,
+        value: parseFloat(row.value || 0)
+      });
+    });
+
+    res.json({
+      success: true,
+      data: groupedData,
+      symbol: symbol.toUpperCase(),
+      count: result.rows.length
+    });
+  } catch (error) {
+    console.error(`❌ [FINANCIALS] Error fetching financial data for ${symbol}:`, error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch financial data',
+      details: error.message
+    });
+  }
+});
+
+// Get earnings data for a specific symbol
+router.get('/earnings/:symbol', async (req, res) => {
+  const { symbol } = req.params;
+  console.log(`📊 [FINANCIALS] Fetching earnings data for ${symbol}`);
+  
+  try {
+    // Get earnings history
+    const earningsQuery = `
+      SELECT 
+        symbol,
+        report_date,
+        actual_eps,
+        estimated_eps,
+        surprise_percent,
+        revenue_actual,
+        revenue_estimated,
+        revenue_surprise_percent
+      FROM earnings_history
+      WHERE symbol = $1
+      ORDER BY report_date DESC
+      LIMIT 20
+    `;
+
+    const result = await query(earningsQuery, [symbol.toUpperCase()]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `No earnings data found for symbol ${symbol}`
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows,
+      count: result.rows.length,
+      symbol: symbol.toUpperCase()
+    });
+  } catch (error) {
+    console.error(`❌ [FINANCIALS] Error fetching earnings data for ${symbol}:`, error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch earnings data',
+      details: error.message
+    });
+  }
+});
+
+// Get cash flow for a specific symbol (alias for existing endpoint)
+router.get('/cash-flow/:symbol', async (req, res) => {
+  const { symbol } = req.params;
+  console.log(`💵 [FINANCIALS] Fetching cash flow for ${symbol}`);
+  
+  try {
+    // Use the existing cash flow endpoint logic
+    const cashFlowQuery = `
+      SELECT 
+        symbol,
+        date,
+        item_name,
+        value
+      FROM annual_cash_flow
+      WHERE UPPER(symbol) = UPPER($1)
+      ORDER BY date DESC, item_name
+      LIMIT 100
+    `;
+    
+    const result = await query(cashFlowQuery, [symbol.toUpperCase()]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `No cash flow data found for symbol ${symbol}`
+      });
+    }
+
+    // Transform the normalized data into a structured format
+    const groupedData = {};
+    
+    result.rows.forEach(row => {
+      const dateKey = row.date;
+      if (!groupedData[dateKey]) {
+        groupedData[dateKey] = {
+          symbol: row.symbol,
+          date: row.date,
+          items: {}
+        };
+      }
+      groupedData[dateKey].items[row.item_name] = parseFloat(row.value || 0);
+    });
+
+    res.json({
+      success: true,
+      data: Object.values(groupedData),
+      count: Object.keys(groupedData).length,
+      symbol: symbol.toUpperCase()
+    });
+  } catch (error) {
+    console.error(`❌ [FINANCIALS] Error fetching cash flow for ${symbol}:`, error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch cash flow data',
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;

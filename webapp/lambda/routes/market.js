@@ -413,4 +413,292 @@ router.get('/fear-greed', async (req, res) => {
   }
 });
 
+// Get market indices
+router.get('/indices', async (req, res) => {
+  try {
+    // Get major market indices
+    const indicesQuery = `
+      SELECT 
+        symbol,
+        current_price,
+        previous_close,
+        change_percent,
+        volume,
+        market_cap,
+        date
+      FROM market_data
+      WHERE symbol IN ('^GSPC', '^DJI', '^IXIC', '^RUT', '^VIX')
+        AND date = (SELECT MAX(date) FROM market_data)
+      ORDER BY symbol
+    `;
+
+    const result = await query(indicesQuery);
+
+    res.json({
+      data: result.rows,
+      count: result.rows.length,
+      lastUpdated: result.rows.length > 0 ? result.rows[0].date : null
+    });
+  } catch (error) {
+    console.error('Error fetching market indices:', error);
+    res.status(500).json({ error: 'Failed to fetch market indices' });
+  }
+});
+
+// Get sector performance (alias for sectors/performance)
+router.get('/sectors', async (req, res) => {
+  try {
+    // Get sector performance data
+    const sectorQuery = `
+      SELECT 
+        sector,
+        COUNT(*) as stock_count,
+        AVG(change_percent) as avg_change,
+        SUM(volume) as total_volume,
+        AVG(market_cap) as avg_market_cap
+      FROM market_data
+      WHERE date = (SELECT MAX(date) FROM market_data)
+        AND sector IS NOT NULL
+        AND sector != ''
+      GROUP BY sector
+      ORDER BY avg_change DESC
+      LIMIT 20
+    `;
+
+    const result = await query(sectorQuery);
+
+    res.json({
+      data: result.rows,
+      count: result.rows.length
+    });
+  } catch (error) {
+    console.error('Error fetching sector performance:', error);
+    res.status(500).json({ error: 'Failed to fetch sector performance' });
+  }
+});
+
+// Get market volatility
+router.get('/volatility', async (req, res) => {
+  try {
+    // Get VIX and volatility data
+    const volatilityQuery = `
+      SELECT 
+        symbol,
+        current_price,
+        previous_close,
+        change_percent,
+        date
+      FROM market_data
+      WHERE symbol = '^VIX'
+        AND date = (SELECT MAX(date) FROM market_data)
+    `;
+
+    const result = await query(volatilityQuery);
+
+    // Calculate market volatility from all stocks
+    const marketVolatilityQuery = `
+      SELECT 
+        STDDEV(change_percent) as market_volatility,
+        AVG(ABS(change_percent)) as avg_absolute_change
+      FROM market_data
+      WHERE date = (SELECT MAX(date) FROM market_data)
+        AND change_percent IS NOT NULL
+    `;
+
+    const volatilityResult = await query(marketVolatilityQuery);
+
+    res.json({
+      data: {
+        vix: result.rows[0] || null,
+        market_volatility: volatilityResult.rows[0]?.market_volatility || 0,
+        avg_absolute_change: volatilityResult.rows[0]?.avg_absolute_change || 0
+      },
+      lastUpdated: result.rows.length > 0 ? result.rows[0].date : null
+    });
+  } catch (error) {
+    console.error('Error fetching market volatility:', error);
+    res.status(500).json({ error: 'Failed to fetch market volatility' });
+  }
+});
+
+// Get economic calendar
+router.get('/calendar', async (req, res) => {
+  try {
+    // Mock economic calendar data for now
+    const calendarData = [
+      {
+        event: 'FOMC Rate Decision',
+        date: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(),
+        importance: 'High',
+        currency: 'USD'
+      },
+      {
+        event: 'Nonfarm Payrolls',
+        date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
+        importance: 'High',
+        currency: 'USD'
+      },
+      {
+        event: 'CPI Data',
+        date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        importance: 'Medium',
+        currency: 'USD'
+      }
+    ];
+
+    res.json({
+      data: calendarData,
+      count: calendarData.length
+    });
+  } catch (error) {
+    console.error('Error fetching economic calendar:', error);
+    res.status(500).json({ error: 'Failed to fetch economic calendar' });
+  }
+});
+
+// Get market indicators
+router.get('/indicators', async (req, res) => {
+  console.log('📊 Market indicators endpoint called');
+  
+  try {
+    // Get market indicators data
+    const indicatorsQuery = `
+      SELECT 
+        symbol,
+        current_price,
+        previous_close,
+        change_percent,
+        volume,
+        market_cap,
+        sector,
+        date
+      FROM market_data
+      WHERE symbol IN ('^GSPC', '^DJI', '^IXIC', '^RUT', '^VIX', 'SPY', 'QQQ', 'IWM', 'DIA')
+        AND date = (SELECT MAX(date) FROM market_data)
+      ORDER BY symbol
+    `;
+
+    const result = await query(indicatorsQuery);
+
+    // Get market breadth
+    const breadthQuery = `
+      SELECT 
+        COUNT(*) as total_stocks,
+        COUNT(CASE WHEN change_percent > 0 THEN 1 END) as advancing,
+        COUNT(CASE WHEN change_percent < 0 THEN 1 END) as declining,
+        AVG(change_percent) as avg_change
+      FROM market_data
+      WHERE date = (SELECT MAX(date) FROM market_data)
+    `;
+
+    const breadthResult = await query(breadthQuery);
+    const breadth = breadthResult.rows[0];
+
+    // Get latest sentiment data
+    const sentimentQuery = `
+      SELECT 
+        value,
+        classification,
+        date
+      FROM fear_greed_index
+      ORDER BY date DESC
+      LIMIT 1
+    `;
+
+    let sentiment = null;
+    try {
+      const sentimentResult = await query(sentimentQuery);
+      sentiment = sentimentResult.rows[0] || null;
+    } catch (e) {
+      // Sentiment table might not exist
+    }
+
+    res.json({
+      success: true,
+      data: {
+        indices: result.rows,
+        breadth: {
+          total_stocks: parseInt(breadth.total_stocks),
+          advancing: parseInt(breadth.advancing),
+          declining: parseInt(breadth.declining),
+          advance_decline_ratio: breadth.declining > 0 ? (breadth.advancing / breadth.declining).toFixed(2) : 'N/A',
+          avg_change: parseFloat(breadth.avg_change).toFixed(2)
+        },
+        sentiment: sentiment
+      },
+      count: result.rows.length,
+      lastUpdated: result.rows.length > 0 ? result.rows[0].date : null
+    });
+  } catch (error) {
+    console.error('Error fetching market indicators:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch market indicators',
+      details: error.message
+    });
+  }
+});
+
+// Get market sentiment
+router.get('/sentiment', async (req, res) => {
+  console.log('😊 Market sentiment endpoint called');
+  
+  try {
+    // Get latest fear & greed data
+    const fearGreedQuery = `
+      SELECT 
+        value,
+        classification,
+        date
+      FROM fear_greed_index
+      ORDER BY date DESC
+      LIMIT 1
+    `;
+
+    let fearGreed = null;
+    try {
+      const fearGreedResult = await query(fearGreedQuery);
+      fearGreed = fearGreedResult.rows[0] || null;
+    } catch (e) {
+      // Table might not exist
+    }
+
+    // Get latest NAAIM data
+    const naaimQuery = `
+      SELECT 
+        exposure_index,
+        long_exposure,
+        short_exposure,
+        date
+      FROM naaim
+      ORDER BY date DESC
+      LIMIT 1
+    `;
+
+    let naaim = null;
+    try {
+      const naaimResult = await query(naaimQuery);
+      naaim = naaimResult.rows[0] || null;
+    } catch (e) {
+      // Table might not exist
+    }
+
+    res.json({
+      success: true,
+      data: {
+        fear_greed: fearGreed,
+        naaim: naaim
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error fetching market sentiment:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch market sentiment',
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;
