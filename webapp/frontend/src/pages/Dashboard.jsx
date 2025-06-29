@@ -88,7 +88,7 @@ function useUser() {
   return useQuery({
     queryKey: ['dashboard-user'],
     queryFn: async () => {
-      const response = await api.get('/api/dashboard/user');
+      const response = await api.get('/dashboard/user');
       return response.data;
     },
     staleTime: 5 * 60 * 1000
@@ -102,7 +102,7 @@ function useWatchlist() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-watchlist'],
     queryFn: async () => {
-      const response = await api.get('/api/dashboard/watchlist');
+      const response = await api.get('/dashboard/watchlist');
       return response.data;
     },
     staleTime: 5 * 60 * 1000
@@ -144,7 +144,7 @@ function usePortfolio() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-portfolio'],
     queryFn: async () => {
-      const response = await api.get('/api/dashboard/portfolio');
+      const response = await api.get('/dashboard/portfolio');
       return response.data;
     },
     staleTime: 5 * 60 * 1000
@@ -173,7 +173,7 @@ function usePortfolioMetrics() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-portfolio-metrics'],
     queryFn: async () => {
-      const response = await api.get('/api/dashboard/portfolio/metrics');
+      const response = await api.get('/dashboard/portfolio/metrics');
       return response.data;
     },
     staleTime: 5 * 60 * 1000
@@ -191,7 +191,7 @@ function useHoldings() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-holdings'],
     queryFn: async () => {
-      const response = await api.get('/api/dashboard/holdings');
+      const response = await api.get('/dashboard/holdings');
       return response.data;
     },
     staleTime: 5 * 60 * 1000
@@ -209,7 +209,7 @@ function useUserSettings() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-user-settings'],
     queryFn: async () => {
-      const response = await api.get('/api/dashboard/user/settings');
+      const response = await api.get('/dashboard/user/settings');
       return response.data;
     },
     staleTime: 5 * 60 * 1000
@@ -419,7 +419,7 @@ function MarketOverviewWidget() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-market-summary'],
     queryFn: async () => {
-      const response = await api.get('/api/dashboard/market-summary');
+      const response = await api.get('/dashboard/market-summary');
       return response.data;
     },
     staleTime: 5 * 60 * 1000
@@ -484,7 +484,7 @@ function EarningsCalendarWidget({ symbol }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-earnings-calendar', symbol],
     queryFn: async () => {
-      const response = await api.get(`/api/dashboard/earnings-calendar?symbol=${symbol}`);
+      const response = await api.get(`/dashboard/earnings-calendar?symbol=${symbol}`);
       return response.data;
     },
     staleTime: 5 * 60 * 1000
@@ -547,7 +547,7 @@ function AnalystInsightsWidget({ symbol }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-analyst-insights', symbol],
     queryFn: async () => {
-      const response = await api.get(`/api/dashboard/analyst-insights?symbol=${symbol}`);
+      const response = await api.get(`/dashboard/analyst-insights?symbol=${symbol}`);
       return response.data;
     },
     staleTime: 5 * 60 * 1000
@@ -621,7 +621,7 @@ function FinancialHighlightsWidget({ symbol }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-financial-highlights', symbol],
     queryFn: async () => {
-      const response = await api.get(`/api/dashboard/financial-highlights?symbol=${symbol}`);
+      const response = await api.get(`/dashboard/financial-highlights?symbol=${symbol}`);
       return response.data;
     },
     staleTime: 5 * 60 * 1000
@@ -811,7 +811,7 @@ const Dashboard = () => {
   const { data: symbolListData } = useQuery({
     queryKey: ['dashboard-symbol-list'],
     queryFn: async () => {
-      const response = await api.get('/api/dashboard/symbols');
+      const response = await api.get('/dashboard/symbols');
       return response.data;
     },
     staleTime: 60 * 60 * 1000

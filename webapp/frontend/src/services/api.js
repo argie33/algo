@@ -963,7 +963,7 @@ export const healthCheck = async (queryParams = '') => {
 // Data validation functions
 export const getDataValidationSummary = async () => {
   try {
-    const response = await api.get('/api/health/full');
+    const response = await api.get('/health/full');
     return normalizeApiResponse(response, false);
   } catch (error) {
     console.error('Error fetching data validation summary:', error);
