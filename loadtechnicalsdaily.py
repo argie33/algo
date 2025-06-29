@@ -426,7 +426,7 @@ def process_symbol(symbol, conn_pool):
             return 0
 
         # Initialize DataFrame with proper data handling
-        df = pd.DataFrame(rows, columns=['date','open','high','low','close','volume'])
+        df = pd.DataFrame(rows, columns=['date', 'open', 'high', 'low', 'close', 'volume'])
         df['date'] = pd.to_datetime(df['date'])
         
         # Ensure we have enough data for calculations

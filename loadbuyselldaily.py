@@ -164,9 +164,9 @@ def fetch_symbol_from_db(symbol, timeframe):
           SELECT
             p.date, p.open, p.high, p.low, p.close, p.volume,
             t.rsi, t.atr, t.adx, t.plus_di, t.minus_di,
-            t.sma_50    AS "TrendMA",
-            t.pivot_high AS "PivotHighRaw",
-            t.pivot_low  AS "PivotLowRaw"
+            t.sma_50,
+            t.pivot_high,
+            t.pivot_low
           FROM {price_table} p
           JOIN {tech_table}  t
             ON p.symbol = t.symbol AND p.date = t.date
@@ -191,7 +191,7 @@ def fetch_symbol_from_db(symbol, timeframe):
     df['date'] = pd.to_datetime(df['date'])
     num_cols = ['open','high','low','close','volume',
                 'rsi','atr','adx','plus_di','minus_di',
-                'TrendMA','PivotHighRaw','PivotLowRaw']
+                'sma_50','pivot_high','pivot_low']
     for c in num_cols:
         df[c] = pd.to_numeric(df[c], errors='coerce')
     return df.reset_index(drop=True)
@@ -200,12 +200,12 @@ def fetch_symbol_from_db(symbol, timeframe):
 # 4) SIGNAL GENERATION & IN-POSITION LOGIC
 ###############################################################################
 def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
-    df['TrendOK']     = df['close'] > df['TrendMA']
+    df['TrendOK']     = df['close'] > df['sma_50']
     df['RSI_prev']    = df['rsi'].shift(1)
     df['rsiBuy']      = (df['rsi']>50)&(df['RSI_prev']<=50)
     df['rsiSell']     = (df['rsi']<50)&(df['RSI_prev']>=50)
-    df['LastPH']      = df['PivotHighRaw'].shift(1).ffill()
-    df['LastPL']      = df['PivotLowRaw'].shift(1).ffill()
+    df['LastPH']      = df['pivot_high'].shift(1).ffill()
+    df['LastPL']      = df['pivot_low'].shift(1).ffill()
     df['stopBuffer']  = df['atr'] * atrMult
     df['stopLevel']   = df['LastPL'] - df['stopBuffer']
     df['buyLevel']    = df['LastPH']
