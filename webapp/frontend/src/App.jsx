@@ -42,7 +42,6 @@ import StockDetail from './pages/StockDetail'
 import TechnicalAnalysis from './pages/TechnicalAnalysis'
 import AnalystInsights from './pages/AnalystInsights'
 import EarningsCalendar from './pages/EarningsCalendar'
-import DataValidation from './pages/DataValidation'
 import FinancialData from './pages/FinancialData'
 import ServiceHealth from './pages/ServiceHealth'
 import TechnicalHistory from './pages/TechnicalHistory'
@@ -237,7 +236,6 @@ function App() {
               <Route path="/analysts" element={<AnalystInsights />} />
               <Route path="/earnings" element={<EarningsCalendar />} />
               <Route path="/backtest" element={<Backtest />} />
-              <Route path="/data-validation" element={<DataValidation />} />
               <Route path="/financial-data" element={<FinancialData />} />
               <Route path="/service-health" element={<ServiceHealth />} />
               <Route path="/technical-history/:symbol" element={<TechnicalHistory />} />
