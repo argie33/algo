@@ -409,7 +409,7 @@ function TechnicalSignalsWidget() {
           </Box>
         )}
         <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-          Live technical signals from daily analysis. RSI > 70 = Overbought, RSI < 30 = Oversold.
+          Live technical signals from daily analysis. RSI &gt; 70 = Overbought, RSI &lt; 30 = Oversold.
         </Typography>
       </CardContent>
     </Card>

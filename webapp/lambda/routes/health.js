@@ -409,7 +409,13 @@ router.get('/database', async (req, res) => {
     }
     
     console.log('Step 6: Calculating summary statistics...');
-    // Calculate summary statistics
+    // Calculate summary statistics - cap total records to prevent overflow
+    const totalRecords = Object.values(tableStats).reduce((sum, t) => {
+      const count = t.record_count || 0;
+      // Cap individual table counts to prevent overflow
+      return sum + Math.min(count, 1000000); // Cap at 1M per table
+    }, 0);
+    
     const summary = {
       total_tables: Object.keys(tableStats).length,
       healthy_tables: Object.values(tableStats).filter(t => t.status === 'healthy').length,
@@ -417,7 +423,7 @@ router.get('/database', async (req, res) => {
       empty_tables: Object.values(tableStats).filter(t => t.status === 'empty').length,
       error_tables: Object.values(tableStats).filter(t => t.status === 'error').length,
       missing_tables: Object.values(tableStats).filter(t => t.status === 'not_found').length,
-      total_records: Object.values(tableStats).reduce((sum, t) => sum + (t.record_count || 0), 0),
+      total_records: totalRecords,
       total_missing_data: Object.values(tableStats).reduce((sum, t) => sum + (t.missing_data_count || 0), 0)
     };
     
@@ -693,6 +699,31 @@ router.get('/test-connection', async (req, res) => {
     res.status(500).json({ 
       status: 'error',
       connection: 'failed',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Clear health status cache
+router.post('/clear-cache', async (req, res) => {
+  try {
+    console.log('Clearing health status cache...');
+    
+    // Clear the health_status table
+    await query('DELETE FROM health_status');
+    
+    res.json({
+      status: 'success',
+      message: 'Health status cache cleared',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error clearing health status cache:', error);
+    res.status(500).json({ 
+      status: 'error',
+      message: 'Failed to clear health status cache',
       error: error.message,
       timestamp: new Date().toISOString()
     });

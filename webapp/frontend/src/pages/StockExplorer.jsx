@@ -272,10 +272,10 @@ function StockExplorer() {
       
       console.log('BULLETPROOF: Fetching price history for', symbol)
       console.log('BULLETPROOF: API base URL:', api.defaults.baseURL)
-      console.log('BULLETPROOF: Full URL will be:', `${api.defaults.baseURL}/stocks/price-history/${symbol}?limit=90`)
+      console.log('BULLETPROOF: Full URL will be:', `${api.defaults.baseURL}/stocks/price-history/${symbol}?limit=20`)
       
       // Use the new BULLETPROOF API function for getting stock price history
-      const result = await getStockPriceHistory(symbol, 90)
+      const result = await getStockPriceHistory(symbol, 20)
       
       console.log('BULLETPROOF: API response received:', result)
       
@@ -308,7 +308,7 @@ function StockExplorer() {
         data: error.response?.data,
         url: error.config?.url,
         baseURL: error.config?.baseURL,
-        fullUrl: `${api.defaults.baseURL}/stocks/price-history/${symbol}?limit=90`
+        fullUrl: `${api.defaults.baseURL}/stocks/price-history/${symbol}?limit=20`
       })
       
       // Show error in modal

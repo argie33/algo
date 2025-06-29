@@ -3,18 +3,18 @@ const { query } = require('../utils/database');
 
 const router = express.Router();
 
-// BULLETPROOF PRICE HISTORY ENDPOINT - Simple and reliable
+// ULTRA-FAST PRICE HISTORY ENDPOINT - Optimized for speed
 // This endpoint is designed to work without any routing conflicts
 router.get('/price-history/:symbol', async (req, res) => {
   try {
     const { symbol } = req.params;
-    const limit = Math.min(parseInt(req.query.limit) || 15, 30); // Further reduced from 30 to 15, max 30
+    const limit = Math.min(parseInt(req.query.limit) || 10, 20); // Reduced to 10 default, max 20
     
-    console.log(`BULLETPROOF: Price history requested for ${symbol}, limit: ${limit}`);
+    console.log(`ULTRA-FAST: Price history requested for ${symbol}, limit: ${limit}`);
     
-    // Simple, direct query to price_daily table with LIMIT
+    // Ultra-fast query with DISTINCT ON to get latest records efficiently
     const priceQuery = `
-      SELECT 
+      SELECT DISTINCT ON (date) 
         date,
         open,
         high,
@@ -24,7 +24,7 @@ router.get('/price-history/:symbol', async (req, res) => {
         volume
       FROM price_daily
       WHERE UPPER(symbol) = UPPER($1)
-      ORDER BY date DESC
+      ORDER BY date DESC, symbol
       LIMIT $2
     `;
     
@@ -48,7 +48,7 @@ router.get('/price-history/:symbol', async (req, res) => {
     const periodReturn = oldest.close > 0 ? 
       ((latest.close - oldest.close) / oldest.close * 100) : 0;
     
-    // Format response for frontend
+    // Format response for frontend - minimal processing
     const formattedData = prices.map(price => ({
       date: price.date,
       open: parseFloat(price.open || 0),
@@ -70,14 +70,86 @@ router.get('/price-history/:symbol', async (req, res) => {
         latestVolume: parseInt(latest.volume || 0),
         dataPoints: formattedData.length
       },
+      performance: 'ULTRA-FAST_OPTIMIZED',
       timestamp: new Date().toISOString()
     });
     
   } catch (error) {
-    console.error('BULLETPROOF price history error:', error);
+    console.error('ULTRA-FAST price history error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch price history',
+      symbol: req.params.symbol,
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// LIGHTNING-FAST ALTERNATIVE - Use this if the main endpoint is still too slow
+router.get('/price-quick/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const limit = Math.min(parseInt(req.query.limit) || 5, 10); // Very small limits for speed
+    
+    console.log(`LIGHTNING-FAST: Quick price data for ${symbol}, limit: ${limit}`);
+    
+    // Lightning-fast query - just get the most recent records
+    const priceQuery = `
+      SELECT 
+        date,
+        close,
+        volume
+      FROM price_daily
+      WHERE UPPER(symbol) = UPPER($1)
+      ORDER BY date DESC
+      LIMIT $2
+    `;
+    
+    const result = await query(priceQuery, [symbol.toUpperCase(), limit]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No price data found',
+        symbol: symbol.toUpperCase(),
+        message: 'Price data not available for this symbol',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Minimal processing - just essential data
+    const formattedData = result.rows.map(price => ({
+      date: price.date,
+      close: parseFloat(price.close || 0),
+      volume: parseInt(price.volume || 0)
+    }));
+    
+    const latest = formattedData[0];
+    const oldest = formattedData[formattedData.length - 1];
+    const periodReturn = oldest.close > 0 ? 
+      ((latest.close - oldest.close) / oldest.close * 100) : 0;
+    
+    res.json({
+      success: true,
+      symbol: symbol.toUpperCase(),
+      data: formattedData,
+      summary: {
+        latestPrice: latest.close,
+        latestDate: latest.date,
+        periodReturn: parseFloat(periodReturn.toFixed(2)),
+        dataPoints: formattedData.length
+      },
+      performance: 'LIGHTNING_FAST_MINIMAL',
+      note: 'Minimal data for speed - use /price-history/:symbol for full OHLCV data',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('LIGHTNING-FAST price error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch quick price data',
       symbol: req.params.symbol,
       details: error.message,
       timestamp: new Date().toISOString()

@@ -8,7 +8,7 @@ router.get('/debug', async (req, res) => {
   try {
     console.log('Market debug endpoint called');
     
-    const tables = ['fear_greed_index', 'naaim_exposure', 'aaii_sentiment', 'economic_data'];
+    const tables = ['fear_greed_index', 'naaim', 'aaii_sentiment', 'economic_data'];
     const results = {};
     
     for (const table of tables) {
@@ -33,8 +33,8 @@ router.get('/debug', async (req, res) => {
           // Get latest record
           let latestQuery;          if (table === 'fear_greed_index') {
             latestQuery = `SELECT index_value, rating, date FROM ${table} ORDER BY date DESC LIMIT 1`;
-          } else if (table === 'naaim_exposure') {
-            latestQuery = `SELECT mean_exposure, bearish_exposure, bullish_exposure, date FROM ${table} ORDER BY date DESC LIMIT 1`;
+          } else if (table === 'naaim') {
+            latestQuery = `SELECT naaim_number_mean, bearish, bullish, date FROM ${table} ORDER BY date DESC LIMIT 1`;
           } else if (table === 'aaii_sentiment') {
             latestQuery = `SELECT bullish, neutral, bearish, date FROM ${table} ORDER BY date DESC LIMIT 1`;
           } else {
@@ -128,7 +128,7 @@ router.get('/overview', async (req, res) => {
     console.log('Market overview endpoint called');
     
     // Check if required tables exist
-    const requiredTables = ['fear_greed_index', 'naaim_exposure', 'stock_symbols', 'aaii_sentiment'];
+    const requiredTables = ['fear_greed_index', 'naaim', 'stock_symbols', 'aaii_sentiment'];
     const tableExists = {};
     
     for (const table of requiredTables) {
@@ -174,10 +174,10 @@ router.get('/overview', async (req, res) => {
       promises.push(query(fearGreedQuery).then(result => ({ type: 'feargreed', result })));
     }
 
-    if (tableExists['naaim_exposure']) {
+    if (tableExists['naaim']) {
       const naaimQuery = `
-        SELECT mean_exposure, bearish_exposure, bullish_exposure, date
-        FROM naaim_exposure 
+        SELECT naaim_number_mean, bearish, bullish, date
+        FROM naaim 
         ORDER BY date DESC 
         LIMIT 1
       `;
@@ -244,9 +244,9 @@ router.get('/overview', async (req, res) => {
     function mapNaaim(row) {
       if (!row) return null;
       return {
-        average: row.mean_exposure,
-        bullish_8100: row.bullish_exposure, // Map to expected frontend key
-        bearish: row.bearish_exposure,
+        average: row.naaim_number_mean,
+        bullish_8100: row.bullish,
+        bearish: row.bearish,
         week_ending: row.date
       };
     }
@@ -392,8 +392,8 @@ router.get('/sentiment/history', async (req, res) => {
     `;
 
     const currentNaaimQuery = `
-      SELECT mean_exposure, bearish_exposure, bullish_exposure, date
-      FROM naaim_exposure 
+      SELECT naaim_number_mean, bearish, bullish, date
+      FROM naaim 
       ORDER BY date DESC 
       LIMIT 1
     `;
@@ -415,8 +415,8 @@ router.get('/sentiment/history', async (req, res) => {
     `;
 
     const naaimQuery = `
-      SELECT mean_exposure, bearish_exposure, bullish_exposure, date
-      FROM naaim_exposure 
+      SELECT naaim_number_mean, bearish, bullish, date
+      FROM naaim 
       WHERE date >= NOW() - INTERVAL '${days} days'
       ORDER BY date DESC
       LIMIT 100
