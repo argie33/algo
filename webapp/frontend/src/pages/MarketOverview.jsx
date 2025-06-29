@@ -204,14 +204,14 @@ function MarketOverview() {
   const [tabValue, setTabValue] = useState(0)
   const [showDetailedEcon, setShowDetailedEcon] = useState(false);
   const { data: sentimentData, isLoading: sentimentLoading } = useQuery({
-    queryKey: ['market-sentiment-history', sentimentRange],
+    queryKey: ['market-sentiment-history'],
     queryFn: async () => {
       try {
-        const result = await getMarketSentimentHistory(sentimentRange);
-        logger.success('getMarketSentimentHistory', result, { days: sentimentRange });
+        const result = await getMarketSentimentHistory();
+        logger.success('getMarketSentimentHistory', result);
         return result;
       } catch (err) {
-        logger.error('getMarketSentimentHistory', err, { days: sentimentRange });
+        logger.error('getMarketSentimentHistory', err);
         throw err;
       }
     },
