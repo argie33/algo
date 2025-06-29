@@ -24,7 +24,10 @@ logging.basicConfig(
 ###############################################################################
 # ─── Environment & Secrets ───────────────────────────────────────────────────
 ###############################################################################
-FRED_API_KEY = os.environ["FRED_API_KEY"]
+FRED_API_KEY = os.environ.get('FRED_API_KEY')
+if not FRED_API_KEY:
+    print('ERROR: FRED_API_KEY environment variable is not set. Exiting.')
+    exit(1)
 SECRET_ARN   = os.environ["DB_SECRET_ARN"]
 
 sm_client   = boto3.client("secretsmanager")
