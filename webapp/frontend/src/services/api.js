@@ -78,11 +78,6 @@ api.interceptors.request.use(
       config.url = config.url.replace('/api/api', '/api');
     }
     
-    // Only add /api prefix if the URL doesn't already start with /api
-    if (config.url && !config.url.startsWith('/api')) {
-      config.url = '/api' + (config.url.startsWith('/') ? config.url : '/' + config.url);
-    }
-    
     const fullUrl = `${config.baseURL || api.defaults.baseURL}${config.url}`;
     console.log('[API REQUEST FINAL URL]', fullUrl, config);
     if (config.isServerless) {
@@ -141,7 +136,7 @@ console.log('[AXIOS DEFAULT BASE URL]', api.defaults.baseURL);
 // Market overview
 export const getMarketOverview = async () => {
   try {
-    const response = await api.get('/market/overview', {
+    const response = await api.get('/api/market/overview', {
       baseURL: currentConfig.baseURL
     })
     const normalized = normalizeApiResponse(response, false) // Market overview is an object
@@ -155,7 +150,7 @@ export const getMarketOverview = async () => {
 
 export const getMarketSentimentHistory = async (days = 30) => {
   try {
-    const response = await api.get(`/market/sentiment/history?days=${days}`)
+    const response = await api.get(`/api/market/sentiment/history?days=${days}`)
     return normalizeApiResponse(response, true) // Array of historical data
   } catch (error) {
     const errorMessage = handleApiError(error, 'get market sentiment history')
@@ -165,7 +160,7 @@ export const getMarketSentimentHistory = async (days = 30) => {
 
 export const getMarketSectorPerformance = async () => {
   try {
-    const response = await api.get('/market/sectors/performance')
+    const response = await api.get('/api/market/sectors/performance')
     return normalizeApiResponse(response, true) // Array of sector data
   } catch (error) {
     const errorMessage = handleApiError(error, 'get market sector performance')
@@ -175,7 +170,7 @@ export const getMarketSectorPerformance = async () => {
 
 export const getMarketBreadth = async () => {
   try {
-    const response = await api.get('/market/breadth')
+    const response = await api.get('/api/market/breadth')
     return normalizeApiResponse(response, false) // Market breadth is an object
   } catch (error) {
     const errorMessage = handleApiError(error, 'get market breadth')
@@ -185,7 +180,7 @@ export const getMarketBreadth = async () => {
 
 export const getEconomicIndicators = async (days = 90) => {
   try {
-    const response = await api.get(`/market/economic?days=${days}`)
+    const response = await api.get(`/api/market/economic?days=${days}`)
     return response.data
   } catch (error) {
     const errorMessage = handleApiError(error, 'get economic indicators')
@@ -212,7 +207,7 @@ export const getStocks = async (params = {}) => {
         queryParams.append(key, value)
       }
     });
-    const url = `/stocks?${queryParams.toString()}`
+    const url = `/api/stocks?${queryParams.toString()}`
     const response = await api.get(url, {
       baseURL: currentConfig.baseURL
     });
@@ -239,7 +234,7 @@ export const getStocksQuick = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/stocks/quick/overview?${queryParams.toString()}`)
+    const response = await api.get(`/api/stocks/quick/overview?${queryParams.toString()}`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get stocks quick')
@@ -250,7 +245,7 @@ export const getStocksQuick = async (params = {}) => {
 // Chunked stocks loading
 export const getStocksChunk = async (chunkIndex = 0) => {
   try {
-    const response = await api.get(`/stocks/chunk/${chunkIndex}`)
+    const response = await api.get(`/api/stocks/chunk/${chunkIndex}`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get stocks chunk')
@@ -272,7 +267,7 @@ export const getStocksFull = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/stocks/full/data?${queryParams.toString()}`)
+    const response = await api.get(`/api/stocks/full/data?${queryParams.toString()}`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get stocks full')
@@ -282,7 +277,7 @@ export const getStocksFull = async (params = {}) => {
 
 export const getStock = async (ticker) => {
   try {
-    const response = await api.get(`/stocks/${ticker}`)
+    const response = await api.get(`/api/stocks/${ticker}`)
     return normalizeApiResponse(response, false) // Single stock is an object
   } catch (error) {
     const errorMessage = handleApiError(error, 'get stock')
@@ -293,7 +288,7 @@ export const getStock = async (ticker) => {
 // New methods for StockDetail page
 export const getStockProfile = async (ticker) => {
   try {
-    const response = await api.get(`/stocks/${ticker}/profile`)
+    const response = await api.get(`/api/stocks/${ticker}/profile`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get stock profile')
@@ -303,7 +298,7 @@ export const getStockProfile = async (ticker) => {
 
 export const getStockMetrics = async (ticker) => {
   try {
-    const response = await api.get(`/stocks/${ticker}/metrics`)
+    const response = await api.get(`/api/stocks/${ticker}/metrics`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get stock metrics')
@@ -313,7 +308,7 @@ export const getStockMetrics = async (ticker) => {
 
 export const getStockFinancials = async (ticker, type = 'income') => {
   try {
-    const response = await api.get(`/stocks/${ticker}/financials?type=${type}`)
+    const response = await api.get(`/api/stocks/${ticker}/financials?type=${type}`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get stock financials')
@@ -323,7 +318,7 @@ export const getStockFinancials = async (ticker, type = 'income') => {
 
 export const getAnalystRecommendations = async (ticker) => {
   try {
-    const response = await api.get(`/stocks/${ticker}/recommendations`)
+    const response = await api.get(`/api/stocks/${ticker}/recommendations`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get analyst recommendations')
@@ -333,7 +328,7 @@ export const getAnalystRecommendations = async (ticker) => {
 
 export const getStockPrices = async (ticker, timeframe = 'daily', limit = 100) => {
   try {
-    const response = await api.get(`/stocks/${ticker}/prices?timeframe=${timeframe}&limit=${limit}`)
+    const response = await api.get(`/api/stocks/${ticker}/prices?timeframe=${timeframe}&limit=${limit}`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get stock prices')
@@ -343,7 +338,7 @@ export const getStockPrices = async (ticker, timeframe = 'daily', limit = 100) =
 
 export const getStockPricesRecent = async (ticker, limit = 30) => {
   try {
-    const response = await api.get(`/stocks/${ticker}/price-recent?limit=${limit}`)
+    const response = await api.get(`/api/stocks/${ticker}/price-recent?limit=${limit}`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get stock prices recent')
@@ -353,7 +348,7 @@ export const getStockPricesRecent = async (ticker, limit = 30) => {
 
 export const getStockRecommendations = async (ticker) => {
   try {
-    const response = await api.get(`/stocks/${ticker}/recommendations`)
+    const response = await api.get(`/api/stocks/${ticker}/recommendations`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get stock recommendations')
@@ -363,7 +358,7 @@ export const getStockRecommendations = async (ticker) => {
 
 export const getSectors = async () => {
   try {
-    const response = await api.get('/stocks/filters/sectors')
+    const response = await api.get('/api/stocks/filters/sectors')
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get sectors')
@@ -380,7 +375,7 @@ export const getValuationMetrics = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/metrics/valuation?${queryParams.toString()}`)
+    const response = await api.get(`/api/metrics/valuation?${queryParams.toString()}`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get valuation metrics')
@@ -396,7 +391,7 @@ export const getGrowthMetrics = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/metrics/growth?${queryParams.toString()}`)
+    const response = await api.get(`/api/metrics/growth?${queryParams.toString()}`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get growth metrics')
@@ -412,7 +407,7 @@ export const getDividendMetrics = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/metrics/dividends?${queryParams.toString()}`)
+    const response = await api.get(`/api/metrics/dividends?${queryParams.toString()}`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get dividend metrics')
@@ -428,7 +423,7 @@ export const getFinancialStrengthMetrics = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/metrics/financial-strength?${queryParams.toString()}`)
+    const response = await api.get(`/api/metrics/financial-strength?${queryParams.toString()}`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get financial strength metrics')
@@ -439,7 +434,7 @@ export const getFinancialStrengthMetrics = async (params = {}) => {
 // New method for stock screening with proper parameter handling
 export const screenStocks = async (params) => {
   try {
-    const url = `/stocks?${params.toString()}`
+    const url = `/api/stocks?${params.toString()}`
     const response = await api.get(url, {
       baseURL: currentConfig.baseURL
     })
@@ -461,7 +456,7 @@ export const screenStocks = async (params) => {
 // Trading signals endpoints
 export const getBuySignals = async () => {
   try {
-    const response = await api.get('/signals/buy', {
+    const response = await api.get('/api/signals/buy', {
       baseURL: currentConfig.baseURL
     })
     return normalizeApiResponse(response)
@@ -473,7 +468,7 @@ export const getBuySignals = async () => {
 
 export const getSellSignals = async () => {
   try {
-    const response = await api.get('/signals/sell', {
+    const response = await api.get('/api/signals/sell', {
       baseURL: currentConfig.baseURL
     })
     return normalizeApiResponse(response)
@@ -492,7 +487,7 @@ export const getEarningsEstimates = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/calendar/earnings-estimates?${queryParams.toString()}`, {
+    const response = await api.get(`/api/calendar/earnings-estimates?${queryParams.toString()}`, {
       baseURL: currentConfig.baseURL
     })
     return normalizeApiResponse(response)
@@ -510,7 +505,7 @@ export const getEarningsHistory = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/calendar/earnings-history?${queryParams.toString()}`)
+    const response = await api.get(`/api/calendar/earnings-history?${queryParams.toString()}`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get earnings history')
@@ -521,7 +516,7 @@ export const getEarningsHistory = async (params = {}) => {
 // Ticker-based endpoints (wrap Axios promise for consistency)
 export const getTickerEarningsEstimates = async (ticker) => {
   try {
-    const response = await api.get(`/analysts/${ticker}/earnings-estimates`)
+    const response = await api.get(`/api/analysts/${ticker}/earnings-estimates`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get ticker earnings estimates')
@@ -531,7 +526,7 @@ export const getTickerEarningsEstimates = async (ticker) => {
 
 export const getTickerEarningsHistory = async (ticker) => {
   try {
-    const response = await api.get(`/analysts/${ticker}/earnings-history`)
+    const response = await api.get(`/api/analysts/${ticker}/earnings-history`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get ticker earnings history')
@@ -541,7 +536,7 @@ export const getTickerEarningsHistory = async (ticker) => {
 
 export const getTickerRevenueEstimates = async (ticker) => {
   try {
-    const response = await api.get(`/analysts/${ticker}/revenue-estimates`)
+    const response = await api.get(`/api/analysts/${ticker}/revenue-estimates`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get ticker revenue estimates')
@@ -551,7 +546,7 @@ export const getTickerRevenueEstimates = async (ticker) => {
 
 export const getTickerEpsRevisions = async (ticker) => {
   try {
-    const response = await api.get(`/analysts/${ticker}/eps-revisions`)
+    const response = await api.get(`/api/analysts/${ticker}/eps-revisions`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get ticker eps revisions')
@@ -561,7 +556,7 @@ export const getTickerEpsRevisions = async (ticker) => {
 
 export const getTickerEpsTrend = async (ticker) => {
   try {
-    const response = await api.get(`/analysts/${ticker}/eps-trend`)
+    const response = await api.get(`/api/analysts/${ticker}/eps-trend`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get ticker eps trend')
@@ -571,7 +566,7 @@ export const getTickerEpsTrend = async (ticker) => {
 
 export const getTickerGrowthEstimates = async (ticker) => {
   try {
-    const response = await api.get(`/analysts/${ticker}/growth-estimates`)
+    const response = await api.get(`/api/analysts/${ticker}/growth-estimates`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get ticker growth estimates')
@@ -581,7 +576,7 @@ export const getTickerGrowthEstimates = async (ticker) => {
 
 export const getTickerAnalystRecommendations = async (ticker) => {
   try {
-    const response = await api.get(`/analysts/${ticker}/recommendations`)
+    const response = await api.get(`/api/analysts/${ticker}/recommendations`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get ticker analyst recommendations')
@@ -591,7 +586,7 @@ export const getTickerAnalystRecommendations = async (ticker) => {
 
 export const getAnalystOverview = async (ticker) => {
   try {
-    const response = await api.get(`/analysts/${ticker}/overview`)
+    const response = await api.get(`/api/analysts/${ticker}/overview`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get analyst overview')
@@ -602,7 +597,7 @@ export const getAnalystOverview = async (ticker) => {
 // Financial statements endpoint (wrap for consistency)
 export const getFinancialStatements = async (ticker, period = 'annual') => {
   try {
-    const response = await api.get(`/financials/${ticker}/financials?period=${period}`)
+    const response = await api.get(`/api/financials/${ticker}/financials?period=${period}`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get financial statements')
@@ -612,7 +607,7 @@ export const getFinancialStatements = async (ticker, period = 'annual') => {
 
 export const getIncomeStatement = async (ticker, period = 'annual') => {
   try {
-    const url = `/financials/${ticker}/income-statement?period=${period}`
+    const url = `/api/financials/${ticker}/income-statement?period=${period}`
     const response = await api.get(url, {
       baseURL: currentConfig.baseURL
     })
@@ -625,7 +620,7 @@ export const getIncomeStatement = async (ticker, period = 'annual') => {
 
 export const getCashFlowStatement = async (ticker, period = 'annual') => {
   try {
-    const url = `/financials/${ticker}/cash-flow?period=${period}`
+    const url = `/api/financials/${ticker}/cash-flow?period=${period}`
     const response = await api.get(url, {
       baseURL: currentConfig.baseURL
     })
@@ -638,7 +633,7 @@ export const getCashFlowStatement = async (ticker, period = 'annual') => {
 
 export const getBalanceSheet = async (ticker, period = 'annual') => {
   try {
-    const url = `/financials/${ticker}/balance-sheet?period=${period}`
+    const url = `/api/financials/${ticker}/balance-sheet?period=${period}`
     const response = await api.get(url, {
       baseURL: currentConfig.baseURL
     })
@@ -651,7 +646,7 @@ export const getBalanceSheet = async (ticker, period = 'annual') => {
 
 export const getKeyMetrics = async (ticker) => {
   try {
-    const url = `/financials/${ticker}/key-metrics`
+    const url = `/api/financials/${ticker}/key-metrics`
     const response = await api.get(url, {
       baseURL: currentConfig.baseURL
     })
@@ -670,7 +665,7 @@ export const getAllFinancialData = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/financials/all?${queryParams.toString()}`)
+    const response = await api.get(`/api/financials/all?${queryParams.toString()}`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get all financial data')
@@ -686,7 +681,7 @@ export const getFinancialMetrics = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/financials/metrics?${queryParams.toString()}`)
+    const response = await api.get(`/api/financials/metrics?${queryParams.toString()}`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get financial metrics')
@@ -703,7 +698,7 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/technical/${timeframe}?${queryParams.toString()}`)
+    const response = await api.get(`/api/technical/${timeframe}?${queryParams.toString()}`)
     return response.data
   } catch (error) {
     console.error('Error in getTechnicalData:', error)
@@ -727,7 +722,7 @@ export const getEpsRevisions = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/eps/revisions?${queryParams.toString()}`)
+    const response = await api.get(`/api/eps/revisions?${queryParams.toString()}`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get eps revisions')
@@ -743,7 +738,7 @@ export const getEpsTrend = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/eps/trend?${queryParams.toString()}`)
+    const response = await api.get(`/api/eps/trend?${queryParams.toString()}`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get eps trend')
@@ -759,7 +754,7 @@ export const getGrowthEstimates = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/growth/estimates?${queryParams.toString()}`)
+    const response = await api.get(`/api/growth/estimates?${queryParams.toString()}`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get growth estimates')
@@ -775,7 +770,7 @@ export const getNaaimData = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/market/naaim?${queryParams.toString()}`)
+    const response = await api.get(`/api/market/naaim?${queryParams.toString()}`)
     return normalizeApiResponse(response, true) // Array of NAAIM data
   } catch (error) {
     const errorMessage = handleApiError(error, 'get NAAIM data')
@@ -791,7 +786,7 @@ export const getEconomicData = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/economic/data?${queryParams.toString()}`)
+    const response = await api.get(`/api/economic/data?${queryParams.toString()}`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get economic data')
@@ -807,7 +802,7 @@ export const getFearGreedData = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/market/fear-greed?${queryParams.toString()}`)
+    const response = await api.get(`/api/market/fear-greed?${queryParams.toString()}`)
     return normalizeApiResponse(response, true) // Array of fear/greed data
   } catch (error) {
     const errorMessage = handleApiError(error, 'get fear & greed data')
@@ -823,7 +818,7 @@ export const getTechnicalSummary = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/technical/summary?${queryParams.toString()}`)
+    const response = await api.get(`/api/technical/summary?${queryParams.toString()}`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get technical summary')
@@ -839,7 +834,7 @@ export const getEarningsMetrics = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/calendar/earnings-metrics?${queryParams.toString()}`)
+    const response = await api.get(`/api/calendar/earnings-metrics?${queryParams.toString()}`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get earnings metrics')
@@ -856,7 +851,7 @@ export const testApiConnection = async (customUrl = null) => {
     console.log('Environment:', import.meta.env.MODE)
     console.log('VITE_API_URL:', import.meta.env.VITE_API_URL)
     const testUrl = customUrl || currentConfig.baseURL
-    const response = await api.get('/health?quick=true', {
+    const response = await api.get('/api/health?quick=true', {
       baseURL: testUrl,
       timeout: 10000
     })
@@ -881,7 +876,7 @@ export const testApiConnection = async (customUrl = null) => {
         code: error.code,
         isNetworkError: !error.response,
         configUrl: error.config?.url,
-        fullUrl: (customUrl || currentConfig.baseURL) + '/health?quick=true'
+        fullUrl: (customUrl || currentConfig.baseURL) + '/api/health?quick=true'
       }
     }
   }
@@ -903,7 +898,7 @@ export const getDiagnosticInfo = () => {
 // Database health (full details)
 export const getDatabaseHealthFull = async () => {
   try {
-    const response = await api.get('/health/database', {
+    const response = await api.get('/api/health/database', {
       baseURL: currentConfig.baseURL
     })
     // Return the full response (healthSummary, tables, etc.)
@@ -917,7 +912,7 @@ export const getDatabaseHealthFull = async () => {
 // Health check (robust: tries /health, then /)
 export const healthCheck = async (queryParams = '') => {
   let triedRoot = false;
-  let healthUrl = `/health${queryParams}`;
+  let healthUrl = `/api/health${queryParams}`;
   let rootUrl = `/${queryParams}`;
   try {
     const response = await api.get(healthUrl, {
@@ -933,7 +928,7 @@ export const healthCheck = async (queryParams = '') => {
     };
   } catch (error) {
     // If 404 or network error, try root endpoint
-    console.warn('Health check failed for /health, trying root / endpoint...');
+    console.warn('Health check failed for /api/health, trying root / endpoint...');
     triedRoot = true;
     try {
       const response = await api.get(rootUrl, {
@@ -965,7 +960,7 @@ export const healthCheck = async (queryParams = '') => {
 // Data validation functions
 export const getDataValidationSummary = async () => {
   try {
-    const response = await api.get('/health/full');
+    const response = await api.get('/api/health/full');
     return normalizeApiResponse(response, false);
   } catch (error) {
     console.error('Error fetching data validation summary:', error);
@@ -977,7 +972,7 @@ export const getDataValidationSummary = async () => {
 export const getStockPriceHistory = async (ticker, limit = 90) => {
   try {
     console.log(`BULLETPROOF: Fetching price history for ${ticker} with limit ${limit}`);
-    const response = await api.get(`/stocks/price-history/${ticker}?limit=${limit}`)
+    const response = await api.get(`/api/stocks/price-history/${ticker}?limit=${limit}`)
     console.log(`BULLETPROOF: Price history response received for ${ticker}:`, response.data);
     return response.data
   } catch (error) {
@@ -988,7 +983,7 @@ export const getStockPriceHistory = async (ticker, limit = 90) => {
 
 export const getRecentAnalystActions = async (limit = 10) => {
   try {
-    const response = await api.get(`/analysts/recent-actions?limit=${limit}`)
+    const response = await api.get(`/api/analysts/recent-actions?limit=${limit}`)
     return response.data
   } catch (error) {
     const errorMessage = handleApiError(error, 'get recent analyst actions')
