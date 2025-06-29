@@ -4,31 +4,26 @@ const { query } = require('../utils/database');
 const router = express.Router();
 
 // ULTRA-FAST PRICE HISTORY ENDPOINT - Optimized for speed
-// This endpoint is designed to work without any routing conflicts
+// Supports ?limit=N&offset=M for pagination/expansion
+// Default: limit=10, offset=0, max limit=90
 router.get('/price-history/:symbol', async (req, res) => {
   try {
     const { symbol } = req.params;
-    const limit = Math.min(parseInt(req.query.limit) || 10, 20); // Reduced to 10 default, max 20
+    const limit = Math.min(parseInt(req.query.limit) || 10, 90); // Default 10, max 90
+    const offset = Math.max(parseInt(req.query.offset) || 0, 0); // Default 0
     
-    console.log(`ULTRA-FAST: Price history requested for ${symbol}, limit: ${limit}`);
+    console.log(`ULTRA-FAST: Price history requested for ${symbol}, limit: ${limit}, offset: ${offset}`);
     
-    // Ultra-fast query with DISTINCT ON to get latest records efficiently
+    // Efficient query with LIMIT/OFFSET for pagination
     const priceQuery = `
-      SELECT DISTINCT ON (date) 
-        date,
-        open,
-        high,
-        low,
-        close,
-        adj_close,
-        volume
+      SELECT date, open, high, low, close, adj_close, volume
       FROM price_daily
       WHERE UPPER(symbol) = UPPER($1)
-      ORDER BY date DESC, symbol
-      LIMIT $2
+      ORDER BY date DESC
+      LIMIT $2 OFFSET $3
     `;
     
-    const result = await query(priceQuery, [symbol.toUpperCase(), limit]);
+    const result = await query(priceQuery, [symbol.toUpperCase(), limit, offset]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({
@@ -68,7 +63,9 @@ router.get('/price-history/:symbol', async (req, res) => {
         latestDate: latest.date,
         periodReturn: parseFloat(periodReturn.toFixed(2)),
         latestVolume: parseInt(latest.volume || 0),
-        dataPoints: formattedData.length
+        dataPoints: formattedData.length,
+        offset,
+        limit
       },
       performance: 'ULTRA-FAST_OPTIMIZED',
       timestamp: new Date().toISOString()
