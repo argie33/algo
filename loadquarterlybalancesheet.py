@@ -93,7 +93,7 @@ def load_quarterly_balance_sheet(symbols, cur, conn):
                 # Convert DataFrame to list of tuples for insertion
                 balance_sheet_data = []
                 for date in balance_sheet.columns:
-                    row_data = [orig_sym, date.date()]
+                    row_data = [orig_sym, date.date() if hasattr(date, 'date') else date]
                     for metric in balance_sheet.index:
                         value = balance_sheet.loc[metric, date]
                         if pd.isna(value) or value is None:

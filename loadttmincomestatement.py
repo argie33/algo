@@ -95,36 +95,41 @@ def load_ttm_income_statement(symbols, cur, conn):
                 if income_statement.shape[1] >= 4:
                     ttm_data = income_statement.iloc[:, :4].sum(axis=1)
                     latest_date = income_statement.columns[0]
-                    row_data = [orig_sym, latest_date.to_pydatetime().date()]
-                    for metric in income_statement.index:
-                        value = ttm_data[metric]
-                        if pd.isna(value) or value is None:
-                            row_data.append(None)
-                        else:
-                            row_data.append(float(value))
-                    
-                    # Get column names for the table
-                    columns = ['symbol', 'date'] + list(income_statement.index.astype(str))
-                    placeholders = ', '.join(['%s'] * len(columns))
-                    column_names = ', '.join(columns)
-                    
-                    # Build the INSERT statement dynamically
-                    insert_sql = f"""
-                        INSERT INTO ttm_income_statement ({column_names})
-                        VALUES ({placeholders})
-                        ON CONFLICT (symbol, date) DO UPDATE SET
-                    """
-                    
-                    # Build the UPDATE part dynamically
-                    update_parts = []
-                    for col in columns[2:]:  # Skip symbol and date
-                        update_parts.append(f"{col} = EXCLUDED.{col}")
-                    insert_sql += ', '.join(update_parts)
-                    
-                    cur.execute(insert_sql, row_data)
-                    conn.commit()
-                    processed += 1
-                    logging.info(f"Successfully processed TTM income statement for {orig_sym}")
+                else:
+                    # Use whatever data we have
+                    ttm_data = income_statement.iloc[:, 0]
+                    latest_date = income_statement.columns[0]
+                
+                row_data = [orig_sym, latest_date.date() if hasattr(latest_date, 'date') else latest_date]
+                for metric in income_statement.index:
+                    value = ttm_data[metric]
+                    if pd.isna(value) or value is None:
+                        row_data.append(None)
+                    else:
+                        row_data.append(float(value))
+                
+                # Get column names for the table
+                columns = ['symbol', 'date'] + list(income_statement.index.astype(str))
+                placeholders = ', '.join(['%s'] * len(columns))
+                column_names = ', '.join(columns)
+                
+                # Build the INSERT statement dynamically
+                insert_sql = f"""
+                    INSERT INTO ttm_income_statement ({column_names})
+                    VALUES ({placeholders})
+                    ON CONFLICT (symbol, date) DO UPDATE SET
+                """
+                
+                # Build the UPDATE part dynamically
+                update_parts = []
+                for col in columns[2:]:  # Skip symbol and date
+                    update_parts.append(f"{col} = EXCLUDED.{col}")
+                insert_sql += ', '.join(update_parts)
+                
+                cur.execute(insert_sql, row_data)
+                conn.commit()
+                processed += 1
+                logging.info(f"Successfully processed TTM income statement for {orig_sym}")
 
             except Exception as e:
                 logging.error(f"Failed to process TTM income statement for {orig_sym}: {str(e)}")

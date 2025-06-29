@@ -73,12 +73,20 @@ const retryRequest = async (error) => {
 // Request interceptor for logging and Lambda optimization
 api.interceptors.request.use(
   (config) => {
-    const fullUrl = `${config.baseURL || api.defaults.baseURL}${config.url}`
+    // Remove any double /api/api
+    if (config.url && config.url.startsWith('/api/api')) {
+      config.url = config.url.replace('/api/api', '/api');
+    }
+    // Ensure all URLs start with /api
+    if (config.url && !config.url.startsWith('/api/')) {
+      config.url = '/api' + (config.url.startsWith('/') ? config.url : '/' + config.url);
+    }
+    const fullUrl = `${config.baseURL || api.defaults.baseURL}${config.url}`;
+    console.log('[API REQUEST FINAL URL]', fullUrl, config);
     if (config.isServerless) {
       config.headers['X-Lambda-Request'] = 'true'
       config.headers['X-Request-Time'] = new Date().toISOString()
     }
-    
     return config
   },
   (error) => {
@@ -91,53 +99,11 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => {
     const fullUrl = `${response.config.baseURL || api.defaults.baseURL}${response.config.url}`
-    if (response.headers['x-amzn-requestid']) {
-      // console.log(`✅ Lambda Request ID: ${response.headers['x-amzn-requestid']}`)
-    }
-    // console.log(`✅ API Response: ${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`)
+    console.log('[API SUCCESS]', response.config.method?.toUpperCase(), fullUrl, response)
     return response
   },
   async (error) => {
-    // Enhanced error logging
-    const errorDetails = {
-      message: error.message,
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      data: error.response?.data,
-      url: error.config?.url,
-      method: error.config?.method,
-      headers: error.config?.headers,
-      timestamp: new Date().toISOString(),
-      requestId: error.response?.headers?.['x-amzn-requestid'],
-      code: error.code
-    }
-    
-    console.error('❌ API Response Error:', errorDetails)
-    
-    // Handle specific error cases
-    if (error.response?.status === 401) {
-      console.warn('🔐 Unauthorized access detected')
-    } else if (error.response?.status === 403) {
-      console.warn('🚫 Forbidden - Check API permissions')
-    } else if (error.response?.status === 404) {
-      console.warn('🔍 Resource not found')
-    } else if (error.response?.status === 429) {
-      console.warn('⏳ Rate limit exceeded')
-    } else if (error.response?.status >= 500 || error.code === 'ECONNABORTED') {
-      console.error('🔥 Server error or timeout detected')
-        // Attempt retry for serverless environments
-      if (config.isServerless) {
-        try {
-          return await retryRequest(error)
-        } catch (retryError) {
-          console.error('💥 All retry attempts failed')
-          return Promise.reject(retryError)
-        }
-      }
-    } else if (error.code === 'ERR_NETWORK') {
-      console.error('🌐 Network error - Check internet connection and API URL')
-    }
-    
+    console.error('[API ERROR]', error)
     return Promise.reject(error)
   }
 )
@@ -160,20 +126,14 @@ function handleApiError(error, context = '') {
 
 // Helper to normalize API responses - return Axios response.data directly
 function normalizeApiResponse(response, expectArray = true) {
-  if (response == null) {
-    return expectArray ? [] : {};
-  }
-
-  if (response && typeof response === 'object' && 'data' in response && ('status' in response || 'headers' in response)) {
-    return response.data;
-  }
-
-  if (Array.isArray(response) || (typeof response === 'object' && !('status' in response) && !('headers' in response))) {
-    return response;
-  }
-
+  console.log('normalizeApiResponse input:', response);
+  if (response && response.data) return response.data;
   return expectArray ? [] : {};
 }
+
+// --- PATCH: Log API config at startup ---
+console.log('[API CONFIG]', getApiConfig());
+console.log('[AXIOS DEFAULT BASE URL]', api.defaults.baseURL);
 
 // --- PATCH: Wrap all API methods with normalizeApiResponse ---
 // Market overview

@@ -93,7 +93,7 @@ def load_quarterly_cash_flow(symbols, cur, conn):
                 # Convert DataFrame to list of tuples for insertion
                 cash_flow_data = []
                 for date in cash_flow.columns:
-                    row_data = [orig_sym, date.date()]
+                    row_data = [orig_sym, date.date() if hasattr(date, 'date') else date]
                     for metric in cash_flow.index:
                         value = cash_flow.loc[metric, date]
                         if pd.isna(value) or value is None:

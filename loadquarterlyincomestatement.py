@@ -93,7 +93,7 @@ def load_quarterly_income_statement(symbols, cur, conn):
                 # Convert DataFrame to list of tuples for insertion
                 income_statement_data = []
                 for date in income_statement.columns:
-                    row_data = [orig_sym, date.date()]
+                    row_data = [orig_sym, date.date() if hasattr(date, 'date') else date]
                     for metric in income_statement.index:
                         value = income_statement.loc[metric, date]
                         if pd.isna(value) or value is None:
