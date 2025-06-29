@@ -176,175 +176,235 @@ router.get('/database', async (req, res) => {
       };
     });
     
-    // ALWAYS get all actual tables from database and check them
-    console.log('Step 5: Getting all actual tables from database...');
-    const allTablesResult = await query(`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public' 
-      AND table_type = 'BASE TABLE'
-      ORDER BY table_name;
-    `);
-    
-    const actualTables = allTablesResult.rows.map(row => row.table_name);
-    console.log(`Found ${actualTables.length} actual tables in database:`, actualTables);
-    
-    // Check ALL actual tables, not just cached ones
-    for (const tableName of actualTables) {
-      // Skip if we already have recent data for this table (within last 5 minutes)
-      const existingData = tableStats[tableName];
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    // If no cached data exists, populate it automatically with enhanced analysis
+    if (Object.keys(tableStats).length === 0) {
+      console.log('Step 5: No cached data found, populating automatically...');
       
-      if (existingData && new Date(existingData.last_checked) > fiveMinutesAgo) {
-        console.log(`Skipping ${tableName} - recent data available`);
-        continue;
-      }
+      const expectedTables = [
+        // Core symbol tables
+        'stock_symbols', 'etf_symbols', 'last_updated',
+        
+        // Market sentiment and indicators
+        'fear_greed_index', 'naaim_exposure', 'aaii_sentiment', 'naaim',
+        
+        // Analyst and earnings data
+        'analyst_upgrade_downgrade', 'calendar_events',
+        'earnings_estimates', 'earnings_history', 'revenue_estimates',
+        'earnings_metrics',
+        
+        // Economic and company data
+        'economic_data', 'company_profile', 'leadership_team',
+        'governance_scores', 'market_data', 'key_metrics', 'analyst_estimates',
+        
+        // Price data tables
+        'price_daily', 'price_weekly', 'price_monthly',
+        'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly',
+        'price_data_montly', // from test file (with typo)
+        
+        // Technical analysis tables
+        'technical_data_daily', 'technical_data_weekly', 'technical_data_monthly',
+        
+        // Trading signals
+        'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
+        
+        // Financial statements (from loadfinancialdata.py)
+        'balance_sheet_annual', 'balance_sheet_quarterly', 'balance_sheet_ttm',
+        'income_statement_annual', 'income_statement_quarterly', 'income_statement_ttm',
+        'cash_flow_annual', 'cash_flow_quarterly', 'cash_flow_ttm',
+        'financials', 'financials_quarterly', 'financials_ttm',
+        
+        // New modular financial data loaders
+        'quarterly_balance_sheet', 'annual_balance_sheet',
+        'quarterly_income_statement', 'annual_income_statement',
+        'quarterly_cash_flow', 'annual_cash_flow',
+        'ttm_income_statement', 'ttm_cash_flow',
+        
+        // Latest price and technical data
+        'latest_price_daily', 'latest_price_weekly', 'latest_price_monthly',
+        'latest_technical_data_daily', 'latest_technical_data_weekly', 'latest_technical_data_monthly',
+        
+        // Additional tables that might be created
+        'health_status' // the health check table itself
+      ];
       
-      try {
-        console.log(`Processing table: ${tableName}`);
-        
-        // Get record count
-        const countResult = await query(`SELECT COUNT(*) as count FROM ${tableName}`);
-        const recordCount = parseInt(countResult.rows[0].count);
-        
-        // Check for fetched_at column and get last updated
-        let lastUpdated = null;
-        let isStale = false;
-        let missingDataCount = 0;
-        let staleThresholdHours = 24; // Default threshold
-        
+      for (const tableName of expectedTables) {
         try {
-          // Check if fetched_at column exists
-          const columnExists = await query(`
+          console.log(`Processing table: ${tableName}`);
+          // Check if table exists
+          const tableExists = await query(`
             SELECT EXISTS (
-              SELECT FROM information_schema.columns 
-              WHERE table_name = $1 
-              AND column_name = 'fetched_at'
+              SELECT FROM information_schema.tables 
+              WHERE table_schema = 'public' 
+              AND table_name = $1
             );
           `, [tableName]);
           
-          if (columnExists.rows[0].exists) {
-            // Get last updated timestamp
-            const lastUpdateResult = await query(`
-              SELECT MAX(fetched_at) as last_updated 
-              FROM ${tableName} 
-              WHERE fetched_at IS NOT NULL
-            `);
+          if (tableExists.rows[0].exists) {
+            // Get record count
+            const countResult = await query(`SELECT COUNT(*) as count FROM ${tableName}`);
+            const recordCount = parseInt(countResult.rows[0].count);
             
-            if (lastUpdateResult.rows[0].last_updated) {
-              lastUpdated = lastUpdateResult.rows[0].last_updated;
+            // Check for fetched_at column and get last updated
+            let lastUpdated = null;
+            let isStale = false;
+            let missingDataCount = 0;
+            let staleThresholdHours = 24; // Default threshold
+            
+            try {
+              // Check if fetched_at column exists
+              const columnExists = await query(`
+                SELECT EXISTS (
+                  SELECT FROM information_schema.columns 
+                  WHERE table_name = $1 
+                  AND column_name = 'fetched_at'
+                );
+              `, [tableName]);
               
-              // Check if data is stale (older than threshold)
-              const hoursSinceUpdate = (new Date() - new Date(lastUpdated)) / (1000 * 60 * 60);
-              isStale = hoursSinceUpdate > staleThresholdHours;
-              
-              // Count records with missing fetched_at
-              const missingDataResult = await query(`
-                SELECT COUNT(*) as missing_count 
-                FROM ${tableName} 
-                WHERE fetched_at IS NULL
-              `);
-              missingDataCount = parseInt(missingDataResult.rows[0].missing_count);
-            }
-          } else {
-            // Try alternative timestamp columns
-            const altColumns = ['updated_at', 'created_at', 'date', 'period_end', 'timestamp'];
-            for (const col of altColumns) {
-              try {
-                const altColumnExists = await query(`
-                  SELECT EXISTS (
-                    SELECT FROM information_schema.columns 
-                    WHERE table_name = $1 
-                    AND column_name = $2
-                  );
-                `, [tableName, col]);
+              if (columnExists.rows[0].exists) {
+                // Get last updated timestamp
+                const lastUpdateResult = await query(`
+                  SELECT MAX(fetched_at) as last_updated 
+                  FROM ${tableName} 
+                  WHERE fetched_at IS NOT NULL
+                `);
                 
-                if (altColumnExists.rows[0].exists) {
-                  const altLastUpdateResult = await query(`
-                    SELECT MAX(${col}) as last_updated 
-                    FROM ${tableName} 
-                    WHERE ${col} IS NOT NULL
-                  `);
+                if (lastUpdateResult.rows[0].last_updated) {
+                  lastUpdated = lastUpdateResult.rows[0].last_updated;
                   
-                  if (altLastUpdateResult.rows[0].last_updated) {
-                    lastUpdated = altLastUpdateResult.rows[0].last_updated;
-                    const hoursSinceUpdate = (new Date() - new Date(lastUpdated)) / (1000 * 60 * 60);
-                    isStale = hoursSinceUpdate > staleThresholdHours;
-                    break;
+                  // Check if data is stale (older than threshold)
+                  const hoursSinceUpdate = (new Date() - new Date(lastUpdated)) / (1000 * 60 * 60);
+                  isStale = hoursSinceUpdate > staleThresholdHours;
+                  
+                  // Count records with missing fetched_at
+                  const missingDataResult = await query(`
+                    SELECT COUNT(*) as missing_count 
+                    FROM ${tableName} 
+                    WHERE fetched_at IS NULL
+                  `);
+                  missingDataCount = parseInt(missingDataResult.rows[0].missing_count);
+                }
+              } else {
+                // Try alternative timestamp columns
+                const altColumns = ['updated_at', 'created_at', 'date', 'period_end', 'timestamp'];
+                for (const col of altColumns) {
+                  try {
+                    const altColumnExists = await query(`
+                      SELECT EXISTS (
+                        SELECT FROM information_schema.columns 
+                        WHERE table_name = $1 
+                        AND column_name = $2
+                      );
+                    `, [tableName, col]);
+                    
+                    if (altColumnExists.rows[0].exists) {
+                      const altLastUpdateResult = await query(`
+                        SELECT MAX(${col}) as last_updated 
+                        FROM ${tableName} 
+                        WHERE ${col} IS NOT NULL
+                      `);
+                      
+                      if (altLastUpdateResult.rows[0].last_updated) {
+                        lastUpdated = altLastUpdateResult.rows[0].last_updated;
+                        const hoursSinceUpdate = (new Date() - new Date(lastUpdated)) / (1000 * 60 * 60);
+                        isStale = hoursSinceUpdate > staleThresholdHours;
+                        break;
+                      }
+                    }
+                  } catch (e) {
+                    // Continue to next column
                   }
                 }
-              } catch (e) {
-                // Continue to next column
               }
+            } catch (e) {
+              console.log(`Could not analyze timestamp for table ${tableName}:`, e.message);
             }
+            
+            // Determine status based on analysis
+            let status = 'healthy';
+            if (recordCount === 0) {
+              status = 'empty';
+            } else if (isStale) {
+              status = 'stale';
+            } else if (missingDataCount > 0) {
+              status = 'incomplete';
+            }
+            
+            // Insert enhanced health status
+            await query(`
+              INSERT INTO health_status (
+                table_name, record_count, status, last_checked, 
+                last_updated, stale_threshold_hours, is_stale, missing_data_count
+              )
+              VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7)
+              ON CONFLICT (table_name) DO UPDATE SET
+                record_count = EXCLUDED.record_count,
+                status = EXCLUDED.status,
+                last_checked = EXCLUDED.last_checked,
+                last_updated = EXCLUDED.last_updated,
+                stale_threshold_hours = EXCLUDED.stale_threshold_hours,
+                is_stale = EXCLUDED.is_stale,
+                missing_data_count = EXCLUDED.missing_data_count,
+                error_message = NULL;
+            `, [tableName, recordCount, status, lastUpdated, staleThresholdHours, isStale, missingDataCount]);
+            
+            tableStats[tableName] = {
+              record_count: recordCount,
+              status: status,
+              last_checked: new Date().toISOString(),
+              error: null,
+              last_updated: lastUpdated,
+              stale_threshold_hours: staleThresholdHours,
+              is_stale: isStale,
+              missing_data_count: missingDataCount
+            };
+          } else {
+            // Table doesn't exist
+            await query(`
+              INSERT INTO health_status (table_name, record_count, status, last_checked, error_message)
+              VALUES ($1, NULL, 'not_found', NOW(), 'Table does not exist')
+              ON CONFLICT (table_name) DO UPDATE SET
+                record_count = NULL,
+                status = EXCLUDED.status,
+                last_checked = EXCLUDED.last_checked,
+                error_message = EXCLUDED.error_message;
+            `, [tableName]);
+            
+            tableStats[tableName] = {
+              record_count: null,
+              status: 'not_found',
+              last_checked: new Date().toISOString(),
+              error: 'Table does not exist',
+              last_updated: null,
+              stale_threshold_hours: 24,
+              is_stale: false,
+              missing_data_count: 0
+            };
           }
-        } catch (e) {
-          console.log(`Could not analyze timestamp for table ${tableName}:`, e.message);
+        } catch (error) {
+          console.error(`Error processing table ${tableName}:`, error);
+          
+          // Record error in health status
+          await query(`
+            INSERT INTO health_status (table_name, record_count, status, last_checked, error_message)
+            VALUES ($1, NULL, 'error', NOW(), $2)
+            ON CONFLICT (table_name) DO UPDATE SET
+              record_count = NULL,
+              status = EXCLUDED.status,
+              last_checked = EXCLUDED.last_checked,
+              error_message = EXCLUDED.error_message;
+          `, [tableName, error.message]);
+          
+          tableStats[tableName] = {
+            record_count: null,
+            status: 'error',
+            last_checked: new Date().toISOString(),
+            error: error.message,
+            last_updated: null,
+            stale_threshold_hours: 24,
+            is_stale: false,
+            missing_data_count: 0
+          };
         }
-        
-        // Determine status based on analysis
-        let status = 'healthy';
-        if (recordCount === 0) {
-          status = 'empty';
-        } else if (isStale) {
-          status = 'stale';
-        } else if (missingDataCount > 0) {
-          status = 'incomplete';
-        }
-        
-        // Insert enhanced health status
-        await query(`
-          INSERT INTO health_status (
-            table_name, record_count, status, last_checked, 
-            last_updated, stale_threshold_hours, is_stale, missing_data_count
-          )
-          VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7)
-          ON CONFLICT (table_name) DO UPDATE SET
-            record_count = EXCLUDED.record_count,
-            status = EXCLUDED.status,
-            last_checked = EXCLUDED.last_checked,
-            last_updated = EXCLUDED.last_updated,
-            stale_threshold_hours = EXCLUDED.stale_threshold_hours,
-            is_stale = EXCLUDED.is_stale,
-            missing_data_count = EXCLUDED.missing_data_count,
-            error_message = NULL;
-        `, [tableName, recordCount, status, lastUpdated, staleThresholdHours, isStale, missingDataCount]);
-        
-        tableStats[tableName] = {
-          record_count: recordCount,
-          status: status,
-          last_checked: new Date().toISOString(),
-          error: null,
-          last_updated: lastUpdated,
-          stale_threshold_hours: staleThresholdHours,
-          is_stale: isStale,
-          missing_data_count: missingDataCount
-        };
-        
-      } catch (error) {
-        console.error(`Error processing table ${tableName}:`, error);
-        
-        // Record error in health status
-        await query(`
-          INSERT INTO health_status (table_name, record_count, status, last_checked, error_message)
-          VALUES ($1, NULL, 'error', NOW(), $2)
-          ON CONFLICT (table_name) DO UPDATE SET
-            record_count = NULL,
-            status = EXCLUDED.status,
-            last_checked = EXCLUDED.last_checked,
-            error_message = EXCLUDED.error_message;
-        `, [tableName, error.message]);
-        
-        tableStats[tableName] = {
-          record_count: null,
-          status: 'error',
-          last_checked: new Date().toISOString(),
-          error: error.message,
-          last_updated: null,
-          stale_threshold_hours: 24,
-          is_stale: false,
-          missing_data_count: 0
-        };
       }
     }
     
@@ -397,23 +457,6 @@ router.post('/update-status', async (req, res) => {
   console.log('Received request to update health status');
   
   try {
-    // Ensure the health_status table exists with enhanced schema
-    await query(`
-      CREATE TABLE IF NOT EXISTS health_status (
-        id SERIAL PRIMARY KEY,
-        table_name VARCHAR(100) NOT NULL,
-        record_count BIGINT,
-        status VARCHAR(20) NOT NULL,
-        last_checked TIMESTAMP NOT NULL DEFAULT NOW(),
-        error_message TEXT,
-        last_updated TIMESTAMP,
-        stale_threshold_hours INTEGER DEFAULT 24,
-        is_stale BOOLEAN DEFAULT FALSE,
-        missing_data_count BIGINT DEFAULT 0,
-        UNIQUE(table_name)
-      );
-    `);
-    
     const expectedTables = [
       // Core symbol tables
       'stock_symbols', 'etf_symbols', 'last_updated',
@@ -453,7 +496,7 @@ router.post('/update-status', async (req, res) => {
       'quarterly_cash_flow', 'annual_cash_flow',
       'ttm_income_statement', 'ttm_cash_flow',
       
-      // Latest price and technical data (these use the same tables as regular price/technical)
+      // Latest price and technical data
       'latest_price_daily', 'latest_price_weekly', 'latest_price_monthly',
       'latest_technical_data_daily', 'latest_technical_data_weekly', 'latest_technical_data_monthly',
       
@@ -461,30 +504,20 @@ router.post('/update-status', async (req, res) => {
       'health_status' // the health check table itself
     ];
     
-    // Get all actual tables from the database for comprehensive checking
-    const allTablesResult = await query(`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public' 
-      AND table_type = 'BASE TABLE'
-      ORDER BY table_name;
-    `);
-    
-    const actualTables = allTablesResult.rows.map(row => row.table_name);
-    console.log(`Found ${actualTables.length} actual tables in database:`, actualTables);
-    
-    // Combine expected tables with actual tables to ensure we check everything
-    const allTablesToCheck = [...new Set([...expectedTables, ...actualTables])];
-    console.log(`Will check ${allTablesToCheck.length} tables total (${expectedTables.length} expected + ${actualTables.length} actual)`);
-    
     let processed = 0;
     let errors = 0;
     
-    for (const tableName of allTablesToCheck) {
+    for (const tableName of expectedTables) {
       try {
         // Check if table exists
-        const tableExists = actualTables.includes(tableName);
-        if (tableExists) {
+        const tableExists = await query(`
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_name = $1
+          );
+        `, [tableName]);
+        
+        if (tableExists.rows[0].exists) {
           // Get record count
           const countResult = await query(`SELECT COUNT(*) as count FROM ${tableName}`);
           const recordCount = parseInt(countResult.rows[0].count);
