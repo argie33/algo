@@ -75,13 +75,13 @@ def load_annual_balance_sheet(symbols, cur, conn):
         log_mem(f"Batch {batch_idx+1} start")
 
         for yq_sym, orig_sym in mapping.items():
-            annual_balance_sheet = None
+            balance_sheet = None
             for attempt in range(1, MAX_BATCH_RETRIES+1):
                 try:
                     ticker = yf.Ticker(yq_sym)
                     # Use the correct YFinance API method for annual balance sheet
-                    annual_balance_sheet = ticker.balance_sheet
-                    if annual_balance_sheet is None or annual_balance_sheet.empty:
+                    balance_sheet = ticker.balance_sheet
+                    if balance_sheet is None or balance_sheet.empty:
                         raise ValueError("No annual balance sheet data received")
                     break
                 except Exception as e:
@@ -91,42 +91,35 @@ def load_annual_balance_sheet(symbols, cur, conn):
                         continue
                     time.sleep(RETRY_DELAY)
             
-            if annual_balance_sheet is None:
+            if balance_sheet is None:
                 continue
                 
             try:
-                # Convert DataFrame to list of tuples for insertion
-                annual_balance_sheet_data = []
-                for date in annual_balance_sheet.columns:
-                    row_data = [orig_sym, date.date() if hasattr(date, 'date') else date]
-                    for metric in annual_balance_sheet.index:
-                        value = annual_balance_sheet.loc[metric, date]
+                # Convert DataFrame to normalized format for insertion
+                balance_sheet_data = []
+                for date in balance_sheet.columns:
+                    for metric in balance_sheet.index:
+                        value = balance_sheet.loc[metric, date]
                         if pd.isna(value) or value is None:
-                            row_data.append(None)
-                        else:
-                            row_data.append(float(value))
-                    annual_balance_sheet_data.append(tuple(row_data))
+                            continue
+                        
+                        balance_sheet_data.append((
+                            orig_sym,
+                            date.date() if hasattr(date, 'date') else date,
+                            str(metric),
+                            float(value)
+                        ))
                 
-                if annual_balance_sheet_data:
-                    # Get column names for the table
-                    columns = ['symbol', 'date'] + list(annual_balance_sheet.index.astype(str))
-                    placeholders = ', '.join(['%s'] * len(columns))
-                    column_names = ', '.join(columns)
+                if balance_sheet_data:
+                    # Insert using normalized table structure
+                    execute_values(cur, """
+                        INSERT INTO annual_balance_sheet (symbol, date, item_name, value)
+                        VALUES %s
+                        ON CONFLICT (symbol, date, item_name) DO UPDATE SET
+                            value = EXCLUDED.value,
+                            updated_at = NOW()
+                    """, balance_sheet_data)
                     
-                    # Build the INSERT statement dynamically
-                    insert_sql = f"""
-                        INSERT INTO annual_balance_sheet ({column_names})
-                        VALUES ({placeholders})
-                        ON CONFLICT (symbol, date) DO UPDATE SET
-                    """
-                    
-                    # Build the UPDATE part dynamically
-                    update_parts = []
-                    for col in columns[2:]:  # Skip symbol and date
-                        update_parts.append(f"{col} = EXCLUDED.{col}")
-                    insert_sql += ', '.join(update_parts)
-                    
-                    cur.executemany(insert_sql, annual_balance_sheet_data)
                     conn.commit()
                     processed += 1
                     logging.info(f"Successfully processed annual balance sheet for {orig_sym}")
@@ -159,60 +152,29 @@ if __name__ == "__main__":
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Create annual balance sheet table
+    # Create annual balance sheet table with normalized structure
     logging.info("Creating annual balance sheet table...")
     cur.execute("""
         DROP TABLE IF EXISTS annual_balance_sheet CASCADE;
     """)
 
-    # Create table with predefined structure for common balance sheet columns
     create_table_sql = """
         CREATE TABLE annual_balance_sheet (
             symbol VARCHAR(10) NOT NULL,
             date DATE NOT NULL,
-            "Total Assets" DOUBLE PRECISION,
-            "Total Current Assets" DOUBLE PRECISION,
-            "Cash And Cash Equivalents" DOUBLE PRECISION,
-            "Short Term Investments" DOUBLE PRECISION,
-            "Net Receivables" DOUBLE PRECISION,
-            "Inventory" DOUBLE PRECISION,
-            "Other Current Assets" DOUBLE PRECISION,
-            "Total Non Current Assets" DOUBLE PRECISION,
-            "Property Plant Equipment Net" DOUBLE PRECISION,
-            "Intangible Assets" DOUBLE PRECISION,
-            "Goodwill" DOUBLE PRECISION,
-            "Long Term Investments" DOUBLE PRECISION,
-            "Other Assets" DOUBLE PRECISION,
-            "Total Liabilities Net Minority Interest" DOUBLE PRECISION,
-            "Total Current Liabilities" DOUBLE PRECISION,
-            "Accounts Payable" DOUBLE PRECISION,
-            "Short Term Debt" DOUBLE PRECISION,
-            "Other Current Liabilities" DOUBLE PRECISION,
-            "Total Non Current Liabilities Net Minority Interest" DOUBLE PRECISION,
-            "Long Term Debt" DOUBLE PRECISION,
-            "Other Liabilities" DOUBLE PRECISION,
-            "Total Equity Gross Minority Interest" DOUBLE PRECISION,
-            "Total Equity" DOUBLE PRECISION,
-            "Retained Earnings" DOUBLE PRECISION,
-            "Common Stock" DOUBLE PRECISION,
-            "Treasury Stock" DOUBLE PRECISION,
-            "Other Equity" DOUBLE PRECISION,
-            "Total Capitalization" DOUBLE PRECISION,
-            "Working Capital" DOUBLE PRECISION,
-            "Net Tangible Assets" DOUBLE PRECISION,
-            "Invested Capital" DOUBLE PRECISION,
-            "Tangible Book Value" DOUBLE PRECISION,
-            "Total Debt" DOUBLE PRECISION,
-            "Net Debt" DOUBLE PRECISION,
-            "Share Issued" DOUBLE PRECISION,
-            "Ordinary Shares Number" DOUBLE PRECISION,
-            "Treasury Shares Number" DOUBLE PRECISION,
-            PRIMARY KEY(symbol, date)
+            item_name TEXT NOT NULL,
+            value DOUBLE PRECISION NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY(symbol, date, item_name)
         );
+        
+        CREATE INDEX idx_annual_balance_sheet_symbol ON annual_balance_sheet(symbol);
+        CREATE INDEX idx_annual_balance_sheet_date ON annual_balance_sheet(date);
     """
     cur.execute(create_table_sql)
     conn.commit()
-    logging.info("Created annual balance sheet table with predefined structure")
+    logging.info("Created annual balance sheet table with normalized structure")
 
     # Load stock symbols
     cur.execute("SELECT symbol FROM stock_symbols;")

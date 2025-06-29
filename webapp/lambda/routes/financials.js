@@ -88,50 +88,61 @@ router.get('/:ticker/balance-sheet', async (req, res) => {
     const { period = 'annual' } = req.query;
     
     console.log(`Balance sheet request for ${ticker}, period: ${period}`);
-      // Query the balance_sheet table with all key metrics
+    
+    // Determine table name based on period
+    let tableName = 'annual_balance_sheet';
+    if (period === 'quarterly') {
+      tableName = 'quarterly_balance_sheet';
+    }
+    
+    // Query the normalized balance sheet table
     const balanceSheetQuery = `
       SELECT 
-        ticker,
-        period_end,
-        total_assets,
-        total_liabilities_net_minority_interest as total_liabilities,
-        stockholders_equity,
-        cash_and_cash_equivalents,
-        current_assets,
-        current_liabilities,
-        long_term_debt,
-        working_capital,
-        retained_earnings,
-        common_stock_equity,
-        tangible_book_value,
-        net_debt,
-        invested_capital
-      FROM balance_sheet
-      WHERE UPPER(ticker) = UPPER($1)
-      ORDER BY period_end DESC
-      LIMIT 10
+        symbol,
+        date,
+        item_name,
+        value
+      FROM ${tableName}
+      WHERE UPPER(symbol) = UPPER($1)
+      ORDER BY date DESC, item_name
+      LIMIT 200
     `;
     
     const result = await query(balanceSheetQuery, [ticker.toUpperCase()]);
-      // Transform data to match frontend expectations (same structure as income statement)
-    const transformedData = result.rows.map(row => ({
-      symbol: row.ticker,
-      date: row.period_end,
-      items: {
-        'Total Assets': parseFloat(row.total_assets || 0),
-        'Total Liabilities': parseFloat(row.total_liabilities || 0),
-        'Stockholders Equity': parseFloat(row.stockholders_equity || 0),
-        'Cash and Cash Equivalents': parseFloat(row.cash_and_cash_equivalents || 0),
-        'Current Assets': parseFloat(row.current_assets || 0),
-        'Current Liabilities': parseFloat(row.current_liabilities || 0),
-        'Long Term Debt': parseFloat(row.long_term_debt || 0),
-        'Working Capital': parseFloat(row.working_capital || 0),
-        'Retained Earnings': parseFloat(row.retained_earnings || 0),
-        'Common Stock Equity': parseFloat(row.common_stock_equity || 0),
-        'Tangible Book Value': parseFloat(row.tangible_book_value || 0),
-        'Net Debt': parseFloat(row.net_debt || 0),
-        'Invested Capital': parseFloat(row.invested_capital || 0)
+    
+    // Transform the normalized data into a structured format
+    const groupedData = {};
+    
+    result.rows.forEach(row => {
+      const dateKey = row.date;
+      if (!groupedData[dateKey]) {
+        groupedData[dateKey] = {
+          symbol: row.symbol,
+          date: row.date,
+          items: {}
+        };
       }
+      groupedData[dateKey].items[row.item_name] = parseFloat(row.value || 0);
+    });
+    
+    // Convert to array and add common balance sheet metrics
+    const transformedData = Object.values(groupedData).map(period => ({
+      symbol: period.symbol,
+      date: period.date,
+      totalAssets: period.items['Total Assets'] || 0,
+      totalLiabilities: period.items['Total Liabilities Net Minority Interest'] || 0,
+      stockholdersEquity: period.items['Total Equity Gross Minority Interest'] || 0,
+      cashAndCashEquivalents: period.items['Cash And Cash Equivalents'] || 0,
+      currentAssets: period.items['Total Current Assets'] || 0,
+      currentLiabilities: period.items['Total Current Liabilities'] || 0,
+      longTermDebt: period.items['Long Term Debt'] || 0,
+      workingCapital: period.items['Working Capital'] || 0,
+      retainedEarnings: period.items['Retained Earnings'] || 0,
+      commonStockEquity: period.items['Common Stock'] || 0,
+      tangibleBookValue: period.items['Tangible Book Value'] || 0,
+      netDebt: period.items['Net Debt'] || 0,
+      investedCapital: period.items['Invested Capital'] || 0,
+      items: period.items // Include all raw items for debugging
     }));
     
     res.json({
@@ -152,7 +163,7 @@ router.get('/:ticker/balance-sheet', async (req, res) => {
       success: false,
       error: 'Failed to fetch balance sheet data',
       message: error.message,
-      details: 'Check if balance_sheet table exists and contains data for this ticker'
+      details: 'Check if balance sheet table exists and contains data for this ticker'
     });
   }
 });
@@ -161,18 +172,26 @@ router.get('/:ticker/balance-sheet', async (req, res) => {
 router.get('/:ticker/income-statement', async (req, res) => {
   try {
     const { ticker } = req.params;
-    const { period = 'ttm' } = req.query;
+    const { period = 'annual' } = req.query;
     
     console.log(`Income statement request for ${ticker}, period: ${period}`);
     
-    // Query the normalized ttm_income_stmt table
+    // Determine table name based on period
+    let tableName = 'annual_income_statement';
+    if (period === 'quarterly') {
+      tableName = 'quarterly_income_statement';
+    } else if (period === 'ttm') {
+      tableName = 'ttm_income_stmt';
+    }
+    
+    // Query the normalized income statement table
     const incomeQuery = `
       SELECT 
         symbol,
         date,
         item_name,
         value
-      FROM ttm_income_stmt
+      FROM ${tableName}
       WHERE UPPER(symbol) = UPPER($1)
       ORDER BY date DESC, item_name
       LIMIT 200
@@ -205,14 +224,16 @@ router.get('/:ticker/income-statement', async (req, res) => {
       operatingIncome: period.items['Operating Income'] || 0,
       netIncome: period.items['Net Income'] || 0,
       ebit: period.items['EBIT'] || 0,
+      ebitda: period.items['EBITDA'] || 0,
       items: period.items // Include all raw items for debugging
     }));
-      res.json({
+    
+    res.json({
       success: true,
       data: transformedData,
       metadata: {
         ticker: ticker.toUpperCase(),
-        period: 'ttm',
+        period,
         count: transformedData.length,
         timestamp: new Date().toISOString()
       }
@@ -225,7 +246,7 @@ router.get('/:ticker/income-statement', async (req, res) => {
       success: false,
       error: 'Failed to fetch income statement data',
       message: error.message,
-      details: 'Check if ttm_income_stmt table exists and contains data for this ticker'
+      details: 'Check if income statement table exists and contains data for this ticker'
     });
   }
 });
@@ -234,18 +255,26 @@ router.get('/:ticker/income-statement', async (req, res) => {
 router.get('/:ticker/cash-flow', async (req, res) => {
   try {
     const { ticker } = req.params;
-    const { period = 'ttm' } = req.query; // Only ttm is available
+    const { period = 'annual' } = req.query;
     
     console.log(`Cash flow request for ${ticker}, period: ${period}`);
     
-    // Query the normalized ttm_cashflow table
+    // Determine table name based on period
+    let tableName = 'annual_cash_flow';
+    if (period === 'quarterly') {
+      tableName = 'quarterly_cash_flow';
+    } else if (period === 'ttm') {
+      tableName = 'ttm_cashflow';
+    }
+    
+    // Query the normalized cash flow table
     const cashFlowQuery = `
       SELECT 
         symbol,
         date,
         item_name,
         value
-      FROM ttm_cashflow
+      FROM ${tableName}
       WHERE UPPER(symbol) = UPPER($1)
       ORDER BY date DESC, item_name
       LIMIT 200
@@ -276,15 +305,17 @@ router.get('/:ticker/cash-flow', async (req, res) => {
       investingCashFlow: period.items['Investing Cash Flow'] || period.items['Cash Flow From Investing Activities'] || 0,
       financingCashFlow: period.items['Financing Cash Flow'] || period.items['Cash Flow From Financing Activities'] || 0,
       freeCashFlow: period.items['Free Cash Flow'] || 0,
-      capitalExpenditures: period.items['Capital Expenditures'] || 0,
+      capitalExpenditures: period.items['Capital Expenditure'] || period.items['Capital Expenditures'] || 0,
+      netIncome: period.items['Net Income'] || 0,
       items: period.items // Include all raw items for debugging
     }));
-      res.json({
+    
+    res.json({
       success: true,
       data: transformedData,
       metadata: {
         ticker: ticker.toUpperCase(),
-        period: 'ttm',
+        period,
         count: transformedData.length,
         timestamp: new Date().toISOString()
       }
@@ -297,7 +328,7 @@ router.get('/:ticker/cash-flow', async (req, res) => {
       success: false,
       error: 'Failed to fetch cash flow data',
       message: error.message,
-      details: 'Check if ttm_cashflow table exists and contains data for this ticker'
+      details: 'Check if cash flow table exists and contains data for this ticker'
     });
   }
 });

@@ -49,7 +49,7 @@ RETRY_DELAY = 0.2  # seconds between download retries
 # -------------------------------
 def get_db_config():
     secret_str = boto3.client("secretsmanager") \
-                     .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
+        .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     sec = json.loads(secret_str)
     return {
         "host": sec["host"],
@@ -95,38 +95,31 @@ def load_annual_income_statement(symbols, cur, conn):
                 continue
                 
             try:
-                # Convert DataFrame to list of tuples for insertion
+                # Convert DataFrame to normalized format for insertion
                 income_statement_data = []
                 for date in income_statement.columns:
-                    row_data = [orig_sym, date.date() if hasattr(date, 'date') else date]
                     for metric in income_statement.index:
                         value = income_statement.loc[metric, date]
                         if pd.isna(value) or value is None:
-                            row_data.append(None)
-                        else:
-                            row_data.append(float(value))
-                    income_statement_data.append(tuple(row_data))
+                            continue
+                        
+                        income_statement_data.append((
+                            orig_sym,
+                            date.date() if hasattr(date, 'date') else date,
+                            str(metric),
+                            float(value)
+                        ))
                 
                 if income_statement_data:
-                    # Get column names for the table
-                    columns = ['symbol', 'date'] + list(income_statement.index.astype(str))
-                    placeholders = ', '.join(['%s'] * len(columns))
-                    column_names = ', '.join(columns)
+                    # Insert using normalized table structure
+                    execute_values(cur, """
+                        INSERT INTO annual_income_statement (symbol, date, item_name, value)
+                        VALUES %s
+                        ON CONFLICT (symbol, date, item_name) DO UPDATE SET
+                            value = EXCLUDED.value,
+                            updated_at = NOW()
+                    """, income_statement_data)
                     
-                    # Build the INSERT statement dynamically
-                    insert_sql = f"""
-                        INSERT INTO annual_income_statement ({column_names})
-                        VALUES ({placeholders})
-                        ON CONFLICT (symbol, date) DO UPDATE SET
-                    """
-                    
-                    # Build the UPDATE part dynamically
-                    update_parts = []
-                    for col in columns[2:]:  # Skip symbol and date
-                        update_parts.append(f"{col} = EXCLUDED.{col}")
-                    insert_sql += ', '.join(update_parts)
-                    
-                    cur.executemany(insert_sql, income_statement_data)
                     conn.commit()
                     processed += 1
                     logging.info(f"Successfully processed annual income statement for {orig_sym}")
@@ -159,67 +152,29 @@ if __name__ == "__main__":
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Create annual income statement table
+    # Create annual income statement table with normalized structure
     logging.info("Creating annual income statement table...")
     cur.execute("""
         DROP TABLE IF EXISTS annual_income_statement CASCADE;
     """)
 
-    # Create table with predefined structure for common income statement columns
     create_table_sql = """
         CREATE TABLE annual_income_statement (
             symbol VARCHAR(10) NOT NULL,
             date DATE NOT NULL,
-            "Total Revenue" DOUBLE PRECISION,
-            "Cost Of Revenue" DOUBLE PRECISION,
-            "Gross Profit" DOUBLE PRECISION,
-            "Research And Development" DOUBLE PRECISION,
-            "Selling General And Administration" DOUBLE PRECISION,
-            "Operating Income" DOUBLE PRECISION,
-            "Operating Expense" DOUBLE PRECISION,
-            "Interest Expense" DOUBLE PRECISION,
-            "Interest Income" DOUBLE PRECISION,
-            "Net Interest Income" DOUBLE PRECISION,
-            "Other Income Expense" DOUBLE PRECISION,
-            "Income Tax Expense" DOUBLE PRECISION,
-            "Net Income" DOUBLE PRECISION,
-            "Net Income Common Stockholders" DOUBLE PRECISION,
-            "Net Income From Continuing Ops" DOUBLE PRECISION,
-            "Net Income Including Noncontrolling Interests" DOUBLE PRECISION,
-            "Net Income Continuous Operations" DOUBLE PRECISION,
-            "EBIT" DOUBLE PRECISION,
-            "EBITDA" DOUBLE PRECISION,
-            "EBITDAR" DOUBLE PRECISION,
-            "Reconciled Cost Of Revenue" DOUBLE PRECISION,
-            "Reconciled Depreciation" DOUBLE PRECISION,
-            "Net Income From Continuing And Discontinued Operation" DOUBLE PRECISION,
-            "Total Expenses" DOUBLE PRECISION,
-            "Total Revenue As Reported" DOUBLE PRECISION,
-            "Operating Revenue" DOUBLE PRECISION,
-            "Operating Income Loss" DOUBLE PRECISION,
-            "Net Income Available To Common Stockholders Basic" DOUBLE PRECISION,
-            "Net Income Available To Common Stockholders Diluted" DOUBLE PRECISION,
-            "Basic Average Shares" DOUBLE PRECISION,
-            "Basic EPS" DOUBLE PRECISION,
-            "Diluted Average Shares" DOUBLE PRECISION,
-            "Diluted EPS" DOUBLE PRECISION,
-            "Total Unusual Items" DOUBLE PRECISION,
-            "Total Unusual Items Excluding Goodwill" DOUBLE PRECISION,
-            "Normalized Income" DOUBLE PRECISION,
-            "Tax Rate For Calcs" DOUBLE PRECISION,
-            "Tax Effect Of Unusual Items" DOUBLE PRECISION,
-            "Interest Income After Tax" DOUBLE PRECISION,
-            "Net Interest Income After Tax" DOUBLE PRECISION,
-            "Change In Net Income" DOUBLE PRECISION,
-            "Net Income From Continuing Operation Net Minority Interest" DOUBLE PRECISION,
-            "Net Income Including Noncontrolling Interests Net Minority Interest" DOUBLE PRECISION,
-            "Net Income Continuous Operations Net Minority Interest" DOUBLE PRECISION,
-            PRIMARY KEY(symbol, date)
+            item_name TEXT NOT NULL,
+            value DOUBLE PRECISION NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY(symbol, date, item_name)
         );
+        
+        CREATE INDEX idx_annual_income_statement_symbol ON annual_income_statement(symbol);
+        CREATE INDEX idx_annual_income_statement_date ON annual_income_statement(date);
     """
     cur.execute(create_table_sql)
     conn.commit()
-    logging.info("Created annual income statement table with predefined structure")
+    logging.info("Created annual income statement table with normalized structure")
 
     # Load stock symbols
     cur.execute("SELECT symbol FROM stock_symbols;")

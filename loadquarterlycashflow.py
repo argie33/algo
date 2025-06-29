@@ -49,7 +49,7 @@ RETRY_DELAY = 0.2  # seconds between download retries
 # -------------------------------
 def get_db_config():
     secret_str = boto3.client("secretsmanager") \
-                     .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
+        .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     sec = json.loads(secret_str)
     return {
         "host": sec["host"],
@@ -95,38 +95,31 @@ def load_quarterly_cash_flow(symbols, cur, conn):
                 continue
                 
             try:
-                # Convert DataFrame to list of tuples for insertion
+                # Convert DataFrame to normalized format for insertion
                 cash_flow_data = []
                 for date in cash_flow.columns:
-                    row_data = [orig_sym, date.date() if hasattr(date, 'date') else date]
                     for metric in cash_flow.index:
                         value = cash_flow.loc[metric, date]
                         if pd.isna(value) or value is None:
-                            row_data.append(None)
-                        else:
-                            row_data.append(float(value))
-                    cash_flow_data.append(tuple(row_data))
+                            continue
+                        
+                        cash_flow_data.append((
+                            orig_sym,
+                            date.date() if hasattr(date, 'date') else date,
+                            str(metric),
+                            float(value)
+                        ))
                 
                 if cash_flow_data:
-                    # Get column names for the table
-                    columns = ['symbol', 'date'] + list(cash_flow.index.astype(str))
-                    placeholders = ', '.join(['%s'] * len(columns))
-                    column_names = ', '.join(columns)
+                    # Insert using normalized table structure
+                    execute_values(cur, """
+                        INSERT INTO quarterly_cash_flow (symbol, date, item_name, value)
+                        VALUES %s
+                        ON CONFLICT (symbol, date, item_name) DO UPDATE SET
+                            value = EXCLUDED.value,
+                            updated_at = NOW()
+                    """, cash_flow_data)
                     
-                    # Build the INSERT statement dynamically
-                    insert_sql = f"""
-                        INSERT INTO quarterly_cash_flow ({column_names})
-                        VALUES ({placeholders})
-                        ON CONFLICT (symbol, date) DO UPDATE SET
-                    """
-                    
-                    # Build the UPDATE part dynamically
-                    update_parts = []
-                    for col in columns[2:]:  # Skip symbol and date
-                        update_parts.append(f"{col} = EXCLUDED.{col}")
-                    insert_sql += ', '.join(update_parts)
-                    
-                    cur.executemany(insert_sql, cash_flow_data)
                     conn.commit()
                     processed += 1
                     logging.info(f"Successfully processed quarterly cash flow for {orig_sym}")
@@ -159,69 +152,29 @@ if __name__ == "__main__":
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Create quarterly cash flow table
+    # Create quarterly cash flow table with normalized structure
     logging.info("Creating quarterly cash flow table...")
     cur.execute("""
         DROP TABLE IF EXISTS quarterly_cash_flow CASCADE;
     """)
 
-    # Create table with predefined structure for common cash flow columns
     create_table_sql = """
         CREATE TABLE quarterly_cash_flow (
             symbol VARCHAR(10) NOT NULL,
             date DATE NOT NULL,
-            "Operating Cash Flow" DOUBLE PRECISION,
-            "Investing Cash Flow" DOUBLE PRECISION,
-            "Financing Cash Flow" DOUBLE PRECISION,
-            "End Cash Position" DOUBLE PRECISION,
-            "Income Tax Paid Supplemental Data" DOUBLE PRECISION,
-            "Interest Paid Supplemental Data" DOUBLE PRECISION,
-            "Capital Expenditure" DOUBLE PRECISION,
-            "Issuance Of Capital Stock" DOUBLE PRECISION,
-            "Issuance Of Debt" DOUBLE PRECISION,
-            "Repayment Of Debt" DOUBLE PRECISION,
-            "Repurchase Of Capital Stock" DOUBLE PRECISION,
-            "Free Cash Flow" DOUBLE PRECISION,
-            "Net Income" DOUBLE PRECISION,
-            "Net Income From Continuing Ops" DOUBLE PRECISION,
-            "Change In Cash And Cash Equivalents" DOUBLE PRECISION,
-            "Change In Receivables" DOUBLE PRECISION,
-            "Change In Inventory" DOUBLE PRECISION,
-            "Change In Net Working Capital" DOUBLE PRECISION,
-            "Change In Accounts Payable" DOUBLE PRECISION,
-            "Change In Other Working Capital" DOUBLE PRECISION,
-            "Change In Other Non Cash Items" DOUBLE PRECISION,
-            "Depreciation And Amortization" DOUBLE PRECISION,
-            "Depreciation" DOUBLE PRECISION,
-            "Amortization" DOUBLE PRECISION,
-            "Amortization Of Intangibles" DOUBLE PRECISION,
-            "Amortization Of Debt" DOUBLE PRECISION,
-            "Deferred Income Tax" DOUBLE PRECISION,
-            "Deferred Tax" DOUBLE PRECISION,
-            "Stock Based Compensation" DOUBLE PRECISION,
-            "Change In Deferred Tax" DOUBLE PRECISION,
-            "Other Non Cash Items" DOUBLE PRECISION,
-            "Change In Working Capital" DOUBLE PRECISION,
-            "Change In Other Assets" DOUBLE PRECISION,
-            "Change In Other Liabilities" DOUBLE PRECISION,
-            "Change In Other Operating Activities" DOUBLE PRECISION,
-            "Net Cash Flow From Operating Activities" DOUBLE PRECISION,
-            "Net Cash Flow From Investing Activities" DOUBLE PRECISION,
-            "Net Cash Flow From Financing Activities" DOUBLE PRECISION,
-            "Net Cash Flow" DOUBLE PRECISION,
-            "Cash At Beginning Of Period" DOUBLE PRECISION,
-            "Cash At End Of Period" DOUBLE PRECISION,
-            "Operating Cash Flow Growth" DOUBLE PRECISION,
-            "Free Cash Flow Growth" DOUBLE PRECISION,
-            "Cap Ex As A % Of Sales" DOUBLE PRECISION,
-            "Free Cash Flow/Sales" DOUBLE PRECISION,
-            "Free Cash Flow/Net Income" DOUBLE PRECISION,
-            PRIMARY KEY(symbol, date)
+            item_name TEXT NOT NULL,
+            value DOUBLE PRECISION NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY(symbol, date, item_name)
         );
+        
+        CREATE INDEX idx_quarterly_cash_flow_symbol ON quarterly_cash_flow(symbol);
+        CREATE INDEX idx_quarterly_cash_flow_date ON quarterly_cash_flow(date);
     """
     cur.execute(create_table_sql)
     conn.commit()
-    logging.info("Created quarterly cash flow table with predefined structure")
+    logging.info("Created quarterly cash flow table with normalized structure")
 
     # Load stock symbols
     cur.execute("SELECT symbol FROM stock_symbols;")
