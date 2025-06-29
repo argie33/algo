@@ -8,11 +8,11 @@ const router = express.Router();
 router.get('/price-history/:symbol', async (req, res) => {
   try {
     const { symbol } = req.params;
-    const limit = Math.min(parseInt(req.query.limit) || 90, 365); // Max 1 year for performance
+    const limit = Math.min(parseInt(req.query.limit) || 15, 30); // Further reduced from 30 to 15, max 30
     
     console.log(`BULLETPROOF: Price history requested for ${symbol}, limit: ${limit}`);
     
-    // Simple, direct query to price_daily table
+    // Simple, direct query to price_daily table with LIMIT
     const priceQuery = `
       SELECT 
         date,
@@ -914,7 +914,7 @@ router.get('/full/data', async (req, res) => {
 router.get('/:ticker/prices', async (req, res) => {
   try {
     const { ticker } = req.params;
-    const limit = Math.min(parseInt(req.query.limit) || 30, 90); // Max 90 days for performance
+    const limit = Math.min(parseInt(req.query.limit) || 10, 25); // Further reduced from 20 to 10, max 25
     
     console.log(`SIMPLIFIED prices endpoint called for ticker: ${ticker}, limit: ${limit}`);
     
@@ -1387,7 +1387,7 @@ router.get('/screen', async (req, res) => {
 router.get('/:ticker/price-recent', async (req, res) => {
   try {
     const { ticker } = req.params;
-    const limit = Math.min(parseInt(req.query.limit) || 30, 60); // Max 60 days for performance
+    const limit = Math.min(parseInt(req.query.limit) || 10, 20); // Further reduced from 15 to 10, max 20
     
     console.log(`Recent price endpoint called for ticker: ${ticker}, limit: ${limit}`);
     
@@ -2123,9 +2123,9 @@ router.get('/:ticker/price-data', async (req, res) => {
     const { ticker } = req.params;
     const tickerUpper = ticker.toUpperCase();
       // Get query parameters for flexible date ranges
-    const period = req.query.period || '1y'; // 1m, 3m, 6m, 1y, 2y, max
+    const period = req.query.period || '1m'; // 1m, 3m, 6m, 1y, 2y, max
     const interval = req.query.interval || 'daily'; // daily, weekly, monthly
-    const limit = parseInt(req.query.limit) || 0; // 0 = no limit
+    const limit = parseInt(req.query.limit) || 20; // Reduced from 30 to 20, max 50
     
     console.log(`Price data API called for ${tickerUpper}, period: ${period}, interval: ${interval}`);
     
@@ -2149,7 +2149,7 @@ router.get('/:ticker/price-data', async (req, res) => {
       'max': 0 // No limit
     };
     
-    const days = periodToDays[period] || 365;
+    const days = periodToDays[period] || 30; // Default to 1 month
     
     // Choose the appropriate table based on interval
     const tableMap = {
@@ -2160,7 +2160,7 @@ router.get('/:ticker/price-data', async (req, res) => {
     
     const tableName = tableMap[interval] || 'price_daily';
     
-    // Build dynamic query with optional date filtering
+    // Build dynamic query with optional date filtering and LIMIT
     let whereClause = 'WHERE symbol = $1';
     const params = [tickerUpper];
     let paramCount = 1;
@@ -2183,13 +2183,10 @@ router.get('/:ticker/price-data', async (req, res) => {
       params.push(req.query.end_date);
     }
     
-    // Add limit if specified
-    let limitClause = '';
-    if (limit > 0) {
-      paramCount++;
-      limitClause = ` LIMIT $${paramCount}`;
-      params.push(limit);
-    }
+    // Always add limit for performance - more aggressive limit
+    const maxLimit = Math.min(limit, 50); // Reduced from 100 to 50 rows
+    paramCount++;
+    params.push(maxLimit);
     
     const priceQuery = `
       SELECT 
@@ -2200,20 +2197,14 @@ router.get('/:ticker/price-data', async (req, res) => {
         low,
         close,
         adj_close,
-        volume,
-        -- Calculate daily changes
-        close - LAG(close) OVER (ORDER BY date) as price_change,
-        ROUND(((close - LAG(close) OVER (ORDER BY date)) / LAG(close) OVER (ORDER BY date) * 100)::numeric, 2) as price_change_pct,
-        -- Volume change
-        volume - LAG(volume) OVER (ORDER BY date) as volume_change,
-        ROUND(((volume - LAG(volume) OVER (ORDER BY date)) / NULLIF(LAG(volume) OVER (ORDER BY date), 0) * 100)::numeric, 2) as volume_change_pct
+        volume
       FROM ${tableName}
       ${whereClause}
       ORDER BY date DESC
-      ${limitClause}
+      LIMIT $${paramCount}
     `;
     
-    console.log(`Executing price query on ${tableName} with ${params.length} parameters`);
+    console.log(`Executing price query on ${tableName} with ${params.length} parameters, limit: ${maxLimit}`);
     
     const result = await query(priceQuery, params);
     
@@ -2237,11 +2228,7 @@ router.get('/:ticker/price-data', async (req, res) => {
       low: parseFloat(row.low || 0),
       close: parseFloat(row.close || 0),
       adjClose: parseFloat(row.adj_close || row.close || 0),
-      volume: parseInt(row.volume || 0),
-      priceChange: parseFloat(row.price_change || 0),
-      priceChangePct: parseFloat(row.price_change_pct || 0),
-      volumeChange: parseInt(row.volume_change || 0),
-      volumeChangePct: parseFloat(row.volume_change_pct || 0)
+      volume: parseInt(row.volume || 0)
     }));
     
     // Calculate summary statistics
@@ -2311,6 +2298,7 @@ router.get('/bulk/price-data', async (req, res) => {  try {
     const symbols = req.query.symbols ? req.query.symbols.split(',').map(s => s.toUpperCase()) : [];
     const period = req.query.period || '1m';
     const interval = req.query.interval || 'daily';
+    const limit = Math.min(parseInt(req.query.limit) || 5, 10); // Further reduced from 10 to 5, max 10
     
     if (symbols.length === 0) {
       return res.status(400).json({
@@ -2322,10 +2310,10 @@ router.get('/bulk/price-data', async (req, res) => {  try {
       });
     }
     
-    if (symbols.length > 50) {
+    if (symbols.length > 10) { // Further reduced from 20 to 10
       return res.status(400).json({
         error: 'Too many symbols',
-        message: 'Maximum 50 symbols allowed per request',
+        message: 'Maximum 10 symbols allowed per request',
         requested: symbols.length
       });
     }
@@ -2351,11 +2339,11 @@ router.get('/bulk/price-data', async (req, res) => {  try {
       'max': 0
     };
     
-    const days = periodToDays[period] || 1;
+    const days = periodToDays[period] || 30; // Default to 1 month
     const tableName = interval === 'weekly' ? 'price_weekly' : 
                      interval === 'monthly' ? 'price_monthly' : 'price_daily';
     
-    // Optimized query for multiple symbols
+    // Optimized query for multiple symbols with LIMIT
     const bulkQuery = `
       WITH latest_prices AS (
         SELECT DISTINCT ON (symbol) 
@@ -2371,12 +2359,13 @@ router.get('/bulk/price-data', async (req, res) => {  try {
         WHERE symbol = ANY($1)
           AND date >= CURRENT_DATE - INTERVAL '${days} days'
         ORDER BY symbol, date DESC
+        LIMIT $2
       )
       SELECT * FROM latest_prices
       ORDER BY symbol
     `;
     
-    const result = await query(bulkQuery, [symbols]);
+    const result = await query(bulkQuery, [symbols, limit]);
     
     // Group results by symbol
     const dataBySymbol = {};
@@ -2467,18 +2456,23 @@ router.get('/api/stocks/:symbol/price-data', async (req, res) => {
     if (!symbol) {
       return res.status(400).json({ error: 'Missing symbol parameter' });
     }
-    // Query all price data for the symbol from price_daily
+    
+    const limit = Math.min(parseInt(req.query.limit) || 10, 25); // Further reduced from 20 to 10, max 25
+    
+    // Query limited price data for the symbol from price_daily
     const priceQuery = `
       SELECT date, open, high, low, close, adj_close, volume, dividends, stock_splits
       FROM price_daily
       WHERE symbol = $1
-      ORDER BY date ASC
+      ORDER BY date DESC
+      LIMIT $2
     `;
-    const result = await query(priceQuery, [symbol.toUpperCase()]);
+    const result = await query(priceQuery, [symbol.toUpperCase(), limit]);
     res.json({
       symbol: symbol.toUpperCase(),
       count: result.rows.length,
-      data: result.rows
+      data: result.rows,
+      limit: limit
     });
   } catch (error) {
     console.error('Error in price-data endpoint:', error);

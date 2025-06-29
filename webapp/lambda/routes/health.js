@@ -185,7 +185,7 @@ router.get('/database', async (req, res) => {
         'stock_symbols', 'etf_symbols', 'last_updated',
         
         // Market sentiment and indicators
-        'fear_greed_index', 'naaim_exposure', 'aaii_sentiment', 'naaim',
+        'fear_greed_index', 'aaii_sentiment', 'naaim',
         
         // Analyst and earnings data
         'analyst_upgrade_downgrade', 'calendar_events',
@@ -462,7 +462,7 @@ router.post('/update-status', async (req, res) => {
       'stock_symbols', 'etf_symbols', 'last_updated',
       
       // Market sentiment and indicators
-      'fear_greed_index', 'naaim_exposure', 'aaii_sentiment', 'naaim',
+      'fear_greed_index', 'aaii_sentiment', 'naaim',
       
       // Analyst and earnings data
       'analyst_upgrade_downgrade', 'calendar_events',
