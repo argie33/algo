@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { createComponentLogger } from '../utils/errorLogger'
-import { formatCurrency, formatNumber, formatPercent } from '../utils/formatters'
-import { screenStocks } from '../services/api'
+import { formatCurrency, formatNumber, formatPercent, getChangeColor, getChangeIcon, getMarketCapCategory } from '../utils/formatters'
+import { screenStocks, getStockPrices, getStockPricesRecent, getEarningsMetrics } from '../services/api'
 import {
   Box,
   Container,
@@ -70,18 +70,9 @@ import {
   Tune,
   InfoOutlined
 } from '@mui/icons-material'
-import { screenStocks, getStockPrices, getStockPricesRecent, getEarningsMetrics } from '../services/api'
-import { formatCurrency, formatPercentage as formatPercent, formatNumber, getChangeColor, getChangeIcon, getMarketCapCategory } from '../utils/formatters'
 
 // Create component-specific logger
 const logger = createComponentLogger('StockExplorer');
-
-// Utility function to get color for price changes
-const getChangeColor = (change) => {
-  if (change > 0) return 'success.main'
-  if (change < 0) return 'error.main'
-  return 'text.primary'
-}
 
 const INITIAL_FILTERS = {
   // Search and basic
