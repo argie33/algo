@@ -27,6 +27,23 @@ router.get('/signals/:timeframe', async (req, res) => {
 
     const tableName = `buy_sell_${timeframe}`;
     
+    // Defensive: Check if table exists before querying
+    const tableExistsResult = await query(
+      `SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = $1
+      );`,
+      [tableName]
+    );
+    if (!tableExistsResult.rows[0].exists) {
+      console.error(`[TRADING] Table does not exist: ${tableName}`);
+      return res.status(500).json({ 
+        error: `Table ${tableName} does not exist in the database.`,
+        details: `Expected table ${tableName} for trading signals. Please check your database schema.`
+      });
+    }
+
     // Build WHERE clause
     let whereClause = '';
     const queryParams = [];
@@ -128,7 +145,8 @@ router.get('/signals/:timeframe', async (req, res) => {
     console.error('[TRADING] Error fetching trading signals:', error);
     res.status(500).json({ 
       error: 'Failed to fetch trading signals',
-      message: error.message 
+      message: error.message,
+      stack: error.stack
     });
   }
 });
