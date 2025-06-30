@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { createComponentLogger } from '../utils/errorLogger'
+import { formatCurrency, formatNumber, formatPercent } from '../utils/formatters'
+import { screenStocks } from '../services/api'
 import {
   Box,
   Container,
@@ -36,13 +38,24 @@ import {
   CircularProgress,
   Divider,
   InputAdornment,
-  ToggleButton,  ToggleButtonGroup,
+  ToggleButton,
+  ToggleButtonGroup,
   Tabs,
   Tab,
   Modal,
   Backdrop,
   Fade
 } from '@mui/material'
+import {
+  Search,
+  FilterList,
+  Clear,
+  Tune,
+  ExpandMore,
+  ShowChart,
+  TrendingUp,
+  TrendingDown
+} from '@mui/icons-material'
 import {
   ExpandMore,
   FilterList,
@@ -57,11 +70,18 @@ import {
   Tune,
   InfoOutlined
 } from '@mui/icons-material'
-import api, { screenStocks, getStockPrices, getStockPricesRecent, getEarningsMetrics, getStockPriceHistory } from '../services/api'
+import { screenStocks, getStockPrices, getStockPricesRecent, getEarningsMetrics } from '../services/api'
 import { formatCurrency, formatPercentage as formatPercent, formatNumber, getChangeColor, getChangeIcon, getMarketCapCategory } from '../utils/formatters'
 
 // Create component-specific logger
 const logger = createComponentLogger('StockExplorer');
+
+// Utility function to get color for price changes
+const getChangeColor = (change) => {
+  if (change > 0) return 'success.main'
+  if (change < 0) return 'error.main'
+  return 'text.primary'
+}
 
 const INITIAL_FILTERS = {
   // Search and basic
@@ -172,7 +192,9 @@ function StockExplorer() {
     params.append('sortOrder', order)
     
     return params
-  }  // Fetch screener results with optimized settings
+  }
+
+  // Fetch screener results with optimized settings
   const { data: stocksData, isLoading, error, refetch } = useQuery({
     queryKey: ['stockExplorer', filters, page, rowsPerPage, orderBy, order],
     queryFn: async () => {
@@ -213,6 +235,7 @@ function StockExplorer() {
     retryDelay: 1000,
     onError: (err) => logger.queryError('stockExplorer', err, { queryKey: ['stockExplorer', filters, page, rowsPerPage, orderBy, order] })
   })
+
   const handleFilterChange = (field, value) => {
     setFilters(prev => ({
       ...prev,
@@ -264,23 +287,26 @@ function StockExplorer() {
   const handleAccordionToggle = (symbol) => {
     setExpandedStock(expandedStock === symbol ? null : symbol)
   }
+
   // Fetch comprehensive price history for a stock
   const handleFetchPriceHistory = async (symbol) => {
     try {
       // Open modal immediately with loading state
       setPriceHistoryModal({ open: true, symbol, data: [], loading: true })
       
-      console.log('BULLETPROOF: Fetching price history for', symbol)
-      console.log('BULLETPROOF: API base URL:', api.defaults.baseURL)
-      console.log('BULLETPROOF: Full URL will be:', `${api.defaults.baseURL}/stocks/price-history/${symbol}?limit=20`)
+      console.log('Fetching comprehensive price history for', symbol)
       
-      // Use the new BULLETPROOF API function for getting stock price history
-      const result = await getStockPriceHistory(symbol, 20)
+      // Call the correct price API endpoint for historical data
+      const response = await fetch(`/api/stocks/${symbol}/prices?limit=90`)
       
-      console.log('BULLETPROOF: API response received:', result)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const result = await response.json()
       
       if (result.success && result.data) {
-        console.log('BULLETPROOF: Price history loaded for', symbol, result.data.length, 'records')
+        console.log('Comprehensive price history loaded for', symbol, result.data.length, 'records')
         
         // Update modal with data
         setPriceHistoryModal({ 
@@ -300,16 +326,7 @@ function StockExplorer() {
         throw new Error(result.error || 'Failed to fetch price data')
       }
     } catch (error) {
-      console.error('BULLETPROOF: Error fetching price history for', symbol, error)
-      console.error('BULLETPROOF: Error details:', {
-        message: error.message,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        url: error.config?.url,
-        baseURL: error.config?.baseURL,
-        fullUrl: `${api.defaults.baseURL}/stocks/price-history/${symbol}?limit=20`
-      })
+      console.error('Error fetching comprehensive price history for', symbol, error)
       
       // Show error in modal
       setPriceHistoryModal({ 
@@ -317,7 +334,7 @@ function StockExplorer() {
         symbol, 
         data: [], 
         loading: false, 
-        error: `BULLETPROOF Error: ${error.message}` 
+        error: error.message 
       })
     }
   }
@@ -378,10 +395,12 @@ function StockExplorer() {
             value={filters[maxKey]}
             onChange={(e) => handleFilterChange(maxKey, e.target.value)}
             sx={{ width: '100px' }}
-          />        </Box>
+          />
+        </Box>
       </Box>
     )
   }
+
   const columns = [
     // Core identification
     { id: 'symbol', label: 'Symbol', sortable: true, minWidth: 80 },
@@ -437,95 +456,16 @@ function StockExplorer() {
     { id: 'isEtf', label: 'ETF', sortable: true, minWidth: 80, format: (value) => value ? 'Yes' : 'No' },
     { id: 'testIssue', label: 'Test Issue', sortable: true, minWidth: 100, format: (value) => value ? 'Yes' : 'No' }
   ]
+
   // Normalize stocks list to handle both { data: [...] } and { data: { data: [...] } } API responses
   let stocksList = [];
   if (stocksData) {
-    console.log('StockExplorer: stocksData structure:', {
-      hasData: !!stocksData.data,
-      dataType: typeof stocksData.data,
-      isArray: Array.isArray(stocksData.data),
-      dataLength: stocksData.data?.length,
-      keys: Object.keys(stocksData || {}),
-      success: stocksData.success,
-      total: stocksData.total,
-      pagination: stocksData.pagination
-    });
-    
-    // Handle backend response structure: { success: true, data: [...], total: ..., pagination: {...} }
-    if (stocksData.success && Array.isArray(stocksData.data)) {
+    if (Array.isArray(stocksData.data)) {
       stocksList = stocksData.data;
-      console.log('StockExplorer: Using stocksData.data (backend structure), length:', stocksList.length);
-    } else if (Array.isArray(stocksData.data)) {
-      stocksList = stocksData.data;
-      console.log('StockExplorer: Using stocksData.data directly, length:', stocksList.length);
     } else if (stocksData.data && Array.isArray(stocksData.data.data)) {
       stocksList = stocksData.data.data;
-      console.log('StockExplorer: Using stocksData.data.data, length:', stocksList.length);
-    } else if (stocksData.data && typeof stocksData.data === 'object') {
-      // Handle case where data is an object with pagination info
-      if (Array.isArray(stocksData.data.results)) {
-        stocksList = stocksData.data.results;
-        console.log('StockExplorer: Using stocksData.data.results, length:', stocksList.length);
-      } else if (Array.isArray(stocksData.data.items)) {
-        stocksList = stocksData.data.items;
-        console.log('StockExplorer: Using stocksData.data.items, length:', stocksList.length);
-      } else {
-        // Try to extract array from object keys
-        const keys = Object.keys(stocksData.data);
-        if (keys.length > 0 && keys.every(key => !isNaN(key))) {
-          stocksList = Object.values(stocksData.data);
-          console.log('StockExplorer: Using Object.values(stocksData.data), length:', stocksList.length);
-        } else {
-          console.log('StockExplorer: No valid data structure found in stocksData');
-        }
-      }
-    } else {
-      console.log('StockExplorer: No valid data structure found in stocksData');
     }
   }
-
-  // Patch: Normalize backend data to expected frontend shape
-  const normalizedStocksList = stocksList.map(stock => ({
-    symbol: stock.symbol,
-    name: stock.company_name || stock.name || stock.fullName || stock.shortName || '',
-    fullName: stock.company_name || stock.fullName || stock.name || '',
-    shortName: stock.company_name || stock.shortName || stock.name || '',
-    displayName: stock.company_name || stock.name || '',
-    sector: stock.sector,
-    industry: stock.industry,
-    exchange: stock.exchange,
-    country: stock.country,
-    employeeCount: stock.employee_count || stock.employeeCount,
-    website: stock.website,
-    address: stock.address,
-    financialStatus: stock.financial_status,
-    securityType: stock.security_type,
-    marketCategory: stock.market_category,
-    marketCap: stock.market_cap || stock.market_capitalization,
-    volume: stock.volume,
-    averageVolume: stock.avg_volume || stock.averageVolume,
-    beta: stock.beta,
-    peRatio: stock.pe_ratio,
-    dividendYield: stock.dividend_yield,
-    returnOnEquity: stock.return_on_equity,
-    revenueGrowth: stock.revenue_growth,
-    currentRatio: stock.current_ratio,
-    debtToEquity: stock.debt_to_equity,
-    lastUpdated: stock.last_updated,
-    price: {
-      current: stock.current_price,
-      previousClose: stock.previous_close,
-      dayLow: stock.day_low,
-      dayHigh: stock.day_high,
-      fiftyTwoWeekLow: stock.fifty_two_week_low,
-      fiftyTwoWeekHigh: stock.fifty_two_week_high,
-      fiftyDayAverage: stock.fifty_day_average,
-      twoHundredDayAverage: stock.two_hundred_day_average
-    },
-    changePercent: stock.change_percent,
-    changeAmount: stock.change_amount,
-    // Add more mappings as needed
-  }));
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
@@ -534,10 +474,12 @@ function StockExplorer() {
         <Box>
           <Typography variant="h4" component="h1" fontWeight="bold" gutterBottom>
             Stock Explorer
-          </Typography>          <Typography variant="body1" color="text.secondary">
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
             Browse and filter stocks with comprehensive stock information and screening criteria
           </Typography>
-        </Box>        <Box display="flex" gap={2} alignItems="center">
+        </Box>
+        <Box display="flex" gap={2} alignItems="center">
           {/* Debug button in development */}
           {import.meta.env.DEV && (
             <Button
@@ -555,36 +497,6 @@ function StockExplorer() {
               }}
             >
               Test API
-            </Button>
-          )}
-          
-          {/* Price History API Test Button */}
-          {import.meta.env.DEV && (
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={async () => {
-                try {
-                  console.log('Testing price history API...');
-                  console.log('API base URL:', api.defaults.baseURL);
-                  
-                  // Test with a known stock symbol
-                  const testSymbol = 'AAPL';
-                  const result = await getStockPriceHistory(testSymbol, 5);
-                  console.log('Price history test result:', result);
-                  
-                  if (result.success) {
-                    alert(`Price history API test successful! Found ${result.data.length} records for ${testSymbol}`);
-                  } else {
-                    alert(`Price history API test failed: ${result.error}`);
-                  }
-                } catch (err) {
-                  console.error('Price history API test failed:', err);
-                  alert(`Price history API test failed: ${err.message}`);
-                }
-              }}
-            >
-              Test Price API
             </Button>
           )}
           
@@ -752,34 +664,9 @@ function StockExplorer() {
                       </TextField>
                     </Box>
                   </AccordionDetails>
-                </Accordion>                {/* Price & Market Cap - Hidden until financial data is available */}
-                {false && (
-                <Accordion>
-                  <AccordionSummary expandIcon={<ExpandMore />}>
-                    <Typography variant="subtitle1">Price & Market Cap</Typography>
-                  </AccordionSummary>
-                  <AccordionDetails>
-                    {renderSliderFilter('Stock Price ($)', 'priceMin', 'priceMax', 0, 1000, 1, formatCurrency)}
-                    {renderSliderFilter('Market Cap ($B)', 'marketCapMin', 'marketCapMax', 0, 1000, 1, (val) => `$${val}B`)}
-                  </AccordionDetails>
                 </Accordion>
-                )}
 
-                {/* Valuation - Hidden until financial data is available */}
-                {false && (
-                <Accordion>
-                  <AccordionSummary expandIcon={<ExpandMore />}>
-                    <Typography variant="subtitle1">Valuation</Typography>
-                  </AccordionSummary>
-                  <AccordionDetails>
-                    {renderSliderFilter('P/E Ratio', 'peRatioMin', 'peRatioMax', 0, 50, 0.1)}
-                    {renderSliderFilter('PEG Ratio', 'pegRatioMin', 'pegRatioMax', 0, 5, 0.1)}
-                    {renderSliderFilter('P/B Ratio', 'pbRatioMin', 'pbRatioMax', 0, 10, 0.1)}
-                  </AccordionDetails>
-                </Accordion>
-                )}
-
-                {/* Additional Filters */}
+                {/* Additional Options */}
                 <Accordion>
                   <AccordionSummary expandIcon={<ExpandMore />}>
                     <Typography variant="subtitle1">Additional Options</Typography>
@@ -827,7 +714,8 @@ function StockExplorer() {
           <Card>
             <CardContent>
               {/* Results Header */}
-              <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>                <Typography variant="h6">
+              <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
+                <Typography variant="h6">
                   {viewMode === 'simple' ? 'Stock List' : 'Screening Results'}
                   {(stocksData?.pagination?.total || stocksData?.total) && (
                     <Chip 
@@ -837,9 +725,9 @@ function StockExplorer() {
                       sx={{ ml: 2 }} 
                     />
                   )}
-                  {normalizedStocksList.length > 0 && (
+                  {stocksList.length > 0 && (
                     <Chip 
-                      label={`Showing ${normalizedStocksList.length}`} 
+                      label={`Showing ${stocksList.length}`} 
                       color="secondary" 
                       variant="outlined" 
                       sx={{ ml: 1 }} 
@@ -858,9 +746,9 @@ function StockExplorer() {
                   >
                     <MenuItem value="symbol">Symbol</MenuItem>
                     <MenuItem value="exchange">Exchange</MenuItem>
-                    {/* Remove unsupported sort options to match backend allowedSorts */}
-                    {/* <MenuItem value="security_name">Company Name</MenuItem> */}
-                    {/* <MenuItem value="market_category">Category</MenuItem> */}
+                    <MenuItem value="marketCap">Market Cap</MenuItem>
+                    <MenuItem value="currentPrice">Price</MenuItem>
+                    <MenuItem value="volume">Volume</MenuItem>
                   </TextField>
                   
                   <Button
@@ -873,6 +761,7 @@ function StockExplorer() {
                   </Button>
                 </Box>
               </Box>
+
               {/* Loading State */}
               {isLoading && (
                 <Box display="flex" justifyContent="center" p={4}>
@@ -886,7 +775,9 @@ function StockExplorer() {
                     </Typography>
                   </Box>
                 </Box>
-              )}{/* Error State */}
+              )}
+
+              {/* Error State */}
               {error && (
                 <Alert severity="error" sx={{ mb: 3 }}>
                   <strong>Error loading stocks:</strong> {error.message}
@@ -901,7 +792,9 @@ function StockExplorer() {
                     Current API URL: {import.meta.env.VITE_API_URL || 'http://localhost:3001'}
                   </small>
                 </Alert>
-              )}{/* Results Table */}
+              )}
+
+              {/* Results Display */}
               {stocksData && !isLoading && (
                 <>
                   {/* Debug Info in Development */}
@@ -912,11 +805,12 @@ function StockExplorer() {
                       {stocksData.data?.[0] && (
                         <><br/>First item keys: {JSON.stringify(Object.keys(stocksData.data[0]), null, 2)}</>
                       )}
-                    </Alert>                  )}
+                    </Alert>
+                  )}
 
-                  {/* Stock Accordions */}
+                  {/* Accordion Display */}
                   <Box sx={{ width: '100%' }}>
-                    {normalizedStocksList.map((stock) => (
+                    {stocksList.map((stock) => (
                       <Accordion
                         key={stock.symbol}
                         expanded={expandedStock === stock.symbol}
@@ -985,7 +879,8 @@ function StockExplorer() {
                                   <Typography variant="h6" gutterBottom>
                                     Company Information
                                   </Typography>
-                                  <Grid container spacing={2}>                                    <Grid item xs={6}>
+                                  <Grid container spacing={2}>
+                                    <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">Full Name</Typography>
                                       <Typography variant="body2">
                                         {stock.fullName || stock.name || stock.shortName || stock.displayName || 'N/A'}
@@ -996,7 +891,13 @@ function StockExplorer() {
                                       <Typography variant="body2">
                                         {stock.website ? (
                                           <a href={stock.website} target="_blank" rel="noopener noreferrer">
-                                            {(() => { try { return new URL(stock.website).hostname; } catch { return stock.website; } })()}
+                                            {(() => {
+                                              try {
+                                                return new URL(stock.website).hostname
+                                              } catch {
+                                                return stock.website
+                                              }
+                                            })()}
                                           </a>
                                         ) : 'N/A'}
                                       </Typography>
@@ -1038,7 +939,8 @@ function StockExplorer() {
                                   <Typography variant="h6" gutterBottom>
                                     Market Data
                                   </Typography>
-                                  <Grid container spacing={2}>                                    <Grid item xs={6}>
+                                  <Grid container spacing={2}>
+                                    <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">Current Price</Typography>
                                       <Typography variant="body2" fontWeight="bold">
                                         {stock.price?.current !== undefined && stock.price?.current !== null && stock.price?.current !== ''
@@ -1098,7 +1000,8 @@ function StockExplorer() {
                                   <Typography variant="h6" gutterBottom>
                                     Financial Metrics
                                   </Typography>
-                                  <Grid container spacing={2}>                                    <Grid item xs={6}>
+                                  <Grid container spacing={2}>
+                                    <Grid item xs={6}>
                                       <Typography variant="body2" color="text.secondary">P/E Ratio</Typography>
                                       <Typography variant="body2">
                                         {stock.financialMetrics?.trailingPE !== undefined && stock.financialMetrics?.trailingPE !== null && stock.financialMetrics?.trailingPE !== ''
@@ -1187,7 +1090,7 @@ function StockExplorer() {
                                     )}
                                   </Box>
                                   
-                                  {/* Show price history data if loaded */}
+                                  {/* Price History Cache Indicator */}
                                   {priceHistoryData[stock.symbol] && (
                                     <Box sx={{ mt: 2 }}>
                                       <Typography variant="body2" color="text.secondary" gutterBottom>
@@ -1220,8 +1123,10 @@ function StockExplorer() {
                     />
                   </Box>
                 </>
-              )}              {/* No Results */}
-              {stocksData && (normalizedStocksList.length === 0) && !isLoading && (
+              )}
+
+              {/* No Results State */}
+              {stocksData && (stocksList.length === 0) && !isLoading && (
                 <Box textAlign="center" py={6}>
                   <Typography variant="h6" color="text.secondary" gutterBottom>
                     No stocks match your criteria
@@ -1244,7 +1149,8 @@ function StockExplorer() {
                 </Box>
               )}
             </CardContent>
-          </Card>        </Grid>
+          </Card>
+        </Grid>
       </Grid>
 
       {/* Price History Modal */}
@@ -1301,7 +1207,7 @@ function StockExplorer() {
                 </Alert>
               ) : priceHistoryModal.data.length > 0 ? (
                 <>
-                  {/* Summary Statistics */}
+                  {/* Price Summary */}
                   {priceHistoryModal.summary && (
                     <Card variant="outlined" sx={{ mb: 3 }}>
                       <CardContent>
@@ -1328,7 +1234,7 @@ function StockExplorer() {
                     </Card>
                   )}
 
-                  {/* Price Data Table */}
+                  {/* Price History Table */}
                   <Paper sx={{ width: '100%', overflow: 'hidden' }}>
                     <Table stickyHeader>
                       <TableHead>
