@@ -93,9 +93,6 @@ Parameters:
   EarningsMetricsImageTag:
     Type: String
     Description: "Tag for earnings metrics loader image"
-  LoadNewsImageTag:
-    Type: String
-    Description: "Tag for news data loader image"
 
   FREDApiKey:
     Type: String
@@ -786,56 +783,7 @@ Resources:
           AssignPublicIp: ENABLED
 
   ########################################
-  # K2) loadnews loader                  #
-  ########################################
-  LoadNewsTaskDefinition:
-    Type: AWS::ECS::TaskDefinition
-    Properties:
-      Family: loadnews-loader
-      Cpu: "256"
-      Memory: "512"
-      NetworkMode: awsvpc
-      RequiresCompatibilities:
-        - FARGATE
-      RuntimePlatform:
-        CpuArchitecture: ARM64
-        OperatingSystemFamily: LINUX
-      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
-      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
-      ContainerDefinitions:
-        - Name: loadnews-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref LoadNewsImageTag]]
-          Essential: true
-          Environment:
-            - Name: DB_SECRET_ARN
-              Value: !ImportValue StocksApp-SecretArn
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: /ecs/loadnews-loader
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: ecs
-              awslogs-create-group: 'true'
-
-  LoadNewsLoaderService:
-    Type: AWS::ECS::Service
-    Properties:
-      ServiceName: loadnews-loader-service
-      Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
-      DesiredCount: 0
-      TaskDefinition: !Ref LoadNewsTaskDefinition
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          Subnets:
-            - !ImportValue StocksCore-PublicSubnet1Id
-            - !ImportValue StocksCore-PublicSubnet2Id
-          SecurityGroups:
-            - !ImportValue StocksApp-EcsTasksSecurityGroupId
-          AssignPublicIp: ENABLED
-
-  ########################################
-  # L) earnings estimate loader          #
+  # L) earnings estimate loader                   #
   ########################################
   EarningsEstimateTaskDefinition:
     Type: AWS::ECS::TaskDefinition

@@ -172,31 +172,7 @@ import {
   ViewSidebar,
   ViewTimeline,
   ViewKanban,
-  ViewCozy,
-  ViewComfyAlt,
-  ViewCompactAlt,
-  ViewHeadlineAlt,
-  ViewQuiltAlt,
-  ViewStreamAlt,
-  ViewAgendaAlt,
-  ViewCarouselAlt,
-  ViewColumnAlt,
-  ViewSidebarAlt,
-  ViewTimelineAlt,
-  ViewKanbanAlt,
-  ViewCozyAlt,
-  ViewComfyAlt2,
-  ViewCompactAlt2,
-  ViewHeadlineAlt2,
-  ViewQuiltAlt2,
-  ViewStreamAlt2,
-  ViewAgendaAlt2,
-  ViewCarouselAlt2,
-  ViewColumnAlt2,
-  ViewSidebarAlt2,
-  ViewTimelineAlt2,
-  ViewKanbanAlt2,
-  ViewCozyAlt2
+  ViewCozy
 } from '@mui/icons-material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart as RechartsBarChart, Bar, AreaChart, Area, ComposedChart } from 'recharts';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
