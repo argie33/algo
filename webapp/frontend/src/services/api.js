@@ -237,7 +237,8 @@ export const getMarketOverview = async () => {
   
   try {
     // Try multiple endpoint variations to catch URL issues
-    const endpoints = ['/market/overview', '/api/market/overview'];
+    // Only use the correct endpoint for backend
+    const endpoints = ['/api/market/overview'];
     let response = null;
     let lastError = null;
     
