@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { createComponentLogger } from '../utils/errorLogger'
+import { screenStocks } from '../services/api'
+import { formatCurrency, formatPercentage as formatPercent, formatNumber } from '../utils/formatters'
 import {
   Box,
   Container,
@@ -46,9 +49,9 @@ import {
   BookmarkBorder,
   Bookmark
 } from '@mui/icons-material'
-import { useNavigate } from 'react-router-dom'
-import api from '../services/api'
-import { formatCurrency, formatPercentage as formatPercent, formatNumber } from '../utils/formatters'
+
+// Create component-specific logger
+const logger = createComponentLogger('StockScreener');
 
 const INITIAL_FILTERS = {
   // Price and Market Cap
@@ -111,8 +114,6 @@ const SECTORS = [
 const EXCHANGES = ['NYSE', 'NASDAQ', 'AMEX']
 
 function StockScreener() {
-  const logger = createComponentLogger('StockScreener')
-  
   const navigate = useNavigate()
   const [filters, setFilters] = useState(INITIAL_FILTERS)
   const [savedScreens, setSavedScreens] = useState([])
@@ -143,10 +144,34 @@ function StockScreener() {
   // Fetch screener results
   const { data: screenResults, isLoading, error, refetch } = useQuery({
     queryKey: ['stockScreener', filters, page, rowsPerPage, orderBy, order],
-    queryFn: () => api.screenStocks(buildQueryParams()),
+    queryFn: async () => {
+      try {
+        const params = buildQueryParams();
+        const result = await screenStocks(params);
+        logger.success('screenStocks', result, { 
+          resultCount: result?.data?.length || 0,
+          total: result?.total || 0,
+          page: page + 1,
+          filters: Object.keys(filters).filter(k => filters[k] !== '' && filters[k] !== false).length
+        });
+        return result;
+      } catch (err) {
+        logger.error('screenStocks', err, {
+          params: buildQueryParams().toString(),
+          page: page + 1,
+          rowsPerPage,
+          filters: filters,
+          orderBy,
+          order
+        });
+        throw err;
+      }
+    },
     keepPreviousData: true,
     staleTime: 5 * 60 * 1000, // 5 minutes
-    onError: (error) => logger.queryError('stockScreener', error, { filters, page, rowsPerPage, orderBy, order })
+    retry: 2,
+    retryDelay: 1000,
+    onError: (err) => logger.queryError('stockScreener', err, { queryKey: ['stockScreener', filters, page, rowsPerPage, orderBy, order] })
   })
 
   const handleFilterChange = (field, value) => {
