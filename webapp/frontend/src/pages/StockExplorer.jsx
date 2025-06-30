@@ -483,6 +483,50 @@ function StockExplorer() {
       console.log('StockExplorer: No valid data structure found in stocksData');
     }
   }
+
+  // Patch: Normalize backend data to expected frontend shape
+  const normalizedStocksList = stocksList.map(stock => ({
+    symbol: stock.symbol,
+    name: stock.company_name || stock.name || stock.fullName || stock.shortName || '',
+    fullName: stock.company_name || stock.fullName || stock.name || '',
+    shortName: stock.company_name || stock.shortName || stock.name || '',
+    displayName: stock.company_name || stock.name || '',
+    sector: stock.sector,
+    industry: stock.industry,
+    exchange: stock.exchange,
+    country: stock.country,
+    employeeCount: stock.employee_count || stock.employeeCount,
+    website: stock.website,
+    address: stock.address,
+    financialStatus: stock.financial_status,
+    securityType: stock.security_type,
+    marketCategory: stock.market_category,
+    marketCap: stock.market_cap || stock.market_capitalization,
+    volume: stock.volume,
+    averageVolume: stock.avg_volume || stock.averageVolume,
+    beta: stock.beta,
+    peRatio: stock.pe_ratio,
+    dividendYield: stock.dividend_yield,
+    returnOnEquity: stock.return_on_equity,
+    revenueGrowth: stock.revenue_growth,
+    currentRatio: stock.current_ratio,
+    debtToEquity: stock.debt_to_equity,
+    lastUpdated: stock.last_updated,
+    price: {
+      current: stock.current_price,
+      previousClose: stock.previous_close,
+      dayLow: stock.day_low,
+      dayHigh: stock.day_high,
+      fiftyTwoWeekLow: stock.fifty_two_week_low,
+      fiftyTwoWeekHigh: stock.fifty_two_week_high,
+      fiftyDayAverage: stock.fifty_day_average,
+      twoHundredDayAverage: stock.two_hundred_day_average
+    },
+    changePercent: stock.change_percent,
+    changeAmount: stock.change_amount,
+    // Add more mappings as needed
+  }));
+
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
@@ -793,9 +837,9 @@ function StockExplorer() {
                       sx={{ ml: 2 }} 
                     />
                   )}
-                  {stocksList.length > 0 && (
+                  {normalizedStocksList.length > 0 && (
                     <Chip 
-                      label={`Showing ${stocksList.length}`} 
+                      label={`Showing ${normalizedStocksList.length}`} 
                       color="secondary" 
                       variant="outlined" 
                       sx={{ ml: 1 }} 
@@ -872,7 +916,7 @@ function StockExplorer() {
 
                   {/* Stock Accordions */}
                   <Box sx={{ width: '100%' }}>
-                    {stocksList.map((stock) => (
+                    {normalizedStocksList.map((stock) => (
                       <Accordion
                         key={stock.symbol}
                         expanded={expandedStock === stock.symbol}
@@ -1177,7 +1221,7 @@ function StockExplorer() {
                   </Box>
                 </>
               )}              {/* No Results */}
-              {stocksData && (stocksList.length === 0) && !isLoading && (
+              {stocksData && (normalizedStocksList.length === 0) && !isLoading && (
                 <Box textAlign="center" py={6}>
                   <Typography variant="h6" color="text.secondary" gutterBottom>
                     No stocks match your criteria
