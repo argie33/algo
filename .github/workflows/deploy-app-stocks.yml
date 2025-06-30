@@ -1,3 +1,60 @@
+# 6) Run loadnews loader
+  run_loadnews:
+    name: Run load-news loader
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.loadnews == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Fetch Task Definition ARN
+        id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='LoadNewsTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch cluster ARN & subnets
+        id: infra
+        run: |
+          CLUSTER=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+          SUB1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUB2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
+          echo "SUBNETS=$SUB1,$SUB2" >> $GITHUB_OUTPUT
+
+      - name: Run load-news Fargate task
+        id: run
+        run: |
+          aws ecs run-task \
+            --cluster ${{ steps.infra.outputs.CLUSTER }} \
+            --task-definition ${{ steps.td.outputs.TASK_DEF_ARN }} \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUBNETS }}],assignPublicIp=ENABLED}" \
+            --count 1
+
+      - name: Wait up to 60m for task to stop
+        run: |
+          # Add logic to wait for the ECS task to complete if needed
+
+      - name: Check container exit code
+        run: |
+          # Add logic to check the ECS task exit code if needed
 name: deploy-app-stocks
 
 on:
@@ -169,6 +226,10 @@ jobs:
               - 'loadinfo.py'
               - 'Dockerfile.loadinfo'
               - 'requirements-loadinfo.txt'
+            loadnews:
+              - 'loadnews.py'
+              - 'Dockerfile.loadnews'
+              - 'requirements-loadnews.txt'
             earningsestimate:
               - 'loadearningsestimate.py'
               - 'Dockerfile.loadearningsestimate'
@@ -268,6 +329,7 @@ jobs:
              [ "${{ steps.paths.outputs.pricemonthly }}" = "true" ] || \
              [ "${{ steps.paths.outputs.technicalsdaily }}" = "true" ] || \
              [ "${{ steps.paths.outputs.loadinfo }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.loadnews }}" = "true" ] || \
              [ "${{ steps.paths.outputs.earningsestimate }}" = "true" ] || \
              [ "${{ steps.paths.outputs.earningsmetrics }}" = "true" ] || \
              [ "${{ steps.paths.outputs.earningshistory }}" = "true" ] || \
@@ -313,6 +375,7 @@ jobs:
           [ "${{ steps.paths.outputs.pricemonthly }}" = "true" ]    && arr="$arr,\"pricemonthly\""
           [ "${{ steps.paths.outputs.technicalsdaily }}" = "true" ] && arr="$arr,\"technicalsdaily\""
           [ "${{ steps.paths.outputs.loadinfo }}" = "true" ]        && arr="$arr,\"loadinfo\""
+          [ "${{ steps.paths.outputs.loadnews }}" = "true" ]        && arr="$arr,\"loadnews\""
           [ "${{ steps.paths.outputs.earningsestimate }}" = "true" ] && arr="$arr,\"earningsestimate\""
           [ "${{ steps.paths.outputs.earningsmetrics }}" = "true" ] && arr="$arr,\"earningsmetrics\""
           [ "${{ steps.paths.outputs.earningshistory }}" = "true" ] && arr="$arr,\"earningshistory\""
@@ -390,6 +453,7 @@ jobs:
             latestpriceweekly)  DOCKERFILE=Dockerfile.latestpriceweekly;  PARAM=LatestPriceWeeklyImageTag;;\
             latestpricemonthly) DOCKERFILE=Dockerfile.latestpricemonthly; PARAM=LatestPriceMonthlyImageTag;;\
             loadinfo)         DOCKERFILE=Dockerfile.loadinfo;       PARAM=LoadInfoImageTag;;\
+            loadnews)         DOCKERFILE=Dockerfile.loadnews;       PARAM=LoadNewsImageTag;;\
             earningsestimate) DOCKERFILE=Dockerfile.loadearningsestimate;   PARAM=EarningsEstimateImageTag;;\
             earningsmetrics)  DOCKERFILE=Dockerfile.earningsmetrics;        PARAM=EarningsMetricsImageTag;;\
             earningshistory)  DOCKERFILE=Dockerfile.loadearningshistory;   PARAM=EarningsHistoryImageTag;;\
@@ -519,6 +583,7 @@ jobs:
               LatestPriceMonthlyImageTag=$(grep '^LatestPriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsDailyImageTag=$(grep '^TechnicalsDailyImageTag=' tags.env | cut -d= -f2-) \
               LoadInfoImageTag=$(grep '^LoadInfoImageTag=' tags.env | cut -d= -f2-) \
+              LoadNewsImageTag=$(grep '^LoadNewsImageTag=' tags.env | cut -d= -f2-) \
               EarningsEstimateImageTag=$(grep '^EarningsEstimateImageTag=' tags.env | cut -d= -f2-) \
               EarningsMetricsImageTag=$(grep '^EarningsMetricsImageTag=' tags.env | cut -d= -f2-) \
               EarningsHistoryImageTag=$(grep '^EarningsHistoryImageTag=' tags.env | cut -d= -f2-) \

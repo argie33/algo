@@ -26,7 +26,13 @@ import {
   ListItemText,
   ListItemSecondaryAction,
   Fab,
-  Link
+  Link,
+  LinearProgress,
+  Stack,
+  Badge,
+  Tabs,
+  Tab,
+  ListItemIcon
 } from '@mui/material';
 import {
   TrendingUp,
@@ -59,9 +65,24 @@ import {
   Settings,
   Person,
   Link as LinkIcon,
-  Close
+  Close,
+  AttachMoney,
+  Insights,
+  SignalCellular4Bar,
+  CalendarToday,
+  PieChart as PieChartIcon,
+  BarChart,
+  Refresh,
+  Warning,
+  CheckCircle,
+  Error,
+  SignalCellular0Bar,
+  SignalCellular1Bar,
+  SignalCellular2Bar,
+  SignalCellular3Bar,
+  SignalCellular4Bar as SignalCellular4BarIcon
 } from '@mui/icons-material';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart as RechartsBarChart, Bar } from 'recharts';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   getStockPrices, 
@@ -85,7 +106,6 @@ import {
   getDashboardTechnicalSignals,
   testApiEndpoints
 } from '../services/api';
-import { PieChart, Pie, Cell } from 'recharts';
 import { format } from 'date-fns';
 import { getApiConfig } from '../services/api';
 import { formatCurrency, formatNumber, formatPercentage } from '../utils/formatters';
@@ -104,6 +124,429 @@ const WIDGET_COLORS = ['#1976d2', '#43a047', '#ffb300', '#8e24aa', '#e53935'];
 
 const BRAND_NAME = 'Edgebrooke Capital';
 
+const ALLOCATION_COLORS = ['#1976d2', '#43a047', '#ffb300', '#8e24aa', '#e53935', '#00bcd4', '#ff7043', '#9e9e9e'];
+
+// Default data structures
+const defaultPortfolio = {
+  value: 1250000,
+  pnl: {
+    daily: 12500,
+    mtd: 45000,
+    ytd: 180000
+  },
+  positions: []
+};
+
+const defaultMetrics = {
+  sharpe: 1.85,
+  beta: 0.92,
+  maxDrawdown: 0.08,
+  volatility: 0.15
+};
+
+const defaultSettings = {
+  theme: 'light',
+  notifications: true,
+  refreshInterval: 30000
+};
+
+// Color schemes for professional dashboard
+const POSITIVE_COLOR = '#4caf50';
+const NEGATIVE_COLOR = '#f44336';
+const NEUTRAL_COLOR = '#9e9e9e';
+const PRIMARY_COLOR = '#1976d2';
+const SECONDARY_COLOR = '#dc004e';
+
+const SENTIMENT_COLORS = {
+  extreme_fear: '#d32f2f',
+  fear: '#f44336', 
+  neutral: '#ff9800',
+  greed: '#4caf50',
+  extreme_greed: '#2e7d32'
+};
+
+// Summary Metrics Component
+const SummaryMetrics = ({ data, loading }) => {
+  if (loading) return <LinearProgress />;
+  
+  const metrics = [
+    {
+      title: 'Portfolio Value',
+      value: formatCurrency(data?.portfolio?.value || 0),
+      change: data?.portfolio?.pnl?.daily || 0,
+      changePercent: data?.portfolio?.pnl?.daily ? (data.portfolio.pnl.daily / data.portfolio.value * 100) : 0,
+      icon: <AttachMoney color="primary" />
+    },
+    {
+      title: 'Market Sentiment',
+      value: data?.market?.sentiment || 'Neutral',
+      sentiment: data?.market?.sentiment || 'neutral',
+      icon: <Insights color="primary" />
+    },
+    {
+      title: 'Active Signals',
+      value: data?.signals?.buyCount || 0,
+      total: data?.signals?.totalCount || 0,
+      icon: <SignalCellular4BarIcon color="primary" />
+    },
+    {
+      title: 'Earnings Today',
+      value: data?.earnings?.todayCount || 0,
+      important: data?.earnings?.importantCount || 0,
+      icon: <CalendarToday color="primary" />
+    }
+  ];
+
+  return (
+    <Grid container spacing={2}>
+      {metrics.map((metric, index) => (
+        <Grid item xs={12} sm={6} md={3} key={index}>
+          <Card elevation={2} sx={{ height: '100%' }}>
+            <CardContent>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="h6" color="textSecondary" gutterBottom>
+                    {metric.title}
+                  </Typography>
+                  <Typography variant="h4" component="div" fontWeight="bold">
+                    {metric.value}
+                  </Typography>
+                  {metric.change !== undefined && (
+                    <Box display="flex" alignItems="center" mt={1}>
+                      <Chip
+                        icon={metric.change >= 0 ? <TrendingUp /> : <TrendingDown />}
+                        label={`${formatCurrency(metric.change)} (${formatPercentage(metric.changePercent)})`}
+                        color={metric.change >= 0 ? 'success' : 'error'}
+                        size="small"
+                      />
+                    </Box>
+                  )}
+                  {metric.sentiment && (
+                    <Chip
+                      label={metric.value}
+                      color={metric.sentiment === 'greed' || metric.sentiment === 'extreme_greed' ? 'success' : 
+                             metric.sentiment === 'fear' || metric.sentiment === 'extreme_fear' ? 'error' : 'warning'}
+                      size="small"
+                      sx={{ mt: 1 }}
+                    />
+                  )}
+                  {metric.total && (
+                    <Typography variant="body2" color="textSecondary" mt={1}>
+                      {metric.value} of {metric.total} total
+                    </Typography>
+                  )}
+                  {metric.important && (
+                    <Typography variant="body2" color="textSecondary" mt={1}>
+                      {metric.important} important
+                    </Typography>
+                  )}
+                </Box>
+                <Box>
+                  {metric.icon}
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      ))}
+    </Grid>
+  );
+};
+
+// Market Overview Summary Component
+const MarketOverviewSummary = ({ data, loading }) => {
+  if (loading) return <LinearProgress />;
+
+  const getSentimentIcon = (sentiment) => {
+    switch (sentiment) {
+      case 'extreme_greed': return <SignalCellular4Bar color="success" />;
+      case 'greed': return <SignalCellular3Bar color="success" />;
+      case 'neutral': return <SignalCellular2Bar color="warning" />;
+      case 'fear': return <SignalCellular1Bar color="error" />;
+      case 'extreme_fear': return <SignalCellular0Bar color="error" />;
+      default: return <SignalCellular2Bar color="warning" />;
+    }
+  };
+
+  return (
+    <Card elevation={2}>
+      <CardContent>
+        <Typography variant="h6" gutterBottom>
+          Market Overview
+        </Typography>
+        <Grid container spacing={2}>
+          <Grid item xs={12} md={6}>
+            <Box>
+              <Typography variant="subtitle2" color="textSecondary">
+                Major Indices
+              </Typography>
+              {data?.indices?.slice(0, 3).map((index, i) => (
+                <Box key={i} display="flex" justifyContent="space-between" alignItems="center" py={0.5}>
+                  <Typography variant="body2">{index.symbol}</Typography>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <Typography variant="body2" fontWeight="bold">
+                      {formatNumber(index.price)}
+                    </Typography>
+                    <Chip
+                      label={`${formatPercentage(index.changePercent)}`}
+                      color={index.changePercent >= 0 ? 'success' : 'error'}
+                      size="small"
+                    />
+                  </Box>
+                </Box>
+              ))}
+            </Box>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Box>
+              <Typography variant="subtitle2" color="textSecondary">
+                Market Sentiment
+              </Typography>
+              <Box display="flex" alignItems="center" gap={1} mt={1}>
+                {getSentimentIcon(data?.sentiment)}
+                <Typography variant="body1" fontWeight="bold">
+                  {data?.sentiment?.replace('_', ' ').toUpperCase() || 'NEUTRAL'}
+                </Typography>
+              </Box>
+              <Typography variant="body2" color="textSecondary" mt={1}>
+                Fear & Greed Index: {data?.fearGreedIndex || 'N/A'}
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
+                Market Breadth: {data?.breadth?.advancing || 0} advancing, {data?.breadth?.declining || 0} declining
+              </Typography>
+            </Box>
+          </Grid>
+        </Grid>
+      </CardContent>
+    </Card>
+  );
+};
+
+// Portfolio Summary Component
+const PortfolioSummary = ({ data, loading }) => {
+  if (loading) return <LinearProgress />;
+
+  const portfolio = data?.portfolio || {};
+  const holdings = data?.holdings || [];
+
+  // Calculate allocation data for pie chart
+  const allocationData = holdings.slice(0, 8).map((h, i) => ({
+    name: h.symbol,
+    value: h.value,
+    color: ALLOCATION_COLORS[i % ALLOCATION_COLORS.length]
+  }));
+
+  return (
+    <Card elevation={2}>
+      <CardContent>
+        <Typography variant="h6" gutterBottom>
+          Portfolio Summary
+        </Typography>
+        <Grid container spacing={2}>
+          <Grid item xs={12} md={6}>
+            <Box>
+              <Typography variant="h4" fontWeight="bold" color="primary">
+                {formatCurrency(portfolio.value || 0)}
+              </Typography>
+              <Box display="flex" gap={1} mt={1}>
+                <Chip
+                  icon={portfolio.pnl?.daily >= 0 ? <TrendingUp /> : <TrendingDown />}
+                  label={`Daily: ${formatCurrency(portfolio.pnl?.daily || 0)} (${formatPercentage(portfolio.pnl?.daily ? (portfolio.pnl.daily / portfolio.value * 100) : 0)})`}
+                  color={portfolio.pnl?.daily >= 0 ? 'success' : 'error'}
+                />
+                <Chip
+                  icon={portfolio.pnl?.mtd >= 0 ? <TrendingUp /> : <TrendingDown />}
+                  label={`MTD: ${formatPercentage(portfolio.pnl?.mtd ? (portfolio.pnl.mtd / portfolio.value * 100) : 0)}`}
+                  color={portfolio.pnl?.mtd >= 0 ? 'success' : 'error'}
+                />
+              </Box>
+              <Box mt={2}>
+                <Typography variant="subtitle2" color="textSecondary">
+                  Key Metrics
+                </Typography>
+                <Grid container spacing={1} mt={1}>
+                  <Grid item xs={6}>
+                    <Typography variant="body2">Sharpe Ratio</Typography>
+                    <Typography variant="body1" fontWeight="bold">
+                      {portfolio.metrics?.sharpe ? portfolio.metrics.sharpe.toFixed(2) : 'N/A'}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2">Beta</Typography>
+                    <Typography variant="body1" fontWeight="bold">
+                      {portfolio.metrics?.beta ? portfolio.metrics.beta.toFixed(2) : 'N/A'}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2">Max Drawdown</Typography>
+                    <Typography variant="body1" fontWeight="bold" color="error">
+                      {portfolio.metrics?.maxDrawdown ? formatPercentage(portfolio.metrics.maxDrawdown) : 'N/A'}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2">Volatility</Typography>
+                    <Typography variant="body1" fontWeight="bold">
+                      {portfolio.metrics?.volatility ? formatPercentage(portfolio.metrics.volatility) : 'N/A'}
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </Box>
+            </Box>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Box>
+              <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+                Top Holdings
+              </Typography>
+              {holdings.slice(0, 5).map((holding, i) => (
+                <Box key={i} display="flex" justifyContent="space-between" alignItems="center" py={0.5}>
+                  <Box>
+                    <Typography variant="body2" fontWeight="bold">{holding.symbol}</Typography>
+                    <Typography variant="caption" color="textSecondary">{holding.name}</Typography>
+                  </Box>
+                  <Box textAlign="right">
+                    <Typography variant="body2" fontWeight="bold">
+                      {formatCurrency(holding.value)}
+                    </Typography>
+                    <Chip
+                      label={formatPercentage(holding.changePercent)}
+                      color={holding.changePercent >= 0 ? 'success' : 'error'}
+                      size="small"
+                    />
+                  </Box>
+                </Box>
+              ))}
+            </Box>
+          </Grid>
+        </Grid>
+      </CardContent>
+    </Card>
+  );
+};
+
+// Technical Signals Summary Component
+const TechnicalSignalsSummary = ({ data, loading }) => {
+  if (loading) return <LinearProgress />;
+
+  const signals = data?.signals || [];
+  const buySignals = signals.filter(s => s.signal === 'BUY');
+  const sellSignals = signals.filter(s => s.signal === 'SELL');
+  const holdSignals = signals.filter(s => s.signal === 'HOLD');
+
+  return (
+    <Card elevation={2}>
+      <CardContent>
+        <Typography variant="h6" gutterBottom>
+          Technical Signals
+        </Typography>
+        <Grid container spacing={2}>
+          <Grid item xs={12} md={4}>
+            <Box textAlign="center">
+              <Typography variant="h4" color="success.main" fontWeight="bold">
+                {buySignals.length}
+              </Typography>
+              <Typography variant="subtitle2" color="textSecondary">
+                Buy Signals
+              </Typography>
+            </Box>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Box textAlign="center">
+              <Typography variant="h4" color="error.main" fontWeight="bold">
+                {sellSignals.length}
+              </Typography>
+              <Typography variant="subtitle2" color="textSecondary">
+                Sell Signals
+              </Typography>
+            </Box>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Box textAlign="center">
+              <Typography variant="h4" color="warning.main" fontWeight="bold">
+                {holdSignals.length}
+              </Typography>
+              <Typography variant="subtitle2" color="textSecondary">
+                Hold Signals
+              </Typography>
+            </Box>
+          </Grid>
+        </Grid>
+        <Divider sx={{ my: 2 }} />
+        <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+          Recent Signals
+        </Typography>
+        {signals.slice(0, 5).map((signal, i) => (
+          <Box key={i} display="flex" justifyContent="space-between" alignItems="center" py={0.5}>
+            <Box>
+              <Typography variant="body2" fontWeight="bold">{signal.symbol}</Typography>
+              <Typography variant="caption" color="textSecondary">{signal.strategy}</Typography>
+            </Box>
+            <Chip
+              label={signal.signal}
+              color={signal.signal === 'BUY' ? 'success' : signal.signal === 'SELL' ? 'error' : 'warning'}
+              size="small"
+            />
+          </Box>
+        ))}
+      </CardContent>
+    </Card>
+  );
+};
+
+// Earnings Calendar Summary Component
+const EarningsCalendarSummary = ({ data, loading }) => {
+  if (loading) return <LinearProgress />;
+
+  const earnings = data?.earnings || [];
+  const todayEarnings = earnings.filter(e => e.date === new Date().toISOString().split('T')[0]);
+  const importantEarnings = earnings.filter(e => e.importance === 'high');
+
+  return (
+    <Card elevation={2}>
+      <CardContent>
+        <Typography variant="h6" gutterBottom>
+          Earnings Calendar
+        </Typography>
+        <Grid container spacing={2}>
+          <Grid item xs={12} md={6}>
+            <Box>
+              <Typography variant="subtitle2" color="textSecondary">
+                Today's Earnings
+              </Typography>
+              <Typography variant="h4" color="primary" fontWeight="bold">
+                {todayEarnings.length}
+              </Typography>
+              {todayEarnings.slice(0, 3).map((earning, i) => (
+                <Box key={i} display="flex" justifyContent="space-between" alignItems="center" py={0.5}>
+                  <Typography variant="body2" fontWeight="bold">{earning.symbol}</Typography>
+                  <Typography variant="body2" color="textSecondary">{earning.time}</Typography>
+                </Box>
+              ))}
+            </Box>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Box>
+              <Typography variant="subtitle2" color="textSecondary">
+                Important Earnings
+              </Typography>
+              <Typography variant="h4" color="warning.main" fontWeight="bold">
+                {importantEarnings.length}
+              </Typography>
+              {importantEarnings.slice(0, 3).map((earning, i) => (
+                <Box key={i} display="flex" justifyContent="space-between" alignItems="center" py={0.5}>
+                  <Typography variant="body2" fontWeight="bold">{earning.symbol}</Typography>
+                  <Typography variant="body2" color="textSecondary">{earning.date}</Typography>
+                </Box>
+              ))}
+            </Box>
+          </Grid>
+        </Grid>
+      </CardContent>
+    </Card>
+  );
+};
+
+// Main Dashboard Component
 const Dashboard = () => {
   console.log('🚀 Dashboard: Component rendering...');
   
@@ -148,6 +591,31 @@ const Dashboard = () => {
     onError: (error) => console.error('❌ Dashboard: Technical signals error:', error)
   });
 
+  // Earnings calendar
+  const { data: earningsCalendar, isLoading: earningsLoading, error: earningsError } = useQuery({
+    queryKey: ['dashboardEarningsCalendar'],
+    queryFn: getDashboardEarningsCalendar,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    onSuccess: (data) => console.log('✅ Dashboard: Earnings calendar loaded:', data),
+    onError: (error) => console.error('❌ Dashboard: Earnings calendar error:', error)
+  });
+
+  // Placeholder mutations (to be implemented later)
+  const updatePositions = useMutation({
+    mutationFn: (positions) => Promise.resolve(positions),
+    onSuccess: () => console.log('Positions updated')
+  });
+
+  const addSymbol = useMutation({
+    mutationFn: (symbol) => Promise.resolve(symbol),
+    onSuccess: () => console.log('Symbol added to watchlist')
+  });
+
+  const removeSymbol = useMutation({
+    mutationFn: (symbol) => Promise.resolve(symbol),
+    onSuccess: () => console.log('Symbol removed from watchlist')
+  });
+
   console.log('📊 Dashboard: Data summary:', {
     user: { hasData: !!user, isLoading: userLoading, hasError: !!userError },
     watchlist: { hasData: !!watchlist, isLoading: watchlistLoading, hasError: !!watchlistError },
@@ -156,7 +624,8 @@ const Dashboard = () => {
     holdings: { hasData: !!holdings, isLoading: holdingsLoading, hasError: !!holdingsError },
     userSettings: { hasData: !!userSettings, isLoading: settingsLoading, hasError: !!settingsError },
     marketSummary: { hasData: !!marketSummary, isLoading: marketLoading, hasError: !!marketError },
-    technicalSignals: { hasData: !!technicalSignals, isLoading: signalsLoading, hasError: !!signalsError }
+    technicalSignals: { hasData: !!technicalSignals, isLoading: signalsLoading, hasError: !!signalsError },
+    earningsCalendar: { hasData: !!earningsCalendar, isLoading: earningsLoading, hasError: !!earningsError }
   });
 
   // Get available symbols for dropdown
@@ -185,6 +654,28 @@ const Dashboard = () => {
     ? priceData.data.map(p => ({ date: p.date || p.timestamp, equity: p.close || p.price })).reverse()
     : [];
 
+  // Portfolio allocation data for pie chart
+  const allocationData = Array.isArray(holdings)
+    ? holdings.map((h, i) => ({ name: h.symbol, value: h.value, color: ALLOCATION_COLORS[i % ALLOCATION_COLORS.length] }))
+    : [];
+
+  // Portfolio drawdown (mocked for now)
+  const maxDrawdown = portfolioMetrics.maxDrawdown ? (portfolioMetrics.maxDrawdown * 100).toFixed(2) : 'N/A';
+  const volatility = portfolioMetrics.volatility ? (portfolioMetrics.volatility * 100).toFixed(2) : 'N/A';
+
+  // Watchlist price data (mocked for now)
+  const watchlistPrices = watchlist.map(symbol => ({ symbol, price: Math.random() * 200 + 50, change: (Math.random() - 0.5) * 2 }));
+
+  // Combine all data for summary metrics
+  const summaryData = {
+    portfolio: portfolio,
+    market: marketSummary?.data,
+    signals: technicalSignals?.data,
+    earnings: earningsCalendar?.data
+  };
+
+  const isLoading = portfolioLoading || watchlistLoading || marketLoading || signalsLoading || holdingsLoading || earningsLoading;
+
   // Handle adding position
   const handleAddPosition = (position) => {
     const newPositions = [...portfolio.positions, position];
@@ -209,23 +700,23 @@ const Dashboard = () => {
   };
 
   return (
-    <Box>
+    <Box sx={{ p: 3 }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           {logoSrc ? (
             <img src={logoSrc} alt="Logo" style={{ height: 48, width: 48, borderRadius: '50%' }} />
           ) : (
             <Avatar sx={{ bgcolor: 'primary.main', width: 48, height: 48, fontSize: 28 }}>
-              FD
+              EC
             </Avatar>
           )}
           <Box>
-            <Typography variant="h5" sx={{ fontWeight: 700, letterSpacing: 1 }}>
-              {BRAND_NAME} Client Portal
+            <Typography variant="h4" sx={{ fontWeight: 700, letterSpacing: 1 }}>
+              {BRAND_NAME} Dashboard
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              Professional Investor Dashboard
+              Professional Investment Management Platform
             </Typography>
             {userLoading ? (
               <Skeleton width={120} height={18} />
@@ -247,6 +738,11 @@ const Dashboard = () => {
           <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
             {format(new Date(), 'MMMM d, yyyy')}
           </Typography>
+          <Tooltip title="Refresh Data">
+            <IconButton onClick={() => window.location.reload()}>
+              <Refresh />
+            </IconButton>
+          </Tooltip>
           {user && (
             <Tooltip title={user.email || user.name} arrow>
               <Avatar sx={{ bgcolor: 'secondary.main', width: 36, height: 36, ml: 1 }}>
@@ -279,7 +775,6 @@ const Dashboard = () => {
           )}
         </Box>
       </Box>
-      <Divider sx={{ mb: 3 }} />
 
       {/* Debug Results */}
       {debugResults && (
@@ -291,121 +786,40 @@ const Dashboard = () => {
         </Alert>
       )}
 
-      {/* Top Row: Portfolio, Watchlist */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={6}>
-          <Card sx={{ bgcolor: 'grey.50', boxShadow: 3, borderLeft: '6px solid #1976d2' }}>
+      {/* Summary Metrics */}
+      <Box mb={3}>
+        <SummaryMetrics data={summaryData} loading={isLoading} />
+      </Box>
+
+      {/* Main Dashboard Grid */}
+      <Grid container spacing={3}>
+        {/* Market Overview */}
+        <Grid item xs={12} lg={6}>
+          <MarketOverviewSummary data={marketSummary?.data} loading={marketLoading} />
+        </Grid>
+
+        {/* Portfolio Summary */}
+        <Grid item xs={12} lg={6}>
+          <PortfolioSummary data={{ portfolio, holdings }} loading={portfolioLoading || holdingsLoading} />
+        </Grid>
+
+        {/* Technical Signals */}
+        <Grid item xs={12} lg={6}>
+          <TechnicalSignalsSummary data={technicalSignals?.data} loading={signalsLoading} />
+        </Grid>
+
+        {/* Earnings Calendar */}
+        <Grid item xs={12} lg={6}>
+          <EarningsCalendarSummary data={earningsCalendar?.data} loading={earningsLoading} />
+        </Grid>
+
+        {/* Performance Analytics */}
+        <Grid item xs={12} lg={8}>
+          <Card elevation={2}>
             <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                <AccountBalance sx={{ color: 'primary.main', mr: 1 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>Portfolio Value</Typography>
-                <Tooltip title="Click to add positions" arrow>
-                  <IconButton size="small" onClick={() => setAddPositionOpen(true)}>
-                    <Add />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main', letterSpacing: 1 }}>
-                ${portfolio.value.toLocaleString()}
+              <Typography variant="h6" gutterBottom>
+                Performance Analytics ({selectedSymbol})
               </Typography>
-              <Box sx={{ display: 'flex', gap: 2, mt: 1 }}>
-                <Chip label={`Daily: $${portfolio.pnl.daily.toLocaleString()}`} 
-                      color={portfolio.pnl.daily >= 0 ? 'success' : 'error'} size="small" />
-                <Chip label={`MTD: $${portfolio.pnl.mtd.toLocaleString()}`} 
-                      color={portfolio.pnl.mtd >= 0 ? 'success' : 'error'} size="small" />
-                <Chip label={`YTD: $${portfolio.pnl.ytd.toLocaleString()}`} 
-                      color={portfolio.pnl.ytd >= 0 ? 'success' : 'error'} size="small" />
-              </Box>
-              
-              {/* Portfolio Metrics */}
-              <Box sx={{ mt: 2, p: 2, bgcolor: 'white', borderRadius: 1 }}>
-                <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Portfolio Metrics</Typography>
-                <Grid container spacing={1}>
-                  <Grid item xs={6}>
-                    <Typography variant="caption" color="text.secondary">Sharpe Ratio</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{portfolioMetrics.sharpe?.toFixed(2) || 'N/A'}</Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="caption" color="text.secondary">Beta</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{portfolioMetrics.beta?.toFixed(2) || 'N/A'}</Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="caption" color="text.secondary">Max Drawdown</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{(portfolioMetrics.maxDrawdown * 100)?.toFixed(1) || 'N/A'}%</Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="caption" color="text.secondary">Volatility</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{(portfolioMetrics.volatility * 100)?.toFixed(1) || 'N/A'}%</Typography>
-                  </Grid>
-                </Grid>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={6}>
-          <Card sx={{ boxShadow: 3, borderLeft: '6px solid #43a047' }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                <Bookmark sx={{ color: 'info.main', mr: 1 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>Watchlist</Typography>
-                <Tooltip title="Add symbol to watchlist" arrow>
-                  <IconButton size="small" onClick={() => setAddWatchlistOpen(true)}>
-                    <Add />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-              <Box sx={{ maxHeight: 200, overflowY: 'auto' }}>
-                {watchlist.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary">
-                    No symbols in watchlist. Click + to add.
-                  </Typography>
-                ) : (
-                  <table style={{ width: '100%', fontSize: 14 }}>
-                    <thead>
-                      <tr>
-                        <th align="left">Symbol</th>
-                        <th align="right">Price</th>
-                        <th align="right">Change</th>
-                        <th align="center">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {watchlist.map((symbol, idx) => (
-                        <tr key={symbol} style={{ background: idx % 2 ? '#f9f9f9' : 'white' }}>
-                          <td>{symbol}</td>
-                          <td align="right">$--</td>
-                          <td align="right">--%</td>
-                          <td align="center">
-                            <IconButton size="small" onClick={() => removeSymbol.mutate(symbol)}>
-                              <Remove />
-                            </IconButton>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* Market Overview */}
-      <MarketOverviewWidget />
-
-      {/* Technical Signals */}
-      <TechnicalSignalsWidget />
-
-      {/* Performance Analytics */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={8}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                <ShowChart sx={{ color: 'primary.main', mr: 1 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>Performance Analytics ({selectedSymbol})</Typography>
-              </Box>
               <ResponsiveContainer width="100%" height={220}>
                 <LineChart data={equityCurve} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -415,50 +829,64 @@ const Dashboard = () => {
                   <Line type="monotone" dataKey="equity" stroke="#1976d2" strokeWidth={2} dot={false} name="Equity" />
                 </LineChart>
               </ResponsiveContainer>
-              <Typography variant="caption" color="text.secondary">Equity curve for {selectedSymbol}</Typography>
+              <Typography variant="caption" color="textSecondary">Equity curve for {selectedSymbol}</Typography>
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} md={4}>
-          <HoldingsWidget />
+
+        {/* Watchlist Summary */}
+        <Grid item xs={12} lg={4}>
+          <Card elevation={2}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Watchlist Summary
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+                    Top Gainers
+                  </Typography>
+                  {watchlistPrices.filter(item => item.change > 0).slice(0, 3).map((item, i) => (
+                    <Box key={i} display="flex" justifyContent="space-between" alignItems="center" py={0.5}>
+                      <Typography variant="body2" fontWeight="bold">{item.symbol}</Typography>
+                      <Box textAlign="right">
+                        <Typography variant="body2" fontWeight="bold">
+                          {formatCurrency(item.price)}
+                        </Typography>
+                        <Chip
+                          label={`+${formatPercentage(item.change)}`}
+                          color="success"
+                          size="small"
+                        />
+                      </Box>
+                    </Box>
+                  ))}
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+                    Top Losers
+                  </Typography>
+                  {watchlistPrices.filter(item => item.change < 0).slice(0, 3).map((item, i) => (
+                    <Box key={i} display="flex" justifyContent="space-between" alignItems="center" py={0.5}>
+                      <Typography variant="body2" fontWeight="bold">{item.symbol}</Typography>
+                      <Box textAlign="right">
+                        <Typography variant="body2" fontWeight="bold">
+                          {formatCurrency(item.price)}
+                        </Typography>
+                        <Chip
+                          label={formatPercentage(item.change)}
+                          color="error"
+                          size="small"
+                        />
+                      </Box>
+                    </Box>
+                  ))}
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
         </Grid>
       </Grid>
-
-      {/* Insights Row */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={4}>
-          <EarningsCalendarWidget symbol={selectedSymbol} />
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <AnalystInsightsWidget symbol={selectedSymbol} />
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <FinancialHighlightsWidget symbol={selectedSymbol} />
-        </Grid>
-      </Grid>
-
-      {/* User Settings */}
-      <UserSettingsWidget user={user} />
-
-      {/* Contact Support - Subtle link */}
-      <Box sx={{ mt: 3, textAlign: 'center' }}>
-        <Link href="#" color="text.secondary" sx={{ textDecoration: 'none' }}>
-          <ContactSupport sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'middle' }} />
-          Contact Support
-        </Link>
-      </Box>
-
-      {/* Dialogs */}
-      <AddPositionDialog 
-        open={addPositionOpen} 
-        onClose={() => setAddPositionOpen(false)} 
-        onAdd={handleAddPosition} 
-      />
-      <AddToWatchlistDialog 
-        open={addWatchlistOpen} 
-        onClose={() => setAddWatchlistOpen(false)} 
-        onAdd={handleAddToWatchlist} 
-      />
 
       {/* Compliance Disclaimer */}
       <Box sx={{ mt: 4, mb: 2, textAlign: 'center' }}>
@@ -553,5 +981,127 @@ function useUserSettings() {
   console.log('📊 useUserSettings: Hook result:', { hasData: !!data, isLoading, hasError: !!error });
   return { userSettings: data?.data || defaultSettings, isLoading, error };
 }
+
+// Placeholder Widget Components (to be implemented later)
+const MarketOverviewWidget = () => (
+  <Card elevation={2}>
+    <CardContent>
+      <Typography variant="h6" gutterBottom>
+        Market Overview
+      </Typography>
+      <Typography variant="body2" color="textSecondary">
+        Market overview data will be displayed here
+      </Typography>
+    </CardContent>
+  </Card>
+);
+
+const TechnicalSignalsWidget = () => (
+  <Card elevation={2}>
+    <CardContent>
+      <Typography variant="h6" gutterBottom>
+        Technical Signals
+      </Typography>
+      <Typography variant="body2" color="textSecondary">
+        Technical signals data will be displayed here
+      </Typography>
+    </CardContent>
+  </Card>
+);
+
+const HoldingsWidget = () => (
+  <Card elevation={2}>
+    <CardContent>
+      <Typography variant="h6" gutterBottom>
+        Holdings
+      </Typography>
+      <Typography variant="body2" color="textSecondary">
+        Holdings data will be displayed here
+      </Typography>
+    </CardContent>
+  </Card>
+);
+
+const EarningsCalendarWidget = ({ symbol }) => (
+  <Card elevation={2}>
+    <CardContent>
+      <Typography variant="h6" gutterBottom>
+        Earnings Calendar
+      </Typography>
+      <Typography variant="body2" color="textSecondary">
+        Earnings calendar for {symbol} will be displayed here
+      </Typography>
+    </CardContent>
+  </Card>
+);
+
+const AnalystInsightsWidget = ({ symbol }) => (
+  <Card elevation={2}>
+    <CardContent>
+      <Typography variant="h6" gutterBottom>
+        Analyst Insights
+      </Typography>
+      <Typography variant="body2" color="textSecondary">
+        Analyst insights for {symbol} will be displayed here
+      </Typography>
+    </CardContent>
+  </Card>
+);
+
+const FinancialHighlightsWidget = ({ symbol }) => (
+  <Card elevation={2}>
+    <CardContent>
+      <Typography variant="h6" gutterBottom>
+        Financial Highlights
+      </Typography>
+      <Typography variant="body2" color="textSecondary">
+        Financial highlights for {symbol} will be displayed here
+      </Typography>
+    </CardContent>
+  </Card>
+);
+
+const UserSettingsWidget = ({ user }) => (
+  <Card elevation={2}>
+    <CardContent>
+      <Typography variant="h6" gutterBottom>
+        User Settings
+      </Typography>
+      <Typography variant="body2" color="textSecondary">
+        User settings for {user?.name || 'User'} will be displayed here
+      </Typography>
+    </CardContent>
+  </Card>
+);
+
+const AddPositionDialog = ({ open, onClose, onAdd }) => (
+  <Dialog open={open} onClose={onClose}>
+    <DialogTitle>Add Position</DialogTitle>
+    <DialogContent>
+      <Typography variant="body2" color="textSecondary">
+        Add position dialog will be implemented here
+      </Typography>
+    </DialogContent>
+    <DialogActions>
+      <Button onClick={onClose}>Cancel</Button>
+      <Button onClick={onClose} variant="contained">Add</Button>
+    </DialogActions>
+  </Dialog>
+);
+
+const AddToWatchlistDialog = ({ open, onClose, onAdd }) => (
+  <Dialog open={open} onClose={onClose}>
+    <DialogTitle>Add to Watchlist</DialogTitle>
+    <DialogContent>
+      <Typography variant="body2" color="textSecondary">
+        Add to watchlist dialog will be implemented here
+      </Typography>
+    </DialogContent>
+    <DialogActions>
+      <Button onClick={onClose}>Cancel</Button>
+      <Button onClick={onClose} variant="contained">Add</Button>
+    </DialogActions>
+  </Dialog>
+);
 
 export default Dashboard;
