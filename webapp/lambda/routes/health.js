@@ -36,7 +36,22 @@ router.get('/', async (req, res) => {
       { name: 'sell_signals', path: '/api/signals/sell' },
       { name: 'ticker_earnings_estimates', path: '/api/earnings/AAPL/estimates' },
       { name: 'ticker_earnings_history', path: '/api/earnings/AAPL/history' },
-      { name: 'ticker_revenue_estimates', path: '/api/earnings/AAPL/revenue-estimates' }
+      { name: 'ticker_revenue_estimates', path: '/api/earnings/AAPL/revenue-estimates' },
+      // Additional endpoints for more coverage:
+      { name: 'trading_signals_daily', path: '/api/trading/signals/daily' },
+      { name: 'trading_signals_weekly', path: '/api/trading/signals/weekly' },
+      { name: 'trading_signals_monthly', path: '/api/trading/signals/monthly' },
+      { name: 'trading_performance', path: '/api/trading/performance' },
+      { name: 'trading_swing_signals', path: '/api/trading/swing-signals' },
+      { name: 'technical_daily', path: '/api/technical/daily' },
+      { name: 'technical_weekly', path: '/api/technical/weekly' },
+      { name: 'technical_monthly', path: '/api/technical/monthly' },
+      { name: 'calendar_earnings', path: '/api/calendar/earnings' },
+      { name: 'calendar_earnings_estimates', path: '/api/calendar/earnings-estimates' },
+      { name: 'calendar_earnings_history', path: '/api/calendar/earnings-history' },
+      { name: 'calendar_events', path: '/api/calendar/events' },
+      { name: 'backtest', path: '/api/backtest' },
+      { name: 'data', path: '/api/data' }
     ];
     const apiResults = {};
     const fetch = require('node-fetch');
