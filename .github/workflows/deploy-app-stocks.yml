@@ -55,10 +55,15 @@
       - name: Check container exit code
         run: |
           # Add logic to check the ECS task exit code if needed
+on:
+
 name: deploy-app-stocks
 
 on:
   push:
+    branches:
+      - '*'
+  pull_request:
     branches:
       - '*'
 
