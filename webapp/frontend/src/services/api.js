@@ -237,8 +237,8 @@ export const getMarketOverview = async () => {
   
   try {
     // Try multiple endpoint variations to catch URL issues
-    // Only use the correct endpoint for backend
-    const endpoints = ['/api/market/overview'];
+    // Use the correct endpoint for Lambda (without /api prefix)
+    const endpoints = ['/market/overview', '/api/market/overview'];
     let response = null;
     let lastError = null;
     
@@ -283,8 +283,8 @@ export const getMarketSentimentHistory = async (days = 30) => {
   
   try {
     // Try multiple endpoint variations
-    // Only use the correct endpoint for backend
-    const endpoints = [`/api/market/sentiment/history?days=${days}`];
+    // Use the correct endpoint for Lambda (without /api prefix)
+    const endpoints = [`/market/sentiment/history?days=${days}`, `/api/market/sentiment/history?days=${days}`];
     
     let response = null;
     let lastError = null;
@@ -333,8 +333,8 @@ export const getMarketSectorPerformance = async () => {
   
   try {
     // Try multiple endpoint variations
-    // Only use the correct endpoint for backend
-    const endpoints = [`/api/market/sectors/performance`];
+    // Use the correct endpoint for Lambda (without /api prefix)
+    const endpoints = [`/market/sectors/performance`, `/api/market/sectors/performance`];
     
     let response = null;
     let lastError = null;
@@ -383,8 +383,8 @@ export const getMarketBreadth = async () => {
   
   try {
     // Try multiple endpoint variations
-    // Only use the correct endpoint for backend
-    const endpoints = [`/api/market/breadth`];
+    // Use the correct endpoint for Lambda (without /api prefix)
+    const endpoints = [`/market/breadth`, `/api/market/breadth`];
     
     let response = null;
     let lastError = null;
@@ -433,8 +433,8 @@ export const getEconomicIndicators = async (days = 90) => {
   
   try {
     // Try multiple endpoint variations
-    // Only use the correct endpoint for backend
-    const endpoints = [`/api/market/economic?days=${days}`];
+    // Use the correct endpoint for Lambda (without /api prefix)
+    const endpoints = [`/market/economic?days=${days}`, `/api/market/economic?days=${days}`];
     
     let response = null;
     let lastError = null;

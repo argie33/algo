@@ -181,6 +181,20 @@ app.use('/signals', signalsRoutes);
 app.use('/data', dataRoutes);
 app.use('/backtest', backtestRoutes);
 
+// Also mount routes with /api prefix for frontend compatibility
+app.use('/api/health', healthRoutes);
+app.use('/api/stocks', stockRoutes);
+app.use('/api/metrics', metricsRoutes);
+app.use('/api/market', marketRoutes);
+app.use('/api/analysts', analystRoutes);
+app.use('/api/financials', financialRoutes);
+app.use('/api/trading', tradingRoutes);
+app.use('/api/technical', technicalRoutes);
+app.use('/api/calendar', calendarRoutes);
+app.use('/api/signals', signalsRoutes);
+app.use('/api/data', dataRoutes);
+app.use('/api/backtest', backtestRoutes);
+
 // Default route
 app.get('/', (req, res) => {
   res.json({

@@ -120,11 +120,21 @@ Resources:
       RouteKey: 'GET /'
       Target: !Sub 'integrations/${ApiIntegration}'
 
+  # Add catch-all route for all API paths
+  ApiCatchAllRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref StocksApi
+      RouteKey: 'ANY /{proxy+}'
+      Target: !Sub 'integrations/${ApiIntegration}'
+
   ApiDeploy:
     Type: AWS::ApiGatewayV2::Deployment
     Properties:
       ApiId: !Ref StocksApi
-    DependsOn: ApiRoute
+    DependsOn: 
+      - ApiRoute
+      - ApiCatchAllRoute
 
   ApiStage:
     Type: AWS::ApiGatewayV2::Stage
