@@ -79,8 +79,12 @@ def load_annual_cash_flow(symbols, cur, conn):
             for attempt in range(1, MAX_BATCH_RETRIES+1):
                 try:
                     ticker = yf.Ticker(yq_sym)
-                    # Use the correct YFinance API method for annual cash flow
-                    cash_flow = ticker.cashflow
+                    # Try both cashflow and quarterly_cashflow, use the one with data
+                    for attr in ["cashflow", "quarterly_cashflow"]:
+                        df = getattr(ticker, attr, None)
+                        if df is not None and not df.empty:
+                            cash_flow = df
+                            break
                     if cash_flow is None or cash_flow.empty:
                         raise ValueError("No annual cash flow data received")
                     break
@@ -90,28 +94,26 @@ def load_annual_cash_flow(symbols, cur, conn):
                         failed.append(orig_sym)
                         continue
                     time.sleep(RETRY_DELAY)
-            
             if cash_flow is None:
                 continue
-                
             try:
-                # Convert DataFrame to normalized format for insertion
+                # Use only the most recent column (annual)
+                cash_flow = cash_flow.loc[:, sorted(cash_flow.columns, reverse=True)]
+                if cash_flow.shape[1] == 0:
+                    continue
+                date = cash_flow.columns[0]
                 cash_flow_data = []
-                for date in cash_flow.columns:
-                    for metric in cash_flow.index:
-                        value = cash_flow.loc[metric, date]
-                        if pd.isna(value) or value is None:
-                            continue
-                        
-                        cash_flow_data.append((
-                            orig_sym,
-                            date.date() if hasattr(date, 'date') else date,
-                            str(metric),
-                            float(value)
-                        ))
-                
+                for metric in cash_flow.index:
+                    value = cash_flow.loc[metric, date]
+                    if pd.isna(value) or value is None:
+                        continue
+                    cash_flow_data.append((
+                        orig_sym,
+                        date.date() if hasattr(date, 'date') else date,
+                        str(metric),
+                        float(value)
+                    ))
                 if cash_flow_data:
-                    # Insert using normalized table structure
                     execute_values(cur, """
                         INSERT INTO annual_cash_flow (symbol, date, item_name, value)
                         VALUES %s
@@ -119,11 +121,9 @@ def load_annual_cash_flow(symbols, cur, conn):
                             value = EXCLUDED.value,
                             updated_at = NOW()
                     """, cash_flow_data)
-                    
                     conn.commit()
                     processed += 1
                     logging.info(f"Successfully processed annual cash flow for {orig_sym}")
-
             except Exception as e:
                 logging.error(f"Failed to process annual cash flow for {orig_sym}: {str(e)}")
                 failed.append(orig_sym)

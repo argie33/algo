@@ -79,10 +79,16 @@ def load_quarterly_balance_sheet(symbols, cur, conn):
             for attempt in range(1, MAX_BATCH_RETRIES+1):
                 try:
                     ticker = yf.Ticker(yq_sym)
-                    # Use the correct YFinance API method for quarterly balance sheet
-                    balance_sheet = ticker.quarterly_balance_sheet
+                    # Try both quarterly_balance_sheet and balance_sheet, use the one with data
+                    for attr in ["quarterly_balance_sheet", "balance_sheet"]:
+                        df = getattr(ticker, attr, None)
+                        if df is not None and not df.empty:
+                            balance_sheet = df
+                            break
                     if balance_sheet is None or balance_sheet.empty:
                         raise ValueError("No quarterly balance sheet data received")
+                    if balance_sheet.shape[0] == 0 or balance_sheet.shape[1] == 0:
+                        raise ValueError("Empty balance sheet data received")
                     break
                 except Exception as e:
                     logging.warning(f"Attempt {attempt} failed for {orig_sym}: {e}")
@@ -90,26 +96,26 @@ def load_quarterly_balance_sheet(symbols, cur, conn):
                         failed.append(orig_sym)
                         continue
                     time.sleep(RETRY_DELAY)
-            
+
             if balance_sheet is None:
                 continue
-                
+
             try:
-                # Convert DataFrame to normalized format for insertion
+                # Use all available quarters, sorted most recent first
+                balance_sheet = balance_sheet.loc[:, sorted(balance_sheet.columns, reverse=True)]
                 balance_sheet_data = []
                 for date in balance_sheet.columns:
                     for metric in balance_sheet.index:
                         value = balance_sheet.loc[metric, date]
                         if pd.isna(value) or value is None:
                             continue
-                        
                         balance_sheet_data.append((
                             orig_sym,
                             date.date() if hasattr(date, 'date') else date,
                             str(metric),
                             float(value)
                         ))
-                
+
                 if balance_sheet_data:
                     # Insert using normalized table structure
                     execute_values(cur, """
@@ -119,7 +125,7 @@ def load_quarterly_balance_sheet(symbols, cur, conn):
                             value = EXCLUDED.value,
                             updated_at = NOW()
                     """, balance_sheet_data)
-                    
+
                     conn.commit()
                     processed += 1
                     logging.info(f"Successfully processed quarterly balance sheet for {orig_sym}")

@@ -79,8 +79,12 @@ def load_annual_balance_sheet(symbols, cur, conn):
             for attempt in range(1, MAX_BATCH_RETRIES+1):
                 try:
                     ticker = yf.Ticker(yq_sym)
-                    # Use the correct YFinance API method for annual balance sheet
-                    balance_sheet = ticker.balance_sheet
+                    # Try both balance_sheet and quarterly_balance_sheet, use the one with data
+                    for attr in ["balance_sheet", "quarterly_balance_sheet"]:
+                        df = getattr(ticker, attr, None)
+                        if df is not None and not df.empty:
+                            balance_sheet = df
+                            break
                     if balance_sheet is None or balance_sheet.empty:
                         raise ValueError("No annual balance sheet data received")
                     break
@@ -90,28 +94,26 @@ def load_annual_balance_sheet(symbols, cur, conn):
                         failed.append(orig_sym)
                         continue
                     time.sleep(RETRY_DELAY)
-            
             if balance_sheet is None:
                 continue
-                
             try:
-                # Convert DataFrame to normalized format for insertion
+                # Use only the most recent column (annual)
+                balance_sheet = balance_sheet.loc[:, sorted(balance_sheet.columns, reverse=True)]
+                if balance_sheet.shape[1] == 0:
+                    continue
+                date = balance_sheet.columns[0]
                 balance_sheet_data = []
-                for date in balance_sheet.columns:
-                    for metric in balance_sheet.index:
-                        value = balance_sheet.loc[metric, date]
-                        if pd.isna(value) or value is None:
-                            continue
-                        
-                        balance_sheet_data.append((
-                            orig_sym,
-                            date.date() if hasattr(date, 'date') else date,
-                            str(metric),
-                            float(value)
-                        ))
-                
+                for metric in balance_sheet.index:
+                    value = balance_sheet.loc[metric, date]
+                    if pd.isna(value) or value is None:
+                        continue
+                    balance_sheet_data.append((
+                        orig_sym,
+                        date.date() if hasattr(date, 'date') else date,
+                        str(metric),
+                        float(value)
+                    ))
                 if balance_sheet_data:
-                    # Insert using normalized table structure
                     execute_values(cur, """
                         INSERT INTO annual_balance_sheet (symbol, date, item_name, value)
                         VALUES %s
@@ -119,11 +121,9 @@ def load_annual_balance_sheet(symbols, cur, conn):
                             value = EXCLUDED.value,
                             updated_at = NOW()
                     """, balance_sheet_data)
-                    
                     conn.commit()
                     processed += 1
                     logging.info(f"Successfully processed annual balance sheet for {orig_sym}")
-
             except Exception as e:
                 logging.error(f"Failed to process annual balance sheet for {orig_sym}: {str(e)}")
                 failed.append(orig_sym)

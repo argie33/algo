@@ -79,15 +79,16 @@ def load_ttm_income_statement(symbols, cur, conn):
             for attempt in range(1, MAX_BATCH_RETRIES+1):
                 try:
                     ticker = yf.Ticker(yq_sym)
-                    # Use the correct YFinance API method for quarterly income statement
-                    income_statement = ticker.quarterly_financials
+                    # Try both quarterly_financials and financials, use the one with data
+                    for attr in ["quarterly_financials", "financials"]:
+                        df = getattr(ticker, attr, None)
+                        if df is not None and not df.empty:
+                            income_statement = df
+                            break
                     if income_statement is None or income_statement.empty:
                         raise ValueError("No TTM income statement data received")
-                    
-                    # Additional validation to ensure we have data
                     if income_statement.shape[0] == 0 or income_statement.shape[1] == 0:
                         raise ValueError("Empty income statement data received")
-                    
                     break
                 except Exception as e:
                     logging.warning(f"Attempt {attempt} failed for {orig_sym}: {e}")
@@ -95,35 +96,24 @@ def load_ttm_income_statement(symbols, cur, conn):
                         failed.append(orig_sym)
                         continue
                     time.sleep(RETRY_DELAY)
-            
             if income_statement is None:
                 continue
-                
             try:
                 # For TTM, sum the last 4 quarters - but handle cases where we don't have 4 quarters
-                num_quarters = min(income_statement.shape[1], 4)  # Use available quarters, max 4
-                
+                income_statement = income_statement.loc[:, sorted(income_statement.columns, reverse=True)]
+                num_quarters = min(income_statement.shape[1], 4)
                 if num_quarters > 0:
-                    # Sum the available quarters
                     ttm_data = income_statement.iloc[:, :num_quarters].sum(axis=1)
                     latest_date = income_statement.columns[0]
                 else:
-                    # No data available
-                    logging.warning(f"No income statement data available for {orig_sym}")
                     continue
-                
-                # Convert pandas Timestamp to date properly
                 if hasattr(latest_date, 'date'):
                     latest_date_obj = latest_date.date()
                 elif hasattr(latest_date, 'to_pydatetime'):
                     latest_date_obj = latest_date.to_pydatetime().date()
                 else:
                     latest_date_obj = latest_date
-                
-                # Build row data with proper error handling
                 row_data = [orig_sym, latest_date_obj]
-                
-                # Get the predefined columns from the table structure
                 predefined_columns = [
                     "Total Revenue", "Cost Of Revenue", "Gross Profit", "Research And Development",
                     "Selling General And Administration", "Operating Income", "Operating Expense",
@@ -143,47 +133,33 @@ def load_ttm_income_statement(symbols, cur, conn):
                     "Net Income Including Noncontrolling Interests Net Minority Interest",
                     "Net Income Continuous Operations Net Minority Interest"
                 ]
-                
-                # Map yfinance data to predefined columns
                 for column in predefined_columns:
-                    try:
-                        # Try to find the column in the yfinance data (case-insensitive)
-                        matching_keys = [key for key in ttm_data.index if key.lower() == column.lower()]
-                        if matching_keys:
-                            value = ttm_data[matching_keys[0]]
-                            if pd.isna(value) or value is None:
-                                row_data.append(None)
-                            else:
-                                row_data.append(float(value))
-                        else:
+                    matching_keys = [key for key in ttm_data.index if key.lower() == column.lower()]
+                    if matching_keys:
+                        value = ttm_data[matching_keys[0]]
+                        if pd.isna(value) or value is None:
                             row_data.append(None)
-                    except (KeyError, IndexError, ValueError) as e:
-                        logging.debug(f"Could not get {column} for {orig_sym}: {e}")
+                        else:
+                            row_data.append(float(value))
+                    else:
                         row_data.append(None)
-                
-                # Build the INSERT statement with predefined columns
                 columns = ['symbol', 'date'] + predefined_columns
                 placeholders = ', '.join(['%s'] * len(columns))
                 column_names = ', '.join([f'"{col}"' if ' ' in col else col for col in columns])
-                
                 insert_sql = f"""
                     INSERT INTO ttm_income_statement ({column_names})
                     VALUES ({placeholders})
                     ON CONFLICT (symbol, date) DO UPDATE SET
                 """
-                
-                # Build the UPDATE part
                 update_parts = []
                 for col in predefined_columns:
                     col_name = f'"{col}"' if ' ' in col else col
                     update_parts.append(f"{col_name} = EXCLUDED.{col_name}")
                 insert_sql += ', '.join(update_parts)
-                
                 cur.execute(insert_sql, row_data)
                 conn.commit()
                 processed += 1
                 logging.info(f"Successfully processed TTM income statement for {orig_sym}")
-
             except Exception as e:
                 logging.error(f"Failed to process TTM income statement for {orig_sym}: {str(e)}")
                 failed.append(orig_sym)

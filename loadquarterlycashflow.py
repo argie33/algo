@@ -79,10 +79,16 @@ def load_quarterly_cash_flow(symbols, cur, conn):
             for attempt in range(1, MAX_BATCH_RETRIES+1):
                 try:
                     ticker = yf.Ticker(yq_sym)
-                    # Use the correct YFinance API method for quarterly cash flow
-                    cash_flow = ticker.quarterly_cashflow
+                    # Try both quarterly_cashflow and cashflow, use the one with data
+                    for attr in ["quarterly_cashflow", "cashflow"]:
+                        df = getattr(ticker, attr, None)
+                        if df is not None and not df.empty:
+                            cash_flow = df
+                            break
                     if cash_flow is None or cash_flow.empty:
                         raise ValueError("No quarterly cash flow data received")
+                    if cash_flow.shape[0] == 0 or cash_flow.shape[1] == 0:
+                        raise ValueError("Empty cash flow data received")
                     break
                 except Exception as e:
                     logging.warning(f"Attempt {attempt} failed for {orig_sym}: {e}")
@@ -90,26 +96,26 @@ def load_quarterly_cash_flow(symbols, cur, conn):
                         failed.append(orig_sym)
                         continue
                     time.sleep(RETRY_DELAY)
-            
+
             if cash_flow is None:
                 continue
-                
+
             try:
-                # Convert DataFrame to normalized format for insertion
+                # Use all available quarters, sorted most recent first
+                cash_flow = cash_flow.loc[:, sorted(cash_flow.columns, reverse=True)]
                 cash_flow_data = []
                 for date in cash_flow.columns:
                     for metric in cash_flow.index:
                         value = cash_flow.loc[metric, date]
                         if pd.isna(value) or value is None:
                             continue
-                        
                         cash_flow_data.append((
                             orig_sym,
                             date.date() if hasattr(date, 'date') else date,
                             str(metric),
                             float(value)
                         ))
-                
+
                 if cash_flow_data:
                     # Insert using normalized table structure
                     execute_values(cur, """
@@ -119,7 +125,7 @@ def load_quarterly_cash_flow(symbols, cur, conn):
                             value = EXCLUDED.value,
                             updated_at = NOW()
                     """, cash_flow_data)
-                    
+
                     conn.commit()
                     processed += 1
                     logging.info(f"Successfully processed quarterly cash flow for {orig_sym}")

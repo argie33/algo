@@ -79,8 +79,12 @@ def load_annual_income_statement(symbols, cur, conn):
             for attempt in range(1, MAX_BATCH_RETRIES+1):
                 try:
                     ticker = yf.Ticker(yq_sym)
-                    # Use the correct YFinance API method for annual income statement
-                    income_statement = ticker.financials
+                    # Try both financials and quarterly_financials, use the one with data
+                    for attr in ["financials", "quarterly_financials"]:
+                        df = getattr(ticker, attr, None)
+                        if df is not None and not df.empty:
+                            income_statement = df
+                            break
                     if income_statement is None or income_statement.empty:
                         raise ValueError("No annual income statement data received")
                     break
@@ -90,28 +94,26 @@ def load_annual_income_statement(symbols, cur, conn):
                         failed.append(orig_sym)
                         continue
                     time.sleep(RETRY_DELAY)
-            
             if income_statement is None:
                 continue
-                
             try:
-                # Convert DataFrame to normalized format for insertion
+                # Use only the most recent column (annual)
+                income_statement = income_statement.loc[:, sorted(income_statement.columns, reverse=True)]
+                if income_statement.shape[1] == 0:
+                    continue
+                date = income_statement.columns[0]
                 income_statement_data = []
-                for date in income_statement.columns:
-                    for metric in income_statement.index:
-                        value = income_statement.loc[metric, date]
-                        if pd.isna(value) or value is None:
-                            continue
-                        
-                        income_statement_data.append((
-                            orig_sym,
-                            date.date() if hasattr(date, 'date') else date,
-                            str(metric),
-                            float(value)
-                        ))
-                
+                for metric in income_statement.index:
+                    value = income_statement.loc[metric, date]
+                    if pd.isna(value) or value is None:
+                        continue
+                    income_statement_data.append((
+                        orig_sym,
+                        date.date() if hasattr(date, 'date') else date,
+                        str(metric),
+                        float(value)
+                    ))
                 if income_statement_data:
-                    # Insert using normalized table structure
                     execute_values(cur, """
                         INSERT INTO annual_income_statement (symbol, date, item_name, value)
                         VALUES %s
@@ -119,11 +121,9 @@ def load_annual_income_statement(symbols, cur, conn):
                             value = EXCLUDED.value,
                             updated_at = NOW()
                     """, income_statement_data)
-                    
                     conn.commit()
                     processed += 1
                     logging.info(f"Successfully processed annual income statement for {orig_sym}")
-
             except Exception as e:
                 logging.error(f"Failed to process annual income statement for {orig_sym}: {str(e)}")
                 failed.append(orig_sym)

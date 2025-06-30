@@ -79,8 +79,12 @@ def load_quarterly_income_statement(symbols, cur, conn):
             for attempt in range(1, MAX_BATCH_RETRIES+1):
                 try:
                     ticker = yf.Ticker(yq_sym)
-                    # Use the correct YFinance API method for quarterly income statement
-                    income_statement = ticker.quarterly_financials
+                    # Try both quarterly_financials and financials, use the one with data
+                    for attr in ["quarterly_financials", "financials"]:
+                        df = getattr(ticker, attr, None)
+                        if df is not None and not df.empty:
+                            income_statement = df
+                            break
                     if income_statement is None or income_statement.empty:
                         raise ValueError("No quarterly income statement data received")
                     break
@@ -90,28 +94,26 @@ def load_quarterly_income_statement(symbols, cur, conn):
                         failed.append(orig_sym)
                         continue
                     time.sleep(RETRY_DELAY)
-            
             if income_statement is None:
                 continue
-                
             try:
-                # Convert DataFrame to normalized format for insertion
+                # Use all columns (quarters)
+                income_statement = income_statement.loc[:, sorted(income_statement.columns, reverse=True)]
+                if income_statement.shape[1] == 0:
+                    continue
                 income_statement_data = []
                 for date in income_statement.columns:
                     for metric in income_statement.index:
                         value = income_statement.loc[metric, date]
                         if pd.isna(value) or value is None:
                             continue
-                        
                         income_statement_data.append((
                             orig_sym,
                             date.date() if hasattr(date, 'date') else date,
                             str(metric),
                             float(value)
                         ))
-                
                 if income_statement_data:
-                    # Insert using normalized table structure
                     execute_values(cur, """
                         INSERT INTO quarterly_income_statement (symbol, date, item_name, value)
                         VALUES %s
@@ -119,11 +121,9 @@ def load_quarterly_income_statement(symbols, cur, conn):
                             value = EXCLUDED.value,
                             updated_at = NOW()
                     """, income_statement_data)
-                    
                     conn.commit()
                     processed += 1
                     logging.info(f"Successfully processed quarterly income statement for {orig_sym}")
-
             except Exception as e:
                 logging.error(f"Failed to process quarterly income statement for {orig_sym}: {str(e)}")
                 failed.append(orig_sym)
