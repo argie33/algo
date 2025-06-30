@@ -87,6 +87,10 @@ router.get('/signals/:timeframe', async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / pageSize);
 
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       success: true,
       data: result.rows,
@@ -139,6 +143,10 @@ router.get('/summary/:timeframe', async (req, res) => {
     `;
 
     const result = await query(sqlQuery);
+
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
 
     res.json({
       success: true,
@@ -204,6 +212,10 @@ router.get('/swing-signals', async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
+    if (!swingResult || !Array.isArray(swingResult.rows) || swingResult.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       data: swingResult.rows,
       pagination: {
@@ -257,8 +269,8 @@ router.get('/:ticker/technicals', async (req, res) => {
 
     const result = await query(techQuery, [ticker.toUpperCase()]);
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Technical data not found' });
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
     }
 
     res.json({
@@ -310,6 +322,10 @@ router.get('/performance', async (req, res) => {
     `;
 
     const result = await query(performanceQuery);
+
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
 
     res.json({
       period_days: days,

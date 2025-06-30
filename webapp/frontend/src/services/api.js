@@ -1298,19 +1298,18 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
   
   try {
     const queryParams = new URLSearchParams();
-    queryParams.append('timeframe', timeframe);
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
         queryParams.append(key, value);
       }
     });
     
-    // Try multiple endpoint variations
+    // Try multiple endpoint variations - use correct backend routes
     const endpoints = [
       `/technical/${timeframe}?${queryParams.toString()}`,
       `/api/technical/${timeframe}?${queryParams.toString()}`,
-      `/technical/data?${queryParams.toString()}`,
-      `/api/technical/data?${queryParams.toString()}`
+      `/technical?${queryParams.toString()}`,
+      `/api/technical?${queryParams.toString()}`
     ];
     
     let response = null;
@@ -1345,6 +1344,18 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
         metadata: response.data.metadata || {},
         success: true,
         ...response.data
+      };
+    }
+    
+    // Handle case where response.data is directly an array
+    if (Array.isArray(response.data)) {
+      console.log('📊 [API] Technical data is direct array:', response.data);
+      return {
+        data: response.data,
+        pagination: {},
+        metadata: {},
+        success: true,
+        timestamp: new Date().toISOString()
       };
     }
     

@@ -328,21 +328,7 @@ router.get('/', async (req, res) => {
     `, []);
 
     if (!tableExists.rows[0].exists) {
-      // Return fallback data
-      return res.json({
-        data: fallbackStocks,
-        total: fallbackStocks.length,
-        pagination: {
-          page: 1,
-          limit: fallbackStocks.length,
-          total: fallbackStocks.length,
-          totalPages: 1,
-          hasNext: false,
-          hasPrev: false
-        },
-        metadata: { filters: {}, sorting: {} },
-        message: 'Using fallback data - stocks table not available'
-      });
+      return res.status(500).json({ error: 'Stocks table not found in database' });
     }
 
     // Get total count
@@ -445,22 +431,7 @@ router.get('/', async (req, res) => {
       }
     });
   } catch (error) {
-    // Return fallback data on error
-    return res.json({
-      data: fallbackStocks,
-      total: fallbackStocks.length,
-      pagination: {
-        page: 1,
-        limit: fallbackStocks.length,
-        total: fallbackStocks.length,
-        totalPages: 1,
-        hasNext: false,
-        hasPrev: false
-      },
-      metadata: { filters: {}, sorting: {} },
-      error: 'Database error, using fallback data',
-      details: error.message
-    });
+    return res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
@@ -479,10 +450,7 @@ router.get('/:symbol', async (req, res) => {
     `, []);
 
     if (!tableExists.rows[0].exists) {
-      // Return fallback data
-      const stock = fallbackStocks.find(s => s.symbol === symbol.toUpperCase());
-      if (!stock) return res.status(404).json({ error: 'Stock not found (fallback)' });
-      return res.json({ data: stock });
+      return res.status(500).json({ error: 'Stocks table not found in database' });
     }
 
     // Get stock details
@@ -518,10 +486,7 @@ router.get('/:symbol', async (req, res) => {
       data: result.rows[0]
     });
   } catch (error) {
-    // Return fallback data on error
-    const stock = fallbackStocks.find(s => s.symbol === symbol.toUpperCase());
-    if (!stock) return res.status(404).json({ error: 'Stock not found (fallback)' });
-    return res.json({ data: stock, error: 'Database error, using fallback data', details: error.message });
+    return res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
@@ -541,21 +506,7 @@ router.get('/price-history/:symbol', async (req, res) => {
     `, []);
 
     if (!tableExists.rows[0].exists) {
-      // Return fallback price history
-      const today = new Date();
-      const fallbackHistory = Array.from({ length: Math.min(limit, 30) }, (_, i) => {
-        const d = new Date(today);
-        d.setDate(today.getDate() - i);
-        return {
-          date: d.toISOString(),
-          open: 150 + i,
-          high: 151 + i,
-          low: 149 + i,
-          close: 150 + i,
-          volume: 100000000 - i * 1000000
-        };
-      });
-      return res.json({ data: fallbackHistory.reverse(), count: fallbackHistory.length, symbol: symbol.toUpperCase(), message: 'Using fallback price history' });
+      return res.status(500).json({ error: 'Price data table not found in database' });
     }
 
     // Get price history
@@ -581,21 +532,7 @@ router.get('/price-history/:symbol', async (req, res) => {
       symbol: symbol.toUpperCase()
     });
   } catch (error) {
-    // Return fallback price history on error
-    const today = new Date();
-    const fallbackHistory = Array.from({ length: Math.min(limit, 30) }, (_, i) => {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      return {
-        date: d.toISOString(),
-        open: 150 + i,
-        high: 151 + i,
-        low: 149 + i,
-        close: 150 + i,
-        volume: 100000000 - i * 1000000
-      };
-    });
-    return res.json({ data: fallbackHistory.reverse(), count: fallbackHistory.length, symbol: symbol.toUpperCase(), error: 'Database error, using fallback data', details: error.message });
+    return res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
@@ -612,9 +549,7 @@ router.get('/filters/sectors', async (req, res) => {
     `, []);
 
     if (!tableExists.rows[0].exists) {
-      // Return fallback sectors
-      const fallbackSectors = [...new Set(fallbackStocks.map(s => s.sector))];
-      return res.json({ data: fallbackSectors, count: fallbackSectors.length, message: 'Using fallback data - stocks table not available' });
+      return res.status(500).json({ error: 'Stocks table not found in database' });
     }
 
     // Get unique sectors
@@ -632,9 +567,7 @@ router.get('/filters/sectors', async (req, res) => {
       count: result.rows.length
     });
   } catch (error) {
-    // Return fallback sectors on error
-    const fallbackSectors = [...new Set(fallbackStocks.map(s => s.sector))];
-    return res.json({ data: fallbackSectors, count: fallbackSectors.length, error: 'Database error, using fallback data', details: error.message });
+    return res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
@@ -766,10 +699,7 @@ router.get('/info/:symbol', async (req, res) => {
       symbol: symbol.toUpperCase()
     });
   } catch (error) {
-    // Return fallback info on error
-    const stock = fallbackStocks.find(s => s.symbol === symbol.toUpperCase());
-    if (!stock) return res.status(404).json({ error: 'Stock not found (fallback)' });
-    return res.json({ success: true, data: stock, symbol: symbol.toUpperCase(), error: 'Database error, using fallback data', details: error.message });
+    return res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
@@ -811,10 +741,7 @@ router.get('/price/:symbol', async (req, res) => {
       symbol: symbol.toUpperCase()
     });
   } catch (error) {
-    // Return fallback price on error
-    const stock = fallbackStocks.find(s => s.symbol === symbol.toUpperCase());
-    if (!stock) return res.status(404).json({ error: 'Stock not found (fallback)' });
-    return res.json({ success: true, data: { symbol: stock.symbol, current_price: stock.current_price, previous_close: stock.previous_close, change_percent: stock.change_percent, volume: stock.volume, market_cap: stock.market_capitalization, date: new Date().toISOString() }, symbol: symbol.toUpperCase(), error: 'Database error, using fallback data', details: error.message });
+    return res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
@@ -859,23 +786,7 @@ router.get('/history/:symbol', async (req, res) => {
       period_days: days
     });
   } catch (error) {
-    // Return fallback price history on error
-    const today = new Date();
-    const fallbackHistory = Array.from({ length: Math.min(days, 30) }, (_, i) => {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      return {
-        symbol: symbol.toUpperCase(),
-        date: d.toISOString(),
-        open: 150 + i,
-        high: 151 + i,
-        low: 149 + i,
-        close: 150 + i,
-        volume: 100000000 - i * 1000000,
-        adjusted_close: 150 + i
-      };
-    });
-    return res.json({ success: true, data: fallbackHistory.reverse(), count: fallbackHistory.length, symbol: symbol.toUpperCase(), period_days: days, error: 'Database error, using fallback data', details: error.message });
+    return res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
@@ -920,9 +831,7 @@ router.get('/search', async (req, res) => {
       query: q.trim()
     });
   } catch (error) {
-    // Return fallback search on error
-    const results = fallbackStocks.filter(s => s.symbol.includes(q.toUpperCase()) || s.company_name.toLowerCase().includes(q.toLowerCase()));
-    return res.json({ success: true, data: results, count: results.length, query: q, error: 'Database error, using fallback data', details: error.message });
+    return res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
@@ -1148,23 +1057,7 @@ router.get('/screen', async (req, res) => {
     `, []);
 
     if (!tableExists.rows[0].exists) {
-      // Return fallback data
-      return res.json({
-        success: true,
-        data: fallbackStocks,
-        total: fallbackStocks.length,
-        pagination: {
-          page: 1,
-          limit: fallbackStocks.length,
-          total: fallbackStocks.length,
-          totalPages: 1,
-          hasNext: false,
-          hasPrev: false
-        },
-        filters: {},
-        sorting: {},
-        message: 'Using fallback data - stocks table not available'
-      });
+      return res.status(500).json({ error: 'Stocks table not found in database' });
     }
 
     // Get total count
@@ -1265,24 +1158,7 @@ router.get('/screen', async (req, res) => {
     });
 
   } catch (error) {
-    // Return fallback data on error
-    return res.json({
-      success: true,
-      data: fallbackStocks,
-      total: fallbackStocks.length,
-      pagination: {
-        page: 1,
-        limit: fallbackStocks.length,
-        total: fallbackStocks.length,
-        totalPages: 1,
-        hasNext: false,
-        hasPrev: false
-      },
-      filters: {},
-      sorting: {},
-      error: 'Database error, using fallback data',
-      details: error.message
-    });
+    return res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 

@@ -432,10 +432,13 @@ async function getHistoricalData(symbol, startDate, endDate) {
     `;
     
     const result = await query(sqlQuery, [symbol, startDate, endDate]);
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
     return result.rows;
   } catch (error) {
     console.error(`Error fetching data for ${symbol}:`, error);
-    return [];
+    return res.status(500).json({ error: 'Database error', details: error.message });
   }
 }
 
@@ -454,13 +457,17 @@ router.get('/symbols', async (req, res) => {
     
     const result = await query(sqlQuery, [`%${search}%`, limit]);
     
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+    
     res.json({
       symbols: result.rows
     });
     
   } catch (error) {
     console.error('Error fetching symbols:', error);
-    res.status(500).json({ error: 'Failed to fetch symbols' });
+    res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
@@ -581,7 +588,7 @@ for (const symbol of ['AAPL', 'GOOGL', 'MSFT']) {
     
   } catch (error) {
     console.error('Error fetching templates:', error);
-    res.status(500).json({ error: 'Failed to fetch templates' });
+    res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
@@ -608,7 +615,7 @@ router.post('/validate', async (req, res) => {
     
   } catch (error) {
     console.error('Validation error:', error);
-    res.status(500).json({ error: 'Validation failed' });
+    res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 

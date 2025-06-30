@@ -93,6 +93,10 @@ router.get('/overview', async (req, res) => {
       query(sectorQuery)
     ]);
 
+    if (!overviewResult || !Array.isArray(overviewResult.rows) || overviewResult.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       overview: overviewResult.rows[0],
       top_gainers: gainersResult.rows,
@@ -100,8 +104,7 @@ router.get('/overview', async (req, res) => {
       sector_performance: sectorResult.rows
     });
   } catch (error) {
-    console.error('Error fetching market overview:', error);
-    res.status(500).json({ error: 'Failed to fetch market overview' });
+    return res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
@@ -160,6 +163,10 @@ router.get('/valuation', async (req, res) => {
 
     const result = await query(valuationQuery, params);
 
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       filters: {
         minMarketCap: parseFloat(minMarketCap),
@@ -169,8 +176,7 @@ router.get('/valuation', async (req, res) => {
       data: result.rows
     });
   } catch (error) {
-    console.error('Error fetching valuation metrics:', error);
-    res.status(500).json({ error: 'Failed to fetch valuation metrics' });
+    return res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
@@ -219,6 +225,10 @@ router.get('/growth', async (req, res) => {
 
     const result = await query(growthQuery, params);
 
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       filters: {
         minGrowth,
@@ -227,8 +237,7 @@ router.get('/growth', async (req, res) => {
       data: result.rows
     });
   } catch (error) {
-    console.error('Error fetching growth metrics:', error);
-    res.status(500).json({ error: 'Failed to fetch growth metrics' });
+    return res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
@@ -277,6 +286,10 @@ router.get('/dividends', async (req, res) => {
 
     const result = await query(dividendQuery, params);
 
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       filters: {
         minYield,
@@ -285,8 +298,7 @@ router.get('/dividends', async (req, res) => {
       data: result.rows
     });
   } catch (error) {
-    console.error('Error fetching dividend metrics:', error);
-    res.status(500).json({ error: 'Failed to fetch dividend metrics' });
+    return res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
@@ -346,6 +358,10 @@ router.get('/financial-strength', async (req, res) => {
 
     const result = await query(strengthQuery, params);
 
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       filters: {
         minCurrentRatio,
@@ -355,8 +371,7 @@ router.get('/financial-strength', async (req, res) => {
       data: result.rows
     });
   } catch (error) {
-    console.error('Error fetching financial strength metrics:', error);
-    res.status(500).json({ error: 'Failed to fetch financial strength metrics' });
+    return res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
@@ -440,6 +455,10 @@ router.get('/screener', async (req, res) => {
 
     const result = await query(screenerQuery, params);
 
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       filters: {
         minMarketCap: parseFloat(minMarketCap),
@@ -454,8 +473,7 @@ router.get('/screener', async (req, res) => {
       data: result.rows
     });
   } catch (error) {
-    console.error('Error running stock screener:', error);
-    res.status(500).json({ error: 'Failed to run stock screener' });
+    return res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 

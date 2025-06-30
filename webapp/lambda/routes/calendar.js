@@ -79,6 +79,10 @@ router.get('/test', async (req, res) => {
     
     const result = await query(testQuery);
     
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+    
     res.json({
       success: true,
       count: result.rows.length,
@@ -157,6 +161,10 @@ router.get('/events', async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
+    if (!eventsResult || !Array.isArray(eventsResult.rows) || eventsResult.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       data: eventsResult.rows,
       pagination: {
@@ -198,6 +206,10 @@ router.get('/summary', async (req, res) => {
     `;
 
     const result = await query(summaryQuery);
+
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
 
     res.json({
       summary: result.rows[0],
@@ -279,6 +291,10 @@ router.get('/earnings-estimates', async (req, res) => {
         min_estimate: row.min_estimate
       };
     });
+
+    if (!estimatesResult || !Array.isArray(estimatesResult.rows) || estimatesResult.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
 
     res.json({
       data: grouped,
@@ -373,6 +389,10 @@ router.get('/earnings-history', async (req, res) => {
         negative_surprises: row.negative_surprises
       };
     });
+
+    if (!historyResult || !Array.isArray(historyResult.rows) || historyResult.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
 
     res.json({
       data: grouped,
@@ -477,6 +497,10 @@ router.get('/earnings-metrics', async (req, res) => {
         max_annual_growth_5y: row.max_annual_growth_5y
       };
     });
+
+    if (!metricsResult || !Array.isArray(metricsResult.rows) || metricsResult.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
 
     res.json({
       data: grouped,

@@ -175,6 +175,30 @@ router.get('/summary', async (req, res) => {
         };
         
         console.log('📤 Sending comprehensive dashboard summary response');
+        if (!marketResult || !Array.isArray(marketResult.rows) || marketResult.rows.length === 0) {
+            return res.status(404).json({ error: 'No data found for market overview' });
+        }
+        if (!gainersResult || !Array.isArray(gainersResult.rows) || gainersResult.rows.length === 0) {
+            return res.status(404).json({ error: 'No data found for top gainers' });
+        }
+        if (!losersResult || !Array.isArray(losersResult.rows) || losersResult.rows.length === 0) {
+            return res.status(404).json({ error: 'No data found for top losers' });
+        }
+        if (!sectorResult || !Array.isArray(sectorResult.rows) || sectorResult.rows.length === 0) {
+            return res.status(404).json({ error: 'No data found for sector performance' });
+        }
+        if (!earningsResult || !Array.isArray(earningsResult.rows) || earningsResult.rows.length === 0) {
+            return res.status(404).json({ error: 'No data found for recent earnings' });
+        }
+        if (!sentimentResult || !Array.isArray(sentimentResult.rows) || sentimentResult.rows.length === 0) {
+            return res.status(404).json({ error: 'No data found for market sentiment' });
+        }
+        if (!volumeResult || !Array.isArray(volumeResult.rows) || volumeResult.rows.length === 0) {
+            return res.status(404).json({ error: 'No data found for volume leaders' });
+        }
+        if (!breadthResult || !Array.isArray(breadthResult.rows) || breadthResult.rows.length === 0) {
+            return res.status(404).json({ error: 'No data found for market breadth' });
+        }
         res.json({
             success: true,
             data: summary
@@ -234,6 +258,12 @@ router.get('/holdings', async (req, res) => {
         
         console.log(`✅ Holdings queries completed: ${holdingsResult.rowCount} holdings found`);
         
+        if (!holdingsResult || !Array.isArray(holdingsResult.rows) || holdingsResult.rows.length === 0) {
+            return res.status(404).json({ error: 'No data found for holdings' });
+        }
+        if (!summaryResult || !Array.isArray(summaryResult.rows) || summaryResult.rows.length === 0) {
+            return res.status(404).json({ error: 'No data found for portfolio summary' });
+        }
         res.json({
             success: true,
             data: {
@@ -294,6 +324,12 @@ router.get('/performance', async (req, res) => {
         
         console.log(`✅ Performance queries completed: ${performanceResult.rowCount} data points`);
         
+        if (!performanceResult || !Array.isArray(performanceResult.rows) || performanceResult.rows.length === 0) {
+            return res.status(404).json({ error: 'No data found for performance' });
+        }
+        if (!metricsResult || !Array.isArray(metricsResult.rows) || metricsResult.rows.length === 0) {
+            return res.status(404).json({ error: 'No data found for performance metrics' });
+        }
         res.json({
             success: true,
             data: {
@@ -357,6 +393,12 @@ router.get('/alerts', async (req, res) => {
         
         console.log(`✅ Alerts queries completed: ${alertsResult.rowCount} alerts found`);
         
+        if (!alertsResult || !Array.isArray(alertsResult.rows) || alertsResult.rows.length === 0) {
+            return res.status(404).json({ error: 'No data found for alerts' });
+        }
+        if (!summaryResult || !Array.isArray(summaryResult.rows) || summaryResult.rows.length === 0) {
+            return res.status(404).json({ error: 'No data found for alert summary' });
+        }
         res.json({
             success: true,
             data: {
@@ -442,6 +484,15 @@ router.get('/market-data', async (req, res) => {
         
         console.log(`✅ Market data queries completed: ${econResult.rowCount} econ, ${sectorResult.rowCount} sectors, ${internalsResult.rowCount} internals`);
         
+        if (!econResult || !Array.isArray(econResult.rows) || econResult.rows.length === 0) {
+            return res.status(404).json({ error: 'No data found for economic indicators' });
+        }
+        if (!sectorResult || !Array.isArray(sectorResult.rows) || sectorResult.rows.length === 0) {
+            return res.status(404).json({ error: 'No data found for sector rotation' });
+        }
+        if (!internalsResult || !Array.isArray(internalsResult.rows) || internalsResult.rows.length === 0) {
+            return res.status(404).json({ error: 'No data found for market internals' });
+        }
         res.json({
             success: true,
             data: {
@@ -523,6 +574,12 @@ router.get('/debug', async (req, res) => {
         
         console.log('🔧 Debug data collected:', debugData);
         
+        if (!debugData || !Array.isArray(debugData.table_counts) || Object.keys(debugData.table_counts).length === 0) {
+            return res.status(404).json({ error: 'No table counts found' });
+        }
+        if (!debugData || !Array.isArray(debugData.sample_data) || Object.keys(debugData.sample_data).length === 0) {
+            return res.status(404).json({ error: 'No sample data found' });
+        }
         res.json({
             success: true,
             data: debugData

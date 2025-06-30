@@ -102,135 +102,7 @@ router.get('/:timeframe', async (req, res) => {
     `, [tableName]);
 
     if (!tableExists.rows[0].exists) {
-      console.log(`Technical data table for ${timeframe} timeframe not found, returning fallback data`);
-      // Return fallback technical data
-      const fallbackData = [];
-      const symbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'AMZN', 'META', 'NFLX', 'SPY', 'QQQ'];
-      
-      for (let i = 0; i < Math.min(maxLimit, 10); i++) {
-        const symbol = symbols[i % symbols.length];
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        
-        fallbackData.push({
-          symbol,
-          date: date.toISOString().split('T')[0],
-          open: 150 + Math.random() * 50,
-          high: 160 + Math.random() * 50,
-          low: 140 + Math.random() * 50,
-          close: 150 + Math.random() * 50,
-          volume: 1000000 + Math.random() * 5000000,
-          rsi: 30 + Math.random() * 40,
-          macd: -2 + Math.random() * 4,
-          macd_signal: -1 + Math.random() * 2,
-          macd_histogram: -1 + Math.random() * 2,
-          sma_20: 145 + Math.random() * 10,
-          sma_50: 140 + Math.random() * 15,
-          ema_12: 148 + Math.random() * 8,
-          ema_26: 142 + Math.random() * 12,
-          bollinger_upper: 155 + Math.random() * 10,
-          bollinger_lower: 145 + Math.random() * 10,
-          bollinger_middle: 150 + Math.random() * 5,
-          stochastic_k: 20 + Math.random() * 60,
-          stochastic_d: 25 + Math.random() * 50,
-          williams_r: -80 + Math.random() * 40,
-          cci: -100 + Math.random() * 200,
-          adx: 15 + Math.random() * 25,
-          atr: 2 + Math.random() * 3,
-          obv: 1000000 + Math.random() * 5000000,
-          mfi: 20 + Math.random() * 60,
-          roc: -5 + Math.random() * 10,
-          momentum: -2 + Math.random() * 4,
-          kst: -5 + Math.random() * 10,
-          tsi: -50 + Math.random() * 100,
-          ultimate_oscillator: 30 + Math.random() * 40,
-          aroon_up: 20 + Math.random() * 60,
-          aroon_down: 20 + Math.random() * 60,
-          aroon_oscillator: -40 + Math.random() * 80,
-          chaikin_money_flow: -0.5 + Math.random(),
-          money_flow_index: 20 + Math.random() * 60,
-          on_balance_volume: 1000000 + Math.random() * 5000000,
-          price_volume_trend: -1000000 + Math.random() * 2000000,
-          accumulation_distribution: -1000000 + Math.random() * 2000000,
-          coppock_curve: -5 + Math.random() * 10,
-          detrended_price_oscillator: -2 + Math.random() * 4,
-          ease_of_movement: -0.5 + Math.random(),
-          force_index: -1000000 + Math.random() * 2000000,
-          ichimoku_conversion: 148 + Math.random() * 8,
-          ichimoku_base: 142 + Math.random() * 12,
-          ichimoku_span_a: 145 + Math.random() * 10,
-          ichimoku_span_b: 140 + Math.random() * 15,
-          ichimoku_lagging: 150 + Math.random() * 5,
-          klinger_oscillator: -1000000 + Math.random() * 2000000,
-          know_sure_thing: -5 + Math.random() * 10,
-          mass_index: 20 + Math.random() * 10,
-          median_price: 150 + Math.random() * 5,
-          mid_point: 150 + Math.random() * 5,
-          mid_price: 150 + Math.random() * 5,
-          parabolic_sar: 145 + Math.random() * 10,
-          percentage_price_oscillator: -2 + Math.random() * 4,
-          percentage_volume_oscillator: -5 + Math.random() * 10,
-          pivot_points_high: 155 + Math.random() * 10,
-          pivot_points_low: 145 + Math.random() * 10,
-          pivot_points_close: 150 + Math.random() * 5,
-          pivot_points_pp: 150 + Math.random() * 5,
-          pivot_points_r1: 155 + Math.random() * 10,
-          pivot_points_r2: 160 + Math.random() * 15,
-          pivot_points_r3: 165 + Math.random() * 20,
-          pivot_points_s1: 145 + Math.random() * 10,
-          pivot_points_s2: 140 + Math.random() * 15,
-          pivot_points_s3: 135 + Math.random() * 20,
-          price_oscillator: -2 + Math.random() * 4,
-          price_volume_oscillator: -5 + Math.random() * 10,
-          rate_of_change: -5 + Math.random() * 10,
-          relative_strength_index: 30 + Math.random() * 40,
-          relative_vigor_index: -0.5 + Math.random(),
-          standard_deviation: 2 + Math.random() * 3,
-          stochastic_fast: 20 + Math.random() * 60,
-          stochastic_slow: 25 + Math.random() * 50,
-          stochastic_rsi: 30 + Math.random() * 40,
-          triple_exponential_average: 150 + Math.random() * 5,
-          triple_exponential_moving_average: 150 + Math.random() * 5,
-          true_strength_index: -50 + Math.random() * 100,
-          ultimate_oscillator: 30 + Math.random() * 40,
-          volume_price_trend: -1000000 + Math.random() * 2000000,
-          volume_weighted_average_price: 150 + Math.random() * 5,
-          volume_weighted_moving_average: 150 + Math.random() * 5,
-          williams_alligator_jaw: 148 + Math.random() * 8,
-          williams_alligator_teeth: 142 + Math.random() * 12,
-          williams_alligator_lips: 145 + Math.random() * 10,
-          williams_fractal_high: 155 + Math.random() * 10,
-          williams_fractal_low: 145 + Math.random() * 10,
-          zigzag: 150 + Math.random() * 5
-        });
-      }
-
-      return res.json({
-        data: fallbackData,
-        pagination: {
-          page: parseInt(page),
-          limit: maxLimit,
-          total: fallbackData.length,
-          totalPages: 1,
-          hasNext: false,
-          hasPrev: false
-        },
-        metadata: {
-          timeframe,
-          filters: {
-            symbol: symbol || null,
-            start_date: start_date || null,
-            end_date: end_date || null,
-            rsi_min: rsi_min || null,
-            rsi_max: rsi_max || null,
-            macd_min: macd_min || null,
-            macd_max: macd_max || null,
-            sma_min: sma_min || null,
-            sma_max: sma_max || null
-          },
-          fallback: true
-        }
-      });
+      return res.status(500).json({ error: `Technical data table for ${timeframe} timeframe not found in database` });
     }
 
     // Get total count
@@ -294,6 +166,10 @@ router.get('/:timeframe', async (req, res) => {
 
     const totalPages = Math.ceil(total / maxLimit);
 
+    if (!dataResult || !Array.isArray(dataResult.rows) || dataResult.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       data: dataResult.rows,
       pagination: {
@@ -320,76 +196,7 @@ router.get('/:timeframe', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching technical data:', error);
-    // Return fallback data on error instead of 500
-    console.log('Error occurred, returning fallback technical data');
-    const fallbackData = [];
-    const symbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'];
-    
-    for (let i = 0; i < 5; i++) {
-      const symbol = symbols[i];
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      
-      fallbackData.push({
-        symbol,
-        date: date.toISOString().split('T')[0],
-        open: 150 + Math.random() * 50,
-        high: 160 + Math.random() * 50,
-        low: 140 + Math.random() * 50,
-        close: 150 + Math.random() * 50,
-        volume: 1000000 + Math.random() * 5000000,
-        rsi: 30 + Math.random() * 40,
-        macd: -2 + Math.random() * 4,
-        macd_signal: -1 + Math.random() * 2,
-        macd_histogram: -1 + Math.random() * 2,
-        sma_20: 145 + Math.random() * 10,
-        sma_50: 140 + Math.random() * 15,
-        ema_12: 148 + Math.random() * 8,
-        ema_26: 142 + Math.random() * 12,
-        bollinger_upper: 155 + Math.random() * 10,
-        bollinger_lower: 145 + Math.random() * 10,
-        bollinger_middle: 150 + Math.random() * 5,
-        stochastic_k: 20 + Math.random() * 60,
-        stochastic_d: 25 + Math.random() * 50,
-        williams_r: -80 + Math.random() * 40,
-        cci: -100 + Math.random() * 200,
-        adx: 15 + Math.random() * 25,
-        atr: 2 + Math.random() * 3,
-        obv: 1000000 + Math.random() * 5000000,
-        mfi: 20 + Math.random() * 60,
-        roc: -5 + Math.random() * 10,
-        momentum: -2 + Math.random() * 4
-      });
-    }
-
-    res.json({
-      data: fallbackData,
-      pagination: {
-        page: parseInt(page),
-        limit: maxLimit,
-        total: fallbackData.length,
-        totalPages: 1,
-        hasNext: false,
-        hasPrev: false
-      },
-      metadata: {
-        timeframe,
-        filters: {
-          symbol: symbol || null,
-          start_date: start_date || null,
-          end_date: end_date || null,
-          rsi_min: rsi_min || null,
-          rsi_max: rsi_max || null,
-          macd_min: macd_min || null,
-          macd_max: macd_max || null,
-          sma_min: sma_min || null,
-          sma_max: sma_max || null
-        },
-        fallback: true,
-        error: error.message
-      }
-    });
+    return res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
@@ -1525,6 +1332,10 @@ router.get('/data', async (req, res) => {
     const totalPages = Math.ceil(total / maxLimit);
 
     console.log(`✅ [TECHNICAL] Data query completed: ${dataResult.rows.length} results, total: ${total}`);
+
+    if (!dataResult || !Array.isArray(dataResult.rows) || dataResult.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
 
     res.json({
       success: true,

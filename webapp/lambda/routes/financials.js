@@ -110,6 +110,10 @@ router.get('/:ticker/balance-sheet', async (req, res) => {
     
     const result = await query(balanceSheetQuery, [ticker.toUpperCase()]);
     
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+    
     // Transform the normalized data into a structured format
     const groupedData = {};
     
@@ -199,6 +203,10 @@ router.get('/:ticker/income-statement', async (req, res) => {
     
     const result = await query(incomeQuery, [ticker.toUpperCase()]);
     
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+    
     // Transform the normalized data into a structured format
     const groupedData = {};
     
@@ -281,6 +289,10 @@ router.get('/:ticker/cash-flow', async (req, res) => {
     `;
     
     const result = await query(cashFlowQuery, [ticker.toUpperCase()]);
+    
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
     
     // Transform the normalized data into a structured format
     const groupedData = {};
@@ -392,7 +404,11 @@ async function getFinancialStatement(ticker, type, period) {
     ORDER BY date DESC, item_name
   `;
   
-  const result = await pool.query(query, [ticker]);
+  const result = await query(query, [ticker]);
+  
+  if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+    return res.status(404).json({ error: 'No data found for this query' });
+  }
   
   // Group by date
   const groupedData = {};

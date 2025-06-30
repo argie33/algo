@@ -67,18 +67,40 @@ function TechnicalAnalysis() {
   const { data: technicalData, isLoading, error, refetch } = useQuery({
     queryKey: ['technicalAnalysis', timeframe, symbolFilter, indicatorFilter, indicatorMin, indicatorMax, page, rowsPerPage, orderBy, order],
     queryFn: async () => {
+      // Map frontend parameters to backend parameters
       const params = {
-        overview: !symbolFilter,
-        symbol: symbolFilter,
-        indicator: indicatorFilter,
-        indicatorMin,
-        indicatorMax,
-        limit: rowsPerPage,
         page: page + 1,
+        limit: rowsPerPage,
+        symbol: symbolFilter || undefined,
         sortBy: orderBy,
         sortOrder: order
       };
+      
+      // Map indicator filters to backend parameter names
+      if (indicatorFilter) {
+        switch (indicatorFilter) {
+          case 'rsi':
+            if (indicatorMin) params.rsi_min = indicatorMin;
+            if (indicatorMax) params.rsi_max = indicatorMax;
+            break;
+          case 'macd':
+            if (indicatorMin) params.macd_min = indicatorMin;
+            if (indicatorMax) params.macd_max = indicatorMax;
+            break;
+          case 'sma_20':
+            if (indicatorMin) params.sma_min = indicatorMin;
+            if (indicatorMax) params.sma_max = indicatorMax;
+            break;
+          default:
+            // For other indicators, we'll need to add specific mappings
+            break;
+        }
+      }
+      
+      console.log('TechnicalAnalysis: calling getTechnicalData with params:', params);
       const result = await getTechnicalData(timeframe, params);
+      console.log('TechnicalAnalysis: getTechnicalData result:', result);
+      
       if (Array.isArray(result)) return { data: result };
       if (!Array.isArray(result.data)) return { ...result, data: [] };
       return result;

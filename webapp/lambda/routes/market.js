@@ -138,48 +138,7 @@ router.get('/overview', async (req, res) => {
     console.log('Table existence check:', tableExists.rows[0].exists);
 
     if (!tableExists.rows[0].exists) {
-      console.log('Market data table not found, returning fallback data');
-      // Return fallback data instead of 404
-      return res.json({
-        data: [
-          {
-            symbol: '^GSPC',
-            name: 'S&P 500',
-            current_price: 4500.25,
-            previous_close: 4484.75,
-            change_percent: 0.35,
-            volume: 2500000000,
-            market_cap: null,
-            sector: 'Index',
-            date: new Date().toISOString()
-          },
-          {
-            symbol: '^DJI',
-            name: 'Dow Jones',
-            current_price: 35000.50,
-            previous_close: 34900.25,
-            change_percent: 0.29,
-            volume: 350000000,
-            market_cap: null,
-            sector: 'Index',
-            date: new Date().toISOString()
-          },
-          {
-            symbol: '^IXIC',
-            name: 'NASDAQ',
-            current_price: 14000.75,
-            previous_close: 14050.25,
-            change_percent: -0.35,
-            volume: 3000000000,
-            market_cap: null,
-            sector: 'Index',
-            date: new Date().toISOString()
-          }
-        ],
-        count: 3,
-        lastUpdated: new Date().toISOString(),
-        message: 'Using fallback data - market_data table not available'
-      });
+      return res.status(500).json({ error: 'Market data table not found in database' });
     }
 
     // Get market overview data
@@ -202,6 +161,10 @@ router.get('/overview', async (req, res) => {
     const result = await query(overviewQuery);
     console.log(`Found ${result.rows.length} market data records`);
 
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       data: result.rows,
       count: result.rows.length,
@@ -209,26 +172,7 @@ router.get('/overview', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching market overview:', error);
-    // Return fallback data on error instead of 500
-    res.json({
-      data: [
-        {
-          symbol: '^GSPC',
-          name: 'S&P 500',
-          current_price: 4500.25,
-          previous_close: 4484.75,
-          change_percent: 0.35,
-          volume: 2500000000,
-          market_cap: null,
-          sector: 'Index',
-          date: new Date().toISOString()
-        }
-      ],
-      count: 1,
-      lastUpdated: new Date().toISOString(),
-      error: 'Database error, using fallback data',
-      details: error.message
-    });
+    res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
@@ -395,6 +339,10 @@ router.get('/sectors/performance', async (req, res) => {
 
     const result = await query(sectorQuery);
 
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       data: result.rows,
       count: result.rows.length
@@ -465,6 +413,10 @@ router.get('/breadth', async (req, res) => {
 
     const result = await query(breadthQuery);
     const breadth = result.rows[0];
+
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
 
     res.json({
       total_stocks: parseInt(breadth.total_stocks),
@@ -574,6 +526,10 @@ router.get('/economic', async (req, res) => {
 
     console.log(`Processed ${Object.keys(indicators).length} economic indicators`);
 
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       data: indicators,
       count: Object.keys(indicators).length,
@@ -624,6 +580,10 @@ router.get('/naaim', async (req, res) => {
 
     const result = await query(naaimQuery, [parseInt(limit)]);
 
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       data: result.rows,
       count: result.rows.length
@@ -670,6 +630,10 @@ router.get('/fear-greed', async (req, res) => {
     `;
 
     const result = await query(fearGreedQuery, [parseInt(limit)]);
+
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
 
     res.json({
       data: result.rows,
@@ -720,6 +684,10 @@ router.get('/indices', async (req, res) => {
 
     const result = await query(indicesQuery);
 
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       data: result.rows,
       count: result.rows.length,
@@ -752,6 +720,10 @@ router.get('/sectors', async (req, res) => {
     `;
 
     const result = await query(sectorQuery);
+
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
 
     res.json({
       data: result.rows,
@@ -793,6 +765,10 @@ router.get('/volatility', async (req, res) => {
 
     const volatilityResult = await query(marketVolatilityQuery);
 
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       data: {
         vix: result.rows[0] || null,
@@ -831,6 +807,10 @@ router.get('/calendar', async (req, res) => {
         currency: 'USD'
       }
     ];
+
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
 
     res.json({
       data: calendarData,
@@ -897,6 +877,10 @@ router.get('/indicators', async (req, res) => {
       sentiment = sentimentResult.rows[0] || null;
     } catch (e) {
       // Sentiment table might not exist
+    }
+
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
     }
 
     res.json({
@@ -967,6 +951,10 @@ router.get('/sentiment', async (req, res) => {
       naaim = naaimResult.rows[0] || null;
     } catch (e) {
       // Table might not exist
+    }
+
+    if (!fearGreed || !naaim) {
+      return res.status(404).json({ error: 'No data found for this query' });
     }
 
     res.json({

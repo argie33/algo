@@ -52,6 +52,10 @@ router.get('/eps-revisions', async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
+    if (!revisionsResult || !Array.isArray(revisionsResult.rows) || revisionsResult.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       data: revisionsResult.rows,
       pagination: {
@@ -66,7 +70,7 @@ router.get('/eps-revisions', async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching EPS revisions:', error);
-    res.status(500).json({ error: 'Failed to fetch EPS revisions' });
+    res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
@@ -120,6 +124,10 @@ router.get('/eps-trend', async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
+    if (!trendResult || !Array.isArray(trendResult.rows) || trendResult.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       data: trendResult.rows,
       pagination: {
@@ -134,7 +142,7 @@ router.get('/eps-trend', async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching EPS trend:', error);
-    res.status(500).json({ error: 'Failed to fetch EPS trend' });
+    res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
@@ -186,6 +194,10 @@ router.get('/growth-estimates', async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
+    if (!growthResult || !Array.isArray(growthResult.rows) || growthResult.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       data: growthResult.rows,
       pagination: {
@@ -200,7 +212,7 @@ router.get('/growth-estimates', async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching growth estimates:', error);
-    res.status(500).json({ error: 'Failed to fetch growth estimates' });
+    res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
@@ -251,6 +263,10 @@ router.get('/economic', async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
+    if (!economicResult || !Array.isArray(economicResult.rows) || economicResult.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       data: economicResult.rows,
       pagination: {
@@ -265,7 +281,7 @@ router.get('/economic', async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching economic data:', error);
-    res.status(500).json({ error: 'Failed to fetch economic data' });
+    res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
@@ -284,6 +300,10 @@ router.get('/economic/data', async (req, res) => {
     
     const result = await query(economicQuery, [limit]);
     
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+    
     res.json({
       data: result.rows,
       count: result.rows.length,
@@ -294,7 +314,7 @@ router.get('/economic/data', async (req, res) => {
   } catch (error) {
     console.error('Error fetching economic data:', error);
     res.status(500).json({ 
-      error: 'Failed to fetch economic data',
+      error: 'Database error',
       details: error.message,
       timestamp: new Date().toISOString()
     });
@@ -318,6 +338,10 @@ router.get('/naaim', async (req, res) => {
 
     const result = await query(naaimQuery, [limit]);
 
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       data: result.rows,
       count: result.rows.length
@@ -325,7 +349,7 @@ router.get('/naaim', async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching NAAIM data:', error);
-    res.status(500).json({ error: 'Failed to fetch NAAIM data' });
+    res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
@@ -345,6 +369,10 @@ router.get('/fear-greed', async (req, res) => {
 
     const result = await query(fearGreedQuery, [limit]);
 
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       data: result.rows,
       count: result.rows.length
@@ -352,7 +380,7 @@ router.get('/fear-greed', async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching Fear & Greed data:', error);
-    res.status(500).json({ error: 'Failed to fetch Fear & Greed data' });
+    res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
@@ -424,6 +452,10 @@ router.get('/validation-summary', async (req, res) => {
 
     const result = await query(summaryQuery);
 
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       summary: result.rows,
       generated_at: new Date().toISOString()
@@ -431,7 +463,7 @@ router.get('/validation-summary', async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching validation summary:', error);
-    res.status(500).json({ error: 'Failed to fetch validation summary' });
+    res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
@@ -490,6 +522,10 @@ router.get('/financials/:symbol', async (req, res) => {
       }
     }
 
+    if (Object.values(results).every(tableData => tableData.length === 0)) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       symbol: symbol.toUpperCase(),
       data: results,
@@ -498,7 +534,7 @@ router.get('/financials/:symbol', async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching comprehensive financial data:', error);
-    res.status(500).json({ error: 'Failed to fetch comprehensive financial data' });
+    res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
@@ -530,6 +566,10 @@ router.get('/financial-metrics', async (req, res) => {
       }
     }
 
+    if (Object.values(metrics).every(tableMetrics => tableMetrics.length === 0)) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       metrics,
       tables: tables,
@@ -538,7 +578,7 @@ router.get('/financial-metrics', async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching financial metrics:', error);
-    res.status(500).json({ error: 'Failed to fetch financial metrics' });
+    res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 

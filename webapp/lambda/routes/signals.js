@@ -57,6 +57,10 @@ router.get('/buy', async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
+    if (!signalsResult || !Array.isArray(signalsResult.rows) || signalsResult.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       data: signalsResult.rows,
       timeframe,
@@ -73,7 +77,7 @@ router.get('/buy', async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching buy signals:', error);
-    res.status(500).json({ error: 'Failed to fetch buy signals' });
+    return res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
@@ -131,6 +135,10 @@ router.get('/sell', async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
+    if (!signalsResult || !Array.isArray(signalsResult.rows) || signalsResult.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for this query' });
+    }
+
     res.json({
       data: signalsResult.rows,
       timeframe,
@@ -147,7 +155,7 @@ router.get('/sell', async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching sell signals:', error);
-    res.status(500).json({ error: 'Failed to fetch sell signals' });
+    return res.status(500).json({ error: 'Database error', details: error.message });
   }
 });
 
