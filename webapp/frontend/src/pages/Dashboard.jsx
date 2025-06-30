@@ -32,7 +32,17 @@ import {
   Badge,
   Tabs,
   Tab,
-  ListItemIcon
+  ListItemIcon,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails
 } from '@mui/material';
 import {
   TrendingUp,
@@ -80,7 +90,26 @@ import {
   SignalCellular1Bar,
   SignalCellular2Bar,
   SignalCellular3Bar,
-  SignalCellular4Bar as SignalCellular4BarIcon
+  SignalCellular4Bar as SignalCellular4BarIcon,
+  Security,
+  Speed,
+  Visibility,
+  Assessment,
+  TrendingFlat,
+  MoreVert,
+  Star,
+  StarBorder,
+  FilterAlt,
+  Sort,
+  ViewModule,
+  ViewList as ViewListIcon,
+  Fullscreen,
+  FullscreenExit,
+  ZoomIn,
+  ZoomOut,
+  Save,
+  Share,
+  Print
 } from '@mui/icons-material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart as RechartsBarChart, Bar } from 'recharts';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -109,6 +138,13 @@ import {
 import { format } from 'date-fns';
 import { getApiConfig } from '../services/api';
 import { formatCurrency, formatNumber, formatPercentage } from '../utils/formatters';
+import ProfessionalChart from '../components/ProfessionalChart';
+import MetricsCard, { 
+  PortfolioValueCard, 
+  PerformanceCard, 
+  RiskCard, 
+  VolumeCard 
+} from '../components/MetricsCard';
 
 // Logo import with fallback
 let logoSrc = null;

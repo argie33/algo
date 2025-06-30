@@ -1,19 +1,3 @@
-/**
- * Robustness patch: Ensures all health endpoints always return valid JSON, never HTML or undefined.
- * - Defines HEALTH_TIMEOUT_MS to avoid ReferenceError.
- * - Adds global error handlers for unhandled promise rejections and uncaught exceptions.
- * - Adds Express error middleware to always return JSON.
- * - Uses cached health status table to avoid expensive COUNT queries.
- */
-const HEALTH_TIMEOUT_MS = 5000; // 5 seconds default for all health timeouts
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-});
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception thrown:', err);
-});
-
 const express = require('express');
 const { query, initializeDatabase, getPool } = require('../utils/database');
 
@@ -21,6 +5,58 @@ const router = express.Router();
 
 // Health check endpoint
 router.get('/', async (req, res) => {
+    // --- BEGIN: API endpoint health checks ---
+    // Only run these if not a quick check
+    const apiEndpoints = [
+      { name: 'stocks', path: '/api/stocks' },
+      { name: 'stocks_quick', path: '/api/stocks/quick/overview' },
+      { name: 'market_overview', path: '/api/market/overview' },
+      { name: 'market_sentiment', path: '/api/market/sentiment/history?days=1' },
+      { name: 'market_sectors', path: '/api/market/sectors/performance' },
+      { name: 'market_breadth', path: '/api/market/breadth' },
+      { name: 'economic_indicators', path: '/api/market/economic?days=1' },
+      { name: 'financials', path: '/api/financials/AAPL/income' },
+      { name: 'metrics_valuation', path: '/api/metrics/valuation' },
+      { name: 'metrics_growth', path: '/api/metrics/growth' },
+      { name: 'metrics_dividends', path: '/api/metrics/dividends' },
+      { name: 'metrics_financial_strength', path: '/api/metrics/financial-strength' },
+      { name: 'earnings_estimates', path: '/api/earnings/estimates' },
+      { name: 'earnings_history', path: '/api/earnings/history' },
+      { name: 'stock_detail', path: '/api/stocks/AAPL' },
+      { name: 'stock_profile', path: '/api/stocks/AAPL/profile' },
+      { name: 'stock_metrics', path: '/api/stocks/AAPL/metrics' },
+      { name: 'stock_financials_balance', path: '/api/financials/AAPL/balance' },
+      { name: 'stock_financials_cashflow', path: '/api/financials/AAPL/cashflow' },
+      { name: 'stock_prices', path: '/api/stocks/AAPL/prices?timeframe=daily&limit=1' },
+      { name: 'stock_prices_recent', path: '/api/stocks/AAPL/price-recent?limit=1' },
+      { name: 'stock_recommendations', path: '/api/stocks/AAPL/recommendations' },
+      { name: 'sectors', path: '/api/stocks/filters/sectors' },
+      { name: 'screen_stocks', path: '/api/stocks/screen' },
+      { name: 'buy_signals', path: '/api/signals/buy' },
+      { name: 'sell_signals', path: '/api/signals/sell' },
+      { name: 'ticker_earnings_estimates', path: '/api/earnings/AAPL/estimates' },
+      { name: 'ticker_earnings_history', path: '/api/earnings/AAPL/history' },
+      { name: 'ticker_revenue_estimates', path: '/api/earnings/AAPL/revenue-estimates' }
+    ];
+    const apiResults = {};
+    const fetch = require('node-fetch');
+    const baseUrl = req.protocol + '://' + req.get('host');
+    for (const endpoint of apiEndpoints) {
+      try {
+        const url = baseUrl + endpoint.path;
+        const resp = await fetch(url, { method: 'GET', timeout: 4000 });
+        apiResults[endpoint.name] = {
+          status: resp.status,
+          ok: resp.ok
+        };
+      } catch (err) {
+        apiResults[endpoint.name] = {
+          status: 'error',
+          ok: false
+        };
+      }
+    }
+    // --- END: API endpoint health checks ---
   try {
     // Basic health check without database (for quick status)
     if (req.query.quick === 'true') {
@@ -34,36 +70,171 @@ router.get('/', async (req, res) => {
         uptime: process.uptime(),
         note: 'Quick health check - database not tested',
         database: { status: 'not_tested' },
-        api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' },
-        api_endpoints: getApiEndpoints()
+        api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' }
       });
     }
-    
-    // Full health check with simple database test
+    // Full health check with database
     console.log('Starting health check with database...');
-    
-    // Simple database connection test - just like other working APIs
-    const result = await query('SELECT NOW() as current_time');
-    
+    // Initialize database if not already done
+    try {
+      getPool(); // This will throw if not initialized
+    } catch (initError) {
+      console.log('Database not initialized, initializing now...');
+      try {
+        await initializeDatabase();
+      } catch (dbInitError) {
+        console.error('Failed to initialize database:', dbInitError.message);
+        return res.status(503).json({
+          status: 'unhealthy',
+          healthy: false,
+          service: 'Financial Dashboard API',
+          timestamp: new Date().toISOString(),
+          environment: process.env.NODE_ENV || 'development',
+          database: {
+            status: 'initialization_failed',
+            error: dbInitError.message,
+            lastAttempt: new Date().toISOString(),
+            tables: {}
+          },
+          api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' },
+          memory: process.memoryUsage(),
+          uptime: process.uptime()
+        });
+      }
+    }
+    // Check if database error was passed from middleware
+    if (req.dbError) {
+      return res.status(503).json({
+        status: 'unhealthy',
+        healthy: false,
+        service: 'Financial Dashboard API',
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development',
+        database: {
+          status: 'unavailable',
+          error: req.dbError.message,
+          lastAttempt: new Date().toISOString(),
+          tables: {}
+        },
+        api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' },
+        memory: process.memoryUsage(),
+        uptime: process.uptime()
+      });
+    }
+    // Test database connection with timeout and detailed error reporting
+    const dbStart = Date.now();
+    let result;
+    try {
+      result = await Promise.race([
+        query('SELECT 1 as ok'),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Database health check timeout')), 5000))
+      ]);
+    } catch (dbError) {
+      // Enhanced error logging
+      console.error('Database health check query failed:', dbError);
+      return res.status(503).json({
+        status: 'unhealthy',
+        healthy: false,
+        service: 'Financial Dashboard API',
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development',
+        database: {
+          status: 'disconnected',
+          error: dbError.message,
+          stack: dbError.stack,
+          lastAttempt: new Date().toISOString(),
+          tables: {}
+        },
+        api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' },
+        memory: process.memoryUsage(),
+        uptime: process.uptime()
+      });
+    }
+    // Additional: test a real table if DB connection works
+    try {
+      await query('SELECT COUNT(*) FROM stock_symbols');
+    } catch (tableError) {
+      console.error('Table query failed:', tableError);
+      return res.status(503).json({
+        status: 'unhealthy',
+        healthy: false,
+        service: 'Financial Dashboard API',
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development',
+        database: {
+          status: 'connected_but_table_error',
+          error: tableError.message,
+          stack: tableError.stack,
+          lastAttempt: new Date().toISOString(),
+          tables: {}
+        },
+        api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' },
+        memory: process.memoryUsage(),
+        uptime: process.uptime()
+      });
+    }
+    const dbTime = Date.now() - dbStart;
+    // Get table information (check existence first) with global timeout
+    let tables = {};
+    try {
+      const tableExistenceCheck = await Promise.race([
+        query(`
+          SELECT table_name 
+          FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name IN ('stock_symbols', 'fear_greed_index', 'naaim_exposure', 'technical_data_daily', 'earnings_estimates')
+        `),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Table existence check timeout')), 2000))
+      ]);
+      const existingTables = tableExistenceCheck.rows.map(row => row.table_name);
+      if (existingTables.length > 0) {
+        const countQueries = existingTables.map(tableName => 
+          Promise.race([
+            query(`SELECT COUNT(*) as count FROM ${tableName}`),
+            new Promise((_, reject) => setTimeout(() => reject(new Error(`Count timeout for ${tableName}`)), 3000))
+          ]).then(result => ({
+            table: tableName,
+            count: parseInt(result.rows[0].count)
+          })).catch(err => ({
+            table: tableName,
+            count: null,
+            error: err.message
+          }))
+        );
+        const tableResults = await Promise.race([
+          Promise.all(countQueries),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Table count global timeout')), HEALTH_TIMEOUT_MS))
+        ]);
+        tableResults.forEach(result => {
+          tables[result.table] = result.count !== null ? result.count : `Error: ${result.error}`;
+        });
+      }
+      // Add missing tables as "not_found"
+      ['stock_symbols', 'fear_greed_index', 'naaim_exposure', 'technical_data_daily', 'earnings_estimates'].forEach(tableName => {
+        if (!existingTables.includes(tableName)) {
+          tables[tableName] = 'not_found';
+        }
+      });
+    } catch (tableError) {
+      tables = { error: tableError.message };
+    }
     const health = {
       status: 'healthy',
       healthy: true,
       timestamp: new Date().toISOString(),
       database: {
         status: 'connected',
-        currentTime: result.rows[0].current_time
+        tables: tables
       },
       api: {
         version: '1.0.0',
-        environment: process.env.NODE_ENV || 'development'
+        environment: process.env.NODE_ENV || 'development',
+        endpoints: apiResults
       },
       memory: process.memoryUsage(),
-      uptime: process.uptime(),
-      api_endpoints: getApiEndpoints()
+      uptime: process.uptime()
     };
-    
     res.json(health);
-    
   } catch (error) {
     console.error('Health check failed:', error);
     res.status(503).json({
@@ -73,7 +244,7 @@ router.get('/', async (req, res) => {
       error: error.message,
       database: {
         status: 'disconnected',
-        error: error.message
+        tables: {}
       },
       api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' },
       memory: process.memoryUsage(),
@@ -82,602 +253,69 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Cached database health check endpoint - reads from health_status table
+// Comprehensive database health check endpoint
 router.get('/database', async (req, res) => {
   console.log('Received request for /health/database');
-  
   try {
-    // Ensure database is initialized first
+    // Ensure database pool is initialized before running any queries
     try {
-      await initializeDatabase();
-      console.log('Database initialized successfully');
-    } catch (dbInitError) {
-      console.error('Database initialization failed:', dbInitError);
-      return res.status(503).json({
-        status: 'error',
-        message: 'Database initialization failed',
-        details: dbInitError.message,
-        timestamp: new Date().toISOString(),
-        debug: {
-          config: dbInitError.config,
-          env: dbInitError.env
-        }
-      });
-    }
-
-    console.log('Step 1: Creating health_status table...');
-    // First, check if health_status table exists and has the correct schema
-    try {
-      const tableCheck = await query(`
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name = 'health_status' 
-        AND column_name = 'last_updated';
-      `);
-      
-      // If table exists but doesn't have last_updated column, drop and recreate it
-      if (tableCheck.rows.length === 0) {
-        console.log('Step 1a: Migrating health_status table schema...');
-        await query('DROP TABLE IF EXISTS health_status;');
-      }
-    } catch (e) {
-      console.log('Step 1a: Error checking table schema, dropping table:', e.message);
-      await query('DROP TABLE IF EXISTS health_status;');
-    }
-    
-    // Create the health_status table with enhanced schema
-    await query(`
-      CREATE TABLE IF NOT EXISTS health_status (
-        id SERIAL PRIMARY KEY,
-        table_name VARCHAR(100) NOT NULL,
-        record_count BIGINT,
-        status VARCHAR(20) NOT NULL,
-        last_checked TIMESTAMP NOT NULL DEFAULT NOW(),
-        error_message TEXT,
-        last_updated TIMESTAMP,
-        stale_threshold_hours INTEGER DEFAULT 24,
-        is_stale BOOLEAN DEFAULT FALSE,
-        missing_data_count BIGINT DEFAULT 0,
-        UNIQUE(table_name)
-      );
-    `);
-    
-    console.log('Step 2: Getting cached health status...');
-    // Get cached health status
-    const healthResult = await query(`
-      SELECT 
-        table_name, 
-        record_count, 
-        status, 
-        last_checked, 
-        error_message,
-        last_updated,
-        stale_threshold_hours,
-        is_stale,
-        missing_data_count
-      FROM health_status 
-      ORDER BY table_name;
-    `);
-    
-    console.log('Step 3: Getting database time...');
-    // Get current database time
-    const dbTimeResult = await query('SELECT NOW() as current_time, version() as postgres_version');
-    
-    console.log('Step 4: Processing table stats...');
-    const tableStats = {};
-    healthResult.rows.forEach(row => {
-      tableStats[row.table_name] = {
-        record_count: row.record_count,
-        status: row.status,
-        last_checked: row.last_checked,
-        error: row.error_message,
-        last_updated: row.last_updated,
-        stale_threshold_hours: row.stale_threshold_hours,
-        is_stale: row.is_stale,
-        missing_data_count: row.missing_data_count
-      };
-    });
-    
-    // If no cached data exists, populate it automatically with enhanced analysis
-    if (Object.keys(tableStats).length === 0) {
-      console.log('Step 5: No cached data found, populating automatically...');
-      
-      const expectedTables = [
-        // Core symbol tables
-        'stock_symbols', 'etf_symbols', 'last_updated',
-        
-        // Market sentiment and indicators
-        'fear_greed_index', 'aaii_sentiment', 'naaim',
-        
-        // Analyst and earnings data
-        'analyst_upgrade_downgrade', 'calendar_events',
-        'earnings_estimates', 'earnings_history', 'revenue_estimates',
-        'earnings_metrics',
-        
-        // Economic and company data
-        'economic_data', 'company_profile', 'leadership_team',
-        'governance_scores', 'market_data', 'key_metrics', 'analyst_estimates',
-        
-        // Price data tables
-        'price_daily', 'price_weekly', 'price_monthly',
-        'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly',
-        'price_data_montly', // from test file (with typo)
-        
-        // Technical analysis tables
-        'technical_data_daily', 'technical_data_weekly', 'technical_data_monthly',
-        
-        // Trading signals
-        'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
-        
-        // Financial statements (from loadfinancialdata.py)
-        'balance_sheet_annual', 'balance_sheet_quarterly', 'balance_sheet_ttm',
-        'income_statement_annual', 'income_statement_quarterly', 'income_statement_ttm',
-        'cash_flow_annual', 'cash_flow_quarterly', 'cash_flow_ttm',
-        'financials', 'financials_quarterly', 'financials_ttm',
-        
-        // New modular financial data loaders
-        'quarterly_balance_sheet', 'annual_balance_sheet',
-        'quarterly_income_statement', 'annual_income_statement',
-        'quarterly_cash_flow', 'annual_cash_flow',
-        'ttm_income_statement', 'ttm_cash_flow',
-        
-        // Latest price and technical data
-        'latest_price_daily', 'latest_price_weekly', 'latest_price_monthly',
-        'latest_technical_data_daily', 'latest_technical_data_weekly', 'latest_technical_data_monthly',
-        
-        // Additional tables that might be created
-        'health_status' // the health check table itself
-      ];
-      
-      for (const tableName of expectedTables) {
-        try {
-          console.log(`Processing table: ${tableName}`);
-          // Check if table exists
-          const tableExists = await query(`
-            SELECT EXISTS (
-              SELECT FROM information_schema.tables 
-              WHERE table_schema = 'public' 
-              AND table_name = $1
-            );
-          `, [tableName]);
-          
-          if (tableExists.rows[0].exists) {
-            // Get record count
-            const countResult = await query(`SELECT COUNT(*) as count FROM ${tableName}`);
-            const recordCount = parseInt(countResult.rows[0].count);
-            
-            // Check for fetched_at column and get last updated
-            let lastUpdated = null;
-            let isStale = false;
-            let missingDataCount = 0;
-            let staleThresholdHours = 24; // Default threshold
-            
-            try {
-              // Check if fetched_at column exists
-              const columnExists = await query(`
-                SELECT EXISTS (
-                  SELECT FROM information_schema.columns 
-                  WHERE table_name = $1 
-                  AND column_name = 'fetched_at'
-                );
-              `, [tableName]);
-              
-              if (columnExists.rows[0].exists) {
-                // Get last updated timestamp
-                const lastUpdateResult = await query(`
-                  SELECT MAX(fetched_at) as last_updated 
-                  FROM ${tableName} 
-                  WHERE fetched_at IS NOT NULL
-                `);
-                
-                if (lastUpdateResult.rows[0].last_updated) {
-                  lastUpdated = lastUpdateResult.rows[0].last_updated;
-                  
-                  // Check if data is stale (older than threshold)
-                  const hoursSinceUpdate = (new Date() - new Date(lastUpdated)) / (1000 * 60 * 60);
-                  isStale = hoursSinceUpdate > staleThresholdHours;
-                  
-                  // Count records with missing fetched_at
-                  const missingDataResult = await query(`
-                    SELECT COUNT(*) as missing_count 
-                    FROM ${tableName} 
-                    WHERE fetched_at IS NULL
-                  `);
-                  missingDataCount = parseInt(missingDataResult.rows[0].missing_count);
-                }
-              } else {
-                // Try alternative timestamp columns
-                const altColumns = ['updated_at', 'created_at', 'date', 'period_end', 'timestamp'];
-                for (const col of altColumns) {
-                  try {
-                    const altColumnExists = await query(`
-                      SELECT EXISTS (
-                        SELECT FROM information_schema.columns 
-                        WHERE table_name = $1 
-                        AND column_name = $2
-                      );
-                    `, [tableName, col]);
-                    
-                    if (altColumnExists.rows[0].exists) {
-                      const altLastUpdateResult = await query(`
-                        SELECT MAX(${col}) as last_updated 
-                        FROM ${tableName} 
-                        WHERE ${col} IS NOT NULL
-                      `);
-                      
-                      if (altLastUpdateResult.rows[0].last_updated) {
-                        lastUpdated = altLastUpdateResult.rows[0].last_updated;
-                        const hoursSinceUpdate = (new Date() - new Date(lastUpdated)) / (1000 * 60 * 60);
-                        isStale = hoursSinceUpdate > staleThresholdHours;
-                        break;
-                      }
-                    }
-                  } catch (e) {
-                    // Continue to next column
-                  }
-                }
-              }
-            } catch (e) {
-              console.log(`Could not analyze timestamp for table ${tableName}:`, e.message);
-            }
-            
-            // Determine status based on analysis
-            let status = 'healthy';
-            if (recordCount === 0) {
-              status = 'empty';
-            } else if (isStale) {
-              status = 'stale';
-            } else if (missingDataCount > 0) {
-              status = 'incomplete';
-            }
-            
-            // Insert enhanced health status
-            await query(`
-              INSERT INTO health_status (
-                table_name, record_count, status, last_checked, 
-                last_updated, stale_threshold_hours, is_stale, missing_data_count
-              )
-              VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7)
-              ON CONFLICT (table_name) DO UPDATE SET
-                record_count = EXCLUDED.record_count,
-                status = EXCLUDED.status,
-                last_checked = EXCLUDED.last_checked,
-                last_updated = EXCLUDED.last_updated,
-                stale_threshold_hours = EXCLUDED.stale_threshold_hours,
-                is_stale = EXCLUDED.is_stale,
-                missing_data_count = EXCLUDED.missing_data_count,
-                error_message = NULL;
-            `, [tableName, recordCount, status, lastUpdated, staleThresholdHours, isStale, missingDataCount]);
-            
-            tableStats[tableName] = {
-              record_count: recordCount,
-              status: status,
-              last_checked: new Date().toISOString(),
-              error: null,
-              last_updated: lastUpdated,
-              stale_threshold_hours: staleThresholdHours,
-              is_stale: isStale,
-              missing_data_count: missingDataCount
-            };
-          } else {
-            // Table doesn't exist
-            await query(`
-              INSERT INTO health_status (table_name, record_count, status, last_checked, error_message)
-              VALUES ($1, NULL, 'not_found', NOW(), 'Table does not exist')
-              ON CONFLICT (table_name) DO UPDATE SET
-                record_count = NULL,
-                status = EXCLUDED.status,
-                last_checked = EXCLUDED.last_checked,
-                error_message = EXCLUDED.error_message;
-            `, [tableName]);
-            
-            tableStats[tableName] = {
-              record_count: null,
-              status: 'not_found',
-              last_checked: new Date().toISOString(),
-              error: 'Table does not exist',
-              last_updated: null,
-              stale_threshold_hours: 24,
-              is_stale: false,
-              missing_data_count: 0
-            };
-          }
-        } catch (error) {
-          console.error(`Error processing table ${tableName}:`, error);
-          
-          // Record error in health status
-          await query(`
-            INSERT INTO health_status (table_name, record_count, status, last_checked, error_message)
-            VALUES ($1, NULL, 'error', NOW(), $2)
-            ON CONFLICT (table_name) DO UPDATE SET
-              record_count = NULL,
-              status = EXCLUDED.status,
-              last_checked = EXCLUDED.last_checked,
-              error_message = EXCLUDED.error_message;
-          `, [tableName, error.message]);
-          
-          tableStats[tableName] = {
-            record_count: null,
-            status: 'error',
-            last_checked: new Date().toISOString(),
-            error: error.message,
-            last_updated: null,
-            stale_threshold_hours: 24,
-            is_stale: false,
-            missing_data_count: 0
-          };
-        }
-      }
-    }
-    
-    console.log('Step 6: Calculating summary statistics...');
-    // Calculate summary statistics - cap total records to prevent overflow
-    const totalRecords = Object.values(tableStats).reduce((sum, t) => {
-      const count = t.record_count || 0;
-      // Cap individual table counts to prevent overflow
-      return sum + Math.min(count, 1000000); // Cap at 1M per table
-    }, 0);
-    
-    const summary = {
-      total_tables: Object.keys(tableStats).length,
-      healthy_tables: Object.values(tableStats).filter(t => t.status === 'healthy').length,
-      stale_tables: Object.values(tableStats).filter(t => t.is_stale).length,
-      empty_tables: Object.values(tableStats).filter(t => t.status === 'empty').length,
-      error_tables: Object.values(tableStats).filter(t => t.status === 'error').length,
-      missing_tables: Object.values(tableStats).filter(t => t.status === 'not_found').length,
-      total_records: totalRecords,
-      total_missing_data: Object.values(tableStats).reduce((sum, t) => sum + (t.missing_data_count || 0), 0)
-    };
-    
-    console.log('Step 7: Sending response...');
-    res.json({
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-      database: {
-        status: 'connected',
-        currentTime: dbTimeResult.rows[0].current_time,
-        postgresVersion: dbTimeResult.rows[0].postgres_version,
-        tables: tableStats,
-        summary: summary,
-        note: Object.keys(tableStats).length === 0 ? 'No tables found' : 
-              'Data from cached health status table - run /health/update-status to refresh'
-      }
-    });
-    
-  } catch (error) {
-    console.error('Database health check failed:', error);
-    console.error('Error stack:', error.stack);
-    res.status(503).json({
-      status: 'unhealthy',
-      timestamp: new Date().toISOString(),
-      error: error.message,
-      errorStack: error.stack,
-      database: {
-        status: 'disconnected',
-        error: error.message
-      }
-    });
-  }
-});
-
-// Background job to update health status table
-router.post('/update-status', async (req, res) => {
-  console.log('Received request to update health status');
-  
-  try {
-    const expectedTables = [
-      // Core symbol tables
-      'stock_symbols', 'etf_symbols', 'last_updated',
-      
-      // Market sentiment and indicators
-      'fear_greed_index', 'aaii_sentiment', 'naaim',
-      
-      // Analyst and earnings data
-      'analyst_upgrade_downgrade', 'calendar_events',
-      'earnings_estimates', 'earnings_history', 'revenue_estimates',
-      'earnings_metrics',
-      
-      // Economic and company data
-      'economic_data', 'company_profile', 'leadership_team',
-      'governance_scores', 'market_data', 'key_metrics', 'analyst_estimates',
-      
-      // Price data tables
-      'price_daily', 'price_weekly', 'price_monthly',
-      'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly',
-      'price_data_montly', // from test file (with typo)
-      
-      // Technical analysis tables
-      'technical_data_daily', 'technical_data_weekly', 'technical_data_monthly',
-      
-      // Trading signals
-      'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
-      
-      // Financial statements (from loadfinancialdata.py)
-      'balance_sheet_annual', 'balance_sheet_quarterly', 'balance_sheet_ttm',
-      'income_statement_annual', 'income_statement_quarterly', 'income_statement_ttm',
-      'cash_flow_annual', 'cash_flow_quarterly', 'cash_flow_ttm',
-      'financials', 'financials_quarterly', 'financials_ttm',
-      
-      // New modular financial data loaders
-      'quarterly_balance_sheet', 'annual_balance_sheet',
-      'quarterly_income_statement', 'annual_income_statement',
-      'quarterly_cash_flow', 'annual_cash_flow',
-      'ttm_income_statement', 'ttm_cash_flow',
-      
-      // Latest price and technical data
-      'latest_price_daily', 'latest_price_weekly', 'latest_price_monthly',
-      'latest_technical_data_daily', 'latest_technical_data_weekly', 'latest_technical_data_monthly',
-      
-      // Additional tables that might be created
-      'health_status' // the health check table itself
-    ];
-    
-    let processed = 0;
-    let errors = 0;
-    
-    for (const tableName of expectedTables) {
+      getPool(); // Throws if not initialized
+    } catch (initError) {
+      console.log('Database not initialized, initializing now...');
       try {
-        // Check if table exists
-        const tableExists = await query(`
-          SELECT EXISTS (
-            SELECT FROM information_schema.tables 
-            WHERE table_name = $1
-          );
-        `, [tableName]);
-        
-        if (tableExists.rows[0].exists) {
-          // Get record count
-          const countResult = await query(`SELECT COUNT(*) as count FROM ${tableName}`);
-          const recordCount = parseInt(countResult.rows[0].count);
-          
-          // Check for fetched_at column and get last updated
-          let lastUpdated = null;
-          let isStale = false;
-          let missingDataCount = 0;
-          let staleThresholdHours = 24; // Default threshold
-          
-          try {
-            // Check if fetched_at column exists
-            const columnExists = await query(`
-              SELECT EXISTS (
-                SELECT FROM information_schema.columns 
-                WHERE table_name = $1 
-                AND column_name = 'fetched_at'
-              );
-            `, [tableName]);
-            
-            if (columnExists.rows[0].exists) {
-              // Get last updated timestamp
-              const lastUpdateResult = await query(`
-                SELECT MAX(fetched_at) as last_updated 
-                FROM ${tableName} 
-                WHERE fetched_at IS NOT NULL
-              `);
-              
-              if (lastUpdateResult.rows[0].last_updated) {
-                lastUpdated = lastUpdateResult.rows[0].last_updated;
-                
-                // Check if data is stale (older than threshold)
-                const hoursSinceUpdate = (new Date() - new Date(lastUpdated)) / (1000 * 60 * 60);
-                isStale = hoursSinceUpdate > staleThresholdHours;
-                
-                // Count records with missing fetched_at
-                const missingDataResult = await query(`
-                  SELECT COUNT(*) as missing_count 
-                  FROM ${tableName} 
-                  WHERE fetched_at IS NULL
-                `);
-                missingDataCount = parseInt(missingDataResult.rows[0].missing_count);
-              }
-            } else {
-              // Try alternative timestamp columns
-              const altColumns = ['updated_at', 'created_at', 'date', 'period_end', 'timestamp'];
-              for (const col of altColumns) {
-                try {
-                  const altColumnExists = await query(`
-                    SELECT EXISTS (
-                      SELECT FROM information_schema.columns 
-                      WHERE table_name = $1 
-                      AND column_name = $2
-                    );
-                  `, [tableName, col]);
-                  
-                  if (altColumnExists.rows[0].exists) {
-                    const altLastUpdateResult = await query(`
-                      SELECT MAX(${col}) as last_updated 
-                      FROM ${tableName} 
-                      WHERE ${col} IS NOT NULL
-                    `);
-                    
-                    if (altLastUpdateResult.rows[0].last_updated) {
-                      lastUpdated = altLastUpdateResult.rows[0].last_updated;
-                      const hoursSinceUpdate = (new Date() - new Date(lastUpdated)) / (1000 * 60 * 60);
-                      isStale = hoursSinceUpdate > staleThresholdHours;
-                      break;
-                    }
-                  }
-                } catch (e) {
-                  // Continue to next column
-                }
-              }
-            }
-          } catch (e) {
-            console.log(`Could not analyze timestamp for table ${tableName}:`, e.message);
-          }
-          
-          // Determine status based on analysis
-          let status = 'healthy';
-          if (recordCount === 0) {
-            status = 'empty';
-          } else if (isStale) {
-            status = 'stale';
-          } else if (missingDataCount > 0) {
-            status = 'incomplete';
-          }
-          
-          // Update or insert enhanced health status
-          await query(`
-            INSERT INTO health_status (
-              table_name, record_count, status, last_checked, 
-              last_updated, stale_threshold_hours, is_stale, missing_data_count
-            )
-            VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7)
-            ON CONFLICT (table_name) DO UPDATE SET
-              record_count = EXCLUDED.record_count,
-              status = EXCLUDED.status,
-              last_checked = EXCLUDED.last_checked,
-              last_updated = EXCLUDED.last_updated,
-              stale_threshold_hours = EXCLUDED.stale_threshold_hours,
-              is_stale = EXCLUDED.is_stale,
-              missing_data_count = EXCLUDED.missing_data_count,
-              error_message = NULL;
-          `, [tableName, recordCount, status, lastUpdated, staleThresholdHours, isStale, missingDataCount]);
-        } else {
-          // Table doesn't exist, mark as not_found
-          await query(`
-            INSERT INTO health_status (table_name, record_count, status, last_checked, error_message)
-            VALUES ($1, NULL, 'not_found', NOW(), 'Table does not exist')
-            ON CONFLICT (table_name) DO UPDATE SET
-              record_count = NULL,
-              status = EXCLUDED.status,
-              last_checked = EXCLUDED.last_checked,
-              error_message = EXCLUDED.error_message;
-          `, [tableName]);
-        }
-        
-        processed++;
-      } catch (error) {
-        console.error(`Error processing table ${tableName}:`, error);
-        
-        // Record error in health status
-        await query(`
-          INSERT INTO health_status (table_name, record_count, status, last_checked, error_message)
-          VALUES ($1, NULL, 'error', NOW(), $2)
-          ON CONFLICT (table_name) DO UPDATE SET
-            record_count = NULL,
-            status = EXCLUDED.status,
-            last_checked = EXCLUDED.last_checked,
-            error_message = EXCLUDED.error_message;
-        `, [tableName, error.message]);
-        
-        errors++;
+        await initializeDatabase();
+      } catch (dbInitError) {
+        console.error('Failed to initialize database:', dbInitError.message);
+        return res.status(503).json({
+          status: 'unhealthy',
+          healthy: false,
+          service: 'Financial Dashboard API',
+          timestamp: new Date().toISOString(),
+          environment: process.env.NODE_ENV || 'development',
+          database: {
+            status: 'initialization_failed',
+            error: dbInitError.message,
+            lastAttempt: new Date().toISOString(),
+            tables: {}
+          },
+          api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' },
+          memory: process.memoryUsage(),
+          uptime: process.uptime()
+        });
       }
     }
-    
-    res.json({
-      status: 'success',
-      message: 'Health status updated',
-      processed,
-      errors,
-      timestamp: new Date().toISOString()
+    // BASIC DB TEST ONLY
+    let dbStatus = 'unknown';
+    let dbError = null;
+    try {
+      const result = await query('SELECT 1 as ok');
+      if (result && result.rows && result.rows[0] && result.rows[0].ok === 1) {
+        dbStatus = 'connected';
+      } else {
+        dbStatus = 'unexpected_result';
+      }
+    } catch (err) {
+      dbStatus = 'disconnected';
+      dbError = err.message;
+    }
+    return res.json({
+      status: dbStatus === 'connected' ? 'ok' : 'error',
+      healthy: dbStatus === 'connected',
+      timestamp: new Date().toISOString(),
+      database: {
+        status: dbStatus,
+        error: dbError
+      },
+      api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' },
+      memory: process.memoryUsage(),
+      uptime: process.uptime()
     });
-    
   } catch (error) {
-    console.error('Failed to update health status:', error);
-    res.status(500).json({ 
+    console.error('Error in database health check:', error);
+    res.status(500).json({
       status: 'error',
-      message: 'Failed to update health status',
-      error: error.message,
+      error: 'Health check failed',
+      message: error.message,
       timestamp: new Date().toISOString()
     });
   }
@@ -701,31 +339,6 @@ router.get('/test-connection', async (req, res) => {
     res.status(500).json({ 
       status: 'error',
       connection: 'failed',
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// Clear health status cache
-router.post('/clear-cache', async (req, res) => {
-  try {
-    console.log('Clearing health status cache...');
-    
-    // Clear the health_status table
-    await query('DELETE FROM health_status');
-    
-    res.json({
-      status: 'success',
-      message: 'Health status cache cleared',
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('Error clearing health status cache:', error);
-    res.status(500).json({ 
-      status: 'error',
-      message: 'Failed to clear health status cache',
       error: error.message,
       timestamp: new Date().toISOString()
     });
@@ -943,137 +556,5 @@ router.get('/db-test', async (req, res) => {
     res.status(500).json({ ok: false, error: e.message });
   }
 });
-
-// Express error-handling middleware to always return JSON
-router.use((err, req, res, next) => {
-  console.error('Express error handler:', err);
-  if (res.headersSent) return next(err);
-  res.status(500).json({
-    status: 'error',
-    error: err.message || 'Internal server error',
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Helper function to return exhaustive list of all API endpoints
-function getApiEndpoints() {
-  return {
-    stocks: [
-      '/api/stocks',
-      '/api/stocks/:symbol',
-      '/api/stocks/price-history/:symbol',
-      '/api/stocks/filters/sectors',
-      '/api/stocks/quick/overview',
-      '/api/stocks/chunk/:chunkIndex',
-      '/api/stocks/full/data',
-    ],
-    market: [
-      '/api/market/overview',
-      '/api/market/sentiment/history',
-      '/api/market/sectors/performance',
-      '/api/market/breadth',
-      '/api/market/economic',
-      '/api/market/naaim',
-      '/api/market/fear-greed',
-      '/api/market/ping',
-      '/api/market/debug',
-      '/api/market/test',
-    ],
-    dashboard: [
-      '/api/dashboard/market-summary',
-      '/api/dashboard/earnings-calendar',
-      '/api/dashboard/analyst-insights',
-      '/api/dashboard/financial-highlights',
-      '/api/dashboard/user',
-      '/api/dashboard/watchlist',
-      '/api/dashboard/portfolio',
-      '/api/dashboard/portfolio/metrics',
-      '/api/dashboard/holdings',
-      '/api/dashboard/user/settings',
-      '/api/dashboard/news',
-      '/api/dashboard/activity',
-      '/api/dashboard/calendar',
-      '/api/dashboard/signals',
-      '/api/dashboard/symbols',
-    ],
-    technical: [
-      '/api/technical/:timeframe',
-      '/api/technical/:timeframe/summary',
-      '/api/technical',
-      '/api/technical/ping',
-    ],
-    financials: [
-      '/api/financials/:ticker/balance-sheet',
-      '/api/financials/:ticker/income-statement',
-      '/api/financials/:ticker/cash-flow',
-      '/api/financials/:ticker/financials',
-      '/api/financials/:ticker/key-metrics',
-      '/api/financials/ping',
-    ],
-    signals: [
-      '/api/signals/buy',
-      '/api/signals/sell',
-    ],
-    metrics: [
-      '/api/metrics/overview',
-      '/api/metrics/valuation',
-      '/api/metrics/growth',
-      '/api/metrics/dividends',
-      '/api/metrics/financial-strength',
-      '/api/metrics/screener',
-    ],
-    calendar: [
-      '/api/calendar/events',
-      '/api/calendar/summary',
-      '/api/calendar/earnings-estimates',
-      '/api/calendar/earnings-history',
-      '/api/calendar/earnings-metrics',
-      '/api/calendar/debug',
-      '/api/calendar/test',
-    ],
-    analysts: [
-      '/api/analysts/upgrades',
-      '/api/analysts/:ticker/recommendations',
-      '/api/analysts/:ticker/earnings-estimates',
-      '/api/analysts/:ticker/revenue-estimates',
-      '/api/analysts/:ticker/earnings-history',
-      '/api/analysts/:ticker/eps-revisions',
-      '/api/analysts/:ticker/eps-trend',
-      '/api/analysts/:ticker/growth-estimates',
-      '/api/analysts/:ticker/overview',
-      '/api/analysts/recent-actions',
-    ],
-    trading: [
-      '/api/trading/signals/:timeframe',
-      '/api/trading/summary/:timeframe',
-      '/api/trading/swing-signals',
-      '/api/trading/:ticker/technicals',
-      '/api/trading/performance',
-    ],
-    health: [
-      '/api/health',
-      '/api/health/database',
-      '/api/health/test-connection',
-      '/api/health/database/diagnostics',
-      '/api/health/db-test',
-      '/api/health/full',
-      '/api/health/clear-cache',
-      '/api/health/update-status',
-    ],
-    data: [
-      '/api/data/eps-revisions',
-      '/api/data/eps-trend',
-      '/api/data/growth-estimates',
-      '/api/data/economic',
-      '/api/data/economic/data',
-      '/api/data/naaim',
-      '/api/data/fear-greed',
-      '/api/data/validation-summary',
-      '/api/data/financials/:symbol',
-      '/api/data/financial-metrics',
-    ]
-  };
-}
 
 module.exports = router;
