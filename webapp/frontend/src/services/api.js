@@ -540,9 +540,15 @@ export const getStocks = async (params = {}) => {
       dataKeys: response.data ? Object.keys(response.data) : []
     });
     
-    // Always return { data: ... } structure for consistency
+    // Handle backend response structure: { data: [...], total: ..., pagination: {...} }
+    if (response.data && Array.isArray(response.data.data)) {
+      console.log('✅ getStocks: returning backend response structure:', response.data);
+      return response.data; // Return the full backend response structure
+    }
+    
+    // Fallback to normalized response
     const result = normalizeApiResponse(response, true);
-    console.log('✅ getStocks: returning result:', result);
+    console.log('✅ getStocks: returning normalized result:', result);
     return { data: result };
   } catch (error) {
     console.error('❌ Error fetching stocks:', error)
@@ -810,10 +816,12 @@ export const screenStocks = async (params) => {
       baseURL: currentConfig.baseURL
     })
     
-    // Always return { data: ... } structure for consistency
-    if (response.data && typeof response.data === 'object') {
+    console.log('screenStocks: Raw response:', response.data);
+    
+    // Backend returns: { success: true, data: [...], total: ..., pagination: {...} }
+    if (response.data && response.data.success && Array.isArray(response.data.data)) {
       console.log('screenStocks: returning backend response structure:', response.data);
-      return response.data; // Backend already returns { data: [...], pagination: {...}, metadata: {...} }
+      return response.data; // Return the full backend response structure
     }
     
     // Fallback to normalized response
@@ -1325,14 +1333,16 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
       throw lastError;
     }
     
-    // Always return { data, pagination, metadata }
-    if (response.data && typeof response.data === 'object') {
-      const { data, pagination, metadata } = response.data;
-      console.log('📊 [API] Technical data structure:', { data: Array.isArray(data), pagination, metadata });
+    console.log('📊 [API] Technical data raw response:', response.data);
+    
+    // Handle backend response structure: { success: true, data: [...], pagination: {...} }
+    if (response.data && response.data.success && Array.isArray(response.data.data)) {
+      console.log('📊 [API] Technical data backend structure:', response.data);
       return {
-        data: Array.isArray(data) ? data : [],
-        pagination: pagination || {},
-        metadata: metadata || {},
+        data: response.data.data,
+        pagination: response.data.pagination || {},
+        metadata: response.data.metadata || {},
+        success: true,
         ...response.data
       };
     }
@@ -1344,6 +1354,7 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
       data: result,
       pagination: {},
       metadata: {},
+      success: true,
       timestamp: new Date().toISOString()
     };
   } catch (error) {
@@ -1357,6 +1368,7 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
       data: [],
       pagination: {},
       metadata: {},
+      success: false,
       error: errorMessage,
       timestamp: new Date().toISOString()
     };

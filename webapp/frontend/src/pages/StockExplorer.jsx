@@ -445,10 +445,15 @@ function StockExplorer() {
       dataType: typeof stocksData.data,
       isArray: Array.isArray(stocksData.data),
       dataLength: stocksData.data?.length,
-      keys: Object.keys(stocksData || {})
+      keys: Object.keys(stocksData || {}),
+      success: stocksData.success
     });
     
-    if (Array.isArray(stocksData.data)) {
+    // Handle backend response structure: { success: true, data: [...], total: ..., pagination: {...} }
+    if (stocksData.success && Array.isArray(stocksData.data)) {
+      stocksList = stocksData.data;
+      console.log('StockExplorer: Using stocksData.data (backend structure), length:', stocksList.length);
+    } else if (Array.isArray(stocksData.data)) {
       stocksList = stocksData.data;
       console.log('StockExplorer: Using stocksData.data directly, length:', stocksList.length);
     } else if (stocksData.data && Array.isArray(stocksData.data.data)) {
