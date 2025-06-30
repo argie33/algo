@@ -817,7 +817,6 @@ function UserSettingsWidget({ user }) {
 
 const Dashboard = () => {
   const [selectedSymbol, setSelectedSymbol] = useState(DEFAULT_TICKER);
-  const [activeTab, setActiveTab] = useState(0);
 
   // Custom hooks for data fetching
   function useUser() {
@@ -1064,272 +1063,154 @@ const Dashboard = () => {
         />
       </Box>
 
-      {/* Main Content Tabs */}
-      <Box sx={{ mb: 3 }}>
-        <Tabs value={activeTab} onChange={(_, newValue) => setActiveTab(newValue)}>
-          <Tab label="Overview" />
-          <Tab label="Portfolio" />
-          <Tab label="Market Analysis" />
-          <Tab label="Technical Signals" />
-          <Tab label="Earnings & Events" />
-        </Tabs>
-      </Box>
-
-      {/* Tab Content */}
-      {activeTab === 0 && (
-        <Grid container spacing={3}>
-          {/* Market Overview */}
-          <Grid item xs={12} lg={6}>
-            <MarketOverviewSummary 
-              data={{
-                indices: marketData?.data?.indices || [],
-                sentiment: sentimentData?.data?.sentiment
-              }}
-              loading={marketLoading || sentimentLoading}
-            />
-          </Grid>
-
-          {/* Portfolio Summary */}
-          <Grid item xs={12} lg={6}>
-            <PortfolioSummary 
-              data={{
-                portfolio: portfolio,
-                metrics: portfolioMetrics
-              }}
-              loading={portfolioLoading || metricsLoading}
-            />
-          </Grid>
-
-          {/* Technical Signals */}
-          <Grid item xs={12}>
-            <TechnicalSignalsSummary 
-              data={{
-                signals: [
-                  ...(buySignalsData?.data || []).map(s => ({ ...s, signal: 'Buy' })),
-                  ...(sellSignalsData?.data || []).map(s => ({ ...s, signal: 'Sell' }))
-                ]
-              }}
-              loading={buySignalsLoading || sellSignalsLoading}
-            />
-          </Grid>
-
-          {/* Earnings Calendar */}
-          <Grid item xs={12}>
-            <EarningsCalendarSummary 
-              data={{
-                earnings: earningsData?.data || []
-              }}
-              loading={earningsLoading}
-            />
-          </Grid>
+      {/* Main Content - All on One Page */}
+      <Grid container spacing={3}>
+        {/* Market Overview */}
+        <Grid item xs={12} lg={6}>
+          <MarketOverviewSummary 
+            data={{
+              indices: marketData?.data?.indices || [],
+              sentiment: sentimentData?.data?.sentiment
+            }}
+            loading={marketLoading || sentimentLoading}
+          />
         </Grid>
-      )}
 
-      {activeTab === 1 && (
-        <Grid container spacing={3}>
-          {/* Portfolio Holdings */}
-          <Grid item xs={12} lg={8}>
-            <Card elevation={2}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Portfolio Holdings
-                </Typography>
-                {holdingsLoading ? (
-                  <LinearProgress />
-                ) : holdingsError ? (
-                  <Alert severity="error">Failed to load holdings</Alert>
-                ) : (
-                  <TableContainer>
-                    <Table>
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Symbol</TableCell>
-                          <TableCell>Shares</TableCell>
-                          <TableCell>Avg Price</TableCell>
-                          <TableCell>Current Price</TableCell>
-                          <TableCell>Market Value</TableCell>
-                          <TableCell>P&L</TableCell>
-                          <TableCell>P&L %</TableCell>
+        {/* Portfolio Summary */}
+        <Grid item xs={12} lg={6}>
+          <PortfolioSummary 
+            data={{
+              portfolio: portfolio,
+              metrics: portfolioMetrics
+            }}
+            loading={portfolioLoading || metricsLoading}
+          />
+        </Grid>
+
+        {/* Technical Signals */}
+        <Grid item xs={12}>
+          <TechnicalSignalsSummary 
+            data={{
+              signals: [
+                ...(buySignalsData?.data || []).map(s => ({ ...s, signal: 'Buy' })),
+                ...(sellSignalsData?.data || []).map(s => ({ ...s, signal: 'Sell' }))
+              ]
+            }}
+            loading={buySignalsLoading || sellSignalsLoading}
+          />
+        </Grid>
+
+        {/* Earnings Calendar */}
+        <Grid item xs={12} lg={6}>
+          <EarningsCalendarSummary 
+            data={{
+              earnings: earningsData?.data || []
+            }}
+            loading={earningsLoading}
+          />
+        </Grid>
+
+        {/* Market Overview Widget */}
+        <Grid item xs={12} lg={6}>
+          <MarketOverviewWidget />
+        </Grid>
+
+        {/* Technical Signals Widget */}
+        <Grid item xs={12}>
+          <TechnicalSignalsWidget />
+        </Grid>
+
+        {/* Portfolio Holdings */}
+        <Grid item xs={12} lg={8}>
+          <Card elevation={2}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Portfolio Holdings
+              </Typography>
+              {holdingsLoading ? (
+                <LinearProgress />
+              ) : holdingsError ? (
+                <Alert severity="error">Failed to load holdings</Alert>
+              ) : (
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Symbol</TableCell>
+                        <TableCell>Shares</TableCell>
+                        <TableCell>Avg Price</TableCell>
+                        <TableCell>Current Price</TableCell>
+                        <TableCell>Market Value</TableCell>
+                        <TableCell>P&L</TableCell>
+                        <TableCell>P&L %</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {holdings.map((holding, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell>{holding.symbol}</TableCell>
+                          <TableCell>{holding.shares}</TableCell>
+                          <TableCell>{formatCurrency(holding.avgPrice)}</TableCell>
+                          <TableCell>{formatCurrency(holding.currentPrice)}</TableCell>
+                          <TableCell>{formatCurrency(holding.marketValue)}</TableCell>
+                          <TableCell sx={{ color: holding.pnl >= 0 ? 'success.main' : 'error.main' }}>
+                            {formatCurrency(holding.pnl)}
+                          </TableCell>
+                          <TableCell sx={{ color: holding.pnlPercent >= 0 ? 'success.main' : 'error.main' }}>
+                            {formatPercentage(holding.pnlPercent)}
+                          </TableCell>
                         </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {holdings.map((holding, idx) => (
-                          <TableRow key={idx}>
-                            <TableCell>{holding.symbol}</TableCell>
-                            <TableCell>{holding.shares}</TableCell>
-                            <TableCell>{formatCurrency(holding.avgPrice)}</TableCell>
-                            <TableCell>{formatCurrency(holding.currentPrice)}</TableCell>
-                            <TableCell>{formatCurrency(holding.marketValue)}</TableCell>
-                            <TableCell sx={{ color: holding.pnl >= 0 ? 'success.main' : 'error.main' }}>
-                              {formatCurrency(holding.pnl)}
-                            </TableCell>
-                            <TableCell sx={{ color: holding.pnlPercent >= 0 ? 'success.main' : 'error.main' }}>
-                              {formatPercentage(holding.pnlPercent)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                )}
-              </CardContent>
-            </Card>
-          </Grid>
-
-          {/* Portfolio Allocation */}
-          <Grid item xs={12} lg={4}>
-            <Card elevation={2}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Asset Allocation
-                </Typography>
-                <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <PieChart width={250} height={250}>
-                    <Pie
-                      data={holdings.map((h, idx) => ({ name: h.symbol, value: h.marketValue }))}
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={100}
-                      fill="#8884d8"
-                      dataKey="value"
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    >
-                      {holdings.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={ALLOCATION_COLORS[index % ALLOCATION_COLORS.length]} />
                       ))}
-                    </Pie>
-                  </PieChart>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </CardContent>
+          </Card>
         </Grid>
-      )}
 
-      {activeTab === 2 && (
-        <Grid container spacing={3}>
-          {/* Market Overview Widget */}
-          <Grid item xs={12}>
-            <MarketOverviewWidget />
-          </Grid>
-
-          {/* Market Indicators */}
-          <Grid item xs={12} lg={6}>
-            <Card elevation={2}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Market Indicators
-                </Typography>
-                {marketLoading ? (
-                  <LinearProgress />
-                ) : (
-                  <Grid container spacing={2}>
-                    {marketData?.data?.indicators?.map((indicator, idx) => (
-                      <Grid item xs={6} key={idx}>
-                        <Box>
-                          <Typography variant="body2" color="textSecondary">
-                            {indicator.name}
-                          </Typography>
-                          <Typography variant="h6" fontWeight={600}>
-                            {indicator.value}
-                          </Typography>
-                          <Chip
-                            label={`${indicator.change >= 0 ? '+' : ''}${formatPercentage(indicator.change)}`}
-                            color={indicator.change >= 0 ? 'success' : 'error'}
-                            size="small"
-                          />
-                        </Box>
-                      </Grid>
+        {/* Portfolio Allocation */}
+        <Grid item xs={12} lg={4}>
+          <Card elevation={2}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Asset Allocation
+              </Typography>
+              <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <PieChart width={250} height={250}>
+                  <Pie
+                    data={holdings.map((h, idx) => ({ name: h.symbol, value: h.marketValue }))}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={100}
+                    fill="#8884d8"
+                    dataKey="value"
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  >
+                    {holdings.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={ALLOCATION_COLORS[index % ALLOCATION_COLORS.length]} />
                     ))}
-                  </Grid>
-                )}
-              </CardContent>
-            </Card>
-          </Grid>
-
-          {/* Fear & Greed Index */}
-          <Grid item xs={12} lg={6}>
-            <Card elevation={2}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Market Sentiment
-                </Typography>
-                {sentimentLoading ? (
-                  <LinearProgress />
-                ) : (
-                  <Box>
-                    <Typography variant="h4" fontWeight="bold" color={SENTIMENT_COLORS[sentimentData?.data?.sentiment] || 'text.primary'}>
-                      {sentimentData?.data?.sentiment?.replace('_', ' ').toUpperCase() || 'NEUTRAL'}
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      Fear & Greed Index: {sentimentData?.data?.value || 'N/A'}
-                    </Typography>
-                    <Box sx={{ mt: 2 }}>
-                      <LinearProgress
-                        variant="determinate"
-                        value={sentimentData?.data?.value || 50}
-                        sx={{
-                          height: 10,
-                          borderRadius: 5,
-                          backgroundColor: 'grey.200',
-                          '& .MuiLinearProgress-bar': {
-                            backgroundColor: SENTIMENT_COLORS[sentimentData?.data?.sentiment] || 'grey.500'
-                          }
-                        }}
-                      />
-                    </Box>
-                  </Box>
-                )}
-              </CardContent>
-            </Card>
-          </Grid>
+                  </Pie>
+                </PieChart>
+              </Box>
+            </CardContent>
+          </Card>
         </Grid>
-      )}
 
-      {activeTab === 3 && (
-        <Grid container spacing={3}>
-          {/* Technical Signals Widget */}
-          <Grid item xs={12}>
-            <TechnicalSignalsWidget />
-          </Grid>
-
-          {/* Technical Analysis Chart */}
-          <Grid item xs={12} lg={8}>
-            <Card elevation={2}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Technical Analysis - {selectedSymbol}
-                </Typography>
-                {pricesLoading ? (
-                  <LinearProgress />
-                ) : (
-                  <ResponsiveContainer width="100%" height={400}>
-                    <LineChart data={priceData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" />
-                      <YAxis />
-                      <RechartsTooltip formatter={(value) => [formatCurrency(value), 'Price']} />
-                      <Line type="monotone" dataKey="price" stroke="#1976d2" strokeWidth={2} dot={false} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                )}
-              </CardContent>
-            </Card>
-          </Grid>
-
-          {/* Technical Indicators */}
-          <Grid item xs={12} lg={4}>
-            <Card elevation={2}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Technical Indicators
-                </Typography>
-                {technicalLoading ? (
-                  <LinearProgress />
-                ) : (
-                  <Box>
-                    {technicalData?.data?.indicators?.map((indicator, idx) => (
-                      <Box key={idx} sx={{ mb: 2 }}>
+        {/* Market Indicators */}
+        <Grid item xs={12} lg={6}>
+          <Card elevation={2}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Market Indicators
+              </Typography>
+              {marketLoading ? (
+                <LinearProgress />
+              ) : (
+                <Grid container spacing={2}>
+                  {marketData?.data?.indicators?.map((indicator, idx) => (
+                    <Grid item xs={6} key={idx}>
+                      <Box>
                         <Typography variant="body2" color="textSecondary">
                           {indicator.name}
                         </Typography>
@@ -1337,43 +1218,132 @@ const Dashboard = () => {
                           {indicator.value}
                         </Typography>
                         <Chip
-                          label={indicator.signal}
-                          color={indicator.signal === 'Buy' ? 'success' : indicator.signal === 'Sell' ? 'error' : 'default'}
+                          label={`${indicator.change >= 0 ? '+' : ''}${formatPercentage(indicator.change)}`}
+                          color={indicator.change >= 0 ? 'success' : 'error'}
                           size="small"
                         />
                       </Box>
-                    ))}
+                    </Grid>
+                  ))}
+                </Grid>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Fear & Greed Index */}
+        <Grid item xs={12} lg={6}>
+          <Card elevation={2}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Market Sentiment
+              </Typography>
+              {sentimentLoading ? (
+                <LinearProgress />
+              ) : (
+                <Box>
+                  <Typography variant="h4" fontWeight="bold" color={SENTIMENT_COLORS[sentimentData?.data?.sentiment] || 'text.primary'}>
+                    {sentimentData?.data?.sentiment?.replace('_', ' ').toUpperCase() || 'NEUTRAL'}
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary">
+                    Fear & Greed Index: {sentimentData?.data?.value || 'N/A'}
+                  </Typography>
+                  <Box sx={{ mt: 2 }}>
+                    <LinearProgress
+                      variant="determinate"
+                      value={sentimentData?.data?.value || 50}
+                      sx={{
+                        height: 10,
+                        borderRadius: 5,
+                        backgroundColor: 'grey.200',
+                        '& .MuiLinearProgress-bar': {
+                          backgroundColor: SENTIMENT_COLORS[sentimentData?.data?.sentiment] || 'grey.500'
+                        }
+                      }}
+                    />
                   </Box>
-                )}
-              </CardContent>
-            </Card>
-          </Grid>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
         </Grid>
-      )}
 
-      {activeTab === 4 && (
-        <Grid container spacing={3}>
-          {/* Earnings Calendar Widget */}
-          <Grid item xs={12} lg={6}>
-            <EarningsCalendarWidget symbol={selectedSymbol} />
-          </Grid>
-
-          {/* Analyst Insights Widget */}
-          <Grid item xs={12} lg={6}>
-            <AnalystInsightsWidget symbol={selectedSymbol} />
-          </Grid>
-
-          {/* Financial Highlights Widget */}
-          <Grid item xs={12} lg={6}>
-            <FinancialHighlightsWidget symbol={selectedSymbol} />
-          </Grid>
-
-          {/* User Settings Widget */}
-          <Grid item xs={12} lg={6}>
-            <UserSettingsWidget user={user} />
-          </Grid>
+        {/* Technical Analysis Chart */}
+        <Grid item xs={12} lg={8}>
+          <Card elevation={2}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Technical Analysis - {selectedSymbol}
+              </Typography>
+              {pricesLoading ? (
+                <LinearProgress />
+              ) : (
+                <ResponsiveContainer width="100%" height={400}>
+                  <LineChart data={priceData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis />
+                    <RechartsTooltip formatter={(value) => [formatCurrency(value), 'Price']} />
+                    <Line type="monotone" dataKey="price" stroke="#1976d2" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
         </Grid>
-      )}
+
+        {/* Technical Indicators */}
+        <Grid item xs={12} lg={4}>
+          <Card elevation={2}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Technical Indicators
+              </Typography>
+              {technicalLoading ? (
+                <LinearProgress />
+              ) : (
+                <Box>
+                  {technicalData?.data?.indicators?.map((indicator, idx) => (
+                    <Box key={idx} sx={{ mb: 2 }}>
+                      <Typography variant="body2" color="textSecondary">
+                        {indicator.name}
+                      </Typography>
+                      <Typography variant="h6" fontWeight={600}>
+                        {indicator.value}
+                      </Typography>
+                      <Chip
+                        label={indicator.signal}
+                        color={indicator.signal === 'Buy' ? 'success' : indicator.signal === 'Sell' ? 'error' : 'default'}
+                        size="small"
+                      />
+                    </Box>
+                  ))}
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Earnings Calendar Widget */}
+        <Grid item xs={12} lg={6}>
+          <EarningsCalendarWidget symbol={selectedSymbol} />
+        </Grid>
+
+        {/* Analyst Insights Widget */}
+        <Grid item xs={12} lg={6}>
+          <AnalystInsightsWidget symbol={selectedSymbol} />
+        </Grid>
+
+        {/* Financial Highlights Widget */}
+        <Grid item xs={12} lg={6}>
+          <FinancialHighlightsWidget symbol={selectedSymbol} />
+        </Grid>
+
+        {/* User Settings Widget */}
+        <Grid item xs={12} lg={6}>
+          <UserSettingsWidget user={user} />
+        </Grid>
+      </Grid>
 
       {/* Footer */}
       <Box sx={{ mt: 4, textAlign: 'center' }}>

@@ -181,43 +181,13 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
     setTabValue(newValue)
   }
   if (marketError) {
-    console.error('❌ [MARKET OVERVIEW] Error details:', {
-      error: marketError,
-      message: marketError?.message,
-      stack: marketError?.stack,
-      response: marketError?.response,
-      config: marketError?.config
-    });
-    
     return (
       <Box>
         <Typography variant="h4" sx={{ mb: 3, fontWeight: 600 }}>
           Market Overview
         </Typography>
-        <Alert severity="error" sx={{ mb: 2 }}>
-          <Typography variant="h6" sx={{ mb: 1 }}>Failed to load market data</Typography>
-          <Typography variant="body2" sx={{ mb: 1 }}>
-            Error: {marketError.message}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            Check browser console for detailed error information. Possible causes:
-          </Typography>
-          <Box component="ul" sx={{ mt: 1, pl: 2, fontSize: '0.75rem' }}>
-            <li>Backend server not running or unreachable</li>
-            <li>API endpoint URL misconfigured</li>
-            <li>Network connectivity issues</li>
-            <li>CORS configuration problems</li>
-          </Box>
-        </Alert>
-        <Alert severity="info">
-          <Typography variant="h6">Debug Information:</Typography>
-          <Typography variant="body2">
-            Error Type: {marketError.name || 'Unknown'}<br/>
-            Status: {marketError.response?.status || 'No status'}<br/>
-            URL: {marketError.config?.url || 'No URL'}<br/>
-            Base URL: {marketError.config?.baseURL || 'No base URL'}<br/>
-            Full URL: {marketError.config?.baseURL + marketError.config?.url || 'Unknown'}
-          </Typography>
+        <Alert severity="error">
+          Failed to load market data: {marketError.message}
         </Alert>
       </Box>
     )
@@ -342,17 +312,6 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
       <Typography variant="h4" sx={{ mb: 3, fontWeight: 600 }}>
         Market Overview
       </Typography>
-
-      {/* Debug Info */}
-      <Alert severity="info" sx={{ mb: 2 }}>
-        <Typography variant="body2">
-          API Status: {marketLoading ? 'Loading...' : marketError ? 'Error' : marketData ? 'Connected' : 'Unknown'}<br/>
-          Data Available: {marketData ? 'Yes' : 'No'}<br/>
-          Market Data Keys: {marketData ? Object.keys(marketData).join(', ') : 'None'}<br/>
-          Sentiment Indicators: {marketData?.data?.sentiment_indicators ? 'Available' : 'Missing'}<br/>
-          Market Breadth: {marketData?.data?.market_breadth ? 'Available' : 'Missing'}
-        </Typography>
-      </Alert>
 
       {marketLoading && <LinearProgress sx={{ mb: 2 }} />}
 

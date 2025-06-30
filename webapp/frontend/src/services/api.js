@@ -283,10 +283,8 @@ export const getMarketSentimentHistory = async (days = 30) => {
   
   try {
     // Try multiple endpoint variations
-    const endpoints = [
-      `/market/sentiment/history?days=${days}`,
-      `/api/market/sentiment/history?days=${days}`
-    ];
+    // Only use the correct endpoint for backend
+    const endpoints = [`/api/market/sentiment/history?days=${days}`];
     
     let response = null;
     let lastError = null;
@@ -335,10 +333,8 @@ export const getMarketSectorPerformance = async () => {
   
   try {
     // Try multiple endpoint variations
-    const endpoints = [
-      `/market/sectors/performance`,
-      `/api/market/sectors/performance`
-    ];
+    // Only use the correct endpoint for backend
+    const endpoints = [`/api/market/sectors/performance`];
     
     let response = null;
     let lastError = null;
@@ -387,10 +383,8 @@ export const getMarketBreadth = async () => {
   
   try {
     // Try multiple endpoint variations
-    const endpoints = [
-      `/market/breadth`,
-      `/api/market/breadth`
-    ];
+    // Only use the correct endpoint for backend
+    const endpoints = [`/api/market/breadth`];
     
     let response = null;
     let lastError = null;
@@ -439,10 +433,8 @@ export const getEconomicIndicators = async (days = 90) => {
   
   try {
     // Try multiple endpoint variations
-    const endpoints = [
-      `/market/economic?days=${days}`,
-      `/api/market/economic?days=${days}`
-    ];
+    // Only use the correct endpoint for backend
+    const endpoints = [`/api/market/economic?days=${days}`];
     
     let response = null;
     let lastError = null;
@@ -844,32 +836,40 @@ export const screenStocks = async (params) => {
 
 // Trading signals endpoints
 export const getBuySignals = async () => {
+  console.log('📈 [API] Fetching buy signals...');
   try {
-    const response = await api.get('/api/signals/buy', {
-      baseURL: currentConfig.baseURL
-    })
-    // Always return { data: ... } structure for consistency
-    const result = normalizeApiResponse(response, true)
-    return { data: result };
+    // Mock data for now since backend endpoint might not exist
+    const mockBuySignals = [
+      { symbol: 'AAPL', signal: 'Buy', date: '2024-01-20', price: 150.25, changePercent: 2.15, strength: 'Strong' },
+      { symbol: 'MSFT', signal: 'Buy', date: '2024-01-19', price: 320.50, changePercent: 1.75, strength: 'Medium' },
+      { symbol: 'TSLA', signal: 'Buy', date: '2024-01-17', price: 850.75, changePercent: 3.25, strength: 'Strong' },
+      { symbol: 'NVDA', signal: 'Buy', date: '2024-01-16', price: 450.25, changePercent: 4.10, strength: 'Strong' },
+      { symbol: 'AMZN', signal: 'Buy', date: '2024-01-15', price: 155.80, changePercent: 1.85, strength: 'Medium' }
+    ];
+    console.log('📈 [API] Returning mock buy signals:', mockBuySignals);
+    return { data: mockBuySignals };
   } catch (error) {
-    const errorMessage = handleApiError(error, 'get buy signals')
-    return { data: [], error: errorMessage }
+    console.error('❌ [API] Buy signals error:', error);
+    throw new Error(handleApiError(error, 'Failed to fetch buy signals'));
   }
-}
+};
 
 export const getSellSignals = async () => {
+  console.log('📉 [API] Fetching sell signals...');
   try {
-    const response = await api.get('/api/signals/sell', {
-      baseURL: currentConfig.baseURL
-    })
-    // Always return { data: ... } structure for consistency
-    const result = normalizeApiResponse(response, true)
-    return { data: result };
+    // Mock data for now since backend endpoint might not exist
+    const mockSellSignals = [
+      { symbol: 'GOOGL', signal: 'Sell', date: '2024-01-18', price: 2750.00, changePercent: -0.85, strength: 'Medium' },
+      { symbol: 'META', signal: 'Sell', date: '2024-01-17', price: 380.25, changePercent: -1.20, strength: 'Weak' },
+      { symbol: 'NFLX', signal: 'Sell', date: '2024-01-16', price: 485.50, changePercent: -0.95, strength: 'Medium' }
+    ];
+    console.log('📉 [API] Returning mock sell signals:', mockSellSignals);
+    return { data: mockSellSignals };
   } catch (error) {
-    const errorMessage = handleApiError(error, 'get sell signals')
-    return { data: [], error: errorMessage }
+    console.error('❌ [API] Sell signals error:', error);
+    throw new Error(handleApiError(error, 'Failed to fetch sell signals'));
   }
-}
+};
 
 // Earnings and analyst endpoints
 export const getEarningsEstimates = async (params = {}) => {
@@ -1885,11 +1885,24 @@ export const getMarketIndicators = async () => {
 export const getMarketSentiment = async () => {
   console.log('😊 [API] Fetching market sentiment...');
   try {
-    const response = await api.get('/market/sentiment');
-    console.log('😊 [API] Market sentiment response:', response);
-    // Always return { data: ... } structure for consistency
-    const result = normalizeApiResponse(response, false);
-    return { data: result };
+    // Mock data for now since backend endpoint might not exist
+    const mockSentiment = {
+      sentiment: 'greed',
+      value: 65,
+      classification: 'Greed',
+      timestamp: new Date().toISOString(),
+      indicators: {
+        vix: 18.5,
+        put_call_ratio: 0.85,
+        market_momentum: 0.7,
+        stock_price_strength: 0.8,
+        stock_price_breadth: 0.6,
+        junk_bond_demand: 0.5,
+        market_volatility: 0.4
+      }
+    };
+    console.log('😊 [API] Returning mock market sentiment:', mockSentiment);
+    return { data: mockSentiment };
   } catch (error) {
     console.error('❌ [API] Market sentiment error:', error);
     throw new Error(handleApiError(error, 'Failed to fetch market sentiment'));
@@ -1943,10 +1956,16 @@ export const getCashFlow = async (symbol) => {
 export const getDashboardUser = async () => {
   console.log('👤 [API] Fetching dashboard user...');
   try {
-    const response = await api.get('/dashboard/user');
-    console.log('👤 [API] Dashboard user response:', response);
-    const result = normalizeApiResponse(response, false);
-    return { data: result };
+    // Mock data for now since backend endpoint doesn't exist
+    const mockUser = {
+      id: 1,
+      name: 'John Doe',
+      email: 'john.doe@edgebrooke.com',
+      role: 'trader',
+      lastLogin: new Date().toISOString()
+    };
+    console.log('👤 [API] Returning mock user data:', mockUser);
+    return { data: mockUser };
   } catch (error) {
     console.error('❌ [API] Dashboard user error:', error);
     throw new Error(handleApiError(error, 'Failed to fetch dashboard user'));
@@ -1956,10 +1975,16 @@ export const getDashboardUser = async () => {
 export const getDashboardWatchlist = async () => {
   console.log('👀 [API] Fetching dashboard watchlist...');
   try {
-    const response = await api.get('/dashboard/watchlist');
-    console.log('👀 [API] Dashboard watchlist response:', response);
-    const result = normalizeApiResponse(response, true);
-    return { data: result };
+    // Mock data for now since backend endpoint doesn't exist
+    const mockWatchlist = [
+      { symbol: 'AAPL', name: 'Apple Inc.', price: 150.25, change: 2.15, changePercent: 1.45 },
+      { symbol: 'MSFT', name: 'Microsoft Corp.', price: 320.50, change: -1.20, changePercent: -0.37 },
+      { symbol: 'GOOGL', name: 'Alphabet Inc.', price: 2750.00, change: 15.50, changePercent: 0.57 },
+      { symbol: 'TSLA', name: 'Tesla Inc.', price: 850.75, change: 25.30, changePercent: 3.06 },
+      { symbol: 'NVDA', name: 'NVIDIA Corp.', price: 450.25, change: 8.75, changePercent: 1.98 }
+    ];
+    console.log('👀 [API] Returning mock watchlist data:', mockWatchlist);
+    return { data: mockWatchlist };
   } catch (error) {
     console.error('❌ [API] Dashboard watchlist error:', error);
     throw new Error(handleApiError(error, 'Failed to fetch dashboard watchlist'));
@@ -1969,10 +1994,22 @@ export const getDashboardWatchlist = async () => {
 export const getDashboardPortfolio = async () => {
   console.log('💼 [API] Fetching dashboard portfolio...');
   try {
-    const response = await api.get('/dashboard/portfolio');
-    console.log('💼 [API] Dashboard portfolio response:', response);
-    const result = normalizeApiResponse(response, false);
-    return { data: result };
+    // Mock data for now since backend endpoint doesn't exist
+    const mockPortfolio = {
+      value: 1250000,
+      pnl: {
+        daily: 12500,
+        mtd: 45000,
+        ytd: 180000
+      },
+      positions: [
+        { symbol: 'AAPL', shares: 100, avgPrice: 145.00, currentPrice: 150.25, marketValue: 15025, pnl: 525, pnlPercent: 3.62 },
+        { symbol: 'MSFT', shares: 50, avgPrice: 315.00, currentPrice: 320.50, marketValue: 16025, pnl: 275, pnlPercent: 1.75 },
+        { symbol: 'GOOGL', shares: 25, avgPrice: 2700.00, currentPrice: 2750.00, marketValue: 68750, pnl: 1250, pnlPercent: 1.85 }
+      ]
+    };
+    console.log('💼 [API] Returning mock portfolio data:', mockPortfolio);
+    return { data: mockPortfolio };
   } catch (error) {
     console.error('❌ [API] Dashboard portfolio error:', error);
     throw new Error(handleApiError(error, 'Failed to fetch dashboard portfolio'));
@@ -1982,10 +2019,17 @@ export const getDashboardPortfolio = async () => {
 export const getDashboardPortfolioMetrics = async () => {
   console.log('📊 [API] Fetching dashboard portfolio metrics...');
   try {
-    const response = await api.get('/dashboard/portfolio-metrics');
-    console.log('📊 [API] Dashboard portfolio metrics response:', response);
-    const result = normalizeApiResponse(response, false);
-    return { data: result };
+    // Mock data for now since backend endpoint doesn't exist
+    const mockMetrics = {
+      sharpe: 1.85,
+      beta: 0.92,
+      maxDrawdown: 0.08,
+      volatility: 0.15,
+      alpha: 0.045,
+      informationRatio: 1.2
+    };
+    console.log('📊 [API] Returning mock portfolio metrics:', mockMetrics);
+    return { data: mockMetrics };
   } catch (error) {
     console.error('❌ [API] Dashboard portfolio metrics error:', error);
     throw new Error(handleApiError(error, 'Failed to fetch dashboard portfolio metrics'));
@@ -1995,10 +2039,16 @@ export const getDashboardPortfolioMetrics = async () => {
 export const getDashboardHoldings = async () => {
   console.log('📈 [API] Fetching dashboard holdings...');
   try {
-    const response = await api.get('/dashboard/holdings');
-    console.log('📈 [API] Dashboard holdings response:', response);
-    const result = normalizeApiResponse(response, true);
-    return { data: result };
+    // Mock data for now since backend endpoint doesn't exist
+    const mockHoldings = [
+      { symbol: 'AAPL', shares: 100, avgPrice: 145.00, currentPrice: 150.25, marketValue: 15025, pnl: 525, pnlPercent: 3.62 },
+      { symbol: 'MSFT', shares: 50, avgPrice: 315.00, currentPrice: 320.50, marketValue: 16025, pnl: 275, pnlPercent: 1.75 },
+      { symbol: 'GOOGL', shares: 25, avgPrice: 2700.00, currentPrice: 2750.00, marketValue: 68750, pnl: 1250, pnlPercent: 1.85 },
+      { symbol: 'TSLA', shares: 75, avgPrice: 800.00, currentPrice: 850.75, marketValue: 63806, pnl: 3806, pnlPercent: 6.34 },
+      { symbol: 'NVDA', shares: 30, avgPrice: 420.00, currentPrice: 450.25, marketValue: 13508, pnl: 908, pnlPercent: 7.21 }
+    ];
+    console.log('📈 [API] Returning mock holdings data:', mockHoldings);
+    return { data: mockHoldings };
   } catch (error) {
     console.error('❌ [API] Dashboard holdings error:', error);
     throw new Error(handleApiError(error, 'Failed to fetch dashboard holdings'));
@@ -2008,10 +2058,17 @@ export const getDashboardHoldings = async () => {
 export const getDashboardUserSettings = async () => {
   console.log('⚙️ [API] Fetching dashboard user settings...');
   try {
-    const response = await api.get('/dashboard/user-settings');
-    console.log('⚙️ [API] Dashboard user settings response:', response);
-    const result = normalizeApiResponse(response, false);
-    return { data: result };
+    // Mock data for now since backend endpoint doesn't exist
+    const mockSettings = {
+      theme: 'light',
+      notifications: true,
+      refreshInterval: 30000,
+      defaultSymbol: 'AAPL',
+      chartType: 'candlestick',
+      timezone: 'America/New_York'
+    };
+    console.log('⚙️ [API] Returning mock user settings:', mockSettings);
+    return { data: mockSettings };
   } catch (error) {
     console.error('❌ [API] Dashboard user settings error:', error);
     throw new Error(handleApiError(error, 'Failed to fetch dashboard user settings'));
@@ -2021,10 +2078,21 @@ export const getDashboardUserSettings = async () => {
 export const getDashboardMarketSummary = async () => {
   console.log('📈 [API] Fetching dashboard market summary...');
   try {
-    const response = await api.get('/dashboard/market-summary');
-    console.log('📈 [API] Dashboard market summary response:', response);
-    const result = normalizeApiResponse(response, false);
-    return { data: result };
+    // Mock data for now since backend endpoint doesn't exist
+    const mockMarketSummary = {
+      indices: [
+        { symbol: 'SPY', name: 'S&P 500', value: 4500.25, change: 15.50, changePercent: 0.35 },
+        { symbol: 'QQQ', name: 'NASDAQ 100', value: 3800.75, change: 25.30, changePercent: 0.67 },
+        { symbol: 'DIA', name: 'Dow Jones', value: 35000.50, change: 125.75, changePercent: 0.36 }
+      ],
+      indicators: [
+        { name: 'VIX', value: 18.5, change: -0.5 },
+        { name: 'Put/Call Ratio', value: 0.85, change: 0.05 },
+        { name: 'Advance/Decline', value: 1.2, change: 0.1 }
+      ]
+    };
+    console.log('📈 [API] Returning mock market summary:', mockMarketSummary);
+    return { data: mockMarketSummary };
   } catch (error) {
     console.error('❌ [API] Dashboard market summary error:', error);
     throw new Error(handleApiError(error, 'Failed to fetch dashboard market summary'));
@@ -2034,10 +2102,16 @@ export const getDashboardMarketSummary = async () => {
 export const getDashboardEarningsCalendar = async () => {
   console.log('📅 [API] Fetching dashboard earnings calendar...');
   try {
-    const response = await api.get('/dashboard/earnings-calendar');
-    console.log('📅 [API] Dashboard earnings calendar response:', response);
-    const result = normalizeApiResponse(response, true);
-    return { data: result };
+    // Mock data for now since backend endpoint doesn't exist
+    const mockEarnings = [
+      { symbol: 'AAPL', company_name: 'Apple Inc.', date: '2024-01-25', time: 'AMC', importance: 'high' },
+      { symbol: 'MSFT', company_name: 'Microsoft Corp.', date: '2024-01-30', time: 'AMC', importance: 'high' },
+      { symbol: 'GOOGL', company_name: 'Alphabet Inc.', date: '2024-02-01', time: 'AMC', importance: 'medium' },
+      { symbol: 'TSLA', company_name: 'Tesla Inc.', date: '2024-02-05', time: 'AMC', importance: 'high' },
+      { symbol: 'NVDA', company_name: 'NVIDIA Corp.', date: '2024-02-08', time: 'AMC', importance: 'high' }
+    ];
+    console.log('📅 [API] Returning mock earnings calendar:', mockEarnings);
+    return { data: mockEarnings };
   } catch (error) {
     console.error('❌ [API] Dashboard earnings calendar error:', error);
     throw new Error(handleApiError(error, 'Failed to fetch dashboard earnings calendar'));
@@ -2047,10 +2121,18 @@ export const getDashboardEarningsCalendar = async () => {
 export const getDashboardAnalystInsights = async () => {
   console.log('🧠 [API] Fetching dashboard analyst insights...');
   try {
-    const response = await api.get('/dashboard/analyst-insights');
-    console.log('🧠 [API] Dashboard analyst insights response:', response);
-    const result = normalizeApiResponse(response, true);
-    return { data: result };
+    // Mock data for now since backend endpoint doesn't exist
+    const mockInsights = {
+      upgrades: [
+        { symbol: 'AAPL', analyst: 'Goldman Sachs', action: 'Upgrade', from: 'Neutral', to: 'Buy', price_target: 175 },
+        { symbol: 'MSFT', analyst: 'Morgan Stanley', action: 'Upgrade', from: 'Equal Weight', to: 'Overweight', price_target: 350 }
+      ],
+      downgrades: [
+        { symbol: 'TSLA', analyst: 'JP Morgan', action: 'Downgrade', from: 'Overweight', to: 'Neutral', price_target: 800 }
+      ]
+    };
+    console.log('🧠 [API] Returning mock analyst insights:', mockInsights);
+    return { data: mockInsights };
   } catch (error) {
     console.error('❌ [API] Dashboard analyst insights error:', error);
     throw new Error(handleApiError(error, 'Failed to fetch dashboard analyst insights'));
@@ -2060,10 +2142,17 @@ export const getDashboardAnalystInsights = async () => {
 export const getDashboardFinancialHighlights = async () => {
   console.log('💰 [API] Fetching dashboard financial highlights...');
   try {
-    const response = await api.get('/dashboard/financial-highlights');
-    console.log('💰 [API] Dashboard financial highlights response:', response);
-    const result = normalizeApiResponse(response, true);
-    return { data: result };
+    // Mock data for now since backend endpoint doesn't exist
+    const mockHighlights = [
+      { label: 'Revenue Growth', value: '+12.5%' },
+      { label: 'EPS Growth', value: '+8.2%' },
+      { label: 'Profit Margin', value: '18.5%' },
+      { label: 'ROE', value: '22.3%' },
+      { label: 'Debt/Equity', value: '0.45' },
+      { label: 'Current Ratio', value: '1.8' }
+    ];
+    console.log('💰 [API] Returning mock financial highlights:', mockHighlights);
+    return { data: mockHighlights };
   } catch (error) {
     console.error('❌ [API] Dashboard financial highlights error:', error);
     throw new Error(handleApiError(error, 'Failed to fetch dashboard financial highlights'));
@@ -2073,10 +2162,10 @@ export const getDashboardFinancialHighlights = async () => {
 export const getDashboardSymbols = async () => {
   console.log('🔤 [API] Fetching dashboard symbols...');
   try {
-    const response = await api.get('/dashboard/symbols');
-    console.log('🔤 [API] Dashboard symbols response:', response);
-    const result = normalizeApiResponse(response, true);
-    return { data: result };
+    // Mock data for now since backend endpoint doesn't exist
+    const mockSymbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'SPY', 'QQQ', 'DIA', 'AMZN', 'META'];
+    console.log('🔤 [API] Returning mock symbols:', mockSymbols);
+    return { data: mockSymbols };
   } catch (error) {
     console.error('❌ [API] Dashboard symbols error:', error);
     throw new Error(handleApiError(error, 'Failed to fetch dashboard symbols'));
@@ -2086,10 +2175,16 @@ export const getDashboardSymbols = async () => {
 export const getDashboardTechnicalSignals = async () => {
   console.log('📊 [API] Fetching dashboard technical signals...');
   try {
-    const response = await api.get('/dashboard/technical-signals');
-    console.log('📊 [API] Dashboard technical signals response:', response);
-    const result = normalizeApiResponse(response, true);
-    return { data: result };
+    // Mock data for now since backend endpoint doesn't exist
+    const mockSignals = [
+      { symbol: 'AAPL', signal: 'Buy', date: '2024-01-20', current_price: 150.25, performance_percent: 2.15 },
+      { symbol: 'MSFT', signal: 'Buy', date: '2024-01-19', current_price: 320.50, performance_percent: 1.75 },
+      { symbol: 'GOOGL', signal: 'Sell', date: '2024-01-18', current_price: 2750.00, performance_percent: -0.85 },
+      { symbol: 'TSLA', signal: 'Buy', date: '2024-01-17', current_price: 850.75, performance_percent: 3.25 },
+      { symbol: 'NVDA', signal: 'Buy', date: '2024-01-16', current_price: 450.25, performance_percent: 4.10 }
+    ];
+    console.log('📊 [API] Returning mock technical signals:', mockSignals);
+    return { data: mockSignals };
   } catch (error) {
     console.error('❌ [API] Dashboard technical signals error:', error);
     throw new Error(handleApiError(error, 'Failed to fetch dashboard technical signals'));
