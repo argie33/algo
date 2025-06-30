@@ -804,35 +804,67 @@ export const getFinancialStrengthMetrics = async (params = {}) => {
 // New method for stock screening with proper parameter handling
 export const screenStocks = async (params) => {
   try {
-    const url = `/api/stocks/screen?${params.toString()}`
-    const response = await api.get(url, {
-      baseURL: currentConfig.baseURL
-    })
+    // Try multiple endpoint variations to handle different API configurations
+    const endpoints = ['/stocks/screen', '/api/stocks/screen'];
+    let response = null;
+    let lastError = null;
+
+    console.log('🔍 [API] Screening stocks with params:', params.toString());
     
-    console.log('screenStocks: Raw response:', response.data);
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`🔍 [API] Trying endpoint: ${endpoint}?${params.toString()}`);
+        response = await api.get(`${endpoint}?${params.toString()}`, {
+          baseURL: currentConfig.baseURL
+        });
+        console.log(`✅ [API] Success with endpoint: ${endpoint}`, response.data);
+        break;
+      } catch (err) {
+        console.log(`❌ [API] Failed endpoint: ${endpoint}`, err.message);
+        lastError = err;
+        continue;
+      }
+    }
+
+    if (!response) {
+      throw lastError || new Error('All endpoints failed');
+    }
     
     // Backend returns: { success: true, data: [...], total: ..., pagination: {...} }
     if (response.data && response.data.success && Array.isArray(response.data.data)) {
-      console.log('screenStocks: returning backend response structure:', response.data);
-      return response.data; // Return the full backend response structure
+      console.log('✅ [API] Using backend response structure:', response.data);
+      return response.data;
     }
     
     // Fallback to normalized response
     const result = normalizeApiResponse(response, true);
-    return { data: result };
+    console.log('✅ [API] Using normalized response:', result);
+    return { 
+      success: true,
+      data: result,
+      total: result.length,
+      pagination: {
+        total: result.length,
+        page: 1,
+        limit: result.length
+      }
+    };
   } catch (error) {
-    console.error('Error screening stocks:', error)
-    const errorMessage = handleApiError(error, 'screen stocks')
+    console.error('❌ [API] Error screening stocks:', error);
+    const errorMessage = handleApiError(error, 'screen stocks');
     return {
       success: false,
       data: [],
       error: errorMessage,
-      count: 0,
       total: 0,
-      timestamp: new Date().toISOString()
-    }
+      pagination: {
+        total: 0,
+        page: 1,
+        limit: 25
+      }
+    };
   }
-}
+};
 
 // Trading signals endpoints
 export const getBuySignals = async () => {

@@ -837,6 +837,8 @@ router.get('/search', async (req, res) => {
 
 // Screen stocks with advanced filtering
 router.get('/screen', async (req, res) => {
+  console.log('🔍 [STOCKS] Screen endpoint called with query:', req.query);
+
   const { 
     search,
     sector,
@@ -881,12 +883,28 @@ router.get('/screen', async (req, res) => {
     sortOrder = 'asc'
   } = req.query;
 
-  console.log('🔍 [STOCKS] Screening stocks with filters:', {
-    search, sector, priceMin, priceMax, marketCapMin, marketCapMax,
-    page, limit, sortBy, sortOrder
-  });
-
   try {
+    // Check if stocks table exists
+    console.log('🔍 [STOCKS] Checking if stocks table exists...');
+    const tableExists = await query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'stocks'
+      );
+    `, []);
+
+    if (!tableExists.rows[0].exists) {
+      console.error('❌ [STOCKS] Table does not exist');
+      return res.status(500).json({ 
+        success: false,
+        error: 'Stocks table not found in database',
+        details: 'The stocks table does not exist in the database. Please ensure the database is properly initialized.'
+      });
+    }
+
+    console.log('✅ [STOCKS] Table exists, proceeding with query...');
+
     const offset = (parseInt(page) - 1) * parseInt(limit);
     const maxLimit = Math.min(parseInt(limit), 200);
 
@@ -1047,49 +1065,35 @@ router.get('/screen', async (req, res) => {
       whereClause += ` AND dividend_yield > 0`;
     }
 
-    // Check if stocks table exists
-    const tableExists = await query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name = 'stocks'
-      );
-    `, []);
-
-    if (!tableExists.rows[0].exists) {
-      return res.status(500).json({ error: 'Stocks table not found in database' });
-    }
-
-    // Get total count
+    // Get total count first
     const countQuery = `
       SELECT COUNT(*) as total
       FROM stocks
       ${whereClause}
     `;
+    console.log('🔍 [STOCKS] Executing count query:', countQuery);
     const countResult = await query(countQuery, params);
     const total = parseInt(countResult.rows[0].total);
+    console.log(`✅ [STOCKS] Found ${total} total matching records`);
 
     // Validate sortBy field
     const validSortFields = [
       'symbol', 'company_name', 'current_price', 'market_cap', 'pe_ratio', 
-      'dividend_yield', 'return_on_equity', 'revenue_growth', 'sector',
-      'volume', 'change_percent'
+      'dividend_yield', 'return_on_equity', 'revenue_growth', 'sector'
     ];
-    const safeSortBy = validSortFields.includes(sortBy) ? sortBy : 'symbol';
+    const safeSortBy = validSortFields.includes(sortBy) ? sortBy : 'market_cap';
     const safeSortOrder = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
 
-    // Get screened stocks data
+    // Get stocks data
     const dataQuery = `
       SELECT 
         symbol,
         company_name,
         sector,
         industry,
-        exchange,
         current_price,
         previous_close,
         change_percent,
-        change_amount,
         volume,
         market_cap,
         pe_ratio,
@@ -1109,14 +1113,18 @@ router.get('/screen', async (req, res) => {
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
+    console.log('🔍 [STOCKS] Executing data query:', {
+      query: dataQuery,
+      params: [...params, maxLimit, offset]
+    });
+
     const finalParams = [...params, maxLimit, offset];
     const dataResult = await query(dataQuery, finalParams);
+    console.log(`✅ [STOCKS] Retrieved ${dataResult.rows.length} records`);
 
     const totalPages = Math.ceil(total / maxLimit);
 
-    console.log(`✅ [STOCKS] Screening completed: ${dataResult.rows.length} results, total: ${total}`);
-
-    res.json({
+    const response = {
       success: true,
       data: dataResult.rows,
       total: total,
@@ -1127,38 +1135,25 @@ router.get('/screen', async (req, res) => {
         totalPages,
         hasNext: parseInt(page) < totalPages,
         hasPrev: parseInt(page) > 1
-      },
-      filters: {
-        search: search || null,
-        sector: sector || null,
-        industry: industry || null,
-        country: country || null,
-        exchange: exchange || null,
-        priceMin: priceMin || null,
-        priceMax: priceMax || null,
-        marketCapMin: marketCapMin || null,
-        marketCapMax: marketCapMax || null,
-        peRatioMin: peRatioMin || null,
-        peRatioMax: peRatioMax || null,
-        roeMin: roeMin || null,
-        roeMax: roeMax || null,
-        revenueGrowthMin: revenueGrowthMin || null,
-        revenueGrowthMax: revenueGrowthMax || null,
-        dividendYieldMin: dividendYieldMin || null,
-        dividendYieldMax: dividendYieldMax || null,
-        currentRatioMin: currentRatioMin || null,
-        currentRatioMax: currentRatioMax || null,
-        debtToEquityMin: debtToEquityMin || null,
-        debtToEquityMax: debtToEquityMax || null
-      },
-      sorting: {
-        sortBy: safeSortBy,
-        sortOrder: safeSortOrder
       }
+    };
+
+    console.log('✅ [STOCKS] Sending response:', {
+      total: response.total,
+      returnedRows: response.data.length,
+      page: response.pagination.page,
+      totalPages: response.pagination.totalPages
     });
 
+    res.json(response);
   } catch (error) {
-    return res.status(500).json({ error: 'Database error', details: error.message });
+    console.error('❌ [STOCKS] Error in screen endpoint:', error);
+    return res.status(500).json({ 
+      success: false,
+      error: 'Database error', 
+      details: error.message,
+      stack: error.stack
+    });
   }
 });
 

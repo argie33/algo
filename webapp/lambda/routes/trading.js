@@ -4,6 +4,13 @@ const { query } = require('../utils/database');
 
 // Get buy/sell signals by timeframe
 router.get('/signals/:timeframe', async (req, res) => {
+  console.log('[TRADING] Received request for /signals/:timeframe', {
+    params: req.params,
+    query: req.query,
+    path: req.path,
+    method: req.method,
+    time: new Date().toISOString()
+  });
   try {
     const { timeframe } = req.params;
     const { limit = 100, page = 1, symbol, signal_type } = req.query;
@@ -14,6 +21,7 @@ router.get('/signals/:timeframe', async (req, res) => {
     // Validate timeframe
     const validTimeframes = ['daily', 'weekly', 'monthly'];
     if (!validTimeframes.includes(timeframe)) {
+      console.warn('[TRADING] Invalid timeframe:', timeframe);
       return res.status(400).json({ error: 'Invalid timeframe. Must be daily, weekly, or monthly' });
     }
 
@@ -79,6 +87,9 @@ router.get('/signals/:timeframe', async (req, res) => {
 
     queryParams.push(pageSize, offset);
 
+    console.log('[TRADING] Executing SQL:', sqlQuery, 'Params:', queryParams);
+    console.log('[TRADING] Executing count SQL:', countQuery, 'Params:', queryParams.slice(0, paramCount));
+
     const [result, countResult] = await Promise.all([
       query(sqlQuery, queryParams),
       query(countQuery, queryParams.slice(0, paramCount))
@@ -88,8 +99,11 @@ router.get('/signals/:timeframe', async (req, res) => {
     const totalPages = Math.ceil(total / pageSize);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      console.warn('[TRADING] No data found for query:', { timeframe, params: req.query });
       return res.status(404).json({ error: 'No data found for this query' });
     }
+
+    console.log('[TRADING] Query returned', result.rows.length, 'rows out of', total, 'total');
 
     res.json({
       success: true,
@@ -111,7 +125,7 @@ router.get('/signals/:timeframe', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error fetching trading signals:', error);
+    console.error('[TRADING] Error fetching trading signals:', error);
     res.status(500).json({ 
       error: 'Failed to fetch trading signals',
       message: error.message 

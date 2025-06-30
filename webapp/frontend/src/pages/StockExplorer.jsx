@@ -446,7 +446,9 @@ function StockExplorer() {
       isArray: Array.isArray(stocksData.data),
       dataLength: stocksData.data?.length,
       keys: Object.keys(stocksData || {}),
-      success: stocksData.success
+      success: stocksData.success,
+      total: stocksData.total,
+      pagination: stocksData.pagination
     });
     
     // Handle backend response structure: { success: true, data: [...], total: ..., pagination: {...} }
