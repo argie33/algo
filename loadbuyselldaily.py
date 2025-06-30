@@ -24,10 +24,9 @@ logging.basicConfig(
 ###############################################################################
 # ─── Environment & Secrets ───────────────────────────────────────────────────
 ###############################################################################
-FRED_API_KEY = os.environ.get('FRED_API_KEY')
+FRED_API_KEY = os.environ.get('FRED_API_KEY', '')
 if not FRED_API_KEY:
-    print('ERROR: FRED_API_KEY environment variable is not set. Exiting.')
-    exit(1)
+    logging.warning('FRED_API_KEY environment variable is not set. Risk-free rate will be set to 0.')
 SECRET_ARN   = os.environ["DB_SECRET_ARN"]
 
 sm_client   = boto3.client("secretsmanager")
@@ -324,55 +323,57 @@ def main():
         logging.warning(f"Failed to get risk-free rate: {e}")
         annual_rfr = 0.0
 
+
     symbols = get_symbols_from_db(limit=3)  # Limit for debugging, remove or increase as needed
     if not symbols:
         print("No symbols in DB.")
         return
 
+    # Daily
     conn = get_db_connection()
     cur  = conn.cursor()
     create_buy_sell_table(cur)
     conn.commit()
-
-    results = {'Daily':{'rets':[],'durs':[]},
-               'Weekly':{'rets':[],'durs':[]},
-               'Monthly':{'rets':[],'durs':[]}}
-
+    results = {'Daily':{'rets':[],'durs':[]}}
     for sym in symbols:
         logging.info(f"=== {sym} ===")
-        for tf in ['Daily','Weekly','Monthly']:
-            logging.info(f"  [main] Processing {sym} {tf}")
-            df = process_symbol(sym, tf)
-            logging.info(f"  [main] Done processing {sym} {tf}")
-            if df.empty:
-                logging.info(f"[{tf}] no data")
-                continue
-            insert_symbol_results(cur, sym, tf, df)
-            conn.commit()
-            _, rets, durs, _, _ = backtest_fixed_capital(df)
-            results[tf]['rets'].extend(rets)
-            results[tf]['durs'].extend(durs)
-            analyze_trade_returns_fixed_capital(
-                rets, durs, f"[{tf}] {sym}", annual_rfr
-            )
+        tf = 'Daily'
+        logging.info(f"  [main] Processing {sym} {tf}")
+        df = process_symbol(sym, tf)
+        logging.info(f"  [main] Done processing {sym} {tf}")
+        if df.empty:
+            logging.info(f"[{tf}] no data")
+            continue
+        insert_symbol_results(cur, sym, tf, df)
+        conn.commit()
+        _, rets, durs, _, _ = backtest_fixed_capital(df)
+        results[tf]['rets'].extend(rets)
+        results[tf]['durs'].extend(durs)
+        analyze_trade_returns_fixed_capital(
+            rets, durs, f"[{tf}] {sym}", annual_rfr
+        )
+    cur.close()
+    conn.close()
+
+    # Weekly
+    from importlib import import_module
+    weekly_mod = import_module('loadbuysellweekly')
+    weekly_mod.main()
+
+    # Monthly
+    monthly_mod = import_module('loadbuysellmonthly')
+    monthly_mod.main()
 
     logging.info("=========================")
     logging.info(" AGGREGATED PERFORMANCE (FIXED $10k PER TRADE) ")
     logging.info("=========================")
-    for tf in ['Daily','Weekly','Monthly']:
+    for tf in results:
         analyze_trade_returns_fixed_capital(
             results[tf]['rets'], results[tf]['durs'],
             f"[{tf} (Overall)]", annual_rfr
         )
 
-    logging.info("=== Global (All Timeframes) ===")
-    all_rets = [r for tf in results for r in results[tf]['rets']]
-    all_durs = [d for tf in results for d in results[tf]['durs']]
-    analyze_trade_returns_fixed_capital(all_rets, all_durs, "[Global (All TFs)]", annual_rfr)
-
     logging.info("Processing complete.")
-    cur.close()
-    conn.close()
 
 if __name__ == "__main__":
     main()

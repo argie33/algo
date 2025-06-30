@@ -172,7 +172,8 @@ import {
   ViewSidebar,
   ViewTimeline,
   ViewKanban,
-  ViewCozy
+  ViewCozy,
+  BugReport
 } from '@mui/icons-material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart as RechartsBarChart, Bar, AreaChart, Area, ComposedChart } from 'recharts';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -196,6 +197,14 @@ import {
   getDashboardFinancialHighlights,
   getDashboardSymbols,
   getDashboardTechnicalSignals,
+  getMarketOverview,
+  getMarketSentiment,
+  getMarketIndicators,
+  getEarningsEstimates,
+  getEarningsHistory,
+  getNaaimData,
+  getFearGreedData,
+  getTechnicalData,
   testApiEndpoints
 } from '../services/api';
 import { format } from 'date-fns';
@@ -372,16 +381,15 @@ const MarketOverviewSummary = ({ data, loading }) => {
               <Typography variant="subtitle2" color="textSecondary">
                 Major Indices
               </Typography>
-              {data?.indices?.slice(0, 3).map((index, i) => (
-                <Box key={i} display="flex" justifyContent="space-between" alignItems="center" py={0.5}>
-                  <Typography variant="body2">{index.symbol}</Typography>
+              {data?.indices?.map((index, idx) => (
+                <Box key={index.symbol} display="flex" justifyContent="space-between" alignItems="center" py={0.5}>
+                  <Typography variant="body2" fontWeight={600}>{index.symbol}</Typography>
                   <Box display="flex" alignItems="center" gap={1}>
-                    <Typography variant="body2" fontWeight="bold">
-                      {formatNumber(index.price)}
-                    </Typography>
+                    <Typography variant="body2">{formatCurrency(index.value)}</Typography>
                     <Chip
+                      icon={index.change >= 0 ? <TrendingUp /> : <TrendingDown />}
                       label={`${formatPercentage(index.changePercent)}`}
-                      color={index.changePercent >= 0 ? 'success' : 'error'}
+                      color={index.change >= 0 ? 'success' : 'error'}
                       size="small"
                     />
                   </Box>
@@ -396,15 +404,12 @@ const MarketOverviewSummary = ({ data, loading }) => {
               </Typography>
               <Box display="flex" alignItems="center" gap={1} mt={1}>
                 {getSentimentIcon(data?.sentiment)}
-                <Typography variant="body1" fontWeight="bold">
-                  {data?.sentiment?.replace('_', ' ').toUpperCase() || 'NEUTRAL'}
+                <Typography variant="body2" fontWeight={600} textTransform="capitalize">
+                  {data?.sentiment || 'Neutral'}
                 </Typography>
               </Box>
-              <Typography variant="body2" color="textSecondary" mt={1}>
-                Fear & Greed Index: {data?.fearGreedIndex || 'N/A'}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Market Breadth: {data?.breadth?.advancing || 0} advancing, {data?.breadth?.declining || 0} declining
+              <Typography variant="caption" color="textSecondary">
+                Based on Fear & Greed Index
               </Typography>
             </Box>
           </Grid>
@@ -418,15 +423,8 @@ const MarketOverviewSummary = ({ data, loading }) => {
 const PortfolioSummary = ({ data, loading }) => {
   if (loading) return <LinearProgress />;
 
-  const portfolio = data?.portfolio || {};
-  const holdings = data?.holdings || [];
-
-  // Calculate allocation data for pie chart
-  const allocationData = holdings.slice(0, 8).map((h, i) => ({
-    name: h.symbol,
-    value: h.value,
-    color: ALLOCATION_COLORS[i % ALLOCATION_COLORS.length]
-  }));
+  const portfolio = data?.portfolio || defaultPortfolio;
+  const metrics = data?.metrics || defaultMetrics;
 
   return (
     <Card elevation={2}>
@@ -438,76 +436,53 @@ const PortfolioSummary = ({ data, loading }) => {
           <Grid item xs={12} md={6}>
             <Box>
               <Typography variant="h4" fontWeight="bold" color="primary">
-                {formatCurrency(portfolio.value || 0)}
+                {formatCurrency(portfolio.value)}
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
+                Total Portfolio Value
               </Typography>
               <Box display="flex" gap={1} mt={1}>
                 <Chip
-                  icon={portfolio.pnl?.daily >= 0 ? <TrendingUp /> : <TrendingDown />}
-                  label={`Daily: ${formatCurrency(portfolio.pnl?.daily || 0)} (${formatPercentage(portfolio.pnl?.daily ? (portfolio.pnl.daily / portfolio.value * 100) : 0)})`}
-                  color={portfolio.pnl?.daily >= 0 ? 'success' : 'error'}
+                  label={`Daily: ${formatCurrency(portfolio.pnl.daily)}`}
+                  color={portfolio.pnl.daily >= 0 ? 'success' : 'error'}
+                  size="small"
                 />
                 <Chip
-                  icon={portfolio.pnl?.mtd >= 0 ? <TrendingUp /> : <TrendingDown />}
-                  label={`MTD: ${formatPercentage(portfolio.pnl?.mtd ? (portfolio.pnl.mtd / portfolio.value * 100) : 0)}`}
-                  color={portfolio.pnl?.mtd >= 0 ? 'success' : 'error'}
+                  label={`MTD: ${formatCurrency(portfolio.pnl.mtd)}`}
+                  color={portfolio.pnl.mtd >= 0 ? 'success' : 'error'}
+                  size="small"
                 />
-              </Box>
-              <Box mt={2}>
-                <Typography variant="subtitle2" color="textSecondary">
-                  Key Metrics
-                </Typography>
-                <Grid container spacing={1} mt={1}>
-                  <Grid item xs={6}>
-                    <Typography variant="body2">Sharpe Ratio</Typography>
-                    <Typography variant="body1" fontWeight="bold">
-                      {portfolio.metrics?.sharpe ? portfolio.metrics.sharpe.toFixed(2) : 'N/A'}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="body2">Beta</Typography>
-                    <Typography variant="body1" fontWeight="bold">
-                      {portfolio.metrics?.beta ? portfolio.metrics.beta.toFixed(2) : 'N/A'}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="body2">Max Drawdown</Typography>
-                    <Typography variant="body1" fontWeight="bold" color="error">
-                      {portfolio.metrics?.maxDrawdown ? formatPercentage(portfolio.metrics.maxDrawdown) : 'N/A'}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="body2">Volatility</Typography>
-                    <Typography variant="body1" fontWeight="bold">
-                      {portfolio.metrics?.volatility ? formatPercentage(portfolio.metrics.volatility) : 'N/A'}
-                    </Typography>
-                  </Grid>
-                </Grid>
+                <Chip
+                  label={`YTD: ${formatCurrency(portfolio.pnl.ytd)}`}
+                  color={portfolio.pnl.ytd >= 0 ? 'success' : 'error'}
+                  size="small"
+                />
               </Box>
             </Box>
           </Grid>
           <Grid item xs={12} md={6}>
             <Box>
               <Typography variant="subtitle2" color="textSecondary" gutterBottom>
-                Top Holdings
+                Risk Metrics
               </Typography>
-              {holdings.slice(0, 5).map((holding, i) => (
-                <Box key={i} display="flex" justifyContent="space-between" alignItems="center" py={0.5}>
-                  <Box>
-                    <Typography variant="body2" fontWeight="bold">{holding.symbol}</Typography>
-                    <Typography variant="caption" color="textSecondary">{holding.name}</Typography>
-                  </Box>
-                  <Box textAlign="right">
-                    <Typography variant="body2" fontWeight="bold">
-                      {formatCurrency(holding.value)}
-                    </Typography>
-                    <Chip
-                      label={formatPercentage(holding.changePercent)}
-                      color={holding.changePercent >= 0 ? 'success' : 'error'}
-                      size="small"
-                    />
-                  </Box>
-                </Box>
-              ))}
+              <Grid container spacing={1}>
+                <Grid item xs={6}>
+                  <Typography variant="body2">Sharpe Ratio</Typography>
+                  <Typography variant="body2" fontWeight={600}>{metrics.sharpe?.toFixed(2) || 'N/A'}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2">Beta</Typography>
+                  <Typography variant="body2" fontWeight={600}>{metrics.beta?.toFixed(2) || 'N/A'}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2">Volatility</Typography>
+                  <Typography variant="body2" fontWeight={600}>{formatPercentage(metrics.volatility)}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2">Max Drawdown</Typography>
+                  <Typography variant="body2" fontWeight={600}>{formatPercentage(metrics.maxDrawdown)}</Typography>
+                </Grid>
+              </Grid>
             </Box>
           </Grid>
         </Grid>
@@ -521,9 +496,8 @@ const TechnicalSignalsSummary = ({ data, loading }) => {
   if (loading) return <LinearProgress />;
 
   const signals = data?.signals || [];
-  const buySignals = signals.filter(s => s.signal === 'BUY');
-  const sellSignals = signals.filter(s => s.signal === 'SELL');
-  const holdSignals = signals.filter(s => s.signal === 'HOLD');
+  const buySignals = signals.filter(s => s.signal === 'Buy');
+  const sellSignals = signals.filter(s => s.signal === 'Sell');
 
   return (
     <Card elevation={2}>
@@ -532,54 +506,47 @@ const TechnicalSignalsSummary = ({ data, loading }) => {
           Technical Signals
         </Typography>
         <Grid container spacing={2}>
-          <Grid item xs={12} md={4}>
-            <Box textAlign="center">
-              <Typography variant="h4" color="success.main" fontWeight="bold">
-                {buySignals.length}
-              </Typography>
+          <Grid item xs={12} md={6}>
+            <Box>
               <Typography variant="subtitle2" color="textSecondary">
-                Buy Signals
+                Buy Signals ({buySignals.length})
               </Typography>
+              {buySignals.slice(0, 5).map((signal, idx) => (
+                <Box key={idx} display="flex" justifyContent="space-between" alignItems="center" py={0.5}>
+                  <Typography variant="body2" fontWeight={600}>{signal.symbol}</Typography>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <Typography variant="body2">{formatCurrency(signal.price)}</Typography>
+                    <Chip
+                      label={`${formatPercentage(signal.changePercent)}`}
+                      color="success"
+                      size="small"
+                    />
+                  </Box>
+                </Box>
+              ))}
             </Box>
           </Grid>
-          <Grid item xs={12} md={4}>
-            <Box textAlign="center">
-              <Typography variant="h4" color="error.main" fontWeight="bold">
-                {sellSignals.length}
-              </Typography>
+          <Grid item xs={12} md={6}>
+            <Box>
               <Typography variant="subtitle2" color="textSecondary">
-                Sell Signals
+                Sell Signals ({sellSignals.length})
               </Typography>
-            </Box>
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <Box textAlign="center">
-              <Typography variant="h4" color="warning.main" fontWeight="bold">
-                {holdSignals.length}
-              </Typography>
-              <Typography variant="subtitle2" color="textSecondary">
-                Hold Signals
-              </Typography>
+              {sellSignals.slice(0, 5).map((signal, idx) => (
+                <Box key={idx} display="flex" justifyContent="space-between" alignItems="center" py={0.5}>
+                  <Typography variant="body2" fontWeight={600}>{signal.symbol}</Typography>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <Typography variant="body2">{formatCurrency(signal.price)}</Typography>
+                    <Chip
+                      label={`${formatPercentage(signal.changePercent)}`}
+                      color="error"
+                      size="small"
+                    />
+                  </Box>
+                </Box>
+              ))}
             </Box>
           </Grid>
         </Grid>
-        <Divider sx={{ my: 2 }} />
-        <Typography variant="subtitle2" color="textSecondary" gutterBottom>
-          Recent Signals
-        </Typography>
-        {signals.slice(0, 5).map((signal, i) => (
-          <Box key={i} display="flex" justifyContent="space-between" alignItems="center" py={0.5}>
-            <Box>
-              <Typography variant="body2" fontWeight="bold">{signal.symbol}</Typography>
-              <Typography variant="caption" color="textSecondary">{signal.strategy}</Typography>
-            </Box>
-            <Chip
-              label={signal.signal}
-              color={signal.signal === 'BUY' ? 'success' : signal.signal === 'SELL' ? 'error' : 'warning'}
-              size="small"
-            />
-          </Box>
-        ))}
       </CardContent>
     </Card>
   );
@@ -590,8 +557,6 @@ const EarningsCalendarSummary = ({ data, loading }) => {
   if (loading) return <LinearProgress />;
 
   const earnings = data?.earnings || [];
-  const todayEarnings = earnings.filter(e => e.date === new Date().toISOString().split('T')[0]);
-  const importantEarnings = earnings.filter(e => e.importance === 'high');
 
   return (
     <Card elevation={2}>
@@ -599,195 +564,441 @@ const EarningsCalendarSummary = ({ data, loading }) => {
         <Typography variant="h6" gutterBottom>
           Earnings Calendar
         </Typography>
-        <Grid container spacing={2}>
-          <Grid item xs={12} md={6}>
-            <Box>
-              <Typography variant="subtitle2" color="textSecondary">
-                Today's Earnings
-              </Typography>
-              <Typography variant="h4" color="primary" fontWeight="bold">
-                {todayEarnings.length}
-              </Typography>
-              {todayEarnings.slice(0, 3).map((earning, i) => (
-                <Box key={i} display="flex" justifyContent="space-between" alignItems="center" py={0.5}>
-                  <Typography variant="body2" fontWeight="bold">{earning.symbol}</Typography>
-                  <Typography variant="body2" color="textSecondary">{earning.time}</Typography>
+        {earnings.length === 0 ? (
+          <Typography variant="body2" color="textSecondary">
+            No upcoming earnings events
+          </Typography>
+        ) : (
+          <Box>
+            {earnings.slice(0, 5).map((earning, idx) => (
+              <Box key={idx} display="flex" justifyContent="space-between" alignItems="center" py={0.5}>
+                <Box>
+                  <Typography variant="body2" fontWeight={600}>{earning.symbol}</Typography>
+                  <Typography variant="caption" color="textSecondary">
+                    {earning.company_name}
+                  </Typography>
                 </Box>
-              ))}
-            </Box>
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <Box>
-              <Typography variant="subtitle2" color="textSecondary">
-                Important Earnings
-              </Typography>
-              <Typography variant="h4" color="warning.main" fontWeight="bold">
-                {importantEarnings.length}
-              </Typography>
-              {importantEarnings.slice(0, 3).map((earning, i) => (
-                <Box key={i} display="flex" justifyContent="space-between" alignItems="center" py={0.5}>
-                  <Typography variant="body2" fontWeight="bold">{earning.symbol}</Typography>
-                  <Typography variant="body2" color="textSecondary">{earning.date}</Typography>
+                <Box textAlign="right">
+                  <Typography variant="body2">{format(new Date(earning.date), 'MMM d')}</Typography>
+                  <Typography variant="caption" color="textSecondary">
+                    {format(new Date(earning.date), 'yyyy')}
+                  </Typography>
                 </Box>
-              ))}
-            </Box>
-          </Grid>
-        </Grid>
+              </Box>
+            ))}
+          </Box>
+        )}
       </CardContent>
     </Card>
   );
 };
 
-// Main Dashboard Component
-const Dashboard = () => {
-  console.log('🚀 Dashboard: Component rendering...');
-  
-  const [selectedSymbol, setSelectedSymbol] = useState('AAPL');
-  const [addPositionOpen, setAddPositionOpen] = useState(false);
-  const [addWatchlistOpen, setAddWatchlistOpen] = useState(false);
-  const [debugResults, setDebugResults] = useState(null);
-
-  // User data
-  const { user, isLoading: userLoading, error: userError } = useUser();
-
-  // Watchlist data
-  const { watchlist, isLoading: watchlistLoading, error: watchlistError } = useWatchlist();
-
-  // Portfolio data
-  const { portfolio, isLoading: portfolioLoading, error: portfolioError } = usePortfolio();
-
-  // Portfolio metrics
-  const { portfolioMetrics, isLoading: metricsLoading, error: metricsError } = usePortfolioMetrics();
-
-  // Holdings data
-  const { holdings, isLoading: holdingsLoading, error: holdingsError } = useHoldings();
-
-  // User settings
-  const { userSettings, isLoading: settingsLoading, error: settingsError } = useUserSettings();
-
-  // Market summary
-  const { data: marketSummary, isLoading: marketLoading, error: marketError } = useQuery({
-    queryKey: ['dashboardMarketSummary'],
-    queryFn: getDashboardMarketSummary,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    onSuccess: (data) => console.log('✅ Dashboard: Market summary loaded:', data),
-    onError: (error) => console.error('❌ Dashboard: Market summary error:', error)
-  });
-
-  // Technical signals
-  const { data: technicalSignals, isLoading: signalsLoading, error: signalsError } = useQuery({
-    queryKey: ['dashboardTechnicalSignals'],
-    queryFn: getDashboardTechnicalSignals,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    onSuccess: (data) => console.log('✅ Dashboard: Technical signals loaded:', data),
-    onError: (error) => console.error('❌ Dashboard: Technical signals error:', error)
-  });
-
-  // Earnings calendar
-  const { data: earningsCalendar, isLoading: earningsLoading, error: earningsError } = useQuery({
-    queryKey: ['dashboardEarningsCalendar'],
-    queryFn: getDashboardEarningsCalendar,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    onSuccess: (data) => console.log('✅ Dashboard: Earnings calendar loaded:', data),
-    onError: (error) => console.error('❌ Dashboard: Earnings calendar error:', error)
-  });
-
-  // Placeholder mutations (to be implemented later)
-  const updatePositions = useMutation({
-    mutationFn: (positions) => Promise.resolve(positions),
-    onSuccess: () => console.log('Positions updated')
-  });
-
-  const addSymbol = useMutation({
-    mutationFn: (symbol) => Promise.resolve(symbol),
-    onSuccess: () => console.log('Symbol added to watchlist')
-  });
-
-  const removeSymbol = useMutation({
-    mutationFn: (symbol) => Promise.resolve(symbol),
-    onSuccess: () => console.log('Symbol removed from watchlist')
-  });
-
-  console.log('📊 Dashboard: Data summary:', {
-    user: { hasData: !!user, isLoading: userLoading, hasError: !!userError },
-    watchlist: { hasData: !!watchlist, isLoading: watchlistLoading, hasError: !!watchlistError },
-    portfolio: { hasData: !!portfolio, isLoading: portfolioLoading, hasError: !!portfolioError },
-    portfolioMetrics: { hasData: !!portfolioMetrics, isLoading: metricsLoading, hasError: !!metricsError },
-    holdings: { hasData: !!holdings, isLoading: holdingsLoading, hasError: !!holdingsError },
-    userSettings: { hasData: !!userSettings, isLoading: settingsLoading, hasError: !!settingsError },
-    marketSummary: { hasData: !!marketSummary, isLoading: marketLoading, hasError: !!marketError },
-    technicalSignals: { hasData: !!technicalSignals, isLoading: signalsLoading, hasError: !!signalsError },
-    earningsCalendar: { hasData: !!earningsCalendar, isLoading: earningsLoading, hasError: !!earningsError }
-  });
-
-  // Get available symbols for dropdown
-  const { data: symbolsData } = useQuery({
-    queryKey: ['dashboard-symbols'],
+// --- TECHNICAL SIGNALS WIDGET ---
+function TechnicalSignalsWidget() {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['dashboard-technical-signals'],
     queryFn: async () => {
-      const response = await getDashboardSymbols();
-      return response;
+      try {
+        const result = await getDashboardTechnicalSignals();
+        return result;
+      } catch (err) {
+        throw err;
+      }
     },
+    refetchInterval: 300000
+  });
+  const signals = data?.data || [];
+  return (
+    <Card sx={{ mb: 3 }}>
+      <CardContent>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+          <TrendingUp sx={{ color: 'primary.main', mr: 1 }} />
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>Technical Signals</Typography>
+        </Box>
+        {isLoading ? (
+          <Typography variant="body2" color="text.secondary">Loading technical signals...</Typography>
+        ) : error ? (
+          <Typography variant="body2" color="error">{error.message || 'Error loading technical signals'}</Typography>
+        ) : (
+          <Box sx={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', fontSize: 15 }}>
+              <thead>
+                <tr>
+                  <th align="left">Symbol</th>
+                  <th align="left">Signal</th>
+                  <th align="right">Date</th>
+                  <th align="right">Price</th>
+                  <th align="right">Performance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {signals.map((sig, idx) => (
+                  <tr key={sig.symbol + sig.date + idx} style={{ background: idx % 2 ? '#f9f9f9' : 'white' }}>
+                    <td>{sig.symbol}</td>
+                    <td style={{ color: sig.signal === 'Buy' ? '#43a047' : '#e53935', fontWeight: 600 }}>{sig.signal}</td>
+                    <td align="right">{sig.date ? new Date(sig.date).toLocaleDateString() : ''}</td>
+                    <td align="right">${sig.current_price?.toLocaleString?.() ?? '--'}</td>
+                    <td align="right">{sig.performance_percent ? sig.performance_percent.toFixed(2) + '%' : '--'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Box>
+        )}
+        <Typography variant="caption" color="text.secondary">Live technical signals from your buy/sell tables (daily).</Typography>
+      </CardContent>
+    </Card>
+  );
+}
+
+// --- MARKET OVERVIEW WIDGET ---
+function MarketOverviewWidget() {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['dashboard-market-summary'],
+    queryFn: async () => {
+      const result = await getDashboardMarketSummary();
+      return result;
+    },
+    staleTime: 2 * 60 * 1000
+  });
+  const summary = Array.isArray(data?.data) ? data.data : [];
+  return (
+    <Card sx={{ mb: 3 }}>
+      <CardContent>
+        <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>Market Overview</Typography>
+        {isLoading ? (
+          <Typography variant="body2" color="text.secondary">Loading market summary...</Typography>
+        ) : error ? (
+          <Typography variant="body2" color="error">Error loading market summary: {error.message}</Typography>
+        ) : (
+          <Grid container spacing={2}>
+            {summary.map((mkt, idx) => (
+              <Grid item xs={12} sm={4} key={mkt.name}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  {mkt.change >= 0 ? <ArrowUpward sx={{ color: 'success.main', fontSize: 18 }} /> : <ArrowDownward sx={{ color: 'error.main', fontSize: 18 }} />}
+                  <Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>{mkt.name}</Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>{mkt.value?.toLocaleString?.() ?? '--'}</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: mkt.change >= 0 ? '#43a047' : '#e53935' }}>{mkt.pct ?? '--'}</Typography>
+                  </Box>
+                </Box>
+              </Grid>
+            ))}
+          </Grid>
+        )}
+        <Typography variant="caption" color="text.secondary">Major indices and market direction</Typography>
+      </CardContent>
+    </Card>
+  );
+}
+
+// --- EARNINGS CALENDAR WIDGET ---
+function EarningsCalendarWidget({ symbol }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['dashboard-earnings-calendar', symbol],
+    queryFn: async () => {
+      const result = await getDashboardEarningsCalendar();
+      return result;
+    },
+    enabled: !!symbol,
     staleTime: 5 * 60 * 1000
   });
-  
+  const earnings = Array.isArray(data?.data) ? data.data : [];
+  return (
+    <Card sx={{ mb: 3 }}>
+      <CardContent>
+        <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>Earnings & Events</Typography>
+        {isLoading ? (
+          <Typography variant="body2" color="text.secondary">Loading earnings/events...</Typography>
+        ) : error ? (
+          <Typography variant="body2" color="error">Error loading earnings/events: {error.message}</Typography>
+        ) : earnings.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">No upcoming earnings/events for {symbol}.</Typography>
+        ) : (
+          <>
+            {earnings.map((ev, idx) => (
+              <Box key={ev.event + idx} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2">{ev.event}</Typography>
+                <Typography variant="caption" color="text.secondary">{format(new Date(ev.date), 'MMM d')}</Typography>
+              </Box>
+            ))}
+          </>
+        )}
+        <Typography variant="caption" color="text.secondary">Upcoming earnings and economic events</Typography>
+      </CardContent>
+    </Card>
+  );
+}
+
+// --- ANALYST INSIGHTS WIDGET ---
+function AnalystInsightsWidget({ symbol }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['dashboard-analyst-insights', symbol],
+    queryFn: async () => {
+      const result = await getDashboardAnalystInsights();
+      return result;
+    },
+    enabled: !!symbol,
+    staleTime: 5 * 60 * 1000
+  });
+  const upgrades = Array.isArray(data?.data?.upgrades) ? data.data.upgrades : [];
+  const downgrades = Array.isArray(data?.data?.downgrades) ? data.data.downgrades : [];
+  return (
+    <Card sx={{ mb: 3 }}>
+      <CardContent>
+        <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>Analyst Insights</Typography>
+        {isLoading ? (
+          <Typography variant="body2" color="text.secondary">Loading analyst insights...</Typography>
+        ) : error ? (
+          <Typography variant="body2" color="error">Error loading analyst insights: {error.message}</Typography>
+        ) : (
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <Chip label={`Upgrades: ${upgrades.length}`} color="success" />
+            <Chip label={`Downgrades: ${downgrades.length}`} color="error" />
+          </Box>
+        )}
+        <Typography variant="caption" color="text.secondary">Latest analyst actions for {symbol}</Typography>
+      </CardContent>
+    </Card>
+  );
+}
+
+// --- FINANCIAL HIGHLIGHTS WIDGET ---
+function FinancialHighlightsWidget({ symbol }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['dashboard-financial-highlights', symbol],
+    queryFn: async () => {
+      const result = await getDashboardFinancialHighlights();
+      return result;
+    },
+    enabled: !!symbol,
+    staleTime: 5 * 60 * 1000
+  });
+  const highlights = Array.isArray(data?.data) ? data.data : [];
+  return (
+    <Card sx={{ mb: 3 }}>
+      <CardContent>
+        <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>Financial Highlights</Typography>
+        {isLoading ? (
+          <Typography variant="body2" color="text.secondary">Loading financial highlights...</Typography>
+        ) : error ? (
+          <Typography variant="body2" color="error">Error loading financial highlights: {error.message}</Typography>
+        ) : (
+          <Grid container spacing={2}>
+            {highlights.map((item, idx) => (
+              <Grid item xs={6} key={item.label}>
+                <Typography variant="body2" color="text.secondary">{item.label}</Typography>
+                <Typography variant="body2" fontWeight={600}>{item.value}</Typography>
+              </Grid>
+            ))}
+          </Grid>
+        )}
+        <Typography variant="caption" color="text.secondary">Key financial metrics for {symbol}</Typography>
+      </CardContent>
+    </Card>
+  );
+}
+
+// --- USER SETTINGS WIDGET ---
+function UserSettingsWidget({ user }) {
+  return (
+    <Card sx={{ mb: 3 }}>
+      <CardContent>
+        <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>User Settings</Typography>
+        {user ? (
+          <Typography variant="body2">Email: {user.email}</Typography>
+        ) : (
+          <Typography variant="body2" color="text.secondary">Loading user info...</Typography>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+const Dashboard = () => {
+  const [selectedSymbol, setSelectedSymbol] = useState(DEFAULT_TICKER);
+  const [activeTab, setActiveTab] = useState(0);
+
+  // Custom hooks for data fetching
+  function useUser() {
+    console.log('🔍 useUser: Hook called');
+    const { data, isLoading, error } = useQuery({
+      queryKey: ['dashboardUser'],
+      queryFn: getDashboardUser,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      onSuccess: (data) => console.log('✅ useUser: Data loaded successfully:', data),
+      onError: (error) => console.error('❌ useUser: Error loading data:', error)
+    });
+    
+    console.log('📊 useUser: Hook result:', { hasData: !!data, isLoading, hasError: !!error });
+    return { user: data?.data, isLoading, error };
+  }
+
+  function useWatchlist() {
+    console.log('🔍 useWatchlist: Hook called');
+    const { data, isLoading, error } = useQuery({
+      queryKey: ['dashboardWatchlist'],
+      queryFn: getDashboardWatchlist,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      onSuccess: (data) => console.log('✅ useWatchlist: Data loaded successfully:', data),
+      onError: (error) => console.error('❌ useWatchlist: Error loading data:', error)
+    });
+    
+    console.log('📊 useWatchlist: Hook result:', { hasData: !!data, isLoading, hasError: !!error });
+    return { watchlist: data?.data || [], isLoading, error };
+  }
+
+  function usePortfolio() {
+    console.log('🔍 usePortfolio: Hook called');
+    const { data, isLoading, error } = useQuery({
+      queryKey: ['dashboardPortfolio'],
+      queryFn: getDashboardPortfolio,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      onSuccess: (data) => console.log('✅ usePortfolio: Data loaded successfully:', data),
+      onError: (error) => console.error('❌ usePortfolio: Error loading data:', error)
+    });
+    
+    console.log('📊 usePortfolio: Hook result:', { hasData: !!data, isLoading, hasError: !!error });
+    return { portfolio: data?.data || defaultPortfolio, isLoading, error };
+  }
+
+  function usePortfolioMetrics() {
+    console.log('🔍 usePortfolioMetrics: Hook called');
+    const { data, isLoading, error } = useQuery({
+      queryKey: ['dashboardPortfolioMetrics'],
+      queryFn: getDashboardPortfolioMetrics,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      onSuccess: (data) => console.log('✅ usePortfolioMetrics: Data loaded successfully:', data),
+      onError: (error) => console.error('❌ usePortfolioMetrics: Error loading data:', error)
+    });
+    
+    console.log('📊 usePortfolioMetrics: Hook result:', { hasData: !!data, isLoading, hasError: !!error });
+    return { portfolioMetrics: data?.data || defaultMetrics, isLoading, error };
+  }
+
+  function useHoldings() {
+    console.log('🔍 useHoldings: Hook called');
+    const { data, isLoading, error } = useQuery({
+      queryKey: ['dashboardHoldings'],
+      queryFn: getDashboardHoldings,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      onSuccess: (data) => console.log('✅ useHoldings: Data loaded successfully:', data),
+      onError: (error) => console.error('❌ useHoldings: Error loading data:', error)
+    });
+    
+    console.log('📊 useHoldings: Hook result:', { hasData: !!data, isLoading, hasError: !!error });
+    return { holdings: data?.data || [], isLoading, error };
+  }
+
+  function useUserSettings() {
+    console.log('🔍 useUserSettings: Hook called');
+    const { data, isLoading, error } = useQuery({
+      queryKey: ['dashboardUserSettings'],
+      queryFn: getDashboardUserSettings,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      onSuccess: (data) => console.log('✅ useUserSettings: Data loaded successfully:', data),
+      onError: (error) => console.error('❌ useUserSettings: Error loading data:', error)
+    });
+    
+    console.log('📊 useUserSettings: Hook result:', { hasData: !!data, isLoading, hasError: !!error });
+    return { userSettings: data?.data || defaultSettings, isLoading, error };
+  }
+
+  // Data fetching hooks
+  const { user, isLoading: userLoading, error: userError } = useUser();
+  const { watchlist, isLoading: watchlistLoading, error: watchlistError } = useWatchlist();
+  const { portfolio, isLoading: portfolioLoading, error: portfolioError } = usePortfolio();
+  const { portfolioMetrics, isLoading: metricsLoading, error: metricsError } = usePortfolioMetrics();
+  const { holdings, isLoading: holdingsLoading, error: holdingsError } = useHoldings();
+  const { userSettings, isLoading: settingsLoading, error: settingsError } = useUserSettings();
+
+  // Additional data queries
+  const { data: symbolsData, isLoading: symbolsLoading } = useQuery({
+    queryKey: ['dashboardSymbols'],
+    queryFn: getDashboardSymbols,
+    staleTime: 60 * 60 * 1000 // 1 hour
+  });
+
+  const { data: marketData, isLoading: marketLoading } = useQuery({
+    queryKey: ['marketOverview'],
+    queryFn: getMarketOverview,
+    staleTime: 5 * 60 * 1000 // 5 minutes
+  });
+
+  const { data: sentimentData, isLoading: sentimentLoading } = useQuery({
+    queryKey: ['marketSentiment'],
+    queryFn: getMarketSentiment,
+    staleTime: 5 * 60 * 1000 // 5 minutes
+  });
+
+  const { data: buySignalsData, isLoading: buySignalsLoading } = useQuery({
+    queryKey: ['buySignals'],
+    queryFn: getBuySignals,
+    staleTime: 2 * 60 * 1000 // 2 minutes
+  });
+
+  const { data: sellSignalsData, isLoading: sellSignalsLoading } = useQuery({
+    queryKey: ['sellSignals'],
+    queryFn: getSellSignals,
+    staleTime: 2 * 60 * 1000 // 2 minutes
+  });
+
+  const { data: earningsData, isLoading: earningsLoading } = useQuery({
+    queryKey: ['earningsEstimates'],
+    queryFn: getEarningsEstimates,
+    staleTime: 30 * 60 * 1000 // 30 minutes
+  });
+
+  const { data: technicalData, isLoading: technicalLoading } = useQuery({
+    queryKey: ['technicalData', selectedSymbol],
+    queryFn: () => getTechnicalData('daily', { symbol: selectedSymbol, limit: 30 }),
+    staleTime: 5 * 60 * 1000 // 5 minutes
+  });
+
+  const { data: stockPrices, isLoading: pricesLoading } = useQuery({
+    queryKey: ['stockPrices', selectedSymbol],
+    queryFn: () => getStockPrices(selectedSymbol, 'daily', 30),
+    staleTime: 5 * 60 * 1000 // 5 minutes
+  });
+
+  const { data: stockMetrics, isLoading: stockMetricsLoading } = useQuery({
+    queryKey: ['stockMetrics', selectedSymbol],
+    queryFn: () => getKeyMetrics(selectedSymbol),
+    staleTime: 5 * 60 * 1000 // 5 minutes
+  });
+
+  // Prepare data for components
   const SYMBOL_OPTIONS = Array.isArray(symbolsData?.data) && symbolsData.data.length > 0
     ? symbolsData.data
     : ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'SPY', 'QQQ'];
 
-  // Price data for selected symbol
-  const { data: priceData } = useQuery({
-    queryKey: ['stock-prices', selectedSymbol],
-    queryFn: () => getStockPrices(selectedSymbol, 'daily', 30),
-    staleTime: 5 * 60 * 1000
-  });
-
-  // Prepare equity curve for chart
-  const equityCurve = Array.isArray(priceData?.data)
-    ? priceData.data.map(p => ({ date: p.date || p.timestamp, equity: p.close || p.price })).reverse()
+  const equityCurve = Array.isArray(stockPrices?.data)
+    ? stockPrices.data.map(p => ({ date: p.date || p.timestamp, equity: p.close || p.price })).reverse()
     : [];
 
-  // Portfolio allocation data for pie chart
-  const allocationData = Array.isArray(holdings)
-    ? holdings.map((h, i) => ({ name: h.symbol, value: h.value, color: ALLOCATION_COLORS[i % ALLOCATION_COLORS.length] }))
+  const priceData = Array.isArray(stockPrices?.data)
+    ? stockPrices.data.map(p => ({ date: p.date || p.timestamp, price: p.close || p.price })).reverse()
     : [];
 
-  // Portfolio drawdown (mocked for now)
-  const maxDrawdown = portfolioMetrics.maxDrawdown ? (portfolioMetrics.maxDrawdown * 100).toFixed(2) : 'N/A';
-  const volatility = portfolioMetrics.volatility ? (portfolioMetrics.volatility * 100).toFixed(2) : 'N/A';
-
-  // Watchlist price data (mocked for now)
-  const watchlistPrices = watchlist.map(symbol => ({ symbol, price: Math.random() * 200 + 50, change: (Math.random() - 0.5) * 2 }));
-
-  // Combine all data for summary metrics
-  const summaryData = {
-    portfolio: portfolio,
-    market: marketSummary?.data,
-    signals: technicalSignals?.data,
-    earnings: earningsCalendar?.data
-  };
-
-  const isLoading = portfolioLoading || watchlistLoading || marketLoading || signalsLoading || holdingsLoading || earningsLoading;
-
-  // Handle adding position
   const handleAddPosition = (position) => {
-    const newPositions = [...portfolio.positions, position];
-    updatePositions.mutate(newPositions);
+    console.log('Adding position:', position);
+    // TODO: Implement position adding logic
   };
 
-  // Handle adding to watchlist
   const handleAddToWatchlist = (symbol) => {
-    addSymbol.mutate(symbol);
+    console.log('Adding to watchlist:', symbol);
+    // TODO: Implement watchlist adding logic
   };
 
-  // Debug function to test API endpoints
   const handleDebugTest = async () => {
     try {
+      console.log('Running API endpoint tests...');
       const results = await testApiEndpoints();
-      setDebugResults(results);
-      console.log('Debug test completed:', results);
+      console.log('API test results:', results);
+      alert('API tests completed. Check console for results.');
     } catch (error) {
-      console.error('Debug test failed:', error);
-      setDebugResults({ error: error.message });
+      console.error('API test failed:', error);
+      alert('API test failed. Check console for details.');
     }
   };
 
@@ -797,26 +1008,24 @@ const Dashboard = () => {
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           {logoSrc ? (
-            <img src={logoSrc} alt="Logo" style={{ height: 48, width: 48, borderRadius: '50%' }} />
+            <img src={logoSrc} alt="Logo" style={{ height: 48, width: 48, borderRadius: '50%', marginRight: 16 }} />
           ) : (
-            <Avatar sx={{ bgcolor: 'primary.main', width: 48, height: 48, fontSize: 28 }}>
+            <Avatar sx={{ bgcolor: 'primary.main', width: 48, height: 48, fontSize: 28, mr: 2 }}>
               EC
             </Avatar>
           )}
           <Box>
-            <Typography variant="h4" sx={{ fontWeight: 700, letterSpacing: 1 }}>
+            <Typography variant="h4" component="h1" sx={{ fontWeight: 700, letterSpacing: 1 }}>
               {BRAND_NAME} Dashboard
             </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Professional Investment Management Platform
+            <Typography variant="subtitle1" color="textSecondary">
+              Professional Investment Platform
             </Typography>
-            {userLoading ? (
-              <Skeleton width={120} height={18} />
-            ) : user ? (
-              <Typography variant="caption" color="text.secondary">
-                Welcome, {user.name || user.email}
+            {user && (
+              <Typography variant="body2" color="textSecondary">
+                Welcome back, {user.name || user.email}
               </Typography>
-            ) : null}
+            )}
           </Box>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -824,686 +1033,357 @@ const Dashboard = () => {
             options={SYMBOL_OPTIONS}
             value={selectedSymbol}
             onChange={(_, newValue) => newValue && setSelectedSymbol(newValue)}
-            sx={{ width: 180, mr: 2 }}
-            renderInput={(params) => <TextField {...params} label="Symbol" size="small" />}
+            sx={{ width: 200 }}
+            renderInput={(params) => <TextField {...params} label="Select Symbol" size="small" />}
           />
-          <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+          <Typography variant="body2" color="textSecondary">
             {format(new Date(), 'MMMM d, yyyy')}
           </Typography>
-          <Tooltip title="Refresh Data">
-            <IconButton onClick={() => window.location.reload()}>
-              <Refresh />
-            </IconButton>
-          </Tooltip>
-          {user && (
-            <Tooltip title={user.email || user.name} arrow>
-              <Avatar sx={{ bgcolor: 'secondary.main', width: 36, height: 36, ml: 1 }}>
-                {user.name ? user.name[0] : (user.email ? user.email[0] : '?')}
-              </Avatar>
-            </Tooltip>
-          )}
-          {user && (
-            <Button size="small" color="secondary" variant="outlined" onClick={() => {
-              api.post('/auth/logout')
-                .then(() => window.location.href = '/login')
-                .catch(error => {
-                  console.error('Logout error:', error);
-                  window.location.href = '/login';
-                });
-            }}>
-              Logout
-            </Button>
-          )}
-          {/* Debug button */}
-          {import.meta.env.DEV && (
-            <Button 
-              size="small" 
-              variant="outlined" 
-              onClick={handleDebugTest}
-              sx={{ ml: 1 }}
-            >
-              Debug API
-            </Button>
-          )}
+          <IconButton onClick={handleDebugTest} title="Debug API">
+            <BugReport />
+          </IconButton>
         </Box>
       </Box>
 
-      {/* Debug Results */}
-      {debugResults && (
-        <Alert severity="info" sx={{ mb: 2 }}>
-          <Typography variant="subtitle2" gutterBottom>API Debug Results:</Typography>
-          <pre style={{ fontSize: '12px', overflow: 'auto', maxHeight: '200px' }}>
-            {JSON.stringify(debugResults, null, 2)}
-          </pre>
-        </Alert>
-      )}
-
       {/* Summary Metrics */}
-      <Box mb={3}>
-        <SummaryMetrics data={summaryData} loading={isLoading} />
+      <Box sx={{ mb: 3 }}>
+        <SummaryMetrics 
+          data={{
+            portfolio: { value: portfolio.value, pnl: portfolio.pnl },
+            market: { sentiment: sentimentData?.data?.sentiment },
+            signals: { 
+              buyCount: buySignalsData?.data?.length || 0,
+              totalCount: (buySignalsData?.data?.length || 0) + (sellSignalsData?.data?.length || 0)
+            },
+            earnings: { 
+              todayCount: earningsData?.data?.length || 0,
+              importantCount: earningsData?.data?.filter(e => e.importance === 'high')?.length || 0
+            }
+          }}
+          loading={portfolioLoading || sentimentLoading || buySignalsLoading || sellSignalsLoading || earningsLoading}
+        />
       </Box>
 
-      {/* Main Dashboard Grid */}
-      <Grid container spacing={3}>
-        {/* Market Overview */}
-        <Grid item xs={12} lg={6}>
-          <MarketOverviewSummary data={marketSummary?.data} loading={marketLoading} />
-        </Grid>
+      {/* Main Content Tabs */}
+      <Box sx={{ mb: 3 }}>
+        <Tabs value={activeTab} onChange={(_, newValue) => setActiveTab(newValue)}>
+          <Tab label="Overview" />
+          <Tab label="Portfolio" />
+          <Tab label="Market Analysis" />
+          <Tab label="Technical Signals" />
+          <Tab label="Earnings & Events" />
+        </Tabs>
+      </Box>
 
-        {/* Portfolio Summary */}
-        <Grid item xs={12} lg={6}>
-          <PortfolioSummary data={{ portfolio, holdings }} loading={portfolioLoading || holdingsLoading} />
-        </Grid>
+      {/* Tab Content */}
+      {activeTab === 0 && (
+        <Grid container spacing={3}>
+          {/* Market Overview */}
+          <Grid item xs={12} lg={6}>
+            <MarketOverviewSummary 
+              data={{
+                indices: marketData?.data?.indices || [],
+                sentiment: sentimentData?.data?.sentiment
+              }}
+              loading={marketLoading || sentimentLoading}
+            />
+          </Grid>
 
-        {/* Technical Signals */}
-        <Grid item xs={12} lg={6}>
-          <TechnicalSignalsSummary data={technicalSignals?.data} loading={signalsLoading} />
-        </Grid>
+          {/* Portfolio Summary */}
+          <Grid item xs={12} lg={6}>
+            <PortfolioSummary 
+              data={{
+                portfolio: portfolio,
+                metrics: portfolioMetrics
+              }}
+              loading={portfolioLoading || metricsLoading}
+            />
+          </Grid>
 
-        {/* Earnings Calendar */}
-        <Grid item xs={12} lg={6}>
-          <EarningsCalendarSummary data={earningsCalendar?.data} loading={earningsLoading} />
-        </Grid>
+          {/* Technical Signals */}
+          <Grid item xs={12}>
+            <TechnicalSignalsSummary 
+              data={{
+                signals: [
+                  ...(buySignalsData?.data || []).map(s => ({ ...s, signal: 'Buy' })),
+                  ...(sellSignalsData?.data || []).map(s => ({ ...s, signal: 'Sell' }))
+                ]
+              }}
+              loading={buySignalsLoading || sellSignalsLoading}
+            />
+          </Grid>
 
-        {/* Performance Analytics */}
-        <Grid item xs={12} lg={8}>
-          <Card elevation={2}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Performance Analytics ({selectedSymbol})
-              </Typography>
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={equityCurve} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} domain={['auto', 'auto']} />
-                  <RechartsTooltip formatter={(v) => `$${v?.toLocaleString?.() ?? v}`}/>
-                  <Line type="monotone" dataKey="equity" stroke="#1976d2" strokeWidth={2} dot={false} name="Equity" />
-                </LineChart>
-              </ResponsiveContainer>
-              <Typography variant="caption" color="textSecondary">Equity curve for {selectedSymbol}</Typography>
-            </CardContent>
-          </Card>
+          {/* Earnings Calendar */}
+          <Grid item xs={12}>
+            <EarningsCalendarSummary 
+              data={{
+                earnings: earningsData?.data || []
+              }}
+              loading={earningsLoading}
+            />
+          </Grid>
         </Grid>
+      )}
 
-        {/* Watchlist Summary */}
-        <Grid item xs={12} lg={4}>
-          <Card elevation={2}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Watchlist Summary
-              </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle2" color="textSecondary" gutterBottom>
-                    Top Gainers
-                  </Typography>
-                  {watchlistPrices.filter(item => item.change > 0).slice(0, 3).map((item, i) => (
-                    <Box key={i} display="flex" justifyContent="space-between" alignItems="center" py={0.5}>
-                      <Typography variant="body2" fontWeight="bold">{item.symbol}</Typography>
-                      <Box textAlign="right">
-                        <Typography variant="body2" fontWeight="bold">
-                          {formatCurrency(item.price)}
-                        </Typography>
-                        <Chip
-                          label={`+${formatPercentage(item.change)}`}
-                          color="success"
-                          size="small"
-                        />
-                      </Box>
-                    </Box>
-                  ))}
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle2" color="textSecondary" gutterBottom>
-                    Top Losers
-                  </Typography>
-                  {watchlistPrices.filter(item => item.change < 0).slice(0, 3).map((item, i) => (
-                    <Box key={i} display="flex" justifyContent="space-between" alignItems="center" py={0.5}>
-                      <Typography variant="body2" fontWeight="bold">{item.symbol}</Typography>
-                      <Box textAlign="right">
-                        <Typography variant="body2" fontWeight="bold">
-                          {formatCurrency(item.price)}
-                        </Typography>
-                        <Chip
-                          label={formatPercentage(item.change)}
-                          color="error"
-                          size="small"
-                        />
-                      </Box>
-                    </Box>
-                  ))}
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Risk Management Panel */}
-        <Grid item xs={12} lg={6}>
-          <Card elevation={2}>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Security color="primary" />
-                  Risk Management
+      {activeTab === 1 && (
+        <Grid container spacing={3}>
+          {/* Portfolio Holdings */}
+          <Grid item xs={12} lg={8}>
+            <Card elevation={2}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Portfolio Holdings
                 </Typography>
-                <Chip 
-                  label={maxDrawdown < 5 ? 'Low Risk' : maxDrawdown < 10 ? 'Medium Risk' : 'High Risk'} 
-                  color={maxDrawdown < 5 ? 'success' : maxDrawdown < 10 ? 'warning' : 'error'}
-                  size="small"
-                />
-              </Box>
-              <Grid container spacing={2}>
-                <Grid item xs={6}>
-                  <Box textAlign="center">
-                    <Typography variant="h4" color="primary" fontWeight="bold">
-                      {maxDrawdown}%
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      Max Drawdown
-                    </Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={6}>
-                  <Box textAlign="center">
-                    <Typography variant="h4" color="secondary" fontWeight="bold">
-                      {volatility}%
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      Volatility
-                    </Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={12}>
-                  <Box sx={{ mt: 2 }}>
-                    <Typography variant="body2" color="textSecondary" gutterBottom>
-                      Risk Metrics
-                    </Typography>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography variant="body2">Sharpe Ratio</Typography>
-                      <Typography variant="body2" fontWeight="bold">
-                        {portfolioMetrics.sharpe ? portfolioMetrics.sharpe.toFixed(2) : 'N/A'}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography variant="body2">Beta</Typography>
-                      <Typography variant="body2" fontWeight="bold">
-                        {portfolioMetrics.beta ? portfolioMetrics.beta.toFixed(2) : 'N/A'}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography variant="body2">VaR (95%)</Typography>
-                      <Typography variant="body2" fontWeight="bold">
-                        {portfolioMetrics.var ? formatCurrency(portfolioMetrics.var) : 'N/A'}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Compliance & Regulatory Panel */}
-        <Grid item xs={12} lg={6}>
-          <Card elevation={2}>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Assessment color="primary" />
-                  Compliance Status
-                </Typography>
-                <Chip label="Compliant" color="success" size="small" />
-              </Box>
-              <List dense>
-                <ListItem>
-                  <ListItemIcon>
-                    <CheckCircle color="success" fontSize="small" />
-                  </ListItemIcon>
-                  <ListItemText 
-                    primary="Position Limits" 
-                    secondary="All positions within regulatory limits"
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemIcon>
-                    <CheckCircle color="success" fontSize="small" />
-                  </ListItemIcon>
-                  <ListItemText 
-                    primary="Risk Exposure" 
-                    secondary="Portfolio risk within acceptable range"
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemIcon>
-                    <CheckCircle color="success" fontSize="small" />
-                  </ListItemIcon>
-                  <ListItemText 
-                    primary="Reporting" 
-                    secondary="All regulatory reports up to date"
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemIcon>
-                    <Warning color="warning" fontSize="small" />
-                  </ListItemIcon>
-                  <ListItemText 
-                    primary="Documentation" 
-                    secondary="2 items pending review"
-                  />
-                </ListItem>
-              </List>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Advanced Analytics Panel */}
-        <Grid item xs={12} lg={8}>
-          <Card elevation={2}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Analytics color="primary" />
-                Advanced Analytics
-              </Typography>
-              <Grid container spacing={3}>
-                <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle2" color="textSecondary" gutterBottom>
-                    Sector Allocation
-                  </Typography>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <PieChart>
-                      <Pie
-                        data={allocationData}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                        outerRadius={60}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {allocationData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
+                {holdingsLoading ? (
+                  <LinearProgress />
+                ) : holdingsError ? (
+                  <Alert severity="error">Failed to load holdings</Alert>
+                ) : (
+                  <TableContainer>
+                    <Table>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Symbol</TableCell>
+                          <TableCell>Shares</TableCell>
+                          <TableCell>Avg Price</TableCell>
+                          <TableCell>Current Price</TableCell>
+                          <TableCell>Market Value</TableCell>
+                          <TableCell>P&L</TableCell>
+                          <TableCell>P&L %</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {holdings.map((holding, idx) => (
+                          <TableRow key={idx}>
+                            <TableCell>{holding.symbol}</TableCell>
+                            <TableCell>{holding.shares}</TableCell>
+                            <TableCell>{formatCurrency(holding.avgPrice)}</TableCell>
+                            <TableCell>{formatCurrency(holding.currentPrice)}</TableCell>
+                            <TableCell>{formatCurrency(holding.marketValue)}</TableCell>
+                            <TableCell sx={{ color: holding.pnl >= 0 ? 'success.main' : 'error.main' }}>
+                              {formatCurrency(holding.pnl)}
+                            </TableCell>
+                            <TableCell sx={{ color: holding.pnlPercent >= 0 ? 'success.main' : 'error.main' }}>
+                              {formatPercentage(holding.pnlPercent)}
+                            </TableCell>
+                          </TableRow>
                         ))}
-                      </Pie>
-                      <RechartsTooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle2" color="textSecondary" gutterBottom>
-                    Performance Attribution
-                  </Typography>
-                  <Box sx={{ mt: 2 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography variant="body2">Stock Selection</Typography>
-                      <Typography variant="body2" color="success.main" fontWeight="bold">
-                        +2.3%
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography variant="body2">Sector Allocation</Typography>
-                      <Typography variant="body2" color="error.main" fontWeight="bold">
-                        -0.8%
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography variant="body2">Market Timing</Typography>
-                      <Typography variant="body2" color="success.main" fontWeight="bold">
-                        +1.2%
-                      </Typography>
-                    </Box>
-                    <Divider sx={{ my: 1 }} />
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography variant="body2" fontWeight="bold">Total Alpha</Typography>
-                      <Typography variant="body2" color="success.main" fontWeight="bold">
-                        +2.7%
-                      </Typography>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Portfolio Allocation */}
+          <Grid item xs={12} lg={4}>
+            <Card elevation={2}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Asset Allocation
+                </Typography>
+                <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <PieChart width={250} height={250}>
+                    <Pie
+                      data={holdings.map((h, idx) => ({ name: h.symbol, value: h.marketValue }))}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={100}
+                      fill="#8884d8"
+                      dataKey="value"
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    >
+                      {holdings.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={ALLOCATION_COLORS[index % ALLOCATION_COLORS.length]} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
+
+      {activeTab === 2 && (
+        <Grid container spacing={3}>
+          {/* Market Overview Widget */}
+          <Grid item xs={12}>
+            <MarketOverviewWidget />
+          </Grid>
+
+          {/* Market Indicators */}
+          <Grid item xs={12} lg={6}>
+            <Card elevation={2}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Market Indicators
+                </Typography>
+                {marketLoading ? (
+                  <LinearProgress />
+                ) : (
+                  <Grid container spacing={2}>
+                    {marketData?.data?.indicators?.map((indicator, idx) => (
+                      <Grid item xs={6} key={idx}>
+                        <Box>
+                          <Typography variant="body2" color="textSecondary">
+                            {indicator.name}
+                          </Typography>
+                          <Typography variant="h6" fontWeight={600}>
+                            {indicator.value}
+                          </Typography>
+                          <Chip
+                            label={`${indicator.change >= 0 ? '+' : ''}${formatPercentage(indicator.change)}`}
+                            color={indicator.change >= 0 ? 'success' : 'error'}
+                            size="small"
+                          />
+                        </Box>
+                      </Grid>
+                    ))}
+                  </Grid>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Fear & Greed Index */}
+          <Grid item xs={12} lg={6}>
+            <Card elevation={2}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Market Sentiment
+                </Typography>
+                {sentimentLoading ? (
+                  <LinearProgress />
+                ) : (
+                  <Box>
+                    <Typography variant="h4" fontWeight="bold" color={SENTIMENT_COLORS[sentimentData?.data?.sentiment] || 'text.primary'}>
+                      {sentimentData?.data?.sentiment?.replace('_', ' ').toUpperCase() || 'NEUTRAL'}
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      Fear & Greed Index: {sentimentData?.data?.value || 'N/A'}
+                    </Typography>
+                    <Box sx={{ mt: 2 }}>
+                      <LinearProgress
+                        variant="determinate"
+                        value={sentimentData?.data?.value || 50}
+                        sx={{
+                          height: 10,
+                          borderRadius: 5,
+                          backgroundColor: 'grey.200',
+                          '& .MuiLinearProgress-bar': {
+                            backgroundColor: SENTIMENT_COLORS[sentimentData?.data?.sentiment] || 'grey.500'
+                          }
+                        }}
+                      />
                     </Box>
                   </Box>
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
         </Grid>
+      )}
 
-        {/* Market Sentiment & News Panel */}
-        <Grid item xs={12} lg={4}>
-          <Card elevation={2}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Insights color="primary" />
-                Market Sentiment
-              </Typography>
-              <Box sx={{ textAlign: 'center', mb: 2 }}>
-                <Typography variant="h3" color="primary" fontWeight="bold">
-                  {marketSummary?.data?.sentiment === 'greed' ? '75' : 
-                   marketSummary?.data?.sentiment === 'fear' ? '25' : '50'}
+      {activeTab === 3 && (
+        <Grid container spacing={3}>
+          {/* Technical Signals Widget */}
+          <Grid item xs={12}>
+            <TechnicalSignalsWidget />
+          </Grid>
+
+          {/* Technical Analysis Chart */}
+          <Grid item xs={12} lg={8}>
+            <Card elevation={2}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Technical Analysis - {selectedSymbol}
                 </Typography>
-                <Typography variant="body2" color="textSecondary">
-                  Fear & Greed Index
+                {pricesLoading ? (
+                  <LinearProgress />
+                ) : (
+                  <ResponsiveContainer width="100%" height={400}>
+                    <LineChart data={priceData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" />
+                      <YAxis />
+                      <RechartsTooltip formatter={(value) => [formatCurrency(value), 'Price']} />
+                      <Line type="monotone" dataKey="price" stroke="#1976d2" strokeWidth={2} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Technical Indicators */}
+          <Grid item xs={12} lg={4}>
+            <Card elevation={2}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Technical Indicators
                 </Typography>
-                <Chip 
-                  label={marketSummary?.data?.sentiment || 'Neutral'} 
-                  color={marketSummary?.data?.sentiment === 'greed' ? 'success' : 
-                         marketSummary?.data?.sentiment === 'fear' ? 'error' : 'default'}
-                  sx={{ mt: 1 }}
-                />
-              </Box>
-              <Typography variant="subtitle2" color="textSecondary" gutterBottom>
-                Recent Market Events
-              </Typography>
-              <List dense>
-                <ListItem>
-                  <ListItemText 
-                    primary="Fed Rate Decision" 
-                    secondary="2 hours ago"
-                  />
-                  <Chip label="Impact: High" color="warning" size="small" />
-                </ListItem>
-                <ListItem>
-                  <ListItemText 
-                    primary="Earnings Season" 
-                    secondary="4 hours ago"
-                  />
-                  <Chip label="Impact: Medium" color="info" size="small" />
-                </ListItem>
-                <ListItem>
-                  <ListItemText 
-                    primary="Economic Data" 
-                    secondary="6 hours ago"
-                  />
-                  <Chip label="Impact: Low" color="default" size="small" />
-                </ListItem>
-              </List>
-            </CardContent>
-          </Card>
+                {technicalLoading ? (
+                  <LinearProgress />
+                ) : (
+                  <Box>
+                    {technicalData?.data?.indicators?.map((indicator, idx) => (
+                      <Box key={idx} sx={{ mb: 2 }}>
+                        <Typography variant="body2" color="textSecondary">
+                          {indicator.name}
+                        </Typography>
+                        <Typography variant="h6" fontWeight={600}>
+                          {indicator.value}
+                        </Typography>
+                        <Chip
+                          label={indicator.signal}
+                          color={indicator.signal === 'Buy' ? 'success' : indicator.signal === 'Sell' ? 'error' : 'default'}
+                          size="small"
+                        />
+                      </Box>
+                    ))}
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
         </Grid>
+      )}
 
-        {/* Trading Activity Panel */}
-        <Grid item xs={12}>
-          <Card elevation={2}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Timeline color="primary" />
-                Recent Trading Activity
-              </Typography>
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Symbol</TableCell>
-                      <TableCell>Action</TableCell>
-                      <TableCell>Quantity</TableCell>
-                      <TableCell>Price</TableCell>
-                      <TableCell>Value</TableCell>
-                      <TableCell>Time</TableCell>
-                      <TableCell>Status</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell>AAPL</TableCell>
-                      <TableCell>
-                        <Chip label="BUY" color="success" size="small" />
-                      </TableCell>
-                      <TableCell>100</TableCell>
-                      <TableCell>{formatCurrency(150.25)}</TableCell>
-                      <TableCell>{formatCurrency(15025)}</TableCell>
-                      <TableCell>09:30 AM</TableCell>
-                      <TableCell>
-                        <Chip label="Executed" color="success" size="small" />
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>MSFT</TableCell>
-                      <TableCell>
-                        <Chip label="SELL" color="error" size="small" />
-                      </TableCell>
-                      <TableCell>50</TableCell>
-                      <TableCell>{formatCurrency(320.75)}</TableCell>
-                      <TableCell>{formatCurrency(16037.50)}</TableCell>
-                      <TableCell>10:15 AM</TableCell>
-                      <TableCell>
-                        <Chip label="Executed" color="success" size="small" />
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>GOOGL</TableCell>
-                      <TableCell>
-                        <Chip label="BUY" color="success" size="small" />
-                      </TableCell>
-                      <TableCell>25</TableCell>
-                      <TableCell>{formatCurrency(2750.00)}</TableCell>
-                      <TableCell>{formatCurrency(68750)}</TableCell>
-                      <TableCell>11:00 AM</TableCell>
-                      <TableCell>
-                        <Chip label="Pending" color="warning" size="small" />
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </CardContent>
-          </Card>
+      {activeTab === 4 && (
+        <Grid container spacing={3}>
+          {/* Earnings Calendar Widget */}
+          <Grid item xs={12} lg={6}>
+            <EarningsCalendarWidget symbol={selectedSymbol} />
+          </Grid>
+
+          {/* Analyst Insights Widget */}
+          <Grid item xs={12} lg={6}>
+            <AnalystInsightsWidget symbol={selectedSymbol} />
+          </Grid>
+
+          {/* Financial Highlights Widget */}
+          <Grid item xs={12} lg={6}>
+            <FinancialHighlightsWidget symbol={selectedSymbol} />
+          </Grid>
+
+          {/* User Settings Widget */}
+          <Grid item xs={12} lg={6}>
+            <UserSettingsWidget user={user} />
+          </Grid>
         </Grid>
-      </Grid>
+      )}
 
-      {/* Compliance Disclaimer */}
-      <Box sx={{ mt: 4, mb: 2, textAlign: 'center' }}>
-        <Typography variant="caption" color="text.secondary">
-          For institutional use only. Not investment advice. Data may be delayed or incomplete. &copy; {new Date().getFullYear()} {BRAND_NAME}. All rights reserved.
+      {/* Footer */}
+      <Box sx={{ mt: 4, textAlign: 'center' }}>
+        <Typography variant="caption" color="textSecondary">
+          © {new Date().getFullYear()} {BRAND_NAME}. All rights reserved. | 
+          Data provided for informational purposes only. Not investment advice.
         </Typography>
       </Box>
     </Box>
   );
 };
-
-function useUser() {
-  console.log('🔍 useUser: Hook called');
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboardUser'],
-    queryFn: getDashboardUser,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    onSuccess: (data) => console.log('✅ useUser: Data loaded successfully:', data),
-    onError: (error) => console.error('❌ useUser: Error loading data:', error)
-  });
-  
-  console.log('📊 useUser: Hook result:', { hasData: !!data, isLoading, hasError: !!error });
-  return { user: data?.data, isLoading, error };
-}
-
-function useWatchlist() {
-  console.log('🔍 useWatchlist: Hook called');
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboardWatchlist'],
-    queryFn: getDashboardWatchlist,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    onSuccess: (data) => console.log('✅ useWatchlist: Data loaded successfully:', data),
-    onError: (error) => console.error('❌ useWatchlist: Error loading data:', error)
-  });
-  
-  console.log('📊 useWatchlist: Hook result:', { hasData: !!data, isLoading, hasError: !!error });
-  return { watchlist: data?.data || [], isLoading, error };
-}
-
-function usePortfolio() {
-  console.log('🔍 usePortfolio: Hook called');
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboardPortfolio'],
-    queryFn: getDashboardPortfolio,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    onSuccess: (data) => console.log('✅ usePortfolio: Data loaded successfully:', data),
-    onError: (error) => console.error('❌ usePortfolio: Error loading data:', error)
-  });
-  
-  console.log('📊 usePortfolio: Hook result:', { hasData: !!data, isLoading, hasError: !!error });
-  return { portfolio: data?.data || defaultPortfolio, isLoading, error };
-}
-
-function usePortfolioMetrics() {
-  console.log('🔍 usePortfolioMetrics: Hook called');
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboardPortfolioMetrics'],
-    queryFn: getDashboardPortfolioMetrics,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    onSuccess: (data) => console.log('✅ usePortfolioMetrics: Data loaded successfully:', data),
-    onError: (error) => console.error('❌ usePortfolioMetrics: Error loading data:', error)
-  });
-  
-  console.log('📊 usePortfolioMetrics: Hook result:', { hasData: !!data, isLoading, hasError: !!error });
-  return { portfolioMetrics: data?.data || defaultMetrics, isLoading, error };
-}
-
-function useHoldings() {
-  console.log('🔍 useHoldings: Hook called');
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboardHoldings'],
-    queryFn: getDashboardHoldings,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    onSuccess: (data) => console.log('✅ useHoldings: Data loaded successfully:', data),
-    onError: (error) => console.error('❌ useHoldings: Error loading data:', error)
-  });
-  
-  console.log('📊 useHoldings: Hook result:', { hasData: !!data, isLoading, hasError: !!error });
-  return { holdings: data?.data || [], isLoading, error };
-}
-
-function useUserSettings() {
-  console.log('🔍 useUserSettings: Hook called');
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboardUserSettings'],
-    queryFn: getDashboardUserSettings,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    onSuccess: (data) => console.log('✅ useUserSettings: Data loaded successfully:', data),
-    onError: (error) => console.error('❌ useUserSettings: Error loading data:', error)
-  });
-  
-  console.log('📊 useUserSettings: Hook result:', { hasData: !!data, isLoading, hasError: !!error });
-  return { userSettings: data?.data || defaultSettings, isLoading, error };
-}
-
-// Placeholder Widget Components (to be implemented later)
-const MarketOverviewWidget = () => (
-  <Card elevation={2}>
-    <CardContent>
-      <Typography variant="h6" gutterBottom>
-        Market Overview
-      </Typography>
-      <Typography variant="body2" color="textSecondary">
-        Market overview data will be displayed here
-      </Typography>
-    </CardContent>
-  </Card>
-);
-
-const TechnicalSignalsWidget = () => (
-  <Card elevation={2}>
-    <CardContent>
-      <Typography variant="h6" gutterBottom>
-        Technical Signals
-      </Typography>
-      <Typography variant="body2" color="textSecondary">
-        Technical signals data will be displayed here
-      </Typography>
-    </CardContent>
-  </Card>
-);
-
-const HoldingsWidget = () => (
-  <Card elevation={2}>
-    <CardContent>
-      <Typography variant="h6" gutterBottom>
-        Holdings
-      </Typography>
-      <Typography variant="body2" color="textSecondary">
-        Holdings data will be displayed here
-      </Typography>
-    </CardContent>
-  </Card>
-);
-
-const EarningsCalendarWidget = ({ symbol }) => (
-  <Card elevation={2}>
-    <CardContent>
-      <Typography variant="h6" gutterBottom>
-        Earnings Calendar
-      </Typography>
-      <Typography variant="body2" color="textSecondary">
-        Earnings calendar for {symbol} will be displayed here
-      </Typography>
-    </CardContent>
-  </Card>
-);
-
-const AnalystInsightsWidget = ({ symbol }) => (
-  <Card elevation={2}>
-    <CardContent>
-      <Typography variant="h6" gutterBottom>
-        Analyst Insights
-      </Typography>
-      <Typography variant="body2" color="textSecondary">
-        Analyst insights for {symbol} will be displayed here
-      </Typography>
-    </CardContent>
-  </Card>
-);
-
-const FinancialHighlightsWidget = ({ symbol }) => (
-  <Card elevation={2}>
-    <CardContent>
-      <Typography variant="h6" gutterBottom>
-        Financial Highlights
-      </Typography>
-      <Typography variant="body2" color="textSecondary">
-        Financial highlights for {symbol} will be displayed here
-      </Typography>
-    </CardContent>
-  </Card>
-);
-
-const UserSettingsWidget = ({ user }) => (
-  <Card elevation={2}>
-    <CardContent>
-      <Typography variant="h6" gutterBottom>
-        User Settings
-      </Typography>
-      <Typography variant="body2" color="textSecondary">
-        User settings for {user?.name || 'User'} will be displayed here
-      </Typography>
-    </CardContent>
-  </Card>
-);
-
-const AddPositionDialog = ({ open, onClose, onAdd }) => (
-  <Dialog open={open} onClose={onClose}>
-    <DialogTitle>Add Position</DialogTitle>
-    <DialogContent>
-      <Typography variant="body2" color="textSecondary">
-        Add position dialog will be implemented here
-      </Typography>
-    </DialogContent>
-    <DialogActions>
-      <Button onClick={onClose}>Cancel</Button>
-      <Button onClick={onClose} variant="contained">Add</Button>
-    </DialogActions>
-  </Dialog>
-);
-
-const AddToWatchlistDialog = ({ open, onClose, onAdd }) => (
-  <Dialog open={open} onClose={onClose}>
-    <DialogTitle>Add to Watchlist</DialogTitle>
-    <DialogContent>
-      <Typography variant="body2" color="textSecondary">
-        Add to watchlist dialog will be implemented here
-      </Typography>
-    </DialogContent>
-    <DialogActions>
-      <Button onClick={onClose}>Cancel</Button>
-      <Button onClick={onClose} variant="contained">Add</Button>
-    </DialogActions>
-  </Dialog>
-);
 
 export default Dashboard;
