@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { createComponentLogger } from '../utils/errorLogger'
-import { formatCurrency, formatNumber, formatPercent, getChangeColor, getChangeIcon, getMarketCapCategory } from '../utils/formatters'
-import { screenStocks, getStockPrices, getStockPricesRecent, getEarningsMetrics } from '../services/api'
+import { formatCurrency, formatNumber, formatPercentage as formatPercent, getChangeColor } from '../utils/formatters'
+import { screenStocks } from '../services/api'
 import {
   Box,
   Container,
@@ -47,16 +47,6 @@ import {
   Fade
 } from '@mui/material'
 import {
-  Search,
-  FilterList,
-  Clear,
-  Tune,
-  ExpandMore,
-  ShowChart,
-  TrendingUp,
-  TrendingDown
-} from '@mui/icons-material'
-import {
   ExpandMore,
   FilterList,
   Clear,
@@ -64,11 +54,7 @@ import {
   TrendingUp,
   TrendingDown,
   ShowChart,
-  BookmarkBorder,
-  Bookmark,
-  ViewList,
-  Tune,
-  InfoOutlined
+  Tune
 } from '@mui/icons-material'
 
 // Create component-specific logger
@@ -335,8 +321,6 @@ function StockExplorer() {
     setPriceHistoryModal({ open: false, symbol: '', data: [], loading: false })
   }
 
-  // Removed viewMode handler - always use advanced view
-
   const getActiveFiltersCount = () => {
     return Object.values(filters).filter(value => 
       value !== '' && value !== false && value !== INITIAL_FILTERS[Object.keys(filters).find(key => filters[key] === value)]
@@ -392,62 +376,6 @@ function StockExplorer() {
     )
   }
 
-  const columns = [
-    // Core identification
-    { id: 'symbol', label: 'Symbol', sortable: true, minWidth: 80 },
-    { id: 'shortName', label: 'Short Name', sortable: true, minWidth: 150, accessor: (row) => row.shortName || row.name },
-    { id: 'fullName', label: 'Full Name', sortable: true, minWidth: 250 },
-    
-    // Current market data
-    { id: 'currentPrice', label: 'Current Price', sortable: true, format: formatCurrency, align: 'right', minWidth: 100, accessor: (row) => row.price?.current },
-    { id: 'previousClose', label: 'Prev Close', sortable: true, format: formatCurrency, align: 'right', minWidth: 100, accessor: (row) => row.price?.previousClose },
-    { id: 'volume', label: 'Volume', sortable: true, format: formatNumber, align: 'right', minWidth: 100 },
-    { id: 'marketCap', label: 'Market Cap', sortable: true, format: formatCurrency, align: 'right', minWidth: 120, accessor: (row) => row.marketCap || row.financialMetrics?.marketCap || row.displayData?.keyMetrics?.marketCap },
-    
-    // Exchange & categorization 
-    { id: 'exchange', label: 'Exchange', sortable: true, minWidth: 100 },
-    { id: 'fullExchangeName', label: 'Full Exchange', sortable: true, minWidth: 150 },
-    { id: 'marketCategory', label: 'Market Category', sortable: true, minWidth: 120 },
-    
-    // Business information
-    { id: 'sector', label: 'Sector', sortable: true, minWidth: 120 },
-    { id: 'industry', label: 'Industry', sortable: true, minWidth: 150 },
-    { id: 'employeeCount', label: 'Employees', sortable: true, format: formatNumber, align: 'right', minWidth: 100 },
-    
-    // Price ranges
-    { id: 'dayLow', label: 'Day Low', sortable: true, format: formatCurrency, align: 'right', minWidth: 90, accessor: (row) => row.price?.dayLow },
-    { id: 'dayHigh', label: 'Day High', sortable: true, format: formatCurrency, align: 'right', minWidth: 90, accessor: (row) => row.price?.dayHigh },
-    { id: 'fiftyTwoWeekLow', label: '52W Low', sortable: true, format: formatCurrency, align: 'right', minWidth: 90, accessor: (row) => row.price?.fiftyTwoWeekLow },
-    { id: 'fiftyTwoWeekHigh', label: '52W High', sortable: true, format: formatCurrency, align: 'right', minWidth: 90, accessor: (row) => row.price?.fiftyTwoWeekHigh },
-    
-    // Moving averages
-    { id: 'fiftyDayAverage', label: '50D Avg', sortable: true, format: formatCurrency, align: 'right', minWidth: 90, accessor: (row) => row.price?.fiftyDayAverage },
-    { id: 'twoHundredDayAverage', label: '200D Avg', sortable: true, format: formatCurrency, align: 'right', minWidth: 90, accessor: (row) => row.price?.twoHundredDayAverage },
-    
-    // Contact and corporate info
-    { id: 'website', label: 'Website', sortable: false, minWidth: 120, format: (value) => value ? <a href={value} target="_blank" rel="noopener noreferrer">{new URL(value).hostname}</a> : 'N/A' },
-    { id: 'country', label: 'Country', sortable: true, minWidth: 100, accessor: (row) => row.address?.country },
-    { id: 'city', label: 'City', sortable: true, minWidth: 100, accessor: (row) => row.address?.city },
-    { id: 'state', label: 'State', sortable: true, minWidth: 80, accessor: (row) => row.address?.state },
-    
-    // Financial details
-    { id: 'currency', label: 'Currency', sortable: true, minWidth: 80 },
-    { id: 'quoteType', label: 'Quote Type', sortable: true, minWidth: 100 },
-    
-    // Governance scores
-    { id: 'auditRisk', label: 'Audit Risk', sortable: true, align: 'right', minWidth: 90, accessor: (row) => row.governance?.auditRisk },
-    { id: 'boardRisk', label: 'Board Risk', sortable: true, align: 'right', minWidth: 90, accessor: (row) => row.governance?.boardRisk },
-    { id: 'compensationRisk', label: 'Comp Risk', sortable: true, align: 'right', minWidth: 90, accessor: (row) => row.governance?.compensationRisk },
-    { id: 'overallRisk', label: 'Overall Risk', sortable: true, align: 'right', minWidth: 100, accessor: (row) => row.governance?.overallRisk },
-    
-    // Additional identifiers and status
-    { id: 'cqsSymbol', label: 'CQS Symbol', sortable: false, minWidth: 100 },
-    { id: 'financialStatus', label: 'Financial Status', sortable: true, minWidth: 120 },
-    { id: 'roundLotSize', label: 'Round Lot Size', sortable: true, format: formatNumber, align: 'right', minWidth: 120 },
-    { id: 'isEtf', label: 'ETF', sortable: true, minWidth: 80, format: (value) => value ? 'Yes' : 'No' },
-    { id: 'testIssue', label: 'Test Issue', sortable: true, minWidth: 100, format: (value) => value ? 'Yes' : 'No' }
-  ]
-
   // Normalize stocks list to handle both { data: [...] } and { data: { data: [...] } } API responses
   let stocksList = [];
   if (stocksData) {
@@ -455,6 +383,8 @@ function StockExplorer() {
       stocksList = stocksData.data;
     } else if (stocksData.data && Array.isArray(stocksData.data.data)) {
       stocksList = stocksData.data.data;
+    } else if (Array.isArray(stocksData)) {
+      stocksList = stocksData;
     }
   }
 
@@ -491,8 +421,6 @@ function StockExplorer() {
             </Button>
           )}
           
-          {/* Removed view mode toggle - always use advanced table view */}
-          
           <Button
             variant="outlined"
             startIcon={<Clear />}
@@ -525,19 +453,28 @@ function StockExplorer() {
 
       <Grid container spacing={3}>
         {/* Filters Panel */}
-        <Grid item xs={12} md={viewMode === 'simple' ? 12 : 3}>
-          {viewMode === 'simple' ? (
-            // Simple search bar
-            <Card sx={{ mb: 3 }}>
-              <CardContent>
-                <Grid container spacing={2} alignItems="center">
-                  <Grid item xs={12} md={4}>
+        <Grid item xs={12} md={3}>
+          <Card sx={{ position: 'sticky', top: 20 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom display="flex" alignItems="center" gap={1}>
+                <FilterList />
+                Advanced Filters
+              </Typography>
+
+              {/* Basic Search */}
+              <Accordion defaultExpanded>
+                <AccordionSummary expandIcon={<ExpandMore />}>
+                  <Typography variant="subtitle1">Search & Basic</Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <Box display="flex" flexDirection="column" gap={2}>
                     <TextField
-                      fullWidth
-                      label="Search stocks"
-                      placeholder="Enter ticker or company name"
+                      label="Search"
+                      placeholder="Ticker or company name"
                       value={filters.search}
                       onChange={(e) => handleFilterChange('search', e.target.value)}
+                      size="small"
+                      fullWidth
                       InputProps={{
                         startAdornment: (
                           <InputAdornment position="start">
@@ -546,168 +483,88 @@ function StockExplorer() {
                         ),
                       }}
                     />
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <FormControl fullWidth>
-                      <InputLabel>Sector</InputLabel>
-                      <Select
-                        value={filters.sector}
-                        label="Sector"
-                        onChange={(e) => handleFilterChange('sector', e.target.value)}
-                      >
-                        <MenuItem value="">All Sectors</MenuItem>
-                        {SECTORS.map((sector) => (
-                          <MenuItem key={sector} value={sector}>
-                            {sector}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <FormControl fullWidth>
-                      <InputLabel>Exchange</InputLabel>
-                      <Select
-                        value={filters.exchange}
-                        label="Exchange"
-                        onChange={(e) => handleFilterChange('exchange', e.target.value)}
-                      >
-                        <MenuItem value="">All Exchanges</MenuItem>
-                        {EXCHANGES.map((exchange) => (
-                          <MenuItem key={exchange} value={exchange}>
-                            {exchange}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} md={2}>
-                    <Button
-                      variant="outlined"
-                      onClick={() => setViewMode('advanced')}
-                      startIcon={<Tune />}
+
+                    <TextField
+                      select
+                      label="Sector"
+                      value={filters.sector}
+                      onChange={(e) => handleFilterChange('sector', e.target.value)}
+                      size="small"
                       fullWidth
                     >
-                      Advanced
-                    </Button>
-                  </Grid>
-                </Grid>
-              </CardContent>
-            </Card>
-          ) : (
-            // Advanced filters panel
-            <Card sx={{ position: 'sticky', top: 20 }}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom display="flex" alignItems="center" gap={1}>
-                  <FilterList />
-                  Advanced Filters
-                </Typography>
+                      <MenuItem value="">All Sectors</MenuItem>
+                      {SECTORS.map(sector => (
+                        <MenuItem key={sector} value={sector}>{sector}</MenuItem>
+                      ))}
+                    </TextField>
 
-                {/* Basic Search */}
-                <Accordion defaultExpanded>
-                  <AccordionSummary expandIcon={<ExpandMore />}>
-                    <Typography variant="subtitle1">Search & Basic</Typography>
-                  </AccordionSummary>
-                  <AccordionDetails>
-                    <Box display="flex" flexDirection="column" gap={2}>
-                      <TextField
-                        label="Search"
-                        placeholder="Ticker or company name"
-                        value={filters.search}
-                        onChange={(e) => handleFilterChange('search', e.target.value)}
-                        size="small"
-                        fullWidth
-                        InputProps={{
-                          startAdornment: (
-                            <InputAdornment position="start">
-                              <Search />
-                            </InputAdornment>
-                          ),
-                        }}
-                      />
+                    <TextField
+                      select
+                      label="Exchange"
+                      value={filters.exchange}
+                      onChange={(e) => handleFilterChange('exchange', e.target.value)}
+                      size="small"
+                      fullWidth
+                    >
+                      <MenuItem value="">All Exchanges</MenuItem>
+                      {EXCHANGES.map(exchange => (
+                        <MenuItem key={exchange} value={exchange}>{exchange}</MenuItem>
+                      ))}
+                    </TextField>
+                  </Box>
+                </AccordionDetails>
+              </Accordion>
 
-                      <TextField
-                        select
-                        label="Sector"
-                        value={filters.sector}
-                        onChange={(e) => handleFilterChange('sector', e.target.value)}
-                        size="small"
-                        fullWidth
-                      >
-                        <MenuItem value="">All Sectors</MenuItem>
-                        {SECTORS.map(sector => (
-                          <MenuItem key={sector} value={sector}>{sector}</MenuItem>
-                        ))}
-                      </TextField>
+              {/* Additional Options */}
+              <Accordion>
+                <AccordionSummary expandIcon={<ExpandMore />}>
+                  <Typography variant="subtitle1">Additional Options</Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <Box display="flex" flexDirection="column" gap={2}>
+                    <TextField
+                      select
+                      label="Financial Status"
+                      value={filters.financialStatus || ''}
+                      onChange={(e) => handleFilterChange('financialStatus', e.target.value)}
+                      size="small"
+                      fullWidth
+                    >
+                      <MenuItem value="">All Statuses</MenuItem>
+                      <MenuItem value="N">Normal</MenuItem>
+                      <MenuItem value="D">Deficient</MenuItem>
+                      <MenuItem value="Q">Bankruptcy</MenuItem>
+                      <MenuItem value="S">Suspended</MenuItem>
+                    </TextField>
 
-                      <TextField
-                        select
-                        label="Exchange"
-                        value={filters.exchange}
-                        onChange={(e) => handleFilterChange('exchange', e.target.value)}
-                        size="small"
-                        fullWidth
-                      >
-                        <MenuItem value="">All Exchanges</MenuItem>
-                        {EXCHANGES.map(exchange => (
-                          <MenuItem key={exchange} value={exchange}>{exchange}</MenuItem>
-                        ))}
-                      </TextField>
-                    </Box>
-                  </AccordionDetails>
-                </Accordion>
+                    <TextField
+                      select
+                      label="Security Type"
+                      value={filters.securityType || ''}
+                      onChange={(e) => handleFilterChange('securityType', e.target.value)}
+                      size="small"
+                      fullWidth
+                    >
+                      <MenuItem value="">All Types</MenuItem>
+                      <MenuItem value="stock">Stocks Only</MenuItem>
+                      <MenuItem value="etf">ETFs Only</MenuItem>
+                    </TextField>
+                  </Box>
+                </AccordionDetails>
+              </Accordion>
 
-                {/* Additional Options */}
-                <Accordion>
-                  <AccordionSummary expandIcon={<ExpandMore />}>
-                    <Typography variant="subtitle1">Additional Options</Typography>
-                  </AccordionSummary>
-                  <AccordionDetails>
-                    <Box display="flex" flexDirection="column" gap={2}>
-                      <TextField
-                        select
-                        label="Financial Status"
-                        value={filters.financialStatus || ''}
-                        onChange={(e) => handleFilterChange('financialStatus', e.target.value)}
-                        size="small"
-                        fullWidth
-                      >
-                        <MenuItem value="">All Statuses</MenuItem>
-                        <MenuItem value="N">Normal</MenuItem>
-                        <MenuItem value="D">Deficient</MenuItem>
-                        <MenuItem value="Q">Bankruptcy</MenuItem>
-                        <MenuItem value="S">Suspended</MenuItem>
-                      </TextField>
-
-                      <TextField
-                        select
-                        label="Security Type"
-                        value={filters.securityType || ''}
-                        onChange={(e) => handleFilterChange('securityType', e.target.value)}
-                        size="small"
-                        fullWidth
-                      >
-                        <MenuItem value="">All Types</MenuItem>
-                        <MenuItem value="stock">Stocks Only</MenuItem>
-                        <MenuItem value="etf">ETFs Only</MenuItem>
-                      </TextField>
-                    </Box>
-                  </AccordionDetails>
-                </Accordion>
-
-              </CardContent>
-            </Card>
-          )}
+            </CardContent>
+          </Card>
         </Grid>
 
         {/* Results Panel */}
-        <Grid item xs={12} md={viewMode === 'simple' ? 12 : 9}>
+        <Grid item xs={12} md={9}>
           <Card>
             <CardContent>
               {/* Results Header */}
               <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
                 <Typography variant="h6">
-                  {viewMode === 'simple' ? 'Stock List' : 'Screening Results'}
+                  Screening Results
                   {(stocksData?.pagination?.total || stocksData?.total) && (
                     <Chip 
                       label={`${stocksData?.pagination?.total || stocksData?.total} stocks found`} 
@@ -1088,7 +945,7 @@ function StockExplorer() {
                                         Recent Price Data Loaded ({priceHistoryData[stock.symbol]?.length || 0} records)
                                       </Typography>
                                       <Typography variant="caption" color="success.main">
-                                        Click "View Price History" again to see detailed view
+                                        Click "Price History" again to see detailed view
                                       </Typography>
                                     </Box>
                                   )}

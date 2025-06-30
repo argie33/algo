@@ -5,73 +5,6 @@ const router = express.Router();
 
 // Health check endpoint
 router.get('/', async (req, res) => {
-    // --- BEGIN: API endpoint health checks ---
-    // Only run these if not a quick check
-    const apiEndpoints = [
-      { name: 'stocks', path: '/api/stocks' },
-      { name: 'stocks_quick', path: '/api/stocks/quick/overview' },
-      { name: 'market_overview', path: '/api/market/overview' },
-      { name: 'market_sentiment', path: '/api/market/sentiment/history?days=1' },
-      { name: 'market_sectors', path: '/api/market/sectors/performance' },
-      { name: 'market_breadth', path: '/api/market/breadth' },
-      { name: 'economic_indicators', path: '/api/market/economic?days=1' },
-      { name: 'financials', path: '/api/financials/AAPL/income' },
-      { name: 'metrics_valuation', path: '/api/metrics/valuation' },
-      { name: 'metrics_growth', path: '/api/metrics/growth' },
-      { name: 'metrics_dividends', path: '/api/metrics/dividends' },
-      { name: 'metrics_financial_strength', path: '/api/metrics/financial-strength' },
-      { name: 'earnings_estimates', path: '/api/earnings/estimates' },
-      { name: 'earnings_history', path: '/api/earnings/history' },
-      { name: 'stock_detail', path: '/api/stocks/AAPL' },
-      { name: 'stock_profile', path: '/api/stocks/AAPL/profile' },
-      { name: 'stock_metrics', path: '/api/stocks/AAPL/metrics' },
-      { name: 'stock_financials_balance', path: '/api/financials/AAPL/balance' },
-      { name: 'stock_financials_cashflow', path: '/api/financials/AAPL/cashflow' },
-      { name: 'stock_prices', path: '/api/stocks/AAPL/prices?timeframe=daily&limit=1' },
-      { name: 'stock_prices_recent', path: '/api/stocks/AAPL/price-recent?limit=1' },
-      { name: 'stock_recommendations', path: '/api/stocks/AAPL/recommendations' },
-      { name: 'sectors', path: '/api/stocks/filters/sectors' },
-      { name: 'screen_stocks', path: '/api/stocks/screen' },
-      { name: 'buy_signals', path: '/api/signals/buy' },
-      { name: 'sell_signals', path: '/api/signals/sell' },
-      { name: 'ticker_earnings_estimates', path: '/api/earnings/AAPL/estimates' },
-      { name: 'ticker_earnings_history', path: '/api/earnings/AAPL/history' },
-      { name: 'ticker_revenue_estimates', path: '/api/earnings/AAPL/revenue-estimates' },
-      // Additional endpoints for more coverage:
-      { name: 'trading_signals_daily', path: '/api/trading/signals/daily' },
-      { name: 'trading_signals_weekly', path: '/api/trading/signals/weekly' },
-      { name: 'trading_signals_monthly', path: '/api/trading/signals/monthly' },
-      { name: 'trading_performance', path: '/api/trading/performance' },
-      { name: 'trading_swing_signals', path: '/api/trading/swing-signals' },
-      { name: 'technical_daily', path: '/api/technical/daily' },
-      { name: 'technical_weekly', path: '/api/technical/weekly' },
-      { name: 'technical_monthly', path: '/api/technical/monthly' },
-      { name: 'calendar_earnings', path: '/api/calendar/earnings' },
-      { name: 'calendar_earnings_estimates', path: '/api/calendar/earnings-estimates' },
-      { name: 'calendar_earnings_history', path: '/api/calendar/earnings-history' },
-      { name: 'calendar_events', path: '/api/calendar/events' },
-      { name: 'backtest', path: '/api/backtest' },
-      { name: 'data', path: '/api/data' }
-    ];
-    const apiResults = {};
-    const fetch = require('node-fetch');
-    const baseUrl = req.protocol + '://' + req.get('host');
-    for (const endpoint of apiEndpoints) {
-      try {
-        const url = baseUrl + endpoint.path;
-        const resp = await fetch(url, { method: 'GET', timeout: 4000 });
-        apiResults[endpoint.name] = {
-          status: resp.status,
-          ok: resp.ok
-        };
-      } catch (err) {
-        apiResults[endpoint.name] = {
-          status: 'error',
-          ok: false
-        };
-      }
-    }
-    // --- END: API endpoint health checks ---
   try {
     // Basic health check without database (for quick status)
     if (req.query.quick === 'true') {
@@ -243,8 +176,7 @@ router.get('/', async (req, res) => {
       },
       api: {
         version: '1.0.0',
-        environment: process.env.NODE_ENV || 'development',
-        endpoints: apiResults
+        environment: process.env.NODE_ENV || 'development'
       },
       memory: process.memoryUsage(),
       uptime: process.uptime()
