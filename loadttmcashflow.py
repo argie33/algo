@@ -6,19 +6,15 @@ import json
 import os
 import gc
 import resource
-import math
+from datetime import datetime, date
+from typing import List, Tuple, Optional
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
-from datetime import datetime
-
 import boto3
 import yfinance as yf
 import pandas as pd
 
-# -------------------------------
-# Script metadata & logging setup
-# -------------------------------
 SCRIPT_NAME = "loadttmcashflow.py"
 logging.basicConfig(
     level=logging.INFO,
@@ -26,9 +22,6 @@ logging.basicConfig(
     stream=sys.stdout
 )
 
-# -------------------------------
-# Memory-logging helper (RSS in MB)
-# -------------------------------
 def get_rss_mb():
     usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     if sys.platform.startswith("linux"):
@@ -38,18 +31,12 @@ def get_rss_mb():
 def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
-# -------------------------------
-# Retry settings
-# -------------------------------
 MAX_BATCH_RETRIES = 3
-RETRY_DELAY = 0.2  # seconds between download retries
+RETRY_DELAY = 1.0
 
-# -------------------------------
-# DB config loader
-# -------------------------------
 def get_db_config():
     secret_str = boto3.client("secretsmanager") \
-                     .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
+        .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     sec = json.loads(secret_str)
     return {
         "host": sec["host"],
@@ -59,118 +46,179 @@ def get_db_config():
         "dbname": sec["dbname"]
     }
 
-def load_ttm_cash_flow(symbols, cur, conn):
+def safe_convert_to_float(value) -> Optional[float]:
+    """Safely convert value to float, handling various edge cases"""
+    if pd.isna(value) or value is None:
+        return None
+    try:
+        if isinstance(value, str):
+            value = value.replace(',', '').replace('$', '').strip()
+            if value == '' or value == '-' or value.lower() == 'n/a':
+                return None
+        return float(value)
+    except (ValueError, TypeError):
+        return None
+
+def safe_convert_date(dt) -> Optional[date]:
+    """Safely convert various date formats to date object"""
+    if pd.isna(dt) or dt is None:
+        return None
+    try:
+        if hasattr(dt, 'date'):
+            return dt.date()
+        elif isinstance(dt, str):
+            return datetime.strptime(dt, '%Y-%m-%d').date()
+        elif isinstance(dt, date):
+            return dt
+        else:
+            return pd.to_datetime(dt).date()
+    except (ValueError, TypeError):
+        return None
+
+def calculate_ttm_cash_flow(symbol: str) -> Optional[pd.DataFrame]:
+    """Calculate TTM cash flow from quarterly data"""
+    try:
+        ticker = yf.Ticker(symbol)
+        
+        # Get quarterly cash flow data
+        cash_flow = ticker.quarterly_cashflow
+        
+        if cash_flow is None or cash_flow.empty:
+            logging.warning(f"No quarterly cash flow data for TTM calculation for {symbol}")
+            return None
+            
+        # Sort columns by date (most recent first)
+        cash_flow = cash_flow.reindex(sorted(cash_flow.columns, reverse=True), axis=1)
+        
+        # Take the most recent 4 quarters for TTM calculation
+        if len(cash_flow.columns) < 4:
+            logging.warning(f"Insufficient quarterly data for TTM calculation for {symbol}")
+            return None
+            
+        ttm_quarters = cash_flow.iloc[:, :4]  # Most recent 4 quarters
+        
+        # Calculate TTM by summing the 4 quarters
+        ttm_data = ttm_quarters.sum(axis=1)
+        
+        # Create a DataFrame with TTM data using most recent quarter date as reference
+        ttm_date = cash_flow.columns[0]  # Most recent quarter date
+        ttm_df = pd.DataFrame({ttm_date: ttm_data})
+        
+        return ttm_df
+        
+    except Exception as e:
+        logging.error(f"Error calculating TTM cash flow for {symbol}: {e}")
+        return None
+
+def process_ttm_cash_flow_data(symbol: str, ttm_cash_flow: pd.DataFrame) -> List[Tuple]:
+    """Process TTM cash flow DataFrame into database-ready tuples"""
+    processed_data = []
+    
+    for date_col in ttm_cash_flow.columns:
+        safe_date = safe_convert_date(date_col)
+        if safe_date is None:
+            continue
+            
+        for item_name in ttm_cash_flow.index:
+            value = ttm_cash_flow.loc[item_name, date_col]
+            safe_value = safe_convert_to_float(value)
+            
+            if safe_value is not None:
+                processed_data.append((
+                    symbol,
+                    safe_date,
+                    str(item_name),
+                    safe_value
+                ))
+    
+    return processed_data
+
+def load_ttm_cash_flow(symbols: List[str], cur, conn) -> Tuple[int, int, List[str]]:
+    """Load TTM cash flow data for given symbols"""
     total = len(symbols)
     logging.info(f"Loading TTM cash flow for {total} symbols")
     processed, failed = 0, []
-    CHUNK_SIZE, PAUSE = 20, 0.1
+    CHUNK_SIZE, PAUSE = 10, 0.5
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     for batch_idx in range(batches):
         batch = symbols[batch_idx*CHUNK_SIZE:(batch_idx+1)*CHUNK_SIZE]
-        yq_batch = [s.replace('.', '-').replace('$','-').upper() for s in batch]
-        mapping = dict(zip(yq_batch, batch))
-
         logging.info(f"Processing batch {batch_idx+1}/{batches}")
         log_mem(f"Batch {batch_idx+1} start")
 
-        for yq_sym, orig_sym in mapping.items():
-            cash_flow = None
-            for attempt in range(1, MAX_BATCH_RETRIES+1):
+        for symbol in batch:
+            success = False
+            
+            for attempt in range(1, MAX_BATCH_RETRIES + 1):
                 try:
-                    ticker = yf.Ticker(yq_sym)
-                    # Try both quarterly_cashflow and cashflow, use the one with data
-                    for attr in ["quarterly_cashflow", "cashflow"]:
-                        df = getattr(ticker, attr, None)
-                        if df is not None and not df.empty:
-                            cash_flow = df
-                            break
-                    if cash_flow is None or cash_flow.empty:
-                        raise ValueError("No TTM cash flow data received")
-                    if cash_flow.shape[0] == 0 or cash_flow.shape[1] == 0:
-                        raise ValueError("Empty cash flow data received")
-                    break
-                except Exception as e:
-                    logging.warning(f"Attempt {attempt} failed for {orig_sym}: {e}")
-                    if attempt == MAX_BATCH_RETRIES:
-                        failed.append(orig_sym)
-                        continue
-                    time.sleep(RETRY_DELAY)
-            if cash_flow is None:
-                continue
-            try:
-                # For TTM, sum the last 4 quarters - but handle cases where we don't have 4 quarters
-                cash_flow = cash_flow.loc[:, sorted(cash_flow.columns, reverse=True)]
-                num_quarters = min(cash_flow.shape[1], 4)
-                if num_quarters > 0:
-                    ttm_data = cash_flow.iloc[:, :num_quarters].sum(axis=1)
-                    latest_date = cash_flow.columns[0]
-                else:
-                    continue
-                if hasattr(latest_date, 'date'):
-                    latest_date_obj = latest_date.date()
-                elif hasattr(latest_date, 'to_pydatetime'):
-                    latest_date_obj = latest_date.to_pydatetime().date()
-                else:
-                    latest_date_obj = latest_date
-                row_data = [orig_sym, latest_date_obj]
-                predefined_columns = [
-                    "Operating Cash Flow", "Investing Cash Flow", "Financing Cash Flow", "End Cash Position",
-                    "Income Tax Paid Supplemental Data", "Interest Paid Supplemental Data", "Capital Expenditure",
-                    "Issuance Of Capital Stock", "Issuance Of Debt", "Repayment Of Debt", "Repurchase Of Capital Stock",
-                    "Free Cash Flow", "Net Income", "Net Income From Continuing Ops", "Change In Cash And Cash Equivalents",
-                    "Change In Receivables", "Change In Inventory", "Change In Net Working Capital", "Change In Accounts Payable",
-                    "Change In Other Working Capital", "Change In Other Non Cash Items", "Depreciation And Amortization",
-                    "Depreciation", "Amortization", "Amortization Of Intangibles", "Amortization Of Debt",
-                    "Deferred Income Tax", "Deferred Tax", "Stock Based Compensation", "Change In Deferred Tax",
-                    "Other Non Cash Items", "Change In Working Capital", "Change In Other Assets", "Change In Other Liabilities",
-                    "Change In Other Operating Activities", "Net Cash Flow From Operating Activities",
-                    "Net Cash Flow From Investing Activities", "Net Cash Flow From Financing Activities", "Net Cash Flow",
-                    "Cash At Beginning Of Period", "Cash At End Of Period", "Operating Cash Flow Growth",
-                    "Free Cash Flow Growth", "Cap Ex As A % Of Sales", "Free Cash Flow/Sales", "Free Cash Flow/Net Income"
-                ]
-                for column in predefined_columns:
-                    matching_keys = [key for key in ttm_data.index if key.lower() == column.lower()]
-                    if matching_keys:
-                        value = ttm_data[matching_keys[0]]
-                        if pd.isna(value) or value is None:
-                            row_data.append(None)
-                        else:
-                            row_data.append(float(value))
+                    # Clean symbol for yfinance (handle special characters)
+                    yf_symbol = symbol.replace('.', '-').replace('$', '-P').upper()
+                    
+                    ttm_cash_flow = calculate_ttm_cash_flow(yf_symbol)
+                    if ttm_cash_flow is None:
+                        break
+                    
+                    # Process the data
+                    ttm_cash_flow_data = process_ttm_cash_flow_data(symbol, ttm_cash_flow)
+                    
+                    if ttm_cash_flow_data:
+                        # Insert data
+                        execute_values(cur, """
+                            INSERT INTO ttm_cash_flow (symbol, date, item_name, value)
+                            VALUES %s
+                            ON CONFLICT (symbol, date, item_name) DO UPDATE SET
+                                value = EXCLUDED.value,
+                                updated_at = NOW()
+                        """, ttm_cash_flow_data)
+                        conn.commit()
+                        processed += 1
+                        logging.info(f"Successfully processed {symbol} ({len(ttm_cash_flow_data)} records)")
+                        success = True
+                        break
                     else:
-                        row_data.append(None)
-                columns = ['symbol', 'date'] + predefined_columns
-                placeholders = ', '.join(['%s'] * len(columns))
-                column_names = ', '.join([f'"{col}"' if ' ' in col else col for col in columns])
-                insert_sql = f"""
-                    INSERT INTO ttm_cash_flow ({column_names})
-                    VALUES ({placeholders})
-                    ON CONFLICT (symbol, date) DO UPDATE SET
-                """
-                update_parts = []
-                for col in predefined_columns:
-                    col_name = f'"{col}"' if ' ' in col else col
-                    update_parts.append(f"{col_name} = EXCLUDED.{col_name}")
-                insert_sql += ', '.join(update_parts)
-                cur.execute(insert_sql, row_data)
-                conn.commit()
-                processed += 1
-                logging.info(f"Successfully processed TTM cash flow for {orig_sym}")
-            except Exception as e:
-                logging.error(f"Failed to process TTM cash flow for {orig_sym}: {str(e)}")
-                failed.append(orig_sym)
-                conn.rollback()
-
-        del batch, yq_batch, mapping
+                        logging.warning(f"No valid TTM data found for {symbol}")
+                        break
+                        
+                except Exception as e:
+                    logging.warning(f"Attempt {attempt} failed for {symbol}: {e}")
+                    if attempt < MAX_BATCH_RETRIES:
+                        time.sleep(RETRY_DELAY)
+                    else:
+                        conn.rollback()
+            
+            if not success:
+                failed.append(symbol)
+                
         gc.collect()
         log_mem(f"Batch {batch_idx+1} end")
         time.sleep(PAUSE)
 
     return total, processed, failed
 
-# -------------------------------
-# Entrypoint
-# -------------------------------
+def create_table(cur, conn):
+    """Create the TTM cash flow table"""
+    logging.info("Creating TTM cash flow table...")
+    cur.execute("DROP TABLE IF EXISTS ttm_cash_flow CASCADE;")
+    
+    create_table_sql = """
+        CREATE TABLE ttm_cash_flow (
+            symbol VARCHAR(20) NOT NULL,
+            date DATE NOT NULL,
+            item_name TEXT NOT NULL,
+            value DOUBLE PRECISION NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY(symbol, date, item_name)
+        );
+        
+        CREATE INDEX idx_ttm_cash_flow_symbol ON ttm_cash_flow(symbol);
+        CREATE INDEX idx_ttm_cash_flow_date ON ttm_cash_flow(date);
+        CREATE INDEX idx_ttm_cash_flow_item ON ttm_cash_flow(item_name);
+    """
+    cur.execute(create_table_sql)
+    conn.commit()
+    logging.info("Created TTM cash flow table")
+
 if __name__ == "__main__":
     log_mem("startup")
 
@@ -184,79 +232,25 @@ if __name__ == "__main__":
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Create TTM cash flow table
-    logging.info("Creating TTM cash flow table...")
-    cur.execute("""
-        DROP TABLE IF EXISTS ttm_cash_flow CASCADE;
-    """)
-
-    # Create table with predefined structure for common cash flow columns
-    create_table_sql = """
-        CREATE TABLE ttm_cash_flow (
-            symbol VARCHAR(10) NOT NULL,
-            date DATE NOT NULL,
-            "Operating Cash Flow" DOUBLE PRECISION,
-            "Investing Cash Flow" DOUBLE PRECISION,
-            "Financing Cash Flow" DOUBLE PRECISION,
-            "End Cash Position" DOUBLE PRECISION,
-            "Income Tax Paid Supplemental Data" DOUBLE PRECISION,
-            "Interest Paid Supplemental Data" DOUBLE PRECISION,
-            "Capital Expenditure" DOUBLE PRECISION,
-            "Issuance Of Capital Stock" DOUBLE PRECISION,
-            "Issuance Of Debt" DOUBLE PRECISION,
-            "Repayment Of Debt" DOUBLE PRECISION,
-            "Repurchase Of Capital Stock" DOUBLE PRECISION,
-            "Free Cash Flow" DOUBLE PRECISION,
-            "Net Income" DOUBLE PRECISION,
-            "Net Income From Continuing Ops" DOUBLE PRECISION,
-            "Change In Cash And Cash Equivalents" DOUBLE PRECISION,
-            "Change In Receivables" DOUBLE PRECISION,
-            "Change In Inventory" DOUBLE PRECISION,
-            "Change In Net Working Capital" DOUBLE PRECISION,
-            "Change In Accounts Payable" DOUBLE PRECISION,
-            "Change In Other Working Capital" DOUBLE PRECISION,
-            "Change In Other Non Cash Items" DOUBLE PRECISION,
-            "Depreciation And Amortization" DOUBLE PRECISION,
-            "Depreciation" DOUBLE PRECISION,
-            "Amortization" DOUBLE PRECISION,
-            "Amortization Of Intangibles" DOUBLE PRECISION,
-            "Amortization Of Debt" DOUBLE PRECISION,
-            "Deferred Income Tax" DOUBLE PRECISION,
-            "Deferred Tax" DOUBLE PRECISION,
-            "Stock Based Compensation" DOUBLE PRECISION,
-            "Change In Deferred Tax" DOUBLE PRECISION,
-            "Other Non Cash Items" DOUBLE PRECISION,
-            "Change In Working Capital" DOUBLE PRECISION,
-            "Change In Other Assets" DOUBLE PRECISION,
-            "Change In Other Liabilities" DOUBLE PRECISION,
-            "Change In Other Operating Activities" DOUBLE PRECISION,
-            "Net Cash Flow From Operating Activities" DOUBLE PRECISION,
-            "Net Cash Flow From Investing Activities" DOUBLE PRECISION,
-            "Net Cash Flow From Financing Activities" DOUBLE PRECISION,
-            "Net Cash Flow" DOUBLE PRECISION,
-            "Cash At Beginning Of Period" DOUBLE PRECISION,
-            "Cash At End Of Period" DOUBLE PRECISION,
-            "Operating Cash Flow Growth" DOUBLE PRECISION,
-            "Free Cash Flow Growth" DOUBLE PRECISION,
-            "Cap Ex As A % Of Sales" DOUBLE PRECISION,
-            "Free Cash Flow/Sales" DOUBLE PRECISION,
-            "Free Cash Flow/Net Income" DOUBLE PRECISION,
-            PRIMARY KEY(symbol, date)
-        );
-    """
-    cur.execute(create_table_sql)
-    conn.commit()
-    logging.info("Created TTM cash flow table with predefined structure")
+    # Create table
+    create_table(cur, conn)
 
     # Load stock symbols
     cur.execute("SELECT symbol FROM stock_symbols;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
-    t_s, p_s, f_s = load_ttm_cash_flow(stock_syms, cur, conn)
+    if stock_syms:
+        t_s, p_s, f_s = load_ttm_cash_flow(stock_syms, cur, conn)
+        logging.info(f"Stocks — total: {t_s}, processed: {p_s}, failed: {len(f_s)}")
 
-    # Load ETF symbols
-    cur.execute("SELECT symbol FROM etf_symbols;")
-    etf_syms = [r["symbol"] for r in cur.fetchall()]
-    t_e, p_e, f_e = load_ttm_cash_flow(etf_syms, cur, conn)
+    # Load ETF symbols (if available)
+    try:
+        cur.execute("SELECT symbol FROM etf_symbols;")
+        etf_syms = [r["symbol"] for r in cur.fetchall()]
+        if etf_syms:
+            t_e, p_e, f_e = load_ttm_cash_flow(etf_syms, cur, conn)
+            logging.info(f"ETFs — total: {t_e}, processed: {p_e}, failed: {len(f_e)}")
+    except Exception as e:
+        logging.info(f"No ETF symbols table or error: {e}")
 
     # Record last run
     cur.execute("""
@@ -269,9 +263,7 @@ if __name__ == "__main__":
 
     peak = get_rss_mb()
     logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
-    logging.info(f"Stocks — total: {t_s}, processed: {p_s}, failed: {len(f_s)}")
-    logging.info(f"ETFs   — total: {t_e}, processed: {p_e}, failed: {len(f_e)}")
 
     cur.close()
     conn.close()
-    logging.info("All done.") 
+    logging.info("All done.")

@@ -6,19 +6,15 @@ import json
 import os
 import gc
 import resource
-import math
+from datetime import datetime, date
+from typing import List, Tuple, Optional
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
-from datetime import datetime
-
 import boto3
 import yfinance as yf
 import pandas as pd
 
-# -------------------------------
-# Script metadata & logging setup
-# -------------------------------
 SCRIPT_NAME = "loadquarterlybalancesheet.py"
 logging.basicConfig(
     level=logging.INFO,
@@ -26,9 +22,6 @@ logging.basicConfig(
     stream=sys.stdout
 )
 
-# -------------------------------
-# Memory-logging helper (RSS in MB)
-# -------------------------------
 def get_rss_mb():
     usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     if sys.platform.startswith("linux"):
@@ -38,15 +31,9 @@ def get_rss_mb():
 def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
-# -------------------------------
-# Retry settings
-# -------------------------------
 MAX_BATCH_RETRIES = 3
-RETRY_DELAY = 0.2  # seconds between download retries
+RETRY_DELAY = 1.0
 
-# -------------------------------
-# DB config loader
-# -------------------------------
 def get_db_config():
     secret_str = boto3.client("secretsmanager") \
         .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
@@ -59,6 +46,79 @@ def get_db_config():
         "dbname": sec["dbname"]
     }
 
+def safe_convert_to_float(value) -> Optional[float]:
+    """Safely convert value to float, handling various edge cases"""
+    if pd.isna(value) or value is None:
+        return None
+    try:
+        if isinstance(value, str):
+            value = value.replace(',', '').replace('$', '').strip()
+            if value == '' or value == '-' or value.lower() == 'n/a':
+                return None
+        return float(value)
+    except (ValueError, TypeError):
+        return None
+
+def safe_convert_date(dt) -> Optional[date]:
+    """Safely convert various date formats to date object"""
+    if pd.isna(dt) or dt is None:
+        return None
+    try:
+        if hasattr(dt, 'date'):
+            return dt.date()
+        elif isinstance(dt, str):
+            return datetime.strptime(dt, '%Y-%m-%d').date()
+        elif isinstance(dt, date):
+            return dt
+        else:
+            return pd.to_datetime(dt).date()
+    except (ValueError, TypeError):
+        return None
+
+def get_quarterly_balance_sheet_data(symbol: str) -> Optional[pd.DataFrame]:
+    """Get quarterly balance sheet data using proper yfinance API"""
+    try:
+        ticker = yf.Ticker(symbol)
+        
+        # Get quarterly balance sheet
+        balance_sheet = ticker.quarterly_balance_sheet
+        
+        if balance_sheet is None or balance_sheet.empty:
+            logging.warning(f"No quarterly balance sheet data for {symbol}")
+            return None
+            
+        # Sort columns by date (most recent first)
+        balance_sheet = balance_sheet.reindex(sorted(balance_sheet.columns, reverse=True), axis=1)
+        
+        return balance_sheet
+        
+    except Exception as e:
+        logging.error(f"Error fetching quarterly balance sheet for {symbol}: {e}")
+        return None
+
+def process_balance_sheet_data(symbol: str, balance_sheet: pd.DataFrame) -> List[Tuple]:
+    """Process balance sheet DataFrame into database-ready tuples"""
+    processed_data = []
+    
+    for date_col in balance_sheet.columns:
+        safe_date = safe_convert_date(date_col)
+        if safe_date is None:
+            continue
+            
+        for item_name in balance_sheet.index:
+            value = balance_sheet.loc[item_name, date_col]
+            safe_value = safe_convert_to_float(value)
+            
+            if safe_value is not None:
+                processed_data.append((
+                    symbol,
+                    safe_date,
+                    str(item_name),
+                    safe_value
+                ))
+    
+    return processed_data
+
 def load_quarterly_balance_sheet(symbols, cur, conn):
     total = len(symbols)
     logging.info(f"Loading quarterly balance sheet for {total} symbols")
@@ -68,74 +128,53 @@ def load_quarterly_balance_sheet(symbols, cur, conn):
 
     for batch_idx in range(batches):
         batch = symbols[batch_idx*CHUNK_SIZE:(batch_idx+1)*CHUNK_SIZE]
-        yq_batch = [s.replace('.', '-').replace('$','-').upper() for s in batch]
-        mapping = dict(zip(yq_batch, batch))
-
         logging.info(f"Processing batch {batch_idx+1}/{batches}")
         log_mem(f"Batch {batch_idx+1} start")
 
-        for yq_sym, orig_sym in mapping.items():
-            balance_sheet = None
-            for attempt in range(1, MAX_BATCH_RETRIES+1):
+        for symbol in batch:
+            success = False
+            
+            for attempt in range(1, MAX_BATCH_RETRIES + 1):
                 try:
-                    ticker = yf.Ticker(yq_sym)
-                    # Try both quarterly_balance_sheet and balance_sheet, use the one with data
-                    for attr in ["quarterly_balance_sheet", "balance_sheet"]:
-                        df = getattr(ticker, attr, None)
-                        if df is not None and not df.empty:
-                            balance_sheet = df
-                            break
-                    if balance_sheet is None or balance_sheet.empty:
-                        raise ValueError("No quarterly balance sheet data received")
-                    if balance_sheet.shape[0] == 0 or balance_sheet.shape[1] == 0:
-                        raise ValueError("Empty balance sheet data received")
-                    break
+                    # Clean symbol for yfinance (handle special characters)
+                    yf_symbol = symbol.replace('.', '-').replace('$', '-P').upper()
+                    
+                    balance_sheet = get_quarterly_balance_sheet_data(yf_symbol)
+                    if balance_sheet is None:
+                        break
+                    
+                    # Process the data
+                    balance_sheet_data = process_balance_sheet_data(symbol, balance_sheet)
+                    
+                    if balance_sheet_data:
+                        # Insert data
+                        execute_values(cur, """
+                            INSERT INTO quarterly_balance_sheet (symbol, date, item_name, value)
+                            VALUES %s
+                            ON CONFLICT (symbol, date, item_name) DO UPDATE SET
+                                value = EXCLUDED.value,
+                                updated_at = NOW()
+                        """, balance_sheet_data)
+                        conn.commit()
+                        processed += 1
+                        logging.info(f"Successfully processed {symbol} ({len(balance_sheet_data)} records)")
+                        success = True
+                        break
+                    else:
+                        logging.warning(f"No valid data found for {symbol}")
+                        break
+                        
                 except Exception as e:
-                    logging.warning(f"Attempt {attempt} failed for {orig_sym}: {e}")
-                    if attempt == MAX_BATCH_RETRIES:
-                        failed.append(orig_sym)
-                        continue
-                    time.sleep(RETRY_DELAY)
+                    logging.warning(f"Attempt {attempt} failed for {symbol}: {e}")
+                    if attempt < MAX_BATCH_RETRIES:
+                        time.sleep(RETRY_DELAY)
+                    else:
+                        conn.rollback()
+            
+            if not success:
+                failed.append(symbol)
 
-            if balance_sheet is None:
-                continue
-
-            try:
-                # Use all available quarters, sorted most recent first
-                balance_sheet = balance_sheet.loc[:, sorted(balance_sheet.columns, reverse=True)]
-                balance_sheet_data = []
-                for date in balance_sheet.columns:
-                    for metric in balance_sheet.index:
-                        value = balance_sheet.loc[metric, date]
-                        if pd.isna(value) or value is None:
-                            continue
-                        balance_sheet_data.append((
-                            orig_sym,
-                            date.date() if hasattr(date, 'date') else date,
-                            str(metric),
-                            float(value)
-                        ))
-
-                if balance_sheet_data:
-                    # Insert using normalized table structure
-                    execute_values(cur, """
-                        INSERT INTO quarterly_balance_sheet (symbol, date, item_name, value)
-                        VALUES %s
-                        ON CONFLICT (symbol, date, item_name) DO UPDATE SET
-                            value = EXCLUDED.value,
-                            updated_at = NOW()
-                    """, balance_sheet_data)
-
-                    conn.commit()
-                    processed += 1
-                    logging.info(f"Successfully processed quarterly balance sheet for {orig_sym}")
-
-            except Exception as e:
-                logging.error(f"Failed to process quarterly balance sheet for {orig_sym}: {str(e)}")
-                failed.append(orig_sym)
-                conn.rollback()
-
-        del batch, yq_batch, mapping
+        del batch
         gc.collect()
         log_mem(f"Batch {batch_idx+1} end")
         time.sleep(PAUSE)
@@ -166,7 +205,7 @@ if __name__ == "__main__":
 
     create_table_sql = """
         CREATE TABLE quarterly_balance_sheet (
-            symbol VARCHAR(10) NOT NULL,
+            symbol VARCHAR(20) NOT NULL,
             date DATE NOT NULL,
             item_name TEXT NOT NULL,
             value DOUBLE PRECISION NOT NULL,
@@ -177,6 +216,7 @@ if __name__ == "__main__":
         
         CREATE INDEX idx_quarterly_balance_sheet_symbol ON quarterly_balance_sheet(symbol);
         CREATE INDEX idx_quarterly_balance_sheet_date ON quarterly_balance_sheet(date);
+        CREATE INDEX idx_quarterly_balance_sheet_item ON quarterly_balance_sheet(item_name);
     """
     cur.execute(create_table_sql)
     conn.commit()

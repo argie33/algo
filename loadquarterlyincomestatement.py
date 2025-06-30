@@ -6,19 +6,15 @@ import json
 import os
 import gc
 import resource
-import math
+from datetime import datetime, date
+from typing import List, Tuple, Optional
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
-from datetime import datetime
-
 import boto3
 import yfinance as yf
 import pandas as pd
 
-# -------------------------------
-# Script metadata & logging setup
-# -------------------------------
 SCRIPT_NAME = "loadquarterlyincomestatement.py"
 logging.basicConfig(
     level=logging.INFO,
@@ -26,9 +22,6 @@ logging.basicConfig(
     stream=sys.stdout
 )
 
-# -------------------------------
-# Memory-logging helper (RSS in MB)
-# -------------------------------
 def get_rss_mb():
     usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     if sys.platform.startswith("linux"):
@@ -38,15 +31,9 @@ def get_rss_mb():
 def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
-# -------------------------------
-# Retry settings
-# -------------------------------
 MAX_BATCH_RETRIES = 3
-RETRY_DELAY = 0.2  # seconds between download retries
+RETRY_DELAY = 1.0
 
-# -------------------------------
-# DB config loader
-# -------------------------------
 def get_db_config():
     secret_str = boto3.client("secretsmanager") \
         .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
@@ -59,86 +46,165 @@ def get_db_config():
         "dbname": sec["dbname"]
     }
 
-def load_quarterly_income_statement(symbols, cur, conn):
+def safe_convert_to_float(value) -> Optional[float]:
+    """Safely convert value to float, handling various edge cases"""
+    if pd.isna(value) or value is None:
+        return None
+    try:
+        if isinstance(value, str):
+            value = value.replace(',', '').replace('$', '').strip()
+            if value == '' or value == '-' or value.lower() == 'n/a':
+                return None
+        return float(value)
+    except (ValueError, TypeError):
+        return None
+
+def safe_convert_date(dt) -> Optional[date]:
+    """Safely convert various date formats to date object"""
+    if pd.isna(dt) or dt is None:
+        return None
+    try:
+        if hasattr(dt, 'date'):
+            return dt.date()
+        elif isinstance(dt, str):
+            return datetime.strptime(dt, '%Y-%m-%d').date()
+        elif isinstance(dt, date):
+            return dt
+        else:
+            return pd.to_datetime(dt).date()
+    except (ValueError, TypeError):
+        return None
+
+def get_quarterly_income_statement_data(symbol: str) -> Optional[pd.DataFrame]:
+    """Get quarterly income statement data using proper yfinance API"""
+    try:
+        ticker = yf.Ticker(symbol)
+        
+        # Get quarterly income statement
+        income_statement = ticker.quarterly_financials
+        
+        if income_statement is None or income_statement.empty:
+            logging.warning(f"No quarterly income statement data for {symbol}")
+            return None
+            
+        # Sort columns by date (most recent first)
+        income_statement = income_statement.reindex(sorted(income_statement.columns, reverse=True), axis=1)
+        
+        return income_statement
+        
+    except Exception as e:
+        logging.error(f"Error fetching quarterly income statement for {symbol}: {e}")
+        return None
+
+def process_income_statement_data(symbol: str, income_statement: pd.DataFrame) -> List[Tuple]:
+    """Process income statement DataFrame into database-ready tuples"""
+    processed_data = []
+    
+    for date_col in income_statement.columns:
+        safe_date = safe_convert_date(date_col)
+        if safe_date is None:
+            continue
+            
+        for item_name in income_statement.index:
+            value = income_statement.loc[item_name, date_col]
+            safe_value = safe_convert_to_float(value)
+            
+            if safe_value is not None:
+                processed_data.append((
+                    symbol,
+                    safe_date,
+                    str(item_name),
+                    safe_value
+                ))
+    
+    return processed_data
+
+def load_quarterly_income_statement(symbols: List[str], cur, conn) -> Tuple[int, int, List[str]]:
+    """Load quarterly income statement data for given symbols"""
     total = len(symbols)
     logging.info(f"Loading quarterly income statement for {total} symbols")
     processed, failed = 0, []
-    CHUNK_SIZE, PAUSE = 20, 0.1
+    CHUNK_SIZE, PAUSE = 10, 0.5
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     for batch_idx in range(batches):
         batch = symbols[batch_idx*CHUNK_SIZE:(batch_idx+1)*CHUNK_SIZE]
-        yq_batch = [s.replace('.', '-').replace('$','-').upper() for s in batch]
-        mapping = dict(zip(yq_batch, batch))
-
         logging.info(f"Processing batch {batch_idx+1}/{batches}")
         log_mem(f"Batch {batch_idx+1} start")
 
-        for yq_sym, orig_sym in mapping.items():
-            income_statement = None
-            for attempt in range(1, MAX_BATCH_RETRIES+1):
+        for symbol in batch:
+            success = False
+            
+            for attempt in range(1, MAX_BATCH_RETRIES + 1):
                 try:
-                    ticker = yf.Ticker(yq_sym)
-                    # Try both quarterly_financials and financials, use the one with data
-                    for attr in ["quarterly_financials", "financials"]:
-                        df = getattr(ticker, attr, None)
-                        if df is not None and not df.empty:
-                            income_statement = df
-                            break
-                    if income_statement is None or income_statement.empty:
-                        raise ValueError("No quarterly income statement data received")
-                    break
+                    # Clean symbol for yfinance (handle special characters)
+                    yf_symbol = symbol.replace('.', '-').replace('$', '-P').upper()
+                    
+                    income_statement = get_quarterly_income_statement_data(yf_symbol)
+                    if income_statement is None:
+                        break
+                    
+                    # Process the data
+                    income_statement_data = process_income_statement_data(symbol, income_statement)
+                    
+                    if income_statement_data:
+                        # Insert data
+                        execute_values(cur, """
+                            INSERT INTO quarterly_income_statement (symbol, date, item_name, value)
+                            VALUES %s
+                            ON CONFLICT (symbol, date, item_name) DO UPDATE SET
+                                value = EXCLUDED.value,
+                                updated_at = NOW()
+                        """, income_statement_data)
+                        conn.commit()
+                        processed += 1
+                        logging.info(f"Successfully processed {symbol} ({len(income_statement_data)} records)")
+                        success = True
+                        break
+                    else:
+                        logging.warning(f"No valid data found for {symbol}")
+                        break
+                        
                 except Exception as e:
-                    logging.warning(f"Attempt {attempt} failed for {orig_sym}: {e}")
-                    if attempt == MAX_BATCH_RETRIES:
-                        failed.append(orig_sym)
-                        continue
-                    time.sleep(RETRY_DELAY)
-            if income_statement is None:
-                continue
-            try:
-                # Use all columns (quarters)
-                income_statement = income_statement.loc[:, sorted(income_statement.columns, reverse=True)]
-                if income_statement.shape[1] == 0:
-                    continue
-                income_statement_data = []
-                for date in income_statement.columns:
-                    for metric in income_statement.index:
-                        value = income_statement.loc[metric, date]
-                        if pd.isna(value) or value is None:
-                            continue
-                        income_statement_data.append((
-                            orig_sym,
-                            date.date() if hasattr(date, 'date') else date,
-                            str(metric),
-                            float(value)
-                        ))
-                if income_statement_data:
-                    execute_values(cur, """
-                        INSERT INTO quarterly_income_statement (symbol, date, item_name, value)
-                        VALUES %s
-                        ON CONFLICT (symbol, date, item_name) DO UPDATE SET
-                            value = EXCLUDED.value,
-                            updated_at = NOW()
-                    """, income_statement_data)
-                    conn.commit()
-                    processed += 1
-                    logging.info(f"Successfully processed quarterly income statement for {orig_sym}")
-            except Exception as e:
-                logging.error(f"Failed to process quarterly income statement for {orig_sym}: {str(e)}")
-                failed.append(orig_sym)
-                conn.rollback()
-
-        del batch, yq_batch, mapping
+                    logging.warning(f"Attempt {attempt} failed for {symbol}: {e}")
+                    if attempt < MAX_BATCH_RETRIES:
+                        time.sleep(RETRY_DELAY)
+                    else:
+                        conn.rollback()
+            
+            if not success:
+                failed.append(symbol)
+                
         gc.collect()
         log_mem(f"Batch {batch_idx+1} end")
         time.sleep(PAUSE)
 
     return total, processed, failed
 
-# -------------------------------
-# Entrypoint
-# -------------------------------
+def create_table(cur, conn):
+    """Create the quarterly income statement table"""
+    logging.info("Creating quarterly income statement table...")
+    cur.execute("DROP TABLE IF EXISTS quarterly_income_statement CASCADE;")
+    
+    create_table_sql = """
+        CREATE TABLE quarterly_income_statement (
+            symbol VARCHAR(20) NOT NULL,
+            date DATE NOT NULL,
+            item_name TEXT NOT NULL,
+            value DOUBLE PRECISION NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY(symbol, date, item_name)
+        );
+        
+        CREATE INDEX idx_quarterly_income_statement_symbol ON quarterly_income_statement(symbol);
+        CREATE INDEX idx_quarterly_income_statement_date ON quarterly_income_statement(date);
+        CREATE INDEX idx_quarterly_income_statement_item ON quarterly_income_statement(item_name);
+    """
+    cur.execute(create_table_sql)
+    conn.commit()
+    logging.info("Created quarterly income statement table")
+
 if __name__ == "__main__":
     log_mem("startup")
 
@@ -152,39 +218,25 @@ if __name__ == "__main__":
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Create quarterly income statement table with normalized structure
-    logging.info("Creating quarterly income statement table...")
-    cur.execute("""
-        DROP TABLE IF EXISTS quarterly_income_statement CASCADE;
-    """)
-
-    create_table_sql = """
-        CREATE TABLE quarterly_income_statement (
-            symbol VARCHAR(10) NOT NULL,
-            date DATE NOT NULL,
-            item_name TEXT NOT NULL,
-            value DOUBLE PRECISION NOT NULL,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW(),
-            PRIMARY KEY(symbol, date, item_name)
-        );
-        
-        CREATE INDEX idx_quarterly_income_statement_symbol ON quarterly_income_statement(symbol);
-        CREATE INDEX idx_quarterly_income_statement_date ON quarterly_income_statement(date);
-    """
-    cur.execute(create_table_sql)
-    conn.commit()
-    logging.info("Created quarterly income statement table with normalized structure")
+    # Create table
+    create_table(cur, conn)
 
     # Load stock symbols
     cur.execute("SELECT symbol FROM stock_symbols;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
-    t_s, p_s, f_s = load_quarterly_income_statement(stock_syms, cur, conn)
+    if stock_syms:
+        t_s, p_s, f_s = load_quarterly_income_statement(stock_syms, cur, conn)
+        logging.info(f"Stocks — total: {t_s}, processed: {p_s}, failed: {len(f_s)}")
 
-    # Load ETF symbols
-    cur.execute("SELECT symbol FROM etf_symbols;")
-    etf_syms = [r["symbol"] for r in cur.fetchall()]
-    t_e, p_e, f_e = load_quarterly_income_statement(etf_syms, cur, conn)
+    # Load ETF symbols (if available)
+    try:
+        cur.execute("SELECT symbol FROM etf_symbols;")
+        etf_syms = [r["symbol"] for r in cur.fetchall()]
+        if etf_syms:
+            t_e, p_e, f_e = load_quarterly_income_statement(etf_syms, cur, conn)
+            logging.info(f"ETFs — total: {t_e}, processed: {p_e}, failed: {len(f_e)}")
+    except Exception as e:
+        logging.info(f"No ETF symbols table or error: {e}")
 
     # Record last run
     cur.execute("""
@@ -197,9 +249,7 @@ if __name__ == "__main__":
 
     peak = get_rss_mb()
     logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
-    logging.info(f"Stocks — total: {t_s}, processed: {p_s}, failed: {len(f_s)}")
-    logging.info(f"ETFs   — total: {t_e}, processed: {p_e}, failed: {len(f_e)}")
 
     cur.close()
     conn.close()
-    logging.info("All done.") 
+    logging.info("All done.")
