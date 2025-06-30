@@ -260,9 +260,10 @@ export const getMarketOverview = async () => {
     }
     
     console.log('📈 [API] Market overview raw response:', response);
+    // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, false);
     console.log('📈 [API] Market overview normalized result:', result);
-    return result;
+    return { data: result };
   } catch (error) {
     console.error('❌ [API] Market overview error details:', {
       message: error.message,
@@ -307,17 +308,16 @@ export const getMarketSentimentHistory = async (days = 30) => {
       throw lastError;
     }
     
-    // The backend returns { data: [...], metadata: {...} }
-    // We need to return this structure directly, not normalize it
+    // Always return { data: ... } structure for consistency
     if (response.data && typeof response.data === 'object') {
-      console.log('📊 [API] Returning sentiment data structure directly:', response.data);
-      return response.data;
+      console.log('📊 [API] Returning sentiment data structure:', response.data);
+      return response.data; // Backend already returns { data: ..., metadata: ... }
     }
     
     // Fallback to normalized response
     const result = normalizeApiResponse(response, true);
     console.log('📊 [API] Sentiment fallback normalized result:', result);
-    return result;
+    return { data: result };
   } catch (error) {
     console.error('❌ [API] Sentiment history error details:', {
       message: error.message,
@@ -325,7 +325,7 @@ export const getMarketSentimentHistory = async (days = 30) => {
       data: error.response?.data
     });
     const errorMessage = handleApiError(error, 'get market sentiment history')
-    return { error: errorMessage }
+    return { data: [], error: errorMessage }
   }
 }
 
@@ -360,17 +360,16 @@ export const getMarketSectorPerformance = async () => {
       throw lastError;
     }
     
-    // The backend returns { data: [...], metadata: {...} }
-    // We need to return this structure directly, not normalize it
+    // Always return { data: ... } structure for consistency
     if (response.data && typeof response.data === 'object') {
-      console.log('📊 [API] Returning sector data structure directly:', response.data);
-      return response.data;
+      console.log('📊 [API] Returning sector data structure:', response.data);
+      return response.data; // Backend already returns { data: ..., metadata: ... }
     }
     
     // Fallback to normalized response
     const result = normalizeApiResponse(response, true);
     console.log('📊 [API] Sector fallback normalized result:', result);
-    return result;
+    return { data: result };
   } catch (error) {
     console.error('❌ [API] Sector performance error details:', {
       message: error.message,
@@ -378,7 +377,7 @@ export const getMarketSectorPerformance = async () => {
       data: error.response?.data
     });
     const errorMessage = handleApiError(error, 'get market sector performance')
-    return { error: errorMessage }
+    return { data: [], error: errorMessage }
   }
 }
 
@@ -413,17 +412,16 @@ export const getMarketBreadth = async () => {
       throw lastError;
     }
     
-    // The backend returns { data: {...}, metadata: {...} }
-    // We need to return this structure directly, not normalize it
+    // Always return { data: ... } structure for consistency
     if (response.data && typeof response.data === 'object') {
-      console.log('📊 [API] Returning breadth data structure directly:', response.data);
-      return response.data;
+      console.log('📊 [API] Returning breadth data structure:', response.data);
+      return response.data; // Backend already returns { data: ..., metadata: ... }
     }
     
     // Fallback to normalized response
     const result = normalizeApiResponse(response, false);
     console.log('📊 [API] Breadth fallback normalized result:', result);
-    return result;
+    return { data: result };
   } catch (error) {
     console.error('❌ [API] Market breadth error details:', {
       message: error.message,
@@ -431,7 +429,7 @@ export const getMarketBreadth = async () => {
       data: error.response?.data
     });
     const errorMessage = handleApiError(error, 'get market breadth')
-    return { error: errorMessage }
+    return { data: {}, error: errorMessage }
   }
 }
 
@@ -466,17 +464,16 @@ export const getEconomicIndicators = async (days = 90) => {
       throw lastError;
     }
     
-    // The backend returns { data: [...], period_days: number, total_data_points: number }
-    // We need to return this structure directly, not normalize it
+    // Always return { data: ... } structure for consistency
     if (response.data && typeof response.data === 'object') {
-      console.log('📊 [API] Returning economic data structure directly:', response.data);
-      return response.data;
+      console.log('📊 [API] Returning economic data structure:', response.data);
+      return response.data; // Backend already returns { data: ..., period_days: ..., total_data_points: ... }
     }
     
     // Fallback to normalized response
     const result = normalizeApiResponse(response, true);
     console.log('📊 [API] Economic fallback normalized result:', result);
-    return result;
+    return { data: result };
   } catch (error) {
     console.error('❌ [API] Economic indicators error details:', {
       message: error.message,
@@ -498,7 +495,6 @@ export const getEconomicIndicators = async (days = 90) => {
 // Stocks - Updated to use optimized endpoints
 export const getStocks = async (params = {}) => {
   console.log('🚀 getStocks: Starting API call with params:', params);
-  console.log('🚀 getStocks: Current config:', getApiConfig());
   
   try {
     const queryParams = new URLSearchParams()
@@ -519,7 +515,7 @@ export const getStocks = async (params = {}) => {
     
     for (const endpoint of endpoints) {
       try {
-        console.log(`� getStocks: Trying endpoint: ${endpoint}`);
+        console.log(`🚀 getStocks: Trying endpoint: ${endpoint}`);
         response = await api.get(endpoint, {
           baseURL: currentConfig.baseURL
         });
@@ -544,34 +540,14 @@ export const getStocks = async (params = {}) => {
       dataKeys: response.data ? Object.keys(response.data) : []
     });
     
-    // The backend returns { data: [...], pagination: {...}, metadata: {...} }
-    // We need to return this structure directly, not normalize it
-    if (response.data && typeof response.data === 'object') {
-      console.log('✅ getStocks: returning backend response structure:', response.data);
-      return response.data;
-    }
-    
-    // Fallback to normalized response
-    const normalized = normalizeApiResponse(response, true);
-    console.log('🔄 getStocks: using normalized response:', normalized);
-    return normalized;
+    // Always return { data: ... } structure for consistency
+    const result = normalizeApiResponse(response, true);
+    console.log('✅ getStocks: returning result:', result);
+    return { data: result };
   } catch (error) {
-    console.error('❌ getStocks error details:', {
-      message: error.message,
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      data: error.response?.data,
-      config: error.config
-    });
+    console.error('❌ Error fetching stocks:', error)
     const errorMessage = handleApiError(error, 'get stocks')
-    return { 
-      success: false,
-      data: [], 
-      error: errorMessage,
-      count: 0,
-      total: 0,
-      timestamp: new Date().toISOString()
-    }
+    return { data: [], error: errorMessage }
   }
 }
 
@@ -637,13 +613,14 @@ export const getStock = async (ticker) => {
       dataKeys: response.data ? Object.keys(response.data) : []
     });
     
+    // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, false) // Single stock is an object
     console.log('✅ getStock: returning result:', result);
-    return result;
+    return { data: result };
   } catch (error) {
     console.error('❌ Error fetching stock:', error)
     const errorMessage = handleApiError(error, 'get stock')
-    return normalizeApiResponse({ error: errorMessage }, false)
+    return { data: null, error: errorMessage }
   }
 }
 
@@ -661,10 +638,12 @@ export const getStockProfile = async (ticker) => {
 export const getStockMetrics = async (ticker) => {
   try {
     const response = await api.get(`/api/stocks/${ticker}/metrics`)
-    return normalizeApiResponse(response)
+    // Always return { data: ... } structure for consistency
+    const result = normalizeApiResponse(response, false)
+    return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, 'get stock metrics')
-    return normalizeApiResponse({ data: null, error: errorMessage })
+    return { data: null, error: errorMessage }
   }
 }
 
@@ -680,13 +659,14 @@ export const getStockFinancials = async (ticker, type = 'income') => {
       dataKeys: response.data ? Object.keys(response.data) : []
     });
     
-    const result = normalizeApiResponse(response)
+    // Always return { data: ... } structure for consistency
+    const result = normalizeApiResponse(response, true)
     console.log('✅ getStockFinancials: returning result:', result);
-    return result;
+    return { data: result };
   } catch (error) {
     console.error('❌ Error fetching stock financials:', error)
     const errorMessage = handleApiError(error, 'get stock financials')
-    return normalizeApiResponse({ data: [], error: errorMessage })
+    return { data: [], error: errorMessage }
   }
 }
 
@@ -813,15 +793,15 @@ export const screenStocks = async (params) => {
       baseURL: currentConfig.baseURL
     })
     
-    // The backend returns { data: [...], pagination: {...}, metadata: {...} }
-    // We need to return this structure directly, not normalize it
+    // Always return { data: ... } structure for consistency
     if (response.data && typeof response.data === 'object') {
       console.log('screenStocks: returning backend response structure:', response.data);
-      return response.data;
+      return response.data; // Backend already returns { data: [...], pagination: {...}, metadata: {...} }
     }
     
     // Fallback to normalized response
-    return normalizeApiResponse(response, true);
+    const result = normalizeApiResponse(response, true);
+    return { data: result };
   } catch (error) {
     console.error('Error screening stocks:', error)
     const errorMessage = handleApiError(error, 'screen stocks')
@@ -1125,9 +1105,16 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
         ...response.data
       };
     }
-    // Fallback
-    console.log('📊 [API] Technical data fallback structure');
-    return { data: [], pagination: {}, metadata: {} };
+    
+    // Fallback to normalized response
+    const result = normalizeApiResponse(response, true);
+    console.log('📊 [API] Technical fallback normalized result:', result);
+    return {
+      data: result,
+      pagination: {},
+      metadata: {},
+      timestamp: new Date().toISOString()
+    };
   } catch (error) {
     console.error('❌ [API] Technical data error details:', {
       message: error.message,
@@ -1139,7 +1126,8 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
       data: [],
       pagination: {},
       metadata: {},
-      error: errorMessage
+      error: errorMessage,
+      timestamp: new Date().toISOString()
     };
   }
 };
@@ -1202,10 +1190,12 @@ export const getNaaimData = async (params = {}) => {
       }
     })
     const response = await api.get(`/api/market/naaim?${queryParams.toString()}`)
-    return normalizeApiResponse(response, true) // Array of NAAIM data
+    // Always return { data: ... } structure for consistency
+    const result = normalizeApiResponse(response, true) // Array of NAAIM data
+    return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, 'get NAAIM data')
-    return normalizeApiResponse({ error: errorMessage }, true)
+    return { data: [], error: errorMessage }
   }
 }
 
@@ -1234,10 +1224,12 @@ export const getFearGreedData = async (params = {}) => {
       }
     })
     const response = await api.get(`/api/market/fear-greed?${queryParams.toString()}`)
-    return normalizeApiResponse(response, true) // Array of fear/greed data
+    // Always return { data: ... } structure for consistency
+    const result = normalizeApiResponse(response, true) // Array of fear/greed data
+    return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, 'get fear & greed data')
-    return normalizeApiResponse({ error: errorMessage }, true)
+    return { data: [], error: errorMessage }
   }
 }
 
@@ -1415,7 +1407,12 @@ export const getStockPriceHistory = async (ticker, limit = 90) => {
 export const getRecentAnalystActions = async (limit = 10) => {
   try {
     const response = await api.get(`/api/analysts/recent-actions?limit=${limit}`)
-    return normalizeApiResponse(response, true) // Expect array of analyst actions
+    // Always return { data: ... } structure for consistency
+    const result = normalizeApiResponse(response, true) // Expect array of analyst actions
+    return { 
+      data: result, 
+      summary: { date: null, total_actions: 0, upgrades: 0, downgrades: 0 }
+    }
   } catch (error) {
     const errorMessage = handleApiError(error, 'get recent analyst actions')
     return { 
@@ -1672,13 +1669,14 @@ export const getMarketIndices = async () => {
       dataKeys: response.data ? Object.keys(response.data) : []
     });
     
+    // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true);
     console.log('✅ getMarketIndices: returning result:', result);
-    return result;
+    return { data: result };
   } catch (error) {
     console.error('❌ Error fetching market indices:', error);
     const errorMessage = handleApiError(error, 'get market indices');
-    return normalizeApiResponse({ error: errorMessage }, true);
+    return { data: [], error: errorMessage };
   }
 };
 
@@ -1695,13 +1693,14 @@ export const getSectorPerformance = async () => {
       dataKeys: response.data ? Object.keys(response.data) : []
     });
     
+    // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true);
     console.log('✅ getSectorPerformance: returning result:', result);
-    return result;
+    return { data: result };
   } catch (error) {
     console.error('❌ Error fetching sector performance:', error);
     const errorMessage = handleApiError(error, 'get sector performance');
-    return normalizeApiResponse({ error: errorMessage }, true);
+    return { data: [], error: errorMessage };
   }
 };
 
@@ -1718,13 +1717,14 @@ export const getMarketVolatility = async () => {
       dataKeys: response.data ? Object.keys(response.data) : []
     });
     
+    // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true);
     console.log('✅ getMarketVolatility: returning result:', result);
-    return result;
+    return { data: result };
   } catch (error) {
     console.error('❌ Error fetching market volatility:', error);
     const errorMessage = handleApiError(error, 'get market volatility');
-    return normalizeApiResponse({ error: errorMessage }, true);
+    return { data: [], error: errorMessage };
   }
 };
 
@@ -1837,13 +1837,14 @@ export const getSupportResistanceLevels = async (symbol) => {
       dataKeys: response.data ? Object.keys(response.data) : []
     });
     
+    // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, false);
     console.log('✅ getSupportResistanceLevels: returning result:', result);
-    return result;
+    return { data: result };
   } catch (error) {
     console.error('❌ Error fetching support resistance levels:', error);
     const errorMessage = handleApiError(error, 'get support resistance levels');
-    return normalizeApiResponse({ error: errorMessage }, false);
+    return { data: null, error: errorMessage };
   }
 };
 
@@ -1853,7 +1854,9 @@ export const getDashboardSummary = async () => {
   try {
     const response = await api.get('/dashboard/summary');
     console.log('📊 [API] Dashboard summary response:', response);
-    return normalizeApiResponse(response, false);
+    // Always return { data: ... } structure for consistency
+    const result = normalizeApiResponse(response, false);
+    return { data: result };
   } catch (error) {
     console.error('❌ [API] Dashboard summary error:', error);
     throw new Error(handleApiError(error, 'Failed to fetch dashboard summary'));
@@ -1865,7 +1868,9 @@ export const getDashboardPerformance = async () => {
   try {
     const response = await api.get('/dashboard/performance');
     console.log('📈 [API] Dashboard performance response:', response);
-    return normalizeApiResponse(response, true);
+    // Always return { data: ... } structure for consistency
+    const result = normalizeApiResponse(response, true);
+    return { data: result };
   } catch (error) {
     console.error('❌ [API] Dashboard performance error:', error);
     throw new Error(handleApiError(error, 'Failed to fetch dashboard performance'));
@@ -1877,7 +1882,9 @@ export const getDashboardAlerts = async () => {
   try {
     const response = await api.get('/dashboard/alerts');
     console.log('🚨 [API] Dashboard alerts response:', response);
-    return normalizeApiResponse(response, true);
+    // Always return { data: ... } structure for consistency
+    const result = normalizeApiResponse(response, true);
+    return { data: result };
   } catch (error) {
     console.error('❌ [API] Dashboard alerts error:', error);
     throw new Error(handleApiError(error, 'Failed to fetch dashboard alerts'));

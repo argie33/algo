@@ -115,7 +115,6 @@ import {
   Share,
   Print,
   Dashboard as DashboardIcon,
-  PieChart,
   BarChart as BarChartIcon,
   Timeline as TimelineIcon,
   TrendingUp as TrendingUpIcon,
@@ -226,13 +225,6 @@ import {
 import { format } from 'date-fns';
 import { getApiConfig } from '../services/api';
 import { formatCurrency, formatNumber, formatPercentage } from '../utils/formatters';
-import ProfessionalChart from '../components/ProfessionalChart';
-import MetricsCard, { 
-  PortfolioValueCard, 
-  PerformanceCard, 
-  RiskCard, 
-  VolumeCard 
-} from '../components/MetricsCard';
 
 // Logo import with fallback
 let logoSrc = null;
@@ -1007,6 +999,316 @@ const Dashboard = () => {
                   ))}
                 </Grid>
               </Grid>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Risk Management Panel */}
+        <Grid item xs={12} lg={6}>
+          <Card elevation={2}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Security color="primary" />
+                  Risk Management
+                </Typography>
+                <Chip 
+                  label={maxDrawdown < 5 ? 'Low Risk' : maxDrawdown < 10 ? 'Medium Risk' : 'High Risk'} 
+                  color={maxDrawdown < 5 ? 'success' : maxDrawdown < 10 ? 'warning' : 'error'}
+                  size="small"
+                />
+              </Box>
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Box textAlign="center">
+                    <Typography variant="h4" color="primary" fontWeight="bold">
+                      {maxDrawdown}%
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      Max Drawdown
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={6}>
+                  <Box textAlign="center">
+                    <Typography variant="h4" color="secondary" fontWeight="bold">
+                      {volatility}%
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      Volatility
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12}>
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="body2" color="textSecondary" gutterBottom>
+                      Risk Metrics
+                    </Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="body2">Sharpe Ratio</Typography>
+                      <Typography variant="body2" fontWeight="bold">
+                        {portfolioMetrics.sharpe ? portfolioMetrics.sharpe.toFixed(2) : 'N/A'}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="body2">Beta</Typography>
+                      <Typography variant="body2" fontWeight="bold">
+                        {portfolioMetrics.beta ? portfolioMetrics.beta.toFixed(2) : 'N/A'}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2">VaR (95%)</Typography>
+                      <Typography variant="body2" fontWeight="bold">
+                        {portfolioMetrics.var ? formatCurrency(portfolioMetrics.var) : 'N/A'}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Compliance & Regulatory Panel */}
+        <Grid item xs={12} lg={6}>
+          <Card elevation={2}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Assessment color="primary" />
+                  Compliance Status
+                </Typography>
+                <Chip label="Compliant" color="success" size="small" />
+              </Box>
+              <List dense>
+                <ListItem>
+                  <ListItemIcon>
+                    <CheckCircle color="success" fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText 
+                    primary="Position Limits" 
+                    secondary="All positions within regulatory limits"
+                  />
+                </ListItem>
+                <ListItem>
+                  <ListItemIcon>
+                    <CheckCircle color="success" fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText 
+                    primary="Risk Exposure" 
+                    secondary="Portfolio risk within acceptable range"
+                  />
+                </ListItem>
+                <ListItem>
+                  <ListItemIcon>
+                    <CheckCircle color="success" fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText 
+                    primary="Reporting" 
+                    secondary="All regulatory reports up to date"
+                  />
+                </ListItem>
+                <ListItem>
+                  <ListItemIcon>
+                    <Warning color="warning" fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText 
+                    primary="Documentation" 
+                    secondary="2 items pending review"
+                  />
+                </ListItem>
+              </List>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Advanced Analytics Panel */}
+        <Grid item xs={12} lg={8}>
+          <Card elevation={2}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Analytics color="primary" />
+                Advanced Analytics
+              </Typography>
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+                    Sector Allocation
+                  </Typography>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <PieChart>
+                      <Pie
+                        data={allocationData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        outerRadius={60}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {allocationData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+                    Performance Attribution
+                  </Typography>
+                  <Box sx={{ mt: 2 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="body2">Stock Selection</Typography>
+                      <Typography variant="body2" color="success.main" fontWeight="bold">
+                        +2.3%
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="body2">Sector Allocation</Typography>
+                      <Typography variant="body2" color="error.main" fontWeight="bold">
+                        -0.8%
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="body2">Market Timing</Typography>
+                      <Typography variant="body2" color="success.main" fontWeight="bold">
+                        +1.2%
+                      </Typography>
+                    </Box>
+                    <Divider sx={{ my: 1 }} />
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2" fontWeight="bold">Total Alpha</Typography>
+                      <Typography variant="body2" color="success.main" fontWeight="bold">
+                        +2.7%
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Market Sentiment & News Panel */}
+        <Grid item xs={12} lg={4}>
+          <Card elevation={2}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Insights color="primary" />
+                Market Sentiment
+              </Typography>
+              <Box sx={{ textAlign: 'center', mb: 2 }}>
+                <Typography variant="h3" color="primary" fontWeight="bold">
+                  {marketSummary?.data?.sentiment === 'greed' ? '75' : 
+                   marketSummary?.data?.sentiment === 'fear' ? '25' : '50'}
+                </Typography>
+                <Typography variant="body2" color="textSecondary">
+                  Fear & Greed Index
+                </Typography>
+                <Chip 
+                  label={marketSummary?.data?.sentiment || 'Neutral'} 
+                  color={marketSummary?.data?.sentiment === 'greed' ? 'success' : 
+                         marketSummary?.data?.sentiment === 'fear' ? 'error' : 'default'}
+                  sx={{ mt: 1 }}
+                />
+              </Box>
+              <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+                Recent Market Events
+              </Typography>
+              <List dense>
+                <ListItem>
+                  <ListItemText 
+                    primary="Fed Rate Decision" 
+                    secondary="2 hours ago"
+                  />
+                  <Chip label="Impact: High" color="warning" size="small" />
+                </ListItem>
+                <ListItem>
+                  <ListItemText 
+                    primary="Earnings Season" 
+                    secondary="4 hours ago"
+                  />
+                  <Chip label="Impact: Medium" color="info" size="small" />
+                </ListItem>
+                <ListItem>
+                  <ListItemText 
+                    primary="Economic Data" 
+                    secondary="6 hours ago"
+                  />
+                  <Chip label="Impact: Low" color="default" size="small" />
+                </ListItem>
+              </List>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Trading Activity Panel */}
+        <Grid item xs={12}>
+          <Card elevation={2}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Timeline color="primary" />
+                Recent Trading Activity
+              </Typography>
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Symbol</TableCell>
+                      <TableCell>Action</TableCell>
+                      <TableCell>Quantity</TableCell>
+                      <TableCell>Price</TableCell>
+                      <TableCell>Value</TableCell>
+                      <TableCell>Time</TableCell>
+                      <TableCell>Status</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell>AAPL</TableCell>
+                      <TableCell>
+                        <Chip label="BUY" color="success" size="small" />
+                      </TableCell>
+                      <TableCell>100</TableCell>
+                      <TableCell>{formatCurrency(150.25)}</TableCell>
+                      <TableCell>{formatCurrency(15025)}</TableCell>
+                      <TableCell>09:30 AM</TableCell>
+                      <TableCell>
+                        <Chip label="Executed" color="success" size="small" />
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>MSFT</TableCell>
+                      <TableCell>
+                        <Chip label="SELL" color="error" size="small" />
+                      </TableCell>
+                      <TableCell>50</TableCell>
+                      <TableCell>{formatCurrency(320.75)}</TableCell>
+                      <TableCell>{formatCurrency(16037.50)}</TableCell>
+                      <TableCell>10:15 AM</TableCell>
+                      <TableCell>
+                        <Chip label="Executed" color="success" size="small" />
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>GOOGL</TableCell>
+                      <TableCell>
+                        <Chip label="BUY" color="success" size="small" />
+                      </TableCell>
+                      <TableCell>25</TableCell>
+                      <TableCell>{formatCurrency(2750.00)}</TableCell>
+                      <TableCell>{formatCurrency(68750)}</TableCell>
+                      <TableCell>11:00 AM</TableCell>
+                      <TableCell>
+                        <Chip label="Pending" color="warning" size="small" />
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </TableContainer>
             </CardContent>
           </Card>
         </Grid>

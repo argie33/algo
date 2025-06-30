@@ -3265,9 +3265,21 @@ jobs:
 
       - name: Wait up to 60m for task to stop
         run: |
-          # Add logic to wait for the ECS task to complete if needed
+          for i in $(seq 1 180); do
+            STATUS=$(aws ecs describe-tasks \
+              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+              --query 'tasks[0].lastStatus' \
+              --output text)
+            echo "Attempt $i – status=$STATUS"
+            [ "$STATUS" = "STOPPED" ] && break
+            sleep 20
+          done
+          if [ "$STATUS" != "STOPPED" ]; then
+            echo "❌ Load News task did not stop within 60m"
+            exit 1
+          fi
 
-on:
       - name: Check container exit code
         run: |
           EXIT=$(aws ecs describe-tasks \
