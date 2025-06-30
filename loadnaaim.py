@@ -81,16 +81,18 @@ def get_naaim_data():
     """
     logging.info(f"Downloading NAAIM data from: {NAAIM_URL}")
     
-    # Custom headers to mimic a browser request
+    # Custom headers to mimic a browser request and avoid compression
     headers = {
         "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                        "AppleWebKit/537.36 (KHTML, like Gecko) "
                        "Chrome/115.0.0.0 Safari/537.36"),
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Encoding": "identity",  # Request uncompressed content
         "Connection": "keep-alive",
         "Upgrade-Insecure-Requests": "1",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache"
     }
     
     for attempt in range(1, MAX_DOWNLOAD_RETRIES + 1):

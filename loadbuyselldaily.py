@@ -10,6 +10,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
 import logging
+from importlib import import_module
 
 # -------------------------------
 # Script metadata & logging setup
@@ -356,13 +357,18 @@ def main():
     conn.close()
 
     # Weekly
-    from importlib import import_module
-    weekly_mod = import_module('loadbuysellweekly')
-    weekly_mod.main()
+    try:
+        weekly_mod = import_module('loadbuysellweekly')
+        weekly_mod.main()
+    except Exception as e:
+        logging.error(f"Weekly loader failed: {e}")
 
     # Monthly
-    monthly_mod = import_module('loadbuysellmonthly')
-    monthly_mod.main()
+    try:
+        monthly_mod = import_module('loadbuysellmonthly')
+        monthly_mod.main()
+    except Exception as e:
+        logging.error(f"Monthly loader failed: {e}")
 
     logging.info("=========================")
     logging.info(" AGGREGATED PERFORMANCE (FIXED $10k PER TRADE) ")
