@@ -579,9 +579,11 @@ const EarningsCalendarSummary = ({ data, loading }) => {
                   </Typography>
                 </Box>
                 <Box textAlign="right">
-                  <Typography variant="body2">{format(new Date(earning.date), 'MMM d')}</Typography>
+                  <Typography variant="body2">
+                    {earning.date && !isNaN(new Date(earning.date)) ? format(new Date(earning.date), 'MMM d') : 'TBD'}
+                  </Typography>
                   <Typography variant="caption" color="textSecondary">
-                    {format(new Date(earning.date), 'yyyy')}
+                    {earning.date && !isNaN(new Date(earning.date)) ? format(new Date(earning.date), 'yyyy') : ''}
                   </Typography>
                 </Box>
               </Box>
@@ -636,7 +638,7 @@ function TechnicalSignalsWidget() {
                   <tr key={sig.symbol + sig.date + idx} style={{ background: idx % 2 ? '#f9f9f9' : 'white' }}>
                     <td>{sig.symbol}</td>
                     <td style={{ color: sig.signal === 'Buy' ? '#43a047' : '#e53935', fontWeight: 600 }}>{sig.signal}</td>
-                    <td align="right">{sig.date ? new Date(sig.date).toLocaleDateString() : ''}</td>
+                    <td align="right">{sig.date && !isNaN(new Date(sig.date)) ? new Date(sig.date).toLocaleDateString() : '--'}</td>
                     <td align="right">${sig.current_price?.toLocaleString?.() ?? '--'}</td>
                     <td align="right">{sig.performance_percent ? sig.performance_percent.toFixed(2) + '%' : '--'}</td>
                   </tr>
@@ -719,7 +721,9 @@ function EarningsCalendarWidget({ symbol }) {
             {earnings.map((ev, idx) => (
               <Box key={ev.event + idx} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                 <Typography variant="body2">{ev.event}</Typography>
-                <Typography variant="caption" color="text.secondary">{format(new Date(ev.date), 'MMM d')}</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {ev.date && !isNaN(new Date(ev.date)) ? format(new Date(ev.date), 'MMM d') : 'TBD'}
+                </Typography>
               </Box>
             ))}
           </>

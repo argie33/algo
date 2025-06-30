@@ -804,31 +804,18 @@ export const getFinancialStrengthMetrics = async (params = {}) => {
 // New method for stock screening with proper parameter handling
 export const screenStocks = async (params) => {
   try {
-    // Try multiple endpoint variations to handle different API configurations
-    const endpoints = ['/stocks/screen', '/api/stocks/screen'];
-    let response = null;
-    let lastError = null;
-
-    console.log('🔍 [API] Screening stocks with params:', params.toString());
+    // Use the main stocks endpoint since /screen endpoint has routing issues
+    // The main endpoint supports filtering and pagination just like screening
+    const endpoint = '/api/stocks';
     
-    for (const endpoint of endpoints) {
-      try {
-        console.log(`🔍 [API] Trying endpoint: ${endpoint}?${params.toString()}`);
-        response = await api.get(`${endpoint}?${params.toString()}`, {
-          baseURL: currentConfig.baseURL
-        });
-        console.log(`✅ [API] Success with endpoint: ${endpoint}`, response.data);
-        break;
-      } catch (err) {
-        console.log(`❌ [API] Failed endpoint: ${endpoint}`, err.message);
-        lastError = err;
-        continue;
-      }
-    }
-
-    if (!response) {
-      throw lastError || new Error('All endpoints failed');
-    }
+    console.log('🔍 [API] Screening stocks with params:', params.toString());
+    console.log(`🔍 [API] Using main stocks endpoint: ${endpoint}?${params.toString()}`);
+    
+    const response = await api.get(`${endpoint}?${params.toString()}`, {
+      baseURL: currentConfig.baseURL
+    });
+    
+    console.log(`✅ [API] Success with main stocks endpoint:`, response.data);
     
     // Backend returns: { success: true, data: [...], total: ..., pagination: {...} }
     if (response.data && response.data.success && Array.isArray(response.data.data)) {
