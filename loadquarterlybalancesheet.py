@@ -76,15 +76,36 @@ def safe_convert_date(dt) -> Optional[date]:
         return None
 
 def get_quarterly_balance_sheet_data(symbol: str) -> Optional[pd.DataFrame]:
-    """Get quarterly balance sheet data using proper yfinance API"""
+    """Get quarterly balance sheet data using proper yfinance API with fallback methods"""
     try:
         ticker = yf.Ticker(symbol)
         
-        # Get quarterly balance sheet
-        balance_sheet = ticker.quarterly_balance_sheet
+        # Try multiple methods in order of preference
+        methods_to_try = [
+            ('quarterly_balance_sheet', 'quarterly balance sheet'),
+        ]
+        
+        balance_sheet = None
+        
+        for method_name, description in methods_to_try:
+            try:
+                if hasattr(ticker, method_name):
+                    logging.info(f"Trying {method_name} for {symbol}")
+                    balance_sheet = getattr(ticker, method_name)
+                    
+                    if balance_sheet is not None and not balance_sheet.empty:
+                        logging.info(f"✓ Successfully got data using {method_name} for {symbol}")
+                        break
+                    else:
+                        logging.warning(f"{method_name} returned empty data for {symbol}")
+                else:
+                    logging.warning(f"Method {method_name} not available for {symbol}")
+            except Exception as e:
+                logging.warning(f"Error with {method_name} for {symbol}: {e}")
+                continue
         
         if balance_sheet is None or balance_sheet.empty:
-            logging.warning(f"No quarterly balance sheet data returned by yfinance for {symbol}")
+            logging.warning(f"No quarterly balance sheet data returned by any method for {symbol}")
             return None
         
         # Check if DataFrame contains any actual data (not all NaN)

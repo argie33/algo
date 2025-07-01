@@ -76,15 +76,37 @@ def safe_convert_date(dt) -> Optional[date]:
         return None
 
 def get_quarterly_cash_flow_data(symbol: str) -> Optional[pd.DataFrame]:
-    """Get quarterly cash flow data using proper yfinance API"""
+    """Get quarterly cash flow data using proper yfinance API with fallback methods"""
     try:
         ticker = yf.Ticker(symbol)
         
-        # Get quarterly cash flow
-        cash_flow = ticker.quarterly_cashflow
+        # Try multiple methods in order of preference
+        methods_to_try = [
+            ('quarterly_cash_flow', 'quarterly cash flow (new method)'),
+            ('quarterly_cashflow', 'quarterly cash flow (legacy method)'),
+        ]
+        
+        cash_flow = None
+        
+        for method_name, description in methods_to_try:
+            try:
+                if hasattr(ticker, method_name):
+                    logging.info(f"Trying {method_name} for {symbol}")
+                    cash_flow = getattr(ticker, method_name)
+                    
+                    if cash_flow is not None and not cash_flow.empty:
+                        logging.info(f"✓ Successfully got data using {method_name} for {symbol}")
+                        break
+                    else:
+                        logging.warning(f"{method_name} returned empty data for {symbol}")
+                else:
+                    logging.warning(f"Method {method_name} not available for {symbol}")
+            except Exception as e:
+                logging.warning(f"Error with {method_name} for {symbol}: {e}")
+                continue
         
         if cash_flow is None or cash_flow.empty:
-            logging.warning(f"No quarterly cash flow data returned by yfinance for {symbol}")
+            logging.warning(f"No quarterly cash flow data returned by any method for {symbol}")
             return None
         
         # Check if DataFrame contains any actual data (not all NaN)

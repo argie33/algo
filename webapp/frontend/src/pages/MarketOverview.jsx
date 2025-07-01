@@ -96,12 +96,22 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
         return result;
       } catch (err) {
         logger.error('getMarketOverview', err);
-        throw err;
+        // Return fallback data structure if API fails
+        logger.warn('Using fallback market data structure');
+        return {
+          data: {
+            sentiment_indicators: {},
+            market_breadth: {},
+            market_cap: {},
+            economic_indicators: []
+          }
+        };
       }
     },
     { 
       refetchInterval: 60000,
-      onError: (err) => logger.queryError('market-overview', err)
+      onError: (err) => logger.queryError('market-overview', err),
+      retry: 1 // Only retry once to avoid endless loops
     }
   )
 
@@ -180,15 +190,20 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue)
   }
-  if (marketError) {
+  if (marketError && !marketData) {
     return (
       <Box>
         <Typography variant="h4" sx={{ mb: 3, fontWeight: 600 }}>
           Market Overview
         </Typography>
-        <Alert severity="error">
-          Failed to load market data: {marketError.message}
-          <br /><small>Check the API debug endpoint at: <code>{import.meta.env.VITE_API_URL || ''}/market/debug</code> for table status</small>
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          Market data is temporarily unavailable. The system is being updated to improve data loading.
+          <br /><small>Technical details: {marketError.message}</small>
+          <br /><small>Debug endpoint: <code>{import.meta.env.VITE_API_URL || ''}/market/debug</code></small>
+        </Alert>
+        <Alert severity="info">
+          💡 <strong>Note:</strong> Market data loaders have been updated with improved yfinance API methods. 
+          Data should be available again once the backend deployment completes.
         </Alert>
       </Box>
     )

@@ -94,6 +94,50 @@ router.get('/debug', async (req, res) => {
   }
 });
 
+// Test endpoint for the fixed overview structure
+router.get('/overview-test', async (req, res) => {
+  console.log('Market overview test endpoint called');
+  
+  try {
+    // Return a simplified structure that matches what frontend expects
+    const testData = {
+      sentiment_indicators: {
+        fear_greed: { value: 50, value_text: 'Neutral', timestamp: new Date().toISOString() },
+        naaim: { average: 45.5, week_ending: new Date().toISOString() },
+        aaii: { bullish: 0.35, neutral: 0.30, bearish: 0.35, date: new Date().toISOString() }
+      },
+      market_breadth: {
+        total_stocks: 5000,
+        advancing: 2500,
+        declining: 2200,
+        unchanged: 300,
+        advance_decline_ratio: '1.14',
+        average_change_percent: '0.25'
+      },
+      market_cap: {
+        large_cap: 25000000000000,
+        mid_cap: 5000000000000,
+        small_cap: 2000000000000,
+        total: 32000000000000
+      },
+      economic_indicators: [
+        { name: 'GDP Growth', value: 2.1, unit: '%', timestamp: new Date().toISOString() },
+        { name: 'Unemployment Rate', value: 3.7, unit: '%', timestamp: new Date().toISOString() }
+      ]
+    };
+    
+    res.json({
+      data: testData,
+      timestamp: new Date().toISOString(),
+      status: 'success',
+      message: 'Test data with correct structure'
+    });
+  } catch (error) {
+    console.error('Error in overview test:', error);
+    res.status(500).json({ error: 'Test failed', details: error.message });
+  }
+});
+
 // Simple test endpoint that returns raw data
 router.get('/test', async (req, res) => {
   // console.log('Market test endpoint called');
@@ -176,49 +220,169 @@ router.get('/overview', async (req, res) => {
       return res.status(500).json({ error: 'Market data table not found in database' });
     }
 
-    // Get market overview data
-    const overviewQuery = `
-      SELECT 
-        md.ticker as symbol,
-        md.current_price,
-        md.previous_close,
-        CASE 
-          WHEN md.previous_close > 0 
-          THEN ((md.current_price - md.previous_close) / md.previous_close * 100)
-          ELSE 0 
-        END as change_percent,
-        md.volume,
-        COALESCE(cp.market_cap, 0) as market_cap,
-        COALESCE(cp.sector, 'Unknown') as sector,
-        CURRENT_DATE as date
-      FROM market_data md
-      LEFT JOIN company_profile cp ON md.ticker = cp.ticker
-      WHERE md.current_price IS NOT NULL
-      ORDER BY ABS(((md.current_price - md.previous_close) / md.previous_close * 100)) DESC
-      LIMIT 50
-    `;
-
-    const result = await query(overviewQuery);
-    console.log(`Found ${result.rows.length} market data records`);
-
-    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      console.warn('[MARKET] No market data found in database');
-      return res.status(200).json({ 
-        data: [],
-        count: 0,
-        lastUpdated: null,
-        message: 'No market data available. Please check if market data is being populated in the database.'
-      });
+    // Get sentiment indicators
+    let sentimentIndicators = {};
+    
+    // Get Fear & Greed Index
+    try {
+      const fearGreedQuery = `
+        SELECT value, value_text, timestamp 
+        FROM fear_greed_index 
+        ORDER BY timestamp DESC 
+        LIMIT 1
+      `;
+      const fearGreedResult = await query(fearGreedQuery);
+      if (fearGreedResult.rows.length > 0) {
+        sentimentIndicators.fear_greed = {
+          value: fearGreedResult.rows[0].value,
+          value_text: fearGreedResult.rows[0].value_text,
+          timestamp: fearGreedResult.rows[0].timestamp
+        };
+      }
+    } catch (e) {
+      console.log('Fear & Greed data not available:', e.message);
     }
 
+    // Get NAAIM data
+    try {
+      const naaimQuery = `
+        SELECT average, bullish_8100, bearish, week_ending 
+        FROM naaim 
+        ORDER BY week_ending DESC 
+        LIMIT 1
+      `;
+      const naaimResult = await query(naaimQuery);
+      if (naaimResult.rows.length > 0) {
+        sentimentIndicators.naaim = {
+          average: naaimResult.rows[0].average,
+          bullish_8100: naaimResult.rows[0].bullish_8100,
+          bearish: naaimResult.rows[0].bearish,
+          week_ending: naaimResult.rows[0].week_ending
+        };
+      }
+    } catch (e) {
+      console.log('NAAIM data not available:', e.message);
+    }
+
+    // Get AAII data
+    try {
+      const aaiiQuery = `
+        SELECT bullish, neutral, bearish, date 
+        FROM aaii 
+        ORDER BY date DESC 
+        LIMIT 1
+      `;
+      const aaiiResult = await query(aaiiQuery);
+      if (aaiiResult.rows.length > 0) {
+        sentimentIndicators.aaii = {
+          bullish: aaiiResult.rows[0].bullish,
+          neutral: aaiiResult.rows[0].neutral,
+          bearish: aaiiResult.rows[0].bearish,
+          date: aaiiResult.rows[0].date
+        };
+      }
+    } catch (e) {
+      console.log('AAII data not available:', e.message);
+    }
+
+    // Get market breadth
+    let marketBreadth = {};
+    try {
+      const breadthQuery = `
+        SELECT 
+          COUNT(*) as total_stocks,
+          COUNT(CASE WHEN change_percent > 0 THEN 1 END) as advancing,
+          COUNT(CASE WHEN change_percent < 0 THEN 1 END) as declining,
+          COUNT(CASE WHEN change_percent = 0 THEN 1 END) as unchanged,
+          AVG(change_percent) as average_change_percent
+        FROM market_data
+        WHERE date = (SELECT MAX(date) FROM market_data)
+      `;
+      const breadthResult = await query(breadthQuery);
+      if (breadthResult.rows.length > 0) {
+        const breadth = breadthResult.rows[0];
+        marketBreadth = {
+          total_stocks: parseInt(breadth.total_stocks),
+          advancing: parseInt(breadth.advancing),
+          declining: parseInt(breadth.declining),
+          unchanged: parseInt(breadth.unchanged),
+          advance_decline_ratio: breadth.declining > 0 ? (breadth.advancing / breadth.declining).toFixed(2) : 'N/A',
+          average_change_percent: parseFloat(breadth.average_change_percent).toFixed(2)
+        };
+      }
+    } catch (e) {
+      console.log('Market breadth data not available:', e.message);
+    }
+
+    // Get market cap distribution
+    let marketCap = {};
+    try {
+      const marketCapQuery = `
+        SELECT 
+          SUM(CASE WHEN market_cap >= 10000000000 THEN market_cap ELSE 0 END) as large_cap,
+          SUM(CASE WHEN market_cap >= 2000000000 AND market_cap < 10000000000 THEN market_cap ELSE 0 END) as mid_cap,
+          SUM(CASE WHEN market_cap < 2000000000 THEN market_cap ELSE 0 END) as small_cap,
+          SUM(market_cap) as total
+        FROM market_data
+        WHERE date = (SELECT MAX(date) FROM market_data)
+          AND market_cap IS NOT NULL
+      `;
+      const marketCapResult = await query(marketCapQuery);
+      if (marketCapResult.rows.length > 0) {
+        marketCap = {
+          large_cap: parseFloat(marketCapResult.rows[0].large_cap) || 0,
+          mid_cap: parseFloat(marketCapResult.rows[0].mid_cap) || 0,
+          small_cap: parseFloat(marketCapResult.rows[0].small_cap) || 0,
+          total: parseFloat(marketCapResult.rows[0].total) || 0
+        };
+      }
+    } catch (e) {
+      console.log('Market cap data not available:', e.message);
+    }
+
+    // Get economic indicators
+    let economicIndicators = [];
+    try {
+      const economicQuery = `
+        SELECT name, value, unit, timestamp 
+        FROM economic_data 
+        ORDER BY timestamp DESC 
+        LIMIT 10
+      `;
+      const economicResult = await query(economicQuery);
+      economicIndicators = economicResult.rows.map(row => ({
+        name: row.name,
+        value: row.value,
+        unit: row.unit,
+        timestamp: row.timestamp
+      }));
+    } catch (e) {
+      console.log('Economic indicators not available:', e.message);
+    }
+
+    // Return comprehensive market overview
+    const responseData = {
+      sentiment_indicators: sentimentIndicators,
+      market_breadth: marketBreadth,
+      market_cap: marketCap,
+      economic_indicators: economicIndicators
+    };
+
+    console.log('Market overview response structure:', Object.keys(responseData));
+    
     res.json({
-      data: result.rows,
-      count: result.rows.length,
-      lastUpdated: result.rows.length > 0 ? result.rows[0].date : null
+      data: responseData,
+      timestamp: new Date().toISOString(),
+      status: 'success'
     });
+    
   } catch (error) {
     console.error('Error fetching market overview:', error);
-    res.status(500).json({ error: 'Database error', details: error.message });
+    res.status(500).json({ 
+      error: 'Database error', 
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 

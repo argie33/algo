@@ -76,15 +76,37 @@ def safe_convert_date(dt) -> Optional[date]:
         return None
 
 def get_quarterly_income_statement_data(symbol: str) -> Optional[pd.DataFrame]:
-    """Get quarterly income statement data using proper yfinance API"""
+    """Get quarterly income statement data using proper yfinance API with fallback methods"""
     try:
         ticker = yf.Ticker(symbol)
         
-        # Get quarterly income statement
-        income_statement = ticker.quarterly_financials
+        # Try multiple methods in order of preference
+        methods_to_try = [
+            ('quarterly_income_stmt', 'quarterly income statement (new method)'),
+            ('quarterly_financials', 'quarterly income statement (legacy method)'),
+        ]
+        
+        income_statement = None
+        
+        for method_name, description in methods_to_try:
+            try:
+                if hasattr(ticker, method_name):
+                    logging.info(f"Trying {method_name} for {symbol}")
+                    income_statement = getattr(ticker, method_name)
+                    
+                    if income_statement is not None and not income_statement.empty:
+                        logging.info(f"✓ Successfully got data using {method_name} for {symbol}")
+                        break
+                    else:
+                        logging.warning(f"{method_name} returned empty data for {symbol}")
+                else:
+                    logging.warning(f"Method {method_name} not available for {symbol}")
+            except Exception as e:
+                logging.warning(f"Error with {method_name} for {symbol}: {e}")
+                continue
         
         if income_statement is None or income_statement.empty:
-            logging.warning(f"No quarterly income statement data returned by yfinance for {symbol}")
+            logging.warning(f"No quarterly income statement data returned by any method for {symbol}")
             return None
         
         # Check if DataFrame contains any actual data (not all NaN)
