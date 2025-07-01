@@ -84,12 +84,24 @@ def get_quarterly_cash_flow_data(symbol: str) -> Optional[pd.DataFrame]:
         cash_flow = ticker.quarterly_cashflow
         
         if cash_flow is None or cash_flow.empty:
-            logging.warning(f"No quarterly cash flow data for {symbol}")
+            logging.warning(f"No quarterly cash flow data returned by yfinance for {symbol}")
+            return None
+        
+        # Check if DataFrame contains any actual data (not all NaN)
+        if cash_flow.isna().all().all():
+            logging.warning(f"Quarterly cash flow data is all NaN for {symbol}")
+            return None
+            
+        # Check if we have at least one column with data
+        valid_columns = [col for col in cash_flow.columns if not cash_flow[col].isna().all()]
+        if not valid_columns:
+            logging.warning(f"No valid quarterly cash flow columns found for {symbol}")
             return None
             
         # Sort columns by date (most recent first)
         cash_flow = cash_flow.reindex(sorted(cash_flow.columns, reverse=True), axis=1)
         
+        logging.info(f"Retrieved quarterly cash flow data for {symbol}: {len(cash_flow.columns)} periods, {len(cash_flow.index)} line items")
         return cash_flow
         
     except Exception as e:
@@ -99,17 +111,24 @@ def get_quarterly_cash_flow_data(symbol: str) -> Optional[pd.DataFrame]:
 def process_cash_flow_data(symbol: str, cash_flow: pd.DataFrame) -> List[Tuple]:
     """Process cash flow DataFrame into database-ready tuples"""
     processed_data = []
+    valid_dates = 0
+    total_values = 0
+    valid_values = 0
     
     for date_col in cash_flow.columns:
         safe_date = safe_convert_date(date_col)
         if safe_date is None:
+            logging.debug(f"Skipping invalid date column for {symbol}: {date_col}")
             continue
+        valid_dates += 1
             
         for item_name in cash_flow.index:
             value = cash_flow.loc[item_name, date_col]
+            total_values += 1
             safe_value = safe_convert_to_float(value)
             
             if safe_value is not None:
+                valid_values += 1
                 processed_data.append((
                     symbol,
                     safe_date,
@@ -117,6 +136,7 @@ def process_cash_flow_data(symbol: str, cash_flow: pd.DataFrame) -> List[Tuple]:
                     safe_value
                 ))
     
+    logging.info(f"Processed {symbol}: {valid_dates} valid dates, {valid_values}/{total_values} valid values, {len(processed_data)} records")
     return processed_data
 
 def load_quarterly_cash_flow(symbols: List[str], cur, conn) -> Tuple[int, int, List[str]]:
@@ -158,11 +178,11 @@ def load_quarterly_cash_flow(symbols: List[str], cur, conn) -> Tuple[int, int, L
                         """, cash_flow_data)
                         conn.commit()
                         processed += 1
-                        logging.info(f"Successfully processed {symbol} ({len(cash_flow_data)} records)")
+                        logging.info(f"✓ Successfully processed {symbol} ({len(cash_flow_data)} records)")
                         success = True
                         break
                     else:
-                        logging.warning(f"No valid data found for {symbol}")
+                        logging.warning(f"✗ No valid data found for {symbol} after processing")
                         break
                         
                 except Exception as e:

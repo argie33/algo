@@ -84,12 +84,24 @@ def get_quarterly_balance_sheet_data(symbol: str) -> Optional[pd.DataFrame]:
         balance_sheet = ticker.quarterly_balance_sheet
         
         if balance_sheet is None or balance_sheet.empty:
-            logging.warning(f"No quarterly balance sheet data for {symbol}")
+            logging.warning(f"No quarterly balance sheet data returned by yfinance for {symbol}")
+            return None
+        
+        # Check if DataFrame contains any actual data (not all NaN)
+        if balance_sheet.isna().all().all():
+            logging.warning(f"Quarterly balance sheet data is all NaN for {symbol}")
+            return None
+            
+        # Check if we have at least one column with data
+        valid_columns = [col for col in balance_sheet.columns if not balance_sheet[col].isna().all()]
+        if not valid_columns:
+            logging.warning(f"No valid quarterly balance sheet columns found for {symbol}")
             return None
             
         # Sort columns by date (most recent first)
         balance_sheet = balance_sheet.reindex(sorted(balance_sheet.columns, reverse=True), axis=1)
         
+        logging.info(f"Retrieved quarterly balance sheet data for {symbol}: {len(balance_sheet.columns)} periods, {len(balance_sheet.index)} line items")
         return balance_sheet
         
     except Exception as e:
@@ -99,17 +111,24 @@ def get_quarterly_balance_sheet_data(symbol: str) -> Optional[pd.DataFrame]:
 def process_balance_sheet_data(symbol: str, balance_sheet: pd.DataFrame) -> List[Tuple]:
     """Process balance sheet DataFrame into database-ready tuples"""
     processed_data = []
+    valid_dates = 0
+    total_values = 0
+    valid_values = 0
     
     for date_col in balance_sheet.columns:
         safe_date = safe_convert_date(date_col)
         if safe_date is None:
+            logging.debug(f"Skipping invalid date column for {symbol}: {date_col}")
             continue
+        valid_dates += 1
             
         for item_name in balance_sheet.index:
             value = balance_sheet.loc[item_name, date_col]
+            total_values += 1
             safe_value = safe_convert_to_float(value)
             
             if safe_value is not None:
+                valid_values += 1
                 processed_data.append((
                     symbol,
                     safe_date,
@@ -117,6 +136,7 @@ def process_balance_sheet_data(symbol: str, balance_sheet: pd.DataFrame) -> List
                     safe_value
                 ))
     
+    logging.info(f"Processed {symbol}: {valid_dates} valid dates, {valid_values}/{total_values} valid values, {len(processed_data)} records")
     return processed_data
 
 def load_quarterly_balance_sheet(symbols, cur, conn):
@@ -157,11 +177,11 @@ def load_quarterly_balance_sheet(symbols, cur, conn):
                         """, balance_sheet_data)
                         conn.commit()
                         processed += 1
-                        logging.info(f"Successfully processed {symbol} ({len(balance_sheet_data)} records)")
+                        logging.info(f"✓ Successfully processed {symbol} ({len(balance_sheet_data)} records)")
                         success = True
                         break
                     else:
-                        logging.warning(f"No valid data found for {symbol}")
+                        logging.warning(f"✗ No valid data found for {symbol} after processing")
                         break
                         
                 except Exception as e:
@@ -227,10 +247,17 @@ if __name__ == "__main__":
     stock_syms = [r["symbol"] for r in cur.fetchall()]
     t_s, p_s, f_s = load_quarterly_balance_sheet(stock_syms, cur, conn)
 
-    # Load ETF symbols
-    cur.execute("SELECT symbol FROM etf_symbols;")
-    etf_syms = [r["symbol"] for r in cur.fetchall()]
-    t_e, p_e, f_e = load_quarterly_balance_sheet(etf_syms, cur, conn)
+    # Load ETF symbols (if available)
+    try:
+        cur.execute("SELECT symbol FROM etf_symbols;")
+        etf_syms = [r["symbol"] for r in cur.fetchall()]
+        if etf_syms:
+            t_e, p_e, f_e = load_quarterly_balance_sheet(etf_syms, cur, conn)
+        else:
+            t_e, p_e, f_e = 0, 0, []
+    except Exception as e:
+        logging.info(f"No ETF symbols table or error: {e}")
+        t_e, p_e, f_e = 0, 0, []
 
     # Record last run
     cur.execute("""

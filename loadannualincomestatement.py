@@ -84,12 +84,24 @@ def get_income_statement_data(symbol: str) -> Optional[pd.DataFrame]:
         income_statement = ticker.financials
         
         if income_statement is None or income_statement.empty:
-            logging.warning(f"No income statement data for {symbol}")
+            logging.warning(f"No income statement data returned by yfinance for {symbol}")
+            return None
+        
+        # Check if DataFrame contains any actual data (not all NaN)
+        if income_statement.isna().all().all():
+            logging.warning(f"Income statement data is all NaN for {symbol}")
+            return None
+            
+        # Check if we have at least one column with data
+        valid_columns = [col for col in income_statement.columns if not income_statement[col].isna().all()]
+        if not valid_columns:
+            logging.warning(f"No valid income statement columns found for {symbol}")
             return None
             
         # Sort columns by date (most recent first)
         income_statement = income_statement.reindex(sorted(income_statement.columns, reverse=True), axis=1)
         
+        logging.info(f"Retrieved income statement data for {symbol}: {len(income_statement.columns)} periods, {len(income_statement.index)} line items")
         return income_statement
         
     except Exception as e:
@@ -99,17 +111,24 @@ def get_income_statement_data(symbol: str) -> Optional[pd.DataFrame]:
 def process_income_statement_data(symbol: str, income_statement: pd.DataFrame) -> List[Tuple]:
     """Process income statement DataFrame into database-ready tuples"""
     processed_data = []
+    valid_dates = 0
+    total_values = 0
+    valid_values = 0
     
     for date_col in income_statement.columns:
         safe_date = safe_convert_date(date_col)
         if safe_date is None:
+            logging.debug(f"Skipping invalid date column for {symbol}: {date_col}")
             continue
+        valid_dates += 1
             
         for item_name in income_statement.index:
             value = income_statement.loc[item_name, date_col]
+            total_values += 1
             safe_value = safe_convert_to_float(value)
             
             if safe_value is not None:
+                valid_values += 1
                 processed_data.append((
                     symbol,
                     safe_date,
@@ -117,6 +136,7 @@ def process_income_statement_data(symbol: str, income_statement: pd.DataFrame) -
                     safe_value
                 ))
     
+    logging.info(f"Processed {symbol}: {valid_dates} valid dates, {valid_values}/{total_values} valid values, {len(processed_data)} records")
     return processed_data
 
 def load_annual_income_statement(symbols: List[str], cur, conn) -> Tuple[int, int, List[str]]:
@@ -158,11 +178,11 @@ def load_annual_income_statement(symbols: List[str], cur, conn) -> Tuple[int, in
                         """, income_statement_data)
                         conn.commit()
                         processed += 1
-                        logging.info(f"Successfully processed {symbol} ({len(income_statement_data)} records)")
+                        logging.info(f"✓ Successfully processed {symbol} ({len(income_statement_data)} records)")
                         success = True
                         break
                     else:
-                        logging.warning(f"No valid data found for {symbol}")
+                        logging.warning(f"✗ No valid data found for {symbol} after processing")
                         break
                         
                 except Exception as e:

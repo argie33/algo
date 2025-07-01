@@ -84,7 +84,12 @@ def calculate_ttm_cash_flow(symbol: str) -> Optional[pd.DataFrame]:
         cash_flow = ticker.quarterly_cashflow
         
         if cash_flow is None or cash_flow.empty:
-            logging.warning(f"No quarterly cash flow data for TTM calculation for {symbol}")
+            logging.warning(f"No quarterly cash flow data returned by yfinance for TTM calculation for {symbol}")
+            return None
+        
+        # Check if DataFrame contains any actual data (not all NaN)
+        if cash_flow.isna().all().all():
+            logging.warning(f"Quarterly cash flow data is all NaN for TTM calculation for {symbol}")
             return None
             
         # Sort columns by date (most recent first)
@@ -92,18 +97,32 @@ def calculate_ttm_cash_flow(symbol: str) -> Optional[pd.DataFrame]:
         
         # Take the most recent 4 quarters for TTM calculation
         if len(cash_flow.columns) < 4:
-            logging.warning(f"Insufficient quarterly data for TTM calculation for {symbol}")
+            logging.warning(f"Insufficient quarterly data for TTM calculation for {symbol} (only {len(cash_flow.columns)} quarters available)")
             return None
             
         ttm_quarters = cash_flow.iloc[:, :4]  # Most recent 4 quarters
         
-        # Calculate TTM by summing the 4 quarters
-        ttm_data = ttm_quarters.sum(axis=1)
+        # Check if we have enough valid data in the 4 quarters
+        valid_quarters = sum(1 for col in ttm_quarters.columns if not ttm_quarters[col].isna().all())
+        if valid_quarters < 3:  # Need at least 3 quarters with some data
+            logging.warning(f"Insufficient valid quarterly data for TTM calculation for {symbol} (only {valid_quarters} quarters with data)")
+            return None
+        
+        # Calculate TTM by summing the 4 quarters (pandas will handle NaN appropriately)
+        ttm_data = ttm_quarters.sum(axis=1, skipna=True)
+        
+        # Filter out rows where all quarters were NaN
+        ttm_data = ttm_data[ttm_data.notna()]
+        
+        if ttm_data.empty:
+            logging.warning(f"No valid TTM data after calculation for {symbol}")
+            return None
         
         # Create a DataFrame with TTM data using most recent quarter date as reference
         ttm_date = cash_flow.columns[0]  # Most recent quarter date
         ttm_df = pd.DataFrame({ttm_date: ttm_data})
         
+        logging.info(f"Calculated TTM cash flow for {symbol}: {len(ttm_df)} line items from {valid_quarters} quarters")
         return ttm_df
         
     except Exception as e:
@@ -113,17 +132,24 @@ def calculate_ttm_cash_flow(symbol: str) -> Optional[pd.DataFrame]:
 def process_ttm_cash_flow_data(symbol: str, ttm_cash_flow: pd.DataFrame) -> List[Tuple]:
     """Process TTM cash flow DataFrame into database-ready tuples"""
     processed_data = []
+    valid_dates = 0
+    total_values = 0
+    valid_values = 0
     
     for date_col in ttm_cash_flow.columns:
         safe_date = safe_convert_date(date_col)
         if safe_date is None:
+            logging.debug(f"Skipping invalid date column for {symbol}: {date_col}")
             continue
+        valid_dates += 1
             
         for item_name in ttm_cash_flow.index:
             value = ttm_cash_flow.loc[item_name, date_col]
+            total_values += 1
             safe_value = safe_convert_to_float(value)
             
             if safe_value is not None:
+                valid_values += 1
                 processed_data.append((
                     symbol,
                     safe_date,
@@ -131,6 +157,7 @@ def process_ttm_cash_flow_data(symbol: str, ttm_cash_flow: pd.DataFrame) -> List
                     safe_value
                 ))
     
+    logging.info(f"Processed TTM {symbol}: {valid_dates} valid dates, {valid_values}/{total_values} valid values, {len(processed_data)} records")
     return processed_data
 
 def load_ttm_cash_flow(symbols: List[str], cur, conn) -> Tuple[int, int, List[str]]:
@@ -172,11 +199,11 @@ def load_ttm_cash_flow(symbols: List[str], cur, conn) -> Tuple[int, int, List[st
                         """, ttm_cash_flow_data)
                         conn.commit()
                         processed += 1
-                        logging.info(f"Successfully processed {symbol} ({len(ttm_cash_flow_data)} records)")
+                        logging.info(f"✓ Successfully processed {symbol} ({len(ttm_cash_flow_data)} TTM records)")
                         success = True
                         break
                     else:
-                        logging.warning(f"No valid TTM data found for {symbol}")
+                        logging.warning(f"✗ No valid TTM data found for {symbol} after processing")
                         break
                         
                 except Exception as e:
