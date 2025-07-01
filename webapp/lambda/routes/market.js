@@ -57,7 +57,7 @@ router.get('/debug', async (req, res) => {
     // Check all market-related tables
     const requiredTables = [
       'market_data', 'economic_data', 'fear_greed_index', 'naaim', 
-      'company_profile'
+      'company_profile', 'aaii_sentiment'
     ];
     
     const tableStatus = await checkRequiredTables(requiredTables);
@@ -264,25 +264,31 @@ router.get('/overview', async (req, res) => {
       console.log('NAAIM data not available:', e.message);
     }
 
-    // Get AAII data
+    // Get AAII data (from aaii_sentiment table)
     try {
+      console.log('Attempting to fetch AAII data...');
       const aaiiQuery = `
         SELECT bullish, neutral, bearish, date 
-        FROM aaii 
+        FROM aaii_sentiment 
         ORDER BY date DESC 
         LIMIT 1
       `;
       const aaiiResult = await query(aaiiQuery);
+      console.log(`AAII query returned ${aaiiResult.rows.length} rows`);
       if (aaiiResult.rows.length > 0) {
+        console.log('AAII data found:', aaiiResult.rows[0]);
         sentimentIndicators.aaii = {
           bullish: aaiiResult.rows[0].bullish,
           neutral: aaiiResult.rows[0].neutral,
           bearish: aaiiResult.rows[0].bearish,
           date: aaiiResult.rows[0].date
         };
+      } else {
+        console.log('No AAII data found in table');
       }
     } catch (e) {
-      console.log('AAII data not available:', e.message);
+      console.error('AAII data error:', e.message);
+      console.error('Full AAII error:', e);
     }
 
     // Get market breadth
@@ -369,6 +375,8 @@ router.get('/overview', async (req, res) => {
     };
 
     console.log('Market overview response structure:', Object.keys(responseData));
+    console.log('Sentiment indicators in response:', Object.keys(sentimentIndicators));
+    console.log('AAII in sentiment indicators:', !!sentimentIndicators.aaii);
     
     res.json({
       data: responseData,
