@@ -214,7 +214,7 @@ function TradingSignals() {
                 {signal.market_cap ? `$${(+signal.market_cap).toLocaleString()}` : '—'}
               </TableCell>
               <TableCell align="right">
-                {signal.trailing_pe ? signal.trailing_pe.toFixed(2) : '—'}
+                {signal.trailing_pe && !isNaN(Number(signal.trailing_pe)) ? Number(signal.trailing_pe).toFixed(2) : '—'}
               </TableCell>
               <TableCell align="right">
                 {signal.dividend_yield ? formatPercentage(signal.dividend_yield) : '—'}

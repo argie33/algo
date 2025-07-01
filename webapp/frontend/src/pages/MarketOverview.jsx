@@ -110,8 +110,8 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
     },
     { 
       refetchInterval: 60000,
-      onError: (err) => logger.queryError('market-overview', err),
-      retry: 1 // Only retry once to avoid endless loops
+      retry: 1, // Only retry once to avoid endless loops
+      throwOnError: false // Prevent React Query from setting error state when we handle it gracefully
     }
   )
 
