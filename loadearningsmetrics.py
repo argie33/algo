@@ -62,15 +62,36 @@ def sanitize_value(x):
         return None
     return x
 
+def is_nan_safe(value):
+    """Safely check if a value is NaN, handling non-numeric types"""
+    try:
+        return isinstance(value, (int, float)) and np.isnan(value)
+    except (TypeError, ValueError):
+        return False
+
+def safe_numeric_convert(value):
+    """Safely convert a value to numeric, handling strings and None"""
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return value
+    if isinstance(value, str):
+        try:
+            # Try to convert string to float
+            return float(value) if value.strip() not in ['', 'N/A', 'null', 'NULL', 'nan', 'NaN'] else None
+        except (ValueError, AttributeError):
+            return None
+    return None
+
 def calculate_eps_growth(eps_series, quarters):
     """Calculate EPS growth over specified number of quarters"""
     if len(eps_series) < quarters + 1:
         return None
     
-    current = eps_series.iloc[-1]
-    past = eps_series.iloc[-quarters-1]
+    current = safe_numeric_convert(eps_series.iloc[-1])
+    past = safe_numeric_convert(eps_series.iloc[-quarters-1])
     
-    if past == 0 or np.isnan(past) or np.isnan(current):
+    if current is None or past is None or past == 0 or is_nan_safe(past) or is_nan_safe(current):
         return None
     
     return ((current - past) / abs(past)) * 100
@@ -95,10 +116,22 @@ def calculate_annual_eps_growth(eps_series, years):
     if len(eps_series) < quarters + 1:
         return None
     
-    current_annual = eps_series.iloc[-4:].sum() if len(eps_series) >= 4 else eps_series.iloc[-1] * 4
-    past_annual = eps_series.iloc[-quarters-4:-quarters].sum() if len(eps_series) >= quarters + 4 else eps_series.iloc[-quarters-1] * 4
+    # Safely convert all values before summing
+    if len(eps_series) >= 4:
+        current_values = [safe_numeric_convert(x) for x in eps_series.iloc[-4:]]
+        current_annual = sum(x for x in current_values if x is not None) if any(x is not None for x in current_values) else None
+    else:
+        current_val = safe_numeric_convert(eps_series.iloc[-1])
+        current_annual = current_val * 4 if current_val is not None else None
     
-    if past_annual == 0 or np.isnan(past_annual) or np.isnan(current_annual):
+    if len(eps_series) >= quarters + 4:
+        past_values = [safe_numeric_convert(x) for x in eps_series.iloc[-quarters-4:-quarters]]
+        past_annual = sum(x for x in past_values if x is not None) if any(x is not None for x in past_values) else None
+    else:
+        past_val = safe_numeric_convert(eps_series.iloc[-quarters-1])
+        past_annual = past_val * 4 if past_val is not None else None
+    
+    if current_annual is None or past_annual is None or past_annual == 0:
         return None
     
     return ((current_annual - past_annual) / abs(past_annual)) * 100
@@ -111,10 +144,14 @@ def calculate_consecutive_eps_growth_years(eps_series):
     years = 0
     for i in range(4, len(eps_series), 4):
         if i + 4 <= len(eps_series):
-            current_annual = eps_series.iloc[i:i+4].sum()
-            past_annual = eps_series.iloc[i-4:i].sum()
+            # Safely convert all values before summing
+            current_values = [safe_numeric_convert(x) for x in eps_series.iloc[i:i+4]]
+            past_values = [safe_numeric_convert(x) for x in eps_series.iloc[i-4:i]]
             
-            if past_annual > 0 and current_annual > past_annual:
+            current_annual = sum(x for x in current_values if x is not None) if any(x is not None for x in current_values) else None
+            past_annual = sum(x for x in past_values if x is not None) if any(x is not None for x in past_values) else None
+            
+            if current_annual is not None and past_annual is not None and past_annual > 0 and current_annual > past_annual:
                 years += 1
             else:
                 break
@@ -239,6 +276,9 @@ def process_symbol(symbol, conn_pool):
                 'quarter', 'eps_actual', 'eps_estimate', 'eps_difference', 'surprise_percent'
             ])
             earnings_df['quarter'] = pd.to_datetime(earnings_df['quarter'])
+            # Convert numeric columns to proper types, handling errors gracefully
+            for col in ['eps_actual', 'eps_estimate', 'eps_difference', 'surprise_percent']:
+                earnings_df[col] = earnings_df[col].apply(safe_numeric_convert)
             earnings_df = earnings_df.sort_values('quarter')
         else:
             earnings_df = pd.DataFrame()
@@ -342,10 +382,10 @@ def calculate_estimate_revisions_from_db(symbol, months, earnings_estimates):
         # For simplicity, we'll use the most recent vs oldest estimate
         # In a real implementation, you might want to track estimate changes over time
         if len(earnings_estimates) >= 2:
-            latest_estimate = earnings_estimates[0][1]  # avg_estimate from most recent
-            earliest_estimate = earnings_estimates[-1][1]  # avg_estimate from oldest
+            latest_estimate = safe_numeric_convert(earnings_estimates[0][1])  # avg_estimate from most recent
+            earliest_estimate = safe_numeric_convert(earnings_estimates[-1][1])  # avg_estimate from oldest
             
-            if earliest_estimate and latest_estimate and earliest_estimate != 0:
+            if earliest_estimate is not None and latest_estimate is not None and earliest_estimate != 0:
                 return ((latest_estimate - earliest_estimate) / abs(earliest_estimate)) * 100
         
         return None
@@ -367,12 +407,12 @@ def calculate_estimated_change_from_db(symbol, earnings_estimates):
         for period, avg_estimate, low_estimate, high_estimate, year_ago_eps, num_analysts, growth in earnings_estimates:
             if period and avg_estimate:
                 if current_year_estimate is None:
-                    current_year_estimate = avg_estimate
+                    current_year_estimate = safe_numeric_convert(avg_estimate)
                 elif previous_year_estimate is None:
-                    previous_year_estimate = avg_estimate
+                    previous_year_estimate = safe_numeric_convert(avg_estimate)
                     break
         
-        if current_year_estimate and previous_year_estimate and previous_year_estimate != 0:
+        if current_year_estimate is not None and previous_year_estimate is not None and previous_year_estimate != 0:
             return ((current_year_estimate - previous_year_estimate) / abs(previous_year_estimate)) * 100
         
         return None

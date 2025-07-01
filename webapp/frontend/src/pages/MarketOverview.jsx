@@ -188,6 +188,7 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
         </Typography>
         <Alert severity="error">
           Failed to load market data: {marketError.message}
+          <br /><small>Check the API debug endpoint at: <code>{import.meta.env.VITE_API_URL || ''}/market/debug</code> for table status</small>
         </Alert>
       </Box>
     )

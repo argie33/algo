@@ -2,6 +2,73 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../utils/database');
 
+// Helper function to check if required tables exist
+async function checkRequiredTables(tableNames) {
+  const results = {};
+  for (const tableName of tableNames) {
+    try {
+      const tableExistsResult = await query(
+        `SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = $1
+        );`,
+        [tableName]
+      );
+      results[tableName] = tableExistsResult.rows[0].exists;
+    } catch (error) {
+      console.error(`Error checking table ${tableName}:`, error.message);
+      results[tableName] = false;
+    }
+  }
+  return results;
+}
+
+// Debug endpoint to check trading tables status
+router.get('/debug', async (req, res) => {
+  console.log('[TRADING] Debug endpoint called');
+  
+  try {
+    // Check all trading tables
+    const requiredTables = [
+      'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
+      'market_data', 'company_profile', 'swing_trader'
+    ];
+    
+    const tableStatus = await checkRequiredTables(requiredTables);
+    
+    // Get record counts for existing tables
+    const recordCounts = {};
+    for (const [tableName, exists] of Object.entries(tableStatus)) {
+      if (exists) {
+        try {
+          const countResult = await query(`SELECT COUNT(*) as count FROM ${tableName}`);
+          recordCounts[tableName] = parseInt(countResult.rows[0].count);
+        } catch (error) {
+          recordCounts[tableName] = { error: error.message };
+        }
+      } else {
+        recordCounts[tableName] = 'Table does not exist';
+      }
+    }
+
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      tables: tableStatus,
+      recordCounts: recordCounts,
+      endpoint: 'trading'
+    });
+  } catch (error) {
+    console.error('[TRADING] Error in debug endpoint:', error);
+    res.status(500).json({ 
+      error: 'Failed to check trading tables', 
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Get buy/sell signals by timeframe
 router.get('/signals/:timeframe', async (req, res) => {
   console.log('[TRADING] Received request for /signals/:timeframe', {
@@ -55,7 +122,9 @@ router.get('/signals/:timeframe', async (req, res) => {
       paramCount++;
       conditions.push(`symbol = $${paramCount}`);
       queryParams.push(symbol.toUpperCase());
-    }    if (signal_type === 'buy') {
+    }
+    
+    if (signal_type === 'buy') {
       conditions.push("signal = 'Buy'");
     } else if (signal_type === 'sell') {
       conditions.push("signal = 'Sell'");
@@ -117,7 +186,25 @@ router.get('/signals/:timeframe', async (req, res) => {
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
       console.warn('[TRADING] No data found for query:', { timeframe, params: req.query });
-      return res.status(404).json({ error: 'No data found for this query' });
+      return res.status(200).json({ 
+        success: true,
+        data: [],
+        timeframe,
+        count: 0,
+        pagination: {
+          page: pageNum,
+          limit: pageSize,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false
+        },
+        metadata: {
+          signal_type: signal_type || 'all',
+          symbol: symbol || null,
+          message: 'No trading signals found for the specified criteria'
+        }
+      });
     }
 
     console.log('[TRADING] Query returned', result.rows.length, 'rows out of', total, 'total');
@@ -347,7 +434,7 @@ router.get('/performance', async (req, res) => {
             WHEN signal = 'SELL' AND md.regular_market_price < bs.price THEN 1
           END
         ) * 100.0 / COUNT(*)) as win_rate
-      FROM latest_buy_sell_daily bs
+      FROM buy_sell_daily bs
       LEFT JOIN market_data md ON bs.symbol = md.ticker
       WHERE bs.date >= NOW() - INTERVAL '${days} days'
       GROUP BY signal

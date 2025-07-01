@@ -313,6 +313,7 @@ function TradingSignals() {
           <b>Error:</b> {signalsError.message}<br />
           {signalsError.stack && <span style={{ fontSize: 12 }}>{signalsError.stack.split('\n')[0]}</span>}
           <br />API URL: <code>{API_BASE}/trading/signals/{timeframe}</code>
+          <br /><small>Check the API debug endpoint at: <code>{API_BASE}/trading/debug</code> for table status</small>
         </Alert>
       )}
 

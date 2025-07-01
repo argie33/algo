@@ -3,6 +3,28 @@ const { query } = require('../utils/database');
 
 const router = express.Router();
 
+// Helper function to check if required tables exist
+async function checkRequiredTables(tableNames) {
+  const results = {};
+  for (const tableName of tableNames) {
+    try {
+      const tableExistsResult = await query(
+        `SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = $1
+        );`,
+        [tableName]
+      );
+      results[tableName] = tableExistsResult.rows[0].exists;
+    } catch (error) {
+      console.error(`Error checking table ${tableName}:`, error.message);
+      results[tableName] = false;
+    }
+  }
+  return results;
+}
+
 // Root endpoint for testing
 router.get('/', (req, res) => {
   res.json({
@@ -29,33 +51,46 @@ router.get('/', (req, res) => {
 
 // Debug endpoint to check market tables status
 router.get('/debug', async (req, res) => {
-  // console.log('Market debug endpoint called');
+  console.log('[MARKET] Debug endpoint called');
   
   try {
-    // Check table existence
-    const tables = ['market_data', 'economic_data', 'fear_greed_index', 'naaim'];
-    const tableStatus = {};
-
-    for (const table of tables) {
-      const tableExists = await query(`
-        SELECT EXISTS (
-          SELECT FROM information_schema.tables 
-          WHERE table_schema = 'public' 
-          AND table_name = $1
-        );
-      `, [table]);
-      
-      // console.log(`Table ${table} exists:`, tableExists.rows[0]);
-      tableStatus[table] = tableExists.rows[0].exists;
+    // Check all market-related tables
+    const requiredTables = [
+      'market_data', 'economic_data', 'fear_greed_index', 'naaim', 
+      'company_profile'
+    ];
+    
+    const tableStatus = await checkRequiredTables(requiredTables);
+    
+    // Get record counts for existing tables
+    const recordCounts = {};
+    for (const [tableName, exists] of Object.entries(tableStatus)) {
+      if (exists) {
+        try {
+          const countResult = await query(`SELECT COUNT(*) as count FROM ${tableName}`);
+          recordCounts[tableName] = parseInt(countResult.rows[0].count);
+        } catch (error) {
+          recordCounts[tableName] = { error: error.message };
+        }
+      } else {
+        recordCounts[tableName] = 'Table does not exist';
+      }
     }
 
     res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
       tables: tableStatus,
-      timestamp: new Date().toISOString()
+      recordCounts: recordCounts,
+      endpoint: 'market'
     });
   } catch (error) {
-    console.error('Error in market debug:', error);
-    res.status(500).json({ error: 'Failed to check market tables' });
+    console.error('[MARKET] Error in debug endpoint:', error);
+    res.status(500).json({ 
+      error: 'Failed to check market tables', 
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
@@ -167,7 +202,13 @@ router.get('/overview', async (req, res) => {
     console.log(`Found ${result.rows.length} market data records`);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+      console.warn('[MARKET] No market data found in database');
+      return res.status(200).json({ 
+        data: [],
+        count: 0,
+        lastUpdated: null,
+        message: 'No market data available. Please check if market data is being populated in the database.'
+      });
     }
 
     res.json({
