@@ -10,20 +10,20 @@ router.get('/overview', async (req, res) => {
     const overviewQuery = `
       SELECT 
         COUNT(*) as total_stocks,
-        AVG(md.regular_market_price) as avg_price,
+        AVG(md.current_price) as avg_price,
         AVG(km.trailing_pe) as avg_pe,
         AVG(km.price_to_book) as avg_pb,
         AVG(km.dividend_yield) as avg_dividend_yield,
         SUM(md.market_cap) as total_market_cap,
-        COUNT(CASE WHEN (md.regular_market_price - md.regular_market_previous_close) > 0 THEN 1 END) as gainers,
-        COUNT(CASE WHEN (md.regular_market_price - md.regular_market_previous_close) < 0 THEN 1 END) as losers
+        COUNT(CASE WHEN (md.current_price - md.previous_close) > 0 THEN 1 END) as gainers,
+        COUNT(CASE WHEN (md.current_price - md.previous_close) < 0 THEN 1 END) as losers
       FROM company_profile cp
       LEFT JOIN market_data md ON cp.ticker = md.ticker
       LEFT JOIN key_metrics km ON cp.ticker = km.ticker
       WHERE md.market_cap IS NOT NULL
-        AND md.regular_market_price IS NOT NULL 
-        AND md.regular_market_previous_close IS NOT NULL 
-        AND md.regular_market_previous_close > 0
+        AND md.current_price IS NOT NULL 
+        AND md.previous_close IS NOT NULL 
+        AND md.previous_close > 0
     `;
 
     // Get top performers
@@ -32,15 +32,15 @@ router.get('/overview', async (req, res) => {
         cp.ticker, 
         cp.short_name, 
         CASE 
-          WHEN md.regular_market_previous_close > 0 
-          THEN ((md.regular_market_price - md.regular_market_previous_close) / md.regular_market_previous_close) * 100
+          WHEN md.previous_close > 0 
+          THEN ((md.current_price - md.previous_close) / md.previous_close) * 100
           ELSE 0 
         END as regular_market_change_percent
       FROM company_profile cp
       JOIN market_data md ON cp.ticker = md.ticker
-      WHERE md.regular_market_price IS NOT NULL 
-        AND md.regular_market_previous_close IS NOT NULL
-        AND md.regular_market_previous_close > 0
+      WHERE md.current_price IS NOT NULL 
+        AND md.previous_close IS NOT NULL
+        AND md.previous_close > 0
       ORDER BY regular_market_change_percent DESC
       LIMIT 10
     `;
@@ -50,15 +50,15 @@ router.get('/overview', async (req, res) => {
         cp.ticker, 
         cp.short_name, 
         CASE 
-          WHEN md.regular_market_previous_close > 0 
-          THEN ((md.regular_market_price - md.regular_market_previous_close) / md.regular_market_previous_close) * 100
+          WHEN md.previous_close > 0 
+          THEN ((md.current_price - md.previous_close) / md.previous_close) * 100
           ELSE 0 
         END as regular_market_change_percent
       FROM company_profile cp
       JOIN market_data md ON cp.ticker = md.ticker
-      WHERE md.regular_market_price IS NOT NULL 
-        AND md.regular_market_previous_close IS NOT NULL
-        AND md.regular_market_previous_close > 0
+      WHERE md.current_price IS NOT NULL 
+        AND md.previous_close IS NOT NULL
+        AND md.previous_close > 0
       ORDER BY regular_market_change_percent ASC
       LIMIT 10
     `;

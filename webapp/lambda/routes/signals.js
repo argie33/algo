@@ -26,7 +26,7 @@ router.get('/buy', async (req, res) => {
         cp.sector,
         bs.signal,
         bs.date,
-        md.regular_market_price as current_price,
+        md.current_price,
         md.market_cap,
         km.trailing_pe,
         km.dividend_yield
@@ -104,7 +104,7 @@ router.get('/sell', async (req, res) => {
         cp.sector,
         bs.signal,
         bs.date,
-        md.regular_market_price as current_price,
+        md.current_price,
         md.market_cap,
         km.trailing_pe,
         km.dividend_yield

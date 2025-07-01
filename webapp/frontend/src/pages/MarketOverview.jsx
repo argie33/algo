@@ -196,14 +196,10 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
         <Typography variant="h4" sx={{ mb: 3, fontWeight: 600 }}>
           Market Overview
         </Typography>
-        <Alert severity="warning" sx={{ mb: 3 }}>
-          Market data is temporarily unavailable. The system is being updated to improve data loading.
+        <Alert severity="error" sx={{ mb: 3 }}>
+          Failed to load market data. Please check your data sources and try again.
           <br /><small>Technical details: {marketError.message}</small>
           <br /><small>Debug endpoint: <code>{import.meta.env.VITE_API_URL || ''}/market/debug</code></small>
-        </Alert>
-        <Alert severity="info">
-          💡 <strong>Note:</strong> Market data loaders have been updated with improved yfinance API methods. 
-          Data should be available again once the backend deployment completes.
         </Alert>
       </Box>
     )

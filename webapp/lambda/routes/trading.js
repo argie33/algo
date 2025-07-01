@@ -143,22 +143,23 @@ router.get('/signals/:timeframe', async (req, res) => {
         bs.buylevel as price,
         bs.stoplevel,
         bs.inposition,
-        md.regular_market_price as current_price,
+        md.current_price,
         cp.short_name as company_name,
         cp.sector,
         md.market_cap,
-        md.trailing_pe,
-        md.dividend_yield,
+        km.trailing_pe,
+        km.dividend_yield,
         CASE 
-          WHEN bs.signal = 'Buy' AND md.regular_market_price > bs.buylevel 
+          WHEN bs.signal = 'Buy' AND md.current_price > bs.buylevel 
           THEN ((md.regular_market_price - bs.buylevel) / bs.buylevel * 100)
-          WHEN bs.signal = 'Sell' AND md.regular_market_price < bs.buylevel 
+          WHEN bs.signal = 'Sell' AND md.current_price < bs.buylevel 
           THEN ((bs.buylevel - md.regular_market_price) / bs.buylevel * 100)
           ELSE 0
         END as performance_percent
       FROM ${tableName} bs
       LEFT JOIN market_data md ON bs.symbol = md.ticker
       LEFT JOIN company_profile cp ON bs.symbol = cp.ticker
+      LEFT JOIN key_metrics km ON bs.symbol = km.ticker
       ${whereClause}
       ORDER BY bs.date DESC, bs.symbol ASC
       LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
@@ -299,15 +300,15 @@ router.get('/swing-signals', async (req, res) => {
         st.target_price,
         st.risk_reward_ratio,
         st.date,
-        md.regular_market_price as current_price,
+        md.current_price,
         CASE 
-          WHEN st.signal = 'BUY' AND md.regular_market_price >= st.target_price 
+          WHEN st.signal = 'BUY' AND md.current_price >= st.target_price 
           THEN 'TARGET_HIT'
-          WHEN st.signal = 'BUY' AND md.regular_market_price <= st.stop_loss 
+          WHEN st.signal = 'BUY' AND md.current_price <= st.stop_loss 
           THEN 'STOP_LOSS_HIT'
-          WHEN st.signal = 'SELL' AND md.regular_market_price <= st.target_price 
+          WHEN st.signal = 'SELL' AND md.current_price <= st.target_price 
           THEN 'TARGET_HIT'
-          WHEN st.signal = 'SELL' AND md.regular_market_price >= st.stop_loss 
+          WHEN st.signal = 'SELL' AND md.current_price >= st.stop_loss 
           THEN 'STOP_LOSS_HIT'
           ELSE 'ACTIVE'
         END as status
@@ -415,23 +416,23 @@ router.get('/performance', async (req, res) => {
         COUNT(*) as total_signals,
         AVG(
           CASE 
-            WHEN signal = 'BUY' AND md.regular_market_price > bs.price 
-            THEN ((md.regular_market_price - bs.price) / bs.price * 100)
-            WHEN signal = 'SELL' AND md.regular_market_price < bs.price 
-            THEN ((bs.price - md.regular_market_price) / bs.price * 100)
+            WHEN signal = 'BUY' AND md.current_price > bs.price 
+            THEN ((md.current_price - bs.price) / bs.price * 100)
+            WHEN signal = 'SELL' AND md.current_price < bs.price 
+            THEN ((bs.price - md.current_price) / bs.price * 100)
             ELSE 0
           END
         ) as avg_performance,
         COUNT(
           CASE 
-            WHEN signal = 'BUY' AND md.regular_market_price > bs.price THEN 1
-            WHEN signal = 'SELL' AND md.regular_market_price < bs.price THEN 1
+            WHEN signal = 'BUY' AND md.current_price > bs.price THEN 1
+            WHEN signal = 'SELL' AND md.current_price < bs.price THEN 1
           END
         ) as winning_trades,
         (COUNT(
           CASE 
-            WHEN signal = 'BUY' AND md.regular_market_price > bs.price THEN 1
-            WHEN signal = 'SELL' AND md.regular_market_price < bs.price THEN 1
+            WHEN signal = 'BUY' AND md.current_price > bs.price THEN 1
+            WHEN signal = 'SELL' AND md.current_price < bs.price THEN 1
           END
         ) * 100.0 / COUNT(*)) as win_rate
       FROM buy_sell_daily bs
