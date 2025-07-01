@@ -1383,8 +1383,8 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: latesttechnicalsdaily-loader
-      Cpu: "256"
-      Memory: "512"
+      Cpu: "256"      # Keep smaller for incremental updates
+      Memory: "512"   # Keep smaller for incremental updates
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
@@ -1408,6 +1408,12 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: ECS_MEMORY_MB
+              Value: "512"
+            - Name: MEMORY_THRESHOLD_MB
+              Value: "400"
+            - Name: ULTRA_LOW_MEMORY
+              Value: "true"   # Enable ultra low memory mode for incremental updates
           LogConfiguration:
             LogDriver: awslogs
             Options:

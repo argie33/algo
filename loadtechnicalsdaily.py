@@ -8,6 +8,7 @@ import os
 import concurrent.futures
 from functools import partial
 import gc
+import os
 
 import numpy as np
 import numpy
@@ -17,6 +18,11 @@ import numpy
 numpy.NaN = numpy.nan
 np.NaN    = np.nan
 # ───────────────────────────────────────────────────────────────────
+
+# Memory optimization for small ECS tasks
+MEMORY_THRESHOLD_MB = int(os.environ.get('MEMORY_THRESHOLD_MB', '400'))  # Warning threshold
+ECS_MEMORY_MB = int(os.environ.get('ECS_MEMORY_MB', '512'))  # Total ECS memory
+USE_ULTRA_LOW_MEMORY = os.environ.get('ULTRA_LOW_MEMORY', 'false').lower() == 'true'
 
 import boto3
 import psycopg2
@@ -35,11 +41,11 @@ logging.basicConfig(
     stream=sys.stdout
 )
 
-# Optimized for ECS - reduced workers to prevent memory issues
-MAX_WORKERS = min(os.cpu_count() or 1, 2)  # Reduced from 4 to 2
-BATCH_SIZE = 50  # Reduced from 100 to 50 for better memory management
+# Optimized for ECS - minimal resource usage
+MAX_WORKERS = 1  # Single worker to prevent memory issues on 512MB tasks
+BATCH_SIZE = 25  # Smaller batches for memory efficiency
 DB_POOL_MIN = 1
-DB_POOL_MAX = 5  # Reduced from 10 to 5
+DB_POOL_MAX = 2  # Minimal connections for 512MB memory constraint
 
 def get_db_config():
     """
@@ -406,8 +412,19 @@ def create_connection_pool():
         host=host, port=port, user=user, password=pwd, dbname=db
     )
 
+def get_memory_usage():
+    """Get current memory usage in MB"""
+    try:
+        import psutil
+        process = psutil.Process(os.getpid())
+        return process.memory_info().rss / 1024 / 1024
+    except ImportError:
+        return 0
+
 def process_symbol(symbol, conn_pool):
     """Process a single symbol and return the number of rows inserted"""
+    initial_memory = get_memory_usage()
+    
     try:
         conn = conn_pool.getconn()
         cursor = conn.cursor()
@@ -429,9 +446,9 @@ def process_symbol(symbol, conn_pool):
         df = pd.DataFrame(rows, columns=['date', 'open', 'high', 'low', 'close', 'volume'])
         df['date'] = pd.to_datetime(df['date'])
         
-        # Ensure we have enough data for calculations
-        if len(df) < 30:  # Need at least 30 bars for meaningful technical analysis
-            logging.warning(f"Insufficient data for {symbol}: {len(df)} bars (need at least 30)")
+        # Ensure we have enough data for calculations (reduced minimum for efficiency)
+        if len(df) < 20:  # Reduced from 30 to 20 bars for faster processing
+            logging.warning(f"Insufficient data for {symbol}: {len(df)} bars (need at least 20)")
             conn_pool.putconn(conn)
             return 0
         
@@ -439,15 +456,22 @@ def process_symbol(symbol, conn_pool):
         df = df.sort_values('date').reset_index(drop=True)
         df.set_index('date', inplace=True)
         
-        # Convert to float once for all calculations
+        # Convert to float32 for memory efficiency instead of float64
+        float_dtype = np.float32 if USE_ULTRA_LOW_MEMORY else np.float64
         for col in ['open', 'high', 'low', 'close', 'volume']:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
+            df[col] = pd.to_numeric(df[col], errors='coerce').astype(float_dtype)
         
         # Handle missing data more carefully - only forward fill, then drop remaining NaN
         df = df.ffill().dropna()
         
-        # Final check for sufficient data after cleaning
-        if len(df) < 20:
+        # For ultra low memory mode, process in smaller chunks
+        if USE_ULTRA_LOW_MEMORY and len(df) > 500:
+            # Only process most recent 500 rows to save memory
+            df = df.tail(500)
+            logging.info(f"{symbol}: Ultra low memory mode - processing only {len(df)} recent bars")
+        
+        # Final check for sufficient data after cleaning (reduced minimum)
+        if len(df) < 15:  # Reduced from 20 to 15 bars for efficiency
             logging.warning(f"Insufficient data after cleaning for {symbol}: {len(df)} bars")
             conn_pool.putconn(conn)
             return 0
@@ -582,9 +606,22 @@ def process_symbol(symbol, conn_pool):
         cursor.close()
         conn_pool.putconn(conn)
         
-        # Free memory aggressively
-        del df, data
+        # Free memory aggressively for ECS tasks
+        del df, data, rows
         gc.collect()
+        
+        # Additional memory cleanup for small ECS tasks
+        final_memory = get_memory_usage()
+        memory_used = final_memory - initial_memory
+        
+        if final_memory > MEMORY_THRESHOLD_MB:
+            logging.warning(f"High memory usage: {final_memory:.1f}MB/{ECS_MEMORY_MB}MB after {symbol} (+{memory_used:.1f}MB)")
+            # Force aggressive garbage collection
+            gc.collect()
+            gc.collect()  # Call twice for more thorough cleanup
+            
+        if final_memory > ECS_MEMORY_MB * 0.9:  # Using >90% of available memory
+            logging.error(f"CRITICAL: Memory usage {final_memory:.1f}MB exceeds 90% of {ECS_MEMORY_MB}MB")
         
         return num_inserted
         
@@ -632,21 +669,49 @@ def main():
         symbols_processed = 0
         symbols_failed = 0
         
-        # Process symbols in parallel using worker pool
-        with concurrent.futures.ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            # Split symbols into batches
-            symbol_batches = [symbols[i:i + BATCH_SIZE] for i in range(0, len(symbols), BATCH_SIZE)]
-            # Process each batch with a worker
-            futures = []
-            for batch in symbol_batches:
-                future = executor.submit(process_symbol_batch, batch)
-                futures.append(future)
-            # Collect results
-            for future in concurrent.futures.as_completed(futures):
-                batch_inserted, batch_success, batch_failed = future.result()
-                total_inserted += batch_inserted
-                symbols_processed += batch_success
-                symbols_failed += batch_failed
+        # Process symbols sequentially to minimize memory usage on small ECS tasks
+        if MAX_WORKERS > 1:
+            with concurrent.futures.ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
+                # Split symbols into batches
+                symbol_batches = [symbols[i:i + BATCH_SIZE] for i in range(0, len(symbols), BATCH_SIZE)]
+                # Process each batch with a worker
+                futures = []
+                for batch in symbol_batches:
+                    future = executor.submit(process_symbol_batch, batch)
+                    futures.append(future)
+                # Collect results
+                for future in concurrent.futures.as_completed(futures):
+                    batch_inserted, batch_success, batch_failed = future.result()
+                    total_inserted += batch_inserted
+                    symbols_processed += batch_success
+                    symbols_failed += batch_failed
+        else:
+            # Sequential processing for memory-constrained environments
+            conn_pool = create_connection_pool()
+            try:
+                for i in range(0, len(symbols), BATCH_SIZE):
+                    batch = symbols[i:i + BATCH_SIZE]
+                    for symbol in batch:
+                        try:
+                            # Check memory before processing each symbol
+                            current_memory = get_memory_usage()
+                            if current_memory > ECS_MEMORY_MB * 0.85:  # >85% memory usage
+                                logging.warning(f"High memory before {symbol}: {current_memory:.1f}MB")
+                                gc.collect()
+                                
+                            inserted = process_symbol(symbol, conn_pool)
+                            total_inserted += inserted
+                            if inserted > 0:
+                                symbols_processed += 1
+                            else:
+                                symbols_failed += 1
+                            # Force garbage collection after each symbol to free memory
+                            gc.collect()
+                        except Exception as e:
+                            logging.error(f"❌ Error processing {symbol}: {str(e)}")
+                            symbols_failed += 1
+            finally:
+                conn_pool.closeall()
 
         elapsed = time.time() - start
         logging.info(f"Summary: Processed {symbols_processed + symbols_failed} symbols in {elapsed:.2f} seconds")
