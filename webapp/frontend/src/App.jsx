@@ -15,7 +15,12 @@ import {
   IconButton,
   useTheme,
   useMediaQuery,
-  Alert
+  Alert,
+  Button,
+  Menu,
+  MenuItem,
+  Avatar,
+  Divider
 } from '@mui/material'
 import {
   Menu as MenuIcon,
@@ -31,7 +36,10 @@ import {
   Storage as StorageIcon,
   AccountBalance as AccountBalanceIcon,
   HealthAndSafety as HealthAndSafetyIcon,
-  PlayArrow
+  PlayArrow,
+  Login as LoginIcon,
+  Logout as LogoutIcon,
+  AccountCircle as AccountCircleIcon
 } from '@mui/icons-material'
 
 // All real page imports
@@ -48,6 +56,9 @@ import TechnicalHistory from './pages/TechnicalHistory'
 import Backtest from './pages/Backtest'
 import TradingSignals from './pages/TradingSignals'
 import Portfolio from './pages/Portfolio'
+import { useAuth } from './contexts/AuthContext'
+import AuthModal from './components/auth/AuthModal'
+import ProtectedRoute from './components/auth/ProtectedRoute'
 
 const drawerWidth = 240
 
@@ -104,13 +115,29 @@ class GlobalErrorBoundary extends React.Component {
 
 function App() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [authModalOpen, setAuthModalOpen] = useState(false)
+  const [userMenuAnchor, setUserMenuAnchor] = useState(null)
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+  const { isAuthenticated, user, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen)
+  }
+
+  const handleUserMenuOpen = (event) => {
+    setUserMenuAnchor(event.currentTarget)
+  }
+
+  const handleUserMenuClose = () => {
+    setUserMenuAnchor(null)
+  }
+
+  const handleLogout = async () => {
+    handleUserMenuClose()
+    await logout()
   }
 
   const handleNavigation = (path) => {
@@ -182,6 +209,54 @@ function App() {
             <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
               {menuItems.find(item => item.path === location.pathname)?.text || 'Dashboard'}
             </Typography>
+            
+            {/* Authentication UI */}
+            {isAuthenticated ? (
+              <>
+                <IconButton
+                  onClick={handleUserMenuOpen}
+                  size="large"
+                  edge="end"
+                  color="inherit"
+                >
+                  <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
+                    {user?.username?.[0]?.toUpperCase() || 'U'}
+                  </Avatar>
+                </IconButton>
+                <Menu
+                  anchorEl={userMenuAnchor}
+                  open={Boolean(userMenuAnchor)}
+                  onClose={handleUserMenuClose}
+                  anchorOrigin={{
+                    vertical: 'bottom',
+                    horizontal: 'right',
+                  }}
+                  transformOrigin={{
+                    vertical: 'top',
+                    horizontal: 'right',
+                  }}
+                >
+                  <MenuItem onClick={handleUserMenuClose}>
+                    <AccountCircleIcon sx={{ mr: 1 }} />
+                    {user?.username || 'User'}
+                  </MenuItem>
+                  <Divider />
+                  <MenuItem onClick={handleLogout}>
+                    <LogoutIcon sx={{ mr: 1 }} />
+                    Sign Out
+                  </MenuItem>
+                </Menu>
+              </>
+            ) : (
+              <Button
+                color="inherit"
+                startIcon={<LoginIcon />}
+                onClick={() => setAuthModalOpen(true)}
+                sx={{ ml: 2 }}
+              >
+                Sign In
+              </Button>
+            )}
           </Toolbar>
         </AppBar>
 
@@ -245,6 +320,12 @@ function App() {
             </Routes>
           </Container>
         </Box>
+        
+        {/* Authentication Modal */}
+        <AuthModal
+          open={authModalOpen}
+          onClose={() => setAuthModalOpen(false)}
+        />
       </Box>
     </GlobalErrorBoundary>
   )

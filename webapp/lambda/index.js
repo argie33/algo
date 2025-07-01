@@ -25,6 +25,7 @@ const calendarRoutes = require('./routes/calendar');
 const signalsRoutes = require('./routes/signals');
 const dataRoutes = require('./routes/data');
 const backtestRoutes = require('./routes/backtest');
+const authRoutes = require('./routes/auth');
 
 const app = express();
 
@@ -169,6 +170,7 @@ app.use(async (req, res, next) => {
 
 // Routes (note: API Gateway handles the /api prefix)
 app.use('/health', healthRoutes);
+app.use('/auth', authRoutes);
 app.use('/stocks', stockRoutes);
 app.use('/metrics', metricsRoutes);
 app.use('/market', marketRoutes);
@@ -183,6 +185,7 @@ app.use('/backtest', backtestRoutes);
 
 // Also mount routes with /api prefix for frontend compatibility
 app.use('/api/health', healthRoutes);
+app.use('/api/auth', authRoutes);
 app.use('/api/stocks', stockRoutes);
 app.use('/api/metrics', metricsRoutes);
 app.use('/api/market', marketRoutes);

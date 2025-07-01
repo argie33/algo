@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Box,
@@ -21,9 +21,22 @@ import {
   Chip,
   CircularProgress,
   Alert,
-  TablePagination
+  TablePagination,
+  Badge,
+  Tooltip,
+  Switch,
+  FormControlLabel,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  IconButton
 } from '@mui/material'
-import { TrendingUp, TrendingDown, Analytics } from '@mui/icons-material'
+import { TrendingUp, TrendingDown, Analytics, NewReleases, History, ExpandMore, FilterList, Close, Timeline } from '@mui/icons-material'
 import { formatCurrency, formatPercentage } from '../utils/formatters'
 
 // Simple logger replacement to prevent build errors
@@ -38,7 +51,29 @@ function TradingSignals() {
   const [timeframe, setTimeframe] = useState('daily');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [showRecentOnly, setShowRecentOnly] = useState(false);
+  const [showHistoricalView, setShowHistoricalView] = useState(false);
+  const [selectedSymbol, setSelectedSymbol] = useState(null);
+  const [historicalDialogOpen, setHistoricalDialogOpen] = useState(false);
   const API_BASE = import.meta.env.VITE_API_URL || '';
+
+  // Fetch historical data for selected symbol
+  const { data: historicalData, isLoading: historicalLoading } = useQuery({
+    queryKey: ['historicalSignals', selectedSymbol],
+    queryFn: async () => {
+      if (!selectedSymbol) return null;
+      try {
+        const response = await fetch(`${API_BASE}/trading/signals/daily?symbol=${selectedSymbol}&limit=50`);
+        if (!response.ok) throw new Error('Failed to fetch historical data');
+        return await response.json();
+      } catch (err) {
+        logger.error('fetchHistoricalSignals', err, { symbol: selectedSymbol });
+        throw err;
+      }
+    },
+    enabled: !!selectedSymbol && historicalDialogOpen,
+    onError: (err) => logger.queryError('historicalSignals', err, { symbol: selectedSymbol })
+  });
   // Fetch buy/sell signals
   const { data: signalsData, isLoading: signalsLoading, error: signalsError } = useQuery({
     queryKey: ['tradingSignals', signalType, timeframe, page, rowsPerPage],
@@ -116,19 +151,41 @@ function TradingSignals() {
     refetchInterval: 600000, // Refresh every 10 minutes
     onError: (err) => logger.queryError('tradingPerformance', err)
   });
-  const getSignalChip = (signal) => {
+  // Helper function to check if signal is recent (within last 7 days)
+  const isRecentSignal = (signalDate) => {
+    if (!signalDate) return false;
+    const today = new Date();
+    const signal = new Date(signalDate);
+    const diffTime = Math.abs(today - signal);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays <= 7;
+  };
+
+  const getSignalChip = (signal, signalDate) => {
     const isBuy = signal === 'Buy';
+    const isRecent = isRecentSignal(signalDate);
+    
     return (
-      <Chip
-        label={signal}
-        size="small"
-        icon={isBuy ? <TrendingUp /> : <TrendingDown />}
-        sx={{
-          backgroundColor: isBuy ? '#10B981' : '#DC2626',
-          color: 'white',
-          fontWeight: 'bold'
-        }}
-      />
+      <Badge
+        badgeContent={isRecent ? <NewReleases sx={{ fontSize: 12 }} /> : 0}
+        color="secondary"
+        overlap="circular"
+      >
+        <Chip
+          label={signal}
+          size="small"
+          icon={isBuy ? <TrendingUp /> : <TrendingDown />}
+          sx={{
+            backgroundColor: isBuy ? '#10B981' : '#DC2626',
+            color: 'white',
+            fontWeight: 'bold',
+            ...(isRecent && {
+              boxShadow: '0 0 10px rgba(59, 130, 246, 0.5)',
+              animation: 'pulse 2s infinite'
+            })
+          }}
+        />
+      </Badge>
     );
   };
 
@@ -152,8 +209,42 @@ function TradingSignals() {
     );
   };
 
-  const PerformanceCard = ({ title, value, subtitle, icon, color }) => (
-    <Card>
+  // Calculate summary statistics
+  const summaryStats = useMemo(() => {
+    if (!signalsData?.data) return null;
+    
+    const signals = signalsData.data;
+    const totalSignals = signals.length;
+    const recentSignals = signals.filter(s => isRecentSignal(s.date)).length;
+    const buySignals = signals.filter(s => s.signal === 'Buy').length;
+    const sellSignals = signals.filter(s => s.signal === 'Sell').length;
+    
+    // Find top performing sectors
+    const sectorCounts = {};
+    signals.forEach(s => {
+      if (s.sector) {
+        sectorCounts[s.sector] = (sectorCounts[s.sector] || 0) + 1;
+      }
+    });
+    const topSector = Object.entries(sectorCounts).sort((a, b) => b[1] - a[1])[0];
+    
+    return {
+      totalSignals,
+      recentSignals,
+      buySignals,
+      sellSignals,
+      topSector: topSector ? topSector[0] : null,
+      topSectorCount: topSector ? topSector[1] : 0
+    };
+  }, [signalsData]);
+
+  const PerformanceCard = ({ title, value, subtitle, icon, color, isHighlight = false }) => (
+    <Card sx={{ 
+      ...(isHighlight && {
+        border: '2px solid #3B82F6',
+        boxShadow: '0 4px 20px rgba(59, 130, 246, 0.15)'
+      })
+    }}>
       <CardContent>
         <Box display="flex" alignItems="center" mb={1}>
           {icon}
@@ -187,12 +278,36 @@ function TradingSignals() {
           </TableRow>
         </TableHead>
         <TableBody>
-          {signalsData?.data?.map((signal, index) => (
-            <TableRow key={`${signal.symbol}-${index}`} hover>
+          {signalsData?.data
+            ?.filter(signal => {
+              if (showRecentOnly) {
+                return isRecentSignal(signal.date);
+              }
+              return true;
+            })
+            ?.map((signal, index) => (
+            <TableRow 
+              key={`${signal.symbol}-${index}`} 
+              hover
+              sx={{
+                ...(isRecentSignal(signal.date) && {
+                  backgroundColor: 'rgba(59, 130, 246, 0.05)',
+                  borderLeft: '4px solid #3B82F6'
+                })
+              }}
+            >
               <TableCell>
-                <Typography variant="body2" fontWeight="bold">
+                <Button
+                  variant="text"
+                  size="small"
+                  sx={{ fontWeight: 'bold', minWidth: 'auto', p: 0.5 }}
+                  onClick={() => {
+                    setSelectedSymbol(signal.symbol);
+                    setHistoricalDialogOpen(true);
+                  }}
+                >
                   {signal.symbol}
-                </Typography>
+                </Button>
               </TableCell>
               <TableCell>
                 <Typography variant="body2" noWrap>
@@ -205,7 +320,9 @@ function TradingSignals() {
                 </Typography>
               </TableCell>
               <TableCell>
-                {getSignalChip(signal.signal)}
+                <Tooltip title={isRecentSignal(signal.date) ? "New signal within last 7 days" : "Historical signal"}>
+                  <Box>{getSignalChip(signal.signal, signal.date)}</Box>
+                </Tooltip>
               </TableCell>
               <TableCell align="right">
                 {formatCurrency(signal.current_price)}
@@ -250,12 +367,26 @@ function TradingSignals() {
         Trading Signals
       </Typography>
 
-      {/* Performance Summary */}
+      {/* Enhanced Performance Summary */}
       <Grid container spacing={3} mb={4}>
-        {performanceData?.performance?.map((perf) => (
-          <Grid item xs={12} md={4} key={perf.signal}>
+        {/* Active Signals Summary - Most Important */}
+        {summaryStats && (
+          <Grid item xs={12} md={3}>
             <PerformanceCard
-              title={`${perf.signal} Signals`}
+              title="Active Signals"
+              value={summaryStats.totalSignals}
+              subtitle={`${summaryStats.recentSignals} new in last 7 days`}
+              icon={<Badge badgeContent={summaryStats.recentSignals} color="secondary"><Analytics /></Badge>}
+              color="#3B82F6"
+              isHighlight={summaryStats.recentSignals > 0}
+            />
+          </Grid>
+        )}
+        
+        {performanceData?.performance?.map((perf) => (
+          <Grid item xs={12} md={3} key={perf.signal}>
+            <PerformanceCard
+              title={`${perf.signal} Win Rate`}
               value={`${perf.win_rate?.toFixed(1)}%`}
               subtitle={`${perf.winning_trades}/${perf.total_signals} trades | Avg: ${formatPercentage(perf.avg_performance / 100)}`}
               icon={perf.signal === 'BUY' ? <TrendingUp /> : <TrendingDown />}
@@ -263,48 +394,82 @@ function TradingSignals() {
             />
           </Grid>
         ))}
-        <Grid item xs={12} md={4}>
-          <PerformanceCard
-            title="Analysis Period"
-            value={`${performanceData?.period_days || 0} days`}
-            subtitle="Signal performance tracking"
-            icon={<Analytics />}
-            color="#3B82F6"
-          />
-        </Grid>
+        
+        {summaryStats?.topSector && (
+          <Grid item xs={12} md={3}>
+            <PerformanceCard
+              title="Top Sector"
+              value={summaryStats.topSector}
+              subtitle={`${summaryStats.topSectorCount} signals`}
+              icon={<TrendingUp />}
+              color="#8B5CF6"
+            />
+          </Grid>
+        )}
       </Grid>
 
-      {/* Filters */}
-      <Grid container spacing={2} mb={3}>
-        <Grid item xs={12} sm={4}>
-          <FormControl fullWidth>
-            <InputLabel>Signal Type</InputLabel>
-            <Select
-              value={signalType}
-              label="Signal Type"
-              onChange={(e) => setSignalType(e.target.value)}
-            >
-              <MenuItem value="all">All Signals</MenuItem>
-              <MenuItem value="buy">Buy Only</MenuItem>
-              <MenuItem value="sell">Sell Only</MenuItem>
-            </Select>
-          </FormControl>
-        </Grid>
-        <Grid item xs={12} sm={4}>
-          <FormControl fullWidth>
-            <InputLabel>Timeframe</InputLabel>
-            <Select
-              value={timeframe}
-              label="Timeframe"
-              onChange={(e) => setTimeframe(e.target.value)}
-            >
-              <MenuItem value="daily">Daily</MenuItem>
-              <MenuItem value="weekly">Weekly</MenuItem>
-              <MenuItem value="monthly">Monthly</MenuItem>
-            </Select>
-          </FormControl>
-        </Grid>
-      </Grid>
+      {/* Enhanced Filters */}
+      <Accordion sx={{ mb: 3 }}>
+        <AccordionSummary expandIcon={<ExpandMore />}>
+          <FilterList sx={{ mr: 1 }} />
+          <Typography>Filters & View Options</Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={3}>
+              <FormControl fullWidth>
+                <InputLabel>Signal Type</InputLabel>
+                <Select
+                  value={signalType}
+                  label="Signal Type"
+                  onChange={(e) => setSignalType(e.target.value)}
+                >
+                  <MenuItem value="all">All Signals</MenuItem>
+                  <MenuItem value="buy">Buy Only</MenuItem>
+                  <MenuItem value="sell">Sell Only</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={3}>
+              <FormControl fullWidth>
+                <InputLabel>Timeframe</InputLabel>
+                <Select
+                  value={timeframe}
+                  label="Timeframe"
+                  onChange={(e) => setTimeframe(e.target.value)}
+                >
+                  <MenuItem value="daily">Daily</MenuItem>
+                  <MenuItem value="weekly">Weekly</MenuItem>
+                  <MenuItem value="monthly">Monthly</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={3}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={showRecentOnly}
+                    onChange={(e) => setShowRecentOnly(e.target.checked)}
+                  />
+                }
+                label={`Recent Only (${summaryStats?.recentSignals || 0})`}
+              />
+            </Grid>
+            <Grid item xs={12} sm={3}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={showHistoricalView}
+                    onChange={(e) => setShowHistoricalView(e.target.checked)}
+                    icon={<History />}
+                  />
+                }
+                label="Historical View"
+              />
+            </Grid>
+          </Grid>
+        </AccordionDetails>
+      </Accordion>
 
       {/* Error Handling */}
       {signalsError && (
@@ -333,6 +498,86 @@ function TradingSignals() {
           />
         </CardContent>
       </Card>
+
+      {/* Historical Data Dialog */}
+      <Dialog
+        open={historicalDialogOpen}
+        onClose={() => setHistoricalDialogOpen(false)}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box display="flex" alignItems="center" justifyContent="space-between">
+            <Box display="flex" alignItems="center">
+              <Timeline sx={{ mr: 1 }} />
+              <Typography variant="h6">
+                {selectedSymbol} - Historical Signals
+              </Typography>
+            </Box>
+            <IconButton
+              onClick={() => setHistoricalDialogOpen(false)}
+              size="small"
+            >
+              <Close />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {historicalLoading ? (
+            <Box display="flex" justifyContent="center" p={4}>
+              <CircularProgress />
+            </Box>
+          ) : (
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Date</TableCell>
+                    <TableCell>Signal</TableCell>
+                    <TableCell align="right">Price</TableCell>
+                    <TableCell align="right">Buy Level</TableCell>
+                    <TableCell align="right">Stop Level</TableCell>
+                    <TableCell>Status</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {historicalData?.data?.map((signal, index) => (
+                    <TableRow key={index}>
+                      <TableCell>
+                        {signal.date ? new Date(signal.date).toLocaleDateString() : ''}
+                      </TableCell>
+                      <TableCell>
+                        {getSignalChip(signal.signal, signal.date)}
+                      </TableCell>
+                      <TableCell align="right">
+                        {formatCurrency(signal.current_price)}
+                      </TableCell>
+                      <TableCell align="right">
+                        {signal.buylevel ? formatCurrency(signal.buylevel) : '—'}
+                      </TableCell>
+                      <TableCell align="right">
+                        {signal.stoplevel ? formatCurrency(signal.stoplevel) : '—'}
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={signal.inposition ? 'In Position' : 'Closed'}
+                          size="small"
+                          color={signal.inposition ? 'primary' : 'default'}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setHistoricalDialogOpen(false)}>
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 }

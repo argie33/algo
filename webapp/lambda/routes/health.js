@@ -130,7 +130,14 @@ router.get('/', async (req, res) => {
           SELECT table_name 
           FROM information_schema.tables 
           WHERE table_schema = 'public' 
-          AND table_name IN ('stock_symbols', 'fear_greed_index', 'naaim_exposure', 'technical_data_daily', 'earnings_estimates')
+          AND table_name IN (
+            'stock_symbols', 'etf_symbols', 'company_profile', 'market_data', 'key_metrics',
+            'price_daily', 'technical_data_daily', 'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
+            'fear_greed_index', 'naaim_exposure', 'earnings_estimates', 'analyst_estimates',
+            'annual_income_statement', 'quarterly_income_statement', 'annual_balance_sheet', 
+            'quarterly_balance_sheet', 'annual_cash_flow', 'quarterly_cash_flow',
+            'last_updated', 'calendar_events', 'swing_trader'
+          )
         `),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Table existence check timeout')), 2000))
       ]);
@@ -158,7 +165,14 @@ router.get('/', async (req, res) => {
         });
       }
       // Add missing tables as "not_found"
-      ['stock_symbols', 'fear_greed_index', 'naaim_exposure', 'technical_data_daily', 'earnings_estimates'].forEach(tableName => {
+      [
+        'stock_symbols', 'etf_symbols', 'company_profile', 'market_data', 'key_metrics',
+        'price_daily', 'technical_data_daily', 'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
+        'fear_greed_index', 'naaim_exposure', 'earnings_estimates', 'analyst_estimates',
+        'annual_income_statement', 'quarterly_income_statement', 'annual_balance_sheet', 
+        'quarterly_balance_sheet', 'annual_cash_flow', 'quarterly_cash_flow',
+        'last_updated', 'calendar_events', 'swing_trader'
+      ].forEach(tableName => {
         if (!existingTables.includes(tableName)) {
           tables[tableName] = 'not_found';
         }
