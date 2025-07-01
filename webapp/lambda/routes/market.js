@@ -144,17 +144,22 @@ router.get('/overview', async (req, res) => {
     // Get market overview data
     const overviewQuery = `
       SELECT 
-        symbol,
-        current_price,
-        previous_close,
-        change_percent,
-        volume,
-        market_cap,
-        sector,
-        date
-      FROM market_data
-      WHERE date = (SELECT MAX(date) FROM market_data)
-      ORDER BY ABS(change_percent) DESC
+        md.ticker as symbol,
+        md.current_price,
+        md.previous_close,
+        CASE 
+          WHEN md.previous_close > 0 
+          THEN ((md.current_price - md.previous_close) / md.previous_close * 100)
+          ELSE 0 
+        END as change_percent,
+        md.volume,
+        COALESCE(cp.market_cap, 0) as market_cap,
+        COALESCE(cp.sector, 'Unknown') as sector,
+        CURRENT_DATE as date
+      FROM market_data md
+      LEFT JOIN company_profile cp ON md.ticker = cp.ticker
+      WHERE md.current_price IS NOT NULL
+      ORDER BY ABS(((md.current_price - md.previous_close) / md.previous_close * 100)) DESC
       LIMIT 50
     `;
 
