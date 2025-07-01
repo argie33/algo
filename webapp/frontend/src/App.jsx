@@ -47,11 +47,13 @@ import ServiceHealth from './pages/ServiceHealth'
 import TechnicalHistory from './pages/TechnicalHistory'
 import Backtest from './pages/Backtest'
 import TradingSignals from './pages/TradingSignals'
+import Portfolio from './pages/Portfolio'
 
 const drawerWidth = 240
 
 const menuItems = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
+  { text: 'Portfolio', icon: <BusinessIcon />, path: '/portfolio' },
   { text: 'Market Overview', icon: <TrendingUpIcon />, path: '/market' },
   { text: 'Stock Explorer', icon: <FilterListIcon />, path: '/stocks' },
   { text: 'Financial Data', icon: <AccountBalanceIcon />, path: '/financial-data' },
@@ -227,6 +229,7 @@ function App() {
           <Container maxWidth="xl">
             <Routes>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/portfolio" element={<Portfolio />} />
               <Route path="/market" element={<MarketOverview />} />
               <Route path="/stocks" element={<StockExplorer />} />
               <Route path="/stocks/:ticker" element={<StockDetail />} />

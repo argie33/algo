@@ -1010,6 +1010,8 @@ function UserSettingsWidget({ user }) {
 
 const Dashboard = () => {
   const [selectedSymbol, setSelectedSymbol] = useState(DEFAULT_TICKER);
+  const [isLoggedIn, setIsLoggedIn] = useState(false); // Track login state
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
 
   // Custom hooks for data fetching
   function useUser() {
@@ -1018,8 +1020,15 @@ const Dashboard = () => {
       queryKey: ['dashboardUser'],
       queryFn: getDashboardUser,
       staleTime: 5 * 60 * 1000, // 5 minutes
-      onSuccess: (data) => console.log('✅ useUser: Data loaded successfully:', data),
-      onError: (error) => console.error('❌ useUser: Error loading data:', error)
+      enabled: isLoggedIn, // Only fetch if logged in
+      onSuccess: (data) => {
+        console.log('✅ useUser: Data loaded successfully:', data);
+        if (data?.data) setIsLoggedIn(true);
+      },
+      onError: (error) => {
+        console.error('❌ useUser: Error loading data:', error);
+        setIsLoggedIn(false);
+      }
     });
     
     console.log('📊 useUser: Hook result:', { hasData: !!data, isLoading, hasError: !!error });
@@ -1032,6 +1041,7 @@ const Dashboard = () => {
       queryKey: ['dashboardWatchlist'],
       queryFn: getDashboardWatchlist,
       staleTime: 5 * 60 * 1000, // 5 minutes
+      enabled: isLoggedIn, // Only fetch if logged in
       onSuccess: (data) => console.log('✅ useWatchlist: Data loaded successfully:', data),
       onError: (error) => console.error('❌ useWatchlist: Error loading data:', error)
     });
@@ -1046,12 +1056,13 @@ const Dashboard = () => {
       queryKey: ['dashboardPortfolio'],
       queryFn: getDashboardPortfolio,
       staleTime: 5 * 60 * 1000, // 5 minutes
+      enabled: isLoggedIn, // Only fetch if logged in
       onSuccess: (data) => console.log('✅ usePortfolio: Data loaded successfully:', data),
       onError: (error) => console.error('❌ usePortfolio: Error loading data:', error)
     });
     
     console.log('📊 usePortfolio: Hook result:', { hasData: !!data, isLoading, hasError: !!error });
-    return { portfolio: data?.data || defaultPortfolio, isLoading, error };
+    return { portfolio: isLoggedIn ? (data?.data || defaultPortfolio) : defaultPortfolio, isLoading, error };
   }
 
   function usePortfolioMetrics() {
@@ -1060,12 +1071,13 @@ const Dashboard = () => {
       queryKey: ['dashboardPortfolioMetrics'],
       queryFn: getDashboardPortfolioMetrics,
       staleTime: 5 * 60 * 1000, // 5 minutes
+      enabled: isLoggedIn, // Only fetch if logged in
       onSuccess: (data) => console.log('✅ usePortfolioMetrics: Data loaded successfully:', data),
       onError: (error) => console.error('❌ usePortfolioMetrics: Error loading data:', error)
     });
     
     console.log('📊 usePortfolioMetrics: Hook result:', { hasData: !!data, isLoading, hasError: !!error });
-    return { portfolioMetrics: data?.data || defaultMetrics, isLoading, error };
+    return { portfolioMetrics: isLoggedIn ? (data?.data || defaultMetrics) : defaultMetrics, isLoading, error };
   }
 
   function useHoldings() {
@@ -1074,12 +1086,13 @@ const Dashboard = () => {
       queryKey: ['dashboardHoldings'],
       queryFn: getDashboardHoldings,
       staleTime: 5 * 60 * 1000, // 5 minutes
+      enabled: isLoggedIn, // Only fetch if logged in
       onSuccess: (data) => console.log('✅ useHoldings: Data loaded successfully:', data),
       onError: (error) => console.error('❌ useHoldings: Error loading data:', error)
     });
     
     console.log('📊 useHoldings: Hook result:', { hasData: !!data, isLoading, hasError: !!error });
-    return { holdings: data?.data || [], isLoading, error };
+    return { holdings: isLoggedIn ? (data?.data || []) : [], isLoading, error };
   }
 
   function useUserSettings() {
@@ -1088,12 +1101,13 @@ const Dashboard = () => {
       queryKey: ['dashboardUserSettings'],
       queryFn: getDashboardUserSettings,
       staleTime: 5 * 60 * 1000, // 5 minutes
+      enabled: isLoggedIn, // Only fetch if logged in
       onSuccess: (data) => console.log('✅ useUserSettings: Data loaded successfully:', data),
       onError: (error) => console.error('❌ useUserSettings: Error loading data:', error)
     });
     
     console.log('📊 useUserSettings: Hook result:', { hasData: !!data, isLoading, hasError: !!error });
-    return { userSettings: data?.data || defaultSettings, isLoading, error };
+    return { userSettings: isLoggedIn ? (data?.data || defaultSettings) : defaultSettings, isLoading, error };
   }
 
   // Data fetching hooks
@@ -1213,9 +1227,13 @@ const Dashboard = () => {
             <Typography variant="subtitle1" color="textSecondary">
               Professional Investment Platform
             </Typography>
-            {user && (
+            {isLoggedIn && user ? (
               <Typography variant="body2" color="textSecondary">
                 Welcome back, {user.name || user.email}
+              </Typography>
+            ) : (
+              <Typography variant="body2" color="textSecondary">
+                Market Overview • Demo Mode
               </Typography>
             )}
           </Box>
@@ -1226,11 +1244,21 @@ const Dashboard = () => {
           </Typography>
           <Chip 
             icon={<Refresh />} 
-            label="Live Data" 
-            color="primary" 
+            label={isLoggedIn ? "Live Data" : "Demo Data"} 
+            color={isLoggedIn ? "primary" : "default"} 
             size="small" 
             sx={{ fontWeight: 600 }}
           />
+          {!isLoggedIn && (
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => setShowLoginDialog(true)}
+              sx={{ ml: 1 }}
+            >
+              Login for Live Data
+            </Button>
+          )}
           <IconButton onClick={handleDebugTest} title="Debug API">
             <BugReport />
           </IconButton>
@@ -1640,6 +1668,48 @@ const Dashboard = () => {
           </Card>
         </Grid>
       </Grid>
+
+      {/* Login Dialog */}
+      <Dialog open={showLoginDialog} onClose={() => setShowLoginDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Access Your Portfolio</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="textSecondary" paragraph>
+            Login to access your personalized portfolio data, holdings, and performance metrics.
+          </Typography>
+          <Box sx={{ mt: 2 }}>
+            <TextField
+              fullWidth
+              label="Email"
+              type="email"
+              variant="outlined"
+              sx={{ mb: 2 }}
+            />
+            <TextField
+              fullWidth
+              label="Password"
+              type="password"
+              variant="outlined"
+              sx={{ mb: 2 }}
+            />
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Demo: Click "Demo Login" to simulate logged-in experience with sample data
+            </Alert>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowLoginDialog(false)}>Cancel</Button>
+          <Button 
+            variant="outlined" 
+            onClick={() => {
+              setIsLoggedIn(true);
+              setShowLoginDialog(false);
+            }}
+          >
+            Demo Login
+          </Button>
+          <Button variant="contained">Login</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Footer */}
       <Box sx={{ mt: 4, textAlign: 'center' }}>
