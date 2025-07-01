@@ -93,11 +93,37 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
       try {
         const result = await getMarketOverview();
         logger.success('getMarketOverview', result);
-        return result;
+        
+        // Validate and normalize the response structure
+        if (!result || !result.data) {
+          logger.warn('Invalid market data structure, using fallback');
+          return {
+            data: {
+              sentiment_indicators: {},
+              market_breadth: {},
+              market_cap: {},
+              economic_indicators: []
+            }
+          };
+        }
+        
+        // Ensure all expected sections exist
+        const normalizedData = {
+          data: {
+            sentiment_indicators: result.data.sentiment_indicators || {},
+            market_breadth: result.data.market_breadth || {},
+            market_cap: result.data.market_cap || {},
+            economic_indicators: result.data.economic_indicators || []
+          }
+        };
+        
+        logger.info('Normalized market data structure', normalizedData);
+        return normalizedData;
+        
       } catch (err) {
         logger.error('getMarketOverview', err);
         // Return fallback data structure if API fails
-        logger.warn('Using fallback market data structure');
+        logger.warn('Using fallback market data structure due to error');
         return {
           data: {
             sentiment_indicators: {},
@@ -110,7 +136,8 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
     },
     { 
       refetchInterval: 60000,
-      retry: 1, // Only retry once to avoid endless loops
+      retry: 2, // Retry twice
+      retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
       throwOnError: false // Prevent React Query from setting error state when we handle it gracefully
     }
   )
@@ -443,7 +470,7 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
                 <Grid item xs={6}>
                   <Box sx={{ textAlign: 'center', p: 2, backgroundColor: 'success.light', borderRadius: 1 }}>
                     <Typography variant="h4" color="success.contrastText">
-                      {marketBreadth.advancing !== undefined ? marketBreadth.advancing : 'N/A'}
+                      {marketBreadth.advancing !== undefined && marketBreadth.advancing !== null ? marketBreadth.advancing.toLocaleString() : 'N/A'}
                     </Typography>
                     <Typography variant="body2" color="success.contrastText">
                       Advancing
@@ -453,7 +480,7 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
                 <Grid item xs={6}>
                   <Box sx={{ textAlign: 'center', p: 2, backgroundColor: 'error.light', borderRadius: 1 }}>
                     <Typography variant="h4" color="error.contrastText">
-                      {marketBreadth.declining !== undefined ? marketBreadth.declining : 'N/A'}
+                      {marketBreadth.declining !== undefined && marketBreadth.declining !== null ? marketBreadth.declining.toLocaleString() : 'N/A'}
                     </Typography>
                     <Typography variant="body2" color="error.contrastText">
                       Declining

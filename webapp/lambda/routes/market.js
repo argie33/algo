@@ -94,6 +94,92 @@ router.get('/debug', async (req, res) => {
   }
 });
 
+// Test endpoint with fixed database queries
+router.get('/overview-fixed', async (req, res) => {
+  console.log('Market overview FIXED endpoint called - testing new queries');
+  
+  try {
+    // Test the fixed Fear & Greed query
+    let fearGreedData = null;
+    try {
+      const fearGreedQuery = `
+        SELECT 
+          COALESCE(index_value, fear_greed_value, greed_fear_index, value) as value,
+          COALESCE(index_text, value_text, classification) as value_text,
+          COALESCE(timestamp, date, created_at) as timestamp
+        FROM fear_greed_index 
+        ORDER BY COALESCE(timestamp, date, created_at) DESC 
+        LIMIT 1
+      `;
+      const fearGreedResult = await query(fearGreedQuery);
+      console.log('Fixed Fear & Greed query result:', fearGreedResult.rows);
+      fearGreedData = fearGreedResult.rows[0] || null;
+    } catch (e) {
+      console.error('Fixed Fear & Greed query error:', e.message);
+    }
+
+    // Test the fixed NAAIM query
+    let naaimData = null;
+    try {
+      const naaimQuery = `
+        SELECT 
+          COALESCE(average, mean_exposure, exposure_index, exposure_average) as average,
+          COALESCE(bullish_8100, bullish_80_100, bullish) as bullish_8100,
+          COALESCE(bearish, bearish_exposure) as bearish,
+          COALESCE(week_ending, date, timestamp) as week_ending
+        FROM naaim 
+        ORDER BY COALESCE(week_ending, date, timestamp) DESC 
+        LIMIT 1
+      `;
+      const naaimResult = await query(naaimQuery);
+      console.log('Fixed NAAIM query result:', naaimResult.rows);
+      naaimData = naaimResult.rows[0] || null;
+    } catch (e) {
+      console.error('Fixed NAAIM query error:', e.message);
+    }
+
+    // Test the fixed market breadth query
+    let breadthData = null;
+    try {
+      const breadthQuery = `
+        SELECT 
+          COUNT(*) as total_stocks,
+          COUNT(CASE WHEN COALESCE(change_percent, percent_change, pct_change, daily_change) > 0 THEN 1 END) as advancing,
+          COUNT(CASE WHEN COALESCE(change_percent, percent_change, pct_change, daily_change) < 0 THEN 1 END) as declining,
+          COUNT(CASE WHEN COALESCE(change_percent, percent_change, pct_change, daily_change) = 0 THEN 1 END) as unchanged,
+          AVG(COALESCE(change_percent, percent_change, pct_change, daily_change)) as average_change_percent
+        FROM market_data
+        WHERE date = (SELECT MAX(date) FROM market_data)
+          AND COALESCE(change_percent, percent_change, pct_change, daily_change) IS NOT NULL
+      `;
+      const breadthResult = await query(breadthQuery);
+      console.log('Fixed market breadth query result:', breadthResult.rows);
+      breadthData = breadthResult.rows[0] || null;
+    } catch (e) {
+      console.error('Fixed market breadth query error:', e.message);
+    }
+
+    res.json({
+      status: 'success',
+      message: 'Testing fixed database queries',
+      results: {
+        fear_greed: fearGreedData,
+        naaim: naaimData,
+        market_breadth: breadthData
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error in fixed overview test:', error);
+    res.status(500).json({ 
+      error: 'Test failed', 
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Test endpoint for the fixed overview structure
 router.get('/overview-test', async (req, res) => {
   console.log('Market overview test endpoint called');
@@ -225,43 +311,66 @@ router.get('/overview', async (req, res) => {
     
     // Get Fear & Greed Index
     try {
+      console.log('Fetching Fear & Greed data...');
       const fearGreedQuery = `
-        SELECT value, value_text, timestamp 
+        SELECT 
+          COALESCE(index_value, fear_greed_value, greed_fear_index, value) as value,
+          COALESCE(index_text, value_text, classification) as value_text,
+          COALESCE(timestamp, date, created_at) as timestamp
         FROM fear_greed_index 
-        ORDER BY timestamp DESC 
+        ORDER BY COALESCE(timestamp, date, created_at) DESC 
         LIMIT 1
       `;
       const fearGreedResult = await query(fearGreedQuery);
+      console.log('Fear & Greed query result:', fearGreedResult.rows);
+      
       if (fearGreedResult.rows.length > 0) {
+        const fg = fearGreedResult.rows[0];
         sentimentIndicators.fear_greed = {
-          value: fearGreedResult.rows[0].value,
-          value_text: fearGreedResult.rows[0].value_text,
-          timestamp: fearGreedResult.rows[0].timestamp
+          value: fg.value,
+          value_text: fg.value_text,
+          timestamp: fg.timestamp || fg.date
         };
+        console.log('Fear & Greed data processed:', sentimentIndicators.fear_greed);
+      } else {
+        console.log('No Fear & Greed data found');
       }
     } catch (e) {
-      console.log('Fear & Greed data not available:', e.message);
+      console.error('Fear & Greed data error:', e.message);
+      console.error('Fear & Greed full error:', e);
     }
 
     // Get NAAIM data
     try {
+      console.log('Fetching NAAIM data...');
       const naaimQuery = `
-        SELECT average, bullish_8100, bearish, week_ending 
+        SELECT 
+          COALESCE(average, mean_exposure, exposure_index, exposure_average) as average,
+          COALESCE(bullish_8100, bullish_80_100, bullish) as bullish_8100,
+          COALESCE(bearish, bearish_exposure) as bearish,
+          COALESCE(week_ending, date, timestamp) as week_ending
         FROM naaim 
-        ORDER BY week_ending DESC 
+        ORDER BY COALESCE(week_ending, date, timestamp) DESC 
         LIMIT 1
       `;
       const naaimResult = await query(naaimQuery);
+      console.log('NAAIM query result:', naaimResult.rows);
+      
       if (naaimResult.rows.length > 0) {
+        const naaim = naaimResult.rows[0];
         sentimentIndicators.naaim = {
-          average: naaimResult.rows[0].average,
-          bullish_8100: naaimResult.rows[0].bullish_8100,
-          bearish: naaimResult.rows[0].bearish,
-          week_ending: naaimResult.rows[0].week_ending
+          average: naaim.average || naaim.mean_exposure || naaim.exposure_index,
+          bullish_8100: naaim.bullish_8100,
+          bearish: naaim.bearish,
+          week_ending: naaim.week_ending || naaim.date
         };
+        console.log('NAAIM data processed:', sentimentIndicators.naaim);
+      } else {
+        console.log('No NAAIM data found');
       }
     } catch (e) {
-      console.log('NAAIM data not available:', e.message);
+      console.error('NAAIM data error:', e.message);
+      console.error('NAAIM full error:', e);
     }
 
     // Get AAII data (from aaii_sentiment table)
@@ -294,30 +403,41 @@ router.get('/overview', async (req, res) => {
     // Get market breadth
     let marketBreadth = {};
     try {
+      console.log('Fetching market breadth data...');
       const breadthQuery = `
         SELECT 
           COUNT(*) as total_stocks,
-          COUNT(CASE WHEN change_percent > 0 THEN 1 END) as advancing,
-          COUNT(CASE WHEN change_percent < 0 THEN 1 END) as declining,
-          COUNT(CASE WHEN change_percent = 0 THEN 1 END) as unchanged,
-          AVG(change_percent) as average_change_percent
+          COUNT(CASE WHEN COALESCE(change_percent, percent_change, pct_change, daily_change) > 0 THEN 1 END) as advancing,
+          COUNT(CASE WHEN COALESCE(change_percent, percent_change, pct_change, daily_change) < 0 THEN 1 END) as declining,
+          COUNT(CASE WHEN COALESCE(change_percent, percent_change, pct_change, daily_change) = 0 THEN 1 END) as unchanged,
+          AVG(COALESCE(change_percent, percent_change, pct_change, daily_change)) as average_change_percent
         FROM market_data
         WHERE date = (SELECT MAX(date) FROM market_data)
+          AND COALESCE(change_percent, percent_change, pct_change, daily_change) IS NOT NULL
       `;
       const breadthResult = await query(breadthQuery);
+      console.log('Market breadth query result:', breadthResult.rows);
+      
       if (breadthResult.rows.length > 0) {
         const breadth = breadthResult.rows[0];
+        const advancing = parseInt(breadth.advancing) || 0;
+        const declining = parseInt(breadth.declining) || 0;
+        
         marketBreadth = {
-          total_stocks: parseInt(breadth.total_stocks),
-          advancing: parseInt(breadth.advancing),
-          declining: parseInt(breadth.declining),
-          unchanged: parseInt(breadth.unchanged),
-          advance_decline_ratio: breadth.declining > 0 ? (breadth.advancing / breadth.declining).toFixed(2) : 'N/A',
-          average_change_percent: parseFloat(breadth.average_change_percent).toFixed(2)
+          total_stocks: parseInt(breadth.total_stocks) || 0,
+          advancing: advancing,
+          declining: declining,
+          unchanged: parseInt(breadth.unchanged) || 0,
+          advance_decline_ratio: declining > 0 ? (advancing / declining).toFixed(2) : 'N/A',
+          average_change_percent: breadth.average_change_percent ? parseFloat(breadth.average_change_percent).toFixed(2) : '0.00'
         };
+        console.log('Market breadth data processed:', marketBreadth);
+      } else {
+        console.log('No market breadth data found');
       }
     } catch (e) {
-      console.log('Market breadth data not available:', e.message);
+      console.error('Market breadth data error:', e.message);
+      console.error('Market breadth full error:', e);
     }
 
     // Get market cap distribution
@@ -465,8 +585,9 @@ router.get('/sentiment/history', async (req, res) => {
 
     res.json({
       data: {
-        fear_greed: fearGreedData,
-        naaim: naaimData
+        fear_greed_history: fearGreedData,
+        naaim_history: naaimData,
+        aaii_history: [] // TODO: Add AAII historical data if needed
       },
       count: fearGreedData.length + naaimData.length,
       period_days: days
@@ -475,24 +596,25 @@ router.get('/sentiment/history', async (req, res) => {
     console.error('Error fetching sentiment history:', error);
     // Return fallback data on error
     const fallbackData = {
-      fear_greed: [],
-      naaim: []
+      fear_greed_history: [],
+      naaim_history: [],
+      aaii_history: []
     };
     
     // Generate fallback data
     for (let i = 0; i < 30; i++) {
       const date = new Date();
       date.setDate(date.getDate() - i);
-      fallbackData.fear_greed.push({
+      fallbackData.fear_greed_history.push({
         date: date.toISOString(),
         value: Math.floor(Math.random() * 100),
         classification: ['Extreme Fear', 'Fear', 'Neutral', 'Greed', 'Extreme Greed'][Math.floor(Math.random() * 5)]
       });
-      fallbackData.naaim.push({
+      fallbackData.naaim_history.push({
         date: date.toISOString(),
         exposure_index: Math.floor(Math.random() * 100),
-        long_exposure: Math.floor(Math.random() * 100),
-        short_exposure: Math.floor(Math.random() * 50)
+        mean_exposure: Math.floor(Math.random() * 100),
+        average: Math.floor(Math.random() * 100)
       });
     }
     
@@ -543,7 +665,7 @@ router.get('/sectors/performance', async (req, res) => {
       SELECT 
         sector,
         COUNT(*) as stock_count,
-        AVG(change_percent) as avg_change,
+        AVG(COALESCE(change_percent, percent_change, pct_change, daily_change)) as avg_change,
         SUM(volume) as total_volume,
         AVG(market_cap) as avg_market_cap
       FROM market_data
@@ -618,12 +740,12 @@ router.get('/breadth', async (req, res) => {
     const breadthQuery = `
       SELECT 
         COUNT(*) as total_stocks,
-        COUNT(CASE WHEN change_percent > 0 THEN 1 END) as advancing,
-        COUNT(CASE WHEN change_percent < 0 THEN 1 END) as declining,
-        COUNT(CASE WHEN change_percent = 0 THEN 1 END) as unchanged,
-        COUNT(CASE WHEN change_percent > 5 THEN 1 END) as strong_advancing,
-        COUNT(CASE WHEN change_percent < -5 THEN 1 END) as strong_declining,
-        AVG(change_percent) as avg_change,
+        COUNT(CASE WHEN COALESCE(change_percent, percent_change, pct_change, daily_change) > 0 THEN 1 END) as advancing,
+        COUNT(CASE WHEN COALESCE(change_percent, percent_change, pct_change, daily_change) < 0 THEN 1 END) as declining,
+        COUNT(CASE WHEN COALESCE(change_percent, percent_change, pct_change, daily_change) = 0 THEN 1 END) as unchanged,
+        COUNT(CASE WHEN COALESCE(change_percent, percent_change, pct_change, daily_change) > 5 THEN 1 END) as strong_advancing,
+        COUNT(CASE WHEN COALESCE(change_percent, percent_change, pct_change, daily_change) < -5 THEN 1 END) as strong_declining,
+        AVG(COALESCE(change_percent, percent_change, pct_change, daily_change)) as avg_change,
         AVG(volume) as avg_volume
       FROM market_data
       WHERE date = (SELECT MAX(date) FROM market_data)
@@ -890,7 +1012,7 @@ router.get('/indices', async (req, res) => {
         symbol,
         current_price,
         previous_close,
-        change_percent,
+        COALESCE(change_percent, percent_change, pct_change, daily_change) as change_percent,
         volume,
         market_cap,
         date
@@ -925,7 +1047,7 @@ router.get('/sectors', async (req, res) => {
       SELECT 
         sector,
         COUNT(*) as stock_count,
-        AVG(change_percent) as avg_change,
+        AVG(COALESCE(change_percent, percent_change, pct_change, daily_change)) as avg_change,
         SUM(volume) as total_volume,
         AVG(market_cap) as avg_market_cap
       FROM market_data
@@ -962,7 +1084,7 @@ router.get('/volatility', async (req, res) => {
         symbol,
         current_price,
         previous_close,
-        change_percent,
+        COALESCE(change_percent, percent_change, pct_change, daily_change) as change_percent,
         date
       FROM market_data
       WHERE symbol = '^VIX'
@@ -974,11 +1096,11 @@ router.get('/volatility', async (req, res) => {
     // Calculate market volatility from all stocks
     const marketVolatilityQuery = `
       SELECT 
-        STDDEV(change_percent) as market_volatility,
-        AVG(ABS(change_percent)) as avg_absolute_change
+        STDDEV(COALESCE(change_percent, percent_change, pct_change, daily_change)) as market_volatility,
+        AVG(ABS(COALESCE(change_percent, percent_change, pct_change, daily_change))) as avg_absolute_change
       FROM market_data
       WHERE date = (SELECT MAX(date) FROM market_data)
-        AND change_percent IS NOT NULL
+        AND COALESCE(change_percent, percent_change, pct_change, daily_change) IS NOT NULL
     `;
 
     const volatilityResult = await query(marketVolatilityQuery);
@@ -1051,7 +1173,7 @@ router.get('/indicators', async (req, res) => {
         symbol,
         current_price,
         previous_close,
-        change_percent,
+        COALESCE(change_percent, percent_change, pct_change, daily_change) as change_percent,
         volume,
         market_cap,
         sector,
