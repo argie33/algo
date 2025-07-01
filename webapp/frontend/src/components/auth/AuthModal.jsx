@@ -105,7 +105,7 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
 
       <DialogContent sx={{ p: 0 }}>
         {successMessage && (
-          <Alert severity=\"success\" sx={{ m: 2, mb: 0 }}>
+          <Alert severity="success" sx={{ m: 2, mb: 0 }}>
             {successMessage}
           </Alert>
         )}
