@@ -84,20 +84,20 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
       }}
     >
       <Box
-        display=\"flex\"
-        justifyContent=\"space-between\"
-        alignItems=\"center\"
+        display="flex"
+        justifyContent="space-between"
+        alignItems="center"
         p={2}
         borderBottom={1}
-        borderColor=\"divider\"
+        borderColor="divider"
       >
-        <Typography variant=\"h6\" component=\"h2\">
+        <Typography variant="h6" component="h2">
           {getTitle()}
         </Typography>
         <IconButton
           onClick={handleClose}
-          size=\"small\"
-          aria-label=\"close\"
+          size="small"
+          aria-label="close"
         >
           <Close />
         </IconButton>
