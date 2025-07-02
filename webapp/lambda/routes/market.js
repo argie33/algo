@@ -1313,10 +1313,6 @@ router.get('/calendar', async (req, res) => {
       }
     ];
 
-    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
-    }
-
     res.json({
       data: calendarData,
       count: calendarData.length

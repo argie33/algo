@@ -1,22 +1,45 @@
 const { CognitoJwtVerifier } = require('aws-jwt-verify');
 
-// Create JWT verifier for Cognito User Pool
-const verifier = CognitoJwtVerifier.create({
-  userPoolId: process.env.COGNITO_USER_POOL_ID,
-  tokenUse: 'access',
-  clientId: process.env.COGNITO_CLIENT_ID,
-});
+// Create JWT verifier for Cognito User Pool only if environment variables are set
+let verifier = null;
+if (process.env.COGNITO_USER_POOL_ID && process.env.COGNITO_CLIENT_ID) {
+  try {
+    verifier = CognitoJwtVerifier.create({
+      userPoolId: process.env.COGNITO_USER_POOL_ID,
+      tokenUse: 'access',
+      clientId: process.env.COGNITO_CLIENT_ID,
+    });
+  } catch (error) {
+    console.warn('Failed to create Cognito JWT verifier:', error.message);
+    console.warn('Authentication will be disabled. Set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID environment variables to enable authentication.');
+  }
+} else {
+  console.warn('Cognito environment variables not set. Authentication disabled.');
+  console.warn('Set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID environment variables to enable authentication.');
+}
 
 // Authentication middleware
 const authenticateToken = async (req, res, next) => {
   try {
-    // Skip authentication in development mode
+    // Skip authentication in development mode or if verifier is not available
     if (process.env.NODE_ENV === 'development' && process.env.SKIP_AUTH === 'true') {
       req.user = {
         sub: 'dev-user',
         email: 'dev@example.com',
         username: 'dev-user',
         role: 'admin'
+      };
+      return next();
+    }
+
+    // If no verifier is available, skip authentication with warning
+    if (!verifier) {
+      console.warn('JWT verifier not available, skipping authentication');
+      req.user = {
+        sub: 'no-auth-user',
+        email: 'no-auth@example.com',
+        username: 'no-auth-user',
+        role: 'user'
       };
       return next();
     }
@@ -103,7 +126,7 @@ const optionalAuth = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
-    if (token) {
+    if (token && verifier) {
       const payload = await verifier.verify(token);
       req.user = {
         sub: payload.sub,
@@ -111,6 +134,15 @@ const optionalAuth = async (req, res, next) => {
         username: payload.username,
         role: payload['custom:role'] || 'user',
         groups: payload['cognito:groups'] || []
+      };
+    } else if (!verifier) {
+      // If no verifier, create a default user
+      req.user = {
+        sub: 'no-auth-user',
+        email: 'no-auth@example.com',
+        username: 'no-auth-user',
+        role: 'user',
+        groups: []
       };
     }
   } catch (error) {

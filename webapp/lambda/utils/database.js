@@ -18,7 +18,7 @@ let dbConfig = null;
 // console.log('*** CONFIG SCOPE FIX APPLIED - ' + new Date().toISOString() + ' ***');
 
 /**
- * Get database configuration from AWS Secrets Manager
+ * Get database configuration from AWS Secrets Manager or environment variables
  */
 async function getDbConfig() {
     if (dbConfig) {
@@ -26,37 +26,65 @@ async function getDbConfig() {
     }
 
     try {
-        // console.log('Getting DB credentials from Secrets Manager...');
         const secretArn = process.env.DB_SECRET_ARN;
-        if (!secretArn) {
-            throw new Error('DB_SECRET_ARN environment variable not set');
+        
+        // If we have a secret ARN, use Secrets Manager
+        if (secretArn) {
+            try {
+                console.log('Getting DB credentials from Secrets Manager...');
+                const command = new GetSecretValueCommand({ SecretId: secretArn });
+                const result = await secretsManager.send(command);
+                const secret = JSON.parse(result.SecretString);
+                
+                dbConfig = {
+                    host: secret.host || process.env.DB_ENDPOINT,
+                    port: parseInt(secret.port) || 5432,
+                    user: secret.username,
+                    password: secret.password,
+                    database: secret.dbname,
+                    max: parseInt(process.env.DB_POOL_MAX) || 5,
+                    idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 30000,
+                    connectionTimeoutMillis: parseInt(process.env.DB_CONNECT_TIMEOUT) || 10000,
+                    ssl: {
+                        rejectUnauthorized: false
+                    }
+                };
+                
+                console.log(`Database config loaded from Secrets Manager: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`);
+                return dbConfig;
+            } catch (secretError) {
+                console.warn('Failed to get secrets from Secrets Manager, falling back to environment variables:', secretError.message);
+            }
         }
         
-        const command = new GetSecretValueCommand({ SecretId: secretArn });
-        const result = await secretsManager.send(command);
-        const secret = JSON.parse(result.SecretString);
+        // Fallback to environment variables if available
+        if (process.env.DB_HOST || process.env.DB_ENDPOINT) {
+            console.log('Using database config from environment variables');
+            dbConfig = {
+                host: process.env.DB_HOST || process.env.DB_ENDPOINT,
+                port: parseInt(process.env.DB_PORT) || 5432,
+                user: process.env.DB_USER || process.env.DB_USERNAME,
+                password: process.env.DB_PASSWORD,
+                database: process.env.DB_NAME || process.env.DB_DATABASE,
+                max: parseInt(process.env.DB_POOL_MAX) || 5,
+                idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 30000,
+                connectionTimeoutMillis: parseInt(process.env.DB_CONNECT_TIMEOUT) || 10000,
+                ssl: process.env.DB_SSL === 'false' ? false : {
+                    rejectUnauthorized: false
+                }
+            };
+            
+            console.log(`Database config loaded from environment: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`);
+            return dbConfig;
+        }
         
-        dbConfig = {
-            host: secret.host || process.env.DB_ENDPOINT,
-            port: parseInt(secret.port) || 5432,
-            user: secret.username,
-            password: secret.password,
-            database: secret.dbname,
-            // Connection pool settings optimized for Lambda
-            max: parseInt(process.env.DB_POOL_MAX) || 5,
-            idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 30000,
-            connectionTimeoutMillis: parseInt(process.env.DB_CONNECT_TIMEOUT) || 10000,
-            // SSL configuration for RDS
-            ssl: {
-                rejectUnauthorized: false
-            }
-        };
+        // If no configuration is available, return null to indicate no database
+        console.warn('No database configuration found. Set DB_SECRET_ARN or DB_HOST environment variables.');
+        return null;
         
-        // console.log(`Database config loaded: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`);
-        return dbConfig;
     } catch (error) {
         console.error('Error getting DB config:', error);
-        throw error;
+        return null;
     }
 }
 
@@ -70,17 +98,22 @@ async function initializeDatabase() {
     initPromise = (async () => {
         let config = null;
         try {
-            // console.log('Initializing database connection pool...');
+            console.log('Initializing database connection pool...');
             config = await getDbConfig();
+            
             if (!config) {
-                throw new Error('Database configuration could not be loaded. Check DB_SECRET_ARN and AWS Secrets Manager.');
+                console.warn('No database configuration available. API will run in fallback mode with mock data.');
+                dbInitialized = false;
+                pool = null;
+                return null; // Return null instead of throwing error
             }
+            
             pool = new Pool(config);
             const client = await pool.connect();
             await client.query('SELECT NOW()');
             client.release();
             dbInitialized = true;
-            // console.log('✅ Database connection pool initialized successfully');
+            console.log('✅ Database connection pool initialized successfully');
             pool.on('error', (err) => {
                 console.error('Database pool error:', err);
                 dbInitialized = false;
@@ -100,12 +133,12 @@ async function initializeDatabase() {
                 DB_NAME: process.env.DB_NAME,
                 DB_USER: process.env.DB_USER
             };
-            console.error('Database initialization failed:', {
+            console.warn('Database initialization failed. API will run in fallback mode:', {
                 error: error.message,
                 config: config,
                 env: error.env
             });
-            throw error;
+            return null; // Return null instead of throwing error
         } finally {
             initPromise = null;
         }
@@ -131,8 +164,17 @@ async function query(text, params = []) {
     try {
         // Ensure database is initialized
         if (!dbInitialized || !pool) {
-            // console.log('Database not initialized, initializing now...');
-            await initializeDatabase();
+            console.log('Database not initialized, initializing now...');
+            const result = await initializeDatabase();
+            if (!result || !pool) {
+                // Database is not available, throw error with specific message
+                throw new Error('Database not available - running in fallback mode');
+            }
+        }
+        
+        // Check if pool is still valid
+        if (!pool) {
+            throw new Error('Database connection pool not available');
         }
         
         const start = Date.now();

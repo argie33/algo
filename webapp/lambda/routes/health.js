@@ -158,7 +158,7 @@ router.get('/', async (req, res) => {
         );
         const tableResults = await Promise.race([
           Promise.all(countQueries),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Table count global timeout')), HEALTH_TIMEOUT_MS))
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Table count global timeout')), 10000)) // 10 second timeout
         ]);
         tableResults.forEach(result => {
           tables[result.table] = result.count !== null ? result.count : `Error: ${result.error}`;
