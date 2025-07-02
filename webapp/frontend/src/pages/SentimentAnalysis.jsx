@@ -364,9 +364,63 @@ const SentimentAnalysis = () => {
 // Mock data for development
 const mockSentimentData = {
   overall: { score: 65 },
-  analyst: { score: 72, change: '+5% this week' },
-  social: { score: 58, change: '-2% today' },
-  news: { score: 70, change: '+8% this week' },
+  analyst: { 
+    score: 72, 
+    change: '+5% this week',
+    recommendations: [
+      { firm: 'Goldman Sachs', symbol: 'AAPL', rating: 'Buy', target: '$200' },
+      { firm: 'Morgan Stanley', symbol: 'TSLA', rating: 'Hold', target: '$250' },
+      { firm: 'JP Morgan', symbol: 'NVDA', rating: 'Buy', target: '$900' }
+    ],
+    revisions: [
+      { symbol: 'AAPL', period: 'Q1 2024', change: 5.2, estimates: 12 },
+      { symbol: 'MSFT', period: 'Q1 2024', change: -2.1, estimates: 15 },
+      { symbol: 'GOOGL', period: 'Q1 2024', change: 3.7, estimates: 10 }
+    ]
+  },
+  social: { 
+    score: 58, 
+    change: '-2% today',
+    trending: [
+      { symbol: 'TSLA', mentions: 15420, sentiment: 'Positive', change: '+25%' },
+      { symbol: 'AAPL', mentions: 12350, sentiment: 'Neutral', change: '+5%' },
+      { symbol: 'AMC', mentions: 8970, sentiment: 'Negative', change: '-15%' }
+    ],
+    reddit: [
+      {
+        subreddit: 'r/stocks',
+        title: 'Tesla showing strong momentum after delivery numbers',
+        score: 1250,
+        timestamp: '3 hours ago'
+      },
+      {
+        subreddit: 'r/investing',
+        title: 'Market outlook for 2024 - what are your thoughts?',
+        score: 890,
+        timestamp: '5 hours ago'
+      }
+    ]
+  },
+  news: { 
+    score: 70, 
+    change: '+8% this week',
+    articles: [
+      {
+        title: 'Tech stocks rally on strong earnings expectations',
+        summary: 'Major technology companies showing positive momentum ahead of Q1 earnings season',
+        sentiment: 'Positive',
+        source: 'Reuters',
+        timestamp: '1 hour ago'
+      },
+      {
+        title: 'Federal Reserve signals potential rate cuts',
+        summary: 'Fed officials hint at possible monetary policy adjustments based on economic data',
+        sentiment: 'Positive',
+        source: 'Bloomberg',
+        timestamp: '3 hours ago'
+      }
+    ]
+  }
   distribution: [
     { sentiment: 'Bullish', percentage: 45 },
     { sentiment: 'Neutral', percentage: 35 },
@@ -392,57 +446,6 @@ const mockSentimentData = {
       timestamp: '6 hours ago'
     }
   ],
-  analyst: {
-    recommendations: [
-      { firm: 'Goldman Sachs', symbol: 'AAPL', rating: 'Buy', target: '$200' },
-      { firm: 'Morgan Stanley', symbol: 'TSLA', rating: 'Hold', target: '$250' },
-      { firm: 'JP Morgan', symbol: 'NVDA', rating: 'Buy', target: '$900' }
-    ],
-    revisions: [
-      { symbol: 'AAPL', period: 'Q1 2024', change: 5.2, estimates: 12 },
-      { symbol: 'MSFT', period: 'Q1 2024', change: -2.1, estimates: 15 },
-      { symbol: 'GOOGL', period: 'Q1 2024', change: 3.7, estimates: 10 }
-    ]
-  },
-  social: {
-    trending: [
-      { symbol: 'TSLA', mentions: 15420, sentiment: 'Positive', change: '+25%' },
-      { symbol: 'AAPL', mentions: 12350, sentiment: 'Neutral', change: '+5%' },
-      { symbol: 'AMC', mentions: 8970, sentiment: 'Negative', change: '-15%' }
-    ],
-    reddit: [
-      {
-        subreddit: 'r/stocks',
-        title: 'Tesla showing strong momentum after delivery numbers',
-        score: 1250,
-        timestamp: '3 hours ago'
-      },
-      {
-        subreddit: 'r/investing',
-        title: 'Market outlook for 2024 - what are your thoughts?',
-        score: 890,
-        timestamp: '5 hours ago'
-      }
-    ]
-  },
-  news: {
-    articles: [
-      {
-        title: 'Tech stocks rally on strong earnings expectations',
-        summary: 'Major technology companies showing positive momentum ahead of Q1 earnings season',
-        sentiment: 'Positive',
-        source: 'Reuters',
-        timestamp: '1 hour ago'
-      },
-      {
-        title: 'Federal Reserve signals potential rate cuts',
-        summary: 'Fed officials hint at possible monetary policy adjustments based on economic data',
-        sentiment: 'Positive',
-        source: 'Bloomberg',
-        timestamp: '3 hours ago'
-      }
-    ]
-  },
   market: {
     fearGreed: {
       value: 65,

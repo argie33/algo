@@ -248,7 +248,7 @@ const AdvancedScreener = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="any">Any</SelectItem>
-                    <SelectItem value="mega">Mega (>$200B)</SelectItem>
+                    <SelectItem value="mega">Mega (&gt;$200B)</SelectItem>
                     <SelectItem value="large">Large ($10B-$200B)</SelectItem>
                     <SelectItem value="mid">Mid ($2B-$10B)</SelectItem>
                     <SelectItem value="small">Small ($300M-$2B)</SelectItem>
