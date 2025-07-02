@@ -252,7 +252,7 @@ const AdvancedScreener = () => {
                     <SelectItem value="large">Large ($10B-$200B)</SelectItem>
                     <SelectItem value="mid">Mid ($2B-$10B)</SelectItem>
                     <SelectItem value="small">Small ($300M-$2B)</SelectItem>
-                    <SelectItem value="micro">Micro (<$300M)</SelectItem>
+                    <SelectItem value="micro">Micro (&lt;$300M)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
