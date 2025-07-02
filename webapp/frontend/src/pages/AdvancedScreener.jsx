@@ -175,17 +175,85 @@ const AdvancedScreener = () => {
   const runScreen = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/api/screener/advanced`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ criteria: screenCriteria })
+      // Build query parameters for metrics API
+      const params = new URLSearchParams({
+        page: 1,
+        limit: 200,
+        sortBy: 'composite_metric',
+        sortOrder: 'desc'
       });
+
+      // Add filters based on criteria
+      if (screenCriteria.sector !== 'any') {
+        params.append('sector', screenCriteria.sector);
+      }
+
+      // Convert quality score range (0-100) to metric range (0-1)
+      const minComposite = screenCriteria.quality[0] / 100;
+      const maxComposite = screenCriteria.quality[1] / 100;
+      
+      if (minComposite > 0) {
+        params.append('minMetric', minComposite);
+      }
+      if (maxComposite < 1) {
+        params.append('maxMetric', maxComposite);
+      }
+
+      const response = await fetch(`${API_BASE}/api/metrics?${params}`);
       
       if (response.ok) {
         const data = await response.json();
-        setResults(data.results || mockResults);
+        const stocks = data.stocks || [];
+        
+        // Transform API data to match our component structure
+        const transformedResults = stocks.map(stock => ({
+          symbol: stock.symbol,
+          company: stock.security_name || stock.short_name || `${stock.symbol} Corp`,
+          scores: {
+            quality: Math.round((stock.quality_metric || 0.5) * 100),
+            growth: Math.round((stock.growth_metric || 0.5) * 100), 
+            value: Math.round((stock.value_metric || 0.5) * 100),
+            momentum: Math.round((stock.momentum_metric || 0.5) * 100),
+            sentiment: Math.round((stock.sentiment_metric || 0.5) * 100),
+            positioning: Math.round((stock.positioning_metric || 0.5) * 100),
+            composite: Math.round((stock.composite_metric || 0.5) * 100)
+          },
+          price: stock.current_price || 0,
+          marketCap: stock.market_cap || 0,
+          sector: stock.sector || 'Unknown',
+          exchange: stock.exchange || 'Unknown'
+        }));
+
+        // Apply additional client-side filters
+        const filteredResults = transformedResults.filter(stock => {
+          // Market cap filter
+          if (screenCriteria.marketCap !== 'any') {
+            const marketCap = stock.marketCap;
+            if (screenCriteria.marketCap === 'large' && marketCap < 10e9) return false;
+            if (screenCriteria.marketCap === 'mid' && (marketCap < 2e9 || marketCap > 10e9)) return false;
+            if (screenCriteria.marketCap === 'small' && marketCap > 2e9) return false;
+          }
+
+          // Exchange filter
+          if (screenCriteria.exchange !== 'any' && stock.exchange !== screenCriteria.exchange) {
+            return false;
+          }
+
+          // Score filters
+          const { quality, growth, value, momentum, sentiment, positioning } = screenCriteria;
+          return (
+            stock.scores.quality >= quality[0] && stock.scores.quality <= quality[1] &&
+            stock.scores.growth >= growth[0] && stock.scores.growth <= growth[1] &&
+            stock.scores.value >= value[0] && stock.scores.value <= value[1] &&
+            stock.scores.momentum >= momentum[0] && stock.scores.momentum <= momentum[1] &&
+            stock.scores.sentiment >= sentiment[0] && stock.scores.sentiment <= sentiment[1] &&
+            stock.scores.positioning >= positioning[0] && stock.scores.positioning <= positioning[1]
+          );
+        });
+
+        setResults(filteredResults);
       } else {
-        // Use mock data if API not available
+        console.warn('API call failed, using mock data');
         setResults(mockResults);
       }
       setActiveTab(1);
@@ -380,7 +448,14 @@ const AdvancedScreener = () => {
                     <MenuItem value="Technology">Technology</MenuItem>
                     <MenuItem value="Healthcare">Healthcare</MenuItem>
                     <MenuItem value="Financials">Financials</MenuItem>
-                    <MenuItem value="Consumer">Consumer</MenuItem>
+                    <MenuItem value="Consumer Discretionary">Consumer Discretionary</MenuItem>
+                    <MenuItem value="Consumer Staples">Consumer Staples</MenuItem>
+                    <MenuItem value="Energy">Energy</MenuItem>
+                    <MenuItem value="Industrials">Industrials</MenuItem>
+                    <MenuItem value="Materials">Materials</MenuItem>
+                    <MenuItem value="Real Estate">Real Estate</MenuItem>
+                    <MenuItem value="Utilities">Utilities</MenuItem>
+                    <MenuItem value="Communication Services">Communication Services</MenuItem>
                   </Select>
                 </FormControl>
 

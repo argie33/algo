@@ -44,7 +44,8 @@ import {
   AccountCircle as AccountCircleIcon,
   Psychology as PsychologyIcon,
   Search as SearchIcon,
-  Public as PublicIcon
+  Public as PublicIcon,
+  Security as SecurityIcon
 } from '@mui/icons-material'
 
 // All real page imports
@@ -65,6 +66,8 @@ import Portfolio from './pages/Portfolio'
 import SentimentAnalysis from './pages/SentimentAnalysis'
 import AdvancedScreener from './pages/AdvancedScreener'
 import EconomicModeling from './pages/EconomicModeling'
+import PortfolioAnalysis from './pages/PortfolioAnalysis'
+import RiskManagement from './pages/RiskManagement'
 import { useAuth } from './contexts/AuthContext'
 import AuthModal from './components/auth/AuthModal'
 import ProtectedRoute from './components/auth/ProtectedRoute'
@@ -74,6 +77,8 @@ const drawerWidth = 240
 const menuItems = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
   { text: 'Portfolio', icon: <BusinessIcon />, path: '/portfolio' },
+  { text: 'Portfolio Analysis', icon: <AnalyticsIcon />, path: '/portfolio-analysis' },
+  { text: 'Risk Management', icon: <SecurityIcon />, path: '/risk-management' },
   { text: 'Market Overview', icon: <TrendingUpIcon />, path: '/market' },
   { text: 'Advanced Screener', icon: <SearchIcon />, path: '/screener-advanced' },
   { text: 'Stock Explorer', icon: <FilterListIcon />, path: '/stocks' },
@@ -282,6 +287,8 @@ function App() {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/portfolio" element={<Portfolio />} />
+              <Route path="/portfolio-analysis" element={<PortfolioAnalysis />} />
+              <Route path="/risk-management" element={<RiskManagement />} />
               <Route path="/market" element={<MarketOverview />} />
               <Route path="/screener-advanced" element={<AdvancedScreener />} />
               <Route path="/sentiment" element={<SentimentAnalysis />} />
