@@ -34,9 +34,12 @@ import {
   DialogContent,
   DialogActions,
   Button,
-  IconButton
+  IconButton,
+  TextField,
+  InputAdornment,
+  Divider
 } from '@mui/material'
-import { TrendingUp, TrendingDown, Analytics, NewReleases, History, ExpandMore, FilterList, Close, Timeline } from '@mui/icons-material'
+import { TrendingUp, TrendingDown, Analytics, NewReleases, History, ExpandMore, FilterList, Close, Timeline, Search, Clear, ShowChart, HorizontalRule } from '@mui/icons-material'
 import { formatCurrency, formatPercentage } from '../utils/formatters'
 
 // Simple logger replacement to prevent build errors
@@ -51,10 +54,12 @@ function TradingSignals() {
   const [timeframe, setTimeframe] = useState('daily');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
-  const [showRecentOnly, setShowRecentOnly] = useState(false);
+  const [showRecentOnly, setShowRecentOnly] = useState(true); // Changed default to true
   const [showHistoricalView, setShowHistoricalView] = useState(false);
   const [selectedSymbol, setSelectedSymbol] = useState(null);
   const [historicalDialogOpen, setHistoricalDialogOpen] = useState(false);
+  const [symbolFilter, setSymbolFilter] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const API_BASE = import.meta.env.VITE_API_URL || '';
 
   // Fetch historical data for selected symbol
@@ -74,15 +79,29 @@ function TradingSignals() {
     enabled: !!selectedSymbol && historicalDialogOpen,
     onError: (err) => logger.queryError('historicalSignals', err, { symbol: selectedSymbol })
   });
+  // Helper functions for search
+  const handleSearch = () => {
+    setSymbolFilter(searchInput.trim());
+    setPage(0);
+  };
+
+  const handleClearSearch = () => {
+    setSearchInput('');
+    setSymbolFilter('');
+    setPage(0);
+  };
+
   // Fetch buy/sell signals
   const { data: signalsData, isLoading: signalsLoading, error: signalsError } = useQuery({
-    queryKey: ['tradingSignals', signalType, timeframe, page, rowsPerPage],
+    queryKey: ['tradingSignals', signalType, timeframe, page, rowsPerPage, symbolFilter, showRecentOnly],
     queryFn: async () => {
       try {
         const params = new URLSearchParams({
           signal_type: signalType === 'all' ? undefined : signalType,
           page: page + 1,
-          limit: rowsPerPage
+          limit: rowsPerPage,
+          symbol: symbolFilter || undefined,
+          latest_only: showRecentOnly ? 'true' : undefined
         });
         // Remove undefined values
         [...params.entries()].forEach(([key, value]) => {
@@ -163,6 +182,8 @@ function TradingSignals() {
 
   const getSignalChip = (signal, signalDate) => {
     const isBuy = signal === 'Buy';
+    const isSell = signal === 'Sell';
+    const isNone = signal === 'None' || !signal;
     const isRecent = isRecentSignal(signalDate);
     
     return (
@@ -172,11 +193,11 @@ function TradingSignals() {
         overlap="circular"
       >
         <Chip
-          label={signal}
+          label={signal || 'None'}
           size="small"
-          icon={isBuy ? <TrendingUp /> : <TrendingDown />}
+          icon={isBuy ? <TrendingUp /> : isSell ? <TrendingDown /> : <HorizontalRule />}
           sx={{
-            backgroundColor: isBuy ? '#10B981' : '#DC2626',
+            backgroundColor: isBuy ? '#10B981' : isSell ? '#DC2626' : '#9CA3AF',
             color: 'white',
             fontWeight: 'bold',
             ...(isRecent && {
@@ -259,37 +280,56 @@ function TradingSignals() {
       </CardContent>
     </Card>
   );
+  // Filter data based on recent-only setting
+  const filteredSignals = useMemo(() => {
+    if (!signalsData?.data) return [];
+    
+    let filtered = signalsData.data;
+    
+    // Apply recent-only filter if enabled
+    if (showRecentOnly) {
+      filtered = filtered.filter(signal => isRecentSignal(signal.date));
+    }
+    
+    // Remove duplicates by symbol, keeping the most recent
+    if (showRecentOnly) {
+      const symbolMap = new Map();
+      filtered.forEach(signal => {
+        const existing = symbolMap.get(signal.symbol);
+        if (!existing || new Date(signal.date) > new Date(existing.date)) {
+          symbolMap.set(signal.symbol, signal);
+        }
+      });
+      filtered = Array.from(symbolMap.values());
+    }
+    
+    return filtered;
+  }, [signalsData, showRecentOnly]);
+
   // --- Table for Buy/Sell signals, matching backend fields ---
   const BuySellSignalsTable = () => (
     <TableContainer component={Paper} elevation={0}>
       <Table>
         <TableHead>
           <TableRow sx={{ backgroundColor: 'grey.50' }}>
-            <TableCell>Symbol</TableCell>
-            <TableCell>Company</TableCell>
-            <TableCell>Sector</TableCell>
-            <TableCell>Signal</TableCell>
-            <TableCell align="right">Current Price</TableCell>
-            <TableCell align="right">Market Cap</TableCell>
-            <TableCell align="right">P/E</TableCell>
-            <TableCell align="right">Dividend Yield</TableCell>
-            <TableCell>Date</TableCell>
-            {/* Add more columns here if your backend provides them */}
+            <TableCell sx={{ fontWeight: 'bold' }}>Symbol</TableCell>
+            <TableCell sx={{ fontWeight: 'bold' }}>Company</TableCell>
+            <TableCell sx={{ fontWeight: 'bold' }}>Sector</TableCell>
+            <TableCell sx={{ fontWeight: 'bold' }}>Signal</TableCell>
+            <TableCell align="right" sx={{ fontWeight: 'bold' }}>Current Price</TableCell>
+            <TableCell align="right" sx={{ fontWeight: 'bold' }}>Market Cap</TableCell>
+            <TableCell align="right" sx={{ fontWeight: 'bold' }}>P/E</TableCell>
+            <TableCell align="right" sx={{ fontWeight: 'bold' }}>Dividend Yield</TableCell>
+            <TableCell sx={{ fontWeight: 'bold' }}>Date</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
-          {signalsData?.data
-            ?.filter(signal => {
-              if (showRecentOnly) {
-                return isRecentSignal(signal.date);
-              }
-              return true;
-            })
-            ?.map((signal, index) => (
+          {filteredSignals?.map((signal, index) => (
             <TableRow 
               key={`${signal.symbol}-${index}`} 
               hover
               sx={{
+                '&:hover': { backgroundColor: 'action.hover' },
                 ...(isRecentSignal(signal.date) && {
                   backgroundColor: 'rgba(59, 130, 246, 0.05)',
                   borderLeft: '4px solid #3B82F6'
@@ -341,7 +381,6 @@ function TradingSignals() {
                   {signal.date ? new Date(signal.date).toLocaleDateString() : ''}
                 </Typography>
               </TableCell>
-              {/* Add more cells here if your backend provides them */}
             </TableRow>
           ))}
         </TableBody>
@@ -362,10 +401,21 @@ function TradingSignals() {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Typography variant="h4" gutterBottom>
-        Trading Signals
-      </Typography>
+    <Container maxWidth="xl" sx={{ py: 4 }}>
+      <Box display="flex" alignItems="center" justifyContent="space-between" mb={4}>
+        <Typography variant="h4" component="h1" fontWeight="bold">
+          Trading Signals
+        </Typography>
+        <Box display="flex" gap={2}>
+          <Button
+            variant="outlined"
+            startIcon={<ShowChart />}
+            onClick={() => setShowHistoricalView(!showHistoricalView)}
+          >
+            {showHistoricalView ? 'Simple View' : 'Advanced View'}
+          </Button>
+        </Box>
+      </Box>
 
       {/* Enhanced Performance Summary */}
       <Grid container spacing={3} mb={4}>
@@ -408,16 +458,53 @@ function TradingSignals() {
         )}
       </Grid>
 
-      {/* Enhanced Filters */}
-      <Accordion sx={{ mb: 3 }}>
-        <AccordionSummary expandIcon={<ExpandMore />}>
-          <FilterList sx={{ mr: 1 }} />
-          <Typography>Filters & View Options</Typography>
-        </AccordionSummary>
-        <AccordionDetails>
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={3}>
-              <FormControl fullWidth>
+      {/* Filters and Search */}
+      <Grid container spacing={3} mb={4}>
+        <Grid item xs={12} md={3}>
+          <Card sx={{ position: 'sticky', top: 20 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                <FilterList sx={{ mr: 1 }} />
+                Filters
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+              
+              {/* Search */}
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="Search symbols..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Search />
+                    </InputAdornment>
+                  ),
+                  endAdornment: searchInput && (
+                    <InputAdornment position="end">
+                      <IconButton size="small" onClick={handleClearSearch}>
+                        <Clear />
+                      </IconButton>
+                    </InputAdornment>
+                  )
+                }}
+                sx={{ mb: 2 }}
+              />
+              
+              <Button
+                fullWidth
+                variant="contained"
+                onClick={handleSearch}
+                sx={{ mb: 3 }}
+              >
+                Search
+              </Button>
+
+              {/* Signal Type Filter */}
+              <FormControl fullWidth sx={{ mb: 2 }}>
                 <InputLabel>Signal Type</InputLabel>
                 <Select
                   value={signalType}
@@ -429,9 +516,9 @@ function TradingSignals() {
                   <MenuItem value="sell">Sell Only</MenuItem>
                 </Select>
               </FormControl>
-            </Grid>
-            <Grid item xs={12} sm={3}>
-              <FormControl fullWidth>
+
+              {/* Timeframe Filter */}
+              <FormControl fullWidth sx={{ mb: 2 }}>
                 <InputLabel>Timeframe</InputLabel>
                 <Select
                   value={timeframe}
@@ -443,8 +530,8 @@ function TradingSignals() {
                   <MenuItem value="monthly">Monthly</MenuItem>
                 </Select>
               </FormControl>
-            </Grid>
-            <Grid item xs={12} sm={3}>
+
+              {/* Toggle Switches */}
               <FormControlLabel
                 control={
                   <Switch
@@ -452,24 +539,23 @@ function TradingSignals() {
                     onChange={(e) => setShowRecentOnly(e.target.checked)}
                   />
                 }
-                label={`Recent Only (${summaryStats?.recentSignals || 0})`}
+                label="Latest Only"
+                sx={{ mb: 1 }}
               />
-            </Grid>
-            <Grid item xs={12} sm={3}>
               <FormControlLabel
                 control={
                   <Switch
                     checked={showHistoricalView}
                     onChange={(e) => setShowHistoricalView(e.target.checked)}
-                    icon={<History />}
                   />
                 }
                 label="Historical View"
               />
-            </Grid>
-          </Grid>
-        </AccordionDetails>
-      </Accordion>
+            </CardContent>
+          </Card>
+        </Grid>
+        
+        <Grid item xs={12} md={9}>
 
       {/* Error Handling */}
       {signalsError && (
@@ -480,24 +566,26 @@ function TradingSignals() {
         </Alert>
       )}
 
-      {/* Data Table */}
-      <Card>
-        <CardContent>
-          <BuySellSignalsTable />
-          <TablePagination
-            component="div"
-            count={signalsData?.pagination?.total || 0}
-            page={page}
-            onPageChange={(e, newPage) => setPage(newPage)}
-            rowsPerPage={rowsPerPage}
-            onRowsPerPageChange={(e) => {
-              setRowsPerPage(parseInt(e.target.value, 10));
-              setPage(0);
-            }}
-            rowsPerPageOptions={[10, 25, 50, 100]}
-          />
-        </CardContent>
-      </Card>
+          {/* Data Table */}
+          <Card>
+            <CardContent>
+              <BuySellSignalsTable />
+              <TablePagination
+                component="div"
+                count={signalsData?.pagination?.total || 0}
+                page={page}
+                onPageChange={(e, newPage) => setPage(newPage)}
+                rowsPerPage={rowsPerPage}
+                onRowsPerPageChange={(e) => {
+                  setRowsPerPage(parseInt(e.target.value, 10));
+                  setPage(0);
+                }}
+                rowsPerPageOptions={[10, 25, 50, 100]}
+              />
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
       {/* Historical Data Dialog */}
       <Dialog

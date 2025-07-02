@@ -59,7 +59,7 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
       return false;
     }
 
-    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(formData.email)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       setLocalError('Please enter a valid email address');
       return false;
     }

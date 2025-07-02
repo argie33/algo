@@ -80,7 +80,7 @@ router.get('/signals/:timeframe', async (req, res) => {
   });
   try {
     const { timeframe } = req.params;
-    const { limit = 100, page = 1, symbol, signal_type } = req.query;
+    const { limit = 100, page = 1, symbol, signal_type, latest_only } = req.query;
     const pageNum = Math.max(1, parseInt(page));
     const pageSize = Math.max(1, parseInt(limit));
     const offset = (pageNum - 1) * pageSize;
@@ -134,43 +134,96 @@ router.get('/signals/:timeframe', async (req, res) => {
       whereClause = 'WHERE ' + conditions.join(' AND ');
     }
 
-    // Main data query with pagination
-    const sqlQuery = `
-      SELECT 
-        bs.symbol,
-        bs.date,
-        bs.signal,
-        bs.buylevel as price,
-        bs.stoplevel,
-        bs.inposition,
-        md.current_price,
-        cp.short_name as company_name,
-        cp.sector,
-        md.market_cap,
-        km.trailing_pe,
-        km.dividend_yield,
-        CASE 
-          WHEN bs.signal = 'Buy' AND md.current_price > bs.buylevel 
-          THEN ((md.regular_market_price - bs.buylevel) / bs.buylevel * 100)
-          WHEN bs.signal = 'Sell' AND md.current_price < bs.buylevel 
-          THEN ((bs.buylevel - md.regular_market_price) / bs.buylevel * 100)
-          ELSE 0
-        END as performance_percent
-      FROM ${tableName} bs
-      LEFT JOIN market_data md ON bs.symbol = md.ticker
-      LEFT JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN key_metrics km ON bs.symbol = km.ticker
-      ${whereClause}
-      ORDER BY bs.date DESC, bs.symbol ASC
-      LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
-    `;
+    // Build the main query - handle latest_only with window function
+    let sqlQuery;
+    if (latest_only === 'true') {
+      sqlQuery = `
+        WITH ranked_signals AS (
+          SELECT 
+            bs.symbol,
+            bs.date,
+            bs.signal,
+            bs.buylevel as price,
+            bs.stoplevel,
+            bs.inposition,
+            md.current_price,
+            cp.short_name as company_name,
+            cp.sector,
+            md.market_cap,
+            km.trailing_pe,
+            km.dividend_yield,
+            CASE 
+              WHEN bs.signal = 'Buy' AND md.current_price > bs.buylevel 
+              THEN ((md.regular_market_price - bs.buylevel) / bs.buylevel * 100)
+              WHEN bs.signal = 'Sell' AND md.current_price < bs.buylevel 
+              THEN ((bs.buylevel - md.regular_market_price) / bs.buylevel * 100)
+              ELSE 0
+            END as performance_percent,
+            ROW_NUMBER() OVER (PARTITION BY bs.symbol ORDER BY bs.date DESC) as rn
+          FROM ${tableName} bs
+          LEFT JOIN market_data md ON bs.symbol = md.ticker
+          LEFT JOIN company_profile cp ON bs.symbol = cp.ticker
+          LEFT JOIN key_metrics km ON bs.symbol = km.ticker
+          ${whereClause}
+        )
+        SELECT * FROM ranked_signals 
+        WHERE rn = 1
+        ORDER BY date DESC, symbol ASC
+        LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
+      `;
+    } else {
+      sqlQuery = `
+        SELECT 
+          bs.symbol,
+          bs.date,
+          bs.signal,
+          bs.buylevel as price,
+          bs.stoplevel,
+          bs.inposition,
+          md.current_price,
+          cp.short_name as company_name,
+          cp.sector,
+          md.market_cap,
+          km.trailing_pe,
+          km.dividend_yield,
+          CASE 
+            WHEN bs.signal = 'Buy' AND md.current_price > bs.buylevel 
+            THEN ((md.regular_market_price - bs.buylevel) / bs.buylevel * 100)
+            WHEN bs.signal = 'Sell' AND md.current_price < bs.buylevel 
+            THEN ((bs.buylevel - md.regular_market_price) / bs.buylevel * 100)
+            ELSE 0
+          END as performance_percent
+        FROM ${tableName} bs
+        LEFT JOIN market_data md ON bs.symbol = md.ticker
+        LEFT JOIN company_profile cp ON bs.symbol = cp.ticker
+        LEFT JOIN key_metrics km ON bs.symbol = km.ticker
+        ${whereClause}
+        ORDER BY bs.date DESC, bs.symbol ASC
+        LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
+      `;
+    }
 
     // Count query for pagination
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM ${tableName} bs
-      ${whereClause}
-    `;
+    let countQuery;
+    if (latest_only === 'true') {
+      countQuery = `
+        WITH ranked_signals AS (
+          SELECT bs.symbol,
+            ROW_NUMBER() OVER (PARTITION BY bs.symbol ORDER BY bs.date DESC) as rn
+          FROM ${tableName} bs
+          ${whereClause}
+        )
+        SELECT COUNT(*) as total
+        FROM ranked_signals 
+        WHERE rn = 1
+      `;
+    } else {
+      countQuery = `
+        SELECT COUNT(*) as total
+        FROM ${tableName} bs
+        ${whereClause}
+      `;
+    }
 
     queryParams.push(pageSize, offset);
 

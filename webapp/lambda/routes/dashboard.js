@@ -1,5 +1,6 @@
 const express = require('express');
 const { query, initializeDatabase } = require('../utils/database');
+const { authenticateToken, optionalAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -218,9 +219,14 @@ router.get('/summary', async (req, res) => {
  * GET /api/dashboard/holdings
  * Get portfolio holdings data with more details
  */
-router.get('/holdings', async (req, res) => {
+router.get('/holdings', authenticateToken, async (req, res) => {
     try {
-        console.log('💼 Holdings request received');
+        console.log('💼 Holdings request received for user:', req.user?.sub);
+        const userId = req.user?.sub;
+
+        if (!userId) {
+            return res.status(401).json({ error: 'User authentication required' });
+        }
         
         const holdingsQuery = `
             SELECT 
@@ -236,6 +242,7 @@ router.get('/holdings', async (req, res) => {
                 updated_at
             FROM portfolio_holdings ph
             LEFT JOIN stocks s ON ph.symbol = s.symbol
+            WHERE ph.user_id = $1
             ORDER BY total_value DESC
         `;
         
@@ -248,12 +255,13 @@ router.get('/holdings', async (req, res) => {
                 AVG(gain_loss_percent) as avg_gain_loss_percent,
                 SUM(shares * current_price) as market_value
             FROM portfolio_holdings
+            WHERE user_id = $1
         `;
         
         console.log('🔍 Executing holdings queries...');
         const [holdingsResult, summaryResult] = await Promise.all([
-            query(holdingsQuery),
-            query(summaryQuery)
+            query(holdingsQuery, [userId]),
+            query(summaryQuery, [userId])
         ]);
         
         console.log(`✅ Holdings queries completed: ${holdingsResult.rowCount} holdings found`);
@@ -287,9 +295,14 @@ router.get('/holdings', async (req, res) => {
  * GET /api/dashboard/performance
  * Get portfolio performance data with charts
  */
-router.get('/performance', async (req, res) => {
+router.get('/performance', authenticateToken, async (req, res) => {
     try {
-        console.log('📈 Performance request received');
+        console.log('📈 Performance request received for user:', req.user?.sub);
+        const userId = req.user?.sub;
+
+        if (!userId) {
+            return res.status(401).json({ error: 'User authentication required' });
+        }
         
         const performanceQuery = `
             SELECT 
@@ -300,7 +313,7 @@ router.get('/performance', async (req, res) => {
                 benchmark_return,
                 excess_return
             FROM portfolio_performance 
-            WHERE date >= CURRENT_DATE - INTERVAL '90 days'
+            WHERE user_id = $1 AND date >= CURRENT_DATE - INTERVAL '90 days'
             ORDER BY date ASC
         `;
         
@@ -313,13 +326,13 @@ router.get('/performance', async (req, res) => {
                 MIN(cumulative_return) as min_return,
                 COUNT(*) as trading_days
             FROM portfolio_performance 
-            WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+            WHERE user_id = $1 AND date >= CURRENT_DATE - INTERVAL '30 days'
         `;
         
         console.log('🔍 Executing performance queries...');
         const [performanceResult, metricsResult] = await Promise.all([
-            query(performanceQuery),
-            query(metricsQuery)
+            query(performanceQuery, [userId]),
+            query(metricsQuery, [userId])
         ]);
         
         console.log(`✅ Performance queries completed: ${performanceResult.rowCount} data points`);
@@ -353,9 +366,14 @@ router.get('/performance', async (req, res) => {
  * GET /api/dashboard/alerts
  * Get trading alerts and signals with more details
  */
-router.get('/alerts', async (req, res) => {
+router.get('/alerts', authenticateToken, async (req, res) => {
     try {
-        console.log('🚨 Alerts request received');
+        console.log('🚨 Alerts request received for user:', req.user?.sub);
+        const userId = req.user?.sub;
+
+        if (!userId) {
+            return res.status(401).json({ error: 'User authentication required' });
+        }
         
         const alertsQuery = `
             SELECT 
@@ -369,7 +387,7 @@ router.get('/alerts', async (req, res) => {
                 status,
                 created_at
             FROM trading_alerts 
-            WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'
+            WHERE user_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '7 days'
             ORDER BY priority DESC, created_at DESC
             LIMIT 25
         `;
@@ -381,14 +399,14 @@ router.get('/alerts', async (req, res) => {
                 COUNT(*) as count,
                 COUNT(CASE WHEN status = 'active' THEN 1 END) as active_count
             FROM trading_alerts 
-            WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'
+            WHERE user_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '7 days'
             GROUP BY alert_type
         `;
         
         console.log('🔍 Executing alerts queries...');
         const [alertsResult, summaryResult] = await Promise.all([
-            query(alertsQuery),
-            query(alertSummaryQuery)
+            query(alertsQuery, [userId]),
+            query(alertSummaryQuery, [userId])
         ]);
         
         console.log(`✅ Alerts queries completed: ${alertsResult.rowCount} alerts found`);
