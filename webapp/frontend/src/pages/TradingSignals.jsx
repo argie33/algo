@@ -41,6 +41,7 @@ import {
 } from '@mui/material'
 import { TrendingUp, TrendingDown, Analytics, NewReleases, History, ExpandMore, FilterList, Close, Timeline, Search, Clear, ShowChart, HorizontalRule } from '@mui/icons-material'
 import { formatCurrency, formatPercentage } from '../utils/formatters'
+import { getApiConfig } from '../services/api'
 
 // Simple logger replacement to prevent build errors
 const logger = {
@@ -50,6 +51,7 @@ const logger = {
 };
 
 function TradingSignals() {
+  const { apiUrl: API_BASE } = getApiConfig();
   const [signalType, setSignalType] = useState('all');
   const [timeframe, setTimeframe] = useState('daily');
   const [page, setPage] = useState(0);
@@ -60,7 +62,6 @@ function TradingSignals() {
   const [historicalDialogOpen, setHistoricalDialogOpen] = useState(false);
   const [symbolFilter, setSymbolFilter] = useState('');
   const [searchInput, setSearchInput] = useState('');
-  const API_BASE = import.meta.env.VITE_API_URL || '';
 
   // Fetch historical data for selected symbol
   const { data: historicalData, isLoading: historicalLoading } = useQuery({
@@ -68,7 +69,7 @@ function TradingSignals() {
     queryFn: async () => {
       if (!selectedSymbol) return null;
       try {
-        const response = await fetch(`${API_BASE}/trading/signals/daily?symbol=${selectedSymbol}&limit=50`);
+        const response = await fetch(`${API_BASE}/api/trading/signals/daily?symbol=${selectedSymbol}&limit=50`);
         if (!response.ok) throw new Error('Failed to fetch historical data');
         return await response.json();
       } catch (err) {
@@ -109,7 +110,7 @@ function TradingSignals() {
             params.delete(key);
           }
         });
-        const url = `${API_BASE}/trading/signals/${timeframe}?${params}`;
+        const url = `${API_BASE}/api/trading/signals/${timeframe}?${params}`;
         logger.success('fetchTradingSignals', null, { url, signalType, timeframe });
         
         const response = await fetch(url);
@@ -145,7 +146,7 @@ function TradingSignals() {
     queryKey: ['tradingPerformance'],
     queryFn: async () => {
       try {
-        const url = `${API_BASE}/trading/performance`;
+        const url = `${API_BASE}/api/trading/performance`;
         logger.success('fetchTradingPerformance', null, { url });
         
         const response = await fetch(url);

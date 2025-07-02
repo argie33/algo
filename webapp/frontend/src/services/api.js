@@ -1802,7 +1802,7 @@ export const getDataValidationSummary = async () => {
 export const getStockPriceHistory = async (ticker, limit = 90) => {
   try {
     console.log(`BULLETPROOF: Fetching price history for ${ticker} with limit ${limit}`);
-    const response = await api.get(`/api/stocks/price-history/${ticker}?limit=${limit}`)
+    const response = await api.get(`/api/stocks/${ticker}/prices?limit=${limit}`)
     console.log(`BULLETPROOF: Price history response received for ${ticker}:`, response.data);
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true) // Expect array of price data

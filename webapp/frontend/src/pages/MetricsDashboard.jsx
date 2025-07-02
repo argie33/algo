@@ -39,8 +39,10 @@ import {
   ShowChart,
   AccountBalance
 } from '@mui/icons-material';
+import { getApiConfig } from '../services/api';
 
 const MetricsDashboard = () => {
+  const { apiUrl: API_BASE } = getApiConfig();
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -89,7 +91,7 @@ const MetricsDashboard = () => {
         sortOrder
       });
 
-      const response = await fetch(`/api/metrics?${params}`);
+      const response = await fetch(`${API_BASE}/api/metrics?${params}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -111,7 +113,7 @@ const MetricsDashboard = () => {
 
   const fetchSectorAnalysis = async () => {
     try {
-      const response = await fetch('/api/metrics/sectors/analysis');
+      const response = await fetch(`${API_BASE}/api/metrics/sectors/analysis`);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       
       const data = await response.json();
@@ -127,7 +129,7 @@ const MetricsDashboard = () => {
     try {
       const categories = ['composite', 'quality', 'value'];
       const promises = categories.map(category =>
-        fetch(`/api/metrics/top/${category}?limit=10`)
+        fetch(`${API_BASE}/api/metrics/top/${category}?limit=10`)
           .then(res => res.json())
           .then(data => ({ category, data: data.topStocks || [] }))
       );

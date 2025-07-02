@@ -1,14 +1,81 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Slider } from '@/components/ui/slider';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, Filter, Download, Save, Star, TrendingUp, TrendingDown } from 'lucide-react';
+import {
+  Box,
+  Container,
+  Typography,
+  Grid,
+  Card,
+  CardContent,
+  Tabs,
+  Tab,
+  Slider,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Button,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Chip,
+  CircularProgress,
+  Alert,
+  TextField,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Badge,
+  Tooltip,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TablePagination
+} from '@mui/material';
+import {
+  Search,
+  FilterList,
+  Download,
+  Save,
+  Star,
+  TrendingUp,
+  TrendingDown,
+  ExpandMore,
+  Refresh,
+  Analytics,
+  Assessment,
+  Clear,
+  ShowChart
+} from '@mui/icons-material';
+import { getApiConfig } from '../services/api';
+import { formatCurrency, formatPercentage, formatNumber } from '../utils/formatters';
+
+function TabPanel({ children, value, index, ...other }) {
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`screener-tabpanel-${index}`}
+      aria-labelledby={`screener-tab-${index}`}
+      {...other}
+    >
+      {value === index && (
+        <Box sx={{ py: 3 }}>
+          {children}
+        </Box>
+      )}
+    </div>
+  );
+}
 
 const AdvancedScreener = () => {
+  const { apiUrl: API_BASE } = getApiConfig();
+  
   const [screenCriteria, setScreenCriteria] = useState({
     quality: [0, 100],
     growth: [0, 100],
@@ -27,7 +94,66 @@ const AdvancedScreener = () => {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [savedScreens, setSavedScreens] = useState([]);
-  const [activeTab, setActiveTab] = useState('criteria');
+  const [activeTab, setActiveTab] = useState(0);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [screenName, setScreenName] = useState('');
+
+  // Mock data for demonstration
+  const mockResults = [
+    {
+      symbol: 'AAPL',
+      company: 'Apple Inc.',
+      scores: {
+        quality: 85,
+        growth: 75,
+        value: 60,
+        momentum: 80,
+        sentiment: 90,
+        positioning: 70,
+        composite: 77
+      },
+      price: 175.43,
+      marketCap: 2.8e12,
+      sector: 'Technology',
+      exchange: 'NASDAQ'
+    },
+    {
+      symbol: 'MSFT',
+      company: 'Microsoft Corporation',
+      scores: {
+        quality: 90,
+        growth: 80,
+        value: 65,
+        momentum: 75,
+        sentiment: 85,
+        positioning: 80,
+        composite: 79
+      },
+      price: 342.56,
+      marketCap: 2.5e12,
+      sector: 'Technology',
+      exchange: 'NASDAQ'
+    },
+    {
+      symbol: 'GOOGL',
+      company: 'Alphabet Inc.',
+      scores: {
+        quality: 88,
+        growth: 70,
+        value: 70,
+        momentum: 65,
+        sentiment: 80,
+        positioning: 75,
+        composite: 75
+      },
+      price: 138.45,
+      marketCap: 1.7e12,
+      sector: 'Technology',
+      exchange: 'NASDAQ'
+    }
+  ];
 
   useEffect(() => {
     loadSavedScreens();
@@ -35,9 +161,12 @@ const AdvancedScreener = () => {
 
   const loadSavedScreens = async () => {
     try {
-      const response = await fetch('/api/screener/saved');
-      const data = await response.json();
-      setSavedScreens(data);
+      // Mock saved screens for now
+      setSavedScreens([
+        { id: 1, name: 'High Quality Growth', criteria: screenCriteria },
+        { id: 2, name: 'Value Opportunities', criteria: { ...screenCriteria, value: [70, 100] } },
+        { id: 3, name: 'Momentum Plays', criteria: { ...screenCriteria, momentum: [80, 100] } }
+      ]);
     } catch (error) {
       console.error('Failed to load saved screens:', error);
     }
@@ -46,34 +175,41 @@ const AdvancedScreener = () => {
   const runScreen = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/screener/advanced', {
+      const response = await fetch(`${API_BASE}/api/screener/advanced`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ criteria: screenCriteria })
       });
-      const data = await response.json();
-      setResults(data.results || mockResults);
-      setActiveTab('results');
+      
+      if (response.ok) {
+        const data = await response.json();
+        setResults(data.results || mockResults);
+      } else {
+        // Use mock data if API not available
+        setResults(mockResults);
+      }
+      setActiveTab(1);
     } catch (error) {
       console.error('Failed to run screen:', error);
       setResults(mockResults);
-      setActiveTab('results');
+      setActiveTab(1);
     } finally {
       setLoading(false);
     }
   };
 
   const saveScreen = async () => {
-    const name = prompt('Enter a name for this screen:');
-    if (!name) return;
+    if (!screenName.trim()) return;
 
     try {
-      await fetch('/api/screener/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, criteria: screenCriteria })
-      });
-      loadSavedScreens();
+      const newScreen = {
+        id: Date.now(),
+        name: screenName.trim(),
+        criteria: screenCriteria
+      };
+      setSavedScreens(prev => [...prev, newScreen]);
+      setSaveDialogOpen(false);
+      setScreenName('');
     } catch (error) {
       console.error('Failed to save screen:', error);
     }
@@ -81,7 +217,7 @@ const AdvancedScreener = () => {
 
   const loadScreen = (criteria) => {
     setScreenCriteria(criteria);
-    setActiveTab('criteria');
+    setActiveTab(0);
   };
 
   const exportResults = () => {
@@ -111,416 +247,333 @@ const AdvancedScreener = () => {
   };
 
   const getScoreColor = (score) => {
-    if (score >= 80) return 'text-green-600 bg-green-50';
-    if (score >= 60) return 'text-blue-600 bg-blue-50';
-    if (score >= 40) return 'text-yellow-600 bg-yellow-50';
-    return 'text-red-600 bg-red-50';
+    if (score >= 80) return 'success';
+    if (score >= 60) return 'warning';
+    return 'error';
+  };
+
+  const getScoreIcon = (score) => {
+    if (score >= 80) return <TrendingUp />;
+    if (score >= 60) return <ShowChart />;
+    return <TrendingDown />;
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Advanced Stock Screener</h1>
-        <p className="text-gray-600">Filter stocks using institutional-grade scoring methodology</p>
-      </div>
+    <Container maxWidth="xl" sx={{ py: 3 }}>
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, display: 'flex', alignItems: 'center' }}>
+          <Analytics sx={{ mr: 2, color: 'primary.main' }} />
+          Advanced Stock Screener
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
+          Screen stocks using comprehensive scoring metrics including quality, growth, value, momentum, sentiment, and positioning.
+        </Typography>
+      </Box>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="criteria">Screen Criteria</TabsTrigger>
-          <TabsTrigger value="results">Results ({results.length})</TabsTrigger>
-          <TabsTrigger value="saved">Saved Screens</TabsTrigger>
-          <TabsTrigger value="presets">Presets</TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ mb: 3 }}>
+        <Tab label="Screening Criteria" icon={<FilterList />} />
+        <Tab label={`Results (${results.length})`} icon={<Assessment />} />
+        <Tab label="Saved Screens" icon={<Save />} />
+      </Tabs>
 
-        <TabsContent value="criteria" className="space-y-6">
-          {/* Score-Based Filters */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Filter className="w-5 h-5" />
-                <span>Scoring Criteria</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Quality Score */}
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  Quality Score: {screenCriteria.quality[0]} - {screenCriteria.quality[1]}
-                </label>
-                <Slider
-                  value={screenCriteria.quality}
-                  onValueChange={(value) => setScreenCriteria({...screenCriteria, quality: value})}
-                  max={100}
-                  step={1}
-                  className="w-full"
-                />
-                <p className="text-xs text-gray-500 mt-1">Earnings quality, balance sheet strength, profitability, management effectiveness</p>
-              </div>
+      <TabPanel value={activeTab} index={0}>
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={8}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Score Criteria
+                </Typography>
+                
+                <Grid container spacing={3}>
+                  {Object.entries(screenCriteria).filter(([key]) => 
+                    ['quality', 'growth', 'value', 'momentum', 'sentiment', 'positioning'].includes(key)
+                  ).map(([key, value]) => (
+                    <Grid item xs={12} sm={6} key={key}>
+                      <Typography variant="body2" sx={{ mb: 1, textTransform: 'capitalize' }}>
+                        {key} Score: {value[0]} - {value[1]}
+                      </Typography>
+                      <Slider
+                        value={value}
+                        onChange={(e, newValue) => setScreenCriteria(prev => ({ ...prev, [key]: newValue }))}
+                        valueLabelDisplay="auto"
+                        min={0}
+                        max={100}
+                        color="primary"
+                        sx={{ mb: 2 }}
+                      />
+                    </Grid>
+                  ))}
+                </Grid>
+              </CardContent>
+            </Card>
 
-              {/* Growth Score */}
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  Growth Score: {screenCriteria.growth[0]} - {screenCriteria.growth[1]}
-                </label>
-                <Slider
-                  value={screenCriteria.growth}
-                  onValueChange={(value) => setScreenCriteria({...screenCriteria, growth: value})}
-                  max={100}
-                  step={1}
-                  className="w-full"
-                />
-                <p className="text-xs text-gray-500 mt-1">Revenue growth, earnings growth, fundamental growth drivers</p>
-              </div>
+            <Card sx={{ mt: 3 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Financial Metrics
+                </Typography>
+                
+                <Grid container spacing={3}>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" sx={{ mb: 1 }}>
+                      Dividend Yield: {screenCriteria.dividendYield[0]}% - {screenCriteria.dividendYield[1]}%
+                    </Typography>
+                    <Slider
+                      value={screenCriteria.dividendYield}
+                      onChange={(e, newValue) => setScreenCriteria(prev => ({ ...prev, dividendYield: newValue }))}
+                      valueLabelDisplay="auto"
+                      min={0}
+                      max={20}
+                      step={0.1}
+                      color="secondary"
+                      sx={{ mb: 2 }}
+                    />
+                  </Grid>
+                  
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" sx={{ mb: 1 }}>
+                      P/E Ratio: {screenCriteria.pe[0]} - {screenCriteria.pe[1]}
+                    </Typography>
+                    <Slider
+                      value={screenCriteria.pe}
+                      onChange={(e, newValue) => setScreenCriteria(prev => ({ ...prev, pe: newValue }))}
+                      valueLabelDisplay="auto"
+                      min={0}
+                      max={50}
+                      color="secondary"
+                      sx={{ mb: 2 }}
+                    />
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+          </Grid>
 
-              {/* Value Score */}
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  Value Score: {screenCriteria.value[0]} - {screenCriteria.value[1]}
-                </label>
-                <Slider
-                  value={screenCriteria.value}
-                  onValueChange={(value) => setScreenCriteria({...screenCriteria, value: value})}
-                  max={100}
-                  step={1}
-                  className="w-full"
-                />
-                <p className="text-xs text-gray-500 mt-1">Traditional multiples, DCF analysis, relative valuation</p>
-              </div>
+          <Grid item xs={12} md={4}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Market Filters
+                </Typography>
+                
+                <FormControl fullWidth sx={{ mb: 2 }}>
+                  <InputLabel>Market Cap</InputLabel>
+                  <Select
+                    value={screenCriteria.marketCap}
+                    onChange={(e) => setScreenCriteria(prev => ({ ...prev, marketCap: e.target.value }))}
+                  >
+                    <MenuItem value="any">Any</MenuItem>
+                    <MenuItem value="large">Large Cap (>$10B)</MenuItem>
+                    <MenuItem value="mid">Mid Cap ($2B-$10B)</MenuItem>
+                    <MenuItem value="small">Small Cap (<$2B)</MenuItem>
+                  </Select>
+                </FormControl>
 
-              {/* Momentum Score */}
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  Momentum Score: {screenCriteria.momentum[0]} - {screenCriteria.momentum[1]}
-                </label>
-                <Slider
-                  value={screenCriteria.momentum}
-                  onValueChange={(value) => setScreenCriteria({...screenCriteria, momentum: value})}
-                  max={100}
-                  step={1}
-                  className="w-full"
-                />
-                <p className="text-xs text-gray-500 mt-1">Price momentum, fundamental momentum, technical indicators</p>
-              </div>
+                <FormControl fullWidth sx={{ mb: 2 }}>
+                  <InputLabel>Sector</InputLabel>
+                  <Select
+                    value={screenCriteria.sector}
+                    onChange={(e) => setScreenCriteria(prev => ({ ...prev, sector: e.target.value }))}
+                  >
+                    <MenuItem value="any">Any Sector</MenuItem>
+                    <MenuItem value="Technology">Technology</MenuItem>
+                    <MenuItem value="Healthcare">Healthcare</MenuItem>
+                    <MenuItem value="Financials">Financials</MenuItem>
+                    <MenuItem value="Consumer">Consumer</MenuItem>
+                  </Select>
+                </FormControl>
 
-              {/* Sentiment Score */}
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  Sentiment Score: {screenCriteria.sentiment[0]} - {screenCriteria.sentiment[1]}
-                </label>
-                <Slider
-                  value={screenCriteria.sentiment}
-                  onValueChange={(value) => setScreenCriteria({...screenCriteria, sentiment: value})}
-                  max={100}
-                  step={1}
-                  className="w-full"
-                />
-                <p className="text-xs text-gray-500 mt-1">Analyst sentiment, social sentiment, news sentiment</p>
-              </div>
+                <FormControl fullWidth sx={{ mb: 3 }}>
+                  <InputLabel>Exchange</InputLabel>
+                  <Select
+                    value={screenCriteria.exchange}
+                    onChange={(e) => setScreenCriteria(prev => ({ ...prev, exchange: e.target.value }))}
+                  >
+                    <MenuItem value="any">Any Exchange</MenuItem>
+                    <MenuItem value="NYSE">NYSE</MenuItem>
+                    <MenuItem value="NASDAQ">NASDAQ</MenuItem>
+                  </Select>
+                </FormControl>
 
-              {/* Positioning Score */}
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  Positioning Score: {screenCriteria.positioning[0]} - {screenCriteria.positioning[1]}
-                </label>
-                <Slider
-                  value={screenCriteria.positioning}
-                  onValueChange={(value) => setScreenCriteria({...screenCriteria, positioning: value})}
-                  max={100}
-                  step={1}
-                  className="w-full"
-                />
-                <p className="text-xs text-gray-500 mt-1">Institutional holdings, insider activity, short interest</p>
-              </div>
-            </CardContent>
-          </Card>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  fullWidth
+                  size="large"
+                  onClick={runScreen}
+                  disabled={loading}
+                  startIcon={loading ? <CircularProgress size={20} /> : <Search />}
+                  sx={{ mb: 2 }}
+                >
+                  {loading ? 'Screening...' : 'Run Screen'}
+                </Button>
 
-          {/* Traditional Filters */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Traditional Filters</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Market Cap</label>
-                <Select value={screenCriteria.marketCap} onValueChange={(value) => setScreenCriteria({...screenCriteria, marketCap: value})}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="any">Any</SelectItem>
-                    <SelectItem value="mega">Mega (&gt;$200B)</SelectItem>
-                    <SelectItem value="large">Large ($10B-$200B)</SelectItem>
-                    <SelectItem value="mid">Mid ($2B-$10B)</SelectItem>
-                    <SelectItem value="small">Small ($300M-$2B)</SelectItem>
-                    <SelectItem value="micro">Micro (&lt;$300M)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  onClick={() => setSaveDialogOpen(true)}
+                  startIcon={<Save />}
+                >
+                  Save Screen
+                </Button>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      </TabPanel>
 
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Sector</label>
-                <Select value={screenCriteria.sector} onValueChange={(value) => setScreenCriteria({...screenCriteria, sector: value})}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="any">Any Sector</SelectItem>
-                    <SelectItem value="technology">Technology</SelectItem>
-                    <SelectItem value="healthcare">Healthcare</SelectItem>
-                    <SelectItem value="financials">Financials</SelectItem>
-                    <SelectItem value="energy">Energy</SelectItem>
-                    <SelectItem value="industrials">Industrials</SelectItem>
-                    <SelectItem value="consumer_discretionary">Consumer Discretionary</SelectItem>
-                    <SelectItem value="consumer_staples">Consumer Staples</SelectItem>
-                    <SelectItem value="utilities">Utilities</SelectItem>
-                    <SelectItem value="real_estate">Real Estate</SelectItem>
-                    <SelectItem value="materials">Materials</SelectItem>
-                    <SelectItem value="communication">Communication</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Exchange</label>
-                <Select value={screenCriteria.exchange} onValueChange={(value) => setScreenCriteria({...screenCriteria, exchange: value})}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="any">Any Exchange</SelectItem>
-                    <SelectItem value="NYSE">NYSE</SelectItem>
-                    <SelectItem value="NASDAQ">NASDAQ</SelectItem>
-                    <SelectItem value="AMEX">AMEX</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Action Buttons */}
-          <div className="flex space-x-4">
-            <Button onClick={runScreen} disabled={loading} className="flex items-center space-x-2">
-              {loading ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              ) : (
-                <Search className="w-4 h-4" />
-              )}
-              <span>{loading ? 'Screening...' : 'Run Screen'}</span>
+      <TabPanel value={activeTab} index={1}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+          <Typography variant="h6">
+            Screening Results ({results.length} stocks found)
+          </Typography>
+          {results.length > 0 && (
+            <Button
+              variant="outlined"
+              startIcon={<Download />}
+              onClick={exportResults}
+            >
+              Export CSV
             </Button>
-            <Button variant="outline" onClick={saveScreen} className="flex items-center space-x-2">
-              <Save className="w-4 h-4" />
-              <span>Save Screen</span>
-            </Button>
-          </div>
-        </TabsContent>
+          )}
+        </Box>
 
-        <TabsContent value="results" className="space-y-6">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold">Screen Results ({results.length} stocks)</h3>
-            <Button variant="outline" onClick={exportResults} className="flex items-center space-x-2">
-              <Download className="w-4 h-4" />
-              <span>Export CSV</span>
-            </Button>
-          </div>
-
+        {results.length === 0 ? (
+          <Alert severity="info">
+            No results to display. Run a screen to see matching stocks.
+          </Alert>
+        ) : (
           <Card>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b">
-                    <tr>
-                      <th className="text-left p-4 font-medium text-gray-900">Stock</th>
-                      <th className="text-center p-4 font-medium text-gray-900">Quality</th>
-                      <th className="text-center p-4 font-medium text-gray-900">Growth</th>
-                      <th className="text-center p-4 font-medium text-gray-900">Value</th>
-                      <th className="text-center p-4 font-medium text-gray-900">Momentum</th>
-                      <th className="text-center p-4 font-medium text-gray-900">Sentiment</th>
-                      <th className="text-center p-4 font-medium text-gray-900">Positioning</th>
-                      <th className="text-center p-4 font-medium text-gray-900">Composite</th>
-                      <th className="text-right p-4 font-medium text-gray-900">Price</th>
-                      <th className="text-right p-4 font-medium text-gray-900">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {results.map((stock, index) => (
-                      <tr key={index} className="border-b hover:bg-gray-50">
-                        <td className="p-4">
-                          <div>
-                            <div className="font-medium text-gray-900">{stock.symbol}</div>
-                            <div className="text-sm text-gray-500">{stock.company}</div>
-                            <div className="text-xs text-gray-400">{stock.sector}</div>
-                          </div>
-                        </td>
-                        <td className="text-center p-4">
-                          <Badge className={getScoreColor(stock.scores.quality)}>
-                            {stock.scores.quality}
-                          </Badge>
-                        </td>
-                        <td className="text-center p-4">
-                          <Badge className={getScoreColor(stock.scores.growth)}>
-                            {stock.scores.growth}
-                          </Badge>
-                        </td>
-                        <td className="text-center p-4">
-                          <Badge className={getScoreColor(stock.scores.value)}>
-                            {stock.scores.value}
-                          </Badge>
-                        </td>
-                        <td className="text-center p-4">
-                          <Badge className={getScoreColor(stock.scores.momentum)}>
-                            {stock.scores.momentum}
-                          </Badge>
-                        </td>
-                        <td className="text-center p-4">
-                          <Badge className={getScoreColor(stock.scores.sentiment)}>
-                            {stock.scores.sentiment}
-                          </Badge>
-                        </td>
-                        <td className="text-center p-4">
-                          <Badge className={getScoreColor(stock.scores.positioning)}>
-                            {stock.scores.positioning}
-                          </Badge>
-                        </td>
-                        <td className="text-center p-4">
-                          <Badge className={`${getScoreColor(stock.scores.composite)} font-bold`}>
-                            {stock.scores.composite}
-                          </Badge>
-                        </td>
-                        <td className="text-right p-4">
-                          <div className="font-medium">${stock.price}</div>
-                          <div className={`text-sm flex items-center justify-end ${stock.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {stock.change >= 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
-                            {stock.change >= 0 ? '+' : ''}{stock.change}%
-                          </div>
-                        </td>
-                        <td className="text-right p-4">
-                          <Button variant="outline" size="sm" className="flex items-center space-x-1">
-                            <Star className="w-3 h-3" />
-                            <span>Watch</span>
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Symbol</TableCell>
+                    <TableCell>Company</TableCell>
+                    <TableCell align="center">Quality</TableCell>
+                    <TableCell align="center">Growth</TableCell>
+                    <TableCell align="center">Value</TableCell>
+                    <TableCell align="center">Momentum</TableCell>
+                    <TableCell align="center">Sentiment</TableCell>
+                    <TableCell align="center">Composite</TableCell>
+                    <TableCell align="right">Price</TableCell>
+                    <TableCell align="right">Market Cap</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {results
+                    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                    .map((stock) => (
+                    <TableRow key={stock.symbol} hover>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight="bold">
+                          {stock.symbol}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">
+                          {stock.company}
+                        </Typography>
+                      </TableCell>
+                      {['quality', 'growth', 'value', 'momentum', 'sentiment'].map((metric) => (
+                        <TableCell key={metric} align="center">
+                          <Chip
+                            label={stock.scores[metric]}
+                            color={getScoreColor(stock.scores[metric])}
+                            size="small"
+                            icon={getScoreIcon(stock.scores[metric])}
+                          />
+                        </TableCell>
+                      ))}
+                      <TableCell align="center">
+                        <Chip
+                          label={stock.scores.composite}
+                          color={getScoreColor(stock.scores.composite)}
+                          variant="filled"
+                        />
+                      </TableCell>
+                      <TableCell align="right">
+                        {formatCurrency(stock.price)}
+                      </TableCell>
+                      <TableCell align="right">
+                        {formatCurrency(stock.marketCap, 0)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            <TablePagination
+              component="div"
+              count={results.length}
+              page={page}
+              onPageChange={(e, newPage) => setPage(newPage)}
+              rowsPerPage={rowsPerPage}
+              onRowsPerPageChange={(e) => {
+                setRowsPerPage(parseInt(e.target.value));
+                setPage(0);
+              }}
+            />
           </Card>
-        </TabsContent>
+        )}
+      </TabPanel>
 
-        <TabsContent value="saved" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Saved Screens</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {savedScreens.map((screen, index) => (
-                  <div key={index} className="p-4 border rounded-lg hover:bg-gray-50 cursor-pointer"
-                       onClick={() => loadScreen(screen.criteria)}>
-                    <h4 className="font-medium text-gray-900">{screen.name}</h4>
-                    <p className="text-sm text-gray-600 mt-1">{screen.description}</p>
-                    <p className="text-xs text-gray-500 mt-2">Last run: {screen.lastRun}</p>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="presets" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {presetScreens.map((preset, index) => (
-              <Card key={index} className="cursor-pointer hover:shadow-md transition-shadow"
-                    onClick={() => loadScreen(preset.criteria)}>
-                <CardHeader>
-                  <CardTitle className="text-lg">{preset.name}</CardTitle>
-                </CardHeader>
+      <TabPanel value={activeTab} index={2}>
+        <Typography variant="h6" gutterBottom>
+          Saved Screening Strategies
+        </Typography>
+        
+        <Grid container spacing={2}>
+          {savedScreens.map((screen) => (
+            <Grid item xs={12} sm={6} md={4} key={screen.id}>
+              <Card>
                 <CardContent>
-                  <p className="text-sm text-gray-600 mb-4">{preset.description}</p>
-                  <div className="space-y-2">
-                    {Object.entries(preset.highlights).map(([key, value]) => (
-                      <div key={key} className="flex justify-between text-sm">
-                        <span className="text-gray-600 capitalize">{key}:</span>
-                        <span className="font-medium">{value}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <Typography variant="h6" gutterBottom>
+                    {screen.name}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Quality: {screen.criteria.quality[0]}-{screen.criteria.quality[1]}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Growth: {screen.criteria.growth[0]}-{screen.criteria.growth[1]}
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => loadScreen(screen.criteria)}
+                    sx={{ mt: 1 }}
+                  >
+                    Load Screen
+                  </Button>
                 </CardContent>
               </Card>
-            ))}
-          </div>
-        </TabsContent>
-      </Tabs>
-    </div>
+            </Grid>
+          ))}
+        </Grid>
+      </TabPanel>
+
+      {/* Save Screen Dialog */}
+      <Dialog open={saveDialogOpen} onClose={() => setSaveDialogOpen(false)}>
+        <DialogTitle>Save Screening Strategy</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Screen Name"
+            fullWidth
+            variant="outlined"
+            value={screenName}
+            onChange={(e) => setScreenName(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSaveDialogOpen(false)}>Cancel</Button>
+          <Button onClick={saveScreen} variant="contained">Save</Button>
+        </DialogActions>
+      </Dialog>
+    </Container>
   );
 };
-
-// Mock data for development
-const mockResults = [
-  {
-    symbol: 'AAPL',
-    company: 'Apple Inc.',
-    sector: 'Technology',
-    scores: { quality: 92, growth: 78, value: 65, momentum: 84, sentiment: 88, positioning: 91, composite: 83 },
-    price: 185.25,
-    change: 2.4
-  },
-  {
-    symbol: 'MSFT',
-    company: 'Microsoft Corporation',
-    sector: 'Technology',
-    scores: { quality: 89, growth: 82, value: 72, momentum: 76, sentiment: 85, positioning: 88, composite: 82 },
-    price: 378.50,
-    change: 1.8
-  },
-  {
-    symbol: 'GOOGL',
-    company: 'Alphabet Inc.',
-    sector: 'Technology',
-    scores: { quality: 87, growth: 85, value: 78, momentum: 71, sentiment: 79, positioning: 84, composite: 81 },
-    price: 142.75,
-    change: -0.5
-  }
-];
-
-const presetScreens = [
-  {
-    name: 'Quality Value',
-    description: 'High-quality companies trading at attractive valuations',
-    criteria: { quality: [80, 100], value: [70, 100], growth: [0, 100], momentum: [0, 100], sentiment: [0, 100], positioning: [0, 100] },
-    highlights: { 'Quality Score': '80+', 'Value Score': '70+', 'Focus': 'Buffett-style investing' }
-  },
-  {
-    name: 'Growth Momentum',
-    description: 'Fast-growing companies with strong price momentum',
-    criteria: { growth: [80, 100], momentum: [70, 100], quality: [0, 100], value: [0, 100], sentiment: [0, 100], positioning: [0, 100] },
-    highlights: { 'Growth Score': '80+', 'Momentum Score': '70+', 'Focus': 'Growth investing' }
-  },
-  {
-    name: 'Sentiment Leaders',
-    description: 'Stocks with excellent sentiment and institutional backing',
-    criteria: { sentiment: [80, 100], positioning: [70, 100], quality: [0, 100], growth: [0, 100], value: [0, 100], momentum: [0, 100] },
-    highlights: { 'Sentiment Score': '80+', 'Positioning Score': '70+', 'Focus': 'Smart money following' }
-  },
-  {
-    name: 'All-Around Champions',
-    description: 'Stocks scoring well across all categories',
-    criteria: { quality: [70, 100], growth: [70, 100], value: [70, 100], momentum: [70, 100], sentiment: [70, 100], positioning: [70, 100] },
-    highlights: { 'All Scores': '70+', 'Focus': 'Balanced excellence' }
-  },
-  {
-    name: 'Value Contrarian',
-    description: 'Undervalued stocks with improving sentiment',
-    criteria: { value: [80, 100], sentiment: [60, 100], quality: [50, 100], growth: [0, 100], momentum: [0, 100], positioning: [0, 100] },
-    highlights: { 'Value Score': '80+', 'Improving Sentiment': '60+', 'Focus': 'Contrarian value' }
-  },
-  {
-    name: 'Technical Breakouts',
-    description: 'Stocks with strong technical momentum and quality fundamentals',
-    criteria: { momentum: [80, 100], quality: [60, 100], growth: [0, 100], value: [0, 100], sentiment: [0, 100], positioning: [0, 100] },
-    highlights: { 'Momentum Score': '80+', 'Quality Score': '60+', 'Focus': 'Technical analysis' }
-  }
-];
 
 export default AdvancedScreener;
