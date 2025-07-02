@@ -420,7 +420,7 @@ const mockSentimentData = {
         timestamp: '3 hours ago'
       }
     ]
-  }
+  },
   distribution: [
     { sentiment: 'Bullish', percentage: 45 },
     { sentiment: 'Neutral', percentage: 35 },
