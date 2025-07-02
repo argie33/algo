@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
+import ErrorBoundary from './components/ErrorBoundary'
 import { 
   AppBar, 
   Box, 
@@ -76,42 +77,6 @@ const menuItems = [
   { text: 'Service Health', icon: <HealthAndSafetyIcon />, path: '/service-health' },
 ]
 
-// Global error boundary to catch and show errors
-class GlobalErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props)
-    this.state = { hasError: false, error: null }
-  }
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error }
-  }
-  componentDidCatch(error, errorInfo) {
-    // You can log errorInfo to a service here
-    // eslint-disable-next-line no-console
-    console.error('Global error boundary caught:', error, errorInfo)
-  }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <Box sx={{ p: 3 }}>
-          <Alert severity="error" sx={{ mb: 2 }}>
-            <Typography variant="h6">Application Error</Typography>
-            <Typography variant="body2">
-              The application encountered an error. Please refresh the page or contact support.
-            </Typography>
-            <details style={{ marginTop: '10px' }}>
-              <summary>Error Details</summary>
-              <pre style={{ fontSize: '12px', overflow: 'auto' }}>
-                {this.state.error ? this.state.error.toString() : 'Unknown error'}
-              </pre>
-            </details>
-          </Alert>
-        </Box>
-      )
-    }
-    return this.props.children
-  }
-}
 
 function App() {
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -184,7 +149,7 @@ function App() {
   )
 
   return (
-    <GlobalErrorBoundary>
+    <ErrorBoundary>
       <Box sx={{ display: 'flex' }}>
         <AppBar
           position="fixed"
@@ -327,7 +292,7 @@ function App() {
           onClose={() => setAuthModalOpen(false)}
         />
       </Box>
-    </GlobalErrorBoundary>
+    </ErrorBoundary>
   )
 }
 

@@ -556,4 +556,384 @@ router.get('/db-test', async (req, res) => {
   }
 });
 
+// Update health status for all tables - comprehensive monitoring
+router.post('/update-status', async (req, res) => {
+  console.log('Received request for /health/update-status');
+  try {
+    // Ensure database pool is initialized
+    try {
+      getPool();
+    } catch (initError) {
+      console.log('Health update: DB not initialized, initializing now...');
+      try {
+        await initializeDatabase();
+      } catch (dbInitError) {
+        console.error('Health update: Failed to initialize database:', dbInitError.message);
+        return res.status(503).json({
+          status: 'error',
+          message: 'Failed to initialize database connection',
+          error: dbInitError.message,
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+
+    // Check if health_status table exists, create if not
+    try {
+      await query('SELECT 1 FROM health_status LIMIT 1');
+    } catch (tableError) {
+      console.log('Health_status table does not exist, creating it...');
+      try {
+        // Create the health_status table with all 52 tables
+        await query(`
+          CREATE TABLE IF NOT EXISTS health_status (
+            table_name VARCHAR(255) PRIMARY KEY,
+            status VARCHAR(50) NOT NULL DEFAULT 'unknown',
+            record_count BIGINT DEFAULT 0,
+            missing_data_count BIGINT DEFAULT 0,
+            last_updated TIMESTAMP WITH TIME ZONE,
+            last_checked TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            is_stale BOOLEAN DEFAULT FALSE,
+            error TEXT,
+            table_category VARCHAR(100),
+            critical_table BOOLEAN DEFAULT FALSE,
+            expected_update_frequency INTERVAL DEFAULT '1 day',
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+
+        // Insert all monitored tables
+        const monitoredTables = [
+          // Core Tables (Stock Symbol Management)
+          { name: 'stock_symbols', category: 'symbols', critical: true, frequency: '1 week' },
+          { name: 'etf_symbols', category: 'symbols', critical: true, frequency: '1 week' },
+          { name: 'last_updated', category: 'tracking', critical: true, frequency: '1 hour' },
+          
+          // Price & Market Data Tables
+          { name: 'price_daily', category: 'prices', critical: true, frequency: '1 day' },
+          { name: 'price_weekly', category: 'prices', critical: true, frequency: '1 week' },
+          { name: 'price_monthly', category: 'prices', critical: true, frequency: '1 month' },
+          { name: 'etf_price_daily', category: 'prices', critical: true, frequency: '1 day' },
+          { name: 'etf_price_weekly', category: 'prices', critical: true, frequency: '1 week' },
+          { name: 'etf_price_monthly', category: 'prices', critical: true, frequency: '1 month' },
+          { name: 'latest_price_daily', category: 'prices', critical: true, frequency: '1 day' },
+          { name: 'latest_price_weekly', category: 'prices', critical: true, frequency: '1 week' },
+          { name: 'latest_price_monthly', category: 'prices', critical: true, frequency: '1 month' },
+          
+          // Technical Analysis Tables
+          { name: 'technicals_daily', category: 'technicals', critical: true, frequency: '1 day' },
+          { name: 'technicals_weekly', category: 'technicals', critical: true, frequency: '1 week' },
+          { name: 'technicals_monthly', category: 'technicals', critical: true, frequency: '1 month' },
+          { name: 'latest_technicals_daily', category: 'technicals', critical: true, frequency: '1 day' },
+          { name: 'latest_technicals_weekly', category: 'technicals', critical: true, frequency: '1 week' },
+          { name: 'latest_technicals_monthly', category: 'technicals', critical: true, frequency: '1 month' },
+          { name: 'technical_data_daily', category: 'technicals', critical: true, frequency: '1 day' },
+          
+          // Financial Statement Tables (Annual)
+          { name: 'annual_balance_sheet', category: 'financials', critical: false, frequency: '3 months' },
+          { name: 'annual_income_statement', category: 'financials', critical: false, frequency: '3 months' },
+          { name: 'annual_cashflow', category: 'financials', critical: false, frequency: '3 months' },
+          
+          // Financial Statement Tables (Quarterly)
+          { name: 'quarterly_balance_sheet', category: 'financials', critical: true, frequency: '3 months' },
+          { name: 'quarterly_income_statement', category: 'financials', critical: true, frequency: '3 months' },
+          { name: 'quarterly_cashflow', category: 'financials', critical: true, frequency: '3 months' },
+          
+          // Financial Statement Tables (TTM)
+          { name: 'ttm_income_statement', category: 'financials', critical: false, frequency: '3 months' },
+          { name: 'ttm_cashflow', category: 'financials', critical: false, frequency: '3 months' },
+          
+          // Company Information Tables
+          { name: 'company_profile', category: 'company', critical: true, frequency: '1 week' },
+          { name: 'market_data', category: 'company', critical: true, frequency: '1 day' },
+          { name: 'key_metrics', category: 'company', critical: true, frequency: '1 day' },
+          { name: 'analyst_estimates', category: 'company', critical: false, frequency: '1 week' },
+          { name: 'governance_scores', category: 'company', critical: false, frequency: '1 month' },
+          { name: 'leadership_team', category: 'company', critical: false, frequency: '1 month' },
+          
+          // Earnings & Calendar Tables
+          { name: 'earnings_history', category: 'earnings', critical: false, frequency: '1 day' },
+          { name: 'earnings_estimate', category: 'earnings', critical: true, frequency: '1 day' },
+          { name: 'revenue_estimate', category: 'earnings', critical: false, frequency: '1 day' },
+          { name: 'calendar_events', category: 'earnings', critical: true, frequency: '1 day' },
+          
+          // Market Sentiment & Economic Tables
+          { name: 'fear_greed_index', category: 'sentiment', critical: true, frequency: '1 day' },
+          { name: 'aaii_sentiment', category: 'sentiment', critical: false, frequency: '1 week' },
+          { name: 'naaim', category: 'sentiment', critical: false, frequency: '1 week' },
+          { name: 'economic_data', category: 'sentiment', critical: false, frequency: '1 day' },
+          { name: 'analyst_upgrade_downgrade', category: 'sentiment', critical: false, frequency: '1 day' },
+          
+          // Trading & Portfolio Tables
+          { name: 'portfolio_holdings', category: 'trading', critical: false, frequency: '1 hour' },
+          { name: 'portfolio_performance', category: 'trading', critical: false, frequency: '1 hour' },
+          { name: 'trading_alerts', category: 'trading', critical: false, frequency: '1 hour' },
+          { name: 'buy_sell_daily', category: 'trading', critical: true, frequency: '1 day' },
+          { name: 'buy_sell_weekly', category: 'trading', critical: true, frequency: '1 week' },
+          { name: 'buy_sell_monthly', category: 'trading', critical: true, frequency: '1 month' },
+          
+          // News & Additional Data
+          { name: 'news', category: 'other', critical: false, frequency: '1 hour' },
+          { name: 'stocks', category: 'other', critical: false, frequency: '1 day' },
+          
+          // Test Tables
+          { name: 'earnings', category: 'test', critical: false, frequency: '1 day' },
+          { name: 'prices', category: 'test', critical: false, frequency: '1 day' }
+        ];
+
+        for (const table of monitoredTables) {
+          await query(`
+            INSERT INTO health_status (table_name, table_category, critical_table, expected_update_frequency)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (table_name) DO NOTHING
+          `, [table.name, table.category, table.critical, table.frequency]);
+        }
+
+        console.log(`Health_status table created and populated with ${monitoredTables.length} tables`);
+      } catch (createError) {
+        console.error('Failed to create health_status table:', createError.message);
+        return res.status(500).json({
+          status: 'error',
+          message: 'Failed to create health_status table',
+          error: createError.message,
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+
+    // Perform comprehensive health check for all tables
+    const startTime = Date.now();
+    const healthResults = [];
+    let summary = {
+      total_tables: 0,
+      healthy_tables: 0,
+      stale_tables: 0,
+      empty_tables: 0,
+      error_tables: 0,
+      missing_tables: 0,
+      total_records: 0,
+      total_missing_data: 0
+    };
+
+    try {
+      // Get list of tables to check
+      const tablesToCheck = await query('SELECT table_name, expected_update_frequency FROM health_status');
+      summary.total_tables = tablesToCheck.rowCount;
+
+      for (const tableRow of tablesToCheck.rows) {
+        const tableName = tableRow.table_name;
+        let tableStatus = 'unknown';
+        let recordCount = 0;
+        let lastUpdated = null;
+        let errorMsg = null;
+        let isStale = false;
+
+        try {
+          // Check if table exists and get record count
+          const countResult = await query(`
+            SELECT COUNT(*) as count FROM information_schema.tables 
+            WHERE table_name = $1 AND table_schema = 'public'
+          `, [tableName]);
+
+          if (countResult.rows[0].count === '0') {
+            tableStatus = 'missing';
+            summary.missing_tables++;
+          } else {
+            try {
+              // Get record count
+              const recordResult = await query(`SELECT COUNT(*) as count FROM "${tableName}"`);
+              recordCount = parseInt(recordResult.rows[0].count);
+              summary.total_records += recordCount;
+
+              if (recordCount === 0) {
+                tableStatus = 'empty';
+                summary.empty_tables++;
+              } else {
+                // Try to get last updated timestamp
+                const timestampColumns = ['fetched_at', 'updated_at', 'created_at', 'date', 'period_end', 'timestamp'];
+                let foundTimestamp = false;
+
+                for (const col of timestampColumns) {
+                  try {
+                    const colCheck = await query(`
+                      SELECT column_name FROM information_schema.columns 
+                      WHERE table_name = $1 AND column_name = $2
+                    `, [tableName, col]);
+
+                    if (colCheck.rowCount > 0) {
+                      const tsResult = await query(`SELECT MAX("${col}") as last_update FROM "${tableName}"`);
+                      if (tsResult.rows[0].last_update) {
+                        lastUpdated = tsResult.rows[0].last_update;
+                        foundTimestamp = true;
+                        break;
+                      }
+                    }
+                  } catch (tsError) {
+                    // Continue to next column
+                  }
+                }
+
+                // Determine if stale based on expected frequency
+                if (lastUpdated && tableRow.expected_update_frequency) {
+                  const expectedInterval = tableRow.expected_update_frequency;
+                  const staleThreshold = new Date();
+                  
+                  // Simple stale check - if last update is older than 2x expected frequency
+                  const hoursSinceUpdate = (new Date() - new Date(lastUpdated)) / (1000 * 60 * 60);
+                  const expectedHours = expectedInterval.includes('hour') ? 2 : 
+                                       expectedInterval.includes('day') ? 48 : 
+                                       expectedInterval.includes('week') ? 336 : 
+                                       expectedInterval.includes('month') ? 1440 : 48;
+
+                  if (hoursSinceUpdate > expectedHours) {
+                    tableStatus = 'stale';
+                    isStale = true;
+                    summary.stale_tables++;
+                  } else {
+                    tableStatus = 'healthy';
+                    summary.healthy_tables++;
+                  }
+                } else {
+                  tableStatus = 'healthy';
+                  summary.healthy_tables++;
+                }
+              }
+            } catch (recordError) {
+              tableStatus = 'error';
+              errorMsg = recordError.message;
+              summary.error_tables++;
+            }
+          }
+        } catch (checkError) {
+          tableStatus = 'error';
+          errorMsg = checkError.message;
+          summary.error_tables++;
+        }
+
+        // Update health status for this table
+        try {
+          await query(`
+            INSERT INTO health_status (
+              table_name, status, record_count, missing_data_count, 
+              last_updated, last_checked, is_stale, error
+            ) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6, $7)
+            ON CONFLICT (table_name) DO UPDATE SET
+              status = EXCLUDED.status,
+              record_count = EXCLUDED.record_count,
+              missing_data_count = EXCLUDED.missing_data_count,
+              last_updated = EXCLUDED.last_updated,
+              last_checked = EXCLUDED.last_checked,
+              is_stale = EXCLUDED.is_stale,
+              error = EXCLUDED.error,
+              updated_at = CURRENT_TIMESTAMP
+          `, [tableName, tableStatus, recordCount, 0, lastUpdated, isStale, errorMsg]);
+        } catch (updateError) {
+          console.error(`Failed to update health status for table ${tableName}:`, updateError.message);
+        }
+
+        healthResults.push({
+          table_name: tableName,
+          status: tableStatus,
+          record_count: recordCount,
+          last_updated: lastUpdated,
+          error: errorMsg
+        });
+      }
+    } catch (overallError) {
+      console.error('Error during comprehensive health check:', overallError.message);
+      return res.status(500).json({
+        status: 'error',
+        message: 'Failed to perform comprehensive health check',
+        error: overallError.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const duration = Date.now() - startTime;
+
+    return res.json({
+      status: 'success',
+      message: 'Health status updated successfully',
+      timestamp: new Date().toISOString(),
+      duration_ms: duration,
+      summary: summary,
+      tables_checked: summary.total_tables,
+      results: healthResults
+    });
+
+  } catch (error) {
+    console.error('Error in health status update:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Health status update failed',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Get health status summary
+router.get('/status-summary', async (req, res) => {
+  try {
+    // Ensure database is initialized
+    try {
+      getPool();
+    } catch (initError) {
+      await initializeDatabase();
+    }
+
+    // Get summary statistics
+    const summaryResult = await query(`
+      SELECT 
+        table_category,
+        COUNT(*) as total_tables,
+        COUNT(CASE WHEN status = 'healthy' THEN 1 END) as healthy_tables,
+        COUNT(CASE WHEN status = 'stale' THEN 1 END) as stale_tables,
+        COUNT(CASE WHEN status = 'empty' THEN 1 END) as empty_tables,
+        COUNT(CASE WHEN status = 'error' THEN 1 END) as error_tables,
+        COUNT(CASE WHEN status = 'missing' THEN 1 END) as missing_tables,
+        COUNT(CASE WHEN critical_table = true THEN 1 END) as critical_tables,
+        SUM(record_count) as total_records,
+        SUM(missing_data_count) as total_missing_data,
+        MAX(last_updated) as latest_update,
+        MIN(last_updated) as oldest_update
+      FROM health_status
+      GROUP BY table_category
+      ORDER BY table_category
+    `);
+
+    const overallSummary = await query(`
+      SELECT 
+        COUNT(*) as total_tables,
+        COUNT(CASE WHEN status = 'healthy' THEN 1 END) as healthy_tables,
+        COUNT(CASE WHEN status = 'stale' THEN 1 END) as stale_tables,
+        COUNT(CASE WHEN status = 'empty' THEN 1 END) as empty_tables,
+        COUNT(CASE WHEN status = 'error' THEN 1 END) as error_tables,
+        COUNT(CASE WHEN status = 'missing' THEN 1 END) as missing_tables,
+        COUNT(CASE WHEN critical_table = true THEN 1 END) as critical_tables,
+        SUM(record_count) as total_records,
+        SUM(missing_data_count) as total_missing_data,
+        MAX(last_checked) as last_health_check
+      FROM health_status
+    `);
+
+    res.json({
+      status: 'success',
+      timestamp: new Date().toISOString(),
+      overall: overallSummary.rows[0],
+      by_category: summaryResult.rows
+    });
+
+  } catch (error) {
+    console.error('Error getting health status summary:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to get health status summary',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 module.exports = router;

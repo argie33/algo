@@ -485,6 +485,234 @@ export const getEconomicIndicators = async (days = 90) => {
   }
 }
 
+export const getSeasonalityData = async () => {
+  console.log('📅 [API] Fetching seasonality data...');
+  
+  try {
+    // Try multiple endpoint variations
+    const endpoints = ['/market/seasonality', '/api/market/seasonality'];
+    
+    let response = null;
+    let lastError = null;
+    
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`📅 [API] Trying seasonality endpoint: ${endpoint}`);
+        response = await api.get(endpoint);
+        console.log(`📅 [API] SUCCESS with seasonality endpoint: ${endpoint}`, response);
+        break;
+      } catch (err) {
+        console.log(`📅 [API] FAILED seasonality endpoint: ${endpoint}`, err.message);
+        lastError = err;
+        continue;
+      }
+    }
+    
+    if (!response) {
+      console.error('📅 [API] All seasonality endpoints failed:', lastError);
+      throw lastError;
+    }
+    
+    // Always return { data: ... } structure for consistency
+    if (response.data && typeof response.data === 'object') {
+      console.log('📅 [API] Returning seasonality data structure:', response.data);
+      return response.data; // Backend already returns { data: ..., success: ... }
+    }
+    
+    // Fallback to normalized response
+    const result = normalizeApiResponse(response, true);
+    console.log('📅 [API] Seasonality fallback normalized result:', result);
+    return { data: result };
+    
+  } catch (error) {
+    console.error('❌ [API] Seasonality error details:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    });
+    const errorMessage = handleApiError(error, 'get seasonality data')
+    return { 
+      data: null, 
+      error: errorMessage,
+      timestamp: new Date().toISOString()
+    }
+  }
+}
+
+export const getMarketResearchIndicators = async () => {
+  console.log('🔬 [API] Fetching market research indicators...');
+  
+  try {
+    // Try multiple endpoint variations
+    const endpoints = ['/market/research-indicators', '/api/market/research-indicators'];
+    
+    let response = null;
+    let lastError = null;
+    
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`🔬 [API] Trying research indicators endpoint: ${endpoint}`);
+        response = await api.get(endpoint);
+        console.log(`🔬 [API] SUCCESS with research indicators endpoint: ${endpoint}`, response);
+        break;
+      } catch (err) {
+        console.log(`🔬 [API] FAILED research indicators endpoint: ${endpoint}`, err.message);
+        lastError = err;
+        continue;
+      }
+    }
+    
+    if (!response) {
+      console.error('🔬 [API] All research indicators endpoints failed:', lastError);
+      throw lastError;
+    }
+    
+    // Always return { data: ... } structure for consistency
+    if (response.data && typeof response.data === 'object') {
+      console.log('🔬 [API] Returning research indicators data structure:', response.data);
+      return response.data; // Backend already returns { data: ..., success: ... }
+    }
+    
+    // Fallback to normalized response
+    const result = normalizeApiResponse(response, true);
+    console.log('🔬 [API] Research indicators fallback normalized result:', result);
+    return { data: result };
+    
+  } catch (error) {
+    console.error('❌ [API] Research indicators error details:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    });
+    const errorMessage = handleApiError(error, 'get market research indicators')
+    return { 
+      data: null, 
+      error: errorMessage,
+      timestamp: new Date().toISOString()
+    }
+  }
+}
+
+export const getPortfolioAnalytics = async (userId, timeframe = '1y') => {
+  console.log('📈 [API] Fetching portfolio analytics...');
+  
+  try {
+    const endpoints = [`/portfolio/analytics/${userId}?timeframe=${timeframe}`, `/api/portfolio/analytics/${userId}?timeframe=${timeframe}`];
+    
+    let response = null;
+    let lastError = null;
+    
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`📈 [API] Trying portfolio analytics endpoint: ${endpoint}`);
+        response = await api.get(endpoint);
+        console.log(`📈 [API] SUCCESS with portfolio analytics endpoint: ${endpoint}`, response);
+        break;
+      } catch (err) {
+        console.log(`📈 [API] FAILED portfolio analytics endpoint: ${endpoint}`, err.message);
+        lastError = err;
+        continue;
+      }
+    }
+    
+    if (!response) {
+      console.error('📈 [API] All portfolio analytics endpoints failed:', lastError);
+      throw lastError;
+    }
+    
+    return response.data;
+    
+  } catch (error) {
+    console.error('❌ [API] Portfolio analytics error details:', error);
+    const errorMessage = handleApiError(error, 'get portfolio analytics')
+    return { 
+      data: null, 
+      error: errorMessage,
+      timestamp: new Date().toISOString()
+    }
+  }
+}
+
+export const getPortfolioRiskAnalysis = async (userId) => {
+  console.log('⚠️ [API] Fetching portfolio risk analysis...');
+  
+  try {
+    const endpoints = [`/portfolio/risk-analysis/${userId}`, `/api/portfolio/risk-analysis/${userId}`];
+    
+    let response = null;
+    let lastError = null;
+    
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`⚠️ [API] Trying portfolio risk analysis endpoint: ${endpoint}`);
+        response = await api.get(endpoint);
+        console.log(`⚠️ [API] SUCCESS with portfolio risk analysis endpoint: ${endpoint}`, response);
+        break;
+      } catch (err) {
+        console.log(`⚠️ [API] FAILED portfolio risk analysis endpoint: ${endpoint}`, err.message);
+        lastError = err;
+        continue;
+      }
+    }
+    
+    if (!response) {
+      console.error('⚠️ [API] All portfolio risk analysis endpoints failed:', lastError);
+      throw lastError;
+    }
+    
+    return response.data;
+    
+  } catch (error) {
+    console.error('❌ [API] Portfolio risk analysis error details:', error);
+    const errorMessage = handleApiError(error, 'get portfolio risk analysis')
+    return { 
+      data: null, 
+      error: errorMessage,
+      timestamp: new Date().toISOString()
+    }
+  }
+}
+
+export const getPortfolioOptimization = async (userId) => {
+  console.log('🎯 [API] Fetching portfolio optimization...');
+  
+  try {
+    const endpoints = [`/portfolio/optimization/${userId}`, `/api/portfolio/optimization/${userId}`];
+    
+    let response = null;
+    let lastError = null;
+    
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`🎯 [API] Trying portfolio optimization endpoint: ${endpoint}`);
+        response = await api.get(endpoint);
+        console.log(`🎯 [API] SUCCESS with portfolio optimization endpoint: ${endpoint}`, response);
+        break;
+      } catch (err) {
+        console.log(`🎯 [API] FAILED portfolio optimization endpoint: ${endpoint}`, err.message);
+        lastError = err;
+        continue;
+      }
+    }
+    
+    if (!response) {
+      console.error('🎯 [API] All portfolio optimization endpoints failed:', lastError);
+      throw lastError;
+    }
+    
+    return response.data;
+    
+  } catch (error) {
+    console.error('❌ [API] Portfolio optimization error details:', error);
+    const errorMessage = handleApiError(error, 'get portfolio optimization')
+    return { 
+      data: null, 
+      error: errorMessage,
+      timestamp: new Date().toISOString()
+    }
+  }
+}
+
 // Stocks - Updated to use optimized endpoints
 export const getStocks = async (params = {}) => {
   console.log('🚀 getStocks: Starting API call with params:', params);
@@ -2229,6 +2457,11 @@ export default {
   getMarketSectorPerformance,
   getMarketBreadth,
   getEconomicIndicators,
+  getSeasonalityData,
+  getMarketResearchIndicators,
+  getPortfolioAnalytics,
+  getPortfolioRiskAnalysis,
+  getPortfolioOptimization,
   getStocks,
   getStocksQuick,
   getStocksChunk,

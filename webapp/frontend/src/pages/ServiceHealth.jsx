@@ -611,7 +611,7 @@ function ServiceHealth() {
                 sx={{ ml: 'auto', mr: 2 }}
                 disabled={refreshing}
               >
-                {refreshing ? 'Updating...' : 'Update Status'}
+                {refreshing ? 'Updating...' : 'Update All Tables'}
               </Button>
             </AccordionSummary>
             <AccordionDetails>
@@ -718,14 +718,18 @@ function ServiceHealth() {
                   {/* Detailed Table List */}
                   {safeDbHealth.database?.tables && Object.keys(safeDbHealth.database.tables).length > 0 && (
                     <Box sx={{ mt: 2 }}>
-                      <Typography variant="subtitle2" gutterBottom>Table Details ({Object.keys(safeDbHealth.database.tables).length} tables):</Typography>
-                      <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
+                      <Typography variant="subtitle2" gutterBottom>
+                        Table Details ({Object.keys(safeDbHealth.database.tables).length} tables monitored):
+                      </Typography>
+                      <TableContainer component={Paper} sx={{ maxHeight: 600 }}>
                         <Table size="small" stickyHeader>
                           <TableHead>
                             <TableRow>
                               <TableCell>Table</TableCell>
+                              <TableCell>Category</TableCell>
                               <TableCell align="right">Records</TableCell>
                               <TableCell>Status</TableCell>
+                              <TableCell>Critical</TableCell>
                               <TableCell>Last Updated</TableCell>
                               <TableCell>Missing Data</TableCell>
                               <TableCell>Last Checked</TableCell>
@@ -733,31 +737,78 @@ function ServiceHealth() {
                             </TableRow>
                           </TableHead>
                           <TableBody>
-                            {Object.entries(safeDbHealth.database.tables).map(([tableName, tableData]) => (
-                              <TableRow key={tableName}>
+                            {Object.entries(safeDbHealth.database.tables)
+                              .sort(([a], [b]) => a.localeCompare(b))
+                              .map(([tableName, tableData]) => (
+                              <TableRow key={tableName} sx={{ 
+                                backgroundColor: tableData.critical_table ? 'rgba(25, 118, 210, 0.04)' : 'inherit',
+                                '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.04)' }
+                              }}>
                                 <TableCell component="th" scope="row">
-                                  <Typography variant="body2" fontFamily="monospace">
-                                    {tableName}
-                                  </Typography>
+                                  <Box>
+                                    <Typography variant="body2" fontFamily="monospace" fontWeight={600}>
+                                      {tableName}
+                                    </Typography>
+                                    {tableData.table_category && (
+                                      <Typography variant="caption" color="text.secondary">
+                                        {tableData.table_category}
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                </TableCell>
+                                <TableCell>
+                                  {tableData.table_category && (
+                                    <Chip
+                                      label={tableData.table_category}
+                                      size="small"
+                                      variant="outlined"
+                                      sx={{ 
+                                        fontSize: '0.7rem',
+                                        height: 20,
+                                        backgroundColor: 
+                                          tableData.table_category === 'symbols' ? '#e3f2fd' :
+                                          tableData.table_category === 'prices' ? '#f3e5f5' :
+                                          tableData.table_category === 'technicals' ? '#e8f5e8' :
+                                          tableData.table_category === 'financials' ? '#fff3e0' :
+                                          tableData.table_category === 'company' ? '#e0f2f1' :
+                                          tableData.table_category === 'earnings' ? '#fce4ec' :
+                                          tableData.table_category === 'sentiment' ? '#f1f8e9' :
+                                          tableData.table_category === 'trading' ? '#e8eaf6' :
+                                          '#f5f5f5'
+                                      }}
+                                    />
+                                  )}
                                 </TableCell>
                                 <TableCell align="right">
-                                  <Typography variant="body2">
+                                  <Typography variant="body2" fontWeight={600}>
                                     {formatNumber(tableData.record_count)}
                                   </Typography>
                                 </TableCell>
                                 <TableCell>
-                                  <Chip
-                                    icon={getStatusIcon(tableData.status)}
-                                    label={tableData.status}
-                                    color={getStatusColor(tableData.status)}
-                                    size="small"
-                                  />
-                                  {tableData.is_stale && (
+                                  <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
                                     <Chip
-                                      label="Stale"
-                                      color="warning"
+                                      icon={getStatusIcon(tableData.status)}
+                                      label={tableData.status}
+                                      color={getStatusColor(tableData.status)}
                                       size="small"
-                                      sx={{ ml: 0.5 }}
+                                      sx={{ minWidth: 80 }}
+                                    />
+                                    {tableData.is_stale && (
+                                      <Chip
+                                        label="Stale"
+                                        color="warning"
+                                        size="small"
+                                      />
+                                    )}
+                                  </Box>
+                                </TableCell>
+                                <TableCell>
+                                  {tableData.critical_table && (
+                                    <Chip
+                                      label="Critical"
+                                      color="error"
+                                      size="small"
+                                      variant="outlined"
                                     />
                                   )}
                                 </TableCell>
@@ -773,7 +824,7 @@ function ServiceHealth() {
                                 </TableCell>
                                 <TableCell align="right">
                                   {tableData.missing_data_count > 0 ? (
-                                    <Typography variant="body2" color="warning.main">
+                                    <Typography variant="body2" color="warning.main" fontWeight={600}>
                                       {formatNumber(tableData.missing_data_count)}
                                     </Typography>
                                   ) : (
@@ -790,8 +841,13 @@ function ServiceHealth() {
                                 <TableCell>
                                   {tableData.error && (
                                     <Tooltip title={tableData.error}>
-                                      <Typography variant="body2" color="error" sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                        {tableData.error}
+                                      <Typography variant="body2" color="error" sx={{ 
+                                        maxWidth: 200, 
+                                        overflow: 'hidden', 
+                                        textOverflow: 'ellipsis',
+                                        cursor: 'help'
+                                      }}>
+                                        {tableData.error.length > 30 ? `${tableData.error.substring(0, 30)}...` : tableData.error}
                                       </Typography>
                                     </Tooltip>
                                   )}

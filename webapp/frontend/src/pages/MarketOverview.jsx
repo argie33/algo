@@ -27,7 +27,9 @@ import {
   getMarketSentimentHistory, 
   getMarketSectorPerformance, 
   getMarketBreadth, 
-  getEconomicIndicators 
+  getEconomicIndicators,
+  getSeasonalityData,
+  getMarketResearchIndicators
 } from '../services/api'
 import { formatCurrency, formatNumber, formatPercentage, getChangeColor, getMarketCapCategory } from '../utils/formatters'
 
@@ -211,6 +213,42 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
     { 
       enabled: tabValue === 4,
       onError: (err) => logger.queryError('economic-indicators', err)
+    }
+  )
+
+  const { data: seasonalityData, isLoading: seasonalityLoading } = useQuery(
+    'seasonality-data',
+    async () => {
+      try {
+        const result = await getSeasonalityData();
+        logger.success('getSeasonalityData', result);
+        return result;
+      } catch (err) {
+        logger.error('getSeasonalityData', err);
+        throw err;
+      }
+    },
+    { 
+      enabled: tabValue === 5,
+      onError: (err) => logger.queryError('seasonality-data', err)
+    }
+  )
+
+  const { data: researchData, isLoading: researchLoading } = useQuery(
+    'market-research-indicators',
+    async () => {
+      try {
+        const result = await getMarketResearchIndicators();
+        logger.success('getMarketResearchIndicators', result);
+        return result;
+      } catch (err) {
+        logger.error('getMarketResearchIndicators', err);
+        throw err;
+      }
+    },
+    { 
+      enabled: tabValue === 6,
+      onError: (err) => logger.queryError('market-research-indicators', err)
     }
   )
 
@@ -538,6 +576,8 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
             <Tab label="Sector Performance" />
             <Tab label="Market Breadth" />
             <Tab label="Economic Indicators" />
+            <Tab label="Seasonality" />
+            <Tab label="Research Indicators" />
           </Tabs>
         </Box>
 
@@ -840,6 +880,588 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
                   </CardContent>
                 </Card>
               </Grid>
+            </Grid>
+          )}
+        </TabPanel>
+
+        <TabPanel value={tabValue} index={5}>
+          {seasonalityLoading ? (
+            <LinearProgress />
+          ) : (
+            <Grid container spacing={3}>
+              {seasonalityData?.data && (
+                <>
+                  {/* Current Seasonal Position Summary */}
+                  <Grid item xs={12}>
+                    <Card sx={{ border: '2px solid', borderColor: 'primary.main' }}>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                          Current Seasonal Position
+                        </Typography>
+                        <Grid container spacing={3}>
+                          <Grid item xs={12} md={4}>
+                            <Box sx={{ textAlign: 'center', p: 2, backgroundColor: 'info.light', borderRadius: 1 }}>
+                              <Typography variant="h4" color="info.contrastText">
+                                {seasonalityData.data.currentPosition.seasonalScore}/100
+                              </Typography>
+                              <Typography variant="body2" color="info.contrastText">
+                                Seasonal Score
+                              </Typography>
+                              <Typography variant="caption" color="info.contrastText">
+                                {seasonalityData.data.summary.overallSeasonalBias}
+                              </Typography>
+                            </Box>
+                          </Grid>
+                          <Grid item xs={12} md={4}>
+                            <Box sx={{ textAlign: 'center', p: 2, backgroundColor: 'secondary.light', borderRadius: 1 }}>
+                              <Typography variant="h6" color="secondary.contrastText">
+                                {seasonalityData.data.currentPosition.presidentialCycle}
+                              </Typography>
+                              <Typography variant="body2" color="secondary.contrastText">
+                                Presidential Cycle
+                              </Typography>
+                            </Box>
+                          </Grid>
+                          <Grid item xs={12} md={4}>
+                            <Box sx={{ textAlign: 'center', p: 2, backgroundColor: 'warning.light', borderRadius: 1 }}>
+                              <Typography variant="h6" color="warning.contrastText">
+                                {seasonalityData.data.currentPosition.nextMajorEvent?.name}
+                              </Typography>
+                              <Typography variant="body2" color="warning.contrastText">
+                                Next Event ({seasonalityData.data.currentPosition.nextMajorEvent?.daysAway} days)
+                              </Typography>
+                            </Box>
+                          </Grid>
+                        </Grid>
+                        <Box sx={{ mt: 3 }}>
+                          <Typography variant="body1" sx={{ mb: 1 }}>
+                            <strong>Recommendation:</strong> {seasonalityData.data.summary.recommendation}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Active Periods: {seasonalityData.data.currentPosition.activePeriods?.join(', ')}
+                          </Typography>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  {/* Monthly Seasonality */}
+                  <Grid item xs={12} md={6}>
+                    <Card>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                          Monthly Seasonality Pattern
+                        </Typography>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <BarChart data={seasonalityData.data.monthlySeasonality}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
+                            <YAxis label={{ value: 'Avg Return %', angle: -90, position: 'insideLeft' }} />
+                            <Tooltip formatter={(value) => [`${value.toFixed(1)}%`, 'Average Return']} />
+                            <Bar 
+                              dataKey="avgReturn" 
+                              fill={(entry) => entry?.isCurrent ? '#82ca9d' : '#8884d8'}
+                              name="Monthly Average"
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  {/* Quarterly Patterns */}
+                  <Grid item xs={12} md={6}>
+                    <Card>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                          Quarterly Performance
+                        </Typography>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <BarChart data={seasonalityData.data.quarterlySeasonality}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="name" />
+                            <YAxis label={{ value: 'Avg Return %', angle: -90, position: 'insideLeft' }} />
+                            <Tooltip 
+                              formatter={(value, name, props) => [`${value.toFixed(1)}%`, 'Average Return']}
+                              labelFormatter={(label, payload) => {
+                                const data = payload[0]?.payload;
+                                return `${label} (${data?.months})`;
+                              }}
+                            />
+                            <Bar 
+                              dataKey="avgReturn" 
+                              fill="#8884d8"
+                              name="Quarterly Average"
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  {/* Presidential Cycle Details */}
+                  <Grid item xs={12} md={6}>
+                    <Card>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                          Presidential Cycle (4-Year Pattern)
+                        </Typography>
+                        <TableContainer>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow>
+                                <TableCell>Year</TableCell>
+                                <TableCell>Phase</TableCell>
+                                <TableCell align="right">Avg Return</TableCell>
+                                <TableCell align="center">Status</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {seasonalityData.data.presidentialCycle.data.map((cycle) => (
+                                <TableRow key={cycle.year} sx={{ backgroundColor: cycle.isCurrent ? 'primary.light' : 'inherit' }}>
+                                  <TableCell>Year {cycle.year}</TableCell>
+                                  <TableCell>{cycle.label}</TableCell>
+                                  <TableCell align="right">{formatPercentage(cycle.avgReturn)}</TableCell>
+                                  <TableCell align="center">
+                                    {cycle.isCurrent && <Chip label="CURRENT" color="primary" size="small" />}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  {/* Day of Week Effects */}
+                  <Grid item xs={12} md={6}>
+                    <Card>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                          Day of Week Effects
+                        </Typography>
+                        {seasonalityData.data.dayOfWeekEffects.map((day) => (
+                          <Box key={day.day} sx={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            mb: 1,
+                            p: 1,
+                            backgroundColor: day.isCurrent ? 'primary.light' : 'inherit',
+                            borderRadius: 1
+                          }}>
+                            <Typography variant="body2" fontWeight={day.isCurrent ? 600 : 400}>
+                              {day.day}
+                            </Typography>
+                            <Typography 
+                              variant="body2" 
+                              sx={{ color: getChangeColor(day.avgReturn * 100) }}
+                              fontWeight={600}
+                            >
+                              {formatPercentage(day.avgReturn)}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  {/* Seasonal Anomalies */}
+                  <Grid item xs={12}>
+                    <Card>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                          Seasonal Anomalies & Effects
+                        </Typography>
+                        <Grid container spacing={2}>
+                          {seasonalityData.data.seasonalAnomalies.map((anomaly, index) => (
+                            <Grid item xs={12} sm={6} md={3} key={index}>
+                              <Box sx={{ 
+                                p: 2, 
+                                border: 1, 
+                                borderColor: 'divider', 
+                                borderRadius: 1,
+                                height: '100%'
+                              }}>
+                                <Typography variant="subtitle2" fontWeight={600}>
+                                  {anomaly.name}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary" display="block">
+                                  {anomaly.period}
+                                </Typography>
+                                <Typography variant="body2" sx={{ mt: 1, mb: 1 }}>
+                                  {anomaly.description}
+                                </Typography>
+                                <Chip 
+                                  label={anomaly.strength}
+                                  size="small"
+                                  color={
+                                    anomaly.strength === 'Strong' ? 'error' :
+                                    anomaly.strength === 'Moderate' ? 'warning' : 'default'
+                                  }
+                                />
+                              </Box>
+                            </Grid>
+                          ))}
+                        </Grid>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  {/* Holiday Effects */}
+                  <Grid item xs={12} md={6}>
+                    <Card>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                          Holiday Effects
+                        </Typography>
+                        <TableContainer>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow>
+                                <TableCell>Holiday</TableCell>
+                                <TableCell>Dates</TableCell>
+                                <TableCell align="right">Effect</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {seasonalityData.data.holidayEffects.map((holiday, index) => (
+                                <TableRow key={index}>
+                                  <TableCell>{holiday.holiday}</TableCell>
+                                  <TableCell>{holiday.dates}</TableCell>
+                                  <TableCell align="right" sx={{ 
+                                    color: getChangeColor(parseFloat(holiday.effect.replace('%', ''))),
+                                    fontWeight: 600
+                                  }}>
+                                    {holiday.effect}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  {/* Sector Seasonality */}
+                  <Grid item xs={12} md={6}>
+                    <Card>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                          Sector Seasonality
+                        </Typography>
+                        {seasonalityData.data.sectorSeasonality.map((sector, index) => (
+                          <Box key={index} sx={{ mb: 2 }}>
+                            <Typography variant="subtitle2" fontWeight={600}>
+                              {sector.sector}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              Best: {sector.bestMonths.map(m => new Date(0, m-1).toLocaleString('default', {month:'short'})).join(', ')}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              Worst: {sector.worstMonths.map(m => new Date(0, m-1).toLocaleString('default', {month:'short'})).join(', ')}
+                            </Typography>
+                            <Typography variant="body2" sx={{ mt: 0.5 }}>
+                              {sector.rationale}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  {/* Summary & Outlook */}
+                  <Grid item xs={12}>
+                    <Card>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                          Seasonal Outlook Summary
+                        </Typography>
+                        <Grid container spacing={3}>
+                          <Grid item xs={12} md={6}>
+                            <Typography variant="body2" fontWeight={600} color="success.main" sx={{ mb: 1 }}>
+                              Favorable Factors:
+                            </Typography>
+                            {seasonalityData.data.summary.favorableFactors?.map((factor, index) => (
+                              <Typography key={index} variant="body2" sx={{ ml: 2, mb: 0.5 }}>
+                                • {factor}
+                              </Typography>
+                            ))}
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            <Typography variant="body2" fontWeight={600} color="error.main" sx={{ mb: 1 }}>
+                              Unfavorable Factors:
+                            </Typography>
+                            {seasonalityData.data.summary.unfavorableFactors?.map((factor, index) => (
+                              <Typography key={index} variant="body2" sx={{ ml: 2, mb: 0.5 }}>
+                                • {factor}
+                              </Typography>
+                            ))}
+                          </Grid>
+                        </Grid>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </>
+              )}
+            </Grid>
+          )}
+        </TabPanel>
+
+        <TabPanel value={tabValue} index={6}>
+          {researchLoading ? (
+            <LinearProgress />
+          ) : (
+            <Grid container spacing={3}>
+              {researchData?.data && (
+                <>
+                  {/* Market Summary */}
+                  <Grid item xs={12}>
+                    <Card>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                          Market Research Summary
+                        </Typography>
+                        <Grid container spacing={3}>
+                          <Grid item xs={12} md={4}>
+                            <Box sx={{ textAlign: 'center', p: 2, backgroundColor: 'info.light', borderRadius: 1 }}>
+                              <Typography variant="h6" color="info.contrastText">
+                                {researchData.data.summary.overallSentiment}
+                              </Typography>
+                              <Typography variant="body2" color="info.contrastText">
+                                Overall Market Sentiment
+                              </Typography>
+                            </Box>
+                          </Grid>
+                          <Grid item xs={12} md={4}>
+                            <Box sx={{ textAlign: 'center', p: 2, backgroundColor: 'secondary.light', borderRadius: 1 }}>
+                              <Typography variant="h6" color="secondary.contrastText">
+                                {researchData.data.summary.marketRegime}
+                              </Typography>
+                              <Typography variant="body2" color="secondary.contrastText">
+                                Market Regime
+                              </Typography>
+                            </Box>
+                          </Grid>
+                          <Grid item xs={12} md={4}>
+                            <Box sx={{ textAlign: 'center', p: 2, backgroundColor: 'warning.light', borderRadius: 1 }}>
+                              <Typography variant="h6" color="warning.contrastText">
+                                {researchData.data.summary.timeHorizon}
+                              </Typography>
+                              <Typography variant="body2" color="warning.contrastText">
+                                Investment Time Horizon
+                              </Typography>
+                            </Box>
+                          </Grid>
+                        </Grid>
+                        <Box sx={{ mt: 3 }}>
+                          <Typography variant="body1" sx={{ mb: 1 }}>
+                            <strong>Recommendation:</strong> {researchData.data.summary.recommendation}
+                          </Typography>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  {/* Volatility & Sentiment Indicators */}
+                  <Grid item xs={12} md={6}>
+                    <Card>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                          Volatility & Sentiment
+                        </Typography>
+                        <Grid container spacing={2}>
+                          <Grid item xs={12}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                              <Typography variant="body2">VIX (Fear Index):</Typography>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600} display="inline">
+                                  {researchData.data.volatility.vix.toFixed(1)}
+                                </Typography>
+                                <Chip 
+                                  label={researchData.data.volatility.vixInterpretation.level}
+                                  color={researchData.data.volatility.vixInterpretation.color}
+                                  size="small"
+                                  sx={{ ml: 1 }}
+                                />
+                              </Box>
+                            </Box>
+                            <Typography variant="caption" color="text.secondary">
+                              30-day avg: {researchData.data.volatility.vixAverage.toFixed(1)} | {researchData.data.volatility.vixInterpretation.sentiment}
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={12}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                              <Typography variant="body2">Put/Call Ratio:</Typography>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600} display="inline">
+                                  {researchData.data.sentiment.putCallRatio.toFixed(2)}
+                                </Typography>
+                                <Chip 
+                                  label={researchData.data.sentiment.putCallInterpretation.sentiment}
+                                  color={researchData.data.sentiment.putCallInterpretation.color}
+                                  size="small"
+                                  sx={{ ml: 1 }}
+                                />
+                              </Box>
+                            </Box>
+                            <Typography variant="caption" color="text.secondary">
+                              10-day avg: {researchData.data.sentiment.putCallAverage.toFixed(2)} | {researchData.data.sentiment.putCallInterpretation.signal}
+                            </Typography>
+                          </Grid>
+                        </Grid>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  {/* Technical Levels */}
+                  <Grid item xs={12} md={6}>
+                    <Card>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                          Major Index Technical Levels
+                        </Typography>
+                        {Object.entries(researchData.data.technicalLevels).map(([index, data]) => (
+                          <Box key={index} sx={{ mb: 2 }}>
+                            <Typography variant="body2" fontWeight={600}>{index}</Typography>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                              <Typography variant="caption">Current:</Typography>
+                              <Typography variant="caption">{data.current.toFixed(0)}</Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                              <Typography variant="caption">Trend:</Typography>
+                              <Typography variant="caption" sx={{ color: getChangeColor(data.trend === 'Bullish' ? 1 : data.trend === 'Bearish' ? -1 : 0) }}>
+                                {data.trend}
+                              </Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <Typography variant="caption">RSI:</Typography>
+                              <Typography variant="caption">{data.rsi.toFixed(1)}</Typography>
+                            </Box>
+                          </Box>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  {/* Sector Rotation */}
+                  <Grid item xs={12}>
+                    <Card>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                          Sector Rotation Analysis
+                        </Typography>
+                        <TableContainer>
+                          <Table>
+                            <TableHead>
+                              <TableRow sx={{ backgroundColor: 'grey.50' }}>
+                                <TableCell sx={{ fontWeight: 600 }}>Sector</TableCell>
+                                <TableCell sx={{ fontWeight: 600 }}>Momentum</TableCell>
+                                <TableCell sx={{ fontWeight: 600 }}>Money Flow</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 600 }}>Performance</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {researchData.data.sectorRotation.map((sector, index) => (
+                                <TableRow key={index} hover>
+                                  <TableCell>{sector.sector}</TableCell>
+                                  <TableCell>
+                                    <Chip 
+                                      label={sector.momentum}
+                                      color={sector.momentum === 'Strong' ? 'success' : sector.momentum === 'Moderate' ? 'info' : 'warning'}
+                                      size="small"
+                                    />
+                                  </TableCell>
+                                  <TableCell>
+                                    <Chip 
+                                      label={sector.flow}
+                                      color={sector.flow === 'Inflow' ? 'success' : sector.flow === 'Outflow' ? 'error' : 'default'}
+                                      size="small"
+                                    />
+                                  </TableCell>
+                                  <TableCell 
+                                    align="right"
+                                    sx={{ 
+                                      color: getChangeColor(sector.performance),
+                                      fontWeight: 600
+                                    }}
+                                  >
+                                    {formatPercentage(sector.performance)}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  {/* Economic Calendar */}
+                  <Grid item xs={12} md={6}>
+                    <Card>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                          Upcoming Economic Events
+                        </Typography>
+                        {researchData.data.economicCalendar.map((event, index) => (
+                          <Box key={index} sx={{ mb: 2, p: 2, backgroundColor: 'grey.50', borderRadius: 1 }}>
+                            <Typography variant="body2" fontWeight={600}>{event.event}</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {new Date(event.date).toLocaleDateString()} | Expected: {event.expected}
+                            </Typography>
+                            <Box sx={{ mt: 0.5 }}>
+                              <Chip 
+                                label={event.importance}
+                                color={event.importance === 'High' ? 'error' : 'warning'}
+                                size="small"
+                              />
+                              <Chip 
+                                label={event.impact}
+                                color="info"
+                                size="small"
+                                sx={{ ml: 1 }}
+                              />
+                            </Box>
+                          </Box>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  {/* Key Risks & Opportunities */}
+                  <Grid item xs={12} md={6}>
+                    <Card>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                          Key Risks & Opportunities
+                        </Typography>
+                        <Box sx={{ mb: 3 }}>
+                          <Typography variant="body2" fontWeight={600} color="error.main" sx={{ mb: 1 }}>
+                            Key Risks:
+                          </Typography>
+                          {researchData.data.summary.keyRisks.map((risk, index) => (
+                            <Typography key={index} variant="body2" sx={{ ml: 2, mb: 0.5 }}>
+                              • {risk}
+                            </Typography>
+                          ))}
+                        </Box>
+                        <Box>
+                          <Typography variant="body2" fontWeight={600} color="success.main" sx={{ mb: 1 }}>
+                            Key Opportunities:
+                          </Typography>
+                          {researchData.data.summary.keyOpportunities.map((opportunity, index) => (
+                            <Typography key={index} variant="body2" sx={{ ml: 2, mb: 0.5 }}>
+                              • {opportunity}
+                            </Typography>
+                          ))}
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </>
+              )}
             </Grid>
           )}
         </TabPanel>

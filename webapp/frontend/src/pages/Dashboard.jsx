@@ -205,6 +205,8 @@ import {
   getNaaimData,
   getFearGreedData,
   getTechnicalData,
+  getSeasonalityData,
+  getMarketResearchIndicators,
   testApiEndpoints
 } from '../services/api';
 import { format } from 'date-fns';
@@ -784,6 +786,189 @@ const EarningsCalendarSummary = ({ data, loading }) => {
   );
 };
 
+// --- SEASONALITY SUMMARY ---
+const SeasonalitySummary = ({ data, loading }) => {
+  if (loading) {
+    return (
+      <Card>
+        <CardContent>
+          <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>Market Seasonality</Typography>
+          <CircularProgress size={24} />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!data) {
+    return (
+      <Card>
+        <CardContent>
+          <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>Market Seasonality</Typography>
+          <Typography variant="body2" color="text.secondary">No data available</Typography>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardContent>
+        <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>Market Seasonality</Typography>
+        
+        {/* Current Seasonal Score */}
+        <Box sx={{ mb: 3, p: 2, backgroundColor: 'primary.light', borderRadius: 1 }}>
+          <Typography variant="body1" color="primary.contrastText" fontWeight={600}>
+            Seasonal Score: {data.currentPosition?.seasonalScore}/100
+          </Typography>
+          <Typography variant="body2" color="primary.contrastText">
+            {data.summary?.overallSeasonalBias} | {data.currentPosition?.presidentialCycle}
+          </Typography>
+        </Box>
+
+        {/* Current Month Performance */}
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="caption" color="text.secondary">Current Month Trend</Typography>
+          <Typography variant="body2" fontWeight={600}>
+            {data.currentPosition?.monthlyTrend}
+          </Typography>
+        </Box>
+
+        {/* Active Periods */}
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="caption" color="text.secondary">Active Seasonal Periods</Typography>
+          <Box sx={{ mt: 0.5 }}>
+            {data.currentPosition?.activePeriods?.map((period, index) => (
+              <Chip 
+                key={index}
+                label={period}
+                size="small"
+                sx={{ mr: 0.5, mb: 0.5 }}
+                color={period.includes('Halloween') || period.includes('Holiday') ? 'success' : 
+                       period.includes('May') || period.includes('September') ? 'error' : 'default'}
+              />
+            ))}
+          </Box>
+        </Box>
+
+        {/* Next Event */}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+          <Box>
+            <Typography variant="caption" color="text.secondary">Next Event</Typography>
+            <Typography variant="body2" fontWeight={600}>
+              {data.currentPosition?.nextMajorEvent?.name}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {data.currentPosition?.nextMajorEvent?.daysAway} days away
+            </Typography>
+          </Box>
+          <Box sx={{ textAlign: 'right' }}>
+            <Typography variant="caption" color="text.secondary">Recommendation</Typography>
+            <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.75rem' }}>
+              {data.summary?.recommendation?.substring(0, 40)}...
+            </Typography>
+          </Box>
+        </Box>
+      </CardContent>
+    </Card>
+  );
+};
+
+// --- MARKET RESEARCH SUMMARY ---
+const MarketResearchSummary = ({ data, loading }) => {
+  if (loading) {
+    return (
+      <Card>
+        <CardContent>
+          <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>Market Research</Typography>
+          <CircularProgress size={24} />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!data) {
+    return (
+      <Card>
+        <CardContent>
+          <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>Market Research</Typography>
+          <Typography variant="body2" color="text.secondary">No data available</Typography>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardContent>
+        <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>Market Research</Typography>
+        
+        {/* Overall Sentiment */}
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="body2" fontWeight={600} color="primary.main">
+            {data.summary?.overallSentiment} | {data.summary?.marketRegime}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {data.summary?.recommendation}
+          </Typography>
+        </Box>
+
+        {/* Key Indicators */}
+        <Grid container spacing={2} sx={{ mb: 2 }}>
+          <Grid item xs={6}>
+            <Box>
+              <Typography variant="caption" color="text.secondary">VIX</Typography>
+              <Typography variant="body2" fontWeight={600}>
+                {data.volatility?.vix?.toFixed(1)}
+                <Chip 
+                  label={data.volatility?.vixInterpretation?.level}
+                  color={data.volatility?.vixInterpretation?.color}
+                  size="small"
+                  sx={{ ml: 1 }}
+                />
+              </Typography>
+            </Box>
+          </Grid>
+          <Grid item xs={6}>
+            <Box>
+              <Typography variant="caption" color="text.secondary">Put/Call Ratio</Typography>
+              <Typography variant="body2" fontWeight={600}>
+                {data.sentiment?.putCallRatio?.toFixed(2)}
+                <Chip 
+                  label={data.sentiment?.putCallInterpretation?.sentiment}
+                  color={data.sentiment?.putCallInterpretation?.color}
+                  size="small"
+                  sx={{ ml: 1 }}
+                />
+              </Typography>
+            </Box>
+          </Grid>
+        </Grid>
+
+        {/* Key Risks & Opportunities */}
+        <Box>
+          <Typography variant="body2" fontWeight={600} color="error.main" sx={{ mb: 1 }}>
+            Key Risks:
+          </Typography>
+          {data.summary?.keyRisks?.slice(0, 2).map((risk, index) => (
+            <Typography key={index} variant="caption" display="block" sx={{ ml: 1, mb: 0.5 }}>
+              • {risk}
+            </Typography>
+          ))}
+          
+          <Typography variant="body2" fontWeight={600} color="success.main" sx={{ mb: 1, mt: 1 }}>
+            Opportunities:
+          </Typography>
+          {data.summary?.keyOpportunities?.slice(0, 2).map((opportunity, index) => (
+            <Typography key={index} variant="caption" display="block" sx={{ ml: 1, mb: 0.5 }}>
+              • {opportunity}
+            </Typography>
+          ))}
+        </Box>
+      </CardContent>
+    </Card>
+  );
+};
+
 // --- TECHNICAL SIGNALS WIDGET ---
 function TechnicalSignalsWidget() {
   const { data, isLoading, error } = useQuery({
@@ -1167,6 +1352,18 @@ const Dashboard = () => {
     staleTime: 5 * 60 * 1000 // 5 minutes
   });
 
+  const { data: seasonalityData, isLoading: seasonalityLoading } = useQuery({
+    queryKey: ['seasonalityData'],
+    queryFn: getSeasonalityData,
+    staleTime: 24 * 60 * 60 * 1000 // 24 hours
+  });
+
+  const { data: researchIndicatorsData, isLoading: researchLoading } = useQuery({
+    queryKey: ['marketResearchIndicators'],
+    queryFn: getMarketResearchIndicators,
+    staleTime: 15 * 60 * 1000 // 15 minutes
+  });
+
   const { data: stockMetrics, isLoading: stockMetricsLoading } = useQuery({
     queryKey: ['stockMetrics', selectedSymbol],
     queryFn: () => getKeyMetrics(selectedSymbol),
@@ -1361,6 +1558,22 @@ const Dashboard = () => {
               earnings: earningsData?.data || []
             }}
             loading={earningsLoading}
+          />
+        </Grid>
+
+        {/* Seasonality */}
+        <Grid item xs={12} lg={6}>
+          <SeasonalitySummary 
+            data={seasonalityData?.data}
+            loading={seasonalityLoading}
+          />
+        </Grid>
+
+        {/* Market Research Indicators */}
+        <Grid item xs={12} lg={6}>
+          <MarketResearchSummary 
+            data={researchIndicatorsData?.data}
+            loading={researchLoading}
           />
         </Grid>
 

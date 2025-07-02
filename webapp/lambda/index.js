@@ -26,25 +26,80 @@ const signalsRoutes = require('./routes/signals');
 const dataRoutes = require('./routes/data');
 const backtestRoutes = require('./routes/backtest');
 const authRoutes = require('./routes/auth');
+const portfolioRoutes = require('./routes/portfolio');
 
 const app = express();
 
 // Trust proxy when running behind API Gateway/CloudFront
 app.set('trust proxy', true);
 
-// Security middleware (adjusted for Lambda)
+// Enhanced security middleware for enterprise production deployment
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:", "https:"],
-      scriptSrc: ["'self'"],
-      connectSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:", "blob:"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      connectSrc: ["'self'", "wss:", "https:"],
+      frameSrc: ["'none'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      upgradeInsecureRequests: [],
     },
   },
+  hsts: {
+    maxAge: 31536000, // 1 year
+    includeSubDomains: true,
+    preload: true
+  },
+  frameguard: { action: 'deny' },
+  noSniff: true,
+  xssFilter: true,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  permittedCrossDomainPolicies: false,
+  crossOriginEmbedderPolicy: false, // Disabled for financial data APIs
+  crossOriginOpenerPolicy: { policy: 'same-origin' },
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
+
+// Additional security headers for financial applications
+app.use((req, res, next) => {
+  // Prevent MIME type sniffing
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  
+  // Prevent clickjacking
+  res.setHeader('X-Frame-Options', 'DENY');
+  
+  // Enable XSS protection
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  
+  // Strict transport security
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+  
+  // Referrer policy
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  
+  // Feature policy for financial applications
+  res.setHeader('Permissions-Policy', 
+    'geolocation=(), microphone=(), camera=(), payment=(), usb=(), ' +
+    'screen-wake-lock=(), web-share=(), gyroscope=(), magnetometer=()');
+  
+  // Cache control for sensitive financial data
+  if (req.path.includes('/portfolio') || req.path.includes('/trading')) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+  
+  // API rate limiting headers
+  res.setHeader('X-RateLimit-Limit', '1000');
+  res.setHeader('X-RateLimit-Window', '3600');
+  
+  next();
+});
 
 // Note: Rate limiting removed - API Gateway handles this
 
@@ -182,6 +237,7 @@ app.use('/calendar', calendarRoutes);
 app.use('/signals', signalsRoutes);
 app.use('/data', dataRoutes);
 app.use('/backtest', backtestRoutes);
+app.use('/portfolio', portfolioRoutes);
 
 // Also mount routes with /api prefix for frontend compatibility
 app.use('/api/health', healthRoutes);
@@ -197,6 +253,7 @@ app.use('/api/calendar', calendarRoutes);
 app.use('/api/signals', signalsRoutes);
 app.use('/api/data', dataRoutes);
 app.use('/api/backtest', backtestRoutes);
+app.use('/api/portfolio', portfolioRoutes);
 
 // Default route
 app.get('/', (req, res) => {
