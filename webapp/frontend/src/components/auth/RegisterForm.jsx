@@ -95,46 +95,46 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
   return (
     <Card sx={{ maxWidth: 500, mx: 'auto', mt: 4 }}>
       <CardContent sx={{ p: 4 }}>
-        <Box display=\"flex\" alignItems=\"center\" justifyContent=\"center\" mb={3}>
+        <Box display="flex" alignItems="center" justifyContent="center" mb={3}>
           <RegisterIcon sx={{ mr: 1, color: 'primary.main' }} />
-          <Typography variant=\"h4\" component=\"h1\" color=\"primary\">
+          <Typography variant="h4" component="h1" color="primary">
             Sign Up
           </Typography>
         </Box>
 
-        <Typography variant=\"body1\" color=\"text.secondary\" align=\"center\" mb={3}>
+        <Typography variant="body1" color="text.secondary" align="center" mb={3}>
           Create your Financial Dashboard account
         </Typography>
 
         {displayError && (
-          <Alert severity=\"error\" sx={{ mb: 2 }}>
+          <Alert severity="error" sx={{ mb: 2 }}>
             {displayError}
           </Alert>
         )}
 
-        <Box component=\"form\" onSubmit={handleSubmit} noValidate>
+        <Box component="form" onSubmit={handleSubmit} noValidate>
           <Grid container spacing={2}>
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
-                id=\"firstName\"
-                name=\"firstName\"
-                label=\"First Name\"
+                id="firstName"
+                name="firstName"
+                label="First Name"
                 value={formData.firstName}
                 onChange={handleChange}
-                autoComplete=\"given-name\"
+                autoComplete="given-name"
                 disabled={isLoading}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
-                id=\"lastName\"
-                name=\"lastName\"
-                label=\"Last Name\"
+                id="lastName"
+                name="lastName"
+                label="Last Name"
                 value={formData.lastName}
                 onChange={handleChange}
-                autoComplete=\"family-name\"
+                autoComplete="family-name"
                 disabled={isLoading}
               />
             </Grid>
@@ -142,53 +142,53 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
 
           <TextField
             fullWidth
-            id=\"username\"
-            name=\"username\"
-            label=\"Username\"
+            id="username"
+            name="username"
+            label="Username"
             value={formData.username}
             onChange={handleChange}
-            margin=\"normal\"
+            margin="normal"
             required
-            autoComplete=\"username\"
+            autoComplete="username"
             disabled={isLoading}
-            helperText=\"This will be your unique identifier for signing in\"
+            helperText="This will be your unique identifier for signing in"
           />
 
           <TextField
             fullWidth
-            id=\"email\"
-            name=\"email\"
-            label=\"Email Address\"
-            type=\"email\"
+            id="email"
+            name="email"
+            label="Email Address"
+            type="email"
             value={formData.email}
             onChange={handleChange}
-            margin=\"normal\"
+            margin="normal"
             required
-            autoComplete=\"email\"
+            autoComplete="email"
             disabled={isLoading}
-            helperText=\"We'll send verification instructions to this email\"
+            helperText="We'll send verification instructions to this email"
           />
 
           <TextField
             fullWidth
-            id=\"password\"
-            name=\"password\"
-            label=\"Password\"
+            id="password"
+            name="password"
+            label="Password"
             type={showPassword ? 'text' : 'password'}
             value={formData.password}
             onChange={handleChange}
-            margin=\"normal\"
+            margin="normal"
             required
-            autoComplete=\"new-password\"
+            autoComplete="new-password"
             disabled={isLoading}
-            helperText=\"Must be at least 8 characters long\"
+            helperText="Must be at least 8 characters long"
             InputProps={{
               endAdornment: (
-                <InputAdornment position=\"end\">
+                <InputAdornment position="end">
                   <IconButton
-                    aria-label=\"toggle password visibility\"
+                    aria-label="toggle password visibility"
                     onClick={() => setShowPassword(!showPassword)}
-                    edge=\"end\"
+                    edge="end"
                     disabled={isLoading}
                   >
                     {showPassword ? <VisibilityOff /> : <Visibility />}
@@ -200,23 +200,23 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
 
           <TextField
             fullWidth
-            id=\"confirmPassword\"
-            name=\"confirmPassword\"
-            label=\"Confirm Password\"
+            id="confirmPassword"
+            name="confirmPassword"
+            label="Confirm Password"
             type={showConfirmPassword ? 'text' : 'password'}
             value={formData.confirmPassword}
             onChange={handleChange}
-            margin=\"normal\"
+            margin="normal"
             required
-            autoComplete=\"new-password\"
+            autoComplete="new-password"
             disabled={isLoading}
             InputProps={{
               endAdornment: (
-                <InputAdornment position=\"end\">
+                <InputAdornment position="end">
                   <IconButton
-                    aria-label=\"toggle confirm password visibility\"
+                    aria-label="toggle confirm password visibility"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    edge=\"end\"
+                    edge="end"
                     disabled={isLoading}
                   >
                     {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
@@ -227,9 +227,9 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
           />
 
           <Button
-            type=\"submit\"
+            type="submit"
             fullWidth
-            variant=\"contained\"
+            variant="contained"
             sx={{ mt: 3, mb: 2, py: 1.5 }}
             disabled={isLoading}
             startIcon={isLoading ? <CircularProgress size={20} /> : <RegisterIcon />}
@@ -239,13 +239,13 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
 
           <Divider sx={{ my: 2 }} />
 
-          <Box textAlign=\"center\">
-            <Typography variant=\"body2\" color=\"text.secondary\">
+          <Box textAlign="center">
+            <Typography variant="body2" color="text.secondary">
               Already have an account?{' '}
               <Link
-                component=\"button\"
-                type=\"button\"
-                variant=\"body2\"
+                component="button"
+                type="button"
+                variant="body2"
                 onClick={onSwitchToLogin}
                 disabled={isLoading}
                 sx={{ fontWeight: 'medium' }}
