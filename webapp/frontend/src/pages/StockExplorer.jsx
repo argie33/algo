@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { createComponentLogger } from '../utils/errorLogger'
 import { formatCurrency, formatNumber, formatPercentage as formatPercent, getChangeColor } from '../utils/formatters'
-import { screenStocks } from '../services/api'
+import { screenStocks, getStockPriceHistory } from '../services/api'
 import {
   Box,
   Container,
@@ -56,6 +56,7 @@ import {
   ShowChart,
   Tune
 } from '@mui/icons-material'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts'
 
 // Create component-specific logger
 const logger = createComponentLogger('StockExplorer');
@@ -273,34 +274,43 @@ function StockExplorer() {
       
       console.log('Fetching comprehensive price history for', symbol)
       
-      // Call the correct price API endpoint for historical data
-      const response = await fetch(`/api/stocks/${symbol}/prices?limit=90`)
+      // Use the proper API service method
+      const result = await getStockPriceHistory(symbol, 90)
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      
-      const result = await response.json()
-      
-      if (result.success && result.data) {
+      if (result && result.data) {
         console.log('Comprehensive price history loaded for', symbol, result.data.length, 'records')
+        
+        // Calculate summary statistics from the data
+        const priceData = result.data
+        const summary = {
+          dataPoints: priceData.length,
+          priceStats: {
+            current: priceData[0]?.close || 0,
+            periodHigh: Math.max(...priceData.map(d => d.high || 0)),
+            periodLow: Math.min(...priceData.filter(d => d.low > 0).map(d => d.low)),
+          },
+          dateRange: {
+            start: priceData[priceData.length - 1]?.date,
+            end: priceData[0]?.date
+          }
+        }
         
         // Update modal with data
         setPriceHistoryModal({ 
           open: true, 
           symbol, 
-          data: result.data, 
+          data: priceData, 
           loading: false,
-          summary: result.summary 
+          summary 
         })
         
         // Also cache the data for quick access
         setPriceHistoryData(prev => ({
           ...prev,
-          [symbol]: result.data
+          [symbol]: priceData
         }))
       } else {
-        throw new Error(result.error || 'Failed to fetch price data')
+        throw new Error('No price data available')
       }
     } catch (error) {
       console.error('Error fetching comprehensive price history for', symbol, error)
@@ -1009,15 +1019,9 @@ function StockExplorer() {
                 </Box>
               ) : priceHistoryModal.error ? (
                 <Alert severity="error" sx={{ mb: 2 }}>
-                  {priceHistoryModal.error.includes('Unexpected token') || priceHistoryModal.error.includes('DOCTYPE')
-                    ? (
-                      <>
-                        Error loading price data: The server returned an invalid response (likely HTML instead of JSON).<br />
-                        This usually means the backend route is missing, misconfigured, or the API server is down.<br />
-                        Please check your backend logs and ensure the /api/stocks/[symbol]/prices endpoint is available and returns JSON.
-                      </>
-                    )
-                    : `Error loading price data: ${priceHistoryModal.error}`}
+                  Error loading price data: {priceHistoryModal.error}
+                  <br />
+                  <small>Please try again later or check if the stock symbol is valid.</small>
                 </Alert>
               ) : priceHistoryModal.data.length > 0 ? (
                 <>
@@ -1047,6 +1051,52 @@ function StockExplorer() {
                       </CardContent>
                     </Card>
                   )}
+
+                  {/* Price Chart */}
+                  <Card variant="outlined" sx={{ mb: 3 }}>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom>Price Chart</Typography>
+                      <Box sx={{ width: '100%', height: 400 }}>
+                        <ResponsiveContainer>
+                          <AreaChart data={[...priceHistoryModal.data].reverse()}>
+                            <defs>
+                              <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#1976d2" stopOpacity={0.8}/>
+                                <stop offset="95%" stopColor="#1976d2" stopOpacity={0.1}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis 
+                              dataKey="date" 
+                              tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              interval="preserveStartEnd"
+                            />
+                            <YAxis 
+                              domain={['dataMin', 'dataMax']}
+                              tickFormatter={(value) => `$${value.toFixed(2)}`}
+                            />
+                            <Tooltip 
+                              formatter={(value) => [`$${value.toFixed(2)}`, 'Close']}
+                              labelFormatter={(date) => new Date(date).toLocaleDateString('en-US', { 
+                                weekday: 'short', 
+                                year: 'numeric', 
+                                month: 'short', 
+                                day: 'numeric' 
+                              })}
+                            />
+                            <Area 
+                              type="monotone" 
+                              dataKey="close" 
+                              stroke="#1976d2" 
+                              fillOpacity={1} 
+                              fill="url(#colorPrice)" 
+                              strokeWidth={2}
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </Box>
+                    </CardContent>
+                  </Card>
 
                   {/* Price History Table */}
                   <Paper sx={{ width: '100%', overflow: 'hidden' }}>
