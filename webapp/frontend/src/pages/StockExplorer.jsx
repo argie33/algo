@@ -56,7 +56,7 @@ import {
   ShowChart,
   Tune
 } from '@mui/icons-material'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Area, AreaChart } from 'recharts'
 
 // Create component-specific logger
 const logger = createComponentLogger('StockExplorer');
@@ -1075,7 +1075,7 @@ function StockExplorer() {
                               domain={['dataMin', 'dataMax']}
                               tickFormatter={(value) => `$${value.toFixed(2)}`}
                             />
-                            <Tooltip 
+                            <RechartsTooltip 
                               formatter={(value) => [`$${value.toFixed(2)}`, 'Close']}
                               labelFormatter={(date) => new Date(date).toLocaleDateString('en-US', { 
                                 weekday: 'short', 
