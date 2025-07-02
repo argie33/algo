@@ -10,15 +10,15 @@ function ProtectedRoute({ children, requireAuth = true, fallback = null }) {
   if (isLoading) {
     return (
       <Box
-        display=\"flex\"
-        flexDirection=\"column\"
-        alignItems=\"center\"
-        justifyContent=\"center\"
-        minHeight=\"50vh\"
+        display="flex"
+        flexDirection="column"
+        alignItems="center"
+        justifyContent="center"
+        minHeight="50vh"
         gap={2}
       >
         <CircularProgress size={48} />
-        <Typography variant=\"h6\" color=\"text.secondary\">
+        <Typography variant="h6" color="text.secondary">
           Checking authentication...
         </Typography>
       </Box>
@@ -33,24 +33,24 @@ function ProtectedRoute({ children, requireAuth = true, fallback = null }) {
 
     return (
       <Box
-        display=\"flex\"
-        flexDirection=\"column\"
-        alignItems=\"center\"
-        justifyContent=\"center\"
-        minHeight=\"50vh\"
+        display="flex"
+        flexDirection="column"
+        alignItems="center"
+        justifyContent="center"
+        minHeight="50vh"
         gap={3}
         p={4}
       >
         <Lock sx={{ fontSize: 64, color: 'text.secondary' }} />
-        <Typography variant=\"h4\" color=\"text.primary\" textAlign=\"center\">
+        <Typography variant="h4" color="text.primary" textAlign="center">
           Authentication Required
         </Typography>
-        <Typography variant=\"body1\" color=\"text.secondary\" textAlign=\"center\" maxWidth={400}>
+        <Typography variant="body1" color="text.secondary" textAlign="center" maxWidth={400}>
           You need to be signed in to access this page. Please sign in to continue using the Financial Dashboard.
         </Typography>
         <Button
-          variant=\"contained\"
-          size=\"large\"
+          variant="contained"
+          size="large"
           onClick={() => window.location.reload()}
           sx={{ mt: 2 }}
         >
