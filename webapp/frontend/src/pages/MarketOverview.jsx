@@ -22,15 +22,7 @@ import {
 } from '@mui/material'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts'
 
-import { 
-  getMarketOverview, 
-  getMarketSentimentHistory, 
-  getMarketSectorPerformance, 
-  getMarketBreadth, 
-  getEconomicIndicators,
-  getSeasonalityData,
-  getMarketResearchIndicators
-} from '../services/api'
+import { api } from '../services/api'
 import { formatCurrency, formatNumber, formatPercentage, getChangeColor, getMarketCapCategory } from '../utils/formatters'
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#ff7c7c']
@@ -88,174 +80,148 @@ const MetricTable = ({ data, columns, title }) => (
 // Create component-specific logger
 const logger = createComponentLogger('MarketOverview');
 
-function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
-  const { data: marketData, isLoading: marketLoading, error: marketError } = useQuery(
-    'market-overview',
-    async () => {
-      try {
-        const result = await getMarketOverview();
-        logger.success('getMarketOverview', result);
-        
-        // Validate and normalize the response structure
-        if (!result || !result.data) {
-          logger.warn('Invalid market data structure, using fallback');
-          return {
-            data: {
-              sentiment_indicators: {},
-              market_breadth: {},
-              market_cap: {},
-              economic_indicators: []
-            }
-          };
-        }
-        
-        // Ensure all expected sections exist
-        const normalizedData = {
-          data: {
-            sentiment_indicators: result.data.sentiment_indicators || {},
-            market_breadth: result.data.market_breadth || {},
-            market_cap: result.data.market_cap || {},
-            economic_indicators: result.data.economic_indicators || []
-          }
-        };
-        
-        logger.info('Normalized market data structure', normalizedData);
-        return normalizedData;
-        
-      } catch (err) {
-        logger.error('getMarketOverview', err);
-        // Return fallback data structure if API fails
-        logger.warn('Using fallback market data structure due to error');
-        return {
-          data: {
-            sentiment_indicators: {},
-            market_breadth: {},
-            market_cap: {},
-            economic_indicators: []
-          }
-        };
-      }
-    },
-    { 
-      refetchInterval: 60000,
-      retry: 2, // Retry twice
-      retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
-      throwOnError: false // Prevent React Query from setting error state when we handle it gracefully
-    }
-  )
+// Simplified API functions that work directly with your data
+const fetchMarketOverview = async () => {
+  try {
+    console.log('📈 Fetching market overview...')
+    const response = await api.get('/market/overview')
+    console.log('📈 Market overview response:', response.data)
+    return response.data
+  } catch (error) {
+    console.error('❌ Market overview error:', error)
+    throw error
+  }
+}
 
-  const { data: sentimentData, isLoading: sentimentLoading } = useQuery(
-    'market-sentiment-history',
-    async () => {
-      try {
-        const result = await getMarketSentimentHistory(30);
-        logger.success('getMarketSentimentHistory', result, { days: 30 });
-        return result;
-      } catch (err) {
-        logger.error('getMarketSentimentHistory', err, { days: 30 });
-        throw err;
-      }
-    },
-    { 
-      enabled: tabValue === 1,
-      onError: (err) => logger.queryError('market-sentiment-history', err)
-    }
-  )
+const fetchSentimentHistory = async (days = 30) => {
+  try {
+    console.log(`📊 Fetching sentiment history for ${days} days...`)
+    const response = await api.get(`/market/sentiment/history?days=${days}`)
+    console.log('📊 Sentiment history response:', response.data)
+    return response.data
+  } catch (error) {
+    console.error('❌ Sentiment history error:', error)
+    throw error
+  }
+}
 
-  const { data: sectorData, isLoading: sectorLoading } = useQuery(
-    'market-sector-performance',
-    async () => {
-      try {
-        const result = await getMarketSectorPerformance();
-        logger.success('getMarketSectorPerformance', result);
-        return result;
-      } catch (err) {
-        logger.error('getMarketSectorPerformance', err);
-        throw err;
-      }
-    },
-    { 
-      enabled: tabValue === 2,
-      onError: (err) => logger.queryError('market-sector-performance', err)
-    }
-  )
+const fetchSectorPerformance = async () => {
+  try {
+    console.log('🏭 Fetching sector performance...')
+    const response = await api.get('/market/sectors/performance')
+    console.log('🏭 Sector performance response:', response.data)
+    return response.data
+  } catch (error) {
+    console.error('❌ Sector performance error:', error)
+    throw error
+  }
+}
 
-  const { data: breadthData, isLoading: breadthLoading } = useQuery(
-    'market-breadth',
-    async () => {
-      try {
-        const result = await getMarketBreadth();
-        logger.success('getMarketBreadth', result);
-        return result;
-      } catch (err) {
-        logger.error('getMarketBreadth', err);
-        throw err;
-      }
-    },
-    { 
-      enabled: tabValue === 3,
-      onError: (err) => logger.queryError('market-breadth', err)
-    }
-  )
+const fetchMarketBreadth = async () => {
+  try {
+    console.log('📏 Fetching market breadth...')
+    const response = await api.get('/market/breadth')
+    console.log('📏 Market breadth response:', response.data)
+    return response.data
+  } catch (error) {
+    console.error('❌ Market breadth error:', error)
+    throw error
+  }
+}
 
-  const { data: economicData, isLoading: economicLoading } = useQuery(
-    'economic-indicators',
-    async () => {
-      try {
-        const result = await getEconomicIndicators(90);
-        logger.success('getEconomicIndicators', result, { days: 90 });
-        return result;
-      } catch (err) {
-        logger.error('getEconomicIndicators', err, { days: 90 });
-        throw err;
-      }
-    },
-    { 
-      enabled: tabValue === 4,
-      onError: (err) => logger.queryError('economic-indicators', err)
-    }
-  )
+const fetchEconomicIndicators = async (days = 90) => {
+  try {
+    console.log(`💰 Fetching economic indicators for ${days} days...`)
+    const response = await api.get(`/market/economic?days=${days}`)
+    console.log('💰 Economic indicators response:', response.data)
+    return response.data
+  } catch (error) {
+    console.error('❌ Economic indicators error:', error)
+    throw error
+  }
+}
 
-  const { data: seasonalityData, isLoading: seasonalityLoading } = useQuery(
-    'seasonality-data',
-    async () => {
-      try {
-        const result = await getSeasonalityData();
-        logger.success('getSeasonalityData', result);
-        return result;
-      } catch (err) {
-        logger.error('getSeasonalityData', err);
-        throw err;
-      }
-    },
-    { 
-      enabled: tabValue === 5,
-      onError: (err) => logger.queryError('seasonality-data', err)
-    }
-  )
+const fetchSeasonalityData = async () => {
+  try {
+    console.log('📅 Fetching seasonality data...')
+    const response = await api.get('/market/seasonality')
+    console.log('📅 Seasonality response:', response.data)
+    return response.data
+  } catch (error) {
+    console.error('❌ Seasonality error:', error)
+    throw error
+  }
+}
 
-  const { data: researchData, isLoading: researchLoading } = useQuery(
-    'market-research-indicators',
-    async () => {
-      try {
-        const result = await getMarketResearchIndicators();
-        logger.success('getMarketResearchIndicators', result);
-        return result;
-      } catch (err) {
-        logger.error('getMarketResearchIndicators', err);
-        throw err;
-      }
-    },
-    { 
-      enabled: tabValue === 6,
-      onError: (err) => logger.queryError('market-research-indicators', err)
-    }
-  )
+const fetchResearchIndicators = async () => {
+  try {
+    console.log('🔬 Fetching research indicators...')
+    const response = await api.get('/market/research-indicators')
+    console.log('🔬 Research indicators response:', response.data)
+    return response.data
+  } catch (error) {
+    console.error('❌ Research indicators error:', error)
+    throw error
+  }
+}
+
+function MarketOverview() {
+  const [tabValue, setTabValue] = useState(0)
+  
+  const { data: marketData, isLoading: marketLoading, error: marketError } = useQuery({
+    queryKey: ['market-overview'],
+    queryFn: fetchMarketOverview,
+    refetchInterval: 60000,
+    retry: 2,
+    staleTime: 30000
+  })
+
+  const { data: sentimentData, isLoading: sentimentLoading } = useQuery({
+    queryKey: ['market-sentiment-history'],
+    queryFn: () => fetchSentimentHistory(30),
+    enabled: tabValue === 1,
+    staleTime: 30000
+  })
+
+  const { data: sectorData, isLoading: sectorLoading } = useQuery({
+    queryKey: ['market-sector-performance'],
+    queryFn: fetchSectorPerformance,
+    enabled: tabValue === 2,
+    staleTime: 30000
+  })
+
+  const { data: breadthData, isLoading: breadthLoading } = useQuery({
+    queryKey: ['market-breadth'],
+    queryFn: fetchMarketBreadth,
+    enabled: tabValue === 3,
+    staleTime: 30000
+  })
+
+  const { data: economicData, isLoading: economicLoading } = useQuery({
+    queryKey: ['economic-indicators'],
+    queryFn: () => fetchEconomicIndicators(90),
+    enabled: tabValue === 4,
+    staleTime: 30000
+  })
+
+  const { data: seasonalityData, isLoading: seasonalityLoading } = useQuery({
+    queryKey: ['seasonality-data'],
+    queryFn: fetchSeasonalityData,
+    enabled: tabValue === 5,
+    staleTime: 30000
+  })
+
+  const { data: researchData, isLoading: researchLoading } = useQuery({
+    queryKey: ['market-research-indicators'],
+    queryFn: fetchResearchIndicators,
+    enabled: tabValue === 6,
+    staleTime: 30000
+  })
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue)
   }
-  if (marketError && !marketData) {
+  if (marketError) {
     return (
       <Box>
         <Typography variant="h4" sx={{ mb: 3, fontWeight: 600 }}>
@@ -263,29 +229,34 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
         </Typography>
         <Alert severity="error" sx={{ mb: 3 }}>
           Failed to load market data. Please check your data sources and try again.
-          <br /><small>Technical details: {marketError.message}</small>
-          <br /><small>Debug endpoint: <code>{import.meta.env.VITE_API_URL || ''}/market/debug</code></small>
+          <br /><small>Technical details: {marketError?.message || 'Unknown error'}</small>
+          <br /><small>Debug endpoint: <code>https://ye9syrnj8c.execute-api.us-east-1.amazonaws.com/dev/market/debug</code></small>
         </Alert>
       </Box>
     )
   }
 
-  // Extract data from the new market API structure
-  const sentimentIndicators = marketData?.data?.sentiment_indicators || {}
-  const marketBreadth = marketData?.data?.market_breadth || {}
-  const marketCap = marketData?.data?.market_cap || {}
-  const economicIndicators = marketData?.data?.economic_indicators || []
+  // Extract data from API responses - handles both direct data and nested structure
+  const sentimentIndicators = marketData?.data?.sentiment_indicators || marketData?.sentiment_indicators || {}
+  const marketBreadth = marketData?.data?.market_breadth || marketData?.market_breadth || {}
+  const marketCap = marketData?.data?.market_cap || marketData?.market_cap || {}
+  const economicIndicators = marketData?.data?.economic_indicators || marketData?.economic_indicators || []
   
-  const sectors = sectorData?.data?.sectors || []
-  const breadthInfo = breadthData?.data || {}
-  const sentimentHistory = sentimentData?.data || {}
+  // Handle sector data - it could be at data.sectors or just data array
+  const sectors = sectorData?.data?.sectors || sectorData?.data || []
+  
+  // Handle breadth data - flatten if needed
+  const breadthInfo = breadthData?.data || breadthData || {}
+  
+  // Handle sentiment history data
+  const sentimentHistory = sentimentData?.data || sentimentData || {}
 
-  // Prepare chart data for sectors
+  // Prepare chart data for sectors - handle different field names
   const sectorChartData = sectors.slice(0, 8).map(sector => ({
     name: sector.sector?.substring(0, 15) || 'Other',
-    performance: parseFloat(sector.avg_change_percent) || 0,
-    marketCap: parseFloat(sector.sector_market_cap) || 0,
-    stocks: parseInt(sector.stock_count) || 0,
+    performance: parseFloat(sector.avg_change_percent || sector.avg_change || sector.performance) || 0,
+    marketCap: parseFloat(sector.sector_market_cap || sector.market_cap || sector.avg_market_cap) || 0,
+    stocks: parseInt(sector.stock_count || sector.count) || 0,
     advanceDeclineRatio: parseFloat(sector.advance_decline_ratio) || 0
   }))
 
@@ -403,10 +374,10 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
               {sentimentIndicators.fear_greed ? (
                 <Box>
                   <Typography variant="h3" color="primary" sx={{ mb: 1 }}>
-                    {sentimentIndicators.fear_greed.value}
+                    {sentimentIndicators.fear_greed.value || 'N/A'}
                   </Typography>
                   <Chip 
-                    label={sentimentIndicators.fear_greed.value_text} 
+                    label={sentimentIndicators.fear_greed.value_text || 'Unknown'} 
                     color={
                       sentimentIndicators.fear_greed.value > 75 ? 'error' :
                       sentimentIndicators.fear_greed.value > 55 ? 'warning' :
@@ -420,7 +391,12 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
                   </Typography>
                 </Box>
               ) : (
-                <Typography variant="body2" color="text.secondary">No data available</Typography>
+                <Box>
+                  <Typography variant="h3" color="text.secondary" sx={{ mb: 1 }}>
+                    --
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">No Fear & Greed data available</Typography>
+                </Box>
               )}
             </CardContent>
           </Card>
@@ -436,19 +412,31 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                     <Typography variant="body2">Bullish:</Typography>
                     <Typography variant="body2" color="success.main">
-                      {sentimentIndicators.aaii.bullish !== undefined ? (sentimentIndicators.aaii.bullish * 100).toFixed(1) + '%' : 'N/A'}
+                      {sentimentIndicators.aaii.bullish !== undefined ? 
+                        (typeof sentimentIndicators.aaii.bullish === 'number' && sentimentIndicators.aaii.bullish <= 1 ? 
+                          (sentimentIndicators.aaii.bullish * 100).toFixed(1) + '%' : 
+                          sentimentIndicators.aaii.bullish.toFixed(1) + '%'
+                        ) : 'N/A'}
                     </Typography>
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                     <Typography variant="body2">Neutral:</Typography>
                     <Typography variant="body2" color="info.main">
-                      {sentimentIndicators.aaii.neutral !== undefined ? (sentimentIndicators.aaii.neutral * 100).toFixed(1) + '%' : 'N/A'}
+                      {sentimentIndicators.aaii.neutral !== undefined ? 
+                        (typeof sentimentIndicators.aaii.neutral === 'number' && sentimentIndicators.aaii.neutral <= 1 ? 
+                          (sentimentIndicators.aaii.neutral * 100).toFixed(1) + '%' : 
+                          sentimentIndicators.aaii.neutral.toFixed(1) + '%'
+                        ) : 'N/A'}
                     </Typography>
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                     <Typography variant="body2">Bearish:</Typography>
                     <Typography variant="body2" color="error.main">
-                      {sentimentIndicators.aaii.bearish !== undefined ? (sentimentIndicators.aaii.bearish * 100).toFixed(1) + '%' : 'N/A'}
+                      {sentimentIndicators.aaii.bearish !== undefined ? 
+                        (typeof sentimentIndicators.aaii.bearish === 'number' && sentimentIndicators.aaii.bearish <= 1 ? 
+                          (sentimentIndicators.aaii.bearish * 100).toFixed(1) + '%' : 
+                          sentimentIndicators.aaii.bearish.toFixed(1) + '%'
+                        ) : 'N/A'}
                     </Typography>
                   </Box>
                   <Typography variant="body2" color="text.secondary">
@@ -456,7 +444,10 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
                   </Typography>
                 </Box>
               ) : (
-                <Typography variant="body2" color="text.secondary">No data available</Typography>
+                <Box>
+                  <Typography variant="body2" color="text.secondary">No AAII data available</Typography>
+                  <Typography variant="caption" color="text.secondary">Sentiment indicators are loading...</Typography>
+                </Box>
               )}
             </CardContent>
           </Card>
@@ -489,7 +480,12 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
                   </Typography>
                 </Box>
               ) : (
-                <Typography variant="body2" color="text.secondary">No data available</Typography>
+                <Box>
+                  <Typography variant="h3" color="text.secondary" sx={{ mb: 1 }}>
+                    --
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">No NAAIM data available</Typography>
+                </Box>
               )}
             </CardContent>
           </Card>
@@ -508,7 +504,7 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
                 <Grid item xs={6}>
                   <Box sx={{ textAlign: 'center', p: 2, backgroundColor: 'success.light', borderRadius: 1 }}>
                     <Typography variant="h4" color="success.contrastText">
-                      {marketBreadth.advancing !== undefined && marketBreadth.advancing !== null ? marketBreadth.advancing.toLocaleString() : 'N/A'}
+                      {marketBreadth.advancing !== undefined && marketBreadth.advancing !== null ? parseInt(marketBreadth.advancing).toLocaleString() : 'N/A'}
                     </Typography>
                     <Typography variant="body2" color="success.contrastText">
                       Advancing
@@ -518,7 +514,7 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
                 <Grid item xs={6}>
                   <Box sx={{ textAlign: 'center', p: 2, backgroundColor: 'error.light', borderRadius: 1 }}>
                     <Typography variant="h4" color="error.contrastText">
-                      {marketBreadth.declining !== undefined && marketBreadth.declining !== null ? marketBreadth.declining.toLocaleString() : 'N/A'}
+                      {marketBreadth.declining !== undefined && marketBreadth.declining !== null ? parseInt(marketBreadth.declining).toLocaleString() : 'N/A'}
                     </Typography>
                     <Typography variant="body2" color="error.contrastText">
                       Declining
@@ -531,7 +527,7 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
                       Advance/Decline Ratio: {marketBreadth.advance_decline_ratio !== undefined ? marketBreadth.advance_decline_ratio : 'N/A'}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Average Change: {marketBreadth.average_change_percent !== undefined ? marketBreadth.average_change_percent : 'N/A'}%
+                      Average Change: {marketBreadth.average_change_percent !== undefined ? parseFloat(marketBreadth.average_change_percent).toFixed(2) : 'N/A'}%
                     </Typography>
                   </Box>
                 </Grid>
@@ -548,7 +544,7 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
                 <Typography variant="body2">Total Stocks:</Typography>
                 <Typography variant="body2" fontWeight="600">
-                  {marketBreadth.total_stocks !== undefined ? marketBreadth.total_stocks.toLocaleString() : 'N/A'}
+                  {marketBreadth.total_stocks !== undefined ? parseInt(marketBreadth.total_stocks).toLocaleString() : 'N/A'}
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
@@ -560,7 +556,7 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
                 <Typography variant="body2">Unchanged:</Typography>
                 <Typography variant="body2" fontWeight="600">
-                  {marketBreadth.unchanged !== undefined ? marketBreadth.unchanged : 'N/A'}
+                  {marketBreadth.unchanged !== undefined ? parseInt(marketBreadth.unchanged).toLocaleString() : 'N/A'}
                 </Typography>
               </Box>            </CardContent>
           </Card>
@@ -640,33 +636,13 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
           {sentimentLoading ? (
             <LinearProgress />
           ) : (
-            <Card>
-              <CardContent>
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                  Fear & Greed Index History (30 Days)
-                </Typography>
-                <ResponsiveContainer width="100%" height={400}>
-                  <LineChart data={sentimentChartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis domain={[0, 100]} />
-                    <Tooltip 
-                      formatter={(value, name, props) => [
-                        `${value} (${props.payload.text})`,
-                        'Fear & Greed Index'
-                      ]}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="value" 
-                      stroke="#8884d8" 
-                      strokeWidth={2}
-                      dot={{ r: 4 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
+            <Box>
+              {sentimentLoading ? (
+                <LinearProgress />
+              ) : (
+                <SentimentHistoryPanel />
+              )}
+            </Box>
           )}
         </TabPanel>
 
@@ -719,23 +695,26 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {sectors.slice(0, 8).map((sector, index) => (
-                            <TableRow key={index}>
-                              <TableCell>{sector.sector?.substring(0, 12) || 'N/A'}</TableCell>
-                              <TableCell 
-                                align="right"
-                                sx={{ 
-                                  color: getChangeColor(parseFloat(sector.avg_change_percent) || 0),
-                                  fontWeight: 600
-                                }}
-                              >
-                                {formatPercentage(parseFloat(sector.avg_change_percent) || 0)}
-                              </TableCell>
-                              <TableCell align="right">
-                                {sector.stock_count || 0}
-                              </TableCell>
-                            </TableRow>
-                          ))}
+                          {sectors.slice(0, 8).map((sector, index) => {
+                            const changePercent = parseFloat(sector.avg_change_percent || sector.avg_change || sector.performance) || 0
+                            return (
+                              <TableRow key={index}>
+                                <TableCell>{sector.sector?.substring(0, 12) || 'N/A'}</TableCell>
+                                <TableCell 
+                                  align="right"
+                                  sx={{ 
+                                    color: getChangeColor(changePercent),
+                                    fontWeight: 600
+                                  }}
+                                >
+                                  {formatPercentage(changePercent)}
+                                </TableCell>
+                                <TableCell align="right">
+                                  {sector.stock_count || sector.count || 0}
+                                </TableCell>
+                              </TableRow>
+                            )
+                          })}
                         </TableBody>
                       </Table>
                     </TableContainer>
@@ -851,29 +830,44 @@ function MarketOverview() {  const [tabValue, setTabValue] = useState(0)
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {economicData?.data?.slice(0, 10).map((indicator, index) => (
-                            <TableRow key={index} hover>
-                              <TableCell>{indicator.name || 'N/A'}</TableCell>
-                              <TableCell align="right">
-                                {indicator.value} {indicator.unit}
-                              </TableCell>
-                              <TableCell align="right">
-                                {indicator.previous_value || 'N/A'} {indicator.unit}
-                              </TableCell>
-                              <TableCell 
-                                align="right"
-                                sx={{ 
-                                  color: getChangeColor(parseFloat(indicator.change_percent) || 0),
-                                  fontWeight: 600
-                                }}
-                              >
-                                {indicator.change_percent ? formatPercentage(parseFloat(indicator.change_percent)) : 'N/A'}
-                              </TableCell>
-                              <TableCell align="right">
-                                {indicator.timestamp ? new Date(indicator.timestamp).toLocaleDateString() : 'N/A'}
-                              </TableCell>
-                            </TableRow>
-                          ))}
+                          {(() => {
+                            // Handle different data structures for economic indicators
+                            let indicators = []
+                            if (economicData?.data && Array.isArray(economicData.data)) {
+                              indicators = economicData.data.slice(0, 10)
+                            } else if (economicData?.data && typeof economicData.data === 'object') {
+                              // If data is grouped by indicator name
+                              indicators = Object.entries(economicData.data).flatMap(([name, values]) => 
+                                Array.isArray(values) ? values.slice(0, 2).map(v => ({...v, name})) : [{...values, name}]
+                              ).slice(0, 10)
+                            } else if (Array.isArray(economicData)) {
+                              indicators = economicData.slice(0, 10)
+                            }
+                            
+                            return indicators.map((indicator, index) => (
+                              <TableRow key={index} hover>
+                                <TableCell>{indicator.name || indicator.indicator_name || 'N/A'}</TableCell>
+                                <TableCell align="right">
+                                  {indicator.value} {indicator.unit}
+                                </TableCell>
+                                <TableCell align="right">
+                                  {indicator.previous_value || 'N/A'} {indicator.unit}
+                                </TableCell>
+                                <TableCell 
+                                  align="right"
+                                  sx={{ 
+                                    color: getChangeColor(parseFloat(indicator.change_percent) || 0),
+                                    fontWeight: 600
+                                  }}
+                                >
+                                  {indicator.change_percent ? formatPercentage(parseFloat(indicator.change_percent)) : 'N/A'}
+                                </TableCell>
+                                <TableCell align="right">
+                                  {indicator.timestamp || indicator.date ? new Date(indicator.timestamp || indicator.date).toLocaleDateString() : 'N/A'}
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          })()}
                         </TableBody>
                       </Table>
                     </TableContainer>
