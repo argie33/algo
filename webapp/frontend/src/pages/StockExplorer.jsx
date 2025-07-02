@@ -401,25 +401,6 @@ function StockExplorer() {
           </Typography>
         </Box>
         <Box display="flex" gap={2} alignItems="center">
-          {/* Debug button in development */}
-          {import.meta.env.DEV && (
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={async () => {
-                try {
-                  const response = await screenStocks(new URLSearchParams());
-                  console.log('Test API response:', response);
-                  alert('API test successful! Check console for details.');
-                } catch (err) {
-                  console.error('API test failed:', err);
-                  alert('API test failed! Check console for details.');
-                }
-              }}
-            >
-              Test API
-            </Button>
-          )}
           
           <Button
             variant="outlined"
@@ -645,16 +626,6 @@ function StockExplorer() {
               {/* Results Display */}
               {stocksData && !isLoading && (
                 <>
-                  {/* Debug Info in Development */}
-                  {import.meta.env.DEV && (
-                    <Alert severity="info" sx={{ mb: 2 }}>
-                      <strong>Debug Info:</strong> Found {stocksData.data?.length || 0} items. 
-                      Response structure: {JSON.stringify(Object.keys(stocksData || {}), null, 2)}
-                      {stocksData.data?.[0] && (
-                        <><br/>First item keys: {JSON.stringify(Object.keys(stocksData.data[0]), null, 2)}</>
-                      )}
-                    </Alert>
-                  )}
 
                   {/* Accordion Display */}
                   <Box sx={{ width: '100%' }}>
@@ -982,11 +953,6 @@ function StockExplorer() {
                   <Typography variant="body2" color="text.secondary" mb={3}>
                     Try adjusting your search or filter criteria
                   </Typography>
-                  {import.meta.env.DEV && (
-                    <Typography variant="caption" display="block" color="text.secondary" mb={2}>
-                      Debug: Response structure = {JSON.stringify(stocksData, null, 2)}
-                    </Typography>
-                  )}
                   <Button 
                     variant="outlined" 
                     onClick={handleClearFilters}

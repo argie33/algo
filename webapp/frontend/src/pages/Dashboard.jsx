@@ -16,7 +16,7 @@ import {
   Autocomplete
 } from '@mui/material';
 import {
-  TrendingUp, TrendingDown, Assessment, Notifications, Event, ListAlt, ShowChart, AccountBalance, Download, ContactSupport, Info, TrendingFlat, ArrowUpward, ArrowDownward
+  TrendingUp, TrendingDown, Assessment, Notifications, Event, ListAlt, ShowChart, AccountBalance, Download, Info, TrendingFlat, ArrowUpward, ArrowDownward
 } from '@mui/icons-material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
@@ -31,6 +31,7 @@ try {
   // Use dynamic import for assets in Vite
   logoSrc = new URL('../assets/logo.png', import.meta.url).href;
 } catch (e) {
+  console.warn('Logo not found, using fallback avatar');
   logoSrc = null;
 }
 
@@ -98,7 +99,9 @@ function useUser() {
       if (!res.ok) throw new Error('Failed to fetch user info');
       return res.json();
     },
-    staleTime: 10 * 60 * 1000
+    staleTime: 10 * 60 * 1000,
+    retry: 1,
+    retryDelay: 1000
   });
   return {
     user: data?.data || null,
@@ -129,7 +132,10 @@ function TechnicalSignalsWidget() {
         throw err;
       }
     },
-    refetchInterval: 300000
+    refetchInterval: 300000,
+    retry: 1,
+    retryDelay: 1000,
+    onError: (err) => console.error('Technical signals error:', err)
   });
   const signals = data?.data || [];
   return (
@@ -185,7 +191,10 @@ function MarketOverviewWidget() {
       if (!res.ok) throw new Error(`Failed to fetch market summary: ${res.status} ${res.statusText}`);
       return res.json();
     },
-    staleTime: 2 * 60 * 1000
+    staleTime: 2 * 60 * 1000,
+    retry: 1,
+    retryDelay: 1000,
+    onError: (err) => console.error('Market summary error:', err)
   });
   const summary = Array.isArray(data?.data) ? data.data : [];
   return (
@@ -363,7 +372,10 @@ const Dashboard = () => {
       if (!res.ok) throw new Error('Failed to fetch symbol list');
       return res.json();
     },
-    staleTime: 60 * 60 * 1000
+    staleTime: 60 * 60 * 1000,
+    retry: 1,
+    retryDelay: 1000,
+    onError: (err) => console.error('Symbol list error:', err)
   });
   const SYMBOL_OPTIONS = Array.isArray(symbolListData?.data) && symbolListData.data.length > 0
     ? symbolListData.data
@@ -373,13 +385,19 @@ const Dashboard = () => {
   const { data: priceData, isLoading: priceLoading, error: priceError } = useQuery({
     queryKey: ['stock-prices', selectedSymbol],
     queryFn: () => getStockPrices(selectedSymbol, 'daily', 30),
-    staleTime: 5 * 60 * 1000
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+    retryDelay: 1000,
+    onError: (err) => console.error('Price data error:', err)
   });
   // Risk metrics
   const { data: metricsData, isLoading: metricsLoading, error: metricsError } = useQuery({
     queryKey: ['stock-metrics', selectedSymbol],
     queryFn: () => getStockMetrics(selectedSymbol),
-    staleTime: 5 * 60 * 1000
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+    retryDelay: 1000,
+    onError: (err) => console.error('Metrics data error:', err)
   });
   // Buy/Sell signals
   const { data: buySignals } = useQuery({
@@ -630,7 +648,6 @@ const Dashboard = () => {
                 <Button variant="contained" color="primary" fullWidth startIcon={<TrendingUp />} aria-label="Trade">Trade</Button>
                 <Button variant="outlined" color="primary" fullWidth startIcon={<AccountBalance />} aria-label="Transfer Funds">Transfer Funds</Button>
                 <Button variant="outlined" color="secondary" fullWidth startIcon={<Download />} aria-label="Download Report">Download Report</Button>
-                <Button variant="outlined" color="info" fullWidth startIcon={<ContactSupport />} aria-label="Contact Support">Contact Support</Button>
               </Box>
             </CardContent>
           </Card>
