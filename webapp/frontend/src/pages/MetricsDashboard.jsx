@@ -205,6 +205,7 @@ const MetricsDashboard = () => {
             <TableCell align="center"><strong>Composite Metric</strong></TableCell>
             <TableCell align="center"><strong>Quality</strong></TableCell>
             <TableCell align="center"><strong>Value</strong></TableCell>
+            <TableCell align="center"><strong>Growth</strong></TableCell>
             <TableCell><strong>Price</strong></TableCell>
             <TableCell><strong>Market Cap</strong></TableCell>
           </TableRow>
@@ -258,6 +259,11 @@ const MetricsDashboard = () => {
                   {stock.metrics.value.toFixed(3)}
                 </Typography>
               </TableCell>
+              <TableCell align="center">
+                <Typography sx={{ color: getMetricColor(stock.metrics.growth || 0) }}>
+                  {(stock.metrics.growth || 0).toFixed(3)}
+                </Typography>
+              </TableCell>
               <TableCell>
                 ${stock.currentPrice?.toFixed(2) || 'N/A'}
               </TableCell>
@@ -298,6 +304,11 @@ const MetricsDashboard = () => {
                 metric={parseFloat(sector.averageMetrics.value)} 
                 label="Value"
                 icon={<AttachMoney />}
+              />
+              <MetricProgressBar 
+                metric={parseFloat(sector.averageMetrics.growth || 0)} 
+                label="Growth"
+                icon={<TrendingUp />}
               />
               
               <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between' }}>
@@ -517,6 +528,12 @@ const MetricsDashboard = () => {
             <Typography variant="subtitle2">Value Metric</Typography>
             <Typography variant="caption">
               Traditional multiples (P/E, P/B, EV/EBITDA), DCF intrinsic value, dividend discount model, and peer comparison analysis
+            </Typography>
+          </Grid>
+          <Grid item xs={12} sm={6} md={6}>
+            <Typography variant="subtitle2">Growth Metric</Typography>
+            <Typography variant="caption">
+              Revenue growth analysis, earnings growth quality, fundamental growth drivers, and market expansion potential based on academic research
             </Typography>
           </Grid>
         </Grid>

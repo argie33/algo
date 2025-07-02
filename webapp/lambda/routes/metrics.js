@@ -97,8 +97,18 @@ router.get('/', async (req, res) => {
         vm.dcf_intrinsic_value,
         vm.dcf_margin_of_safety,
         
-        -- Calculate composite metric (weighted average)
+        -- Growth Metrics
+        gm.growth_composite_score,
+        gm.revenue_growth_score,
+        gm.earnings_growth_score,
+        gm.fundamental_growth_score,
+        gm.market_expansion_score,
+        gm.growth_percentile_rank,
+        
+        -- Calculate composite metric (weighted average including growth)
         CASE 
+          WHEN qm.quality_metric IS NOT NULL AND vm.value_metric IS NOT NULL AND gm.growth_composite_score IS NOT NULL THEN
+            (qm.quality_metric * 0.4 + vm.value_metric * 0.3 + gm.growth_composite_score * 0.3)
           WHEN qm.quality_metric IS NOT NULL AND vm.value_metric IS NOT NULL THEN
             (qm.quality_metric * 0.6 + vm.value_metric * 0.4)
           WHEN qm.quality_metric IS NOT NULL THEN qm.quality_metric
@@ -124,6 +134,7 @@ router.get('/', async (req, res) => {
           FROM value_metrics vm2 
           WHERE vm2.symbol = ss.symbol
         )
+      LEFT JOIN growth_metrics gm ON ss.symbol = gm.symbol
       ${whereClause}
       AND (qm.quality_metric IS NOT NULL OR vm.value_metric IS NOT NULL)
       ORDER BY ${safeSort === 'composite_metric' ? 
@@ -153,6 +164,7 @@ router.get('/', async (req, res) => {
           FROM value_metrics vm2 
           WHERE vm2.symbol = ss.symbol
         )
+      LEFT JOIN growth_metrics gm ON ss.symbol = gm.symbol
       ${whereClause}
       AND (qm.quality_metric IS NOT NULL OR vm.value_metric IS NOT NULL)
     `;
@@ -174,7 +186,8 @@ router.get('/', async (req, res) => {
       metrics: {
         composite: parseFloat(row.composite_metric) || 0,
         quality: parseFloat(row.quality_metric) || 0,
-        value: parseFloat(row.value_metric) || 0
+        value: parseFloat(row.value_metric) || 0,
+        growth: parseFloat(row.growth_composite_score) || 0
       },
       
       qualityBreakdown: {
@@ -194,6 +207,15 @@ router.get('/', async (req, res) => {
         relativeValue: parseFloat(row.relative_value_metric) || 0,
         dcfValue: parseFloat(row.dcf_intrinsic_value) || 0,
         marginOfSafety: parseFloat(row.dcf_margin_of_safety) || 0
+      },
+      
+      growthBreakdown: {
+        overall: parseFloat(row.growth_composite_score) || 0,
+        revenue: parseFloat(row.revenue_growth_score) || 0,
+        earnings: parseFloat(row.earnings_growth_score) || 0,
+        fundamental: parseFloat(row.fundamental_growth_score) || 0,
+        marketExpansion: parseFloat(row.market_expansion_score) || 0,
+        percentileRank: parseInt(row.growth_percentile_rank) || 50
       },
       
       metadata: {

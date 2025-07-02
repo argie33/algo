@@ -706,6 +706,7 @@ router.post('/update-status', async (req, res) => {
           // Quality & Value Metrics Tables
           { name: 'quality_metrics', category: 'scoring', critical: true, frequency: '1 day' },
           { name: 'value_metrics', category: 'scoring', critical: true, frequency: '1 day' },
+          { name: 'growth_metrics', category: 'scoring', critical: true, frequency: '1 day' },
           
           // Advanced Scoring System Tables
           { name: 'stock_scores', category: 'scoring', critical: true, frequency: '1 day' },
