@@ -41,7 +41,10 @@ import {
   PlayArrow,
   Login as LoginIcon,
   Logout as LogoutIcon,
-  AccountCircle as AccountCircleIcon
+  AccountCircle as AccountCircleIcon,
+  Psychology as PsychologyIcon,
+  Search as SearchIcon,
+  PublicIcon
 } from '@mui/icons-material'
 
 // All real page imports
@@ -59,6 +62,9 @@ import TechnicalHistory from './pages/TechnicalHistory'
 import Backtest from './pages/Backtest'
 import TradingSignals from './pages/TradingSignals'
 import Portfolio from './pages/Portfolio'
+import SentimentAnalysis from './pages/SentimentAnalysis'
+import AdvancedScreener from './pages/AdvancedScreener'
+import EconomicModeling from './pages/EconomicModeling'
 import { useAuth } from './contexts/AuthContext'
 import AuthModal from './components/auth/AuthModal'
 import ProtectedRoute from './components/auth/ProtectedRoute'
@@ -69,8 +75,11 @@ const menuItems = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
   { text: 'Portfolio', icon: <BusinessIcon />, path: '/portfolio' },
   { text: 'Market Overview', icon: <TrendingUpIcon />, path: '/market' },
-  { text: 'Stock Metrics', icon: <AssessmentIcon />, path: '/metrics' },
+  { text: 'Advanced Screener', icon: <SearchIcon />, path: '/screener-advanced' },
   { text: 'Stock Explorer', icon: <FilterListIcon />, path: '/stocks' },
+  { text: 'Stock Metrics', icon: <AssessmentIcon />, path: '/metrics' },
+  { text: 'Sentiment Analysis', icon: <PsychologyIcon />, path: '/sentiment' },
+  { text: 'Economic Modeling', icon: <PublicIcon />, path: '/economic' },
   { text: 'Financial Data', icon: <AccountBalanceIcon />, path: '/financial-data' },
   { text: 'Trading Signals', icon: <TimelineIcon />, path: '/trading' },
   { text: 'Technical Analysis', icon: <AnalyticsIcon />, path: '/technical' },
@@ -274,6 +283,9 @@ function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/portfolio" element={<Portfolio />} />
               <Route path="/market" element={<MarketOverview />} />
+              <Route path="/screener-advanced" element={<AdvancedScreener />} />
+              <Route path="/sentiment" element={<SentimentAnalysis />} />
+              <Route path="/economic" element={<EconomicModeling />} />
               <Route path="/metrics" element={<MetricsDashboard />} />
               <Route path="/stocks" element={<StockExplorer />} />
               <Route path="/stocks/:ticker" element={<StockDetail />} />

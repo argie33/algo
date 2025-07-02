@@ -1,5 +1,5 @@
 -- Create comprehensive health_status table for database monitoring
--- This table tracks the health status of all 52 database tables used in the financial dashboard
+-- This table tracks the health status of all 70+ database tables used in the financial dashboard
 
 DROP TABLE IF EXISTS health_status CASCADE;
 
@@ -44,7 +44,7 @@ CREATE TRIGGER trigger_health_status_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_health_status_updated_at();
 
--- Insert all 52 tables that should be monitored
+-- Insert all 70+ tables that should be monitored
 INSERT INTO health_status (table_name, table_category, critical_table, expected_update_frequency) VALUES
 -- Core Tables (Stock Symbol Management)
 ('stock_symbols', 'symbols', true, '1 week'),
@@ -58,32 +58,26 @@ INSERT INTO health_status (table_name, table_category, critical_table, expected_
 ('etf_price_daily', 'prices', true, '1 day'),
 ('etf_price_weekly', 'prices', true, '1 week'),
 ('etf_price_monthly', 'prices', true, '1 month'),
-('latest_price_daily', 'prices', true, '1 day'),
-('latest_price_weekly', 'prices', true, '1 week'),
-('latest_price_monthly', 'prices', true, '1 month'),
+('price_data_montly', 'prices', false, '1 month'), -- Test table with typo
 
--- Technical Analysis Tables
-('technicals_daily', 'technicals', true, '1 day'),
-('technicals_weekly', 'technicals', true, '1 week'),
-('technicals_monthly', 'technicals', true, '1 month'),
-('latest_technicals_daily', 'technicals', true, '1 day'),
-('latest_technicals_weekly', 'technicals', true, '1 week'),
-('latest_technicals_monthly', 'technicals', true, '1 month'),
+-- Technical Analysis Tables (corrected names)
 ('technical_data_daily', 'technicals', true, '1 day'),
+('technical_data_weekly', 'technicals', true, '1 week'),
+('technical_data_monthly', 'technicals', true, '1 month'),
 
 -- Financial Statement Tables (Annual)
 ('annual_balance_sheet', 'financials', false, '3 months'),
 ('annual_income_statement', 'financials', false, '3 months'),
-('annual_cashflow', 'financials', false, '3 months'),
+('annual_cash_flow', 'financials', false, '3 months'), -- Fixed name
 
 -- Financial Statement Tables (Quarterly)
 ('quarterly_balance_sheet', 'financials', true, '3 months'),
 ('quarterly_income_statement', 'financials', true, '3 months'),
-('quarterly_cashflow', 'financials', true, '3 months'),
+('quarterly_cash_flow', 'financials', true, '3 months'), -- Fixed name
 
 -- Financial Statement Tables (TTM)
 ('ttm_income_statement', 'financials', false, '3 months'),
-('ttm_cashflow', 'financials', false, '3 months'),
+('ttm_cash_flow', 'financials', false, '3 months'), -- Fixed name
 
 -- Company Information Tables
 ('company_profile', 'company', true, '1 week'),
@@ -95,9 +89,10 @@ INSERT INTO health_status (table_name, table_category, critical_table, expected_
 
 -- Earnings & Calendar Tables
 ('earnings_history', 'earnings', false, '1 day'),
-('earnings_estimate', 'earnings', true, '1 day'),
-('revenue_estimate', 'earnings', false, '1 day'),
+('earnings_estimates', 'earnings', true, '1 day'), -- Fixed name
+('revenue_estimates', 'earnings', false, '1 day'), -- Fixed name
 ('calendar_events', 'earnings', true, '1 day'),
+('earnings_metrics', 'earnings', false, '1 day'), -- Added missing table
 
 -- Market Sentiment & Economic Tables
 ('fear_greed_index', 'sentiment', true, '1 day'),
@@ -115,8 +110,35 @@ INSERT INTO health_status (table_name, table_category, critical_table, expected_
 ('buy_sell_monthly', 'trading', true, '1 month'),
 
 -- News & Additional Data
-('news', 'other', false, '1 hour'),
+('stock_news', 'news', false, '1 hour'), -- Fixed name
 ('stocks', 'other', false, '1 day'),
+
+-- Quality & Value Metrics Tables
+('quality_metrics', 'scoring', true, '1 day'),
+('value_metrics', 'scoring', true, '1 day'),
+
+-- Advanced Scoring System Tables
+('stock_scores', 'scoring', true, '1 day'),
+('earnings_quality_metrics', 'scoring', false, '1 day'),
+('balance_sheet_strength', 'scoring', false, '1 day'),
+('profitability_metrics', 'scoring', false, '1 day'),
+('management_effectiveness', 'scoring', false, '1 day'),
+('valuation_multiples', 'scoring', false, '1 day'),
+('intrinsic_value_analysis', 'scoring', false, '1 day'),
+('revenue_growth_analysis', 'scoring', false, '1 day'),
+('earnings_growth_analysis', 'scoring', false, '1 day'),
+('price_momentum_analysis', 'scoring', false, '1 day'),
+('technical_momentum_analysis', 'scoring', false, '1 day'),
+('analyst_sentiment_analysis', 'scoring', false, '1 day'),
+('social_sentiment_analysis', 'scoring', false, '1 day'),
+('institutional_positioning', 'scoring', false, '1 week'),
+('insider_trading_analysis', 'scoring', false, '1 day'),
+('score_performance_tracking', 'scoring', false, '1 day'),
+('market_regime', 'scoring', false, '1 day'),
+('stock_symbols_enhanced', 'scoring', false, '1 week'),
+
+-- System Health Monitoring
+('health_status', 'system', true, '1 hour'),
 
 -- Test Tables (from init.sql)
 ('earnings', 'test', false, '1 day'),
@@ -282,7 +304,7 @@ $$ LANGUAGE plpgsql;
 -- GRANT EXECUTE ON FUNCTION perform_comprehensive_health_check TO webapp_user;
 
 -- Add comment to table
-COMMENT ON TABLE health_status IS 'Comprehensive health monitoring for all 52 database tables in the financial dashboard system';
+COMMENT ON TABLE health_status IS 'Comprehensive health monitoring for all 70+ database tables in the financial dashboard system';
 COMMENT ON COLUMN health_status.status IS 'Current health status: healthy, stale, empty, error, missing, unknown';
 COMMENT ON COLUMN health_status.table_category IS 'Logical grouping: symbols, prices, technicals, financials, company, earnings, sentiment, trading, other';
 COMMENT ON COLUMN health_status.critical_table IS 'Whether this table is critical for basic application functionality';

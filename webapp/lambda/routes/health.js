@@ -132,22 +132,23 @@ router.get('/', async (req, res) => {
           WHERE table_schema = 'public' 
           AND table_name IN (
             'stock_symbols', 'etf_symbols', 'last_updated',
-            'price_daily', 'price_weekly', 'price_monthly', 'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly',
-            'latest_price_daily', 'latest_price_weekly', 'latest_price_monthly',
-            'technicals_daily', 'technicals_weekly', 'technicals_monthly',
-            'latest_technicals_daily', 'latest_technicals_weekly', 'latest_technicals_monthly',
-            'technical_data_daily',
-            'annual_balance_sheet', 'annual_income_statement', 'annual_cashflow',
-            'quarterly_balance_sheet', 'quarterly_income_statement', 'quarterly_cashflow',
-            'ttm_income_statement', 'ttm_cashflow',
+            'price_daily', 'price_weekly', 'price_monthly', 'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly', 'price_data_montly',
+            'technical_data_daily', 'technical_data_weekly', 'technical_data_monthly',
+            'annual_balance_sheet', 'annual_income_statement', 'annual_cash_flow',
+            'quarterly_balance_sheet', 'quarterly_income_statement', 'quarterly_cash_flow',
+            'ttm_income_statement', 'ttm_cash_flow',
             'company_profile', 'market_data', 'key_metrics', 'analyst_estimates', 'governance_scores', 'leadership_team',
-            'earnings_history', 'earnings_estimate', 'revenue_estimate', 'calendar_events',
+            'earnings_history', 'earnings_estimates', 'revenue_estimates', 'calendar_events', 'earnings_metrics',
             'fear_greed_index', 'aaii_sentiment', 'naaim', 'economic_data', 'analyst_upgrade_downgrade',
             'portfolio_holdings', 'portfolio_performance', 'trading_alerts',
             'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
-            'news', 'stocks',
-            'earnings', 'prices',
-            'health_status'
+            'stock_news', 'stocks',
+            'quality_metrics', 'value_metrics', 'stock_scores',
+            'earnings_quality_metrics', 'balance_sheet_strength', 'profitability_metrics', 'management_effectiveness',
+            'valuation_multiples', 'intrinsic_value_analysis', 'revenue_growth_analysis', 'earnings_growth_analysis',
+            'price_momentum_analysis', 'technical_momentum_analysis', 'analyst_sentiment_analysis', 'social_sentiment_analysis',
+            'institutional_positioning', 'insider_trading_analysis', 'score_performance_tracking', 'market_regime', 'stock_symbols_enhanced',
+            'health_status', 'earnings', 'prices'
           )
         `),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Table existence check timeout')), 2000))
@@ -175,25 +176,26 @@ router.get('/', async (req, res) => {
           tables[result.table] = result.count !== null ? result.count : `Error: ${result.error}`;
         });
       }
-      // Add missing tables as "not_found"
+      // Add missing tables as "not_found" - comprehensive list
       [
         'stock_symbols', 'etf_symbols', 'last_updated',
-        'price_daily', 'price_weekly', 'price_monthly', 'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly',
-        'latest_price_daily', 'latest_price_weekly', 'latest_price_monthly',
-        'technicals_daily', 'technicals_weekly', 'technicals_monthly',
-        'latest_technicals_daily', 'latest_technicals_weekly', 'latest_technicals_monthly',
-        'technical_data_daily',
-        'annual_balance_sheet', 'annual_income_statement', 'annual_cashflow',
-        'quarterly_balance_sheet', 'quarterly_income_statement', 'quarterly_cashflow',
-        'ttm_income_statement', 'ttm_cashflow',
+        'price_daily', 'price_weekly', 'price_monthly', 'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly', 'price_data_montly',
+        'technical_data_daily', 'technical_data_weekly', 'technical_data_monthly',
+        'annual_balance_sheet', 'annual_income_statement', 'annual_cash_flow',
+        'quarterly_balance_sheet', 'quarterly_income_statement', 'quarterly_cash_flow',
+        'ttm_income_statement', 'ttm_cash_flow',
         'company_profile', 'market_data', 'key_metrics', 'analyst_estimates', 'governance_scores', 'leadership_team',
-        'earnings_history', 'earnings_estimate', 'revenue_estimate', 'calendar_events',
+        'earnings_history', 'earnings_estimates', 'revenue_estimates', 'calendar_events', 'earnings_metrics',
         'fear_greed_index', 'aaii_sentiment', 'naaim', 'economic_data', 'analyst_upgrade_downgrade',
         'portfolio_holdings', 'portfolio_performance', 'trading_alerts',
         'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
-        'news', 'stocks',
-        'earnings', 'prices',
-        'health_status'
+        'stock_news', 'stocks',
+        'quality_metrics', 'value_metrics', 'stock_scores',
+        'earnings_quality_metrics', 'balance_sheet_strength', 'profitability_metrics', 'management_effectiveness',
+        'valuation_multiples', 'intrinsic_value_analysis', 'revenue_growth_analysis', 'earnings_growth_analysis',
+        'price_momentum_analysis', 'technical_momentum_analysis', 'analyst_sentiment_analysis', 'social_sentiment_analysis',
+        'institutional_positioning', 'insider_trading_analysis', 'score_performance_tracking', 'market_regime', 'stock_symbols_enhanced',
+        'health_status', 'earnings', 'prices'
       ].forEach(tableName => {
         if (!existingTables.includes(tableName)) {
           tables[tableName] = 'not_found';
@@ -632,7 +634,7 @@ router.post('/update-status', async (req, res) => {
           )
         `);
 
-        // Insert all monitored tables
+        // Insert all monitored tables - comprehensive list
         const monitoredTables = [
           // Core Tables (Stock Symbol Management)
           { name: 'stock_symbols', category: 'symbols', critical: true, frequency: '1 week' },
@@ -646,32 +648,26 @@ router.post('/update-status', async (req, res) => {
           { name: 'etf_price_daily', category: 'prices', critical: true, frequency: '1 day' },
           { name: 'etf_price_weekly', category: 'prices', critical: true, frequency: '1 week' },
           { name: 'etf_price_monthly', category: 'prices', critical: true, frequency: '1 month' },
-          { name: 'latest_price_daily', category: 'prices', critical: true, frequency: '1 day' },
-          { name: 'latest_price_weekly', category: 'prices', critical: true, frequency: '1 week' },
-          { name: 'latest_price_monthly', category: 'prices', critical: true, frequency: '1 month' },
+          { name: 'price_data_montly', category: 'prices', critical: false, frequency: '1 month' }, // Test table with typo
           
-          // Technical Analysis Tables
-          { name: 'technicals_daily', category: 'technicals', critical: true, frequency: '1 day' },
-          { name: 'technicals_weekly', category: 'technicals', critical: true, frequency: '1 week' },
-          { name: 'technicals_monthly', category: 'technicals', critical: true, frequency: '1 month' },
-          { name: 'latest_technicals_daily', category: 'technicals', critical: true, frequency: '1 day' },
-          { name: 'latest_technicals_weekly', category: 'technicals', critical: true, frequency: '1 week' },
-          { name: 'latest_technicals_monthly', category: 'technicals', critical: true, frequency: '1 month' },
+          // Technical Analysis Tables (corrected names)
           { name: 'technical_data_daily', category: 'technicals', critical: true, frequency: '1 day' },
+          { name: 'technical_data_weekly', category: 'technicals', critical: true, frequency: '1 week' },
+          { name: 'technical_data_monthly', category: 'technicals', critical: true, frequency: '1 month' },
           
           // Financial Statement Tables (Annual)
           { name: 'annual_balance_sheet', category: 'financials', critical: false, frequency: '3 months' },
           { name: 'annual_income_statement', category: 'financials', critical: false, frequency: '3 months' },
-          { name: 'annual_cashflow', category: 'financials', critical: false, frequency: '3 months' },
+          { name: 'annual_cash_flow', category: 'financials', critical: false, frequency: '3 months' }, // Fixed name
           
           // Financial Statement Tables (Quarterly)
           { name: 'quarterly_balance_sheet', category: 'financials', critical: true, frequency: '3 months' },
           { name: 'quarterly_income_statement', category: 'financials', critical: true, frequency: '3 months' },
-          { name: 'quarterly_cashflow', category: 'financials', critical: true, frequency: '3 months' },
+          { name: 'quarterly_cash_flow', category: 'financials', critical: true, frequency: '3 months' }, // Fixed name
           
           // Financial Statement Tables (TTM)
           { name: 'ttm_income_statement', category: 'financials', critical: false, frequency: '3 months' },
-          { name: 'ttm_cashflow', category: 'financials', critical: false, frequency: '3 months' },
+          { name: 'ttm_cash_flow', category: 'financials', critical: false, frequency: '3 months' }, // Fixed name
           
           // Company Information Tables
           { name: 'company_profile', category: 'company', critical: true, frequency: '1 week' },
@@ -683,9 +679,10 @@ router.post('/update-status', async (req, res) => {
           
           // Earnings & Calendar Tables
           { name: 'earnings_history', category: 'earnings', critical: false, frequency: '1 day' },
-          { name: 'earnings_estimate', category: 'earnings', critical: true, frequency: '1 day' },
-          { name: 'revenue_estimate', category: 'earnings', critical: false, frequency: '1 day' },
+          { name: 'earnings_estimates', category: 'earnings', critical: true, frequency: '1 day' }, // Fixed name
+          { name: 'revenue_estimates', category: 'earnings', critical: false, frequency: '1 day' }, // Fixed name
           { name: 'calendar_events', category: 'earnings', critical: true, frequency: '1 day' },
+          { name: 'earnings_metrics', category: 'earnings', critical: false, frequency: '1 day' }, // Added missing table
           
           // Market Sentiment & Economic Tables
           { name: 'fear_greed_index', category: 'sentiment', critical: true, frequency: '1 day' },
@@ -703,8 +700,35 @@ router.post('/update-status', async (req, res) => {
           { name: 'buy_sell_monthly', category: 'trading', critical: true, frequency: '1 month' },
           
           // News & Additional Data
-          { name: 'news', category: 'other', critical: false, frequency: '1 hour' },
+          { name: 'stock_news', category: 'news', critical: false, frequency: '1 hour' }, // Fixed name
           { name: 'stocks', category: 'other', critical: false, frequency: '1 day' },
+          
+          // Quality & Value Metrics Tables
+          { name: 'quality_metrics', category: 'scoring', critical: true, frequency: '1 day' },
+          { name: 'value_metrics', category: 'scoring', critical: true, frequency: '1 day' },
+          
+          // Advanced Scoring System Tables
+          { name: 'stock_scores', category: 'scoring', critical: true, frequency: '1 day' },
+          { name: 'earnings_quality_metrics', category: 'scoring', critical: false, frequency: '1 day' },
+          { name: 'balance_sheet_strength', category: 'scoring', critical: false, frequency: '1 day' },
+          { name: 'profitability_metrics', category: 'scoring', critical: false, frequency: '1 day' },
+          { name: 'management_effectiveness', category: 'scoring', critical: false, frequency: '1 day' },
+          { name: 'valuation_multiples', category: 'scoring', critical: false, frequency: '1 day' },
+          { name: 'intrinsic_value_analysis', category: 'scoring', critical: false, frequency: '1 day' },
+          { name: 'revenue_growth_analysis', category: 'scoring', critical: false, frequency: '1 day' },
+          { name: 'earnings_growth_analysis', category: 'scoring', critical: false, frequency: '1 day' },
+          { name: 'price_momentum_analysis', category: 'scoring', critical: false, frequency: '1 day' },
+          { name: 'technical_momentum_analysis', category: 'scoring', critical: false, frequency: '1 day' },
+          { name: 'analyst_sentiment_analysis', category: 'scoring', critical: false, frequency: '1 day' },
+          { name: 'social_sentiment_analysis', category: 'scoring', critical: false, frequency: '1 day' },
+          { name: 'institutional_positioning', category: 'scoring', critical: false, frequency: '1 week' },
+          { name: 'insider_trading_analysis', category: 'scoring', critical: false, frequency: '1 day' },
+          { name: 'score_performance_tracking', category: 'scoring', critical: false, frequency: '1 day' },
+          { name: 'market_regime', category: 'scoring', critical: false, frequency: '1 day' },
+          { name: 'stock_symbols_enhanced', category: 'scoring', critical: false, frequency: '1 week' },
+          
+          // System Health Monitoring
+          { name: 'health_status', category: 'system', critical: true, frequency: '1 hour' },
           
           // Test Tables
           { name: 'earnings', category: 'test', critical: false, frequency: '1 day' },

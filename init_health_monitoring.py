@@ -38,7 +38,7 @@ def get_db_connection():
 def create_health_status_table(conn):
     """Create the health_status table and populate it with all monitored tables."""
     
-    # All 52 tables to monitor with their categories and criticality
+    # All 70+ tables to monitor with their categories and criticality
     monitored_tables = [
         # Core Tables (Stock Symbol Management)
         ('stock_symbols', 'symbols', True, '1 week'),
@@ -52,32 +52,26 @@ def create_health_status_table(conn):
         ('etf_price_daily', 'prices', True, '1 day'),
         ('etf_price_weekly', 'prices', True, '1 week'),
         ('etf_price_monthly', 'prices', True, '1 month'),
-        ('latest_price_daily', 'prices', True, '1 day'),
-        ('latest_price_weekly', 'prices', True, '1 week'),
-        ('latest_price_monthly', 'prices', True, '1 month'),
+        ('price_data_montly', 'prices', False, '1 month'),  # Test table with typo
         
-        # Technical Analysis Tables
-        ('technicals_daily', 'technicals', True, '1 day'),
-        ('technicals_weekly', 'technicals', True, '1 week'),
-        ('technicals_monthly', 'technicals', True, '1 month'),
-        ('latest_technicals_daily', 'technicals', True, '1 day'),
-        ('latest_technicals_weekly', 'technicals', True, '1 week'),
-        ('latest_technicals_monthly', 'technicals', True, '1 month'),
+        # Technical Analysis Tables (corrected names)
         ('technical_data_daily', 'technicals', True, '1 day'),
+        ('technical_data_weekly', 'technicals', True, '1 week'),
+        ('technical_data_monthly', 'technicals', True, '1 month'),
         
         # Financial Statement Tables (Annual)
         ('annual_balance_sheet', 'financials', False, '3 months'),
         ('annual_income_statement', 'financials', False, '3 months'),
-        ('annual_cashflow', 'financials', False, '3 months'),
+        ('annual_cash_flow', 'financials', False, '3 months'),  # Fixed name
         
         # Financial Statement Tables (Quarterly)
         ('quarterly_balance_sheet', 'financials', True, '3 months'),
         ('quarterly_income_statement', 'financials', True, '3 months'),
-        ('quarterly_cashflow', 'financials', True, '3 months'),
+        ('quarterly_cash_flow', 'financials', True, '3 months'),  # Fixed name
         
         # Financial Statement Tables (TTM)
         ('ttm_income_statement', 'financials', False, '3 months'),
-        ('ttm_cashflow', 'financials', False, '3 months'),
+        ('ttm_cash_flow', 'financials', False, '3 months'),  # Fixed name
         
         # Company Information Tables
         ('company_profile', 'company', True, '1 week'),
@@ -89,9 +83,10 @@ def create_health_status_table(conn):
         
         # Earnings & Calendar Tables
         ('earnings_history', 'earnings', False, '1 day'),
-        ('earnings_estimate', 'earnings', True, '1 day'),
-        ('revenue_estimate', 'earnings', False, '1 day'),
+        ('earnings_estimates', 'earnings', True, '1 day'),  # Fixed name
+        ('revenue_estimates', 'earnings', False, '1 day'),   # Fixed name
         ('calendar_events', 'earnings', True, '1 day'),
+        ('earnings_metrics', 'earnings', False, '1 day'),    # Added missing table
         
         # Market Sentiment & Economic Tables
         ('fear_greed_index', 'sentiment', True, '1 day'),
@@ -109,8 +104,35 @@ def create_health_status_table(conn):
         ('buy_sell_monthly', 'trading', True, '1 month'),
         
         # News & Additional Data
-        ('news', 'other', False, '1 hour'),
+        ('stock_news', 'news', False, '1 hour'),  # Fixed name
         ('stocks', 'other', False, '1 day'),
+        
+        # Quality & Value Metrics Tables
+        ('quality_metrics', 'scoring', True, '1 day'),
+        ('value_metrics', 'scoring', True, '1 day'),
+        
+        # Advanced Scoring System Tables
+        ('stock_scores', 'scoring', True, '1 day'),
+        ('earnings_quality_metrics', 'scoring', False, '1 day'),
+        ('balance_sheet_strength', 'scoring', False, '1 day'),
+        ('profitability_metrics', 'scoring', False, '1 day'),
+        ('management_effectiveness', 'scoring', False, '1 day'),
+        ('valuation_multiples', 'scoring', False, '1 day'),
+        ('intrinsic_value_analysis', 'scoring', False, '1 day'),
+        ('revenue_growth_analysis', 'scoring', False, '1 day'),
+        ('earnings_growth_analysis', 'scoring', False, '1 day'),
+        ('price_momentum_analysis', 'scoring', False, '1 day'),
+        ('technical_momentum_analysis', 'scoring', False, '1 day'),
+        ('analyst_sentiment_analysis', 'scoring', False, '1 day'),
+        ('social_sentiment_analysis', 'scoring', False, '1 day'),
+        ('institutional_positioning', 'scoring', False, '1 week'),
+        ('insider_trading_analysis', 'scoring', False, '1 day'),
+        ('score_performance_tracking', 'scoring', False, '1 day'),
+        ('market_regime', 'scoring', False, '1 day'),
+        ('stock_symbols_enhanced', 'scoring', False, '1 week'),
+        
+        # System Health Monitoring
+        ('health_status', 'system', True, '1 hour'),
         
         # Test Tables (from init.sql)
         ('earnings', 'test', False, '1 day'),
@@ -245,7 +267,7 @@ def test_health_endpoint():
 def main():
     """Main function to initialize health monitoring."""
     print("🔧 Initializing comprehensive database health monitoring system...")
-    print(f"   Monitoring 52 database tables across 9 categories")
+    print(f"   Monitoring {len(monitored_tables)} database tables across multiple categories")
     print(f"   Timestamp: {datetime.now()}")
     print()
     
