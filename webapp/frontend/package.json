@@ -1,6 +1,6 @@
 {
   "name": "financial-dashboard-frontend",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "React frontend for Financial Data Dashboard",
   "private": true,
   "dependencies": {
