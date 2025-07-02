@@ -131,12 +131,23 @@ router.get('/', async (req, res) => {
           FROM information_schema.tables 
           WHERE table_schema = 'public' 
           AND table_name IN (
-            'stock_symbols', 'etf_symbols', 'company_profile', 'market_data', 'key_metrics',
-            'price_daily', 'technical_data_daily', 'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
-            'fear_greed_index', 'naaim_exposure', 'earnings_estimates', 'analyst_estimates',
-            'annual_income_statement', 'quarterly_income_statement', 'annual_balance_sheet', 
-            'quarterly_balance_sheet', 'annual_cash_flow', 'quarterly_cash_flow',
-            'last_updated', 'calendar_events', 'swing_trader'
+            'stock_symbols', 'etf_symbols', 'last_updated',
+            'price_daily', 'price_weekly', 'price_monthly', 'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly',
+            'latest_price_daily', 'latest_price_weekly', 'latest_price_monthly',
+            'technicals_daily', 'technicals_weekly', 'technicals_monthly',
+            'latest_technicals_daily', 'latest_technicals_weekly', 'latest_technicals_monthly',
+            'technical_data_daily',
+            'annual_balance_sheet', 'annual_income_statement', 'annual_cashflow',
+            'quarterly_balance_sheet', 'quarterly_income_statement', 'quarterly_cashflow',
+            'ttm_income_statement', 'ttm_cashflow',
+            'company_profile', 'market_data', 'key_metrics', 'analyst_estimates', 'governance_scores', 'leadership_team',
+            'earnings_history', 'earnings_estimate', 'revenue_estimate', 'calendar_events',
+            'fear_greed_index', 'aaii_sentiment', 'naaim', 'economic_data', 'analyst_upgrade_downgrade',
+            'portfolio_holdings', 'portfolio_performance', 'trading_alerts',
+            'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
+            'news', 'stocks',
+            'earnings', 'prices',
+            'health_status'
           )
         `),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Table existence check timeout')), 2000))
@@ -166,12 +177,23 @@ router.get('/', async (req, res) => {
       }
       // Add missing tables as "not_found"
       [
-        'stock_symbols', 'etf_symbols', 'company_profile', 'market_data', 'key_metrics',
-        'price_daily', 'technical_data_daily', 'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
-        'fear_greed_index', 'naaim_exposure', 'earnings_estimates', 'analyst_estimates',
-        'annual_income_statement', 'quarterly_income_statement', 'annual_balance_sheet', 
-        'quarterly_balance_sheet', 'annual_cash_flow', 'quarterly_cash_flow',
-        'last_updated', 'calendar_events', 'swing_trader'
+        'stock_symbols', 'etf_symbols', 'last_updated',
+        'price_daily', 'price_weekly', 'price_monthly', 'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly',
+        'latest_price_daily', 'latest_price_weekly', 'latest_price_monthly',
+        'technicals_daily', 'technicals_weekly', 'technicals_monthly',
+        'latest_technicals_daily', 'latest_technicals_weekly', 'latest_technicals_monthly',
+        'technical_data_daily',
+        'annual_balance_sheet', 'annual_income_statement', 'annual_cashflow',
+        'quarterly_balance_sheet', 'quarterly_income_statement', 'quarterly_cashflow',
+        'ttm_income_statement', 'ttm_cashflow',
+        'company_profile', 'market_data', 'key_metrics', 'analyst_estimates', 'governance_scores', 'leadership_team',
+        'earnings_history', 'earnings_estimate', 'revenue_estimate', 'calendar_events',
+        'fear_greed_index', 'aaii_sentiment', 'naaim', 'economic_data', 'analyst_upgrade_downgrade',
+        'portfolio_holdings', 'portfolio_performance', 'trading_alerts',
+        'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
+        'news', 'stocks',
+        'earnings', 'prices',
+        'health_status'
       ].forEach(tableName => {
         if (!existingTables.includes(tableName)) {
           tables[tableName] = 'not_found';
@@ -180,13 +202,20 @@ router.get('/', async (req, res) => {
     } catch (tableError) {
       tables = { error: tableError.message };
     }
+    
+    // Filter to only keep naaim table if it exists
+    const filteredTables = {};
+    if (tables.naaim !== undefined) {
+      filteredTables.naaim = tables.naaim;
+    }
+    
     const health = {
       status: 'healthy',
       healthy: true,
       timestamp: new Date().toISOString(),
       database: {
         status: 'connected',
-        tables: tables
+        tables: filteredTables
       },
       api: {
         version: '1.0.0',

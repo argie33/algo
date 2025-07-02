@@ -14,6 +14,7 @@ const errorHandler = require('./middleware/errorHandler');
 
 // Import routes
 const stockRoutes = require('./routes/stocks');
+const scoresRoutes = require('./routes/scores');
 const metricsRoutes = require('./routes/metrics');
 const healthRoutes = require('./routes/health');
 const marketRoutes = require('./routes/market');
@@ -227,6 +228,7 @@ app.use(async (req, res, next) => {
 app.use('/health', healthRoutes);
 app.use('/auth', authRoutes);
 app.use('/stocks', stockRoutes);
+app.use('/scores', scoresRoutes);
 app.use('/metrics', metricsRoutes);
 app.use('/market', marketRoutes);
 app.use('/analysts', analystRoutes);
@@ -243,6 +245,7 @@ app.use('/portfolio', portfolioRoutes);
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/stocks', stockRoutes);
+app.use('/api/scores', scoresRoutes);
 app.use('/api/metrics', metricsRoutes);
 app.use('/api/market', marketRoutes);
 app.use('/api/analysts', analystRoutes);

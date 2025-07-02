@@ -131,6 +131,12 @@ Parameters:
   TTMCashFlowImageTag:
     Type: String
     Description: "Tag for TTM cash flow loader image"
+  QualityMetricsImageTag:
+    Type: String
+    Description: "Tag for quality metrics calculator image"
+  ValueMetricsImageTag:
+    Type: String
+    Description: "Tag for value metrics calculator image"
 
 Resources:
 
@@ -2364,6 +2370,128 @@ Resources:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
 
+  ########################################
+  # Quality Metrics Calculator           #
+  ########################################
+  QualityMetricsTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: quality-metrics-calculator
+      Cpu: "1024"
+      Memory: "2048"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: quality-metrics-calculator
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref QualityMetricsImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+            - Name: NODE_ENV
+              Value: production
+            - Name: WEBAPP_AWS_REGION
+              Value: !Ref AWS::Region
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/quality-metrics-calculator
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  QualityMetricsService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: quality-metrics-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref QualityMetricsTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ########################################
+  # Value Metrics Calculator             #
+  ########################################
+  ValueMetricsTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: value-metrics-calculator
+      Cpu: "1024"
+      Memory: "2048"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: value-metrics-calculator
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ValueMetricsImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+            - Name: NODE_ENV
+              Value: production
+            - Name: WEBAPP_AWS_REGION
+              Value: !Ref AWS::Region
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/value-metrics-calculator
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  ValueMetricsService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: value-metrics-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref ValueMetricsTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
   #########################################
   # Outputs                               #
   #########################################
@@ -2595,3 +2723,15 @@ Outputs:
     Value: !Ref TTMCashFlowTaskDefinition
     Export:
       Name: TTMCashFlowTaskDefArn
+
+  QualityMetricsTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for quality metrics calculator
+    Value: !Ref QualityMetricsTaskDefinition
+    Export:
+      Name: QualityMetricsTaskDefArn
+
+  ValueMetricsTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for value metrics calculator
+    Value: !Ref ValueMetricsTaskDefinition
+    Export:
+      Name: ValueMetricsTaskDefArn

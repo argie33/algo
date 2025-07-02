@@ -37,6 +37,7 @@ import {
   Storage as StorageIcon,
   AccountBalance as AccountBalanceIcon,
   HealthAndSafety as HealthAndSafetyIcon,
+  Assessment as AssessmentIcon,
   PlayArrow,
   Login as LoginIcon,
   Logout as LogoutIcon,
@@ -48,6 +49,7 @@ import Dashboard from './pages/Dashboard'
 import MarketOverview from './pages/MarketOverview'
 import StockExplorer from './pages/StockExplorer'
 import StockDetail from './pages/StockDetail'
+import MetricsDashboard from './pages/MetricsDashboard'
 import TechnicalAnalysis from './pages/TechnicalAnalysis'
 import AnalystInsights from './pages/AnalystInsights'
 import EarningsCalendar from './pages/EarningsCalendar'
@@ -67,6 +69,7 @@ const menuItems = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
   { text: 'Portfolio', icon: <BusinessIcon />, path: '/portfolio' },
   { text: 'Market Overview', icon: <TrendingUpIcon />, path: '/market' },
+  { text: 'Stock Metrics', icon: <AssessmentIcon />, path: '/metrics' },
   { text: 'Stock Explorer', icon: <FilterListIcon />, path: '/stocks' },
   { text: 'Financial Data', icon: <AccountBalanceIcon />, path: '/financial-data' },
   { text: 'Trading Signals', icon: <TimelineIcon />, path: '/trading' },
@@ -271,6 +274,7 @@ function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/portfolio" element={<Portfolio />} />
               <Route path="/market" element={<MarketOverview />} />
+              <Route path="/metrics" element={<MetricsDashboard />} />
               <Route path="/stocks" element={<StockExplorer />} />
               <Route path="/stocks/:ticker" element={<StockDetail />} />
               <Route path="/screener" element={<StockExplorer />} />

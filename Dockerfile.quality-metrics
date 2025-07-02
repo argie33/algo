@@ -1,0 +1,27 @@
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /opt
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application files
+COPY calculate_quality_metrics.py .
+COPY database.py .
+
+# Set executable permissions
+RUN chmod +x calculate_quality_metrics.py
+
+# Set environment variables
+ENV PYTHONPATH=/opt
+ENV PYTHONUNBUFFERED=1
+
+# Run the quality metrics calculator
+CMD ["python", "calculate_quality_metrics.py"]
