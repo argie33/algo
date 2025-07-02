@@ -58,7 +58,7 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
   return (
     <Card sx={{ maxWidth: 400, mx: 'auto', mt: 4 }}>
       <CardContent sx={{ p: 4 }}>
-        <Box display=\"flex\" alignItems=\"center\" justifyContent=\"center\" mb={3}>
+        <Box display="flex" alignItems="center" justifyContent="center" mb={3}>
           <LoginIcon sx={{ mr: 1, color: 'primary.main' }} />
           <Typography variant=\"h4\" component=\"h1\" color=\"primary\">
             Sign In
