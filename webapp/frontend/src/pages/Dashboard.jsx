@@ -37,6 +37,7 @@ try {
 
 // Get API configuration
 const { apiUrl: API_BASE } = getApiConfig();
+console.log('Dashboard API Base:', API_BASE);
 
 const DEFAULT_TICKER = 'AAPL';
 const WIDGET_COLORS = ['#1976d2', '#43a047', '#ffb300', '#8e24aa', '#e53935'];
@@ -78,11 +79,8 @@ const mockNews = [
   { title: 'Global Markets Mixed Ahead of FOMC', date: '2025-06-19' }
 ];
 
-const BRAND_NAME = 'Edgebrooke Capital';
-// Remove user/advisor names for now
-const USER_NAME = '';
-const ADVISOR_NAME = '';
-const ADVISOR_EMAIL = '';
+// Remove branding for now
+const BRAND_NAME = 'Financial Dashboard';
 
 const marketSummary = [
   { name: 'S&P 500', value: 5432.10, change: +0.42, pct: '+0.8%', icon: <ArrowUpward sx={{ color: 'success.main', fontSize: 18 }} /> },
@@ -181,205 +179,17 @@ function TechnicalSignalsWidget() {
   );
 }
 
-// --- MARKET OVERVIEW WIDGET ---
-function MarketOverviewWidget() {
-  // Fetch real market summary from backend
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboard-market-summary'],
-    queryFn: async () => {
-      const res = await fetch(`${API_BASE}/dashboard/market-summary`);
-      if (!res.ok) throw new Error(`Failed to fetch market summary: ${res.status} ${res.statusText}`);
-      return res.json();
-    },
-    staleTime: 2 * 60 * 1000,
-    retry: 1,
-    retryDelay: 1000,
-    onError: (err) => console.error('Market summary error:', err)
-  });
-  const summary = Array.isArray(data?.data) ? data.data : [];
-  return (
-    <Card sx={{ mb: 3 }}>
-      <CardContent>
-        <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>Market Overview</Typography>
-        {isLoading ? (
-          <Typography variant="body2" color="text.secondary">Loading market summary...</Typography>
-        ) : error ? (
-          <Typography variant="body2" color="error">Error loading market summary: {error.message}</Typography>
-        ) : (
-          <Grid container spacing={2}>
-            {summary.map((mkt, idx) => (
-              <Grid item xs={12} sm={4} key={mkt.name}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  {/* Use up/down icon based on change */}
-                  {mkt.change >= 0 ? <ArrowUpward sx={{ color: 'success.main', fontSize: 18 }} /> : <ArrowDownward sx={{ color: 'error.main', fontSize: 18 }} />}
-                  <Box>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>{mkt.name}</Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 700 }}>{mkt.value?.toLocaleString?.() ?? '--'}</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600, color: mkt.change >= 0 ? '#43a047' : '#e53935' }}>{mkt.pct ?? '--'}</Typography>
-                  </Box>
-                </Box>
-              </Grid>
-            ))}
-          </Grid>
-        )}
-        <Typography variant="caption" color="text.secondary">Major indices and market direction</Typography>
-      </CardContent>
-    </Card>
-  );
-}
 
-// --- EARNINGS CALENDAR WIDGET ---
-function EarningsCalendarWidget({ symbol }) {
-  // Fetch real earnings/events for the selected symbol
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboard-earnings-calendar', symbol],
-    queryFn: async () => {
-      const res = await fetch(`${API_BASE}/dashboard/earnings-calendar?symbol=${encodeURIComponent(symbol)}`);
-      if (!res.ok) throw new Error(`Failed to fetch earnings calendar: ${res.status} ${res.statusText}`);
-      return res.json();
-    },
-    enabled: !!symbol,
-    staleTime: 5 * 60 * 1000
-  });
-  const earnings = Array.isArray(data?.data) ? data.data : [];
-  return (
-    <Card sx={{ mb: 3 }}>
-      <CardContent>
-        <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>Earnings & Events</Typography>
-        {isLoading ? (
-          <Typography variant="body2" color="text.secondary">Loading earnings/events...</Typography>
-        ) : error ? (
-          <Typography variant="body2" color="error">Error loading earnings/events: {error.message}</Typography>
-        ) : earnings.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">No upcoming earnings/events for {symbol}.</Typography>
-        ) : (
-          <>
-            {earnings.map((ev, idx) => (
-              <Box key={ev.event + idx} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography variant="body2">{ev.event}</Typography>
-                <Typography variant="caption" color="text.secondary">{format(new Date(ev.date), 'MMM d')}</Typography>
-              </Box>
-            ))}
-          </>
-        )}
-        <Typography variant="caption" color="text.secondary">Upcoming earnings and economic events</Typography>
-      </CardContent>
-    </Card>
-  );
-}
 
-// --- ANALYST INSIGHTS WIDGET ---
-function AnalystInsightsWidget({ symbol }) {
-  // Fetch real analyst insights for the selected symbol
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboard-analyst-insights', symbol],
-    queryFn: async () => {
-      const res = await fetch(`${API_BASE}/dashboard/analyst-insights?symbol=${encodeURIComponent(symbol)}`);
-      if (!res.ok) throw new Error(`Failed to fetch analyst insights: ${res.status} ${res.statusText}`);
-      return res.json();
-    },
-    enabled: !!symbol,
-    staleTime: 5 * 60 * 1000
-  });
-  const upgrades = Array.isArray(data?.data?.upgrades) ? data.data.upgrades : [];
-  const downgrades = Array.isArray(data?.data?.downgrades) ? data.data.downgrades : [];
-  return (
-    <Card sx={{ mb: 3 }}>
-      <CardContent>
-        <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>Analyst Insights</Typography>
-        {isLoading ? (
-          <Typography variant="body2" color="text.secondary">Loading analyst insights...</Typography>
-        ) : error ? (
-          <Typography variant="body2" color="error">Error loading analyst insights: {error.message}</Typography>
-        ) : (
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <Chip label={`Upgrades: ${upgrades.length}`} color="success" />
-            <Chip label={`Downgrades: ${downgrades.length}`} color="error" />
-          </Box>
-        )}
-        <Typography variant="caption" color="text.secondary">Latest analyst actions for {symbol}</Typography>
-      </CardContent>
-    </Card>
-  );
-}
 
-// --- FINANCIAL HIGHLIGHTS WIDGET ---
-function FinancialHighlightsWidget({ symbol }) {
-  // Fetch real financial highlights for the selected symbol
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboard-financial-highlights', symbol],
-    queryFn: async () => {
-      const res = await fetch(`${API_BASE}/dashboard/financial-highlights?symbol=${encodeURIComponent(symbol)}`);
-      if (!res.ok) throw new Error(`Failed to fetch financial highlights: ${res.status} ${res.statusText}`);
-      return res.json();
-    },
-    enabled: !!symbol,
-    staleTime: 5 * 60 * 1000
-  });
-  const highlights = Array.isArray(data?.data) ? data.data : [];
-  return (
-    <Card sx={{ mb: 3 }}>
-      <CardContent>
-        <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>Financial Highlights</Typography>
-        {isLoading ? (
-          <Typography variant="body2" color="text.secondary">Loading financial highlights...</Typography>
-        ) : error ? (
-          <Typography variant="body2" color="error">Error loading financial highlights: {error.message}</Typography>
-        ) : (
-          <Grid container spacing={2}>
-            {highlights.map((item, idx) => (
-              <Grid item xs={6} key={item.label}>
-                <Typography variant="body2" color="text.secondary">{item.label}</Typography>
-                <Typography variant="body2" fontWeight={600}>{item.value}</Typography>
-              </Grid>
-            ))}
-          </Grid>
-        )}
-        <Typography variant="caption" color="text.secondary">Key financial metrics for {symbol}</Typography>
-      </CardContent>
-    </Card>
-  );
-}
 
-// --- USER SETTINGS WIDGET (optional, for user personalization) ---
-function UserSettingsWidget({ user }) {
-  // Example: fetch and update user preferences
-  // TODO: Implement backend endpoints for user settings if not present
-  return (
-    <Card sx={{ mb: 3 }}>
-      <CardContent>
-        <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>User Settings</Typography>
-        {user ? (
-          <Typography variant="body2">Email: {user.email}</Typography>
-        ) : (
-          <Typography variant="body2" color="text.secondary">Loading user info...</Typography>
-        )}
-        {/* Add more settings here as backend supports */}
-      </CardContent>
-    </Card>
-  );
-}
 
 const Dashboard = () => {
   // Symbol selector state
   const [selectedSymbol, setSelectedSymbol] = useState('AAPL');
 
-  // --- SYMBOL OPTIONS: Fetch dynamically from backend ---
-  const { data: symbolListData, isLoading: symbolListLoading, error: symbolListError } = useQuery({
-    queryKey: ['dashboard-symbol-list'],
-    queryFn: async () => {
-      const res = await fetch(`${API_BASE}/dashboard/symbols`);
-      if (!res.ok) throw new Error('Failed to fetch symbol list');
-      return res.json();
-    },
-    staleTime: 60 * 60 * 1000,
-    retry: 1,
-    retryDelay: 1000,
-    onError: (err) => console.error('Symbol list error:', err)
-  });
-  const SYMBOL_OPTIONS = Array.isArray(symbolListData?.data) && symbolListData.data.length > 0
-    ? symbolListData.data
-    : ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'SPY', 'QQQ']; // fallback
+  // Use predefined symbol list
+  const SYMBOL_OPTIONS = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'SPY', 'QQQ'];
 
   // Equity curve (price history)
   const { data: priceData, isLoading: priceLoading, error: priceError } = useQuery({
@@ -411,80 +221,23 @@ const Dashboard = () => {
     staleTime: 2 * 60 * 1000
   });
 
-  // --- Replace mock data with real API calls ---
-  // Portfolio: fetch from backend
-  const { data: portfolioData, isLoading: portfolioLoading, error: portfolioError } = useQuery({
-    queryKey: ['dashboard-portfolio'],
-    queryFn: async () => {
-      const res = await fetch(`${API_BASE}/dashboard/portfolio`);
-      if (!res.ok) throw new Error('Failed to fetch portfolio');
-      return res.json();
-    },
-    staleTime: 5 * 60 * 1000
-  });
-  const safePortfolio = portfolioData?.data && typeof portfolioData.data === 'object'
-    ? portfolioData.data
-    : { value: 0, pnl: { daily: 0, mtd: 0, ytd: 0 }, allocation: [] };
+  // Use mock portfolio data for now
+  const safePortfolio = mockPortfolio;
 
-  // Watchlist: fetch from backend
-  const { data: watchlistData, isLoading: watchlistLoading, error: watchlistError } = useQuery({
-    queryKey: ['dashboard-watchlist'],
-    queryFn: async () => {
-      const res = await fetch(`${API_BASE}/dashboard/watchlist`);
-      if (!res.ok) throw new Error('Failed to fetch watchlist');
-      return res.json();
-    },
-    staleTime: 5 * 60 * 1000
-  });
-  const safeWatchlist = Array.isArray(watchlistData?.data) ? watchlistData.data : [];
+  // Use mock watchlist data for now
+  const safeWatchlist = mockWatchlist;
 
-  // News: fetch from backend
-  const { data: newsData, isLoading: newsLoading, error: newsError } = useQuery({
-    queryKey: ['dashboard-news'],
-    queryFn: async () => {
-      const res = await fetch(`${API_BASE}/dashboard/news`);
-      if (!res.ok) throw new Error('Failed to fetch news');
-      return res.json();
-    },
-    staleTime: 5 * 60 * 1000
-  });
-  const safeNews = Array.isArray(newsData?.data) ? newsData.data : [];
+  // Use mock news data for now
+  const safeNews = mockNews;
 
-  // Activity: fetch from backend
-  const { data: activityData, isLoading: activityLoading, error: activityError } = useQuery({
-    queryKey: ['dashboard-activity'],
-    queryFn: async () => {
-      const res = await fetch(`${API_BASE}/dashboard/activity`);
-      if (!res.ok) throw new Error('Failed to fetch activity');
-      return res.json();
-    },
-    staleTime: 5 * 60 * 1000
-  });
-  const safeActivity = Array.isArray(activityData?.data) ? activityData.data : [];
+  // Use mock activity data for now
+  const safeActivity = mockActivity;
 
-  // Calendar: fetch from backend
-  const { data: calendarData, isLoading: calendarLoading, error: calendarError } = useQuery({
-    queryKey: ['dashboard-calendar'],
-    queryFn: async () => {
-      const res = await fetch(`${API_BASE}/dashboard/calendar`);
-      if (!res.ok) throw new Error('Failed to fetch calendar');
-      return res.json();
-    },
-    staleTime: 5 * 60 * 1000
-  });
-  const safeCalendar = Array.isArray(calendarData?.data) ? calendarData.data : [];
+  // Use mock calendar data for now
+  const safeCalendar = mockCalendar;
 
-  // Alerts/Signals: fetch from backend
-  const { data: signalsData, isLoading: signalsLoading, error: signalsError } = useQuery({
-    queryKey: ['dashboard-signals'],
-    queryFn: async () => {
-      const res = await fetch(`${API_BASE}/dashboard/signals`);
-      if (!res.ok) throw new Error('Failed to fetch signals');
-      return res.json();
-    },
-    staleTime: 2 * 60 * 1000
-  });
-  const safeSignals = Array.isArray(signalsData?.data) ? signalsData.data : [];
+  // Use mock signals data for now
+  const safeSignals = mockSignals;
 
   // Prepare equity curve for chart
   const equityCurve = Array.isArray(priceData?.data)
@@ -529,8 +282,7 @@ const Dashboard = () => {
             </Avatar>
           )}
           <Box>
-            <Typography variant="h5" sx={{ fontWeight: 700, letterSpacing: 1 }}>{BRAND_NAME} Client Portal</Typography>
-            <Typography variant="caption" color="text.secondary">Professional Investor Dashboard</Typography>
+            <Typography variant="h5" sx={{ fontWeight: 700, letterSpacing: 1 }}>{BRAND_NAME}</Typography>
             {userLoading ? (
               <Skeleton width={120} height={18} />
             ) : user ? (
@@ -567,9 +319,9 @@ const Dashboard = () => {
       </Box>
       <Divider sx={{ mb: 3 }} />
 
-      {/* Top Row: Portfolio Snapshot, Watchlist, Quick Actions */}
+      {/* Top Row: Portfolio Snapshot and Watchlist */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={4}>
+        <Grid item xs={12} md={6}>
           <Card sx={{ bgcolor: 'grey.50', boxShadow: 3, borderLeft: '6px solid #1976d2' }}>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
@@ -600,7 +352,7 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} md={5}>
+        <Grid item xs={12} md={6}>
           <Card sx={{ boxShadow: 3, borderLeft: '6px solid #43a047' }}>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
@@ -608,7 +360,7 @@ const Dashboard = () => {
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>Watchlist</Typography>
                 <Tooltip title="Your selected stocks for monitoring" arrow><Info sx={{ color: 'grey.500', ml: 1, fontSize: 18 }} /></Tooltip>
               </Box>
-              <Box sx={{ maxHeight: 140, overflowY: 'auto' }}>
+              <Box sx={{ maxHeight: 180, overflowY: 'auto' }}>
                 <table style={{ width: '100%', fontSize: 15 }}>
                   <thead>
                     <tr>
@@ -632,22 +384,6 @@ const Dashboard = () => {
                     ))}
                   </tbody>
                 </table>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <Card sx={{ boxShadow: 3, bgcolor: 'grey.50', borderLeft: '6px solid #ffb300' }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                <Download sx={{ color: 'primary.main', mr: 1 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>Quick Actions</Typography>
-                <Tooltip title="Access common actions quickly" arrow><Info sx={{ color: 'grey.500', ml: 1, fontSize: 18 }} /></Tooltip>
-              </Box>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <Button variant="contained" color="primary" fullWidth startIcon={<TrendingUp />} aria-label="Trade">Trade</Button>
-                <Button variant="outlined" color="primary" fullWidth startIcon={<AccountBalance />} aria-label="Transfer Funds">Transfer Funds</Button>
-                <Button variant="outlined" color="secondary" fullWidth startIcon={<Download />} aria-label="Download Report">Download Report</Button>
               </Box>
             </CardContent>
           </Card>
@@ -808,26 +544,8 @@ const Dashboard = () => {
         </Grid>
       </Grid>
 
-      {/* Summary/Insight Widgets */}
-      <MarketOverviewWidget />
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={4}>
-          <EarningsCalendarWidget symbol={selectedSymbol} />
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <AnalystInsightsWidget symbol={selectedSymbol} />
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <FinancialHighlightsWidget symbol={selectedSymbol} />
-        </Grid>
-        <Grid item xs={12} md={12}>
-          <UserSettingsWidget user={user} />
-        </Grid>
-      </Grid>
+      {/* Additional widgets disabled for now */}
 
-      {/* TODO: Add new summary/insight widgets here (Market Overview, Earnings, Analyst, Financial Highlights, Data Health, etc.) */}
-      {/* TODO: Replace mock data with real API calls for watchlist, portfolio, news, etc. */}
-      {/* ...existing code... */}
 
       {/* Compliance Disclaimer */}
       <Box sx={{ mt: 4, mb: 2, textAlign: 'center' }}>
