@@ -44,7 +44,7 @@ import {
   AccountCircle as AccountCircleIcon,
   Psychology as PsychologyIcon,
   Search as SearchIcon,
-  PublicIcon
+  Public as PublicIcon
 } from '@mui/icons-material'
 
 // All real page imports
