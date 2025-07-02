@@ -225,7 +225,7 @@ export default function Backtest() {
   };
 
   const apiExample = `import requests\n\nurl = '${API_BASE}/backtest/run'\npayload = {\n    'symbol': '${params.symbol}',\n    'strategy_code': '''\n${pythonCode.replace(/'/g, "''")}\n''',\n    'language': 'python'\n}\nresponse = requests.post(url, json=payload)\nprint(response.json())`;
-  const curlExample = `curl -X POST '${API_BASE}/backtest/run' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n    "symbol": "${params.symbol}",\n    "strategy_code": """\n${pythonCode.replace(/"/g, '\"')}\n""",\n    "language": "python"\n  }'`;
+  const curlExample = `curl -X POST '${API_BASE}/backtest/run' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n    "symbol": "${params.symbol}",\n    "strategy_code": """\n${pythonCode.replace(/"/g, '"')}\n""",\n    "language": "python"\n  }'`;
 
   const handleCopyApiExample = () => {
     navigator.clipboard.writeText(apiExample);

@@ -49,43 +49,43 @@ function ForgotPasswordForm({ onForgotPasswordSuccess, onSwitchToLogin }) {
   return (
     <Card sx={{ maxWidth: 400, mx: 'auto', mt: 4 }}>
       <CardContent sx={{ p: 4 }}>
-        <Box display=\"flex\" alignItems=\"center\" justifyContent=\"center\" mb={3}>
+        <Box display="flex" alignItems="center" justifyContent="center" mb={3}>
           <ResetIcon sx={{ mr: 1, color: 'primary.main' }} />
-          <Typography variant=\"h4\" component=\"h1\" color=\"primary\">
+          <Typography variant="h4" component="h1" color="primary">
             Reset Password
           </Typography>
         </Box>
 
-        <Typography variant=\"body1\" color=\"text.secondary\" align=\"center\" mb={3}>
+        <Typography variant="body1" color="text.secondary" align="center" mb={3}>
           Enter your username or email address and we'll send you a reset code
         </Typography>
 
         {displayError && (
-          <Alert severity=\"error\" sx={{ mb: 2 }}>
+          <Alert severity="error" sx={{ mb: 2 }}>
             {displayError}
           </Alert>
         )}
 
-        <Box component=\"form\" onSubmit={handleSubmit} noValidate>
+        <Box component="form" onSubmit={handleSubmit} noValidate>
           <TextField
             fullWidth
-            id=\"username\"
-            name=\"username\"
-            label=\"Username or Email\"
-            type=\"text\"
+            id="username"
+            name="username"
+            label="Username or Email"
+            type="text"
             value={username}
             onChange={handleChange}
-            margin=\"normal\"
+            margin="normal"
             required
             autoFocus
             disabled={isLoading}
-            autoComplete=\"username\"
+            autoComplete="username"
           />
 
           <Button
-            type=\"submit\"
+            type="submit"
             fullWidth
-            variant=\"contained\"
+            variant="contained"
             sx={{ mt: 3, mb: 2, py: 1.5 }}
             disabled={isLoading}
             startIcon={isLoading ? <CircularProgress size={20} /> : <ResetIcon />}
@@ -93,13 +93,13 @@ function ForgotPasswordForm({ onForgotPasswordSuccess, onSwitchToLogin }) {
             {isLoading ? 'Sending...' : 'Send Reset Code'}
           </Button>
 
-          <Box textAlign=\"center\" mt={2}>
-            <Typography variant=\"body2\" color=\"text.secondary\">
+          <Box textAlign="center" mt={2}>
+            <Typography variant="body2" color="text.secondary">
               Remember your password?{' '}
               <Link
-                component=\"button\"
-                type=\"button\"
-                variant=\"body2\"
+                component="button"
+                type="button"
+                variant="body2"
                 onClick={onSwitchToLogin}
                 disabled={isLoading}
                 sx={{ fontWeight: 'medium' }}

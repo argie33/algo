@@ -83,60 +83,60 @@ function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }
   return (
     <Card sx={{ maxWidth: 400, mx: 'auto', mt: 4 }}>
       <CardContent sx={{ p: 4 }}>
-        <Box display=\"flex\" alignItems=\"center\" justifyContent=\"center\" mb={3}>
+        <Box display="flex" alignItems="center" justifyContent="center" mb={3}>
           <ResetIcon sx={{ mr: 1, color: 'primary.main' }} />
-          <Typography variant=\"h4\" component=\"h1\" color=\"primary\">
+          <Typography variant="h4" component="h1" color="primary">
             Set New Password
           </Typography>
         </Box>
 
-        <Typography variant=\"body1\" color=\"text.secondary\" align=\"center\" mb={3}>
+        <Typography variant="body1" color="text.secondary" align="center" mb={3}>
           Enter the code from your email and choose a new password
         </Typography>
 
         {displayError && (
-          <Alert severity=\"error\" sx={{ mb: 2 }}>
+          <Alert severity="error" sx={{ mb: 2 }}>
             {displayError}
           </Alert>
         )}
 
-        <Box component=\"form\" onSubmit={handleSubmit} noValidate>
+        <Box component="form" onSubmit={handleSubmit} noValidate>
           <TextField
             fullWidth
-            id=\"confirmationCode\"
-            name=\"confirmationCode\"
-            label=\"Reset Code\"
-            type=\"text\"
+            id="confirmationCode"
+            name="confirmationCode"
+            label="Reset Code"
+            type="text"
             value={formData.confirmationCode}
             onChange={handleChange}
-            margin=\"normal\"
+            margin="normal"
             required
             autoFocus
             disabled={isLoading}
-            placeholder=\"Enter 6-digit code\"
+            placeholder="Enter 6-digit code"
             inputProps={{ maxLength: 6 }}
           />
 
           <TextField
             fullWidth
-            id=\"newPassword\"
-            name=\"newPassword\"
-            label=\"New Password\"
+            id="newPassword"
+            name="newPassword"
+            label="New Password"
             type={showPassword ? 'text' : 'password'}
             value={formData.newPassword}
             onChange={handleChange}
-            margin=\"normal\"
+            margin="normal"
             required
             disabled={isLoading}
-            autoComplete=\"new-password\"
-            helperText=\"Must be at least 8 characters long\"
+            autoComplete="new-password"
+            helperText="Must be at least 8 characters long"
             InputProps={{
               endAdornment: (
-                <InputAdornment position=\"end\">
+                <InputAdornment position="end">
                   <IconButton
-                    aria-label=\"toggle password visibility\"
+                    aria-label="toggle password visibility"
                     onClick={() => setShowPassword(!showPassword)}
-                    edge=\"end\"
+                    edge="end"
                     disabled={isLoading}
                   >
                     {showPassword ? <VisibilityOff /> : <Visibility />}
@@ -148,23 +148,23 @@ function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }
 
           <TextField
             fullWidth
-            id=\"confirmPassword\"
-            name=\"confirmPassword\"
-            label=\"Confirm New Password\"
+            id="confirmPassword"
+            name="confirmPassword"
+            label="Confirm New Password"
             type={showConfirmPassword ? 'text' : 'password'}
             value={formData.confirmPassword}
             onChange={handleChange}
-            margin=\"normal\"
+            margin="normal"
             required
             disabled={isLoading}
-            autoComplete=\"new-password\"
+            autoComplete="new-password"
             InputProps={{
               endAdornment: (
-                <InputAdornment position=\"end\">
+                <InputAdornment position="end">
                   <IconButton
-                    aria-label=\"toggle confirm password visibility\"
+                    aria-label="toggle confirm password visibility"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    edge=\"end\"
+                    edge="end"
                     disabled={isLoading}
                   >
                     {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
@@ -175,9 +175,9 @@ function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }
           />
 
           <Button
-            type=\"submit\"
+            type="submit"
             fullWidth
-            variant=\"contained\"
+            variant="contained"
             sx={{ mt: 3, mb: 2, py: 1.5 }}
             disabled={isLoading}
             startIcon={isLoading ? <CircularProgress size={20} /> : <ResetIcon />}
@@ -185,12 +185,12 @@ function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }
             {isLoading ? 'Resetting...' : 'Reset Password'}
           </Button>
 
-          <Box textAlign=\"center\" mt={2}>
-            <Typography variant=\"body2\" color=\"text.secondary\">
+          <Box textAlign="center" mt={2}>
+            <Typography variant="body2" color="text.secondary">
               <Link
-                component=\"button\"
-                type=\"button\"
-                variant=\"body2\"
+                component="button"
+                type="button"
+                variant="body2"
                 onClick={onSwitchToLogin}
                 disabled={isLoading}
                 sx={{ fontWeight: 'medium' }}
