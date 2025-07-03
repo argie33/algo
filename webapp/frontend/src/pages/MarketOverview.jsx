@@ -22,7 +22,7 @@ import {
 } from '@mui/material'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts'
 
-import { api } from '../services/api'
+import { api, getMarketOverview, getMarketSentimentHistory, getMarketSectorPerformance, getMarketBreadth, getEconomicIndicators, getSeasonalityData, getMarketResearchIndicators } from '../services/api'
 import { formatCurrency, formatNumber, formatPercentage, getChangeColor, getMarketCapCategory } from '../utils/formatters'
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#ff7c7c']
@@ -84,9 +84,9 @@ const logger = createComponentLogger('MarketOverview');
 const fetchMarketOverview = async () => {
   try {
     console.log('📈 Fetching market overview...')
-    const response = await api.get('/market/overview')
-    console.log('📈 Market overview response:', response.data)
-    return response.data
+    const response = await getMarketOverview()
+    console.log('📈 Market overview response:', response)
+    return response
   } catch (error) {
     console.error('❌ Market overview error:', error)
     throw error
@@ -96,9 +96,9 @@ const fetchMarketOverview = async () => {
 const fetchSentimentHistory = async (days = 30) => {
   try {
     console.log(`📊 Fetching sentiment history for ${days} days...`)
-    const response = await api.get(`/market/sentiment/history?days=${days}`)
-    console.log('📊 Sentiment history response:', response.data)
-    return response.data
+    const response = await getMarketSentimentHistory(days)
+    console.log('📊 Sentiment history response:', response)
+    return response
   } catch (error) {
     console.error('❌ Sentiment history error:', error)
     throw error
@@ -108,9 +108,9 @@ const fetchSentimentHistory = async (days = 30) => {
 const fetchSectorPerformance = async () => {
   try {
     console.log('🏭 Fetching sector performance...')
-    const response = await api.get('/market/sectors/performance')
-    console.log('🏭 Sector performance response:', response.data)
-    return response.data
+    const response = await getMarketSectorPerformance()
+    console.log('🏭 Sector performance response:', response)
+    return response
   } catch (error) {
     console.error('❌ Sector performance error:', error)
     throw error
@@ -120,9 +120,9 @@ const fetchSectorPerformance = async () => {
 const fetchMarketBreadth = async () => {
   try {
     console.log('📏 Fetching market breadth...')
-    const response = await api.get('/market/breadth')
-    console.log('📏 Market breadth response:', response.data)
-    return response.data
+    const response = await getMarketBreadth()
+    console.log('📏 Market breadth response:', response)
+    return response
   } catch (error) {
     console.error('❌ Market breadth error:', error)
     throw error
@@ -132,9 +132,9 @@ const fetchMarketBreadth = async () => {
 const fetchEconomicIndicators = async (days = 90) => {
   try {
     console.log(`💰 Fetching economic indicators for ${days} days...`)
-    const response = await api.get(`/market/economic?days=${days}`)
-    console.log('💰 Economic indicators response:', response.data)
-    return response.data
+    const response = await getEconomicIndicators(days)
+    console.log('💰 Economic indicators response:', response)
+    return response
   } catch (error) {
     console.error('❌ Economic indicators error:', error)
     throw error
@@ -144,9 +144,9 @@ const fetchEconomicIndicators = async (days = 90) => {
 const fetchSeasonalityData = async () => {
   try {
     console.log('📅 Fetching seasonality data...')
-    const response = await api.get('/market/seasonality')
-    console.log('📅 Seasonality response:', response.data)
-    return response.data
+    const response = await getSeasonalityData()
+    console.log('📅 Seasonality response:', response)
+    return response
   } catch (error) {
     console.error('❌ Seasonality error:', error)
     throw error
@@ -156,9 +156,9 @@ const fetchSeasonalityData = async () => {
 const fetchResearchIndicators = async () => {
   try {
     console.log('🔬 Fetching research indicators...')
-    const response = await api.get('/market/research-indicators')
-    console.log('🔬 Research indicators response:', response.data)
-    return response.data
+    const response = await getMarketResearchIndicators()
+    console.log('🔬 Research indicators response:', response)
+    return response
   } catch (error) {
     console.error('❌ Research indicators error:', error)
     throw error

@@ -73,18 +73,19 @@ Resources:
               SslSupportMethod: sni-only
             - CloudFrontDefaultCertificate: true
 
-  ## 4) API Lambda backed by RDS (via Secret)
+  ## 4) API Lambda backed by RDS (via Secret) - Fixed for Node.js
   ApiLambda:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: api-handler
-      Runtime: python3.9
+      Runtime: nodejs18.x
       Handler: index.handler
       Role: !ImportValue StocksCore-LambdaExecutionRoleArn
       Code:
         S3Bucket: !ImportValue StocksCore-CodeBucketName
         S3Key: !Ref LambdaCodeKey
-      Timeout: 30
+      Timeout: 45
+      MemorySize: 512
       VpcConfig:
         SubnetIds:
           - !ImportValue StocksCore-PrivateSubnet1Id
@@ -94,6 +95,8 @@ Resources:
       Environment:
         Variables:
           DB_SECRET_ARN: !ImportValue StocksInfra-SecretArn
+          NODE_ENV: production
+          WEBAPP_AWS_REGION: !Ref AWS::Region
 
   ## 5) HTTP API (API Gateway v2)
   StocksApi:
@@ -140,9 +143,18 @@ Resources:
     Type: AWS::ApiGatewayV2::Stage
     Properties:
       ApiId: !Ref StocksApi
-      StageName: '$default'
+      StageName: 'dev'
       DeploymentId: !Ref ApiDeploy
       AutoDeploy: true
+
+  ## 6) Lambda permission for API Gateway
+  LambdaApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt ApiLambda.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${StocksApi}/*/*'
 
 Outputs:
   SPAUrl:
@@ -151,4 +163,4 @@ Outputs:
 
   ApiEndpoint:
     Description: HTTP API invoke URL
-    Value: !Sub 'https://${StocksApi}.execute-api.${AWS::Region}.amazonaws.com'
+    Value: !Sub 'https://${StocksApi}.execute-api.${AWS::Region}.amazonaws.com/dev'
