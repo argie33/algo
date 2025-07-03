@@ -432,9 +432,9 @@ const AdvancedScreener = () => {
                     onChange={(e) => setScreenCriteria(prev => ({ ...prev, marketCap: e.target.value }))}
                   >
                     <MenuItem value="any">Any</MenuItem>
-                    <MenuItem value="large">Large Cap (>$10B)</MenuItem>
+                    <MenuItem value="large">Large Cap (&gt;$10B)</MenuItem>
                     <MenuItem value="mid">Mid Cap ($2B-$10B)</MenuItem>
-                    <MenuItem value="small">Small Cap (<$2B)</MenuItem>
+                    <MenuItem value="small">Small Cap (&lt;$2B)</MenuItem>
                   </Select>
                 </FormControl>
 
