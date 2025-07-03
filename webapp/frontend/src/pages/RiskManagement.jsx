@@ -69,7 +69,7 @@ import {
   Edit,
   Delete,
   NotificationsActive,
-  Emergency,
+  Report,
   Speed
 } from '@mui/icons-material';
 import { getApiConfig } from '../services/api';
@@ -351,7 +351,7 @@ const RiskManagement = () => {
       <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ mb: 3 }}>
         <Tab label="Risk Overview" icon={<Assessment />} />
         <Tab label="Alerts & Monitoring" icon={<NotificationsActive />} />
-        <Tab label="Stress Testing" icon={<Emergency />} />
+        <Tab label="Stress Testing" icon={<Report />} />
         <Tab label="Correlation Analysis" icon={<Analytics />} />
         <Tab label="Risk Limits" icon={<Settings />} />
       </Tabs>
