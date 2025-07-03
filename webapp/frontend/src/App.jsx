@@ -44,7 +44,8 @@ import {
   AccountCircle as AccountCircleIcon,
   Psychology as PsychologyIcon,
   Search as SearchIcon,
-  Public as PublicIcon
+  Public as PublicIcon,
+  Settings as SettingsIcon
 } from '@mui/icons-material'
 
 // All real page imports
@@ -65,6 +66,7 @@ import Portfolio from './pages/Portfolio'
 import SentimentAnalysis from './pages/SentimentAnalysis'
 import AdvancedScreener from './pages/AdvancedScreener'
 import EconomicModeling from './pages/EconomicModeling'
+import Settings from './pages/Settings'
 import { useAuth } from './contexts/AuthContext'
 import AuthModal from './components/auth/AuthModal'
 import ProtectedRoute from './components/auth/ProtectedRoute'
@@ -218,6 +220,10 @@ function App() {
                     {user?.username || 'User'}
                   </MenuItem>
                   <Divider />
+                  <MenuItem onClick={() => { handleUserMenuClose(); navigate('/settings'); }}>
+                    <SettingsIcon sx={{ mr: 1 }} />
+                    Settings
+                  </MenuItem>
                   <MenuItem onClick={handleLogout}>
                     <LogoutIcon sx={{ mr: 1 }} />
                     Sign Out
@@ -297,6 +303,7 @@ function App() {
               <Route path="/backtest" element={<Backtest />} />
               <Route path="/financial-data" element={<FinancialData />} />
               <Route path="/service-health" element={<ServiceHealth />} />
+              <Route path="/settings" element={<Settings />} />
               <Route path="/technical-history/:symbol" element={<TechnicalHistory />} />
             </Routes>
           </Container>

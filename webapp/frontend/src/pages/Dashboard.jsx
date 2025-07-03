@@ -647,7 +647,7 @@ const Dashboard = () => {
               <Box display="flex" alignItems="center" gap={4}>
                 <Box>
                   <Typography variant="h5" fontWeight="bold">
-                    Welcome back, {user.username || user.email?.split('@')[0] || 'Investor'}
+                    Welcome back, {user.firstName || user.username || user.email?.split('@')[0] || 'Investor'}
                   </Typography>
                   <Typography variant="body2" sx={{ opacity: 0.9 }}>
                     Portfolio Status: Active | Market Session: Open | Data Feed: Live | Last Updated: {new Date().toLocaleTimeString()}

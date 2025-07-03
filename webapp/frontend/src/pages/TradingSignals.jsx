@@ -465,10 +465,17 @@ function TradingSignals() {
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
-      <Box display="flex" alignItems="center" justifyContent="space-between" mb={4}>
-        <Typography variant="h4" component="h1" fontWeight="bold">
-          Trading Signals
+      {/* Enhanced Header */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h3" component="h1" gutterBottom sx={{ fontWeight: 700, color: 'primary.main' }}>
+          🎯 Trading Signals
         </Typography>
+        <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 3 }}>
+          AI-powered trading signals with real-time market analysis and institutional-grade insights
+        </Typography>
+      </Box>
+
+      <Box display="flex" alignItems="center" justifyContent="space-between" mb={4}>
         <Box display="flex" gap={2}>
           <Button
             variant="outlined"

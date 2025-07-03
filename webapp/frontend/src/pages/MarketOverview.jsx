@@ -356,62 +356,115 @@ function MarketOverview() {
   );
 
   return (
-    <Box>
-      <Typography variant="h4" sx={{ mb: 3, fontWeight: 600 }}>
-        Market Overview
-      </Typography>
-
-      {marketLoading && <LinearProgress sx={{ mb: 2 }} />}
+    <Box sx={{ p: 3 }}>
+      {/* Header Section */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h3" component="h1" gutterBottom sx={{ fontWeight: 700, color: 'primary.main' }}>
+          Market Overview
+        </Typography>
+        <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 2 }}>
+          Real-time market analysis, sentiment indicators, and institutional-grade research insights
+        </Typography>
+        {marketLoading && (
+          <Box sx={{ mt: 2 }}>
+            <LinearProgress sx={{ borderRadius: 1 }} />
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+              Loading market data...
+            </Typography>
+          </Box>
+        )}
+      </Box>
 
       {/* Market Sentiment Indicators */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} md={4}>
-          <Card>
+          <Card sx={{ 
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
+            color: 'white',
+            transition: 'all 0.3s ease',
+            '&:hover': {
+              transform: 'translateY(-4px)',
+              boxShadow: 4
+            }
+          }}>
             <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Fear & Greed Index
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600, color: 'inherit' }}>
+                  Fear & Greed Index
+                </Typography>
+                <Box sx={{ 
+                  width: 40, 
+                  height: 40, 
+                  borderRadius: '50%', 
+                  bgcolor: 'rgba(255,255,255,0.2)', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center' 
+                }}>
+                  📊
+                </Box>
+              </Box>
               {sentimentIndicators.fear_greed ? (
                 <Box>
-                  <Typography variant="h3" color="primary" sx={{ mb: 1 }}>
+                  <Typography variant="h2" sx={{ mb: 1, fontWeight: 700 }}>
                     {sentimentIndicators.fear_greed.value || 'N/A'}
                   </Typography>
                   <Chip 
                     label={sentimentIndicators.fear_greed.value_text || 'Unknown'} 
-                    color={
-                      sentimentIndicators.fear_greed.value > 75 ? 'error' :
-                      sentimentIndicators.fear_greed.value > 55 ? 'warning' :
-                      sentimentIndicators.fear_greed.value > 45 ? 'info' :
-                      sentimentIndicators.fear_greed.value > 25 ? 'warning' : 'error'
-                    }
-                    sx={{ mb: 1 }}
+                    sx={{ 
+                      mb: 2,
+                      bgcolor: 'rgba(255,255,255,0.2)',
+                      color: 'white',
+                      fontWeight: 600
+                    }}
                   />
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
                     Last updated: {sentimentIndicators.fear_greed.timestamp ? new Date(sentimentIndicators.fear_greed.timestamp).toLocaleDateString() : 'N/A'}
                   </Typography>
                 </Box>
               ) : (
                 <Box>
-                  <Typography variant="h3" color="text.secondary" sx={{ mb: 1 }}>
+                  <Typography variant="h2" sx={{ mb: 1, fontWeight: 700, opacity: 0.5 }}>
                     --
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">No Fear & Greed data available</Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.7 }}>No Fear & Greed data available</Typography>
                 </Box>
               )}
             </CardContent>
           </Card>
         </Grid>
         <Grid item xs={12} md={4}>
-          <Card>
+          <Card sx={{ 
+            background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', 
+            color: 'white',
+            transition: 'all 0.3s ease',
+            '&:hover': {
+              transform: 'translateY(-4px)',
+              boxShadow: 4
+            }
+          }}>
             <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                AAII Investor Sentiment
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600, color: 'inherit' }}>
+                  AAII Investor Sentiment
+                </Typography>
+                <Box sx={{ 
+                  width: 40, 
+                  height: 40, 
+                  borderRadius: '50%', 
+                  bgcolor: 'rgba(255,255,255,0.2)', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center' 
+                }}>
+                  🎯
+                </Box>
+              </Box>
               {sentimentIndicators.aaii ? (
                 <Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Bullish:</Typography>
-                    <Typography variant="body2" color="success.main">
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, p: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>Bullish:</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
                       {sentimentIndicators.aaii.bullish !== undefined ? 
                         (typeof sentimentIndicators.aaii.bullish === 'number' && sentimentIndicators.aaii.bullish <= 1 ? 
                           (sentimentIndicators.aaii.bullish * 100).toFixed(1) + '%' : 
@@ -419,9 +472,9 @@ function MarketOverview() {
                         ) : 'N/A'}
                     </Typography>
                   </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Neutral:</Typography>
-                    <Typography variant="body2" color="info.main">
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, p: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>Neutral:</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
                       {sentimentIndicators.aaii.neutral !== undefined ? 
                         (typeof sentimentIndicators.aaii.neutral === 'number' && sentimentIndicators.aaii.neutral <= 1 ? 
                           (sentimentIndicators.aaii.neutral * 100).toFixed(1) + '%' : 
@@ -429,9 +482,9 @@ function MarketOverview() {
                         ) : 'N/A'}
                     </Typography>
                   </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Bearish:</Typography>
-                    <Typography variant="body2" color="error.main">
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, p: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>Bearish:</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
                       {sentimentIndicators.aaii.bearish !== undefined ? 
                         (typeof sentimentIndicators.aaii.bearish === 'number' && sentimentIndicators.aaii.bearish <= 1 ? 
                           (sentimentIndicators.aaii.bearish * 100).toFixed(1) + '%' : 
@@ -439,52 +492,73 @@ function MarketOverview() {
                         ) : 'N/A'}
                     </Typography>
                   </Box>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
                     Week ending: {sentimentIndicators.aaii.date ? new Date(sentimentIndicators.aaii.date).toLocaleDateString() : 'N/A'}
                   </Typography>
                 </Box>
               ) : (
                 <Box>
-                  <Typography variant="body2" color="text.secondary">No AAII data available</Typography>
-                  <Typography variant="caption" color="text.secondary">Sentiment indicators are loading...</Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.7 }}>No AAII data available</Typography>
+                  <Typography variant="caption" sx={{ opacity: 0.6 }}>Sentiment indicators are loading...</Typography>
                 </Box>
               )}
             </CardContent>
           </Card>
         </Grid>
         <Grid item xs={12} md={4}>
-          <Card>
+          <Card sx={{ 
+            background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', 
+            color: 'white',
+            transition: 'all 0.3s ease',
+            '&:hover': {
+              transform: 'translateY(-4px)',
+              boxShadow: 4
+            }
+          }}>
             <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                NAAIM Exposure Index
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600, color: 'inherit' }}>
+                  NAAIM Exposure Index
+                </Typography>
+                <Box sx={{ 
+                  width: 40, 
+                  height: 40, 
+                  borderRadius: '50%', 
+                  bgcolor: 'rgba(255,255,255,0.2)', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center' 
+                }}>
+                  🏛️
+                </Box>
+              </Box>
               {sentimentIndicators.naaim ? (
                 <Box>
-                  <Typography variant="h3" color="primary" sx={{ mb: 1 }}>
+                  <Typography variant="h2" sx={{ mb: 2, fontWeight: 700 }}>
                     {sentimentIndicators.naaim.average !== undefined ? sentimentIndicators.naaim.average.toFixed(1) + '%' : 'N/A'}
                   </Typography>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Bullish:</Typography>
-                    <Typography variant="body2" color="success.main">
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, p: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>Bullish:</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
                       {sentimentIndicators.naaim.bullish_8100 !== undefined ? sentimentIndicators.naaim.bullish_8100.toFixed(1) + '%' : 'N/A'}
                     </Typography>
                   </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Bearish:</Typography>
-                    <Typography variant="body2" color="error.main">
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, p: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>Bearish:</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
                       {sentimentIndicators.naaim.bearish !== undefined ? sentimentIndicators.naaim.bearish.toFixed(1) + '%' : 'N/A'}
                     </Typography>
                   </Box>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
                     Week ending: {sentimentIndicators.naaim.week_ending ? new Date(sentimentIndicators.naaim.week_ending).toLocaleDateString() : 'N/A'}
                   </Typography>
                 </Box>
               ) : (
                 <Box>
-                  <Typography variant="h3" color="text.secondary" sx={{ mb: 1 }}>
+                  <Typography variant="h2" sx={{ mb: 1, fontWeight: 700, opacity: 0.5 }}>
                     --
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">No NAAIM data available</Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.7 }}>No NAAIM data available</Typography>
                 </Box>
               )}
             </CardContent>

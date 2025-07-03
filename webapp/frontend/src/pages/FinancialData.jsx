@@ -483,9 +483,15 @@ function FinancialData() {
   return (
     <Container maxWidth="xl">
       <Box sx={{ py: 3 }}>
-        <Typography variant="h4" gutterBottom sx={{ fontWeight: 600 }}>
-          Financial Data Analysis
-        </Typography>
+        {/* Enhanced Header */}
+        <Box sx={{ mb: 4 }}>
+          <Typography variant="h3" component="h1" gutterBottom sx={{ fontWeight: 700, color: 'primary.main' }}>
+            📊 Financial Data Analysis
+          </Typography>
+          <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 3 }}>
+            Comprehensive financial statements, earnings data, and institutional-grade fundamental analysis
+          </Typography>
+        </Box>
         
         {/* Search Section */}
         <Card sx={{ mb: 3 }}>
