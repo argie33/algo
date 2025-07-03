@@ -52,11 +52,29 @@ const logger = {
 
 function TradingSignals() {
   const { apiUrl: API_BASE } = getApiConfig();
+  
+  // Add CSS for pulse animation
+  React.useEffect(() => {
+    const pulseAnimation = `
+      @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
+      }
+    `;
+    
+    if (typeof document !== 'undefined' && !document.getElementById('pulse-animation')) {
+      const style = document.createElement('style');
+      style.id = 'pulse-animation';
+      style.textContent = pulseAnimation;
+      document.head.appendChild(style);
+    }
+  }, []);
   const [signalType, setSignalType] = useState('all');
   const [timeframe, setTimeframe] = useState('daily');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
-  const [showRecentOnly, setShowRecentOnly] = useState(true); // Changed default to true
+  const [showRecentOnly, setShowRecentOnly] = useState(false); // Changed to false to show all data by default
   const [showHistoricalView, setShowHistoricalView] = useState(false);
   const [selectedSymbol, setSelectedSymbol] = useState(null);
   const [historicalDialogOpen, setHistoricalDialogOpen] = useState(false);
@@ -97,19 +115,20 @@ function TradingSignals() {
     queryKey: ['tradingSignals', signalType, timeframe, page, rowsPerPage, symbolFilter, showRecentOnly],
     queryFn: async () => {
       try {
-        const params = new URLSearchParams({
-          signal_type: signalType === 'all' ? undefined : signalType,
-          page: page + 1,
-          limit: rowsPerPage,
-          symbol: symbolFilter || undefined,
-          latest_only: showRecentOnly ? 'true' : undefined
-        });
-        // Remove undefined values
-        [...params.entries()].forEach(([key, value]) => {
-          if (value === undefined || value === 'undefined') {
-            params.delete(key);
-          }
-        });
+        const params = new URLSearchParams();
+        
+        // Only add defined parameters
+        if (signalType !== 'all') {
+          params.append('signal_type', signalType);
+        }
+        params.append('page', page + 1);
+        params.append('limit', rowsPerPage);
+        if (symbolFilter) {
+          params.append('symbol', symbolFilter);
+        }
+        if (showRecentOnly) {
+          params.append('latest_only', 'true');
+        }
         const url = `${API_BASE}/api/trading/signals/${timeframe}?${params}`;
         logger.success('fetchTradingSignals', null, { url, signalType, timeframe });
         
@@ -182,8 +201,9 @@ function TradingSignals() {
   };
 
   const getSignalChip = (signal, signalDate) => {
-    const isBuy = signal === 'Buy';
-    const isSell = signal === 'Sell';
+    const isBuy = signal === 'Buy' || signal === 'BUY';
+    const isSell = signal === 'Sell' || signal === 'SELL';
+    const isHold = signal === 'Hold' || signal === 'HOLD';
     const isNone = signal === 'None' || !signal;
     const isRecent = isRecentSignal(signalDate);
     
@@ -195,15 +215,24 @@ function TradingSignals() {
       >
         <Chip
           label={signal || 'None'}
-          size="small"
+          size="medium"
           icon={isBuy ? <TrendingUp /> : isSell ? <TrendingDown /> : <HorizontalRule />}
           sx={{
-            backgroundColor: isBuy ? '#10B981' : isSell ? '#DC2626' : '#9CA3AF',
+            backgroundColor: isBuy ? '#059669' : isSell ? '#DC2626' : isHold ? '#D97706' : '#6B7280',
             color: 'white',
             fontWeight: 'bold',
+            fontSize: '0.875rem',
+            minWidth: '80px',
+            borderRadius: '16px',
             ...(isRecent && {
-              boxShadow: '0 0 10px rgba(59, 130, 246, 0.5)',
+              boxShadow: isBuy ? '0 0 15px rgba(5, 150, 105, 0.6)' : isSell ? '0 0 15px rgba(220, 38, 38, 0.6)' : '0 0 15px rgba(59, 130, 246, 0.5)',
               animation: 'pulse 2s infinite'
+            }),
+            ...(isBuy && {
+              background: 'linear-gradient(45deg, #059669 30%, #10B981 90%)',
+            }),
+            ...(isSell && {
+              background: 'linear-gradient(45deg, #DC2626 30%, #EF4444 90%)',
             })
           }}
         />
@@ -283,13 +312,18 @@ function TradingSignals() {
   );
   // Filter data based on recent-only setting
   const filteredSignals = useMemo(() => {
-    if (!signalsData?.data) return [];
+    if (!signalsData?.data) {
+      console.log('No signals data available:', signalsData);
+      return [];
+    }
     
     let filtered = signalsData.data;
+    console.log('Raw signals data:', filtered.length, 'signals');
     
     // Apply recent-only filter if enabled
     if (showRecentOnly) {
       filtered = filtered.filter(signal => isRecentSignal(signal.date));
+      console.log('After recent filter:', filtered.length, 'signals');
     }
     
     // Remove duplicates by symbol, keeping the most recent
@@ -302,6 +336,7 @@ function TradingSignals() {
         }
       });
       filtered = Array.from(symbolMap.values());
+      console.log('After deduplication:', filtered.length, 'signals');
     }
     
     return filtered;
@@ -330,10 +365,24 @@ function TradingSignals() {
               key={`${signal.symbol}-${index}`} 
               hover
               sx={{
-                '&:hover': { backgroundColor: 'action.hover' },
+                '&:hover': { 
+                  backgroundColor: signal.signal === 'Buy' || signal.signal === 'BUY' 
+                    ? 'rgba(5, 150, 105, 0.1)' 
+                    : signal.signal === 'Sell' || signal.signal === 'SELL'
+                    ? 'rgba(220, 38, 38, 0.1)'
+                    : 'action.hover'
+                },
                 ...(isRecentSignal(signal.date) && {
-                  backgroundColor: 'rgba(59, 130, 246, 0.05)',
-                  borderLeft: '4px solid #3B82F6'
+                  backgroundColor: signal.signal === 'Buy' || signal.signal === 'BUY' 
+                    ? 'rgba(5, 150, 105, 0.05)' 
+                    : signal.signal === 'Sell' || signal.signal === 'SELL'
+                    ? 'rgba(220, 38, 38, 0.05)'
+                    : 'rgba(59, 130, 246, 0.05)',
+                  borderLeft: signal.signal === 'Buy' || signal.signal === 'BUY' 
+                    ? '4px solid #059669' 
+                    : signal.signal === 'Sell' || signal.signal === 'SELL'
+                    ? '4px solid #DC2626'
+                    : '4px solid #3B82F6'
                 })
               }}
             >
@@ -386,6 +435,19 @@ function TradingSignals() {
           ))}
         </TableBody>
       </Table>
+      {filteredSignals?.length === 0 && (
+        <Box sx={{ p: 4, textAlign: 'center' }}>
+          <Typography variant="h6" color="text.secondary" gutterBottom>
+            No trading signals found
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {showRecentOnly 
+              ? "Try turning off 'Latest Only' to see historical signals"
+              : "No signals match your current filters"
+            }
+          </Typography>
+        </Box>
+      )}
     </TableContainer>
   );
 
@@ -563,7 +625,18 @@ function TradingSignals() {
         <Alert severity="error" sx={{ mb: 3 }}>
           Failed to load trading signals. Please check your data sources and try again.
           <br /><b>Error:</b> {signalsError.message}
-          <br /><small>Debug endpoint: <code>{API_BASE}/trading/debug</code></small>
+          <br /><small>Debug endpoint: <code>{API_BASE}/api/trading/debug</code></small>
+          <br /><small>API URL: <code>{API_BASE}/api/trading/signals/{timeframe}</code></small>
+        </Alert>
+      )}
+
+      {/* Debug Info - only show when no data and no error */}
+      {!signalsError && !signalsLoading && (!signalsData?.data || signalsData.data.length === 0) && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          No trading signals data found. 
+          <br /><b>API Endpoint:</b> <code>{API_BASE}/api/trading/signals/{timeframe}</code>
+          <br /><b>Filters:</b> Type: {signalType}, Recent Only: {showRecentOnly.toString()}
+          <br /><small>Response: {JSON.stringify(signalsData, null, 2)}</small>
         </Alert>
       )}
 
