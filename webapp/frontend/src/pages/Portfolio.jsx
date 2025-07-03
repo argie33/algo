@@ -1215,7 +1215,7 @@ const Portfolio = () => {
                       { date: '2025-06-30', var95: 66500, var99: 121000, isMockData: true },
                       { date: '2025-07-01', var95: 68000, var99: 124000, isMockData: true },
                       { date: '2025-07-02', var95: 68500, var99: 125000, isMockData: true }
-                    ]}
+                    ]}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" />
                       <YAxis />
@@ -1819,7 +1819,7 @@ function generateAIInsights(portfolioMetrics, factorAnalysis, diversificationMet
       `Strong risk-adjusted returns with Sharpe ratio of ${formatNumber(portfolioMetrics.sharpeRatio, 2)}`,
       'Well-diversified across sectors with controlled concentration risk',
       'Quality factor exposure provides downside protection',
-      'Portfolio beta of ' + formatNumber(portfolioMetrics.beta, 2) + ' offers balanced market exposure'
+      `Portfolio beta of ${formatNumber(portfolioMetrics.beta, 2)} offers balanced market exposure`
     ],
     improvements: [
       'Consider increasing international diversification',
