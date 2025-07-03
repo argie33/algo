@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Daily price data loader - fetches OHLCV data for all symbols
 import sys
 import time
 import logging

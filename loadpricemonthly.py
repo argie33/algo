@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Monthly price data loader - fetches monthly OHLCV data for all symbols
 import sys
 import time
 import logging
