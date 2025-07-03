@@ -864,7 +864,7 @@ export const getStockProfile = async (ticker) => {
 
 export const getStockMetrics = async (ticker) => {
   try {
-    const response = await api.get(`/api/stocks/${ticker}/metrics`)
+    const response = await api.get(`/api/metrics/${ticker}`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, false)
     return { data: result };

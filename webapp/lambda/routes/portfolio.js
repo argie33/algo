@@ -796,7 +796,7 @@ async function storeImportedPortfolio(userId, portfolioData) {
 }
 
 // Risk analytics endpoints
-router.get('/risk/var', authenticateUser, async (req, res) => {
+router.get('/risk/var', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
     const confidence = parseFloat(req.query.confidence) || 0.95;
@@ -843,7 +843,7 @@ router.get('/risk/var', authenticateUser, async (req, res) => {
   }
 });
 
-router.get('/risk/stress-test', authenticateUser, async (req, res) => {
+router.get('/risk/stress-test', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
     const scenario = req.query.scenario || 'market_crash';
@@ -899,7 +899,7 @@ router.get('/risk/stress-test', authenticateUser, async (req, res) => {
   }
 });
 
-router.get('/risk/correlation', authenticateUser, async (req, res) => {
+router.get('/risk/correlation', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
     const period = req.query.period || '1y';
@@ -939,7 +939,7 @@ router.get('/risk/correlation', authenticateUser, async (req, res) => {
   }
 });
 
-router.get('/risk/concentration', authenticateUser, async (req, res) => {
+router.get('/risk/concentration', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
     
@@ -990,10 +990,10 @@ async function calculatePortfolioVaR(holdings, confidence, timeHorizon) {
   const zScore = confidence === 0.95 ? 1.645 : confidence === 0.99 ? 2.326 : 1.282;
   
   const dailyVaR = totalValue * portfolioVolatility * zScore / Math.sqrt(252);
-  const var = dailyVaR * Math.sqrt(timeHorizon);
-  const cvar = var * 1.3; // Simplified CVaR estimate
+  const valueAtRisk = dailyVaR * Math.sqrt(timeHorizon);
+  const cvar = valueAtRisk * 1.3; // Simplified CVaR estimate
   
-  return { var, cvar };
+  return { var: valueAtRisk, cvar };
 }
 
 async function estimatePortfolioVolatility(holdings) {

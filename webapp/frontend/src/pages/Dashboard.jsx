@@ -188,7 +188,7 @@ function useTopStocks() {
     queryKey: ['top-stocks'],
     queryFn: async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/scores/composite?limit=10`);
+        const res = await fetch(`${API_BASE}/api/scores/?limit=10&sortBy=composite_score&sortOrder=desc`);
         if (!res.ok) throw new Error('Failed to fetch top stocks');
         return res.json();
       } catch (err) {
@@ -207,7 +207,7 @@ function usePortfolioData() {
     queryFn: async () => {
       if (!isAuthenticated) return { data: mockPortfolio };
       try {
-        const res = await fetch(`${API_BASE}/api/portfolio/summary`, {
+        const res = await fetch(`${API_BASE}/api/portfolio/analytics`, {
           credentials: 'include'
         });
         if (!res.ok) throw new Error('Failed to fetch portfolio');
@@ -227,7 +227,7 @@ function useUser() {
     queryKey: ['dashboard-user'],
     queryFn: async () => {
       try {
-        const res = await fetch(`${API_BASE}/auth/user`, { credentials: 'include' });
+        const res = await fetch(`${API_BASE}/auth/me`, { credentials: 'include' });
         if (!res.ok) throw new Error('Failed to fetch user info');
         return res.json();
       } catch (err) {
