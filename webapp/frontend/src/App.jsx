@@ -66,6 +66,7 @@ import Portfolio from './pages/Portfolio'
 import SentimentAnalysis from './pages/SentimentAnalysis'
 import AdvancedScreener from './pages/AdvancedScreener'
 import EconomicModeling from './pages/EconomicModeling'
+import RiskManagement from './pages/RiskManagement'
 import { useAuth } from './contexts/AuthContext'
 import AuthModal from './components/auth/AuthModal'
 import ProtectedRoute from './components/auth/ProtectedRoute'
@@ -75,6 +76,7 @@ const drawerWidth = 240
 const menuItems = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
   { text: 'Portfolio', icon: <BusinessIcon />, path: '/portfolio' },
+  { text: 'Risk Management', icon: <SecurityIcon />, path: '/risk' },
   { text: 'Market Overview', icon: <TrendingUpIcon />, path: '/market' },
   { text: 'Advanced Screener', icon: <SearchIcon />, path: '/screener-advanced' },
   { text: 'Stock Explorer', icon: <FilterListIcon />, path: '/stocks' },
@@ -283,6 +285,7 @@ function App() {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/portfolio" element={<Portfolio />} />
+              <Route path="/risk" element={<RiskManagement />} />
               <Route path="/market" element={<MarketOverview />} />
               <Route path="/screener-advanced" element={<AdvancedScreener />} />
               <Route path="/sentiment" element={<SentimentAnalysis />} />

@@ -1179,4 +1179,564 @@ router.get('/screen', async (req, res) => {
   }
 });
 
+// Database initialization endpoint for price_daily table
+router.post('/init-price-data', async (req, res) => {
+  try {
+    console.log('Initializing price_daily table...');
+    
+    // Create price_daily table
+    const createTableSQL = `
+      CREATE TABLE IF NOT EXISTS price_daily (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(10) NOT NULL,
+        date DATE NOT NULL,
+        open DECIMAL(12,4),
+        high DECIMAL(12,4),
+        low DECIMAL(12,4),
+        close DECIMAL(12,4),
+        adj_close DECIMAL(12,4),
+        volume BIGINT,
+        dividends DECIMAL(12,4) DEFAULT 0,
+        stock_splits DECIMAL(12,4) DEFAULT 0,
+        fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(symbol, date)
+      )
+    `;
+    
+    await query(createTableSQL);
+    console.log('price_daily table created successfully');
+    
+    // Create index for performance
+    const createIndexSQL = `
+      CREATE INDEX IF NOT EXISTS idx_price_daily_symbol_date 
+      ON price_daily(symbol, date DESC)
+    `;
+    
+    await query(createIndexSQL);
+    console.log('price_daily index created successfully');
+    
+    // Sample data for testing
+    const sampleData = [
+      // AAPL last 30 days
+      ['AAPL', '2025-07-02', 190.50, 192.80, 189.20, 191.45, 191.45, 45230000],
+      ['AAPL', '2025-07-01', 188.90, 191.20, 188.40, 190.30, 190.30, 38450000],
+      ['AAPL', '2025-06-30', 189.80, 190.50, 187.60, 189.25, 189.25, 42100000],
+      ['AAPL', '2025-06-29', 187.30, 190.20, 186.80, 189.90, 189.90, 39200000],
+      ['AAPL', '2025-06-28', 185.60, 188.40, 185.10, 187.80, 187.80, 41800000],
+      ['AAPL', '2025-06-27', 186.90, 188.20, 184.70, 186.50, 186.50, 44300000],
+      ['AAPL', '2025-06-26', 184.20, 187.50, 183.90, 186.80, 186.80, 37600000],
+      ['AAPL', '2025-06-25', 182.80, 185.30, 182.40, 184.90, 184.90, 36700000],
+      ['AAPL', '2025-06-24', 181.50, 183.60, 180.90, 182.70, 182.70, 38900000],
+      ['AAPL', '2025-06-23', 180.30, 182.80, 179.80, 181.20, 181.20, 35400000],
+      
+      // MSFT sample data
+      ['MSFT', '2025-07-02', 335.20, 338.40, 334.50, 337.80, 337.80, 18750000],
+      ['MSFT', '2025-07-01', 332.60, 336.20, 331.90, 334.90, 334.90, 20100000],
+      ['MSFT', '2025-06-30', 330.80, 333.70, 329.40, 332.50, 332.50, 19200000],
+      ['MSFT', '2025-06-29', 328.90, 331.60, 327.80, 330.40, 330.40, 21400000],
+      ['MSFT', '2025-06-28', 326.40, 329.80, 325.70, 328.60, 328.60, 22300000],
+      
+      // GOOGL sample data
+      ['GOOGL', '2025-07-02', 142.30, 144.70, 141.80, 143.90, 143.90, 23400000],
+      ['GOOGL', '2025-07-01', 140.80, 143.20, 140.40, 142.10, 142.10, 25600000],
+      ['GOOGL', '2025-06-30', 139.60, 141.50, 138.90, 140.70, 140.70, 27800000],
+      ['GOOGL', '2025-06-29', 137.20, 140.30, 136.80, 139.40, 139.40, 29200000],
+      ['GOOGL', '2025-06-28', 135.90, 138.40, 135.20, 137.60, 137.60, 26700000],
+      
+      // TSLA sample data
+      ['TSLA', '2025-07-02', 248.90, 252.40, 246.30, 250.80, 250.80, 35600000],
+      ['TSLA', '2025-07-01', 245.60, 249.70, 244.20, 248.30, 248.30, 38900000],
+      ['TSLA', '2025-06-30', 242.80, 246.90, 241.50, 245.20, 245.20, 41200000],
+      ['TSLA', '2025-06-29', 240.30, 244.60, 239.10, 242.50, 242.50, 43800000],
+      ['TSLA', '2025-06-28', 237.90, 241.80, 236.70, 240.10, 240.10, 42100000],
+      
+      // NVDA sample data
+      ['NVDA', '2025-07-02', 485.20, 492.80, 483.60, 489.40, 489.40, 55600000],
+      ['NVDA', '2025-07-01', 478.90, 487.30, 477.20, 484.70, 484.70, 58200000],
+      ['NVDA', '2025-06-30', 472.40, 480.60, 471.80, 478.30, 478.30, 62100000],
+      ['NVDA', '2025-06-29', 465.80, 474.20, 464.30, 472.90, 472.90, 67300000],
+      ['NVDA', '2025-06-28', 459.60, 467.50, 458.40, 465.20, 465.20, 59800000]
+    ];
+    
+    // Insert sample data
+    let insertedCount = 0;
+    for (const row of sampleData) {
+      try {
+        const insertSQL = `
+          INSERT INTO price_daily (symbol, date, open, high, low, close, adj_close, volume)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          ON CONFLICT (symbol, date) DO UPDATE SET
+            open = EXCLUDED.open,
+            high = EXCLUDED.high,
+            low = EXCLUDED.low,
+            close = EXCLUDED.close,
+            adj_close = EXCLUDED.adj_close,
+            volume = EXCLUDED.volume
+        `;
+        
+        await query(insertSQL, row);
+        insertedCount++;
+      } catch (insertError) {
+        console.warn(`Failed to insert row for ${row[0]} ${row[1]}:`, insertError.message);
+      }
+    }
+    
+    console.log(`Sample data inserted: ${insertedCount} rows`);
+    
+    // Verify data exists
+    const countResult = await query('SELECT COUNT(*) as count FROM price_daily');
+    const totalRows = countResult.rows[0].count;
+    
+    res.json({
+      success: true,
+      message: 'price_daily table initialized successfully',
+      details: {
+        tableCreated: true,
+        indexCreated: true,
+        sampleDataInserted: insertedCount,
+        totalRows: parseInt(totalRows)
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error initializing price_daily table:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to initialize price_daily table',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Enhanced stock screening endpoint with real financial data
+router.get('/screen', async (req, res) => {
+  try {
+    console.log('Enhanced stock screening endpoint called with params:', req.query);
+    
+    const {
+      market_cap_min,
+      market_cap_max,
+      pe_ratio_min,
+      pe_ratio_max,
+      price_to_book_min,
+      price_to_book_max,
+      roe_min,
+      roe_max,
+      revenue_growth_min,
+      revenue_growth_max,
+      sector,
+      analyst_rating,
+      limit = 50,
+      page = 1,
+      sort_by = 'market_cap',
+      sort_order = 'desc'
+    } = req.query;
+    
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    
+    // Build dynamic WHERE clause
+    let whereConditions = ['se.is_active = TRUE'];
+    let params = [];
+    let paramCount = 0;
+    
+    // Market cap filters
+    if (market_cap_min) {
+      paramCount++;
+      whereConditions.push(`se.market_cap >= $${paramCount}`);
+      params.push(parseInt(market_cap_min));
+    }
+    if (market_cap_max) {
+      paramCount++;
+      whereConditions.push(`se.market_cap <= $${paramCount}`);
+      params.push(parseInt(market_cap_max));
+    }
+    
+    // Valuation filters
+    if (pe_ratio_min) {
+      paramCount++;
+      whereConditions.push(`vm.pe_ratio >= $${paramCount}`);
+      params.push(parseFloat(pe_ratio_min));
+    }
+    if (pe_ratio_max) {
+      paramCount++;
+      whereConditions.push(`vm.pe_ratio <= $${paramCount}`);
+      params.push(parseFloat(pe_ratio_max));
+    }
+    if (price_to_book_min) {
+      paramCount++;
+      whereConditions.push(`vm.price_to_book >= $${paramCount}`);
+      params.push(parseFloat(price_to_book_min));
+    }
+    if (price_to_book_max) {
+      paramCount++;
+      whereConditions.push(`vm.price_to_book <= $${paramCount}`);
+      params.push(parseFloat(price_to_book_max));
+    }
+    
+    // Profitability filters
+    if (roe_min) {
+      paramCount++;
+      whereConditions.push(`pm.return_on_equity >= $${paramCount}`);
+      params.push(parseFloat(roe_min) / 100); // Convert percentage to decimal
+    }
+    if (roe_max) {
+      paramCount++;
+      whereConditions.push(`pm.return_on_equity <= $${paramCount}`);
+      params.push(parseFloat(roe_max) / 100);
+    }
+    
+    // Growth filters
+    if (revenue_growth_min) {
+      paramCount++;
+      whereConditions.push(`gm.revenue_growth >= $${paramCount}`);
+      params.push(parseFloat(revenue_growth_min) / 100);
+    }
+    if (revenue_growth_max) {
+      paramCount++;
+      whereConditions.push(`gm.revenue_growth <= $${paramCount}`);
+      params.push(parseFloat(revenue_growth_max) / 100);
+    }
+    
+    // Sector filter
+    if (sector && sector !== 'all') {
+      paramCount++;
+      whereConditions.push(`se.sector = $${paramCount}`);
+      params.push(sector);
+    }
+    
+    // Analyst rating filter
+    if (analyst_rating) {
+      paramCount++;
+      whereConditions.push(`asa.recommendation_mean <= $${paramCount}`);
+      params.push(parseFloat(analyst_rating)); // Lower is better (1=Strong Buy, 5=Strong Sell)
+    }
+    
+    const whereClause = whereConditions.join(' AND ');
+    
+    // Build ORDER BY clause
+    const validSortColumns = {
+      'market_cap': 'se.market_cap',
+      'pe_ratio': 'vm.pe_ratio',
+      'price_to_book': 'vm.price_to_book',
+      'roe': 'pm.return_on_equity',
+      'revenue_growth': 'gm.revenue_growth',
+      'analyst_rating': 'asa.recommendation_mean',
+      'symbol': 'se.symbol'
+    };
+    
+    const sortColumn = validSortColumns[sort_by] || 'se.market_cap';
+    const sortDirection = sort_order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+    
+    // Main screening query with joins to financial data
+    const screeningQuery = `
+      SELECT 
+        se.symbol,
+        se.company_name,
+        se.sector,
+        se.market_cap,
+        se.market_cap_tier,
+        se.exchange,
+        vm.pe_ratio,
+        vm.price_to_book,
+        vm.price_to_sales,
+        vm.current_price,
+        pm.return_on_equity,
+        pm.return_on_assets,
+        pm.net_profit_margin,
+        gm.revenue_growth,
+        gm.earnings_growth,
+        asa.recommendation_mean as analyst_rating,
+        asa.total_analysts,
+        asa.price_target_vs_current,
+        ssa.reddit_sentiment_score,
+        ssa.news_sentiment_score
+      FROM stock_symbols_enhanced se
+      LEFT JOIN valuation_multiples vm ON se.symbol = vm.symbol
+      LEFT JOIN profitability_metrics pm ON se.symbol = pm.symbol
+      LEFT JOIN growth_metrics gm ON se.symbol = gm.symbol
+      LEFT JOIN analyst_sentiment_analysis asa ON se.symbol = asa.symbol
+      LEFT JOIN social_sentiment_analysis ssa ON se.symbol = ssa.symbol
+      WHERE ${whereClause}
+      ORDER BY ${sortColumn} ${sortDirection} NULLS LAST
+      LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
+    `;
+    
+    params.push(parseInt(limit), offset);
+    
+    // Execute screening query
+    const screeningResult = await query(screeningQuery, params);
+    
+    // Get total count for pagination
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM stock_symbols_enhanced se
+      LEFT JOIN valuation_multiples vm ON se.symbol = vm.symbol
+      LEFT JOIN profitability_metrics pm ON se.symbol = pm.symbol
+      LEFT JOIN growth_metrics gm ON se.symbol = gm.symbol
+      LEFT JOIN analyst_sentiment_analysis asa ON se.symbol = asa.symbol
+      LEFT JOIN social_sentiment_analysis ssa ON se.symbol = ssa.symbol
+      WHERE ${whereClause}
+    `;
+    
+    const countResult = await query(countQuery, params.slice(0, -2)); // Remove limit and offset
+    const totalCount = parseInt(countResult.rows[0].total);
+    
+    // Format results
+    const stocks = screeningResult.rows.map(row => ({
+      symbol: row.symbol,
+      company_name: row.company_name,
+      sector: row.sector,
+      market_cap: row.market_cap,
+      market_cap_tier: row.market_cap_tier,
+      exchange: row.exchange,
+      current_price: parseFloat(row.current_price) || null,
+      pe_ratio: parseFloat(row.pe_ratio) || null,
+      price_to_book: parseFloat(row.price_to_book) || null,
+      price_to_sales: parseFloat(row.price_to_sales) || null,
+      roe: row.return_on_equity ? (parseFloat(row.return_on_equity) * 100) : null,
+      roa: row.return_on_assets ? (parseFloat(row.return_on_assets) * 100) : null,
+      profit_margin: row.net_profit_margin ? (parseFloat(row.net_profit_margin) * 100) : null,
+      revenue_growth: row.revenue_growth ? (parseFloat(row.revenue_growth) * 100) : null,
+      earnings_growth: row.earnings_growth ? (parseFloat(row.earnings_growth) * 100) : null,
+      analyst_rating: parseFloat(row.analyst_rating) || null,
+      analyst_count: parseInt(row.total_analysts) || 0,
+      price_target_upside: row.price_target_vs_current ? (parseFloat(row.price_target_vs_current) * 100) : null,
+      social_sentiment: {
+        reddit: parseFloat(row.reddit_sentiment_score) || 0,
+        news: parseFloat(row.news_sentiment_score) || 0
+      }
+    }));
+    
+    res.json({
+      success: true,
+      data: stocks,
+      pagination: {
+        total: totalCount,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(totalCount / parseInt(limit))
+      },
+      filters_applied: {
+        market_cap_min,
+        market_cap_max,
+        pe_ratio_min,
+        pe_ratio_max,
+        roe_min,
+        roe_max,
+        sector,
+        analyst_rating
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error in enhanced stock screening:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to execute stock screening',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Get available sectors for filtering
+router.get('/sectors', async (req, res) => {
+  try {
+    const sectorsQuery = `
+      SELECT sector, COUNT(*) as count,
+             AVG(market_cap) as avg_market_cap,
+             AVG(vm.pe_ratio) as avg_pe_ratio
+      FROM stock_symbols_enhanced se
+      LEFT JOIN valuation_multiples vm ON se.symbol = vm.symbol
+      WHERE se.is_active = TRUE AND se.sector IS NOT NULL AND se.sector != 'Unknown'
+      GROUP BY sector
+      ORDER BY count DESC
+    `;
+    
+    const result = await query(sectorsQuery);
+    
+    const sectors = result.rows.map(row => ({
+      sector: row.sector,
+      count: parseInt(row.count),
+      avg_market_cap: parseFloat(row.avg_market_cap) || 0,
+      avg_pe_ratio: parseFloat(row.avg_pe_ratio) || null
+    }));
+    
+    res.json({
+      success: true,
+      data: sectors,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error fetching sectors:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch sectors',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Get screening statistics and ranges
+router.get('/screen/stats', async (req, res) => {
+  try {
+    const statsQuery = `
+      SELECT 
+        COUNT(*) as total_stocks,
+        MIN(se.market_cap) as min_market_cap,
+        MAX(se.market_cap) as max_market_cap,
+        MIN(vm.pe_ratio) as min_pe_ratio,
+        MAX(vm.pe_ratio) as max_pe_ratio,
+        MIN(vm.price_to_book) as min_pb_ratio,
+        MAX(vm.price_to_book) as max_pb_ratio,
+        MIN(pm.return_on_equity * 100) as min_roe,
+        MAX(pm.return_on_equity * 100) as max_roe,
+        MIN(gm.revenue_growth * 100) as min_revenue_growth,
+        MAX(gm.revenue_growth * 100) as max_revenue_growth,
+        MIN(asa.recommendation_mean) as min_analyst_rating,
+        MAX(asa.recommendation_mean) as max_analyst_rating
+      FROM stock_symbols_enhanced se
+      LEFT JOIN valuation_multiples vm ON se.symbol = vm.symbol
+      LEFT JOIN profitability_metrics pm ON se.symbol = pm.symbol
+      LEFT JOIN growth_metrics gm ON se.symbol = gm.symbol
+      LEFT JOIN analyst_sentiment_analysis asa ON se.symbol = asa.symbol
+      WHERE se.is_active = TRUE
+    `;
+    
+    const result = await query(statsQuery);
+    const stats = result.rows[0];
+    
+    res.json({
+      success: true,
+      data: {
+        total_stocks: parseInt(stats.total_stocks),
+        ranges: {
+          market_cap: {
+            min: parseInt(stats.min_market_cap) || 0,
+            max: parseInt(stats.max_market_cap) || 0
+          },
+          pe_ratio: {
+            min: parseFloat(stats.min_pe_ratio) || 0,
+            max: Math.min(parseFloat(stats.max_pe_ratio) || 100, 100) // Cap at 100 for UI
+          },
+          price_to_book: {
+            min: parseFloat(stats.min_pb_ratio) || 0,
+            max: Math.min(parseFloat(stats.max_pb_ratio) || 20, 20) // Cap at 20 for UI
+          },
+          roe: {
+            min: parseFloat(stats.min_roe) || -50,
+            max: Math.min(parseFloat(stats.max_roe) || 100, 100) // Cap at 100% for UI
+          },
+          revenue_growth: {
+            min: parseFloat(stats.min_revenue_growth) || -50,
+            max: Math.min(parseFloat(stats.max_revenue_growth) || 200, 200) // Cap at 200% for UI
+          },
+          analyst_rating: {
+            min: parseFloat(stats.min_analyst_rating) || 1,
+            max: parseFloat(stats.max_analyst_rating) || 5
+          }
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error fetching screening stats:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch screening statistics',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Initialize API keys table for secure portfolio import
+router.post('/init-api-keys-table', async (req, res) => {
+  try {
+    console.log('Initializing user_api_keys table...');
+    
+    // Create user_api_keys table for secure API key storage
+    const createTableSQL = `
+      CREATE TABLE IF NOT EXISTS user_api_keys (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        broker_name VARCHAR(50) NOT NULL,
+        encrypted_api_key TEXT NOT NULL,
+        encrypted_api_secret TEXT,
+        key_iv VARCHAR(32) NOT NULL,
+        key_auth_tag VARCHAR(32) NOT NULL,
+        secret_iv VARCHAR(32),
+        secret_auth_tag VARCHAR(32),
+        is_sandbox BOOLEAN DEFAULT true,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        last_used TIMESTAMP WITH TIME ZONE,
+        UNIQUE(user_id, broker_name)
+      )
+    `;
+    
+    await query(createTableSQL);
+    console.log('user_api_keys table created successfully');
+    
+    // Create indexes for performance and security
+    const createIndexes = [
+      'CREATE INDEX IF NOT EXISTS idx_user_api_keys_user_id ON user_api_keys(user_id)',
+      'CREATE INDEX IF NOT EXISTS idx_user_api_keys_broker ON user_api_keys(broker_name)',
+      'CREATE INDEX IF NOT EXISTS idx_user_api_keys_last_used ON user_api_keys(last_used DESC)'
+    ];
+    
+    for (const indexSQL of createIndexes) {
+      await query(indexSQL);
+    }
+    
+    console.log('user_api_keys indexes created successfully');
+    
+    // Verify table exists
+    const verifyQuery = `
+      SELECT column_name, data_type, is_nullable
+      FROM information_schema.columns 
+      WHERE table_name = 'user_api_keys'
+      ORDER BY ordinal_position
+    `;
+    
+    const columns = await query(verifyQuery);
+    
+    res.json({
+      success: true,
+      message: 'user_api_keys table initialized successfully',
+      details: {
+        tableCreated: true,
+        indexesCreated: true,
+        columns: columns.rows.map(col => ({
+          name: col.column_name,
+          type: col.data_type,
+          nullable: col.is_nullable === 'YES'
+        }))
+      },
+      security: {
+        encryption: 'AES-256-GCM',
+        keyDerivation: 'scrypt',
+        userSaltBased: true,
+        noPlaintextLogging: true
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error initializing user_api_keys table:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to initialize API keys table',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 module.exports = router;

@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Container,
@@ -109,6 +111,8 @@ function TabPanel({ children, value, index, ...other }) {
 
 const Portfolio = () => {
   const { apiUrl: API_BASE } = getApiConfig();
+  const { user, isAuthenticated, isLoading, tokens } = useAuth();
+  const navigate = useNavigate();
   
   const [activeTab, setActiveTab] = useState(0);
   const [portfolioData, setPortfolioData] = useState({
@@ -278,19 +282,45 @@ const Portfolio = () => {
     ]
   };
 
+  // Redirect to login if not authenticated
   useEffect(() => {
-    loadPortfolioData();
-  }, []);
+    if (!isLoading && !isAuthenticated) {
+      navigate('/');
+      return;
+    }
+    if (isAuthenticated && tokens) {
+      loadPortfolioData();
+    }
+  }, [isAuthenticated, isLoading, tokens, navigate]);
 
   const loadPortfolioData = async () => {
+    if (!isAuthenticated || !tokens) {
+      console.warn('User not authenticated, cannot load portfolio data');
+      return;
+    }
+
     setLoading(true);
     try {
-      // Try to fetch from API, fallback to mock data
-      const response = await fetch(`${API_BASE}/api/portfolio/comprehensive`);
+      // Create headers with authentication
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${tokens.accessToken || tokens.idToken}`
+      };
+
+      // Try to fetch from authenticated API endpoint
+      const response = await fetch(`${API_BASE}/api/portfolio/analytics`, {
+        headers
+      });
+      
       if (response.ok) {
         const data = await response.json();
-        setPortfolioData(data);
+        setPortfolioData(data.data || data);
+      } else if (response.status === 401) {
+        console.error('Authentication failed, redirecting to login');
+        navigate('/');
+        return;
       } else {
+        console.warn('Portfolio API failed, using mock data');
         setPortfolioData(mockPortfolioData);
       }
     } catch (error) {
@@ -450,6 +480,26 @@ const Portfolio = () => {
     }
   };
 
+  // Show loading spinner while auth is being checked
+  if (isLoading) {
+    return (
+      <Container maxWidth="xl" sx={{ py: 3, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+        <CircularProgress size={60} />
+      </Container>
+    );
+  }
+
+  // Show message if not authenticated (should redirect, but just in case)
+  if (!isAuthenticated) {
+    return (
+      <Container maxWidth="xl" sx={{ py: 3 }}>
+        <Alert severity="warning">
+          Please log in to access your portfolio.
+        </Alert>
+      </Container>
+    );
+  }
+
   return (
     <Container maxWidth="xl" sx={{ py: 3 }}>
       <Box sx={{ mb: 3 }}>
@@ -530,6 +580,7 @@ const Portfolio = () => {
         <Tab label="Alerts & Monitoring" icon={<NotificationsActive />} />
         <Tab label="Stress Testing" icon={<Report />} />
         <Tab label="Risk Limits" icon={<Settings />} />
+        <Tab label="Import Portfolio" icon={<Download />} />
       </Tabs>
 
       <TabPanel value={activeTab} index={0}>
@@ -998,6 +1049,151 @@ const Portfolio = () => {
               </Card>
             </Grid>
           ))}
+        </Grid>
+      </TabPanel>
+
+      <TabPanel value={activeTab} index={6}>
+        <Typography variant="h6" gutterBottom>
+          Import Portfolio from Broker
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+          Connect your brokerage account to automatically import your portfolio. Your API credentials are encrypted and stored securely.
+        </Typography>
+        
+        <Grid container spacing={3}>
+          {/* Connect Broker Section */}
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+                  <Security sx={{ mr: 1, color: 'primary.main' }} />
+                  Connect Broker
+                </Typography>
+                
+                <Grid container spacing={2} sx={{ mt: 1 }}>
+                  <Grid item xs={12}>
+                    <FormControl fullWidth>
+                      <InputLabel>Broker</InputLabel>
+                      <Select value="alpaca" disabled>
+                        <MenuItem value="alpaca">Alpaca Markets</MenuItem>
+                        <MenuItem value="robinhood">Robinhood (Coming Soon)</MenuItem>
+                        <MenuItem value="td_ameritrade">TD Ameritrade (Coming Soon)</MenuItem>
+                        <MenuItem value="fidelity">Fidelity (Coming Soon)</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="API Key"
+                      type="password"
+                      placeholder="Enter your API key"
+                      helperText="Your API key will be encrypted before storage"
+                    />
+                  </Grid>
+                  
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="API Secret"
+                      type="password"
+                      placeholder="Enter your API secret"
+                      helperText="Required for some brokers"
+                    />
+                  </Grid>
+                  
+                  <Grid item xs={12}>
+                    <FormControlLabel
+                      control={<Switch defaultChecked />}
+                      label="Use Sandbox Mode"
+                    />
+                  </Grid>
+                  
+                  <Grid item xs={12}>
+                    <Button variant="contained" fullWidth disabled>
+                      Connect Broker
+                    </Button>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          {/* Import Status Section */}
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+                  <Download sx={{ mr: 1, color: 'success.main' }} />
+                  Import Portfolio
+                </Typography>
+                
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  No broker connections found. Connect a broker to import your portfolio automatically.
+                </Alert>
+                
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Button variant="outlined" disabled>
+                    Import from Alpaca
+                  </Button>
+                  
+                  <Divider sx={{ my: 1 }}>OR</Divider>
+                  
+                  <Typography variant="body2" color="text.secondary">
+                    Manual CSV Import (Coming Soon)
+                  </Typography>
+                  <Button variant="outlined" disabled>
+                    Upload CSV File
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          {/* Security Information */}
+          <Grid item xs={12}>
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+                  <Shield sx={{ mr: 1, color: 'success.main' }} />
+                  Security & Privacy
+                </Typography>
+                
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={4}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <CheckCircle sx={{ color: 'success.main', mr: 1, fontSize: 20 }} />
+                      <Typography variant="body2">AES-256 Encryption</Typography>
+                    </Box>
+                    <Typography variant="caption" color="text.secondary">
+                      All API credentials are encrypted using industry-standard AES-256-GCM encryption
+                    </Typography>
+                  </Grid>
+                  
+                  <Grid item xs={12} md={4}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <CheckCircle sx={{ color: 'success.main', mr: 1, fontSize: 20 }} />
+                      <Typography variant="body2">Zero Logging</Typography>
+                    </Box>
+                    <Typography variant="caption" color="text.secondary">
+                      API keys are never logged in plaintext and are stored with user-specific encryption
+                    </Typography>
+                  </Grid>
+                  
+                  <Grid item xs={12} md={4}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <CheckCircle sx={{ color: 'success.main', mr: 1, fontSize: 20 }} />
+                      <Typography variant="body2">Read-Only Access</Typography>
+                    </Box>
+                    <Typography variant="caption" color="text.secondary">
+                      Portfolio import only requires read permissions to view your positions
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+          </Grid>
         </Grid>
       </TabPanel>
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import {
   Box,
   Grid,
@@ -185,6 +186,9 @@ function TechnicalSignalsWidget() {
 
 
 const Dashboard = () => {
+  // Authentication state
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  
   // Symbol selector state
   const [selectedSymbol, setSelectedSymbol] = useState('AAPL');
 
@@ -257,8 +261,9 @@ const Dashboard = () => {
   // Defensive: fallback for missing/errored data
   // (Removed mock-based safe* variables; now using API-based safe* variables above)
 
-  // User context
-  const { user, isLoading: userLoading, error: userError, isAuthenticated } = useUser();
+  // User context (now using AuthContext consistently)
+  const userLoading = authLoading;
+  const userError = null; // AuthContext handles errors differently
 
   // Optionally redirect to login if not authenticated
   // useEffect(() => {
@@ -318,6 +323,105 @@ const Dashboard = () => {
         </Box>
       </Box>
       <Divider sx={{ mb: 3 }} />
+
+      {/* Personalized Content for Authenticated Users */}
+      {isAuthenticated && user && (
+        <Box sx={{ mb: 3 }}>
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={8}>
+              <Card sx={{ bgcolor: 'success.main', color: 'white', boxShadow: 3 }}>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Box>
+                      <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+                        Welcome back, {user.username || user.email?.split('@')[0] || 'Investor'}!
+                      </Typography>
+                      <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                        Your personalized investment dashboard is ready. Access your portfolio, track performance, and discover new opportunities.
+                      </Typography>
+                    </Box>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Button 
+                        variant="contained" 
+                        sx={{ 
+                          bgcolor: 'white', 
+                          color: 'success.main',
+                          '&:hover': { bgcolor: 'grey.100' }
+                        }}
+                        href="/portfolio"
+                      >
+                        View Portfolio
+                      </Button>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Card sx={{ height: '100%', bgcolor: 'primary.main', color: 'white', boxShadow: 3 }}>
+                <CardContent>
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+                    Quick Stats
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2">Portfolio Value:</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        ${safePortfolio.value.toLocaleString()}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2">Today's P&L:</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: safePortfolio.pnl.daily >= 0 ? 'success.light' : 'error.light' }}>
+                        ${safePortfolio.pnl.daily.toLocaleString()}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2">Active Positions:</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {safePortfolio.allocation.length}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </Box>
+      )}
+
+      {/* Guest/Demo Content for Non-Authenticated Users */}
+      {!isAuthenticated && !authLoading && (
+        <Box sx={{ mb: 3 }}>
+          <Card sx={{ bgcolor: 'warning.main', color: 'white', boxShadow: 3 }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Box>
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+                    Demo Mode - Sign in for Full Access
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                    You're viewing sample data. Sign in to access your personal portfolio, real-time alerts, and advanced analytics.
+                  </Typography>
+                </Box>
+                <Box sx={{ textAlign: 'center' }}>
+                  <Button 
+                    variant="contained" 
+                    sx={{ 
+                      bgcolor: 'white', 
+                      color: 'warning.main',
+                      '&:hover': { bgcolor: 'grey.100' }
+                    }}
+                    onClick={() => {/* This would trigger auth modal */}}
+                  >
+                    Sign In
+                  </Button>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Box>
+      )}
 
       {/* Top Row: Portfolio Snapshot and Watchlist */}
       <Grid container spacing={3} sx={{ mb: 3 }}>

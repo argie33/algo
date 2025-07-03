@@ -1809,7 +1809,8 @@ export const getStockPriceHistory = async (ticker, limit = 90) => {
     return { data: result };
   } catch (error) {
     console.error('BULLETPROOF: Error fetching stock price history:', error)
-    throw error
+    // Use the centralized error handler for consistent error messaging
+    throw handleApiError(error, `Failed to fetch price history for ${ticker}`)
   }
 }
 

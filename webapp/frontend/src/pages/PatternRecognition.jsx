@@ -1,24 +1,53 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Progress } from '@/components/ui/progress';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { 
-  Search, 
-  TrendingUp, 
-  TrendingDown, 
-  Target, 
-  Zap,
-  BarChart3,
-  AlertCircle,
+import {
+  Box,
+  Container,
+  Typography,
+  Grid,
+  Card,
+  CardContent,
+  CardHeader,
+  Tabs,
+  Tab,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Chip,
+  CircularProgress,
+  Alert,
+  Button,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Slider,
+  LinearProgress,
+  Badge,
+  Tooltip,
+  IconButton,
+  Divider
+} from '@mui/material';
+import {
+  Search,
+  TrendingUp,
+  TrendingDown,
+  Target,
+  FlashOn as Zap,
+  BarChart as BarChart3,
+  Warning as AlertCircle,
   CheckCircle,
-  Clock,
-  Filter
-} from 'lucide-react';
+  Schedule as Clock,
+  FilterList as Filter,
+  Psychology,
+  Timeline,
+  ShowChart,
+  Refresh
+} from '@mui/icons-material';
 
 const PatternRecognition = () => {
   const [patterns, setPatterns] = useState([]);

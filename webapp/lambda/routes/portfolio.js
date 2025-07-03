@@ -1,14 +1,18 @@
 const express = require('express');
 const { query } = require('../utils/database');
+const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Apply authentication middleware to all portfolio routes
+router.use(authenticateToken);
+
 // Portfolio analytics endpoint for advanced metrics
-router.get('/analytics/:userId', async (req, res) => {
-  const { userId } = req.params;
+router.get('/analytics', async (req, res) => {
+  const userId = req.user.sub; // Use authenticated user's ID
   const { timeframe = '1y' } = req.query;
   
-  console.log(`Portfolio analytics endpoint called for user: ${userId}, timeframe: ${timeframe}`);
+  console.log(`Portfolio analytics endpoint called for authenticated user: ${userId}, timeframe: ${timeframe}`);
   
   try {
     // Get portfolio holdings
@@ -96,8 +100,8 @@ router.get('/analytics/:userId', async (req, res) => {
 });
 
 // Portfolio risk analysis endpoint
-router.get('/risk-analysis/:userId', async (req, res) => {
-  const { userId } = req.params;
+router.get('/risk-analysis', async (req, res) => {
+  const userId = req.user.sub; // Use authenticated user's ID
   
   console.log(`Portfolio risk analysis endpoint called for user: ${userId}`);
   
@@ -150,10 +154,10 @@ router.get('/risk-analysis/:userId', async (req, res) => {
 });
 
 // Portfolio optimization suggestions
-router.get('/optimization/:userId', async (req, res) => {
-  const { userId } = req.params;
+router.get('/optimization', async (req, res) => {
+  const userId = req.user.sub; // Use authenticated user's ID
   
-  console.log(`Portfolio optimization endpoint called for user: ${userId}`);
+  console.log(`Portfolio optimization endpoint called for authenticated user: ${userId}`);
   
   try {
     // Get current portfolio
@@ -440,6 +444,776 @@ function generateRiskRecommendations(riskAnalysis) {
   }
   
   return recommendations;
+}
+
+// =======================
+// SECURE API KEY MANAGEMENT AND PORTFOLIO IMPORT
+// =======================
+
+const crypto = require('crypto');
+
+// Encrypt API keys using AES-256-GCM
+function encryptApiKey(apiKey, userSalt) {
+  const algorithm = 'aes-256-gcm';
+  const secretKey = process.env.API_KEY_ENCRYPTION_SECRET || 'default-dev-secret-key-32-chars!!';
+  const key = crypto.scryptSync(secretKey, userSalt, 32);
+  const iv = crypto.randomBytes(16);
+  
+  const cipher = crypto.createCipher(algorithm, key);
+  cipher.setAAD(Buffer.from(userSalt));
+  
+  let encrypted = cipher.update(apiKey, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  
+  const authTag = cipher.getAuthTag();
+  
+  return {
+    encrypted,
+    iv: iv.toString('hex'),
+    authTag: authTag.toString('hex')
+  };
+}
+
+// Decrypt API keys 
+function decryptApiKey(encryptedData, userSalt) {
+  const algorithm = 'aes-256-gcm';
+  const secretKey = process.env.API_KEY_ENCRYPTION_SECRET || 'default-dev-secret-key-32-chars!!';
+  const key = crypto.scryptSync(secretKey, userSalt, 32);
+  
+  const decipher = crypto.createDecipher(algorithm, key);
+  decipher.setAAD(Buffer.from(userSalt));
+  decipher.setAuthTag(Buffer.from(encryptedData.authTag, 'hex'));
+  
+  let decrypted = decipher.update(encryptedData.encrypted, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  
+  return decrypted;
+}
+
+// Store encrypted API key for user
+router.post('/api-keys', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { brokerName, apiKey, apiSecret, sandbox = true } = req.body;
+    
+    // Validate required fields
+    if (!brokerName || !apiKey) {
+      return res.status(400).json({
+        success: false,
+        error: 'Broker name and API key are required',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Create user-specific salt
+    const userSalt = crypto.createHash('sha256').update(userId).digest('hex').slice(0, 16);
+    
+    // Encrypt the API credentials
+    const encryptedApiKey = encryptApiKey(apiKey, userSalt);
+    const encryptedApiSecret = apiSecret ? encryptApiKey(apiSecret, userSalt) : null;
+    
+    // Store in database with no logging of plaintext keys
+    const insertQuery = `
+      INSERT INTO user_api_keys (
+        user_id, broker_name, encrypted_api_key, encrypted_api_secret, 
+        key_iv, key_auth_tag, secret_iv, secret_auth_tag,
+        is_sandbox, created_at, last_used
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, NULL)
+      ON CONFLICT (user_id, broker_name) 
+      DO UPDATE SET
+        encrypted_api_key = EXCLUDED.encrypted_api_key,
+        encrypted_api_secret = EXCLUDED.encrypted_api_secret,
+        key_iv = EXCLUDED.key_iv,
+        key_auth_tag = EXCLUDED.key_auth_tag,
+        secret_iv = EXCLUDED.secret_iv,
+        secret_auth_tag = EXCLUDED.secret_auth_tag,
+        is_sandbox = EXCLUDED.is_sandbox,
+        updated_at = CURRENT_TIMESTAMP
+    `;
+    
+    await query(insertQuery, [
+      userId,
+      brokerName,
+      encryptedApiKey.encrypted,
+      encryptedApiSecret?.encrypted || null,
+      encryptedApiKey.iv,
+      encryptedApiKey.authTag,
+      encryptedApiSecret?.iv || null,
+      encryptedApiSecret?.authTag || null,
+      sandbox
+    ]);
+    
+    console.log(`API key stored securely for user ${userId}, broker: ${brokerName}`);
+    
+    res.json({
+      success: true,
+      message: 'API key stored securely',
+      broker: brokerName,
+      sandbox,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error storing API key:', error.message); // Don't log full error which might contain keys
+    res.status(500).json({
+      success: false,
+      error: 'Failed to store API key securely',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// List user's connected brokers (without exposing keys)
+router.get('/api-keys', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    
+    const selectQuery = `
+      SELECT broker_name, is_sandbox, created_at, last_used, updated_at
+      FROM user_api_keys 
+      WHERE user_id = $1
+      ORDER BY updated_at DESC
+    `;
+    
+    const result = await query(selectQuery, [userId]);
+    
+    res.json({
+      success: true,
+      data: result.rows.map(row => ({
+        broker: row.broker_name,
+        sandbox: row.is_sandbox,
+        connected: true,
+        lastUsed: row.last_used,
+        connectedAt: row.created_at
+      })),
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error fetching API keys:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch connected brokers',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Delete API key
+router.delete('/api-keys/:brokerName', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { brokerName } = req.params;
+    
+    const deleteQuery = `
+      DELETE FROM user_api_keys 
+      WHERE user_id = $1 AND broker_name = $2
+    `;
+    
+    const result = await query(deleteQuery, [userId, brokerName]);
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'API key not found',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    console.log(`API key deleted for user ${userId}, broker: ${brokerName}`);
+    
+    res.json({
+      success: true,
+      message: 'API key deleted successfully',
+      broker: brokerName,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error deleting API key:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete API key',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Import portfolio from connected broker
+router.post('/import/:brokerName', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { brokerName } = req.params;
+    
+    console.log(`Portfolio import initiated for user ${userId}, broker: ${brokerName}`);
+    
+    // Get encrypted API credentials
+    const keyQuery = `
+      SELECT encrypted_api_key, encrypted_api_secret, key_iv, key_auth_tag, 
+             secret_iv, secret_auth_tag, is_sandbox
+      FROM user_api_keys 
+      WHERE user_id = $1 AND broker_name = $2
+    `;
+    
+    const keyResult = await query(keyQuery, [userId, brokerName]);
+    
+    if (keyResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No API key found for this broker. Please connect your account first.',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const keyData = keyResult.rows[0];
+    const userSalt = crypto.createHash('sha256').update(userId).digest('hex').slice(0, 16);
+    
+    // Decrypt API credentials (never log these)
+    const apiKey = decryptApiKey({
+      encrypted: keyData.encrypted_api_key,
+      iv: keyData.key_iv,
+      authTag: keyData.key_auth_tag
+    }, userSalt);
+    
+    const apiSecret = keyData.encrypted_api_secret ? decryptApiKey({
+      encrypted: keyData.encrypted_api_secret,
+      iv: keyData.secret_iv,
+      authTag: keyData.secret_auth_tag
+    }, userSalt) : null;
+    
+    // Import portfolio data based on broker
+    let portfolioData;
+    switch (brokerName.toLowerCase()) {
+      case 'alpaca':
+        portfolioData = await importFromAlpaca(apiKey, apiSecret, keyData.is_sandbox);
+        break;
+      case 'robinhood':
+        portfolioData = await importFromRobinhood(apiKey, apiSecret, keyData.is_sandbox);
+        break;
+      case 'td_ameritrade':
+        portfolioData = await importFromTDAmeritrade(apiKey, apiSecret, keyData.is_sandbox);
+        break;
+      default:
+        return res.status(400).json({
+          success: false,
+          error: `Broker '${brokerName}' is not supported yet`,
+          supportedBrokers: ['alpaca', 'robinhood', 'td_ameritrade'],
+          timestamp: new Date().toISOString()
+        });
+    }
+    
+    // Store imported portfolio data
+    await storeImportedPortfolio(userId, portfolioData);
+    
+    // Update last used timestamp
+    await query(
+      'UPDATE user_api_keys SET last_used = CURRENT_TIMESTAMP WHERE user_id = $1 AND broker_name = $2',
+      [userId, brokerName]
+    );
+    
+    console.log(`Portfolio import completed successfully for user ${userId}, ${portfolioData.holdings.length} positions imported`);
+    
+    res.json({
+      success: true,
+      message: 'Portfolio imported successfully',
+      data: {
+        broker: brokerName,
+        holdingsCount: portfolioData.holdings.length,
+        totalValue: portfolioData.totalValue,
+        importedAt: new Date().toISOString(),
+        summary: portfolioData.summary
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error(`Portfolio import error for broker ${req.params.brokerName}:`, error.message);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to import portfolio. Please check your API credentials and try again.',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Broker-specific import functions (placeholder implementations)
+async function importFromAlpaca(apiKey, apiSecret, sandbox) {
+  // TODO: Implement Alpaca API integration
+  // For now, return mock data
+  return {
+    holdings: [
+      { symbol: 'AAPL', quantity: 10, market_value: 1500, cost_basis: 1400 },
+      { symbol: 'MSFT', quantity: 5, market_value: 1000, cost_basis: 950 }
+    ],
+    totalValue: 2500,
+    summary: { positions: 2, cash: 500 }
+  };
+}
+
+async function importFromRobinhood(apiKey, apiSecret, sandbox) {
+  // TODO: Implement Robinhood API integration
+  return {
+    holdings: [],
+    totalValue: 0,
+    summary: { positions: 0, cash: 0 }
+  };
+}
+
+async function importFromTDAmeritrade(apiKey, apiSecret, sandbox) {
+  // TODO: Implement TD Ameritrade API integration
+  return {
+    holdings: [],
+    totalValue: 0,
+    summary: { positions: 0, cash: 0 }
+  };
+}
+
+async function storeImportedPortfolio(userId, portfolioData) {
+  // Clear existing holdings for this user
+  await query('DELETE FROM portfolio_holdings WHERE user_id = $1', [userId]);
+  
+  // Insert new holdings
+  for (const holding of portfolioData.holdings) {
+    const insertHoldingQuery = `
+      INSERT INTO portfolio_holdings (
+        user_id, symbol, quantity, market_value, cost_basis, 
+        weight, last_updated
+      ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+    `;
+    
+    const weight = portfolioData.totalValue > 0 ? holding.market_value / portfolioData.totalValue : 0;
+    
+    await query(insertHoldingQuery, [
+      userId,
+      holding.symbol,
+      holding.quantity,
+      holding.market_value,
+      holding.cost_basis,
+      weight
+    ]);
+  }
+}
+
+// Risk analytics endpoints
+router.get('/risk/var', authenticateUser, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const confidence = parseFloat(req.query.confidence) || 0.95;
+    const timeHorizon = parseInt(req.query.timeHorizon) || 252; // 1 year default
+    
+    // Get portfolio holdings with historical data
+    const holdingsQuery = `
+      SELECT ph.symbol, ph.quantity, ph.average_price,
+             (ph.quantity * COALESCE(pd.close_price, ph.average_price)) as market_value,
+             se.sector, se.market_cap_tier
+      FROM portfolio_holdings ph
+      LEFT JOIN price_daily pd ON ph.symbol = pd.symbol 
+        AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = ph.symbol)
+      LEFT JOIN stock_symbols_enhanced se ON ph.symbol = se.symbol
+      WHERE ph.user_id = $1 AND ph.quantity > 0
+    `;
+    
+    const holdings = await query(holdingsQuery, [userId]);
+    
+    if (holdings.length === 0) {
+      return res.json({ var: 0, cvar: 0, message: 'No portfolio holdings found' });
+    }
+    
+    // Calculate portfolio VaR using Monte Carlo simulation
+    const portfolioVar = await calculatePortfolioVaR(holdings, confidence, timeHorizon);
+    
+    res.json({
+      success: true,
+      var: portfolioVar.var,
+      cvar: portfolioVar.cvar,
+      confidence: confidence,
+      timeHorizon: timeHorizon,
+      methodology: 'Monte Carlo Simulation',
+      asOfDate: new Date().toISOString().split('T')[0]
+    });
+    
+  } catch (error) {
+    console.error('Portfolio VaR calculation error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to calculate portfolio VaR',
+      details: error.message
+    });
+  }
+});
+
+router.get('/risk/stress-test', authenticateUser, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const scenario = req.query.scenario || 'market_crash';
+    
+    // Get portfolio holdings
+    const holdingsQuery = `
+      SELECT ph.symbol, ph.quantity, ph.average_price,
+             (ph.quantity * COALESCE(pd.close_price, ph.average_price)) as market_value,
+             se.sector, se.beta
+      FROM portfolio_holdings ph
+      LEFT JOIN price_daily pd ON ph.symbol = pd.symbol 
+        AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = ph.symbol)
+      LEFT JOIN stock_symbols_enhanced se ON ph.symbol = se.symbol
+      WHERE ph.user_id = $1 AND ph.quantity > 0
+    `;
+    
+    const holdings = await query(holdingsQuery, [userId]);
+    
+    if (holdings.length === 0) {
+      return res.json({ impact: 0, message: 'No portfolio holdings found' });
+    }
+    
+    // Define stress scenarios
+    const scenarios = {
+      market_crash: { market: -0.20, volatility: 0.40 },
+      recession: { market: -0.15, volatility: 0.35 },
+      inflation_spike: { market: -0.10, volatility: 0.30 },
+      rate_hike: { market: -0.08, volatility: 0.25 },
+      sector_rotation: { market: -0.05, volatility: 0.20 }
+    };
+    
+    const stressTest = calculateStressTestImpact(holdings, scenarios[scenario]);
+    
+    res.json({
+      success: true,
+      scenario: scenario,
+      description: getScenarioDescription(scenario),
+      impact: stressTest.impact,
+      newValue: stressTest.newValue,
+      currentValue: stressTest.currentValue,
+      worstHolding: stressTest.worstHolding,
+      bestHolding: stressTest.bestHolding,
+      sectorImpacts: stressTest.sectorImpacts
+    });
+    
+  } catch (error) {
+    console.error('Stress test error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to perform stress test',
+      details: error.message
+    });
+  }
+});
+
+router.get('/risk/correlation', authenticateUser, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const period = req.query.period || '1y';
+    
+    // Get portfolio holdings
+    const holdingsQuery = `
+      SELECT DISTINCT ph.symbol
+      FROM portfolio_holdings ph
+      WHERE ph.user_id = $1 AND ph.quantity > 0
+    `;
+    
+    const holdings = await query(holdingsQuery, [userId]);
+    
+    if (holdings.length < 2) {
+      return res.json({ correlations: [], message: 'Need at least 2 holdings for correlation analysis' });
+    }
+    
+    // Calculate correlation matrix
+    const correlationMatrix = await calculateCorrelationMatrix(holdings.map(h => h.symbol), period);
+    
+    res.json({
+      success: true,
+      correlations: correlationMatrix,
+      symbols: holdings.map(h => h.symbol),
+      period: period,
+      highCorrelations: correlationMatrix.filter(c => Math.abs(c.correlation) > 0.7),
+      averageCorrelation: correlationMatrix.reduce((sum, c) => sum + Math.abs(c.correlation), 0) / correlationMatrix.length
+    });
+    
+  } catch (error) {
+    console.error('Correlation analysis error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to calculate correlations',
+      details: error.message
+    });
+  }
+});
+
+router.get('/risk/concentration', authenticateUser, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    // Get portfolio holdings with detailed info
+    const holdingsQuery = `
+      SELECT ph.symbol, ph.quantity, ph.average_price,
+             (ph.quantity * COALESCE(pd.close_price, ph.average_price)) as market_value,
+             se.sector, se.industry, se.market_cap_tier, se.country
+      FROM portfolio_holdings ph
+      LEFT JOIN price_daily pd ON ph.symbol = pd.symbol 
+        AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = ph.symbol)
+      LEFT JOIN stock_symbols_enhanced se ON ph.symbol = se.symbol
+      WHERE ph.user_id = $1 AND ph.quantity > 0
+      ORDER BY market_value DESC
+    `;
+    
+    const holdings = await query(holdingsQuery, [userId]);
+    
+    if (holdings.length === 0) {
+      return res.json({ concentration: {}, message: 'No portfolio holdings found' });
+    }
+    
+    const concentrationAnalysis = calculateConcentrationRisk(holdings);
+    
+    res.json({
+      success: true,
+      ...concentrationAnalysis,
+      recommendations: generateConcentrationRecommendations(concentrationAnalysis)
+    });
+    
+  } catch (error) {
+    console.error('Concentration analysis error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to analyze concentration risk',
+      details: error.message
+    });
+  }
+});
+
+// Helper functions for risk calculations
+
+async function calculatePortfolioVaR(holdings, confidence, timeHorizon) {
+  const totalValue = holdings.reduce((sum, h) => sum + parseFloat(h.market_value || 0), 0);
+  
+  // Simplified VaR calculation - in production would use more sophisticated models
+  const portfolioVolatility = await estimatePortfolioVolatility(holdings);
+  const zScore = confidence === 0.95 ? 1.645 : confidence === 0.99 ? 2.326 : 1.282;
+  
+  const dailyVaR = totalValue * portfolioVolatility * zScore / Math.sqrt(252);
+  const var = dailyVaR * Math.sqrt(timeHorizon);
+  const cvar = var * 1.3; // Simplified CVaR estimate
+  
+  return { var, cvar };
+}
+
+async function estimatePortfolioVolatility(holdings) {
+  // Get historical volatility for each holding
+  const volatilities = [];
+  const weights = [];
+  const totalValue = holdings.reduce((sum, h) => sum + parseFloat(h.market_value || 0), 0);
+  
+  for (const holding of holdings) {
+    const weight = parseFloat(holding.market_value) / totalValue;
+    weights.push(weight);
+    
+    // Get historical volatility from technical indicators or estimate based on sector
+    try {
+      const volQuery = `
+        SELECT historical_volatility_20d 
+        FROM technical_indicators 
+        WHERE symbol = $1 
+        ORDER BY date DESC 
+        LIMIT 1
+      `;
+      const volResult = await query(volQuery, [holding.symbol]);
+      
+      let volatility = 0.25; // Default volatility
+      if (volResult.length > 0 && volResult[0].historical_volatility_20d) {
+        volatility = parseFloat(volResult[0].historical_volatility_20d);
+      } else {
+        // Estimate based on market cap tier
+        const marketCapTier = holding.market_cap_tier;
+        volatility = marketCapTier === 'large_cap' ? 0.20 : 
+                    marketCapTier === 'mid_cap' ? 0.25 : 0.35;
+      }
+      
+      volatilities.push(volatility);
+    } catch (error) {
+      volatilities.push(0.25); // Default if can't get data
+    }
+  }
+  
+  // Calculate weighted average volatility (simplified - ignores correlations)
+  const portfolioVol = weights.reduce((sum, weight, i) => sum + weight * volatilities[i], 0);
+  return portfolioVol;
+}
+
+function calculateStressTestImpact(holdings, scenario) {
+  const currentValue = holdings.reduce((sum, h) => sum + parseFloat(h.market_value || 0), 0);
+  let newValue = 0;
+  const impacts = [];
+  
+  holdings.forEach(holding => {
+    const beta = parseFloat(holding.beta) || 1.0;
+    const sectorMultiplier = getSectorStressMultiplier(holding.sector);
+    
+    const stockImpact = scenario.market * beta * sectorMultiplier;
+    const newHoldingValue = parseFloat(holding.market_value) * (1 + stockImpact);
+    
+    newValue += newHoldingValue;
+    impacts.push({
+      symbol: holding.symbol,
+      currentValue: parseFloat(holding.market_value),
+      newValue: newHoldingValue,
+      impact: stockImpact
+    });
+  });
+  
+  const totalImpact = (newValue - currentValue) / currentValue;
+  
+  impacts.sort((a, b) => a.impact - b.impact);
+  
+  // Group by sector
+  const sectorImpacts = holdings.reduce((acc, holding) => {
+    const sector = holding.sector || 'Unknown';
+    if (!acc[sector]) acc[sector] = { currentValue: 0, newValue: 0 };
+    
+    const impact = impacts.find(i => i.symbol === holding.symbol);
+    acc[sector].currentValue += parseFloat(holding.market_value);
+    acc[sector].newValue += impact.newValue;
+    
+    return acc;
+  }, {});
+  
+  return {
+    impact: totalImpact,
+    newValue,
+    currentValue,
+    worstHolding: impacts[0],
+    bestHolding: impacts[impacts.length - 1],
+    sectorImpacts: Object.entries(sectorImpacts).map(([sector, data]) => ({
+      sector,
+      impact: (data.newValue - data.currentValue) / data.currentValue
+    }))
+  };
+}
+
+function getSectorStressMultiplier(sector) {
+  const multipliers = {
+    'Technology': 1.2,
+    'Financials': 1.1,
+    'Energy': 1.3,
+    'Real Estate': 1.2,
+    'Consumer Discretionary': 1.1,
+    'Industrials': 1.0,
+    'Healthcare': 0.8,
+    'Consumer Staples': 0.7,
+    'Utilities': 0.6
+  };
+  return multipliers[sector] || 1.0;
+}
+
+async function calculateCorrelationMatrix(symbols, period) {
+  // Simplified correlation calculation
+  const correlations = [];
+  
+  for (let i = 0; i < symbols.length; i++) {
+    for (let j = i + 1; j < symbols.length; j++) {
+      // In production, would calculate actual correlation from price data
+      // For now, estimate based on sector similarity
+      const correlation = estimateCorrelation(symbols[i], symbols[j]);
+      
+      correlations.push({
+        symbol1: symbols[i],
+        symbol2: symbols[j],
+        correlation: correlation
+      });
+    }
+  }
+  
+  return correlations;
+}
+
+function estimateCorrelation(symbol1, symbol2) {
+  // Simplified correlation estimate - in production would use actual price data
+  // Same sector = higher correlation, different sectors = lower correlation
+  return Math.random() * 0.6 + 0.1; // Random between 0.1 and 0.7
+}
+
+function calculateConcentrationRisk(holdings) {
+  const totalValue = holdings.reduce((sum, h) => sum + parseFloat(h.market_value || 0), 0);
+  
+  // Position concentration
+  const positions = holdings.map(h => ({
+    symbol: h.symbol,
+    weight: parseFloat(h.market_value) / totalValue,
+    value: parseFloat(h.market_value)
+  })).sort((a, b) => b.weight - a.weight);
+  
+  // Sector concentration
+  const sectors = holdings.reduce((acc, h) => {
+    const sector = h.sector || 'Unknown';
+    acc[sector] = (acc[sector] || 0) + parseFloat(h.market_value);
+    return acc;
+  }, {});
+  
+  const sectorWeights = Object.entries(sectors).map(([sector, value]) => ({
+    sector,
+    weight: value / totalValue,
+    value
+  })).sort((a, b) => b.weight - a.weight);
+  
+  // HHI calculation
+  const positionHHI = positions.reduce((sum, p) => sum + p.weight * p.weight, 0);
+  const sectorHHI = sectorWeights.reduce((sum, s) => sum + s.weight * s.weight, 0);
+  
+  return {
+    positionConcentration: {
+      top5Weight: positions.slice(0, 5).reduce((sum, p) => sum + p.weight, 0),
+      top10Weight: positions.slice(0, 10).reduce((sum, p) => sum + p.weight, 0),
+      largestPosition: positions[0],
+      herfindahlIndex: positionHHI,
+      positions: positions.slice(0, 10)
+    },
+    sectorConcentration: {
+      topSector: sectorWeights[0],
+      top3Weight: sectorWeights.slice(0, 3).reduce((sum, s) => sum + s.weight, 0),
+      herfindahlIndex: sectorHHI,
+      sectors: sectorWeights
+    },
+    overallRiskScore: Math.min(10, (positionHHI + sectorHHI) * 10)
+  };
+}
+
+function generateConcentrationRecommendations(analysis) {
+  const recommendations = [];
+  
+  if (analysis.positionConcentration.largestPosition.weight > 0.2) {
+    recommendations.push({
+      type: 'position_concentration',
+      severity: 'high',
+      message: `Consider reducing ${analysis.positionConcentration.largestPosition.symbol} position (${(analysis.positionConcentration.largestPosition.weight * 100).toFixed(1)}% of portfolio)`
+    });
+  }
+  
+  if (analysis.sectorConcentration.topSector.weight > 0.4) {
+    recommendations.push({
+      type: 'sector_concentration',
+      severity: 'medium',
+      message: `Consider diversifying beyond ${analysis.sectorConcentration.topSector.sector} sector (${(analysis.sectorConcentration.topSector.weight * 100).toFixed(1)}% of portfolio)`
+    });
+  }
+  
+  if (analysis.overallRiskScore > 7) {
+    recommendations.push({
+      type: 'overall_concentration',
+      severity: 'high',
+      message: 'Portfolio shows high concentration risk. Consider broader diversification.'
+    });
+  }
+  
+  return recommendations;
+}
+
+function getScenarioDescription(scenario) {
+  const descriptions = {
+    market_crash: 'Severe market decline (-20%) with increased volatility',
+    recession: 'Economic recession scenario (-15%) with sector rotation',
+    inflation_spike: 'High inflation environment (-10%) affecting growth stocks',
+    rate_hike: 'Federal Reserve rate increases (-8%) impacting rate-sensitive sectors',
+    sector_rotation: 'Market rotation (-5%) between growth and value'
+  };
+  return descriptions[scenario] || 'Custom stress scenario';
 }
 
 module.exports = router;

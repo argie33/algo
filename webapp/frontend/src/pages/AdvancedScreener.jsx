@@ -88,6 +88,8 @@ const AdvancedScreener = () => {
     exchange: 'any',
     dividendYield: [0, 20],
     pe: [0, 50],
+    pb: [0, 10],
+    roe: [0, 50],
     debt: [0, 5]
   });
 
@@ -99,6 +101,9 @@ const AdvancedScreener = () => {
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [screenName, setScreenName] = useState('');
+  const [sectors, setSectors] = useState([]);
+  const [screenStats, setScreenStats] = useState(null);
+  const [error, setError] = useState(null);
 
   // Mock data for demonstration
   const mockResults = [
@@ -157,11 +162,13 @@ const AdvancedScreener = () => {
 
   useEffect(() => {
     loadSavedScreens();
+    loadSectors();
+    loadScreenStats();
   }, []);
 
   const loadSavedScreens = async () => {
     try {
-      // Mock saved screens for now
+      // Mock saved screens for now - would integrate with backend later
       setSavedScreens([
         { id: 1, name: 'High Quality Growth', criteria: screenCriteria },
         { id: 2, name: 'Value Opportunities', criteria: { ...screenCriteria, value: [70, 100] } },
@@ -172,93 +179,112 @@ const AdvancedScreener = () => {
     }
   };
 
+  const loadSectors = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/stocks/sectors`);
+      if (response.ok) {
+        const data = await response.json();
+        setSectors(data.sectors || []);
+      }
+    } catch (error) {
+      console.error('Failed to load sectors:', error);
+    }
+  };
+
+  const loadScreenStats = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/stocks/screen/stats`);
+      if (response.ok) {
+        const data = await response.json();
+        setScreenStats(data);
+      }
+    } catch (error) {
+      console.error('Failed to load screen stats:', error);
+    }
+  };
+
   const runScreen = async () => {
     setLoading(true);
+    setError(null);
     try {
-      // Build query parameters for metrics API
+      // Build query parameters for enhanced screening API
       const params = new URLSearchParams({
-        page: 1,
         limit: 200,
-        sortBy: 'composite_metric',
+        sortBy: 'composite_score',
         sortOrder: 'desc'
       });
 
-      // Add filters based on criteria
-      if (screenCriteria.sector !== 'any') {
-        params.append('sector', screenCriteria.sector);
-      }
-
-      // Convert quality score range (0-100) to metric range (0-1)
-      const minComposite = screenCriteria.quality[0] / 100;
-      const maxComposite = screenCriteria.quality[1] / 100;
+      // Add criteria filters
+      const { quality, growth, value, momentum, sentiment, positioning, marketCap, sector, exchange, pe, pb, roe, dividendYield } = screenCriteria;
       
-      if (minComposite > 0) {
-        params.append('minMetric', minComposite);
-      }
-      if (maxComposite < 1) {
-        params.append('maxMetric', maxComposite);
-      }
+      // Score filters (convert 0-100 to 0-1 for backend)
+      if (quality[0] > 0) params.append('minQuality', quality[0] / 100);
+      if (quality[1] < 100) params.append('maxQuality', quality[1] / 100);
+      if (growth[0] > 0) params.append('minGrowth', growth[0] / 100);
+      if (growth[1] < 100) params.append('maxGrowth', growth[1] / 100);
+      if (value[0] > 0) params.append('minValue', value[0] / 100);
+      if (value[1] < 100) params.append('maxValue', value[1] / 100);
+      if (momentum[0] > 0) params.append('minMomentum', momentum[0] / 100);
+      if (momentum[1] < 100) params.append('maxMomentum', momentum[1] / 100);
+      if (sentiment[0] > 0) params.append('minSentiment', sentiment[0] / 100);
+      if (sentiment[1] < 100) params.append('maxSentiment', sentiment[1] / 100);
+      if (positioning[0] > 0) params.append('minPositioning', positioning[0] / 100);
+      if (positioning[1] < 100) params.append('maxPositioning', positioning[1] / 100);
+      
+      // Financial metrics filters
+      if (pe[0] > 0) params.append('minPE', pe[0]);
+      if (pe[1] < 50) params.append('maxPE', pe[1]);
+      if (pb[0] > 0) params.append('minPB', pb[0]);
+      if (pb[1] < 10) params.append('maxPB', pb[1]);
+      if (roe[0] > 0) params.append('minROE', roe[0] / 100);
+      if (roe[1] < 50) params.append('maxROE', roe[1] / 100);
+      if (dividendYield[0] > 0) params.append('minDividendYield', dividendYield[0] / 100);
+      if (dividendYield[1] < 20) params.append('maxDividendYield', dividendYield[1] / 100);
+      
+      // Category filters
+      if (marketCap !== 'any') params.append('marketCapTier', marketCap);
+      if (sector !== 'any') params.append('sector', sector);
+      if (exchange !== 'any') params.append('exchange', exchange);
 
-      const response = await fetch(`${API_BASE}/api/metrics?${params}`);
+      const response = await fetch(`${API_BASE}/api/stocks/screen?${params}`);
       
       if (response.ok) {
         const data = await response.json();
         const stocks = data.stocks || [];
         
-        // Transform API data to match our component structure
+        // Transform API data to match component structure
         const transformedResults = stocks.map(stock => ({
           symbol: stock.symbol,
-          company: stock.security_name || stock.short_name || `${stock.symbol} Corp`,
+          company: stock.company_name || stock.security_name || `${stock.symbol} Corp`,
           scores: {
-            quality: Math.round((stock.quality_metric || 0.5) * 100),
-            growth: Math.round((stock.growth_metric || 0.5) * 100), 
-            value: Math.round((stock.value_metric || 0.5) * 100),
-            momentum: Math.round((stock.momentum_metric || 0.5) * 100),
-            sentiment: Math.round((stock.sentiment_metric || 0.5) * 100),
-            positioning: Math.round((stock.positioning_metric || 0.5) * 100),
-            composite: Math.round((stock.composite_metric || 0.5) * 100)
+            quality: Math.round((stock.quality_score || 0) * 100),
+            growth: Math.round((stock.growth_score || 0) * 100),
+            value: Math.round((stock.value_score || 0) * 100),
+            momentum: Math.round((stock.momentum_score || 0) * 100),
+            sentiment: Math.round((stock.sentiment_score || 0) * 100),
+            positioning: Math.round((stock.positioning_score || 0) * 100),
+            composite: Math.round((stock.composite_score || 0) * 100)
           },
           price: stock.current_price || 0,
           marketCap: stock.market_cap || 0,
           sector: stock.sector || 'Unknown',
-          exchange: stock.exchange || 'Unknown'
+          exchange: stock.exchange || 'Unknown',
+          pe: stock.pe_ratio,
+          pb: stock.pb_ratio,
+          roe: stock.roe,
+          dividendYield: stock.dividend_yield
         }));
 
-        // Apply additional client-side filters
-        const filteredResults = transformedResults.filter(stock => {
-          // Market cap filter
-          if (screenCriteria.marketCap !== 'any') {
-            const marketCap = stock.marketCap;
-            if (screenCriteria.marketCap === 'large' && marketCap < 10e9) return false;
-            if (screenCriteria.marketCap === 'mid' && (marketCap < 2e9 || marketCap > 10e9)) return false;
-            if (screenCriteria.marketCap === 'small' && marketCap > 2e9) return false;
-          }
-
-          // Exchange filter
-          if (screenCriteria.exchange !== 'any' && stock.exchange !== screenCriteria.exchange) {
-            return false;
-          }
-
-          // Score filters
-          const { quality, growth, value, momentum, sentiment, positioning } = screenCriteria;
-          return (
-            stock.scores.quality >= quality[0] && stock.scores.quality <= quality[1] &&
-            stock.scores.growth >= growth[0] && stock.scores.growth <= growth[1] &&
-            stock.scores.value >= value[0] && stock.scores.value <= value[1] &&
-            stock.scores.momentum >= momentum[0] && stock.scores.momentum <= momentum[1] &&
-            stock.scores.sentiment >= sentiment[0] && stock.scores.sentiment <= sentiment[1] &&
-            stock.scores.positioning >= positioning[0] && stock.scores.positioning <= positioning[1]
-          );
-        });
-
-        setResults(filteredResults);
+        setResults(transformedResults);
+        setActiveTab(1);
       } else {
-        console.warn('API call failed, using mock data');
-        setResults(mockResults);
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to run screen');
       }
-      setActiveTab(1);
     } catch (error) {
       console.error('Failed to run screen:', error);
+      setError(error.message || 'Failed to run screen. Please try again.');
+      // Fallback to mock data
       setResults(mockResults);
       setActiveTab(1);
     } finally {
@@ -290,7 +316,7 @@ const AdvancedScreener = () => {
 
   const exportResults = () => {
     const csv = [
-      ['Symbol', 'Company', 'Quality', 'Growth', 'Value', 'Momentum', 'Sentiment', 'Positioning', 'Composite', 'Price', 'Market Cap'],
+      ['Symbol', 'Company', 'Quality', 'Growth', 'Value', 'Momentum', 'Sentiment', 'Positioning', 'Composite', 'Price', 'P/E', 'P/B', 'ROE', 'Dividend Yield', 'Market Cap', 'Sector'],
       ...results.map(stock => [
         stock.symbol,
         stock.company,
@@ -302,7 +328,12 @@ const AdvancedScreener = () => {
         stock.scores.positioning,
         stock.scores.composite,
         stock.price,
-        stock.marketCap
+        stock.pe || '',
+        stock.pb || '',
+        stock.roe || '',
+        stock.dividendYield || '',
+        stock.marketCap,
+        stock.sector
       ])
     ].map(row => row.join(',')).join('\n');
 
@@ -413,6 +444,38 @@ const AdvancedScreener = () => {
                       sx={{ mb: 2 }}
                     />
                   </Grid>
+                  
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" sx={{ mb: 1 }}>
+                      P/B Ratio: {screenCriteria.pb[0]} - {screenCriteria.pb[1]}
+                    </Typography>
+                    <Slider
+                      value={screenCriteria.pb}
+                      onChange={(e, newValue) => setScreenCriteria(prev => ({ ...prev, pb: newValue }))}
+                      valueLabelDisplay="auto"
+                      min={0}
+                      max={10}
+                      step={0.1}
+                      color="secondary"
+                      sx={{ mb: 2 }}
+                    />
+                  </Grid>
+                  
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" sx={{ mb: 1 }}>
+                      ROE: {screenCriteria.roe[0]}% - {screenCriteria.roe[1]}%
+                    </Typography>
+                    <Slider
+                      value={screenCriteria.roe}
+                      onChange={(e, newValue) => setScreenCriteria(prev => ({ ...prev, roe: newValue }))}
+                      valueLabelDisplay="auto"
+                      min={0}
+                      max={50}
+                      step={1}
+                      color="secondary"
+                      sx={{ mb: 2 }}
+                    />
+                  </Grid>
                 </Grid>
               </CardContent>
             </Card>
@@ -432,9 +495,11 @@ const AdvancedScreener = () => {
                     onChange={(e) => setScreenCriteria(prev => ({ ...prev, marketCap: e.target.value }))}
                   >
                     <MenuItem value="any">Any</MenuItem>
-                    <MenuItem value="large">Large Cap (&gt;$10B)</MenuItem>
-                    <MenuItem value="mid">Mid Cap ($2B-$10B)</MenuItem>
-                    <MenuItem value="small">Small Cap (&lt;$2B)</MenuItem>
+                    <MenuItem value="mega_cap">Mega Cap (&gt;$200B)</MenuItem>
+                    <MenuItem value="large_cap">Large Cap ($10B-$200B)</MenuItem>
+                    <MenuItem value="mid_cap">Mid Cap ($2B-$10B)</MenuItem>
+                    <MenuItem value="small_cap">Small Cap ($300M-$2B)</MenuItem>
+                    <MenuItem value="micro_cap">Micro Cap (&lt;$300M)</MenuItem>
                   </Select>
                 </FormControl>
 
@@ -445,17 +510,11 @@ const AdvancedScreener = () => {
                     onChange={(e) => setScreenCriteria(prev => ({ ...prev, sector: e.target.value }))}
                   >
                     <MenuItem value="any">Any Sector</MenuItem>
-                    <MenuItem value="Technology">Technology</MenuItem>
-                    <MenuItem value="Healthcare">Healthcare</MenuItem>
-                    <MenuItem value="Financials">Financials</MenuItem>
-                    <MenuItem value="Consumer Discretionary">Consumer Discretionary</MenuItem>
-                    <MenuItem value="Consumer Staples">Consumer Staples</MenuItem>
-                    <MenuItem value="Energy">Energy</MenuItem>
-                    <MenuItem value="Industrials">Industrials</MenuItem>
-                    <MenuItem value="Materials">Materials</MenuItem>
-                    <MenuItem value="Real Estate">Real Estate</MenuItem>
-                    <MenuItem value="Utilities">Utilities</MenuItem>
-                    <MenuItem value="Communication Services">Communication Services</MenuItem>
+                    {sectors.map((sector) => (
+                      <MenuItem key={sector.sector} value={sector.sector}>
+                        {sector.sector} ({sector.count} stocks)
+                      </MenuItem>
+                    ))}
                   </Select>
                 </FormControl>
 
@@ -489,8 +548,33 @@ const AdvancedScreener = () => {
                   fullWidth
                   onClick={() => setSaveDialogOpen(true)}
                   startIcon={<Save />}
+                  sx={{ mb: 1 }}
                 >
                   Save Screen
+                </Button>
+
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  onClick={() => setScreenCriteria({
+                    quality: [0, 100],
+                    growth: [0, 100],
+                    value: [0, 100],
+                    momentum: [0, 100],
+                    sentiment: [0, 100],
+                    positioning: [0, 100],
+                    marketCap: 'any',
+                    sector: 'any',
+                    exchange: 'any',
+                    dividendYield: [0, 20],
+                    pe: [0, 50],
+                    pb: [0, 10],
+                    roe: [0, 50],
+                    debt: [0, 5]
+                  })}
+                  startIcon={<Clear />}
+                >
+                  Clear Filters
                 </Button>
               </CardContent>
             </Card>
@@ -514,11 +598,17 @@ const AdvancedScreener = () => {
           )}
         </Box>
 
-        {results.length === 0 ? (
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
+
+        {results.length === 0 && !error ? (
           <Alert severity="info">
             No results to display. Run a screen to see matching stocks.
           </Alert>
-        ) : (
+        ) : !error && (
           <Card>
             <TableContainer>
               <Table>
@@ -533,6 +623,8 @@ const AdvancedScreener = () => {
                     <TableCell align="center">Sentiment</TableCell>
                     <TableCell align="center">Composite</TableCell>
                     <TableCell align="right">Price</TableCell>
+                    <TableCell align="right">P/E</TableCell>
+                    <TableCell align="right">P/B</TableCell>
                     <TableCell align="right">Market Cap</TableCell>
                   </TableRow>
                 </TableHead>
@@ -570,6 +662,12 @@ const AdvancedScreener = () => {
                       </TableCell>
                       <TableCell align="right">
                         {formatCurrency(stock.price)}
+                      </TableCell>
+                      <TableCell align="right">
+                        {stock.pe ? formatNumber(stock.pe) : 'N/A'}
+                      </TableCell>
+                      <TableCell align="right">
+                        {stock.pb ? formatNumber(stock.pb) : 'N/A'}
                       </TableCell>
                       <TableCell align="right">
                         {formatCurrency(stock.marketCap, 0)}
