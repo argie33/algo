@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { fetchAuthSession, signIn, signUp, confirmSignUp, signOut, resetPassword, confirmResetPassword, getCurrentUser } from '@aws-amplify/auth';
+import { isCognitoConfigured } from '../config/amplify';
 
 // Initial auth state
 const initialState = {
@@ -93,6 +94,13 @@ export function AuthProvider({ children }) {
     try {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
       
+      // If Cognito is not configured, skip authentication check
+      if (!isCognitoConfigured()) {
+        console.log('Cognito not configured - skipping authentication check');
+        dispatch({ type: AUTH_ACTIONS.LOGOUT });
+        return;
+      }
+      
       // Get current authenticated user
       const user = await getCurrentUser();
       
@@ -128,6 +136,27 @@ export function AuthProvider({ children }) {
     try {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
       dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
+
+      // If Cognito is not configured, simulate successful login for development
+      if (!isCognitoConfigured()) {
+        console.log('Cognito not configured - simulating successful login for development');
+        dispatch({
+          type: AUTH_ACTIONS.LOGIN_SUCCESS,
+          payload: {
+            user: {
+              username: username,
+              userId: 'dev-user-id',
+              signInDetails: { loginId: username }
+            },
+            tokens: {
+              accessToken: 'dev-access-token',
+              idToken: 'dev-id-token',
+              refreshToken: 'dev-refresh-token'
+            }
+          }
+        });
+        return { success: true };
+      }
 
       const { isSignedIn, nextStep } = await signIn({
         username,
@@ -177,6 +206,17 @@ export function AuthProvider({ children }) {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
       dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
 
+      // If Cognito is not configured, simulate successful registration for development
+      if (!isCognitoConfigured()) {
+        console.log('Cognito not configured - simulating successful registration for development');
+        dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
+        return {
+          success: true,
+          isComplete: true,
+          message: 'Registration completed successfully (development mode)'
+        };
+      }
+
       const { isSignUpComplete, nextStep } = await signUp({
         username,
         password,
@@ -212,6 +252,17 @@ export function AuthProvider({ children }) {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
       dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
 
+      // If Cognito is not configured, simulate successful confirmation for development
+      if (!isCognitoConfigured()) {
+        console.log('Cognito not configured - simulating successful confirmation for development');
+        dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
+        return {
+          success: true,
+          isComplete: true,
+          message: 'Account confirmed successfully. You can now sign in. (development mode)'
+        };
+      }
+
       const { isSignUpComplete } = await confirmSignUp({
         username,
         confirmationCode
@@ -234,6 +285,13 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     try {
+      // If Cognito is not configured, just clear local state
+      if (!isCognitoConfigured()) {
+        console.log('Cognito not configured - clearing local state for development');
+        dispatch({ type: AUTH_ACTIONS.LOGOUT });
+        return { success: true };
+      }
+
       await signOut();
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
       return { success: true };

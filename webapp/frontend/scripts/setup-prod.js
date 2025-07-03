@@ -6,7 +6,7 @@ const path = require('path');
 console.log('🚀 Setting up production environment...');
 
 // Get parameters from command line or use defaults
-const apiUrl = process.argv[2] || 'https://your-api-gateway-url.amazonaws.com/prod';
+const apiUrl = process.argv[2] || 'https://ye9syrnj8c.execute-api.us-east-1.amazonaws.com/dev';
 const environment = process.argv[3] || 'production';
 const userPoolId = process.argv[4] || '';
 const clientId = process.argv[5] || '';
