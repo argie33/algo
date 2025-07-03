@@ -116,7 +116,7 @@ class InstitutionalHoldingsAnalyzer:
         }
         
         try:
-            # Get basic institutional ownership data from yfinance
+            # Get basic institutional ownership data from yfinance 
             info = self.ticker.info
             
             if info:
