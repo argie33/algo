@@ -141,6 +141,7 @@ const Portfolio = () => {
   const navigate = useNavigate();
   
   const [activeTab, setActiveTab] = useState(0);
+  // ⚠️ MOCK DATA - Replace with real API when available
   const [portfolioData, setPortfolioData] = useState(mockPortfolioData);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -164,39 +165,37 @@ const Portfolio = () => {
       setLoading(true);
       setError(null);
       
-      // Try to fetch real portfolio data first
-      try {
-        const response = await fetch(`${API_BASE}/api/portfolio/analytics?timeframe=${timeframe}`, {
-          headers: {
-            'Authorization': `Bearer ${tokens?.accessToken || 'dev-token'}`
-          }
-        });
-        
-        if (response.ok) {
-          const realPortfolioData = await response.json();
-          if (realPortfolioData && realPortfolioData.holdings) {
-            setPortfolioData({
-              ...realPortfolioData,
-              userId: user.userId,
-              username: user.username,
-              lastUpdated: new Date().toISOString(),
-              preferences: {
-                displayCurrency: 'USD',
-                timeZone: 'America/New_York',
-                riskTolerance: 'moderate',
-                investmentStyle: 'growth'
-              }
-            });
-            return;
-          }
+      // Fetch real portfolio data from production API
+      const response = await fetch(`${API_BASE}/api/portfolio/analytics?timeframe=${timeframe}`, {
+        headers: {
+          'Authorization': `Bearer ${tokens?.accessToken}`,
+          'Content-Type': 'application/json'
         }
-      } catch (apiError) {
-        console.log('Portfolio API not available, using enhanced mock data');
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Portfolio API failed: ${response.status} ${response.statusText}`);
       }
       
-      // Generate enhanced mock data with realistic market simulation
-      const enhancedMockData = generateRealisticPortfolioData(user);
-      setPortfolioData(enhancedMockData);
+      const portfolioResponse = await response.json();
+      
+      if (!portfolioResponse.data || !portfolioResponse.data.holdings) {
+        throw new Error('Invalid portfolio data structure received from API');
+      }
+      
+      // Use real portfolio data from database
+      setPortfolioData({
+        ...portfolioResponse.data,
+        userId: user.userId,
+        username: user.username,
+        lastUpdated: new Date().toISOString(),
+        preferences: {
+          displayCurrency: 'USD',
+          timeZone: 'America/New_York',
+          riskTolerance: 'moderate',
+          investmentStyle: 'growth'
+        }
+      });
       
     } catch (error) {
       console.error('Error loading portfolio:', error);
@@ -206,7 +205,8 @@ const Portfolio = () => {
     }
   };
 
-  // Generate realistic portfolio data that simulates market conditions
+  // ⚠️ MOCK DATA - Generate realistic portfolio data that simulates market conditions
+  // This function generates mock portfolio data and should be replaced with real API calls
   const generateRealisticPortfolioData = (user) => {
     const now = new Date();
     const marketOpen = now.getHours() >= 9 && now.getHours() < 16; // Simple market hours check
@@ -214,15 +214,16 @@ const Portfolio = () => {
     // Simulate market volatility
     const volatilityMultiplier = marketOpen ? 1 + (Math.random() - 0.5) * 0.02 : 1;
     
+    // ⚠️ MOCK DATA - Replace with real API when available
     const baseHoldings = [
-      { symbol: 'AAPL', company: 'Apple Inc.', shares: 100, avgCost: 150.00, sector: 'Technology', beta: 1.2 },
-      { symbol: 'MSFT', company: 'Microsoft Corp.', shares: 75, avgCost: 240.00, sector: 'Technology', beta: 0.9 },
-      { symbol: 'GOOGL', company: 'Alphabet Inc.', shares: 50, avgCost: 120.00, sector: 'Technology', beta: 1.1 },
-      { symbol: 'TSLA', company: 'Tesla Inc.', shares: 25, avgCost: 200.00, sector: 'Consumer Cyclical', beta: 2.0 },
-      { symbol: 'NVDA', company: 'NVIDIA Corp.', shares: 40, avgCost: 300.00, sector: 'Technology', beta: 1.7 },
-      { symbol: 'AMZN', company: 'Amazon.com Inc.', shares: 30, avgCost: 130.00, sector: 'Consumer Cyclical', beta: 1.3 },
-      { symbol: 'META', company: 'Meta Platforms Inc.', shares: 60, avgCost: 180.00, sector: 'Technology', beta: 1.4 },
-      { symbol: 'SPY', company: 'SPDR S&P 500 ETF', shares: 200, avgCost: 400.00, sector: 'ETF', beta: 1.0 }
+      { symbol: 'AAPL', company: 'Apple Inc.', shares: 100, avgCost: 150.00, sector: 'Technology', beta: 1.2, isMockData: true },
+      { symbol: 'MSFT', company: 'Microsoft Corp.', shares: 75, avgCost: 240.00, sector: 'Technology', beta: 0.9, isMockData: true },
+      { symbol: 'GOOGL', company: 'Alphabet Inc.', shares: 50, avgCost: 120.00, sector: 'Technology', beta: 1.1, isMockData: true },
+      { symbol: 'TSLA', company: 'Tesla Inc.', shares: 25, avgCost: 200.00, sector: 'Consumer Cyclical', beta: 2.0, isMockData: true },
+      { symbol: 'NVDA', company: 'NVIDIA Corp.', shares: 40, avgCost: 300.00, sector: 'Technology', beta: 1.7, isMockData: true },
+      { symbol: 'AMZN', company: 'Amazon.com Inc.', shares: 30, avgCost: 130.00, sector: 'Consumer Cyclical', beta: 1.3, isMockData: true },
+      { symbol: 'META', company: 'Meta Platforms Inc.', shares: 60, avgCost: 180.00, sector: 'Technology', beta: 1.4, isMockData: true },
+      { symbol: 'SPY', company: 'SPDR S&P 500 ETF', shares: 200, avgCost: 400.00, sector: 'ETF', beta: 1.0, isMockData: true }
     ];
 
     // Simulate realistic current prices with daily volatility
@@ -257,6 +258,7 @@ const Portfolio = () => {
     });
 
     return {
+      isMockData: true,
       userId: user.userId,
       username: user.username,
       lastUpdated: now.toISOString(),
@@ -276,6 +278,7 @@ const Portfolio = () => {
     };
   };
 
+  // ⚠️ MOCK DATA - Replace with real API when available
   const generatePerformanceHistory = () => {
     const history = [];
     const baseValue = 100000;
@@ -300,6 +303,7 @@ const Portfolio = () => {
     return history;
   };
 
+  // ⚠️ MOCK DATA - Replace with real API when available
   const generateSectorAllocation = (holdings) => {
     const sectors = {};
     holdings.forEach(holding => {
@@ -319,8 +323,10 @@ const Portfolio = () => {
     }));
   };
 
+  // ⚠️ MOCK DATA - Replace with real API when available
   const generateRiskMetrics = (holdings) => {
     return {
+      isMockData: true,
       var95: Math.round(holdings.reduce((sum, h) => sum + h.marketValue, 0) * 0.05),
       volatility: Math.round((holdings.reduce((sum, h) => sum + (h.beta || 1), 0) / holdings.length) * 15 * 100) / 100,
       beta: Math.round((holdings.reduce((sum, h) => sum + (h.beta || 1) * h.marketValue, 0) / holdings.reduce((sum, h) => sum + h.marketValue, 0)) * 100) / 100,
@@ -328,13 +334,14 @@ const Portfolio = () => {
     };
   };
 
+  // ⚠️ MOCK DATA - Replace with real API when available
   const generateStressTests = () => {
     return [
-      { scenario: 'Market Crash (-20%)', impact: -0.20 },
-      { scenario: 'Tech Selloff (-15%)', impact: -0.12 },
-      { scenario: 'Interest Rate Rise', impact: -0.08 },
-      { scenario: 'Inflation Surge', impact: -0.06 },
-      { scenario: 'Recession', impact: -0.25 }
+      { scenario: 'Market Crash (-20%)', impact: -0.20, isMockData: true },
+      { scenario: 'Tech Selloff (-15%)', impact: -0.12, isMockData: true },
+      { scenario: 'Interest Rate Rise', impact: -0.08, isMockData: true },
+      { scenario: 'Inflation Surge', impact: -0.06, isMockData: true },
+      { scenario: 'Recession', impact: -0.25, isMockData: true }
     ];
   };
 
@@ -1202,12 +1209,13 @@ const Portfolio = () => {
                 <Box sx={{ height: 400, mt: 2 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={portfolioData.historicalVaR || [
-                      { date: '2025-06-28', var95: 65000, var99: 120000 },
-                      { date: '2025-06-29', var95: 67000, var99: 122000 },
-                      { date: '2025-06-30', var95: 66500, var99: 121000 },
-                      { date: '2025-07-01', var95: 68000, var99: 124000 },
-                      { date: '2025-07-02', var95: 68500, var99: 125000 }
-                    ]}>
+                      // ⚠️ MOCK DATA - Replace with real API when available
+                      { date: '2025-06-28', var95: 65000, var99: 120000, isMockData: true },
+                      { date: '2025-06-29', var95: 67000, var99: 122000, isMockData: true },
+                      { date: '2025-06-30', var95: 66500, var99: 121000, isMockData: true },
+                      { date: '2025-07-01', var95: 68000, var99: 124000, isMockData: true },
+                      { date: '2025-07-02', var95: 68500, var99: 125000, isMockData: true }
+                    ]}>}
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" />
                       <YAxis />
@@ -1260,6 +1268,7 @@ const Portfolio = () => {
                   </Button>
                 </Box>
                 
+                {/* ⚠️ MOCK DATA - Replace with real API when available */}
                 {mockRiskAlerts.map((alert) => (
                   <Alert 
                     key={alert.id} 
@@ -1538,8 +1547,10 @@ const Portfolio = () => {
   );
 };
 
+// ⚠️ MOCK DATA - Replace with real API when available
 // Enhanced mock data with realistic portfolio metrics
 const mockPortfolioData = {
+  isMockData: true,
   holdings: [
     {
       symbol: 'AAPL',
@@ -1553,6 +1564,7 @@ const mockPortfolioData = {
       sector: 'Technology',
       allocation: 23.5,
       beta: 1.2,
+      isMockData: true,
       factorScores: { quality: 85, growth: 60, value: 25, momentum: 75, sentiment: 70, positioning: 45 }
     },
     {
@@ -1567,6 +1579,7 @@ const mockPortfolioData = {
       sector: 'Technology',
       allocation: 21.3,
       beta: 0.9,
+      isMockData: true,
       factorScores: { quality: 90, growth: 65, value: 30, momentum: 80, sentiment: 75, positioning: 50 }
     },
     {
@@ -1581,6 +1594,7 @@ const mockPortfolioData = {
       sector: 'Technology',
       allocation: 4.2,
       beta: 1.1,
+      isMockData: true,
       factorScores: { quality: 80, growth: 70, value: 40, momentum: 65, sentiment: 60, positioning: 35 }
     },
     {
@@ -1595,6 +1609,7 @@ const mockPortfolioData = {
       sector: 'Healthcare',
       allocation: 14.6,
       beta: 0.7,
+      isMockData: true,
       factorScores: { quality: 95, growth: 25, value: 60, momentum: 30, sentiment: 45, positioning: 65 }
     },
     {
@@ -1609,6 +1624,7 @@ const mockPortfolioData = {
       sector: 'Financials',
       allocation: 12.5,
       beta: 1.3,
+      isMockData: true,
       factorScores: { quality: 75, growth: 40, value: 70, momentum: 55, sentiment: 50, positioning: 60 }
     },
     {
@@ -1623,6 +1639,7 @@ const mockPortfolioData = {
       sector: 'Consumer Staples',
       allocation: 7.6,
       beta: 0.5,
+      isMockData: true,
       factorScores: { quality: 85, growth: 20, value: 45, momentum: 25, sentiment: 55, positioning: 70 }
     },
     {
@@ -1637,6 +1654,7 @@ const mockPortfolioData = {
       sector: 'Financials',
       allocation: 12.9,
       beta: 0.8,
+      isMockData: true,
       factorScores: { quality: 90, growth: 35, value: 80, momentum: 40, sentiment: 60, positioning: 75 }
     },
     {
@@ -1651,37 +1669,40 @@ const mockPortfolioData = {
       sector: 'Financials',
       allocation: 10.2,
       beta: 1.0,
+      isMockData: true,
       factorScores: { quality: 85, growth: 55, value: 35, momentum: 70, sentiment: 65, positioning: 55 }
     }
   ],
   sectorAllocation: [
-    { name: 'Technology', value: 48.9 },
-    { name: 'Financials', value: 25.6 },
-    { name: 'Healthcare', value: 14.6 },
-    { name: 'Consumer Staples', value: 7.6 },
-    { name: 'Others', value: 3.3 }
+    { name: 'Technology', value: 48.9, isMockData: true },
+    { name: 'Financials', value: 25.6, isMockData: true },
+    { name: 'Healthcare', value: 14.6, isMockData: true },
+    { name: 'Consumer Staples', value: 7.6, isMockData: true },
+    { name: 'Others', value: 3.3, isMockData: true }
   ],
   performanceHistory: Array.from({ length: 365 }, (_, i) => ({
     date: new Date(Date.now() - (365 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     portfolioValue: 75000 + Math.random() * 15000 + i * 20,
-    benchmarkValue: 75000 + Math.random() * 12000 + i * 18
+    benchmarkValue: 75000 + Math.random() * 12000 + i * 18,
+    isMockData: true
   })),
   stressTests: [
-    { scenario: '2008 Financial Crisis', impact: -37.2 },
-    { scenario: 'COVID-19 Crash', impact: -22.8 },
-    { scenario: 'Tech Bubble Burst', impact: -28.5 },
-    { scenario: 'Interest Rate Shock', impact: -15.3 },
-    { scenario: 'Inflation Spike', impact: -12.7 },
-    { scenario: 'Geopolitical Crisis', impact: -18.9 }
+    { scenario: '2008 Financial Crisis', impact: -37.2, isMockData: true },
+    { scenario: 'COVID-19 Crash', impact: -22.8, isMockData: true },
+    { scenario: 'Tech Bubble Burst', impact: -28.5, isMockData: true },
+    { scenario: 'Interest Rate Shock', impact: -15.3, isMockData: true },
+    { scenario: 'Inflation Spike', impact: -12.7, isMockData: true },
+    { scenario: 'Geopolitical Crisis', impact: -18.9, isMockData: true }
   ]
 };
 
+// ⚠️ MOCK DATA - Replace with real API when available
 // Mock risk alerts data
 const mockRiskAlerts = [
-  { id: 1, symbol: 'AAPL', metric: 'Volatility', value: 28.2, threshold: 25, severity: 'medium', timestamp: '2025-07-03T10:30:00Z' },
-  { id: 2, symbol: 'PORTFOLIO', metric: 'Concentration', value: 48, threshold: 40, severity: 'high', timestamp: '2025-07-03T09:15:00Z' },
-  { id: 3, symbol: 'JPM', metric: 'Beta', value: 1.3, threshold: 1.2, severity: 'medium', timestamp: '2025-07-03T08:45:00Z' },
-  { id: 4, symbol: 'MSFT', metric: 'VaR', value: 5.2, threshold: 5.0, severity: 'low', timestamp: '2025-07-02T16:20:00Z' }
+  { id: 1, symbol: 'AAPL', metric: 'Volatility', value: 28.2, threshold: 25, severity: 'medium', timestamp: '2025-07-03T10:30:00Z', isMockData: true },
+  { id: 2, symbol: 'PORTFOLIO', metric: 'Concentration', value: 48, threshold: 40, severity: 'high', timestamp: '2025-07-03T09:15:00Z', isMockData: true },
+  { id: 3, symbol: 'JPM', metric: 'Beta', value: 1.3, threshold: 1.2, severity: 'medium', timestamp: '2025-07-03T08:45:00Z', isMockData: true },
+  { id: 4, symbol: 'MSFT', metric: 'VaR', value: 5.2, threshold: 5.0, severity: 'low', timestamp: '2025-07-02T16:20:00Z', isMockData: true }
 ];
 
 // Color palette for charts

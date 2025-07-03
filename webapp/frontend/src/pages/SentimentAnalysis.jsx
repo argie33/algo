@@ -121,6 +121,7 @@ function TabPanel({ children, value, index, ...other }) {
 
 const SentimentAnalysis = () => {
   const [activeTab, setActiveTab] = useState(0);
+  // ⚠️ MOCK DATA - Using mock sentiment data
   const [sentimentData, setSentimentData] = useState(mockSentimentData);
   const [loading, setLoading] = useState(false);
   const [selectedTimeframe, setSelectedTimeframe] = useState('1W');
@@ -1029,8 +1030,9 @@ const SentimentAnalysis = () => {
   );
 };
 
-// Enhanced mock data with institutional-grade sentiment analysis
+// ⚠️ MOCK DATA - Replace with real API when available
 const mockSentimentData = {
+  isMockData: true,
   sources: [
     {
       source: 'Analyst Reports',
@@ -1162,7 +1164,7 @@ const mockSentimentData = {
 // Color palette for charts
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
-// Advanced calculation functions
+// ⚠️ MOCK DATA - Advanced calculation functions using mock data
 function calculateSentimentMomentum(historicalData) {
   if (historicalData.length < 5) return 0;
   

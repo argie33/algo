@@ -140,6 +140,7 @@ const EconomicModeling = () => {
   const [selectedScenario, setSelectedScenario] = useState('base');
   const [loading, setLoading] = useState(false);
   const [liveUpdates, setLiveUpdates] = useState(false);
+  // ⚠️ MOCK DATA - Using mock economic data
   const [economicData, setEconomicData] = useState(mockEconomicData);
   const [alertsEnabled, setAlertsEnabled] = useState(true);
   const [confidenceThreshold, setConfidenceThreshold] = useState(70);
@@ -1096,8 +1097,9 @@ const EconomicModeling = () => {
   );
 };
 
-// Enhanced mock data for development
+// ⚠️ MOCK DATA - Replace with real API when available
 const mockEconomicData = {
+  isMockData: true,
   recessionProbability: 35,
   riskLevel: 'Medium',
   gdpGrowth: 2.1,

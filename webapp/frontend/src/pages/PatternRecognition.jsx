@@ -66,9 +66,11 @@ const PatternRecognition = () => {
     try {
       const response = await fetch(`/api/patterns/scan?timeframe=${selectedTimeframe}&confidence=${confidenceFilter}&pattern=${selectedPattern}`);
       const data = await response.json();
+      // ⚠️ MOCK DATA - Using mock patterns when API unavailable
       setPatterns(data.patterns || mockPatterns);
     } catch (error) {
       console.error('Failed to load patterns:', error);
+      // ⚠️ MOCK DATA - Fallback to mock patterns
       setPatterns(mockPatterns);
     } finally {
       setLoading(false);
@@ -454,9 +456,10 @@ const PatternRecognition = () => {
   );
 };
 
-// Mock data for development
+// ⚠️ MOCK DATA - Replace with real API when available
 const mockPatterns = [
   {
+    isMockData: true,
     symbol: 'AAPL',
     pattern: 'cup_handle',
     bias: 'bullish',
@@ -470,6 +473,7 @@ const mockPatterns = [
     detectedAt: '2 hours ago'
   },
   {
+    isMockData: true,
     symbol: 'TSLA',
     pattern: 'ascending_triangle',
     bias: 'bullish',
@@ -483,6 +487,7 @@ const mockPatterns = [
     detectedAt: '4 hours ago'
   },
   {
+    isMockData: true,
     symbol: 'NVDA',
     pattern: 'head_shoulders',
     bias: 'bearish',
@@ -496,6 +501,7 @@ const mockPatterns = [
     detectedAt: '1 day ago'
   },
   {
+    isMockData: true,
     symbol: 'MSFT',
     pattern: 'bullish_flag',
     bias: 'bullish',
@@ -509,6 +515,7 @@ const mockPatterns = [
     detectedAt: '6 hours ago'
   },
   {
+    isMockData: true,
     symbol: 'GOOGL',
     pattern: 'double_bottom',
     bias: 'bullish',
@@ -522,6 +529,7 @@ const mockPatterns = [
     detectedAt: '3 days ago'
   },
   {
+    isMockData: true,
     symbol: 'AMZN',
     pattern: 'descending_triangle',
     bias: 'bearish',

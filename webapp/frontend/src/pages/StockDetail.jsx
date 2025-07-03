@@ -838,12 +838,14 @@ function StockDetail() {
                       100 - Math.min(100, (currentMetrics.pe_ratio || 20) * 3)
                     ));
                     
+                    // ⚠️ MOCK DATA - Replace with real API when available
                     const momentumScore = Math.random() * 40 + 40; // Mock momentum
                     const sentimentScore = Math.random() * 40 + 40; // Mock sentiment
                     const positioningScore = Math.random() * 40 + 40; // Mock positioning
                     
                     return [
                       { 
+                        isMockData: true,
                         factor: 'Quality', 
                         score: Math.round(qualityScore), 
                         color: 'primary', 
@@ -858,6 +860,7 @@ function StockDetail() {
                         ]
                       },
                       { 
+                        isMockData: true,
                         factor: 'Growth', 
                         score: Math.round(growthScore), 
                         color: 'success', 
@@ -871,6 +874,7 @@ function StockDetail() {
                         ]
                       },
                       { 
+                        isMockData: true,
                         factor: 'Value', 
                         score: Math.round(valueScore), 
                         color: 'warning', 
@@ -880,10 +884,11 @@ function StockDetail() {
                         components: [
                           { name: 'P/E Ratio', value: currentMetrics.pe_ratio || 18, weight: 0.4 },
                           { name: 'P/B Ratio', value: (stockData.price / (currentMetrics.book_value || stockData.price * 0.3)), weight: 0.3 },
-                          { name: 'EV/EBITDA', value: 12.5, weight: 0.3 }
+                          { name: 'EV/EBITDA', value: 12.5, weight: 0.3 } // ⚠️ MOCK DATA
                         ]
                       },
                       { 
+                        isMockData: true,
                         factor: 'Momentum', 
                         score: Math.round(momentumScore), 
                         color: 'info', 
@@ -897,6 +902,7 @@ function StockDetail() {
                         ]
                       },
                       { 
+                        isMockData: true,
                         factor: 'Sentiment', 
                         score: Math.round(sentimentScore), 
                         color: 'secondary', 
@@ -910,6 +916,7 @@ function StockDetail() {
                         ]
                       },
                       { 
+                        isMockData: true,
                         factor: 'Positioning', 
                         score: Math.round(positioningScore), 
                         color: 'error', 
@@ -1086,6 +1093,7 @@ function StockDetail() {
                 <Divider sx={{ mb: 2 }} />
                 <Box mb={3}>
                   <ResponsiveContainer width="100%" height={200}>
+                    {/* ⚠️ MOCK DATA - Replace with real API when available */}
                     <LineChart data={[
                       { year: '2019', revenue: 100, earnings: 100 },
                       { year: '2020', revenue: 105, earnings: 98 },
@@ -1110,14 +1118,14 @@ function StockDetail() {
                         <TableCell>Revenue CAGR (5Y)</TableCell>
                         <TableCell align="right">
                           <Chip 
-                            label={currentMetrics.revenue_growth ? `${formatPercent(currentMetrics.revenue_growth)}` : '7.2%'} 
+                            label={currentMetrics.revenue_growth ? `${formatPercent(currentMetrics.revenue_growth)}` : '7.2%' /* ⚠️ MOCK DATA */} 
                             color="success"
                             size="small"
                           />
                         </TableCell>
                         <TableCell align="right">
                           <Typography variant="caption" color="text.secondary">
-                            vs 5% sector avg
+                            vs 5% sector avg {/* ⚠️ MOCK DATA */}
                           </Typography>
                         </TableCell>
                       </TableRow>
@@ -1125,14 +1133,14 @@ function StockDetail() {
                         <TableCell>EPS CAGR (5Y)</TableCell>
                         <TableCell align="right">
                           <Chip 
-                            label={currentMetrics.earnings_growth ? `${formatPercent(currentMetrics.earnings_growth)}` : '9.8%'} 
+                            label={currentMetrics.earnings_growth ? `${formatPercent(currentMetrics.earnings_growth)}` : '9.8%' /* ⚠️ MOCK DATA */} 
                             color="success"
                             size="small"
                           />
                         </TableCell>
                         <TableCell align="right">
                           <Typography variant="caption" color="text.secondary">
-                            vs 6% sector avg
+                            vs 6% sector avg {/* ⚠️ MOCK DATA */}
                           </Typography>
                         </TableCell>
                       </TableRow>
@@ -1140,14 +1148,14 @@ function StockDetail() {
                         <TableCell>FCF Growth (3Y)</TableCell>
                         <TableCell align="right">
                           <Chip 
-                            label="12.5%" 
+                            label="12.5%" // ⚠️ MOCK DATA 
                             color="success"
                             size="small"
                           />
                         </TableCell>
                         <TableCell align="right">
                           <Typography variant="caption" color="text.secondary">
-                            vs 8% sector avg
+                            vs 8% sector avg {/* ⚠️ MOCK DATA */}
                           </Typography>
                         </TableCell>
                       </TableRow>
@@ -1246,14 +1254,14 @@ function StockDetail() {
                   <Grid item xs={12} md={4}>
                     <Box textAlign="center" p={2}>
                       <Typography variant="h3" color="primary" fontWeight="bold">
-                        {currentMetrics.institutional_ownership ? `${formatPercent(currentMetrics.institutional_ownership)}` : '68.5%'}
+                        {currentMetrics.institutional_ownership ? `${formatPercent(currentMetrics.institutional_ownership)}` : '68.5%' /* ⚠️ MOCK DATA */}
                       </Typography>
                       <Typography variant="body1" color="text.secondary" mb={1}>
                         Institutional Ownership
                       </Typography>
                       <LinearProgress 
                         variant="determinate" 
-                        value={(currentMetrics.institutional_ownership || 0.685) * 100} 
+                        value={(currentMetrics.institutional_ownership || 0.685 /* ⚠️ MOCK DATA */) * 100} 
                         color="primary"
                         sx={{ mb: 1 }}
                       />
@@ -1266,14 +1274,14 @@ function StockDetail() {
                   <Grid item xs={12} md={4}>
                     <Box textAlign="center" p={2}>
                       <Typography variant="h3" color="success.main" fontWeight="bold">
-                        {currentMetrics.insider_ownership ? `${formatPercent(currentMetrics.insider_ownership)}` : '3.2%'}
+                        {currentMetrics.insider_ownership ? `${formatPercent(currentMetrics.insider_ownership)}` : '3.2%' /* ⚠️ MOCK DATA */}
                       </Typography>
                       <Typography variant="body1" color="text.secondary" mb={1}>
                         Insider Ownership
                       </Typography>
                       <LinearProgress 
                         variant="determinate" 
-                        value={(currentMetrics.insider_ownership || 0.032) * 100 * 10} 
+                        value={(currentMetrics.insider_ownership || 0.032 /* ⚠️ MOCK DATA */) * 100 * 10} 
                         color="success"
                         sx={{ mb: 1 }}
                       />
@@ -1286,14 +1294,14 @@ function StockDetail() {
                   <Grid item xs={12} md={4}>
                     <Box textAlign="center" p={2}>
                       <Typography variant="h3" color="error.main" fontWeight="bold">
-                        {currentMetrics.short_interest ? `${formatPercent(currentMetrics.short_interest)}` : '2.8%'}
+                        {currentMetrics.short_interest ? `${formatPercent(currentMetrics.short_interest)}` : '2.8%' /* ⚠️ MOCK DATA */}
                       </Typography>
                       <Typography variant="body1" color="text.secondary" mb={1}>
                         Short Interest
                       </Typography>
                       <LinearProgress 
                         variant="determinate" 
-                        value={(currentMetrics.short_interest || 0.028) * 100 * 5} 
+                        value={(currentMetrics.short_interest || 0.028 /* ⚠️ MOCK DATA */) * 100 * 5} 
                         color="error"
                         sx={{ mb: 1 }}
                       />
@@ -1314,7 +1322,7 @@ function StockDetail() {
                         <TableRow>
                           <TableCell>Net Institutional Flow</TableCell>
                           <TableCell align="right">
-                            <Chip label="+$125M" color="success" size="small" />
+                            <Chip label="+$125M" color="success" size="small" /> {/* ⚠️ MOCK DATA */}
                           </TableCell>
                           <TableCell align="right">
                             <Typography variant="caption" color="text.secondary">
@@ -1325,7 +1333,7 @@ function StockDetail() {
                         <TableRow>
                           <TableCell>Number of Institutions</TableCell>
                           <TableCell align="right">
-                            <Chip label="342 (+8)" color="info" size="small" />
+                            <Chip label="342 (+8)" color="info" size="small" /> {/* ⚠️ MOCK DATA */}
                           </TableCell>
                           <TableCell align="right">
                             <Typography variant="caption" color="text.secondary">
@@ -1336,7 +1344,7 @@ function StockDetail() {
                         <TableRow>
                           <TableCell>Avg Position Size</TableCell>
                           <TableCell align="right">
-                            <Chip label="0.89%" color="primary" size="small" />
+                            <Chip label="0.89%" color="primary" size="small" /> {/* ⚠️ MOCK DATA */}
                           </TableCell>
                           <TableCell align="right">
                             <Typography variant="caption" color="text.secondary">
@@ -1347,7 +1355,7 @@ function StockDetail() {
                         <TableRow>
                           <TableCell>Days to Cover (Short)</TableCell>
                           <TableCell align="right">
-                            <Chip label="1.8 days" color="success" size="small" />
+                            <Chip label="1.8 days" color="success" size="small" /> {/* ⚠️ MOCK DATA */}
                           </TableCell>
                           <TableCell align="right">
                             <Typography variant="caption" color="text.secondary">

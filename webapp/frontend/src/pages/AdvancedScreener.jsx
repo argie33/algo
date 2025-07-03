@@ -159,9 +159,10 @@ const AdvancedScreener = () => {
     }
   }, [autoRefresh, refreshInterval, results.length]);
 
-  // Enhanced mock data for demonstration
+  // ⚠️ MOCK DATA - Replace with real API when available
   const mockResults = [
     {
+      isMockData: true,
       symbol: 'AAPL',
       company: 'Apple Inc.',
       scores: {
@@ -190,6 +191,7 @@ const AdvancedScreener = () => {
       isBookmarked: false
     },
     {
+      isMockData: true,
       symbol: 'MSFT',
       company: 'Microsoft Corporation',
       scores: {
@@ -218,6 +220,7 @@ const AdvancedScreener = () => {
       isBookmarked: true
     },
     {
+      isMockData: true,
       symbol: 'GOOGL',
       company: 'Alphabet Inc.',
       scores: {
@@ -246,6 +249,7 @@ const AdvancedScreener = () => {
       isBookmarked: false
     },
     {
+      isMockData: true,
       symbol: 'JNJ',
       company: 'Johnson & Johnson',
       scores: {
@@ -274,6 +278,7 @@ const AdvancedScreener = () => {
       isBookmarked: true
     },
     {
+      isMockData: true,
       symbol: 'V',
       company: 'Visa Inc.',
       scores: {
@@ -302,6 +307,7 @@ const AdvancedScreener = () => {
       isBookmarked: false
     },
     {
+      isMockData: true,
       symbol: 'NVDA',
       company: 'NVIDIA Corporation',
       scores: {
@@ -595,7 +601,7 @@ const AdvancedScreener = () => {
     } catch (error) {
       console.error('Failed to run screen:', error);
       setError(error.message || 'Failed to run screen. Please try again.');
-      // Fallback to mock data
+      // ⚠️ MOCK DATA - Fallback to mock data when API fails
       setResults(mockResults);
       setActiveTab(1);
     } finally {

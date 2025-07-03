@@ -88,6 +88,7 @@ function TabPanel({ children, value, index, ...other }) {
 
 const NewsAnalysis = () => {
   const [tabValue, setTabValue] = useState(0);
+  // ⚠️ MOCK DATA - Using mock news data
   const [newsData, setNewsData] = useState(mockNewsData);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -96,7 +97,7 @@ const NewsAnalysis = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Simulate data fetching
+    // ⚠️ MOCK DATA - Simulate data fetching with mock data
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
@@ -951,8 +952,9 @@ const NewsAnalysis = () => {
   );
 };
 
-// Mock data for development
+// ⚠️ MOCK DATA - Replace with real API when available
 const mockNewsData = {
+  isMockData: true,
   sentiment: {
     overall: 'Bullish',
     distribution: {
@@ -1041,6 +1043,7 @@ const mockNewsData = {
   ],
   news: [
     {
+      isMockData: true,
       id: 1,
       title: 'Federal Reserve Signals Potential Rate Cuts Amid Economic Concerns',
       summary: 'Fed officials hint at possible monetary policy adjustments as economic indicators show mixed signals, with markets responding positively to dovish commentary.',
@@ -1053,6 +1056,7 @@ const mockNewsData = {
       url: '#'
     },
     {
+      isMockData: true,
       id: 2,
       title: 'Tech Stocks Rally on Strong AI Revenue Growth',
       summary: 'Major technology companies report robust AI-driven revenue growth, leading to broad-based rally in tech sector with particular strength in semiconductor stocks.',
@@ -1065,6 +1069,7 @@ const mockNewsData = {
       url: '#'
     },
     {
+      isMockData: true,
       id: 3,
       title: 'Oil Prices Surge on Geopolitical Tensions',
       summary: 'Crude oil futures jump 3% as geopolitical tensions escalate, raising concerns about supply disruptions and boosting energy sector stocks.',
@@ -1077,6 +1082,7 @@ const mockNewsData = {
       url: '#'
     },
     {
+      isMockData: true,
       id: 4,
       title: 'Apple Announces New Product Launch Event',
       summary: 'Apple schedules special event for March 25th, sparking speculation about new iPad models and AI-enhanced features across product lineup.',
@@ -1089,6 +1095,7 @@ const mockNewsData = {
       url: '#'
     },
     {
+      isMockData: true,
       id: 5,
       title: 'Banking Sector Under Pressure from Regulatory Concerns',
       summary: 'Regional banks face headwinds as regulators propose stricter capital requirements, leading to sector-wide selloff in afternoon trading.',

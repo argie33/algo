@@ -78,7 +78,7 @@ console.log('Dashboard API Base:', API_BASE);
 const DEFAULT_TICKER = 'AAPL';
 const WIDGET_COLORS = ['#1976d2', '#43a047', '#ffb300', '#8e24aa', '#e53935'];
 
-// Enhanced Mock Data for Comprehensive Dashboard
+// ⚠️ MOCK DATA - Replace with real API when portfolio database is populated
 const mockPortfolio = {
   value: 1250000,
   pnl: { daily: 3200, mtd: 18000, ytd: 92000 },
@@ -91,41 +91,47 @@ const mockPortfolio = {
   ]
 };
 
+// ⚠️ MOCK DATA - Replace with real sentiment API when available
 const mockMarketSentiment = {
   fearGreed: 72,
   aaii: { bullish: 45, bearish: 28, neutral: 27 },
   naaim: 65,
   vix: 18.5,
-  status: 'Bullish'
+  status: 'Bullish',
+  isMockData: true
 };
 
+// ⚠️ MOCK DATA - Replace with real sector performance API when available
 const mockSectorPerformance = [
-  { sector: 'Technology', performance: 2.1, color: '#00C49F' },
-  { sector: 'Healthcare', performance: 1.8, color: '#0088FE' },
-  { sector: 'Finance', performance: -0.5, color: '#FF8042' },
-  { sector: 'Energy', performance: 3.2, color: '#FFBB28' },
-  { sector: 'Consumer', performance: 0.9, color: '#8884D8' }
+  { sector: 'Technology', performance: 2.1, color: '#00C49F', isMockData: true },
+  { sector: 'Healthcare', performance: 1.8, color: '#0088FE', isMockData: true },
+  { sector: 'Finance', performance: -0.5, color: '#FF8042', isMockData: true },
+  { sector: 'Energy', performance: 3.2, color: '#FFBB28', isMockData: true },
+  { sector: 'Consumer', performance: 0.9, color: '#8884D8', isMockData: true }
 ];
 
+// ⚠️ MOCK DATA - Replace with real stock scoring API when available
 const mockTopStocks = [
-  { symbol: 'NVDA', score: 95, quality: 92, value: 85, growth: 98, momentum: 94 },
-  { symbol: 'MSFT', score: 88, quality: 95, value: 78, growth: 87, momentum: 92 },
-  { symbol: 'GOOGL', score: 85, quality: 88, value: 92, growth: 82, momentum: 78 },
-  { symbol: 'AAPL', score: 82, quality: 90, value: 72, growth: 85, momentum: 82 }
+  { symbol: 'NVDA', score: 95, quality: 92, value: 85, growth: 98, momentum: 94, isMockData: true },
+  { symbol: 'MSFT', score: 88, quality: 95, value: 78, growth: 87, momentum: 92, isMockData: true },
+  { symbol: 'GOOGL', score: 85, quality: 88, value: 92, growth: 82, momentum: 78, isMockData: true },
+  { symbol: 'AAPL', score: 82, quality: 90, value: 72, growth: 85, momentum: 82, isMockData: true }
 ];
 
+// ⚠️ MOCK DATA - Replace with real economic data API when available
 const mockEconomicIndicators = [
-  { name: 'GDP Growth', value: 2.4, trend: 'stable' },
-  { name: 'Inflation', value: 3.1, trend: 'down' },
-  { name: 'Unemployment', value: 3.8, trend: 'stable' },
-  { name: 'Fed Funds Rate', value: 5.25, trend: 'stable' }
+  { name: 'GDP Growth', value: 2.4, trend: 'stable', isMockData: true },
+  { name: 'Inflation', value: 3.1, trend: 'down', isMockData: true },
+  { name: 'Unemployment', value: 3.8, trend: 'stable', isMockData: true },
+  { name: 'Fed Funds Rate', value: 5.25, trend: 'stable', isMockData: true }
 ];
 
+// ⚠️ MOCK DATA - Replace with real watchlist API when available
 const mockWatchlist = [
-  { symbol: 'AAPL', price: 195.12, change: 2.1, score: 82 },
-  { symbol: 'TSLA', price: 710.22, change: -1.8, score: 78 },
-  { symbol: 'NVDA', price: 1200, change: 3.5, score: 95 },
-  { symbol: 'MSFT', price: 420.5, change: 0.7, score: 88 }
+  { symbol: 'AAPL', price: 195.12, change: 2.1, score: 82, isMockData: true },
+  { symbol: 'TSLA', price: 710.22, change: -1.8, score: 78, isMockData: true },
+  { symbol: 'NVDA', price: 1200, change: 3.5, score: 95, isMockData: true },
+  { symbol: 'MSFT', price: 420.5, change: 0.7, score: 88, isMockData: true }
 ];
 
 const mockActivity = [
@@ -175,14 +181,8 @@ function useMarketOverview() {
             if (!res.ok) throw new Error('Failed to fetch market overview');
             return res.json();
           } catch (err) {
-            console.warn('Market overview API failed, using mock data:', err);
-            return {
-              data: {
-                sentiment: mockMarketSentiment,
-                sectors: mockSectorPerformance,
-                economic: mockEconomicIndicators
-              }
-            };
+            console.error('Market overview API failed:', err);
+            throw new Error('Market data unavailable - check API connection');
           }
         }
       });
@@ -204,8 +204,8 @@ function useTopStocks() {
             if (!res.ok) throw new Error('Failed to fetch top stocks');
             return res.json();
           } catch (err) {
-            console.warn('Top stocks API failed, using mock data:', err);
-            return { data: mockTopStocks };
+            console.error('Top stocks API failed:', err);
+            throw new Error('Stock scoring data unavailable - check API connection');
           }
         }
       });

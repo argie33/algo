@@ -95,6 +95,7 @@ const RealTimeDashboard = () => {
   const [isStreaming, setIsStreaming] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [watchlist, setWatchlist] = useState(['AAPL', 'TSLA', 'NVDA', 'MSFT', 'GOOGL']);
+  // ⚠️ MOCK DATA - Using mock market data
   const [marketData, setMarketData] = useState(mockMarketData);
   const [notifications, setNotifications] = useState([]);
   const [refreshInterval, setRefreshInterval] = useState(5); // seconds
@@ -120,7 +121,7 @@ const RealTimeDashboard = () => {
   }, [isStreaming, refreshInterval]);
 
   const updateMarketData = () => {
-    // Simulate real-time data updates
+    // ⚠️ MOCK DATA - Simulate real-time data updates with mock data
     setMarketData(prevData => ({
       ...prevData,
       watchlistData: prevData.watchlistData.map(stock => ({
@@ -889,8 +890,9 @@ const RealTimeDashboard = () => {
   );
 };
 
-// Mock data for development
+// ⚠️ MOCK DATA - Replace with real API when available
 const mockMarketData = {
+  isMockData: true,
   indices: {
     sp500: { value: 4567.23, change: 12.45, changePercent: 0.27 },
     nasdaq: { value: 14234.56, change: -23.12, changePercent: -0.16 },
@@ -899,6 +901,7 @@ const mockMarketData = {
   volume: { total: 3500000000, average: 3200000000 },
   watchlistData: [
     {
+      isMockData: true,
       symbol: 'AAPL',
       price: 189.45,
       change: 2.34,
@@ -908,6 +911,7 @@ const mockMarketData = {
       chartData: Array.from({ length: 20 }, (_, i) => ({ value: 185 + Math.random() * 8 }))
     },
     {
+      isMockData: true,
       symbol: 'TSLA',
       price: 234.67,
       change: -5.23,
@@ -917,6 +921,7 @@ const mockMarketData = {
       chartData: Array.from({ length: 20 }, (_, i) => ({ value: 230 + Math.random() * 10 }))
     },
     {
+      isMockData: true,
       symbol: 'NVDA',
       price: 456.78,
       change: 12.45,
@@ -926,6 +931,7 @@ const mockMarketData = {
       chartData: Array.from({ length: 20 }, (_, i) => ({ value: 450 + Math.random() * 15 }))
     },
     {
+      isMockData: true,
       symbol: 'MSFT',
       price: 334.56,
       change: 1.89,
@@ -935,6 +941,7 @@ const mockMarketData = {
       chartData: Array.from({ length: 20 }, (_, i) => ({ value: 330 + Math.random() * 8 }))
     },
     {
+      isMockData: true,
       symbol: 'GOOGL',
       price: 134.23,
       change: -2.11,

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Box, Typography, Chip, LinearProgress, Skeleton } from '@mui/material';
-import { TrendingUp, TrendingDown, TrendingFlat } from '@mui/icons-material';
+import { Box, Typography, Chip, LinearProgress, Skeleton, Alert } from '@mui/material';
+import { TrendingUp, TrendingDown, TrendingFlat, Warning } from '@mui/icons-material';
 import { formatCurrency, formatPercentage } from '../utils/formatters';
 import dataCache from '../services/dataCache';
 
@@ -33,7 +33,7 @@ const RealTimePriceWidget = ({ symbol, showChart = false, compact = false }) => 
               return result;
             }
             
-            // Otherwise, generate realistic mock data
+            // ⚠️ MOCK DATA FALLBACK - Replace with real API when available
             const basePrice = Math.random() * 200 + 50;
             const previousClose = basePrice * (1 - (Math.random() * 0.04 - 0.02));
             const dayChange = basePrice - previousClose;
@@ -49,11 +49,12 @@ const RealTimePriceWidget = ({ symbol, showChart = false, compact = false }) => 
               marketCap: basePrice * Math.floor(Math.random() * 1000000000),
               dayHigh: basePrice * 1.02,
               dayLow: basePrice * 0.98,
-              lastUpdate: new Date().toISOString()
+              lastUpdate: new Date().toISOString(),
+              isMockData: true // Flag to indicate this is mock data
             };
           } catch (error) {
             console.error('Price fetch error:', error);
-            // Return mock data on error
+            // ⚠️ ERROR FALLBACK - Return mock data on error
             const basePrice = 150 + Math.random() * 50;
             return {
               symbol,
@@ -62,7 +63,8 @@ const RealTimePriceWidget = ({ symbol, showChart = false, compact = false }) => 
               dayChange: basePrice * 0.02,
               dayChangePercent: 2.0,
               volume: 25000000,
-              lastUpdate: new Date().toISOString()
+              lastUpdate: new Date().toISOString(),
+              isMockData: true // Flag to indicate this is mock data
             };
           }
         }
@@ -139,6 +141,13 @@ const RealTimePriceWidget = ({ symbol, showChart = false, compact = false }) => 
 
   return (
     <Box>
+      {priceData.isMockData && (
+        <Alert severity="warning" sx={{ mb: 1, py: 0.5 }}>
+          <Typography variant="caption">
+            ⚠️ MOCK DATA - Connect to real API for production
+          </Typography>
+        </Alert>
+      )}
       <Box display="flex" alignItems="baseline" gap={2} mb={1}>
         <Typography variant="h4" fontWeight="bold" color="text.primary">
           {formatCurrency(priceData.price)}

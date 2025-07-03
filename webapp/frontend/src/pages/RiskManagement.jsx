@@ -93,8 +93,9 @@ const RiskManagement = () => {
     condition: 'above'
   });
 
-  // Sample risk data
+  // ⚠️ MOCK DATA - Replace with real API when available
   const mockRiskData = {
+    isMockData: true,
     portfolioMetrics: {
       totalValue: 1250000,
       var95: 68500,
@@ -140,8 +141,9 @@ const RiskManagement = () => {
   const loadRiskData = async () => {
     setLoading(true);
     try {
-      // TODO: Replace with real API call
+      // ⚠️ MOCK DATA - TODO: Replace with real API call
       setTimeout(() => {
+        // ⚠️ MOCK DATA - Using mock risk data
         setRiskData(mockRiskData);
         setLoading(false);
       }, 1000);
