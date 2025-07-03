@@ -1,10 +1,11 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createComponentLogger } from '../utils/errorLogger'
 import {
   Box,
   Card,
   CardContent,
+  CardHeader,
   Typography,
   Grid,
   Tabs,
@@ -18,14 +19,270 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Chip
+  Chip,
+  IconButton,
+  Button,
+  Tooltip,
+  Divider,
+  Avatar,
+  AvatarGroup,
+  Badge,
+  Stack,
+  Fade,
+  Zoom,
+  Collapse,
+  useTheme,
+  alpha,
+  Skeleton,
+  ToggleButton,
+  ToggleButtonGroup,
+  CircularProgress,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel
 } from '@mui/material'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts'
+import { 
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, 
+  BarChart, Bar, PieChart, Pie, Cell, Legend, AreaChart, Area, RadarChart, PolarGrid, 
+  PolarAngleAxis, PolarRadiusAxis, Radar, ComposedChart, Treemap, RadialBarChart, RadialBar 
+} from 'recharts'
+import {
+  TrendingUp,
+  TrendingDown,
+  Analytics,
+  Speed,
+  Psychology,
+  Timeline,
+  ShowChart,
+  Refresh,
+  Info,
+  Warning,
+  CheckCircle,
+  Error as ErrorIcon,
+  AccountBalance,
+  Business,
+  Assessment,
+  Public,
+  CalendarToday,
+  AttachMoney,
+  TrendingFlat,
+  BarChart as BarChartIcon,
+  PieChart as PieChartIcon,
+  BubbleChart,
+  DonutLarge,
+  FilterList,
+  Download,
+  Share,
+  Fullscreen,
+  FullscreenExit,
+  NavigateNext,
+  NavigateBefore,
+  Star,
+  StarBorder,
+  Equalizer,
+  WaterDrop,
+  Bolt,
+  LocalFireDepartment
+} from '@mui/icons-material'
 
 import { api, getMarketOverview, getMarketSentimentHistory, getMarketSectorPerformance, getMarketBreadth, getEconomicIndicators, getSeasonalityData, getMarketResearchIndicators } from '../services/api'
 import { formatCurrency, formatNumber, formatPercentage, getChangeColor, getMarketCapCategory } from '../utils/formatters'
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#ff7c7c']
+
+// Advanced color schemes for different visualizations
+const CHART_COLORS = {
+  primary: ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6'],
+  gradient: [
+    { start: '#667eea', end: '#764ba2' },
+    { start: '#f093fb', end: '#f5576c' },
+    { start: '#4facfe', end: '#00f2fe' },
+    { start: '#fa709a', end: '#fee140' },
+    { start: '#30cfd0', end: '#330867' },
+    { start: '#a8edea', end: '#fed6e3' },
+    { start: '#ff9a9e', end: '#fecfef' },
+    { start: '#fbc2eb', end: '#a6c1ee' }
+  ],
+  sentiment: {
+    bullish: '#10b981',
+    bearish: '#ef4444',
+    neutral: '#6b7280',
+    extreme: '#dc2626',
+    moderate: '#f59e0b'
+  },
+  performance: {
+    positive: '#10b981',
+    negative: '#ef4444',
+    neutral: '#6b7280',
+    strong: '#059669',
+    weak: '#dc2626'
+  }
+}
+
+// Enhanced custom components
+const AnimatedCard = ({ children, delay = 0, ...props }) => {
+  const theme = useTheme()
+  return (
+    <Zoom in={true} timeout={300 + delay * 100}>
+      <Card
+        {...props}
+        sx={{
+          background: theme.palette.background.paper,
+          backdropFilter: 'blur(10px)',
+          border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          '&:hover': {
+            transform: 'translateY(-4px)',
+            boxShadow: theme.shadows[8],
+            border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+          },
+          ...props.sx
+        }}
+      >
+        {children}
+      </Card>
+    </Zoom>
+  )
+}
+
+const GradientCard = ({ children, gradient, ...props }) => {
+  const theme = useTheme()
+  return (
+    <Card
+      {...props}
+      sx={{
+        background: gradient || `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+        color: 'white',
+        position: 'relative',
+        overflow: 'hidden',
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(255,255,255,0.1)',
+          transform: 'translateX(-100%)',
+          transition: 'transform 0.6s ease',
+        },
+        '&:hover::before': {
+          transform: 'translateX(0)',
+        },
+        ...props.sx
+      }}
+    >
+      {children}
+    </Card>
+  )
+}
+
+const MetricCard = ({ title, value, subtitle, icon, trend, color = 'primary', gradient }) => {
+  const theme = useTheme()
+  const isPositive = trend > 0
+  
+  return (
+    <GradientCard gradient={gradient}>
+      <CardContent>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <Box sx={{ flex: 1 }}>
+            <Typography variant="subtitle2" sx={{ opacity: 0.9, fontWeight: 500 }}>
+              {title}
+            </Typography>
+            <Typography variant="h3" sx={{ my: 1, fontWeight: 700 }}>
+              {value}
+            </Typography>
+            {subtitle && (
+              <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                {subtitle}
+              </Typography>
+            )}
+            {trend !== undefined && (
+              <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                {isPositive ? <TrendingUp fontSize="small" /> : <TrendingDown fontSize="small" />}
+                <Typography variant="body2" sx={{ ml: 0.5, fontWeight: 600 }}>
+                  {Math.abs(trend)}%
+                </Typography>
+              </Box>
+            )}
+          </Box>
+          {icon && (
+            <Box
+              sx={{
+                width: 48,
+                height: 48,
+                borderRadius: '50%',
+                bgcolor: 'rgba(255,255,255,0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.5rem'
+              }}
+            >
+              {icon}
+            </Box>
+          )}
+        </Box>
+      </CardContent>
+    </GradientCard>
+  )
+}
+
+const SentimentGauge = ({ value, label, max = 100, size = 120 }) => {
+  const theme = useTheme()
+  const percentage = (value / max) * 100
+  const rotation = (percentage * 180) / 100 - 90
+  
+  const getColor = () => {
+    if (percentage <= 20) return theme.palette.error.main
+    if (percentage <= 40) return theme.palette.warning.main
+    if (percentage <= 60) return theme.palette.info.main
+    if (percentage <= 80) return theme.palette.success.light
+    return theme.palette.success.main
+  }
+  
+  return (
+    <Box sx={{ position: 'relative', width: size, height: size }}>
+      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={(size - 20) / 2}
+          stroke={alpha(theme.palette.divider, 0.3)}
+          strokeWidth="10"
+          fill="none"
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={(size - 20) / 2}
+          stroke={getColor()}
+          strokeWidth="10"
+          fill="none"
+          strokeDasharray={`${(percentage * Math.PI * (size - 20)) / 100} ${Math.PI * (size - 20)}`}
+          style={{ transition: 'stroke-dasharray 0.5s ease' }}
+        />
+      </svg>
+      <Box
+        sx={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          textAlign: 'center'
+        }}
+      >
+        <Typography variant="h4" sx={{ fontWeight: 700, color: getColor() }}>
+          {value}
+        </Typography>
+        <Typography variant="caption" color="text.secondary">
+          {label}
+        </Typography>
+      </Box>
+    </Box>
+  )
+}
 
 const TabPanel = ({ children, value, index, ...other }) => (
   <div
@@ -167,6 +424,11 @@ const fetchResearchIndicators = async () => {
 
 function MarketOverview() {
   const [tabValue, setTabValue] = useState(0)
+  const [timeframe, setTimeframe] = useState('1D')
+  const [viewMode, setViewMode] = useState('cards')
+  const [selectedSector, setSelectedSector] = useState('all')
+  const [fullscreen, setFullscreen] = useState(false)
+  const theme = useTheme()
   
   const { data: marketData, isLoading: marketLoading, error: marketError } = useQuery({
     queryKey: ['market-overview'],
@@ -341,7 +603,7 @@ function MarketOverview() {
               <XAxis dataKey="date" tick={{ fontSize: 12 }} />
               <YAxis yAxisId="left" label={{ value: 'FG/NAAIM', angle: -90, position: 'insideLeft', fontSize: 12 }} />
               <YAxis yAxisId="right" orientation="right" label={{ value: 'AAII %', angle: 90, position: 'insideRight', fontSize: 12 }} />
-              <Tooltip formatter={(value, name) => [`${value}`, name]} />
+              <RechartsTooltip formatter={(value, name) => [`${value}`, name]} />
               <Legend verticalAlign="top" height={36} />
               <Line yAxisId="left" type="monotone" dataKey="fear_greed" name="Fear & Greed" stroke="#FF8042" strokeWidth={2} dot={false} />
               <Line yAxisId="left" type="monotone" dataKey="naaim" name="NAAIM Exposure" stroke="#0088FE" strokeWidth={2} dot={false} />
@@ -356,110 +618,171 @@ function MarketOverview() {
   );
 
   return (
-    <Box sx={{ p: 3 }}>
-      {/* Header Section */}
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
+      {/* Enhanced Header Section */}
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h3" component="h1" gutterBottom sx={{ fontWeight: 700, color: 'primary.main' }}>
-          Market Overview
-        </Typography>
-        <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 2 }}>
-          Real-time market analysis, sentiment indicators, and institutional-grade research insights
-        </Typography>
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={12} md={6}>
+            <Typography variant="h3" component="h1" gutterBottom sx={{ 
+              fontWeight: 800, 
+              background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              mb: 1
+            }}>
+              Market Overview
+            </Typography>
+            <Typography variant="subtitle1" color="text.secondary">
+              Real-time market analysis, sentiment indicators, and institutional-grade research insights
+            </Typography>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Stack direction="row" spacing={2} justifyContent={{ xs: 'flex-start', md: 'flex-end' }}>
+              <ToggleButtonGroup
+                value={timeframe}
+                exclusive
+                onChange={(e, val) => val && setTimeframe(val)}
+                size="small"
+                sx={{ bgcolor: 'background.paper', borderRadius: 2 }}
+              >
+                <ToggleButton value="1D">1D</ToggleButton>
+                <ToggleButton value="1W">1W</ToggleButton>
+                <ToggleButton value="1M">1M</ToggleButton>
+                <ToggleButton value="3M">3M</ToggleButton>
+                <ToggleButton value="1Y">1Y</ToggleButton>
+              </ToggleButtonGroup>
+              <IconButton 
+                onClick={() => window.location.reload()}
+                sx={{ 
+                  bgcolor: 'background.paper',
+                  '&:hover': { bgcolor: 'action.hover' }
+                }}
+              >
+                <Refresh />
+              </IconButton>
+              <IconButton 
+                onClick={() => setFullscreen(!fullscreen)}
+                sx={{ 
+                  bgcolor: 'background.paper',
+                  '&:hover': { bgcolor: 'action.hover' }
+                }}
+              >
+                {fullscreen ? <FullscreenExit /> : <Fullscreen />}
+              </IconButton>
+            </Stack>
+          </Grid>
+        </Grid>
         {marketLoading && (
           <Box sx={{ mt: 2 }}>
-            <LinearProgress sx={{ borderRadius: 1 }} />
+            <LinearProgress 
+              sx={{ 
+                borderRadius: 1,
+                height: 6,
+                bgcolor: alpha(theme.palette.primary.main, 0.1),
+                '& .MuiLinearProgress-bar': {
+                  borderRadius: 1,
+                  background: `linear-gradient(90deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`
+                }
+              }} 
+            />
             <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-              Loading market data...
+              Fetching real-time market data...
             </Typography>
           </Box>
         )}
       </Box>
 
-      {/* Market Sentiment Indicators */}
+      {/* Enhanced Market Sentiment Indicators */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} md={4}>
-          <Card sx={{ 
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
-            color: 'white',
-            transition: 'all 0.3s ease',
-            '&:hover': {
-              transform: 'translateY(-4px)',
-              boxShadow: 4
-            }
-          }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                <Typography variant="h6" sx={{ fontWeight: 600, color: 'inherit' }}>
-                  Fear & Greed Index
-                </Typography>
-                <Box sx={{ 
-                  width: 40, 
-                  height: 40, 
-                  borderRadius: '50%', 
-                  bgcolor: 'rgba(255,255,255,0.2)', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center' 
-                }}>
-                  📊
+          <AnimatedCard delay={0}>
+            <GradientCard gradient="linear-gradient(135deg, #667eea 0%, #764ba2 100%)">
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: 'inherit' }}>
+                      Fear & Greed Index
+                    </Typography>
+                    <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                      Market Sentiment Indicator
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ 
+                    width: 48, 
+                    height: 48, 
+                    bgcolor: 'rgba(255,255,255,0.2)',
+                    backdropFilter: 'blur(10px)'
+                  }}>
+                    <Psychology />
+                  </Avatar>
                 </Box>
-              </Box>
-              {sentimentIndicators.fear_greed ? (
-                <Box>
-                  <Typography variant="h2" sx={{ mb: 1, fontWeight: 700 }}>
-                    {sentimentIndicators.fear_greed.value || 'N/A'}
-                  </Typography>
-                  <Chip 
-                    label={sentimentIndicators.fear_greed.value_text || 'Unknown'} 
-                    sx={{ 
-                      mb: 2,
-                      bgcolor: 'rgba(255,255,255,0.2)',
-                      color: 'white',
-                      fontWeight: 600
-                    }}
-                  />
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Last updated: {sentimentIndicators.fear_greed.timestamp ? new Date(sentimentIndicators.fear_greed.timestamp).toLocaleDateString() : 'N/A'}
-                  </Typography>
-                </Box>
-              ) : (
-                <Box>
-                  <Typography variant="h2" sx={{ mb: 1, fontWeight: 700, opacity: 0.5 }}>
-                    --
-                  </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.7 }}>No Fear & Greed data available</Typography>
-                </Box>
-              )}
-            </CardContent>
-          </Card>
+                {sentimentIndicators.fear_greed ? (
+                  <Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 3 }}>
+                      <SentimentGauge 
+                        value={sentimentIndicators.fear_greed.value || 0} 
+                        label={sentimentIndicators.fear_greed.value_text || 'Unknown'}
+                      />
+                    </Box>
+                    <Box sx={{ 
+                      p: 2, 
+                      bgcolor: 'rgba(255,255,255,0.1)', 
+                      borderRadius: 2,
+                      backdropFilter: 'blur(10px)'
+                    }}>
+                      <Grid container spacing={2}>
+                        <Grid item xs={6}>
+                          <Typography variant="caption" sx={{ opacity: 0.8 }}>Previous</Typography>
+                          <Typography variant="body2" fontWeight={600}>
+                            {sentimentIndicators.fear_greed.previous || 'N/A'}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6}>
+                          <Typography variant="caption" sx={{ opacity: 0.8 }}>Change</Typography>
+                          <Typography variant="body2" fontWeight={600}>
+                            {sentimentIndicators.fear_greed.change || '0'}%
+                          </Typography>
+                        </Grid>
+                      </Grid>
+                    </Box>
+                    <Typography variant="caption" sx={{ display: 'block', mt: 2, opacity: 0.7, textAlign: 'center' }}>
+                      Updated: {sentimentIndicators.fear_greed.timestamp ? new Date(sentimentIndicators.fear_greed.timestamp).toLocaleString() : 'N/A'}
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Box sx={{ textAlign: 'center', py: 4 }}>
+                    <CircularProgress sx={{ color: 'rgba(255,255,255,0.5)' }} />
+                    <Typography variant="body2" sx={{ mt: 2, opacity: 0.7 }}>
+                      Loading sentiment data...
+                    </Typography>
+                  </Box>
+                )}
+              </CardContent>
+            </GradientCard>
+          </AnimatedCard>
         </Grid>
         <Grid item xs={12} md={4}>
-          <Card sx={{ 
-            background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', 
-            color: 'white',
-            transition: 'all 0.3s ease',
-            '&:hover': {
-              transform: 'translateY(-4px)',
-              boxShadow: 4
-            }
-          }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                <Typography variant="h6" sx={{ fontWeight: 600, color: 'inherit' }}>
-                  AAII Investor Sentiment
-                </Typography>
-                <Box sx={{ 
-                  width: 40, 
-                  height: 40, 
-                  borderRadius: '50%', 
-                  bgcolor: 'rgba(255,255,255,0.2)', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center' 
-                }}>
-                  🎯
+          <AnimatedCard delay={1}>
+            <GradientCard gradient="linear-gradient(135deg, #f093fb 0%, #f5576c 100%)">
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: 'inherit' }}>
+                      AAII Investor Sentiment
+                    </Typography>
+                    <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                      Retail Investor Survey
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ 
+                    width: 48, 
+                    height: 48, 
+                    bgcolor: 'rgba(255,255,255,0.2)',
+                    backdropFilter: 'blur(10px)'
+                  }}>
+                    <Assessment />
+                  </Avatar>
                 </Box>
-              </Box>
               {sentimentIndicators.aaii ? (
                 <Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, p: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1 }}>
@@ -503,35 +826,31 @@ function MarketOverview() {
                 </Box>
               )}
             </CardContent>
-          </Card>
+            </GradientCard>
+          </AnimatedCard>
         </Grid>
         <Grid item xs={12} md={4}>
-          <Card sx={{ 
-            background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', 
-            color: 'white',
-            transition: 'all 0.3s ease',
-            '&:hover': {
-              transform: 'translateY(-4px)',
-              boxShadow: 4
-            }
-          }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                <Typography variant="h6" sx={{ fontWeight: 600, color: 'inherit' }}>
-                  NAAIM Exposure Index
-                </Typography>
-                <Box sx={{ 
-                  width: 40, 
-                  height: 40, 
-                  borderRadius: '50%', 
-                  bgcolor: 'rgba(255,255,255,0.2)', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center' 
-                }}>
-                  🏛️
+          <AnimatedCard delay={2}>
+            <GradientCard gradient="linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)">
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: 'inherit' }}>
+                      NAAIM Exposure Index
+                    </Typography>
+                    <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                      Professional Manager Positioning
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ 
+                    width: 48, 
+                    height: 48, 
+                    bgcolor: 'rgba(255,255,255,0.2)',
+                    backdropFilter: 'blur(10px)'
+                  }}>
+                    <AccountBalance />
+                  </Avatar>
                 </Box>
-              </Box>
               {sentimentIndicators.naaim ? (
                 <Box>
                   <Typography variant="h2" sx={{ mb: 2, fontWeight: 700 }}>
@@ -562,14 +881,15 @@ function MarketOverview() {
                 </Box>
               )}
             </CardContent>
-          </Card>
+            </GradientCard>
+          </AnimatedCard>
         </Grid>
       </Grid>
 
-      {/* Market Breadth */}
+      {/* Enhanced Market Breadth Section */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} md={6}>
-          <Card>
+          <AnimatedCard delay={3}>
             <CardContent>
               <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                 Market Breadth
@@ -607,7 +927,7 @@ function MarketOverview() {
                 </Grid>
               </Grid>
             </CardContent>
-          </Card>
+          </AnimatedCard>
         </Grid>
         <Grid item xs={12} md={6}>
           <Card>
@@ -637,17 +957,39 @@ function MarketOverview() {
         </Grid>
       </Grid>
 
-      {/* Tabs for different market data */}
-      <Card>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={tabValue} onChange={handleTabChange} aria-label="market data tabs">
-            <Tab label="Market Overview" />
-            <Tab label="Sentiment History" />
-            <Tab label="Sector Performance" />
-            <Tab label="Market Breadth" />
-            <Tab label="Economic Indicators" />
-            <Tab label="Seasonality" />
-            <Tab label="Research Indicators" />
+      {/* Enhanced Tabs Section */}
+      <AnimatedCard delay={5}>
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
+          <Tabs 
+            value={tabValue} 
+            onChange={handleTabChange} 
+            aria-label="market data tabs"
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{
+              '& .MuiTab-root': {
+                minHeight: 56,
+                fontWeight: 600,
+                fontSize: '0.875rem',
+                textTransform: 'none',
+                '&.Mui-selected': {
+                  color: theme.palette.primary.main,
+                },
+              },
+              '& .MuiTabs-indicator': {
+                height: 3,
+                borderRadius: '3px 3px 0 0',
+                background: `linear-gradient(90deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`
+              }
+            }}
+          >
+            <Tab label="Market Overview" icon={<ShowChart />} iconPosition="start" />
+            <Tab label="Sentiment History" icon={<Timeline />} iconPosition="start" />
+            <Tab label="Sector Performance" icon={<Business />} iconPosition="start" />
+            <Tab label="Market Breadth" icon={<Equalizer />} iconPosition="start" />
+            <Tab label="Economic Indicators" icon={<Public />} iconPosition="start" />
+            <Tab label="Seasonality" icon={<CalendarToday />} iconPosition="start" />
+            <Tab label="Research Indicators" icon={<Analytics />} iconPosition="start" />
           </Tabs>
         </Box>
 
@@ -741,7 +1083,7 @@ function MarketOverview() {
                           height={80}
                         />
                         <YAxis />
-                        <Tooltip 
+                        <RechartsTooltip 
                           formatter={(value, name) => [
                             `${value.toFixed(2)}%`,
                             'Performance'
@@ -871,7 +1213,7 @@ function MarketOverview() {
                           <Cell fill="#F44336" />
                           <Cell fill="#9E9E9E" />
                         </Pie>
-                        <Tooltip />
+                        <RechartsTooltip />
                       </PieChart>
                     </ResponsiveContainer>
                   </CardContent>
@@ -1025,7 +1367,7 @@ function MarketOverview() {
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
                             <YAxis label={{ value: 'Avg Return %', angle: -90, position: 'insideLeft' }} />
-                            <Tooltip formatter={(value) => [`${value.toFixed(1)}%`, 'Average Return']} />
+                            <RechartsTooltip formatter={(value) => [`${value.toFixed(1)}%`, 'Average Return']} />
                             <Bar 
                               dataKey="avgReturn" 
                               fill={(entry) => entry?.isCurrent ? '#82ca9d' : '#8884d8'}
@@ -1049,7 +1391,7 @@ function MarketOverview() {
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" />
                             <YAxis label={{ value: 'Avg Return %', angle: -90, position: 'insideLeft' }} />
-                            <Tooltip 
+                            <RechartsTooltip 
                               formatter={(value, name, props) => [`${value.toFixed(1)}%`, 'Average Return']}
                               labelFormatter={(label, payload) => {
                                 const data = payload[0]?.payload;
@@ -1533,7 +1875,7 @@ function MarketOverview() {
             </Grid>
           )}
         </TabPanel>
-      </Card>
+      </AnimatedCard>
     </Box>
   )
 }

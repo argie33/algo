@@ -45,7 +45,11 @@ import {
   Psychology as PsychologyIcon,
   Search as SearchIcon,
   Public as PublicIcon,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  Lock as LockIcon,
+  ExpandLess,
+  ExpandMore,
+  Stars
 } from '@mui/icons-material'
 
 // All real page imports
@@ -67,6 +71,7 @@ import SentimentAnalysis from './pages/SentimentAnalysis'
 import AdvancedScreener from './pages/AdvancedScreener'
 import EconomicModeling from './pages/EconomicModeling'
 import Settings from './pages/Settings'
+import ScoresDashboard from './pages/ScoresDashboard'
 import { useAuth } from './contexts/AuthContext'
 import AuthModal from './components/auth/AuthModal'
 import ProtectedRoute from './components/auth/ProtectedRoute'
@@ -74,21 +79,40 @@ import ProtectedRoute from './components/auth/ProtectedRoute'
 const drawerWidth = 240
 
 const menuItems = [
-  { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
-  { text: 'Portfolio', icon: <BusinessIcon />, path: '/portfolio' },
-  { text: 'Market Overview', icon: <TrendingUpIcon />, path: '/market' },
-  { text: 'Advanced Screener', icon: <SearchIcon />, path: '/screener-advanced' },
-  { text: 'Stock Explorer', icon: <FilterListIcon />, path: '/stocks' },
-  { text: 'Stock Metrics', icon: <AssessmentIcon />, path: '/metrics' },
-  { text: 'Sentiment Analysis', icon: <PsychologyIcon />, path: '/sentiment' },
-  { text: 'Economic Modeling', icon: <PublicIcon />, path: '/economic' },
-  { text: 'Financial Data', icon: <AccountBalanceIcon />, path: '/financial-data' },
-  { text: 'Trading Signals', icon: <TimelineIcon />, path: '/trading' },
-  { text: 'Technical Analysis', icon: <AnalyticsIcon />, path: '/technical' },
-  { text: 'Backtester', icon: <PlayArrow />, path: '/backtest' },
-  { text: 'Analyst Insights', icon: <PersonIcon />, path: '/analysts' },
-  { text: 'Earnings', icon: <EventIcon />, path: '/earnings' },
-  { text: 'Service Health', icon: <HealthAndSafetyIcon />, path: '/service-health' },
+  // Dashboard Section
+  { text: 'Dashboard', icon: <DashboardIcon />, path: '/', category: 'main' },
+  
+  // Markets Section
+  { text: 'Market Overview', icon: <TrendingUpIcon />, path: '/market', category: 'markets' },
+  { text: 'Sector Analysis', icon: <BusinessIcon />, path: '/sectors', category: 'markets' },
+  { text: 'Economic Indicators', icon: <PublicIcon />, path: '/economic', category: 'markets' },
+  
+  // Stocks Section
+  { text: 'Stock Screener', icon: <SearchIcon />, path: '/screener-advanced', category: 'stocks' },
+  { text: 'Stock Analysis', icon: <FilterListIcon />, path: '/stocks', category: 'stocks' },
+  { text: 'Stock Scores', icon: <Stars />, path: '/scores', category: 'stocks', premium: true },
+  { text: 'Watchlist', icon: <TimelineIcon />, path: '/watchlist', category: 'stocks' },
+  
+  // Sentiment Analysis Section (Premium)
+  { text: 'Market Sentiment', icon: <PsychologyIcon />, path: '/sentiment', category: 'sentiment', premium: true },
+  { text: 'Social Media Sentiment', icon: <PsychologyIcon />, path: '/sentiment/social', category: 'sentiment', premium: true },
+  { text: 'News Sentiment', icon: <PsychologyIcon />, path: '/sentiment/news', category: 'sentiment', premium: true },
+  { text: 'Analyst Insights', icon: <PersonIcon />, path: '/sentiment/analysts', category: 'sentiment', premium: true },
+  
+  // Portfolio Section
+  { text: 'Portfolio Tracking', icon: <AccountBalanceIcon />, path: '/portfolio', category: 'portfolio' },
+  { text: 'Performance Analysis', icon: <AssessmentIcon />, path: '/portfolio/performance', category: 'portfolio', premium: true },
+  { text: 'Optimization Tools', icon: <AnalyticsIcon />, path: '/portfolio/optimize', category: 'portfolio', premium: true },
+  
+  // Research & Education Section
+  { text: 'Market Commentary', icon: <EventIcon />, path: '/research/commentary', category: 'research' },
+  { text: 'Educational Content', icon: <HealthAndSafetyIcon />, path: '/research/education', category: 'research' },
+  { text: 'Research Reports', icon: <AnalyticsIcon />, path: '/research/reports', category: 'research', premium: true },
+  
+  // Tools Section (Premium Only)
+  { text: 'Pattern Recognition', icon: <AnalyticsIcon />, path: '/tools/patterns', category: 'tools', premium: true },
+  { text: 'Economic Modeling', icon: <PublicIcon />, path: '/tools/economic', category: 'tools', premium: true },
+  { text: 'AI Assistant', icon: <PsychologyIcon />, path: '/tools/ai', category: 'tools', premium: true },
 ]
 
 
@@ -96,11 +120,22 @@ function App() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [userMenuAnchor, setUserMenuAnchor] = useState(null)
+  const [expandedSections, setExpandedSections] = useState({
+    markets: true,
+    stocks: true,
+    sentiment: false,
+    portfolio: true,
+    research: false,
+    tools: false
+  })
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const { isAuthenticated, user, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  
+  // Mock premium status - replace with actual premium check
+  const isPremium = user?.isPremium || false
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen)
@@ -119,44 +154,148 @@ function App() {
     await logout()
   }
 
-  const handleNavigation = (path) => {
+  const handleNavigation = (path, isPremiumFeature = false) => {
+    if (isPremiumFeature && !isPremium) {
+      // Show premium upgrade modal or redirect to pricing
+      setAuthModalOpen(true)
+      return
+    }
     navigate(path)
     if (isMobile) {
       setMobileOpen(false)
     }
   }
+  
+  const handleSectionToggle = (section) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }))
+  }
+  
+  const groupedMenuItems = menuItems.reduce((acc, item) => {
+    if (!acc[item.category]) {
+      acc[item.category] = []
+    }
+    acc[item.category].push(item)
+    return acc
+  }, {})
+  
+  const sectionTitles = {
+    main: 'Dashboard',
+    markets: 'Markets',
+    stocks: 'Stocks',
+    sentiment: 'Sentiment Analysis',
+    portfolio: 'Portfolio',
+    research: 'Research & Education',
+    tools: 'Tools'
+  }
 
   const drawer = (
     <div>
       <Toolbar>
-        <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 700 }}>
-          Financial Dashboard
+        <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 700, color: 'primary.main' }}>
+          Financial Platform
         </Typography>
       </Toolbar>
-      <List>
-        {menuItems.map((item) => (
-          <ListItem key={item.text} disablePadding>
-            <ListItemButton
-              selected={location.pathname === item.path}
-              onClick={() => handleNavigation(item.path)}
-              sx={{
-                '&.Mui-selected': {
-                  backgroundColor: theme.palette.primary.main + '20',
-                  borderRight: `3px solid ${theme.palette.primary.main}`,
-                  '& .MuiListItemIcon-root': {
-                    color: theme.palette.primary.main,
-                  },
-                  '& .MuiListItemText-primary': {
-                    color: theme.palette.primary.main,
-                    fontWeight: 600,
-                  },
-                },
-              }}
-            >
-              <ListItemIcon>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.text} />
-            </ListItemButton>
-          </ListItem>
+      <List sx={{ px: 1 }}>
+        {Object.entries(groupedMenuItems).map(([category, items]) => (
+          <div key={category}>
+            {category === 'main' ? (
+              // Dashboard gets special treatment - no section header
+              items.map((item) => (
+                <ListItem key={item.text} disablePadding sx={{ mb: 1 }}>
+                  <ListItemButton
+                    selected={location.pathname === item.path}
+                    onClick={() => handleNavigation(item.path, item.premium)}
+                    sx={{
+                      borderRadius: 1,
+                      '&.Mui-selected': {
+                        backgroundColor: theme.palette.primary.main + '20',
+                        '& .MuiListItemIcon-root': {
+                          color: theme.palette.primary.main,
+                        },
+                        '& .MuiListItemText-primary': {
+                          color: theme.palette.primary.main,
+                          fontWeight: 600,
+                        },
+                      },
+                    }}
+                  >
+                    <ListItemIcon>{item.icon}</ListItemIcon>
+                    <ListItemText primary={item.text} />
+                  </ListItemButton>
+                </ListItem>
+              ))
+            ) : (
+              <>
+                {/* Section Header */}
+                <ListItem disablePadding>
+                  <ListItemButton
+                    onClick={() => handleSectionToggle(category)}
+                    sx={{ 
+                      py: 0.5,
+                      '&:hover': { backgroundColor: 'transparent' }
+                    }}
+                  >
+                    <ListItemText 
+                      primary={sectionTitles[category]} 
+                      primaryTypographyProps={{
+                        variant: 'subtitle2',
+                        fontWeight: 600,
+                        color: 'text.secondary',
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.5
+                      }}
+                    />
+                    {expandedSections[category] ? <ExpandLess /> : <ExpandMore />}
+                  </ListItemButton>
+                </ListItem>
+                
+                {/* Section Items */}
+                {expandedSections[category] && items.map((item) => (
+                  <ListItem key={item.text} disablePadding sx={{ pl: 2 }}>
+                    <ListItemButton
+                      selected={location.pathname === item.path}
+                      onClick={() => handleNavigation(item.path, item.premium)}
+                      disabled={item.premium && !isPremium}
+                      sx={{
+                        borderRadius: 1,
+                        py: 0.5,
+                        '&.Mui-selected': {
+                          backgroundColor: theme.palette.primary.main + '20',
+                          '& .MuiListItemIcon-root': {
+                            color: theme.palette.primary.main,
+                          },
+                          '& .MuiListItemText-primary': {
+                            color: theme.palette.primary.main,
+                            fontWeight: 600,
+                          },
+                        },
+                        '&.Mui-disabled': {
+                          opacity: 0.6,
+                        },
+                      }}
+                    >
+                      <ListItemIcon sx={{ minWidth: 36 }}>
+                        {item.icon}
+                      </ListItemIcon>
+                      <ListItemText 
+                        primary={item.text}
+                        primaryTypographyProps={{
+                          variant: 'body2'
+                        }}
+                      />
+                      {item.premium && !isPremium && (
+                        <LockIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                      )}
+                    </ListItemButton>
+                  </ListItem>
+                ))}
+                <Divider sx={{ my: 1 }} />
+              </>
+            )}
+          </div>
         ))}
       </List>
     </div>
@@ -290,6 +429,7 @@ function App() {
               <Route path="/portfolio" element={<Portfolio />} />
               <Route path="/market" element={<MarketOverview />} />
               <Route path="/screener-advanced" element={<AdvancedScreener />} />
+              <Route path="/scores" element={<ScoresDashboard />} />
               <Route path="/sentiment" element={<SentimentAnalysis />} />
               <Route path="/economic" element={<EconomicModeling />} />
               <Route path="/metrics" element={<MetricsDashboard />} />
