@@ -56,6 +56,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getStockPrices, getStockMetrics, getBuySignals, getSellSignals } from '../services/api';
 import { format } from 'date-fns';
 import { getApiConfig } from '../services/api';
+import HistoricalPriceChart from '../components/HistoricalPriceChart';
 
 // Logo import with fallback 
 let logoSrc = null;
@@ -947,37 +948,7 @@ const Dashboard = () => {
           <TechnicalSignalsWidget />
         </Grid>
         <Grid item xs={12} md={6}>
-          <Card sx={{ height: '100%' }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <ShowChart sx={{ color: 'primary.main', mr: 1 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>Performance Analytics ({selectedSymbol})</Typography>
-              </Box>
-              {priceLoading ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200 }}>
-                  <CircularProgress />
-                </Box>
-              ) : (
-                <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={equityCurve}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                    <YAxis tick={{ fontSize: 12 }} domain={['auto', 'auto']} />
-                    <RechartsTooltip formatter={(v) => `$${v?.toLocaleString?.() ?? v}`}/>
-                    <Line type="monotone" dataKey="equity" stroke="#1976d2" strokeWidth={2} dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-              <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
-                {riskStats.map((stat, idx) => (
-                  <Box key={idx} sx={{ textAlign: 'center' }}>
-                    <Typography variant="caption" color="text.secondary">{stat.label}</Typography>
-                    <Typography variant="body2" fontWeight="bold">{stat.value}</Typography>
-                  </Box>
-                ))}
-              </Box>
-            </CardContent>
-          </Card>
+          <HistoricalPriceChart symbol={selectedSymbol} defaultPeriod={30} />
         </Grid>
       </Grid>
 
