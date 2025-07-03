@@ -5,9 +5,13 @@ const path = require('path');
 
 console.log('🚀 Setting up production environment...');
 
-// Get API URL and environment name from command line or use defaults
+// Get parameters from command line or use defaults
 const apiUrl = process.argv[2] || 'https://your-api-gateway-url.amazonaws.com/prod';
 const environment = process.argv[3] || 'production';
+const userPoolId = process.argv[4] || '';
+const clientId = process.argv[5] || '';
+const cognitoDomain = process.argv[6] || '';
+const cloudfrontUrl = process.argv[7] || '';
 
 // Create environment configuration
 const prodConfig = {
@@ -40,6 +44,14 @@ VITE_ENVIRONMENT=${environment}
 # Build Configuration
 VITE_BUILD_TIME=${new Date().toISOString()}
 VITE_VERSION=1.0.0
+
+# AWS Cognito Configuration
+VITE_COGNITO_USER_POOL_ID=${userPoolId}
+VITE_COGNITO_CLIENT_ID=${clientId}
+VITE_AWS_REGION=us-east-1
+VITE_COGNITO_DOMAIN=${cognitoDomain}
+VITE_COGNITO_REDIRECT_SIGN_IN=${cloudfrontUrl ? `https://${cloudfrontUrl}` : apiUrl}
+VITE_COGNITO_REDIRECT_SIGN_OUT=${cloudfrontUrl ? `https://${cloudfrontUrl}` : apiUrl}
 
 # Feature Flags
 VITE_ENABLE_DEBUG=${environment === 'production' ? 'false' : 'true'}

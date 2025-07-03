@@ -22,7 +22,66 @@ Conditions:
 
 Resources:
 
-  ## 1) Origin Access Identity
+  ## 1) Cognito User Pool
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: stocks-webapp-user-pool
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      PasswordPolicy:
+        MinimumLength: 8
+        RequireUppercase: true
+        RequireLowercase: true
+        RequireNumbers: true
+        RequireSymbols: false
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+        EmailMessage: 'Your verification code is {####}'
+        EmailSubject: 'Your verification code'
+      UserPoolTags:
+        Project: stocks-platform
+        Environment: production
+
+  ## 2) Cognito User Pool Client
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: stocks-webapp-client
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+      SupportedIdentityProviders:
+        - COGNITO
+      CallbackURLs:
+        - !Sub 'https://${SPACloudFront.DomainName}'
+        - 'http://localhost:5173'
+      LogoutURLs:
+        - !Sub 'https://${SPACloudFront.DomainName}'
+        - 'http://localhost:5173'
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      AllowedOAuthFlowsUserPoolClient: true
+
+  ## 3) Cognito User Pool Domain
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      UserPoolId: !Ref UserPool
+      Domain: !Sub 'stocks-webapp-${AWS::AccountId}'
+
+  ## 4) Origin Access Identity
   OAI:
     Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
     Properties:
@@ -97,6 +156,9 @@ Resources:
           DB_SECRET_ARN: !ImportValue StocksInfra-SecretArn
           NODE_ENV: production
           WEBAPP_AWS_REGION: !Ref AWS::Region
+          COGNITO_USER_POOL_ID: !Ref UserPool
+          COGNITO_CLIENT_ID: !Ref UserPoolClient
+          AWS_REGION: !Ref AWS::Region
 
   ## 5) HTTP API (API Gateway v2)
   StocksApi:
@@ -160,7 +222,29 @@ Outputs:
   SPAUrl:
     Description: CloudFront URL for SPA
     Value: !GetAtt SPACloudFront.DomainName
+    Export:
+      Name: !Sub '${AWS::StackName}-SPAUrl'
 
   ApiEndpoint:
     Description: HTTP API invoke URL
     Value: !Sub 'https://${StocksApi}.execute-api.${AWS::Region}.amazonaws.com/dev'
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiEndpoint'
+
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref UserPool
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolId'
+
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolClientId'
+
+  UserPoolDomain:
+    Description: Cognito User Pool Domain
+    Value: !Sub 'stocks-webapp-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com'
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolDomain'
