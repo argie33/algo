@@ -1,0 +1,109 @@
+# HFT System Configuration
+# This is a sample configuration file demonstrating the structure
+
+system:
+  name: "HFT_SYSTEM_V1"
+  environment: "development"  # development, staging, production
+  
+performance:
+  max_latency_us: 50
+  thread_pool_size: 16
+  cpu_affinity: true
+  huge_pages: true
+  
+market_data:
+  providers:
+    - name: "NYSE"
+      type: "direct_feed"
+      host: "nyse-feed.example.com"
+      port: 9100
+      symbols: ["AAPL", "GOOGL", "MSFT"]
+    - name: "NASDAQ"
+      type: "direct_feed"
+      host: "nasdaq-feed.example.com"
+      port: 9200
+      symbols: ["*"]  # All symbols
+      
+  processing:
+    buffer_size: 1048576  # 1MB
+    thread_count: 4
+    use_hardware_timestamps: true
+    
+trading:
+  strategies:
+    - name: "market_maker_1"
+      enabled: true
+      type: "market_making"
+      params:
+        spread_bps: 2
+        max_position: 10000
+        tick_size: 0.01
+    - name: "arb_strategy_1"
+      enabled: false
+      type: "statistical_arbitrage"
+      params:
+        correlation_threshold: 0.85
+        lookback_period: 300  # seconds
+        
+  execution:
+    max_order_rate: 1000  # orders per second
+    use_smart_routing: true
+    venues: ["NYSE", "NASDAQ", "BATS"]
+    
+risk_management:
+  position_limits:
+    single_stock_max: 100000
+    portfolio_max: 1000000
+    sector_concentration: 0.3
+    
+  loss_limits:
+    daily_loss_limit: -50000
+    trailing_stop_loss: -10000
+    max_drawdown: 0.05
+    
+  controls:
+    enable_kill_switch: true
+    enable_auto_hedging: true
+    risk_check_frequency_ms: 100
+    
+monitoring:
+  metrics:
+    enable_latency_tracking: true
+    enable_pnl_tracking: true
+    publish_interval_ms: 1000
+    
+  alerting:
+    email_alerts: true
+    sms_alerts: false
+    slack_webhook: "https://hooks.slack.com/services/xxx"
+    
+  logging:
+    level: "INFO"  # DEBUG, INFO, WARN, ERROR
+    file_rotation: "daily"
+    max_file_size_mb: 1024
+    retention_days: 30
+    
+database:
+  timeseries:
+    type: "influxdb"
+    host: "localhost"
+    port: 8086
+    database: "hft_metrics"
+    
+  cache:
+    type: "redis"
+    host: "localhost"
+    port: 6379
+    max_memory: "4GB"
+    
+  historical:
+    type: "postgresql"
+    host: "localhost"
+    port: 5432
+    database: "hft_historical"
+    
+compliance:
+  enable_audit_trail: true
+  timestamp_precision: "microsecond"
+  retain_orders_days: 2555  # 7 years
+  regulatory_reporting: true

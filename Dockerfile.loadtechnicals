@@ -1,0 +1,16 @@
+FROM python:3.10-slim
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      build-essential \
+      gcc \
+      libpq-dev \
+      libssl-dev \
+      libffi-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY requirements-loadtechnicals.txt .
+RUN pip install --no-cache-dir -r requirements-loadtechnicals.txt
+
+COPY loadtechnicals.py .
+CMD ["python", "loadtechnicals.py"]

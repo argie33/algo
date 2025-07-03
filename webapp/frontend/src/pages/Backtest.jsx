@@ -1,15 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Box, Container, Typography, Card, CardContent, Button, TextField, MenuItem, Grid, CircularProgress, Alert, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip
+  Box, Container, Typography, Card, CardContent, Button, TextField, MenuItem, Grid, CircularProgress, Alert, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, CardHeader, Divider, LinearProgress, Badge, IconButton, Accordion, AccordionSummary, AccordionDetails, FormControl, InputLabel, Select, Slider
 } from '@mui/material';
-import { Analytics, PlayArrow, Refresh } from '@mui/icons-material';
+import { 
+  Analytics, PlayArrow, Refresh, Assessment, Timeline, TrendingUp, TrendingDown, Speed, ShowChart, BarChart, Warning, CheckCircle, Info, Settings, ExpandMore, Download, Save, ContentCopy, HelpOutline, Stop
+} from '@mui/icons-material';
 import Autocomplete from '@mui/material/Autocomplete';
 import { Line } from 'react-chartjs-2';
-import FileDownloadIcon from '@mui/icons-material/FileDownload';
-import TextareaAutosize from '@mui/material/TextareaAutosize';
-import DownloadIcon from '@mui/icons-material/Download';
-import SaveIcon from '@mui/icons-material/Save';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { Bar } from 'react-chartjs-2';
 import CodeMirror from '@uiw/react-codemirror';
 import { python } from '@codemirror/lang-python';
@@ -18,10 +15,92 @@ import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Switch from '@mui/material/Switch';
 import FormControlLabel from '@mui/material/FormControlLabel';
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import Tooltip from '@mui/material/Tooltip';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title,
+  Tooltip as ChartTooltip,
+  Legend,
+  ArcElement
+} from 'chart.js';
+
+// Register Chart.js components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title,
+  ChartTooltip,
+  Legend,
+  ArcElement
+);
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
+
+// Helper function to calculate advanced metrics
+const getAdvancedMetrics = (result) => {
+  if (!result?.equity || !result?.trades) return {};
+  
+  const equity = result.equity;
+  const trades = result.trades;
+  const returns = equity.slice(1).map((val, i) => (val.value - equity[i].value) / equity[i].value);
+  
+  // Sortino Ratio
+  const downside = returns.filter(r => r < 0);
+  const downsideStd = Math.sqrt(downside.reduce((sum, r) => sum + r * r, 0) / downside.length);
+  const sortinoRatio = returns.length > 0 ? (returns.reduce((a, b) => a + b, 0) / returns.length) / (downsideStd || 1) : 0;
+  
+  // Calmar Ratio
+  const maxDD = result.metrics?.maxDrawdown || 0;
+  const calmarRatio = maxDD !== 0 ? (result.metrics?.annualizedReturn || 0) / Math.abs(maxDD) : 0;
+  
+  // Information Ratio (assuming benchmark return of 8%)
+  const benchmarkReturn = 0.08;
+  const excessReturns = returns.map(r => r - benchmarkReturn / 252); // Daily benchmark
+  const trackingError = Math.sqrt(excessReturns.reduce((sum, r) => sum + r * r, 0) / excessReturns.length);
+  const informationRatio = trackingError !== 0 ? (excessReturns.reduce((a, b) => a + b, 0) / excessReturns.length) / trackingError : 0;
+  
+  // Average Trade Duration
+  const avgTradeDuration = trades.length > 1 ? 
+    trades.slice(1).reduce((sum, trade, i) => {
+      const prevDate = new Date(trades[i].date);
+      const currDate = new Date(trade.date);
+      return sum + (currDate - prevDate) / (1000 * 60 * 60 * 24);
+    }, 0) / (trades.length - 1) : 0;
+  
+  // Profit Factor
+  const winners = trades.filter(t => (t.pnl || 0) > 0);
+  const losers = trades.filter(t => (t.pnl || 0) < 0);
+  const grossProfit = winners.reduce((sum, t) => sum + (t.pnl || 0), 0);
+  const grossLoss = Math.abs(losers.reduce((sum, t) => sum + (t.pnl || 0), 0));
+  const profitFactor = grossLoss !== 0 ? grossProfit / grossLoss : 0;
+  
+  // Expectancy
+  const avgWin = winners.length > 0 ? grossProfit / winners.length : 0;
+  const avgLoss = losers.length > 0 ? grossLoss / losers.length : 0;
+  const winRate = trades.length > 0 ? (winners.length / trades.length) * 100 : 0;
+  const expectancy = (winRate / 100) * avgWin - ((100 - winRate) / 100) * avgLoss;
+  
+  return {
+    sortinoRatio,
+    calmarRatio,
+    informationRatio: informationRatio * Math.sqrt(252), // Annualized
+    avgTradeDuration,
+    profitFactor,
+    expectancy,
+    avgWin,
+    avgLoss,
+    grossProfit,
+    grossLoss
+  };
+};
 
 const defaultParams = {
   symbol: '',
@@ -384,15 +463,60 @@ export default function Backtest() {
   };
 
   return (
-    <Container maxWidth="md" sx={{ py: 4 }}>
-      <Box display="flex" alignItems="center" gap={2} mb={3}>
-        <Analytics color="primary" fontSize="large" />
-        <Typography variant="h4" fontWeight="bold">Backtester</Typography>
-        <Tooltip title="Start a new blank strategy" arrow><Button variant="outlined" sx={{ ml: 2 }} onClick={() => { setPythonCode(''); setParams(defaultParams); setStrategyParams({}); setResult(null); setError(null); }}>New Strategy</Button></Tooltip>
+    <Container maxWidth="xl" sx={{ py: 4 }}>
+      {/* Header */}
+      <Box display="flex" alignItems="center" justifyContent="between" mb={4}>
+        <Box>
+          <Typography variant="h3" component="h1" gutterBottom>
+            Institutional Backtester
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            Professional-grade strategy testing with advanced analytics and risk management
+          </Typography>
+          <Box display="flex" gap={1} mt={1}>
+            <Chip label="Live Execution" color="primary" size="small" variant="outlined" />
+            <Chip label="Risk Analytics" color="success" size="small" variant="outlined" />
+            <Chip label="Advanced Metrics" color="info" size="small" variant="outlined" />
+            <Chip label="Multi-Asset" color="warning" size="small" variant="outlined" />
+          </Box>
+        </Box>
+        
+        <Box display="flex" alignItems="center" gap={2}>
+          <Badge badgeContent={savedStrategies.length} color="primary">
+            <IconButton>
+              <Assessment />
+            </IconButton>
+          </Badge>
+          <Tooltip title="Start a new blank strategy" arrow>
+            <Button 
+              variant="outlined" 
+              startIcon={<Analytics />}
+              onClick={() => { 
+                setPythonCode(''); 
+                setParams(defaultParams); 
+                setStrategyParams({}); 
+                setResult(null); 
+                setError(null); 
+              }}
+            >
+              New Strategy
+            </Button>
+          </Tooltip>
+        </Box>
       </Box>
       <Card sx={{ mb: 4 }}>
+        <CardHeader
+          title="Strategy Configuration"
+          subheader="Configure your backtesting parameters and strategy logic"
+          action={
+            <Box display="flex" gap={1}>
+              <Chip label={params.symbol || 'No Symbol'} color="primary" variant="outlined" />
+              <Chip label={params.strategy || 'No Strategy'} color="secondary" variant="outlined" />
+            </Box>
+          }
+        />
+        <Divider />
         <CardContent>
-          <Typography variant="h6" gutterBottom>Run a Backtest</Typography>
           <Grid container spacing={2}>
             <Grid item xs={12} sm={6}>
               <Tooltip title="Choose a symbol to backtest" arrow><Autocomplete
@@ -459,53 +583,170 @@ export default function Backtest() {
               <Button variant="outlined" startIcon={<ContentCopyIcon />} sx={{ mb: 2 }} onClick={() => setPythonCode('')}>Clear</Button>
             </Grid>
             <Grid item xs={12}>
-              <Button
-                variant="contained"
-                color="primary"
-                startIcon={<PlayArrow />}
-                onClick={handleRun}
-                disabled={loading || isRunning}
-                sx={{ minWidth: 160 }}
-              >
-                {loading || isRunning ? <CircularProgress size={24} color="inherit" /> : 'Run Backtest'}
-              </Button>
-              <Button
-                variant="outlined"
-                color="secondary"
-                startIcon={<Refresh />}
-                onClick={() => { setParams(defaultParams); setResult(null); setError(null); setPythonCode(''); setStrategyParams({}); }}
-                sx={{ ml: 2 }}
-                disabled={loading || isRunning}
-              >
-                Reset
-              </Button>
-              <Button
-                variant="outlined"
-                color="error"
-                onClick={handleStop}
-                sx={{ ml: 2 }}
-                disabled={!isRunning}
-              >
-                Stop
-              </Button>
+              <Box display="flex" alignItems="center" gap={2}>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  startIcon={loading || isRunning ? <CircularProgress size={16} color="inherit" /> : <PlayArrow />}
+                  onClick={handleRun}
+                  disabled={loading || isRunning || !params.symbol}
+                  size="large"
+                  sx={{ minWidth: 180, height: 48 }}
+                >
+                  {loading || isRunning ? 'Running...' : 'Run Backtest'}
+                </Button>
+                
+                <Button
+                  variant="outlined"
+                  startIcon={<Stop />}
+                  onClick={handleStop}
+                  disabled={!isRunning}
+                  color="error"
+                  size="large"
+                >
+                  Stop
+                </Button>
+                
+                <Button
+                  variant="outlined"
+                  startIcon={<Refresh />}
+                  onClick={() => { 
+                    setParams(defaultParams); 
+                    setResult(null); 
+                    setError(null); 
+                    setPythonCode(''); 
+                    setStrategyParams({}); 
+                  }}
+                  disabled={loading || isRunning}
+                  size="large"
+                >
+                  Reset
+                </Button>
+                
+                <Tooltip title="Quick validation check">
+                  <IconButton 
+                    onClick={handleValidate}
+                    disabled={!pythonCode.trim() || validateStatus === 'pending'}
+                    color={validateStatus === 'success' ? 'success' : validateStatus === 'error' ? 'error' : 'default'}
+                  >
+                    {validateStatus === 'pending' ? <CircularProgress size={20} /> : 
+                     validateStatus === 'success' ? <CheckCircle /> : 
+                     validateStatus === 'error' ? <Warning /> : <Info />}
+                  </IconButton>
+                </Tooltip>
+              </Box>
+              
+              {validateMsg && (
+                <Alert 
+                  severity={validateStatus === 'success' ? 'success' : 'error'} 
+                  sx={{ mt: 2 }}
+                  variant="outlined"
+                >
+                  {validateMsg}
+                </Alert>
+              )}
             </Grid>
           </Grid>
         </CardContent>
       </Card>
       {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+      {/* Performance Dashboard */}
       {result && (
-        <Box mb={2}>
-          <Grid container spacing={2}>
-            <Grid item xs={6} md={3}><Chip label={`Total Return: ${result.metrics?.totalReturn?.toFixed(2) ?? '--'}%`} color={result.metrics?.totalReturn > 0 ? 'success' : 'error'} /></Grid>
-            <Grid item xs={6} md={3}><Chip label={`Annualized: ${result.metrics?.annualizedReturn?.toFixed(2) ?? '--'}%`} color={result.metrics?.annualizedReturn > 0 ? 'info' : 'default'} /></Grid>
-            <Grid item xs={6} md={3}><Chip label={`Sharpe: ${result.metrics?.sharpeRatio?.toFixed(2) ?? '--'}`} color={result.metrics?.sharpeRatio > 1 ? 'primary' : 'warning'} /></Grid>
-            <Grid item xs={6} md={3}><Chip label={`Max Drawdown: ${result.metrics?.maxDrawdown?.toFixed(2) ?? '--'}%`} color={result.metrics?.maxDrawdown < -10 ? 'error' : 'warning'} /></Grid>
-            <Grid item xs={6} md={3}><Chip label={`Volatility: ${result.metrics?.volatility?.toFixed(2) ?? '--'}%`} color="default" /></Grid>
-            <Grid item xs={6} md={3}><Chip label={`Win Rate: ${result.metrics?.winRate?.toFixed(2) ?? '--'}%`} color={result.metrics?.winRate > 50 ? 'success' : 'default'} /></Grid>
-            <Grid item xs={6} md={3}><Chip label={`Profit Factor: ${result.metrics?.profitFactor?.toFixed(2) ?? '--'}`} color={result.metrics?.profitFactor > 1 ? 'success' : 'error'} /></Grid>
-            <Grid item xs={6} md={3}><Chip label={`Trades: ${result.metrics?.totalTrades ?? '--'}`} color="secondary" /></Grid>
-          </Grid>
-        </Box>
+        <Card sx={{ mb: 4, bgcolor: 'primary.dark', color: 'primary.contrastText' }}>
+          <CardHeader
+            title="Performance Dashboard"
+            subheader="Real-time strategy performance metrics"
+            action={
+              <Box display="flex" alignItems="center" gap={1}>
+                <Chip 
+                  label={result.metrics?.totalReturn >= 0 ? 'PROFITABLE' : 'LOSS'} 
+                  color={result.metrics?.totalReturn >= 0 ? 'success' : 'error'}
+                  size="small"
+                />
+                <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                  Last Updated: {new Date().toLocaleTimeString()}
+                </Typography>
+              </Box>
+            }
+          />
+          <CardContent>
+            <Grid container spacing={3}>
+              {/* Primary Metrics */}
+              <Grid item xs={12} md={3}>
+                <Box textAlign="center">
+                  <Typography variant="h4" fontWeight="bold">
+                    {result.metrics?.totalReturn?.toFixed(2) ?? '--'}%
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                    Total Return
+                  </Typography>
+                  <Box display="flex" alignItems="center" justifyContent="center" mt={1}>
+                    {(result.metrics?.totalReturn ?? 0) >= 0 ? 
+                      <TrendingUp color="success" /> : <TrendingDown color="error" />
+                    }
+                  </Box>
+                </Box>
+              </Grid>
+              
+              <Grid item xs={12} md={3}>
+                <Box textAlign="center">
+                  <Typography variant="h4" fontWeight="bold">
+                    {result.metrics?.sharpeRatio?.toFixed(2) ?? '--'}
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                    Sharpe Ratio
+                  </Typography>
+                  <LinearProgress 
+                    variant="determinate" 
+                    value={Math.min((result.metrics?.sharpeRatio ?? 0) * 50, 100)}
+                    sx={{ mt: 1, bgcolor: 'rgba(255,255,255,0.2)' }}
+                  />
+                </Box>
+              </Grid>
+              
+              <Grid item xs={12} md={3}>
+                <Box textAlign="center">
+                  <Typography variant="h4" fontWeight="bold">
+                    {result.metrics?.maxDrawdown?.toFixed(2) ?? '--'}%
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                    Max Drawdown
+                  </Typography>
+                  <LinearProgress 
+                    variant="determinate" 
+                    value={Math.min(Math.abs(result.metrics?.maxDrawdown ?? 0), 100)}
+                    color="error"
+                    sx={{ mt: 1, bgcolor: 'rgba(255,255,255,0.2)' }}
+                  />
+                </Box>
+              </Grid>
+              
+              <Grid item xs={12} md={3}>
+                <Box textAlign="center">
+                  <Typography variant="h4" fontWeight="bold">
+                    {result.metrics?.totalTrades ?? '--'}
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                    Total Trades
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.6, mt: 1 }}>
+                    {result.metrics?.winRate?.toFixed(1) ?? '--'}% Win Rate
+                  </Typography>
+                </Box>
+              </Grid>
+            </Grid>
+            
+            {/* Secondary Metrics */}
+            <Divider sx={{ my: 3, bgcolor: 'rgba(255,255,255,0.2)' }} />
+            <Grid container spacing={2}>
+              <Grid item><Chip label={`Annualized: ${result.metrics?.annualizedReturn?.toFixed(2) ?? '--'}%`} variant="outlined" sx={{ color: 'inherit', borderColor: 'rgba(255,255,255,0.5)' }} /></Grid>
+              <Grid item><Chip label={`Volatility: ${result.metrics?.volatility?.toFixed(2) ?? '--'}%`} variant="outlined" sx={{ color: 'inherit', borderColor: 'rgba(255,255,255,0.5)' }} /></Grid>
+              <Grid item><Chip label={`Profit Factor: ${result.metrics?.profitFactor?.toFixed(2) ?? '--'}`} variant="outlined" sx={{ color: 'inherit', borderColor: 'rgba(255,255,255,0.5)' }} /></Grid>
+              <Grid item><Chip label={`Sortino: ${getAdvancedMetrics(result).sortinoRatio?.toFixed(2) ?? '--'}`} variant="outlined" sx={{ color: 'inherit', borderColor: 'rgba(255,255,255,0.5)' }} /></Grid>
+              <Grid item><Chip label={`Calmar: ${getAdvancedMetrics(result).calmarRatio?.toFixed(2) ?? '--'}`} variant="outlined" sx={{ color: 'inherit', borderColor: 'rgba(255,255,255,0.5)' }} /></Grid>
+            </Grid>
+          </CardContent>
+        </Card>
       )}
       <Paper sx={{ p: 3, position: 'relative', minHeight: 400 }}>
         {(loading || isRunning) && (
@@ -735,19 +976,150 @@ export default function Backtest() {
           </CardContent>
         </Card>
       )}
+      {/* Advanced Analytics Section */}
       {result && (
-        <Box mb={2}>
-          <Typography variant="subtitle2">Advanced Metrics</Typography>
-          <Grid container spacing={2}>
-            {Object.entries(getAdvancedMetrics(result)).map(([k, v]) => (
-              <Grid item key={k}><Chip label={`${k}: ${v !== null && v !== undefined ? v.toFixed(3) : '--'}`} color="info" /></Grid>
-            ))}
-          </Grid>
-        </Box>
+        <Card sx={{ mb: 4 }}>
+          <CardHeader
+            title="Advanced Risk Analytics"
+            subheader="Institutional-grade performance and risk metrics"
+            action={
+              <Button 
+                variant="outlined" 
+                startIcon={<Download />} 
+                onClick={handleExport}
+                size="small"
+              >
+                Export
+              </Button>
+            }
+          />
+          <CardContent>
+            <Accordion>
+              <AccordionSummary expandIcon={<ExpandMore />}>
+                <Typography variant="h6">Risk-Adjusted Returns</Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Grid container spacing={3}>
+                  <Grid item xs={12} md={4}>
+                    <Paper sx={{ p: 2, textAlign: 'center' }}>
+                      <Typography variant="h5" color="primary">
+                        {getAdvancedMetrics(result).sortinoRatio?.toFixed(3) ?? '--'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Sortino Ratio
+                      </Typography>
+                      <Typography variant="caption" display="block">
+                        Downside risk-adjusted return
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Paper sx={{ p: 2, textAlign: 'center' }}>
+                      <Typography variant="h5" color="secondary">
+                        {getAdvancedMetrics(result).calmarRatio?.toFixed(3) ?? '--'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Calmar Ratio
+                      </Typography>
+                      <Typography variant="caption" display="block">
+                        Return vs maximum drawdown
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Paper sx={{ p: 2, textAlign: 'center' }}>
+                      <Typography variant="h5" color="info.main">
+                        {getAdvancedMetrics(result).informationRatio?.toFixed(3) ?? '--'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Information Ratio
+                      </Typography>
+                      <Typography variant="caption" display="block">
+                        Active return vs tracking error
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                </Grid>
+              </AccordionDetails>
+            </Accordion>
+            
+            <Accordion>
+              <AccordionSummary expandIcon={<ExpandMore />}>
+                <Typography variant="h6">Trade Analytics</Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Grid container spacing={3}>
+                  <Grid item xs={12} md={6}>
+                    <Paper sx={{ p: 2 }}>
+                      <Typography variant="h6" gutterBottom>Trade Distribution</Typography>
+                      <Box display="flex" justifyContent="between" mb={1}>
+                        <Typography variant="body2">Average Win</Typography>
+                        <Typography variant="body2" color="success.main">
+                          ${getAdvancedMetrics(result).avgWin?.toFixed(2) ?? '--'}
+                        </Typography>
+                      </Box>
+                      <Box display="flex" justifyContent="between" mb={1}>
+                        <Typography variant="body2">Average Loss</Typography>
+                        <Typography variant="body2" color="error.main">
+                          ${getAdvancedMetrics(result).avgLoss?.toFixed(2) ?? '--'}
+                        </Typography>
+                      </Box>
+                      <Box display="flex" justifyContent="between" mb={1}>
+                        <Typography variant="body2">Expectancy</Typography>
+                        <Typography variant="body2" color={getAdvancedMetrics(result).expectancy >= 0 ? 'success.main' : 'error.main'}>
+                          ${getAdvancedMetrics(result).expectancy?.toFixed(2) ?? '--'}
+                        </Typography>
+                      </Box>
+                      <Box display="flex" justifyContent="between">
+                        <Typography variant="body2">Avg Trade Duration</Typography>
+                        <Typography variant="body2">
+                          {getAdvancedMetrics(result).avgTradeDuration?.toFixed(1) ?? '--'} days
+                        </Typography>
+                      </Box>
+                    </Paper>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Paper sx={{ p: 2 }}>
+                      <Typography variant="h6" gutterBottom>Profit Analysis</Typography>
+                      <Box display="flex" justifyContent="between" mb={1}>
+                        <Typography variant="body2">Gross Profit</Typography>
+                        <Typography variant="body2" color="success.main">
+                          ${getAdvancedMetrics(result).grossProfit?.toFixed(2) ?? '--'}
+                        </Typography>
+                      </Box>
+                      <Box display="flex" justifyContent="between" mb={1}>
+                        <Typography variant="body2">Gross Loss</Typography>
+                        <Typography variant="body2" color="error.main">
+                          ${getAdvancedMetrics(result).grossLoss?.toFixed(2) ?? '--'}
+                        </Typography>
+                      </Box>
+                      <Box display="flex" justifyContent="between">
+                        <Typography variant="body2">Profit Factor</Typography>
+                        <Typography variant="body2" color={getAdvancedMetrics(result).profitFactor >= 1 ? 'success.main' : 'error.main'}>
+                          {getAdvancedMetrics(result).profitFactor?.toFixed(2) ?? '--'}
+                        </Typography>
+                      </Box>
+                    </Paper>
+                  </Grid>
+                </Grid>
+              </AccordionDetails>
+            </Accordion>
+          </CardContent>
+        </Card>
       )}
       <Card sx={{ mt: 4 }}>
+        <CardHeader
+          title="Strategy Library"
+          subheader="Manage and version your trading strategies"
+          action={
+            <Badge badgeContent={savedStrategies.length} color="primary">
+              <Button variant="outlined" startIcon={<Save />} size="small">
+                Strategies
+              </Button>
+            </Badge>
+          }
+        />
         <CardContent>
-          <Typography variant="h6" gutterBottom>Saved Strategies</Typography>
           <TableContainer component={Paper} sx={{ mb: 2 }}>
             <Table size="small">
               <TableHead>
@@ -777,15 +1149,27 @@ export default function Backtest() {
           </TableContainer>
         </CardContent>
       </Card>
-      <Box sx={{ mb: 4 }}>
-        <Card>
-          <CardContent>
-            <Box display="flex" alignItems="center" gap={1} mb={2}>
-              <Typography variant="h6">Parameter Sweep</Typography>
+      <Card sx={{ mb: 4 }}>
+        <CardHeader
+          title="Parameter Optimization"
+          subheader="Grid search and parameter sweep functionality"
+          action={
+            <Box display="flex" alignItems="center" gap={1}>
+              <Chip 
+                label={`${sweepResults.length} results`} 
+                color="primary" 
+                size="small" 
+                variant="outlined"
+              />
               <Tooltip title="Run a grid search over parameter values. Use comma-separated lists (e.g. 10,20,30) or range (e.g. 10-30:5 for 10,15,20,25,30)." arrow>
-                <HelpOutlineIcon fontSize="small" color="action" />
+                <IconButton size="small">
+                  <HelpOutline />
+                </IconButton>
               </Tooltip>
             </Box>
+          }
+        />
+        <CardContent>
             <Grid container spacing={2}>
               {paramConfig.map(param => (
                 <Grid item key={param.name} xs={12} sm={4} md={3}>
@@ -861,7 +1245,6 @@ export default function Backtest() {
             )}
           </CardContent>
         </Card>
-      </Box>
     </Container>
   );
 }

@@ -95,16 +95,16 @@ const PatternRecognition = () => {
     const bullishPatterns = ['bullish_flag', 'cup_handle', 'ascending_triangle', 'double_bottom', 'inverse_head_shoulders'];
     const bearishPatterns = ['bearish_flag', 'head_shoulders', 'descending_triangle', 'double_top', 'falling_wedge'];
     
-    if (bullishPatterns.some(p => pattern.includes(p))) return 'text-green-600 bg-green-50 border-green-200';
-    if (bearishPatterns.some(p => pattern.includes(p))) return 'text-red-600 bg-red-50 border-red-200';
-    return 'text-blue-600 bg-blue-50 border-blue-200';
+    if (bullishPatterns.some(p => pattern.includes(p))) return 'success';
+    if (bearishPatterns.some(p => pattern.includes(p))) return 'error';
+    return 'info';
   };
 
   const getConfidenceColor = (confidence) => {
-    if (confidence >= 90) return 'text-green-600 bg-green-50';
-    if (confidence >= 75) return 'text-blue-600 bg-blue-50';
-    if (confidence >= 60) return 'text-yellow-600 bg-yellow-50';
-    return 'text-red-600 bg-red-50';
+    if (confidence >= 90) return 'success';
+    if (confidence >= 75) return 'info';
+    if (confidence >= 60) return 'warning';
+    return 'error';
   };
 
   const formatPatternName = (pattern) => {

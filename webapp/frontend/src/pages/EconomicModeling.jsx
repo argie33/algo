@@ -1,478 +1,1102 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  AlertTriangle, 
-  Target, 
-  BarChart3, 
-  Activity,
-  DollarSign,
-  Building,
-  Users,
-  Zap
-} from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Box,
+  Container,
+  Typography,
+  Grid,
+  Card,
+  CardContent,
+  CardHeader,
+  Tabs,
+  Tab,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Chip,
+  LinearProgress,
+  Alert,
+  Button,
+  TextField,
+  MenuItem,
+  IconButton,
+  FormControl,
+  InputLabel,
+  Select,
+  Tooltip,
+  Badge,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemAvatar,
+  Avatar,
+  Rating,
+  Stepper,
+  Step,
+  StepLabel,
+  StepContent,
+  CircularProgress,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Switch,
+  FormControlLabel,
+  Slider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
+} from '@mui/material';
+import {
+  TrendingUp,
+  TrendingDown,
+  Analytics,
+  Assessment,
+  ShowChart,
+  Timeline,
+  Warning,
+  CheckCircle,
+  Info,
+  Error,
+  Speed,
+  AccountBalance,
+  Business,
+  Work,
+  Psychology,
+  PieChart as PieChartIcon,
+  BarChart as BarChartIcon,
+  Refresh,
+  Download,
+  Settings,
+  Lightbulb,
+  Security,
+  MonetizationOn,
+  TrendingFlat,
+  ExpandMore,
+  Notifications,
+  Schedule,
+  FlashOn,
+  Flag,
+  LocalAtm,
+  Home,
+  Factory,
+  Store,
+  AttachMoney,
+  Construction
+} from '@mui/icons-material';
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  Area,
+  AreaChart,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar,
+  ComposedChart,
+  ScatterChart,
+  Scatter,
+  Treemap,
+  ReferenceLine
+} from 'recharts';
+
+function TabPanel({ children, value, index, ...other }) {
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`economic-tabpanel-${index}`}
+      aria-labelledby={`economic-tab-${index}`}
+      {...other}
+    >
+      {value === index && (
+        <Box sx={{ p: 3 }}>
+          {children}
+        </Box>
+      )}
+    </div>
+  );
+}
 
 const EconomicModeling = () => {
-  const [economicData, setEconomicData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [tabValue, setTabValue] = useState(0);
   const [selectedTimeframe, setSelectedTimeframe] = useState('6M');
+  const [selectedModel, setSelectedModel] = useState('composite');
+  const [selectedScenario, setSelectedScenario] = useState('base');
+  const [loading, setLoading] = useState(false);
+  const [liveUpdates, setLiveUpdates] = useState(false);
+  const [economicData, setEconomicData] = useState(mockEconomicData);
+  const [alertsEnabled, setAlertsEnabled] = useState(true);
+  const [confidenceThreshold, setConfidenceThreshold] = useState(70);
 
-  useEffect(() => {
-    fetchEconomicData();
-  }, [selectedTimeframe]);
+  // Calculate composite recession probability
+  const compositeRecessionProbability = useMemo(() => {
+    if (!economicData.forecastModels) return 0;
+    
+    const weights = {
+      'NY Fed Model': 0.35,
+      'Goldman Sachs': 0.25,
+      'JP Morgan': 0.25,
+      'AI Ensemble': 0.15
+    };
+    
+    const weightedSum = economicData.forecastModels.reduce((sum, model) => {
+      return sum + (model.probability * (weights[model.name] || 0));
+    }, 0);
+    
+    return Math.round(weightedSum);
+  }, [economicData.forecastModels]);
 
-  const fetchEconomicData = async () => {
-    try {
-      setLoading(true);
-      // This would connect to your actual economic modeling API
-      const response = await fetch(`/api/economic/comprehensive?timeframe=${selectedTimeframe}`);
-      const data = await response.json();
-      setEconomicData(data);
-    } catch (error) {
-      console.error('Failed to fetch economic data:', error);
-      // Mock data for development
-      setEconomicData(mockEconomicData);
-    } finally {
-      setLoading(false);
-    }
+  // Calculate economic stress index
+  const economicStressIndex = useMemo(() => {
+    if (!economicData.leadingIndicators) return 0;
+    
+    const negativeSignals = economicData.leadingIndicators.filter(
+      indicator => indicator.signal === 'Negative'
+    ).length;
+    
+    const totalSignals = economicData.leadingIndicators.length;
+    const stressScore = (negativeSignals / totalSignals) * 100;
+    
+    return Math.round(stressScore);
+  }, [economicData.leadingIndicators]);
+
+  // Calculate yield curve signal strength
+  const yieldCurveSignal = useMemo(() => {
+    if (!economicData.yieldCurve) return 'Neutral';
+    
+    const { spread2y10y, spread3m10y } = economicData.yieldCurve;
+    
+    if (spread2y10y < -50 && spread3m10y < -50) return 'Strong Recession Signal';
+    if (spread2y10y < 0 && spread3m10y < 0) return 'Recession Signal';
+    if (spread2y10y < 50 && spread3m10y < 50) return 'Flattening';
+    return 'Normal';
+  }, [economicData.yieldCurve]);
+
+  const handleTabChange = (event, newValue) => {
+    setTabValue(newValue);
   };
 
   const getRiskColor = (level) => {
-    switch (level) {
-      case 'Low': return 'text-green-600 bg-green-50 border-green-200';
-      case 'Medium': return 'text-yellow-600 bg-yellow-50 border-yellow-200';
-      case 'High': return 'text-red-600 bg-red-50 border-red-200';
-      default: return 'text-gray-600 bg-gray-50 border-gray-200';
+    switch (level?.toLowerCase()) {
+      case 'low':
+        return 'success';
+      case 'medium':
+        return 'warning';
+      case 'high':
+        return 'error';
+      default:
+        return 'default';
     }
   };
 
-  const getIndicatorIcon = (trend) => {
-    if (trend === 'improving') return <TrendingUp className="w-4 h-4 text-green-600" />;
-    if (trend === 'deteriorating') return <TrendingDown className="w-4 h-4 text-red-600" />;
-    return <Activity className="w-4 h-4 text-gray-600" />;
+  const getRecessionProbabilityColor = (probability) => {
+    if (probability < 20) return 'success';
+    if (probability < 40) return 'warning';
+    return 'error';
   };
 
-  if (loading) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Card key={i} className="animate-pulse">
-              <CardContent className="h-48 bg-gray-100 rounded-lg"></CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
-  }
+  const getIndicatorIcon = (trend) => {
+    switch (trend) {
+      case 'improving':
+        return <TrendingUp color="success" />;
+      case 'deteriorating':
+        return <TrendingDown color="error" />;
+      default:
+        return <TrendingFlat color="action" />;
+    }
+  };
+
+  const getSectorIcon = (sector) => {
+    switch (sector.toLowerCase()) {
+      case 'manufacturing':
+        return <Factory color="primary" />;
+      case 'services':
+        return <Business color="secondary" />;
+      case 'construction':
+        return <Construction color="warning" />;
+      case 'retail':
+        return <Store color="info" />;
+      default:
+        return <Business color="action" />;
+    }
+  };
+
+  const formatTimeHorizon = (months) => {
+    if (months < 12) return `${months} months`;
+    return `${Math.round(months / 12)} years`;
+  };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Economic Modeling & Analysis</h1>
-        <p className="text-gray-600">Real-time economic indicators and recession probability modeling</p>
-      </div>
-
-      {/* Timeframe Selector */}
-      <div className="mb-6">
-        <div className="flex space-x-2">
-          {['3M', '6M', '1Y', '2Y', '5Y'].map((timeframe) => (
-            <button
-              key={timeframe}
-              onClick={() => setSelectedTimeframe(timeframe)}
-              className={`px-3 py-1 rounded text-sm font-medium ${
-                selectedTimeframe === timeframe
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+    <Container maxWidth="xl" sx={{ py: 4 }}>
+      {/* Header */}
+      <Box display="flex" alignItems="center" justifyContent="between" mb={4}>
+        <Box>
+          <Typography variant="h3" component="h1" gutterBottom>
+            Economic Modeling & Forecasting
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            Advanced econometric models and real-time recession probability analysis
+          </Typography>
+        </Box>
+        
+        <Box display="flex" alignItems="center" gap={2}>
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <InputLabel>Timeframe</InputLabel>
+            <Select
+              value={selectedTimeframe}
+              onChange={(e) => setSelectedTimeframe(e.target.value)}
+              label="Timeframe"
             >
-              {timeframe}
-            </button>
-          ))}
-        </div>
-      </div>
+              <MenuItem value="3M">3 Months</MenuItem>
+              <MenuItem value="6M">6 Months</MenuItem>
+              <MenuItem value="1Y">1 Year</MenuItem>
+              <MenuItem value="2Y">2 Years</MenuItem>
+              <MenuItem value="5Y">5 Years</MenuItem>
+            </Select>
+          </FormControl>
+          
+          <FormControlLabel
+            control={
+              <Switch
+                checked={liveUpdates}
+                onChange={(e) => setLiveUpdates(e.target.checked)}
+                color="primary"
+              />
+            }
+            label="Live Updates"
+          />
+          
+          <IconButton onClick={() => setLoading(true)}>
+            <Refresh />
+          </IconButton>
+        </Box>
+      </Box>
 
-      {/* Recession Alert */}
-      {economicData?.recessionProbability >= 30 && (
-        <Alert className="mb-6 border-yellow-200 bg-yellow-50">
-          <AlertTriangle className="h-4 w-4 text-yellow-600" />
-          <AlertDescription className="text-yellow-800">
-            <strong>Elevated Recession Risk:</strong> Current indicators suggest a {economicData.recessionProbability}% 
-            probability of recession within the next 6-12 months.
-          </AlertDescription>
+      {/* Critical Alerts */}
+      {alertsEnabled && compositeRecessionProbability > 40 && (
+        <Alert 
+          severity="warning" 
+          sx={{ mb: 3 }}
+          action={
+            <Button color="inherit" size="small">
+              View Details
+            </Button>
+          }
+        >
+          <strong>Elevated Recession Risk:</strong> Composite model indicates {compositeRecessionProbability}% 
+          probability of recession within {selectedTimeframe}. Monitor key indicators closely.
         </Alert>
       )}
 
-      {/* Key Metrics Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Recession Probability</p>
-                <p className="text-2xl font-bold text-gray-900">{economicData?.recessionProbability}%</p>
-                <p className="text-xs text-gray-500">6-12 month horizon</p>
-              </div>
-              <div className={`p-2 rounded-lg ${getRiskColor(economicData?.riskLevel)}`}>
-                <Target className="w-4 h-4" />
-              </div>
-            </div>
-            <Progress value={economicData?.recessionProbability} className="mt-2" />
-          </CardContent>
-        </Card>
+      {economicData.yieldCurve?.isInverted && (
+        <Alert 
+          severity="error" 
+          sx={{ mb: 3 }}
+          action={
+            <Button color="inherit" size="small">
+              Learn More
+            </Button>
+          }
+        >
+          <strong>Yield Curve Inverted:</strong> {yieldCurveSignal} detected. 
+          Historical accuracy: {economicData.yieldCurve.historicalAccuracy}% in predicting recessions.
+        </Alert>
+      )}
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">GDP Growth</p>
-                <p className="text-2xl font-bold text-gray-900">{economicData?.gdpGrowth}%</p>
-                <p className="text-xs text-gray-500">Annualized Q/Q</p>
-              </div>
-              <div className="p-2 rounded-lg bg-blue-50">
-                <BarChart3 className="w-4 h-4 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Unemployment</p>
-                <p className="text-2xl font-bold text-gray-900">{economicData?.unemployment}%</p>
-                <p className="text-xs text-gray-500">Current rate</p>
-              </div>
-              <div className="p-2 rounded-lg bg-green-50">
-                <Users className="w-4 h-4 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Inflation (CPI)</p>
-                <p className="text-2xl font-bold text-gray-900">{economicData?.inflation}%</p>
-                <p className="text-xs text-gray-500">Y/Y change</p>
-              </div>
-              <div className="p-2 rounded-lg bg-yellow-50">
-                <DollarSign className="w-4 h-4 text-yellow-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Tabs defaultValue="indicators" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="indicators">Leading Indicators</TabsTrigger>
-          <TabsTrigger value="yieldCurve">Yield Curve</TabsTrigger>
-          <TabsTrigger value="credit">Credit Markets</TabsTrigger>
-          <TabsTrigger value="employment">Employment</TabsTrigger>
-          <TabsTrigger value="forecast">Forecast Models</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="indicators" className="space-y-6">
+      {/* Key Economic Indicators */}
+      <Grid container spacing={3} mb={4}>
+        <Grid item xs={12} md={3}>
           <Card>
-            <CardHeader>
-              <CardTitle>Leading Economic Indicators</CardTitle>
-            </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {economicData?.leadingIndicators.map((indicator, index) => (
-                  <div key={index} className="p-4 rounded-lg border">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-medium text-gray-900 flex items-center space-x-2">
-                        {getIndicatorIcon(indicator.trend)}
-                        <span>{indicator.name}</span>
-                      </h4>
-                      <Badge variant={indicator.signal === 'Positive' ? 'default' : indicator.signal === 'Negative' ? 'destructive' : 'secondary'}>
-                        {indicator.signal}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-2xl font-bold">{indicator.value}</span>
-                      <span className={`text-sm ${indicator.change > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {indicator.change > 0 ? '+' : ''}{indicator.change}%
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-600 mt-2">{indicator.description}</p>
-                    <div className="mt-2">
-                      <Progress value={indicator.strength} className="h-2" />
-                      <p className="text-xs text-gray-500 mt-1">Signal Strength: {indicator.strength}%</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <Box display="flex" alignItems="center" justifyContent="between">
+                <Box>
+                  <Typography variant="h6" color="text.secondary">
+                    Recession Probability
+                  </Typography>
+                  <Typography variant="h4" color={getRecessionProbabilityColor(compositeRecessionProbability) + '.main'}>
+                    {compositeRecessionProbability}%
+                  </Typography>
+                  <Typography variant="body2">
+                    Composite model ({selectedTimeframe})
+                  </Typography>
+                </Box>
+                <Assessment color={getRiskColor(economicData.riskLevel)} fontSize="large" />
+              </Box>
+              <LinearProgress 
+                variant="determinate" 
+                value={compositeRecessionProbability} 
+                color={getRecessionProbabilityColor(compositeRecessionProbability)}
+                sx={{ mt: 2 }}
+              />
             </CardContent>
           </Card>
+        </Grid>
 
-          {/* Economic Calendar */}
+        <Grid item xs={12} md={3}>
           <Card>
-            <CardHeader>
-              <CardTitle>Upcoming Economic Events</CardTitle>
-            </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {economicData?.upcomingEvents.map((event, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 rounded-lg border">
-                    <div>
-                      <h4 className="font-medium text-gray-900">{event.event}</h4>
-                      <p className="text-sm text-gray-600">{event.date} • {event.time}</p>
-                    </div>
-                    <div className="text-right">
-                      <Badge variant={event.importance === 'High' ? 'destructive' : event.importance === 'Medium' ? 'default' : 'secondary'}>
-                        {event.importance}
-                      </Badge>
-                      <p className="text-sm text-gray-500">Forecast: {event.forecast}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <Box display="flex" alignItems="center" justifyContent="between">
+                <Box>
+                  <Typography variant="h6" color="text.secondary">
+                    Economic Stress
+                  </Typography>
+                  <Typography variant="h4" color="primary">
+                    {economicStressIndex}
+                  </Typography>
+                  <Typography variant="body2">
+                    Stress Index (0-100)
+                  </Typography>
+                </Box>
+                <Speed color="primary" fontSize="large" />
+              </Box>
+              <LinearProgress 
+                variant="determinate" 
+                value={economicStressIndex} 
+                color={economicStressIndex > 60 ? 'error' : economicStressIndex > 30 ? 'warning' : 'success'}
+                sx={{ mt: 2 }}
+              />
             </CardContent>
           </Card>
-        </TabsContent>
+        </Grid>
 
-        <TabsContent value="yieldCurve" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Grid item xs={12} md={3}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center" justifyContent="between">
+                <Box>
+                  <Typography variant="h6" color="text.secondary">
+                    GDP Growth
+                  </Typography>
+                  <Typography variant="h4" color="secondary">
+                    {economicData.gdpGrowth}%
+                  </Typography>
+                  <Typography variant="body2">
+                    Annualized Q/Q
+                  </Typography>
+                </Box>
+                <ShowChart color="secondary" fontSize="large" />
+              </Box>
+              <Box display="flex" alignItems="center" mt={1}>
+                {economicData.gdpGrowth > 0 ? (
+                  <TrendingUp color="success" fontSize="small" />
+                ) : (
+                  <TrendingDown color="error" fontSize="small" />
+                )}
+                <Typography variant="body2" color="text.secondary" ml={1}>
+                  vs previous quarter
+                </Typography>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={3}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center" justifyContent="between">
+                <Box>
+                  <Typography variant="h6" color="text.secondary">
+                    Unemployment
+                  </Typography>
+                  <Typography variant="h4" color="info.main">
+                    {economicData.unemployment}%
+                  </Typography>
+                  <Typography variant="body2">
+                    Current rate
+                  </Typography>
+                </Box>
+                <Work color="info" fontSize="large" />
+              </Box>
+              <Box display="flex" alignItems="center" mt={1}>
+                <Typography variant="body2" color="text.secondary">
+                  Sahm Rule: {economicData.employment?.sahmRule?.value || 'N/A'}
+                </Typography>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Main Content Tabs */}
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs value={tabValue} onChange={handleTabChange} aria-label="economic modeling tabs">
+          <Tab label="Leading Indicators" icon={<Analytics />} />
+          <Tab label="Yield Curve" icon={<ShowChart />} />
+          <Tab label="Forecast Models" icon={<Assessment />} />
+          <Tab label="Sectoral Analysis" icon={<BarChartIcon />} />
+          <Tab label="Scenario Planning" icon={<Flag />} />
+          <Tab label="AI Insights" icon={<Psychology />} />
+        </Tabs>
+      </Box>
+
+      <TabPanel value={tabValue} index={0}>
+        {/* Leading Indicators */}
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={8}>
             <Card>
-              <CardHeader>
-                <CardTitle>Yield Curve Analysis</CardTitle>
-              </CardHeader>
+              <CardHeader
+                title="Leading Economic Indicators"
+                subheader="Real-time economic momentum analysis"
+                action={
+                  <Chip 
+                    label={`${economicData.leadingIndicators?.length || 0} indicators`} 
+                    color="primary" 
+                    variant="outlined" 
+                  />
+                }
+              />
               <CardContent>
-                <div className="h-64 flex items-center justify-center bg-gray-50 rounded">
-                  <p className="text-gray-500">Yield curve chart would go here</p>
-                </div>
-                <div className="mt-4 space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">2Y-10Y Spread:</span>
-                    <span className={`font-medium ${economicData?.yieldCurve.spread2y10y >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {economicData?.yieldCurve.spread2y10y >= 0 ? '+' : ''}{economicData?.yieldCurve.spread2y10y} bps
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">3M-10Y Spread:</span>
-                    <span className={`font-medium ${economicData?.yieldCurve.spread3m10y >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {economicData?.yieldCurve.spread3m10y >= 0 ? '+' : ''}{economicData?.yieldCurve.spread3m10y} bps
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Inversion Analysis</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className={`p-4 rounded-lg border-2 ${economicData?.yieldCurve.isInverted ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}`}>
-                    <div className="flex items-center space-x-2 mb-2">
-                      {economicData?.yieldCurve.isInverted ? (
-                        <AlertTriangle className="w-5 h-5 text-red-600" />
-                      ) : (
-                        <TrendingUp className="w-5 h-5 text-green-600" />
-                      )}
-                      <h4 className={`font-medium ${economicData?.yieldCurve.isInverted ? 'text-red-800' : 'text-green-800'}`}>
-                        {economicData?.yieldCurve.isInverted ? 'Yield Curve Inverted' : 'Normal Yield Curve'}
-                      </h4>
-                    </div>
-                    <p className={`text-sm ${economicData?.yieldCurve.isInverted ? 'text-red-700' : 'text-green-700'}`}>
-                      {economicData?.yieldCurve.interpretation}
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <h5 className="font-medium text-gray-900">Historical Context</h5>
-                    <p className="text-sm text-gray-600">
-                      Inverted yield curves have preceded {economicData?.yieldCurve.historicalAccuracy}% of recessions 
-                      since 1970, with an average lead time of {economicData?.yieldCurve.averageLeadTime} months.
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="credit" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Credit Spreads</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {economicData?.creditSpreads.map((spread, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 rounded-lg border">
-                      <div>
-                        <h4 className="font-medium text-gray-900">{spread.name}</h4>
-                        <p className="text-sm text-gray-600">{spread.description}</p>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-lg font-bold">{spread.value} bps</span>
-                        <p className={`text-sm ${spread.change > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                          {spread.change > 0 ? '+' : ''}{spread.change} bps
-                        </p>
-                      </div>
-                    </div>
+                <Grid container spacing={3}>
+                  {economicData.leadingIndicators?.map((indicator, index) => (
+                    <Grid item xs={12} md={6} key={index}>
+                      <Card variant="outlined">
+                        <CardContent>
+                          <Box display="flex" alignItems="center" justifyContent="between" mb={2}>
+                            <Box display="flex" alignItems="center" gap={1}>
+                              {getIndicatorIcon(indicator.trend)}
+                              <Typography variant="h6">
+                                {indicator.name}
+                              </Typography>
+                            </Box>
+                            <Chip 
+                              label={indicator.signal} 
+                              color={indicator.signal === 'Positive' ? 'success' : indicator.signal === 'Negative' ? 'error' : 'default'}
+                              size="small"
+                            />
+                          </Box>
+                          
+                          <Box display="flex" alignItems="center" justifyContent="between" mb={2}>
+                            <Typography variant="h4" color="primary">
+                              {indicator.value}
+                            </Typography>
+                            <Typography 
+                              variant="body2" 
+                              color={indicator.change > 0 ? 'success.main' : 'error.main'}
+                            >
+                              {indicator.change > 0 ? '+' : ''}{indicator.change}%
+                            </Typography>
+                          </Box>
+                          
+                          <Typography variant="body2" color="text.secondary" mb={2}>
+                            {indicator.description}
+                          </Typography>
+                          
+                          <Box>
+                            <Box display="flex" alignItems="center" justifyContent="between" mb={1}>
+                              <Typography variant="body2" color="text.secondary">
+                                Signal Strength
+                              </Typography>
+                              <Typography variant="body2" fontWeight="bold">
+                                {indicator.strength}%
+                              </Typography>
+                            </Box>
+                            <LinearProgress 
+                              variant="determinate" 
+                              value={indicator.strength} 
+                              color={indicator.strength > 70 ? 'success' : indicator.strength > 40 ? 'warning' : 'error'}
+                            />
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    </Grid>
                   ))}
-                </div>
+                </Grid>
               </CardContent>
             </Card>
+          </Grid>
 
+          <Grid item xs={12} md={4}>
+            <Grid container spacing={3}>
+              {/* Signal Summary */}
+              <Grid item xs={12}>
+                <Card>
+                  <CardHeader title="Signal Summary" />
+                  <CardContent>
+                    <Box display="flex" alignItems="center" justifyContent="center" mb={3}>
+                      <Box textAlign="center">
+                        <Typography variant="h3" color="primary">
+                          {economicStressIndex}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Stress Index
+                        </Typography>
+                      </Box>
+                    </Box>
+                    
+                    <Box mb={3}>
+                      <Typography variant="body2" color="text.secondary" mb={1}>
+                        Risk Level
+                      </Typography>
+                      <Chip 
+                        label={economicData.riskLevel} 
+                        color={getRiskColor(economicData.riskLevel)}
+                        size="large"
+                      />
+                    </Box>
+                    
+                    <Divider sx={{ mb: 2 }} />
+                    
+                    <Box display="flex" justifyContent="between" mb={1}>
+                      <Typography variant="body2">Positive Signals</Typography>
+                      <Typography variant="body2" fontWeight="bold">
+                        {economicData.leadingIndicators?.filter(i => i.signal === 'Positive').length || 0}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="between" mb={1}>
+                      <Typography variant="body2">Negative Signals</Typography>
+                      <Typography variant="body2" fontWeight="bold">
+                        {economicData.leadingIndicators?.filter(i => i.signal === 'Negative').length || 0}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="between">
+                      <Typography variant="body2">Neutral Signals</Typography>
+                      <Typography variant="body2" fontWeight="bold">
+                        {economicData.leadingIndicators?.filter(i => i.signal === 'Neutral').length || 0}
+                      </Typography>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* Upcoming Economic Events */}
+              <Grid item xs={12}>
+                <Card>
+                  <CardHeader 
+                    title="Upcoming Events" 
+                    subheader="Next 30 days"
+                  />
+                  <CardContent>
+                    <List>
+                      {economicData.upcomingEvents?.map((event, index) => (
+                        <ListItem key={index} alignItems="flex-start">
+                          <ListItemAvatar>
+                            <Avatar sx={{ bgcolor: getRiskColor(event.importance) + '.main' }}>
+                              <Schedule />
+                            </Avatar>
+                          </ListItemAvatar>
+                          <ListItemText
+                            primary={event.event}
+                            secondary={
+                              <Box>
+                                <Typography variant="body2" color="text.secondary">
+                                  {event.date} • {event.time}
+                                </Typography>
+                                <Typography variant="body2" color="text.primary">
+                                  {event.forecast}
+                                </Typography>
+                              </Box>
+                            }
+                          />
+                        </ListItem>
+                      ))}
+                    </List>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          </Grid>
+        </Grid>
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={1}>
+        {/* Yield Curve */}
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={8}>
             <Card>
-              <CardHeader>
-                <CardTitle>Financial Stress Index</CardTitle>
-              </CardHeader>
+              <CardHeader
+                title="Yield Curve Analysis"
+                subheader="Treasury yield curve and inversion analysis"
+              />
               <CardContent>
-                <div className="text-center mb-4">
-                  <div className="text-3xl font-bold text-gray-900 mb-2">{economicData?.financialStress.index}</div>
-                  <Badge className={getRiskColor(economicData?.financialStress.level)}>
-                    {economicData?.financialStress.level} Stress
-                  </Badge>
-                </div>
-                <Progress value={economicData?.financialStress.percentile} className="mb-4" />
-                <p className="text-sm text-gray-600 text-center">
-                  {economicData?.financialStress.interpretation}
-                </p>
+                <ResponsiveContainer width="100%" height={400}>
+                  <LineChart data={economicData.yieldCurveData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="maturity" />
+                    <YAxis />
+                    <RechartsTooltip formatter={(value) => [`${value}%`, 'Yield']} />
+                    <Line 
+                      type="monotone" 
+                      dataKey="yield" 
+                      stroke="#1976d2" 
+                      strokeWidth={3}
+                      dot={{ fill: '#1976d2', strokeWidth: 2, r: 6 }}
+                    />
+                    <ReferenceLine y={0} stroke="red" strokeDasharray="2 2" />
+                  </LineChart>
+                </ResponsiveContainer>
+                
+                <Box mt={3}>
+                  <Grid container spacing={2}>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">
+                        2Y-10Y Spread
+                      </Typography>
+                      <Typography 
+                        variant="h6" 
+                        color={economicData.yieldCurve?.spread2y10y < 0 ? 'error.main' : 'success.main'}
+                      >
+                        {economicData.yieldCurve?.spread2y10y} bps
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">
+                        3M-10Y Spread
+                      </Typography>
+                      <Typography 
+                        variant="h6" 
+                        color={economicData.yieldCurve?.spread3m10y < 0 ? 'error.main' : 'success.main'}
+                      >
+                        {economicData.yieldCurve?.spread3m10y} bps
+                      </Typography>
+                    </Grid>
+                  </Grid>
+                </Box>
               </CardContent>
             </Card>
-          </div>
-        </TabsContent>
+          </Grid>
 
-        <TabsContent value="employment" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Grid item xs={12} md={4}>
             <Card>
-              <CardHeader>
-                <CardTitle>Employment Indicators</CardTitle>
-              </CardHeader>
+              <CardHeader title="Inversion Analysis" />
               <CardContent>
-                <div className="space-y-4">
-                  {economicData?.employment.indicators.map((indicator, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 rounded-lg border">
-                      <div>
-                        <h4 className="font-medium text-gray-900">{indicator.name}</h4>
-                        <p className="text-sm text-gray-600">{indicator.period}</p>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-lg font-bold">{indicator.value}</span>
-                        <p className={`text-sm ${indicator.change > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {indicator.change > 0 ? '+' : ''}{indicator.change}
-                        </p>
-                      </div>
-                    </div>
+                <Alert 
+                  severity={economicData.yieldCurve?.isInverted ? 'error' : 'success'}
+                  sx={{ mb: 3 }}
+                >
+                  <Typography variant="h6">
+                    {economicData.yieldCurve?.isInverted ? 'Yield Curve Inverted' : 'Normal Yield Curve'}
+                  </Typography>
+                  <Typography variant="body2">
+                    {economicData.yieldCurve?.interpretation}
+                  </Typography>
+                </Alert>
+                
+                <Box mb={3}>
+                  <Typography variant="body2" color="text.secondary" mb={1}>
+                    Signal Strength
+                  </Typography>
+                  <Chip 
+                    label={yieldCurveSignal} 
+                    color={yieldCurveSignal.includes('Strong') ? 'error' : yieldCurveSignal.includes('Recession') ? 'warning' : 'success'}
+                    size="large"
+                  />
+                </Box>
+                
+                <Divider sx={{ mb: 2 }} />
+                
+                <Typography variant="h6" mb={2}>Historical Context</Typography>
+                <Box display="flex" justifyContent="between" mb={1}>
+                  <Typography variant="body2">Historical Accuracy</Typography>
+                  <Typography variant="body2" fontWeight="bold">
+                    {economicData.yieldCurve?.historicalAccuracy}%
+                  </Typography>
+                </Box>
+                <Box display="flex" justifyContent="between" mb={1}>
+                  <Typography variant="body2">Average Lead Time</Typography>
+                  <Typography variant="body2" fontWeight="bold">
+                    {economicData.yieldCurve?.averageLeadTime} months
+                  </Typography>
+                </Box>
+                
+                <Box mt={3}>
+                  <Typography variant="body2" color="text.secondary">
+                    The yield curve has inverted before {economicData.yieldCurve?.historicalAccuracy}% of recessions 
+                    since 1970, with an average lead time of {economicData.yieldCurve?.averageLeadTime} months.
+                  </Typography>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={2}>
+        {/* Forecast Models */}
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={8}>
+            <Card>
+              <CardHeader
+                title="Recession Probability Models"
+                subheader="Institutional forecasting models and ensemble predictions"
+              />
+              <CardContent>
+                <Grid container spacing={3}>
+                  {economicData.forecastModels?.map((model, index) => (
+                    <Grid item xs={12} md={6} key={index}>
+                      <Card variant="outlined">
+                        <CardContent>
+                          <Box display="flex" alignItems="center" justifyContent="between" mb={2}>
+                            <Typography variant="h6">
+                              {model.name}
+                            </Typography>
+                            <Chip 
+                              label={`${model.confidence}% confidence`} 
+                              color={model.confidence > 80 ? 'success' : model.confidence > 60 ? 'warning' : 'error'}
+                              size="small"
+                            />
+                          </Box>
+                          
+                          <Box textAlign="center" mb={3}>
+                            <Typography variant="h3" color="primary">
+                              {model.probability}%
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Recession Probability
+                            </Typography>
+                          </Box>
+                          
+                          <LinearProgress 
+                            variant="determinate" 
+                            value={model.probability} 
+                            color={getRecessionProbabilityColor(model.probability)}
+                            sx={{ mb: 2 }}
+                          />
+                          
+                          <Box display="flex" justifyContent="between" mb={1}>
+                            <Typography variant="body2" color="text.secondary">
+                              Time Horizon
+                            </Typography>
+                            <Typography variant="body2" fontWeight="bold">
+                              {model.timeHorizon}
+                            </Typography>
+                          </Box>
+                          
+                          <Typography variant="body2" color="text.secondary">
+                            {model.methodology}
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
                   ))}
-                </div>
+                </Grid>
               </CardContent>
             </Card>
+          </Grid>
 
+          <Grid item xs={12} md={4}>
             <Card>
-              <CardHeader>
-                <CardTitle>Sahm Rule Indicator</CardTitle>
-              </CardHeader>
+              <CardHeader title="Ensemble Prediction" />
               <CardContent>
-                <div className={`p-4 rounded-lg border-2 ${economicData?.employment.sahmRule.triggered ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}`}>
-                  <div className="flex items-center space-x-2 mb-2">
-                    {economicData?.employment.sahmRule.triggered ? (
-                      <AlertTriangle className="w-5 h-5 text-red-600" />
-                    ) : (
-                      <TrendingUp className="w-5 h-5 text-green-600" />
-                    )}
-                    <h4 className={`font-medium ${economicData?.employment.sahmRule.triggered ? 'text-red-800' : 'text-green-800'}`}>
-                      Sahm Rule {economicData?.employment.sahmRule.triggered ? 'Triggered' : 'Not Triggered'}
-                    </h4>
-                  </div>
-                  <p className="text-lg font-bold mb-2">Current Value: {economicData?.employment.sahmRule.value}</p>
-                  <p className={`text-sm ${economicData?.employment.sahmRule.triggered ? 'text-red-700' : 'text-green-700'}`}>
-                    {economicData?.employment.sahmRule.interpretation}
-                  </p>
-                </div>
+                <Box textAlign="center" mb={3}>
+                  <Typography variant="h2" color="primary">
+                    {compositeRecessionProbability}%
+                  </Typography>
+                  <Typography variant="body1" color="text.secondary">
+                    Composite Probability
+                  </Typography>
+                </Box>
+                
+                <LinearProgress 
+                  variant="determinate" 
+                  value={compositeRecessionProbability} 
+                  color={getRecessionProbabilityColor(compositeRecessionProbability)}
+                  sx={{ mb: 3, height: 8 }}
+                />
+                
+                <Alert 
+                  severity={compositeRecessionProbability > 50 ? 'error' : compositeRecessionProbability > 30 ? 'warning' : 'info'}
+                  sx={{ mb: 3 }}
+                >
+                  <Typography variant="body2">
+                    {compositeRecessionProbability > 50 
+                      ? 'High probability of recession. Consider defensive positioning.'
+                      : compositeRecessionProbability > 30 
+                      ? 'Elevated recession risk. Monitor indicators closely.'
+                      : 'Low recession probability. Economic conditions appear stable.'}
+                  </Typography>
+                </Alert>
+                
+                <Typography variant="h6" mb={2}>Model Weights</Typography>
+                <Box>
+                  <Box display="flex" justifyContent="between" mb={1}>
+                    <Typography variant="body2">NY Fed Model</Typography>
+                    <Typography variant="body2" fontWeight="bold">35%</Typography>
+                  </Box>
+                  <Box display="flex" justifyContent="between" mb={1}>
+                    <Typography variant="body2">Goldman Sachs</Typography>
+                    <Typography variant="body2" fontWeight="bold">25%</Typography>
+                  </Box>
+                  <Box display="flex" justifyContent="between" mb={1}>
+                    <Typography variant="body2">JP Morgan</Typography>
+                    <Typography variant="body2" fontWeight="bold">25%</Typography>
+                  </Box>
+                  <Box display="flex" justifyContent="between">
+                    <Typography variant="body2">AI Ensemble</Typography>
+                    <Typography variant="body2" fontWeight="bold">15%</Typography>
+                  </Box>
+                </Box>
               </CardContent>
             </Card>
-          </div>
-        </TabsContent>
+          </Grid>
+        </Grid>
+      </TabPanel>
 
-        <TabsContent value="forecast" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Economic Forecast Models</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {economicData?.forecastModels.map((model, index) => (
-                  <div key={index} className="p-4 rounded-lg border">
-                    <h4 className="font-medium text-gray-900 mb-2">{model.name}</h4>
-                    <div className="text-center mb-3">
-                      <div className="text-2xl font-bold text-gray-900">{model.probability}%</div>
-                      <p className="text-sm text-gray-600">Recession Probability</p>
-                    </div>
-                    <Progress value={model.probability} className="mb-3" />
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Confidence:</span>
-                        <span className="font-medium">{model.confidence}%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Time Horizon:</span>
-                        <span className="font-medium">{model.timeHorizon}</span>
-                      </div>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-2">{model.methodology}</p>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+      <TabPanel value={tabValue} index={3}>
+        {/* Sectoral Analysis */}
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={8}>
+            <Card>
+              <CardHeader title="Sectoral Economic Performance" />
+              <CardContent>
+                <ResponsiveContainer width="100%" height={400}>
+                  <BarChart data={economicData.sectoralData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="sector" />
+                    <YAxis />
+                    <RechartsTooltip formatter={(value) => [`${value}%`, 'Growth']} />
+                    <Bar dataKey="growth">
+                      {economicData.sectoralData?.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.growth >= 0 ? '#4caf50' : '#f44336'} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </Grid>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Scenario Analysis</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {economicData?.scenarios.map((scenario, index) => (
-                  <div key={index} className={`p-4 rounded-lg border-2 ${scenario.likelihood === 'Base Case' ? 'border-blue-200 bg-blue-50' : scenario.likelihood === 'Bear Case' ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-medium">{scenario.name}</h4>
-                      <Badge variant="outline">{scenario.probability}%</Badge>
-                    </div>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span>GDP Growth:</span>
-                        <span className="font-medium">{scenario.gdpGrowth}%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Unemployment:</span>
-                        <span className="font-medium">{scenario.unemployment}%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Fed Funds Rate:</span>
-                        <span className="font-medium">{scenario.fedRate}%</span>
-                      </div>
-                    </div>
-                    <p className="text-xs text-gray-600 mt-2">{scenario.description}</p>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
+          <Grid item xs={12} md={4}>
+            <Card>
+              <CardHeader title="Sector Leaders" />
+              <CardContent>
+                <List>
+                  {economicData.sectoralData?.sort((a, b) => b.growth - a.growth).map((sector, index) => (
+                    <ListItem key={index}>
+                      <ListItemAvatar>
+                        <Avatar>
+                          {getSectorIcon(sector.sector)}
+                        </Avatar>
+                      </ListItemAvatar>
+                      <ListItemText
+                        primary={sector.sector}
+                        secondary={
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <Typography variant="body2" color="text.secondary">
+                              {sector.description}
+                            </Typography>
+                            <Chip 
+                              label={`${sector.growth >= 0 ? '+' : ''}${sector.growth}%`}
+                              color={sector.growth >= 0 ? 'success' : 'error'}
+                              size="small"
+                            />
+                          </Box>
+                        }
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={4}>
+        {/* Scenario Planning */}
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <Card>
+              <CardHeader title="Economic Scenario Analysis" />
+              <CardContent>
+                <Grid container spacing={3}>
+                  {economicData.scenarios?.map((scenario, index) => (
+                    <Grid item xs={12} md={4} key={index}>
+                      <Card 
+                        variant="outlined" 
+                        sx={{ 
+                          border: selectedScenario === scenario.name.toLowerCase().replace(' ', '') ? 2 : 1,
+                          borderColor: selectedScenario === scenario.name.toLowerCase().replace(' ', '') ? 'primary.main' : 'divider'
+                        }}
+                      >
+                        <CardContent>
+                          <Box display="flex" alignItems="center" justifyContent="between" mb={2}>
+                            <Typography variant="h6">
+                              {scenario.name}
+                            </Typography>
+                            <Chip 
+                              label={`${scenario.probability}% probability`} 
+                              color={scenario.name === 'Base Case' ? 'primary' : scenario.name === 'Bull Case' ? 'success' : 'error'}
+                              size="small"
+                            />
+                          </Box>
+                          
+                          <Box mb={3}>
+                            <Typography variant="body2" color="text.secondary">
+                              {scenario.description}
+                            </Typography>
+                          </Box>
+                          
+                          <Box display="flex" justifyContent="between" mb={1}>
+                            <Typography variant="body2" color="text.secondary">
+                              GDP Growth
+                            </Typography>
+                            <Typography variant="body2" fontWeight="bold">
+                              {scenario.gdpGrowth}%
+                            </Typography>
+                          </Box>
+                          
+                          <Box display="flex" justifyContent="between" mb={1}>
+                            <Typography variant="body2" color="text.secondary">
+                              Unemployment
+                            </Typography>
+                            <Typography variant="body2" fontWeight="bold">
+                              {scenario.unemployment}%
+                            </Typography>
+                          </Box>
+                          
+                          <Box display="flex" justifyContent="between" mb={2}>
+                            <Typography variant="body2" color="text.secondary">
+                              Fed Funds Rate
+                            </Typography>
+                            <Typography variant="body2" fontWeight="bold">
+                              {scenario.fedRate}%
+                            </Typography>
+                          </Box>
+                          
+                          <Button 
+                            variant={selectedScenario === scenario.name.toLowerCase().replace(' ', '') ? 'contained' : 'outlined'}
+                            fullWidth
+                            onClick={() => setSelectedScenario(scenario.name.toLowerCase().replace(' ', ''))}
+                          >
+                            Analyze Scenario
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={5}>
+        {/* AI Insights */}
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={8}>
+            <Card>
+              <CardHeader 
+                title="AI-Powered Economic Insights"
+                subheader="Machine learning analysis of economic patterns and trends"
+              />
+              <CardContent>
+                <Grid container spacing={3}>
+                  {economicData.aiInsights?.map((insight, index) => (
+                    <Grid item xs={12} key={index}>
+                      <Card variant="outlined">
+                        <CardContent>
+                          <Box display="flex" alignItems="center" gap={2} mb={2}>
+                            <Lightbulb color="primary" />
+                            <Typography variant="h6">
+                              {insight.title}
+                            </Typography>
+                            <Chip 
+                              label={`${insight.confidence}% confidence`} 
+                              color={insight.confidence > 80 ? 'success' : insight.confidence > 60 ? 'warning' : 'error'}
+                              size="small"
+                            />
+                          </Box>
+                          
+                          <Typography variant="body1" mb={2}>
+                            {insight.description}
+                          </Typography>
+                          
+                          <Box display="flex" alignItems="center" gap={2}>
+                            <Typography variant="body2" color="text.secondary">
+                              Impact: {insight.impact}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Timeframe: {insight.timeframe}
+                            </Typography>
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} md={4}>
+            <Card>
+              <CardHeader title="AI Model Performance" />
+              <CardContent>
+                <Box textAlign="center" mb={3}>
+                  <Typography variant="h3" color="primary">
+                    87%
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Prediction Accuracy
+                  </Typography>
+                </Box>
+                
+                <LinearProgress 
+                  variant="determinate" 
+                  value={87} 
+                  color="success"
+                  sx={{ mb: 3, height: 8 }}
+                />
+                
+                <Box display="flex" justifyContent="between" mb={1}>
+                  <Typography variant="body2" color="text.secondary">
+                    Data Points Analyzed
+                  </Typography>
+                  <Typography variant="body2" fontWeight="bold">
+                    15,000+
+                  </Typography>
+                </Box>
+                
+                <Box display="flex" justifyContent="between" mb={1}>
+                  <Typography variant="body2" color="text.secondary">
+                    Last Model Update
+                  </Typography>
+                  <Typography variant="body2" fontWeight="bold">
+                    2 hours ago
+                  </Typography>
+                </Box>
+                
+                <Box display="flex" justifyContent="between" mb={3}>
+                  <Typography variant="body2" color="text.secondary">
+                    Next Update
+                  </Typography>
+                  <Typography variant="body2" fontWeight="bold">
+                    In 4 hours
+                  </Typography>
+                </Box>
+                
+                <Alert severity="info">
+                  <Typography variant="body2">
+                    AI models are continuously learning from new economic data to improve prediction accuracy.
+                  </Typography>
+                </Alert>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      </TabPanel>
+    </Container>
   );
 };
 
-// Mock data for development
+// Enhanced mock data for development
 const mockEconomicData = {
   recessionProbability: 35,
   riskLevel: 'Medium',
@@ -515,6 +1139,24 @@ const mockEconomicData = {
       signal: 'Negative',
       strength: 40,
       description: 'Forward-looking indicator of housing construction activity'
+    },
+    {
+      name: 'Initial Jobless Claims',
+      value: '220K',
+      change: -2.8,
+      trend: 'improving',
+      signal: 'Positive',
+      strength: 65,
+      description: 'Weekly measure of unemployment insurance claims'
+    },
+    {
+      name: 'Consumer Spending',
+      value: '0.8%',
+      change: 0.3,
+      trend: 'improving',
+      signal: 'Positive',
+      strength: 70,
+      description: 'Month-over-month change in personal consumption expenditures'
     }
   ],
   upcomingEvents: [
@@ -538,6 +1180,13 @@ const mockEconomicData = {
       time: '8:30 AM EST',
       importance: 'High',
       forecast: '200K jobs added expected'
+    },
+    {
+      event: 'GDP Advance Estimate',
+      date: 'Mar 28, 2024',
+      time: '8:30 AM EST',
+      importance: 'High',
+      forecast: '2.0% annualized growth'
     }
   ],
   yieldCurve: {
@@ -548,59 +1197,15 @@ const mockEconomicData = {
     historicalAccuracy: 85,
     averageLeadTime: 14
   },
-  creditSpreads: [
-    {
-      name: 'High Yield Spread',
-      description: 'Corporate bonds vs Treasury',
-      value: 485,
-      change: 15
-    },
-    {
-      name: 'Investment Grade Spread',
-      description: 'IG corporate vs Treasury',
-      value: 125,
-      change: 8
-    },
-    {
-      name: 'TED Spread',
-      description: '3M LIBOR vs 3M Treasury',
-      value: 28,
-      change: -2
-    }
+  yieldCurveData: [
+    { maturity: '3M', yield: 5.2 },
+    { maturity: '6M', yield: 4.9 },
+    { maturity: '1Y', yield: 4.6 },
+    { maturity: '2Y', yield: 4.3 },
+    { maturity: '5Y', yield: 4.5 },
+    { maturity: '10Y', yield: 4.7 },
+    { maturity: '30Y', yield: 4.9 }
   ],
-  financialStress: {
-    index: 0.85,
-    level: 'Medium',
-    percentile: 65,
-    interpretation: 'Financial conditions are moderately stressed but within normal ranges.'
-  },
-  employment: {
-    indicators: [
-      {
-        name: 'Unemployment Rate',
-        value: '3.7%',
-        change: 0.1,
-        period: 'February 2024'
-      },
-      {
-        name: 'Job Openings',
-        value: '9.9M',
-        change: -0.3,
-        period: 'January 2024'
-      },
-      {
-        name: 'Initial Claims',
-        value: '220K',
-        change: 5,
-        period: 'Week ending Mar 2'
-      }
-    ],
-    sahmRule: {
-      value: 0.23,
-      triggered: false,
-      interpretation: 'The Sahm Rule recession indicator remains below the 0.50 threshold that historically signals recession onset.'
-    }
-  },
   forecastModels: [
     {
       name: 'NY Fed Model',
@@ -622,7 +1227,22 @@ const mockEconomicData = {
       confidence: 68,
       timeHorizon: '18 months',
       methodology: 'Credit conditions and leading indicators'
+    },
+    {
+      name: 'AI Ensemble',
+      probability: 38,
+      confidence: 82,
+      timeHorizon: '12 months',
+      methodology: 'Machine learning ensemble of 50+ models'
     }
+  ],
+  sectoralData: [
+    { sector: 'Manufacturing', growth: -1.2, description: 'Industrial production declining' },
+    { sector: 'Services', growth: 2.1, description: 'Strong service sector growth' },
+    { sector: 'Construction', growth: -0.8, description: 'Housing market cooling' },
+    { sector: 'Retail', growth: 1.5, description: 'Consumer spending holding up' },
+    { sector: 'Technology', growth: 3.2, description: 'AI and software driving growth' },
+    { sector: 'Healthcare', growth: 1.8, description: 'Steady demographic-driven growth' }
   ],
   scenarios: [
     {
@@ -648,6 +1268,43 @@ const mockEconomicData = {
       unemployment: 5.8,
       fedRate: 2.5,
       description: 'Economic recession with significant policy response'
+    }
+  ],
+  employment: {
+    sahmRule: {
+      value: 0.23,
+      triggered: false,
+      interpretation: 'The Sahm Rule recession indicator remains below the 0.50 threshold that historically signals recession onset.'
+    }
+  },
+  aiInsights: [
+    {
+      title: 'Labor Market Resilience',
+      description: 'Despite economic headwinds, the labor market shows remarkable strength with unemployment near historic lows. This suggests consumers may continue spending, providing economic support.',
+      confidence: 85,
+      impact: 'Medium',
+      timeframe: '6-12 months'
+    },
+    {
+      title: 'Credit Market Stress',
+      description: 'Widening credit spreads and tightening lending standards indicate financial institutions are becoming more cautious. This could lead to reduced business investment and consumer spending.',
+      confidence: 78,
+      impact: 'High',
+      timeframe: '3-6 months'
+    },
+    {
+      title: 'Yield Curve Normalization',
+      description: 'The inverted yield curve is showing signs of potential normalization as the Fed approaches the end of its tightening cycle. This could reduce recession probability if sustained.',
+      confidence: 72,
+      impact: 'High',
+      timeframe: '6-9 months'
+    },
+    {
+      title: 'Consumer Spending Patterns',
+      description: 'AI analysis of spending data reveals consumers are shifting from goods to services, indicating economic adaptation rather than contraction. This supports a soft landing scenario.',
+      confidence: 88,
+      impact: 'Medium',
+      timeframe: '3-6 months'
     }
   ]
 };

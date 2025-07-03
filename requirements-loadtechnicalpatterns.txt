@@ -1,0 +1,9 @@
+yfinance
+psycopg2-binary
+boto3
+pandas
+numpy
+scipy
+requests
+python-dateutil
+scikit-learn
