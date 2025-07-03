@@ -57,6 +57,9 @@ import { getStockPrices, getStockMetrics, getBuySignals, getSellSignals } from '
 import { format } from 'date-fns';
 import { getApiConfig } from '../services/api';
 import HistoricalPriceChart from '../components/HistoricalPriceChart';
+import dataCache from '../services/dataCache';
+import MarketStatusBar from '../components/MarketStatusBar';
+import RealTimePriceWidget from '../components/RealTimePriceWidget';
 
 // Logo import with fallback 
 let logoSrc = null;
@@ -164,23 +167,28 @@ function useMarketOverview() {
   return useQuery({
     queryKey: ['market-overview'],
     queryFn: async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/market/overview`);
-        if (!res.ok) throw new Error('Failed to fetch market overview');
-        return res.json();
-      } catch (err) {
-        console.warn('Market overview API failed, using mock data:', err);
-        return {
-          data: {
-            sentiment: mockMarketSentiment,
-            sectors: mockSectorPerformance,
-            economic: mockEconomicIndicators
+      return dataCache.get('/api/market/overview', {}, {
+        cacheType: 'marketData',
+        fetchFunction: async () => {
+          try {
+            const res = await fetch(`${API_BASE}/api/market/overview`);
+            if (!res.ok) throw new Error('Failed to fetch market overview');
+            return res.json();
+          } catch (err) {
+            console.warn('Market overview API failed, using mock data:', err);
+            return {
+              data: {
+                sentiment: mockMarketSentiment,
+                sectors: mockSectorPerformance,
+                economic: mockEconomicIndicators
+              }
+            };
           }
-        };
-      }
+        }
+      });
     },
-    staleTime: 5 * 60 * 1000,
-    refetchInterval: 60 * 1000
+    staleTime: 60 * 60 * 1000, // 1 hour
+    refetchInterval: 60 * 60 * 1000 // 1 hour refresh
   });
 }
 
@@ -188,16 +196,22 @@ function useTopStocks() {
   return useQuery({
     queryKey: ['top-stocks'],
     queryFn: async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/scores/?limit=10&sortBy=composite_score&sortOrder=desc`);
-        if (!res.ok) throw new Error('Failed to fetch top stocks');
-        return res.json();
-      } catch (err) {
-        console.warn('Top stocks API failed, using mock data:', err);
-        return { data: mockTopStocks };
-      }
+      return dataCache.get('/api/scores', { limit: 10, sortBy: 'composite_score', sortOrder: 'desc' }, {
+        cacheType: 'marketData',
+        fetchFunction: async () => {
+          try {
+            const res = await fetch(`${API_BASE}/api/scores/?limit=10&sortBy=composite_score&sortOrder=desc`);
+            if (!res.ok) throw new Error('Failed to fetch top stocks');
+            return res.json();
+          } catch (err) {
+            console.warn('Top stocks API failed, using mock data:', err);
+            return { data: mockTopStocks };
+          }
+        }
+      });
     },
-    staleTime: 10 * 60 * 1000
+    staleTime: 60 * 60 * 1000, // 1 hour
+    refetchInterval: 60 * 60 * 1000 // 1 hour refresh
   });
 }
 
@@ -598,9 +612,13 @@ const Dashboard = () => {
     : [];
 
   return (
-    <Container maxWidth="xl" sx={{ py: 3 }}>
-      {/* Award-Winning Header */}
-      <Box display="flex" alignItems="center" justifyContent="space-between" mb={4}>
+    <>
+      {/* Market Status Bar */}
+      <MarketStatusBar />
+      
+      <Container maxWidth="xl" sx={{ py: 3 }}>
+        {/* Award-Winning Header */}
+        <Box display="flex" alignItems="center" justifyContent="space-between" mb={4}>
         <Box>
           <Typography variant="h3" component="h1" gutterBottom sx={{ fontWeight: 700, background: 'linear-gradient(45deg, #1976d2, #43a047)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
             {BRAND_NAME}
@@ -1327,7 +1345,8 @@ const Dashboard = () => {
           Risk disclosure: Trading involves substantial risk of loss. &copy; {new Date().getFullYear()} {BRAND_NAME}. All rights reserved.
         </Typography>
       </Box>
-    </Container>
+      </Container>
+    </>
   );
 };
 
