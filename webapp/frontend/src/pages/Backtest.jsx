@@ -4,7 +4,7 @@ import {
   Box, Container, Typography, Card, CardContent, Button, TextField, MenuItem, Grid, CircularProgress, Alert, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, CardHeader, Divider, LinearProgress, Badge, IconButton, Accordion, AccordionSummary, AccordionDetails, FormControl, InputLabel, Select, Slider, Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
 import { 
-  Analytics, PlayArrow, Refresh, Assessment, Timeline, TrendingUp, TrendingDown, Speed, ShowChart, BarChart, Warning, CheckCircle, Info, Settings, ExpandMore, Download, Save, ContentCopy, HelpOutline, Stop, Share, Delete, Edit, Add, FolderOpen, Person
+  Analytics, PlayArrow, Refresh, Assessment, Timeline, TrendingUp, TrendingDown, Speed, ShowChart, BarChart, Warning, CheckCircle, Info, Settings, ExpandMore, Download as DownloadIcon, Save as SaveIcon, ContentCopy as ContentCopyIcon, HelpOutline, Stop, Share, Delete, Edit, Add, FolderOpen, Person, FileDownload as FileDownloadIcon
 } from '@mui/icons-material';
 import Autocomplete from '@mui/material/Autocomplete';
 import { Line } from 'react-chartjs-2';
@@ -734,7 +734,7 @@ export default function Backtest() {
             <Grid item xs={12}>
               <Box display="flex" alignItems="center" gap={1}>
                 <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>Strategy Code</Typography>
-                <Tooltip title="Paste or edit your strategy code here. Python only." arrow><HelpOutlineIcon fontSize="small" color="action" /></Tooltip>
+                <Tooltip title="Paste or edit your strategy code here. Python only." arrow><HelpOutline fontSize="small" color="action" /></Tooltip>
               </Box>
               <Paper sx={{ p: 0, mb: 2, background: '#f7f7f7' }}>
                 <CodeMirror
