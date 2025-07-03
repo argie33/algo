@@ -108,7 +108,6 @@ jobs:
       ttmcashflow: ${{ steps.paths.outputs.ttmcashflow }}
       fundamentalmetrics: ${{ steps.paths.outputs.fundamentalmetrics }}
       analystupgradedowngrade: ${{ steps.paths.outputs.analystupgradedowngrade }}
-      symbols: ${{ steps.paths.outputs.symbols }}
       financials: ${{ steps.paths.outputs.financials }}
       sentiment: ${{ steps.paths.outputs.sentiment }}
       technicals: ${{ steps.paths.outputs.technicals }}
