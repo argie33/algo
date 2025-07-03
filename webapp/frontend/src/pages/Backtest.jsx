@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import {
-  Box, Container, Typography, Card, CardContent, Button, TextField, MenuItem, Grid, CircularProgress, Alert, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, CardHeader, Divider, LinearProgress, Badge, IconButton, Accordion, AccordionSummary, AccordionDetails, FormControl, InputLabel, Select, Slider
+  Box, Container, Typography, Card, CardContent, Button, TextField, MenuItem, Grid, CircularProgress, Alert, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, CardHeader, Divider, LinearProgress, Badge, IconButton, Accordion, AccordionSummary, AccordionDetails, FormControl, InputLabel, Select, Slider, Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
 import { 
-  Analytics, PlayArrow, Refresh, Assessment, Timeline, TrendingUp, TrendingDown, Speed, ShowChart, BarChart, Warning, CheckCircle, Info, Settings, ExpandMore, Download, Save, ContentCopy, HelpOutline, Stop
+  Analytics, PlayArrow, Refresh, Assessment, Timeline, TrendingUp, TrendingDown, Speed, ShowChart, BarChart, Warning, CheckCircle, Info, Settings, ExpandMore, Download, Save, ContentCopy, HelpOutline, Stop, Share, Delete, Edit, Add, FolderOpen, Person
 } from '@mui/icons-material';
 import Autocomplete from '@mui/material/Autocomplete';
 import { Line } from 'react-chartjs-2';
@@ -110,6 +111,9 @@ const defaultParams = {
 };
 
 export default function Backtest() {
+  // Authentication
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  
   const [params, setParams] = useState(defaultParams);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -128,6 +132,13 @@ export default function Backtest() {
   const [activeTab, setActiveTab] = useState('equity');
   const [isRunning, setIsRunning] = useState(false);
   const [customMetricTab, setCustomMetricTab] = useState(null);
+
+  // Enhanced strategy management
+  const [strategyDialogOpen, setStrategyDialogOpen] = useState(false);
+  const [newStrategy, setNewStrategy] = useState({ name: '', description: '', code: '', isPublic: false });
+  const [selectedStrategy, setSelectedStrategy] = useState(null);
+  const [strategyTags, setStrategyTags] = useState([]);
+  const [strategyFilter, setStrategyFilter] = useState('all'); // 'all', 'mine', 'public', 'favorites'
 
   // Parameter sweep state 
   const [sweepParams, setSweepParams] = useState({});
@@ -166,12 +177,150 @@ export default function Backtest() {
 
   useEffect(() => {
     // Fetch symbols
-    fetch(`${API_BASE}/backtest/symbols`).then(r => r.json()).then(d => setSymbols(d.symbols || []));
+    fetch(`${API_BASE}/backtest/symbols`).then(r => r.json()).then(d => setSymbols(d.symbols || [])).catch(() => {
+      // Fallback data
+      setSymbols(['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'AMZN', 'META', 'SPY', 'QQQ']);
+    });
     // Fetch strategies/templates
-    fetch(`${API_BASE}/backtest/templates`).then(r => r.json()).then(d => setStrategies(d.templates || []));
-    // Fetch user strategies from backend
-    fetch(`${API_BASE}/backtest/strategies`).then(r => r.json()).then(d => setSavedStrategies(d.strategies || []));
-  }, []);
+    fetch(`${API_BASE}/backtest/templates`).then(r => r.json()).then(d => setStrategies(d.templates || [])).catch(() => {
+      // Fallback templates
+      setStrategies([
+        { id: 'moving_average_crossover', name: 'Moving Average Crossover', code: 'MA_CROSSOVER_CODE' },
+        { id: 'rsi_strategy', name: 'RSI Strategy', code: 'RSI_STRATEGY_CODE' },
+        { id: 'mean_reversion', name: 'Mean Reversion', code: 'MEAN_REVERSION_CODE' }
+      ]);
+    });
+    // Fetch user strategies from backend (only if authenticated)
+    if (isAuthenticated && user) {
+      fetchUserStrategies();
+    } else {
+      // Load from localStorage for non-authenticated users
+      const localStrategies = JSON.parse(localStorage.getItem('backtester_strategies') || '[]');
+      setSavedStrategies(localStrategies);
+    }
+  }, [isAuthenticated, user]);
+
+  // Enhanced: Fetch user-specific strategies
+  const fetchUserStrategies = async () => {
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (user?.token) {
+        headers['Authorization'] = `Bearer ${user.token}`;
+      }
+      
+      const response = await fetch(`${API_BASE}/backtest/strategies`, { headers });
+      if (response.ok) {
+        const data = await response.json();
+        setSavedStrategies(data.strategies || []);
+      }
+    } catch (error) {
+      console.error('Error fetching user strategies:', error);
+      // Fallback to localStorage
+      const localStrategies = JSON.parse(localStorage.getItem('backtester_strategies') || '[]');
+      setSavedStrategies(localStrategies);
+    }
+  };
+
+  // Enhanced: Save strategy with authentication support
+  const handleSaveStrategy = async () => {
+    if (!newStrategy.name.trim()) {
+      alert('Please enter a strategy name');
+      return;
+    }
+
+    const strategyData = {
+      ...newStrategy,
+      code: useCustomCode ? pythonCode : strategyCode,
+      params: strategyParams,
+      createdAt: new Date().toISOString(),
+      author: user?.username || user?.email || 'Anonymous',
+      userId: user?.id || null
+    };
+
+    try {
+      if (isAuthenticated && user) {
+        // Save to backend
+        const headers = { 'Content-Type': 'application/json' };
+        if (user?.token) {
+          headers['Authorization'] = `Bearer ${user.token}`;
+        }
+
+        const response = await fetch(`${API_BASE}/backtest/strategies`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(strategyData)
+        });
+
+        if (response.ok) {
+          await fetchUserStrategies();
+        } else {
+          throw new Error('Failed to save strategy to server');
+        }
+      } else {
+        // Save to localStorage for non-authenticated users
+        const localStrategies = JSON.parse(localStorage.getItem('backtester_strategies') || '[]');
+        const newId = Date.now().toString();
+        localStrategies.push({ ...strategyData, id: newId });
+        localStorage.setItem('backtester_strategies', JSON.stringify(localStrategies));
+        setSavedStrategies(localStrategies);
+      }
+
+      setStrategyDialogOpen(false);
+      setNewStrategy({ name: '', description: '', code: '', isPublic: false });
+    } catch (error) {
+      console.error('Error saving strategy:', error);
+      alert('Failed to save strategy. Please try again.');
+    }
+  };
+
+  // Enhanced: Load strategy with versioning
+  const handleLoadStrategy = (strategy) => {
+    if (strategy.code) {
+      if (strategy.language === 'python' || useCustomCode) {
+        setPythonCode(strategy.code);
+        setUseCustomCode(true);
+      } else {
+        setStrategyCode(strategy.code);
+      }
+    }
+    if (strategy.params) {
+      setStrategyParams(strategy.params);
+    }
+    setSelectedStrategy(strategy);
+  };
+
+  // Enhanced: Delete strategy with confirmation
+  const handleDeleteStrategy = async (strategyId) => {
+    if (!confirm('Are you sure you want to delete this strategy?')) {
+      return;
+    }
+
+    try {
+      if (isAuthenticated && user) {
+        const headers = { 'Content-Type': 'application/json' };
+        if (user?.token) {
+          headers['Authorization'] = `Bearer ${user.token}`;
+        }
+
+        const response = await fetch(`${API_BASE}/backtest/strategies/${strategyId}`, {
+          method: 'DELETE',
+          headers
+        });
+
+        if (response.ok) {
+          await fetchUserStrategies();
+        }
+      } else {
+        // Remove from localStorage
+        const localStrategies = JSON.parse(localStorage.getItem('backtester_strategies') || '[]');
+        const filtered = localStrategies.filter(s => s.id !== strategyId);
+        localStorage.setItem('backtester_strategies', JSON.stringify(filtered));
+        setSavedStrategies(filtered);
+      }
+    } catch (error) {
+      console.error('Error deleting strategy:', error);
+    }
+  };
 
   useEffect(() => {
     const strat = Array.isArray(strategies) ? strategies.find(s => s.id === params.strategy) : null;
@@ -264,29 +413,7 @@ export default function Backtest() {
     // Optionally parse params from strat.code or add UI for params
   };
 
-  const handleSaveStrategy = async () => {
-    if (!pythonCode.trim()) return;
-    const name = prompt('Enter a name for this strategy:');
-    if (!name) return;
-    const res = await fetch(`${API_BASE}/backtest/strategies`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, code: pythonCode, language: 'python' })
-    });
-    const data = await res.json();
-    setSavedStrategies(prev => [...prev, data.strategy]);
-    saveStrategyVersion(data.strategy.id, pythonCode);
-  };
 
-  const handleLoadStrategy = (code) => {
-    setPythonCode(code);
-    setUseCustomCode(true);
-  };
-
-  const handleDeleteStrategy = async (id) => {
-    await fetch(`${API_BASE}/backtest/strategies/${id}`, { method: 'DELETE' });
-    setSavedStrategies(prev => prev.filter(s => s.id !== id));
-  };
 
   const handleExportTrades = () => {
     if (!result?.trades?.length) return;
@@ -482,22 +609,64 @@ export default function Backtest() {
         </Box>
         
         <Box display="flex" alignItems="center" gap={2}>
+          {/* Authentication Status */}
+          {authLoading ? (
+            <CircularProgress size={24} />
+          ) : isAuthenticated ? (
+            <Box display="flex" alignItems="center" gap={1}>
+              <Person color="primary" />
+              <Typography variant="body2" color="primary">
+                {user?.username || user?.email || 'User'}
+              </Typography>
+            </Box>
+          ) : (
+            <Chip label="Guest Mode" color="warning" size="small" variant="outlined" />
+          )}
+
+          {/* Strategy Management */}
           <Badge badgeContent={savedStrategies.length} color="primary">
-            <IconButton>
-              <Assessment />
-            </IconButton>
+            <Button
+              variant="outlined"
+              startIcon={<FolderOpen />}
+              onClick={() => setStrategyDialogOpen(true)}
+              size="small"
+            >
+              My Strategies
+            </Button>
           </Badge>
+
+          <Tooltip title="Save current strategy" arrow>
+            <Button 
+              variant="outlined" 
+              startIcon={<Save />}
+              onClick={() => {
+                setNewStrategy({ 
+                  name: '', 
+                  description: '', 
+                  code: useCustomCode ? pythonCode : strategyCode, 
+                  isPublic: false 
+                });
+                setStrategyDialogOpen(true);
+              }}
+              size="small"
+            >
+              Save Strategy
+            </Button>
+          </Tooltip>
+
           <Tooltip title="Start a new blank strategy" arrow>
             <Button 
               variant="outlined" 
-              startIcon={<Analytics />}
+              startIcon={<Add />}
               onClick={() => { 
                 setPythonCode(''); 
                 setParams(defaultParams); 
                 setStrategyParams({}); 
                 setResult(null); 
                 setError(null); 
+                setSelectedStrategy(null);
               }}
+              size="small"
             >
               New Strategy
             </Button>
@@ -1245,6 +1414,208 @@ export default function Backtest() {
             )}
           </CardContent>
         </Card>
+
+        {/* Enhanced Strategy Management Dialog */}
+        <Dialog open={strategyDialogOpen} onClose={() => setStrategyDialogOpen(false)} maxWidth="md" fullWidth>
+          <DialogTitle>
+            <Box display="flex" alignItems="center" justifyContent="space-between">
+              <Typography variant="h6">Strategy Management</Typography>
+              <Box display="flex" gap={1}>
+                <Chip 
+                  label={isAuthenticated ? 'Cloud Storage' : 'Local Storage'} 
+                  color={isAuthenticated ? 'success' : 'warning'} 
+                  size="small"
+                />
+                <Badge badgeContent={savedStrategies.length} color="primary">
+                  <Assessment />
+                </Badge>
+              </Box>
+            </Box>
+          </DialogTitle>
+          <DialogContent>
+            {/* Strategy Filter */}
+            <Box sx={{ mb: 2 }}>
+              <FormControl size="small" sx={{ minWidth: 120, mr: 2 }}>
+                <InputLabel>Filter</InputLabel>
+                <Select
+                  value={strategyFilter}
+                  onChange={(e) => setStrategyFilter(e.target.value)}
+                  label="Filter"
+                >
+                  <MenuItem value="all">All Strategies</MenuItem>
+                  <MenuItem value="mine">My Strategies</MenuItem>
+                  {isAuthenticated && <MenuItem value="public">Public Strategies</MenuItem>}
+                </Select>
+              </FormControl>
+            </Box>
+
+            {/* Save New Strategy Form */}
+            {newStrategy.name !== undefined && (
+              <Card sx={{ mb: 2, bgcolor: 'grey.50' }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>Save New Strategy</Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        label="Strategy Name"
+                        value={newStrategy.name}
+                        onChange={(e) => setNewStrategy({ ...newStrategy, name: e.target.value })}
+                        placeholder="e.g., My RSI Strategy"
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={newStrategy.isPublic}
+                            onChange={(e) => setNewStrategy({ ...newStrategy, isPublic: e.target.checked })}
+                            disabled={!isAuthenticated}
+                          />
+                        }
+                        label="Make Public"
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        label="Description (Optional)"
+                        value={newStrategy.description}
+                        onChange={(e) => setNewStrategy({ ...newStrategy, description: e.target.value })}
+                        multiline
+                        rows={2}
+                        placeholder="Describe your strategy..."
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <Box display="flex" gap={1}>
+                        <Button variant="contained" onClick={handleSaveStrategy}>
+                          Save Strategy
+                        </Button>
+                        <Button 
+                          variant="outlined" 
+                          onClick={() => setNewStrategy({ name: '', description: '', code: '', isPublic: false })}
+                        >
+                          Cancel
+                        </Button>
+                      </Box>
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Saved Strategies List */}
+            <TableContainer component={Paper}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Name</TableCell>
+                    <TableCell>Author</TableCell>
+                    <TableCell>Created</TableCell>
+                    <TableCell>Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {savedStrategies
+                    .filter(strategy => {
+                      if (strategyFilter === 'mine') return strategy.userId === user?.id || !strategy.userId;
+                      if (strategyFilter === 'public') return strategy.isPublic;
+                      return true;
+                    })
+                    .map((strategy) => (
+                    <TableRow key={strategy.id}>
+                      <TableCell>
+                        <Box>
+                          <Typography variant="body2" fontWeight="bold">
+                            {strategy.name}
+                          </Typography>
+                          {strategy.description && (
+                            <Typography variant="caption" color="text.secondary">
+                              {strategy.description}
+                            </Typography>
+                          )}
+                        </Box>
+                      </TableCell>
+                      <TableCell>
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <Person fontSize="small" />
+                          <Typography variant="body2">
+                            {strategy.author || 'Anonymous'}
+                          </Typography>
+                          {strategy.isPublic && (
+                            <Chip label="Public" size="small" color="info" />
+                          )}
+                        </Box>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">
+                          {strategy.createdAt ? new Date(strategy.createdAt).toLocaleDateString() : 'Unknown'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Box display="flex" gap={1}>
+                          <Tooltip title="Load Strategy">
+                            <IconButton 
+                              size="small" 
+                              onClick={() => {
+                                handleLoadStrategy(strategy);
+                                setStrategyDialogOpen(false);
+                              }}
+                            >
+                              <PlayArrow />
+                            </IconButton>
+                          </Tooltip>
+                          {(strategy.userId === user?.id || !isAuthenticated) && (
+                            <>
+                              <Tooltip title="Edit Strategy">
+                                <IconButton size="small">
+                                  <Edit />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Delete Strategy">
+                                <IconButton 
+                                  size="small" 
+                                  color="error"
+                                  onClick={() => handleDeleteStrategy(strategy.id)}
+                                >
+                                  <Delete />
+                                </IconButton>
+                              </Tooltip>
+                            </>
+                          )}
+                          <Tooltip title="Share Strategy">
+                            <IconButton size="small">
+                              <Share />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+
+            {!isAuthenticated && (
+              <Alert severity="info" sx={{ mt: 2 }}>
+                <Typography variant="body2">
+                  Sign in to save strategies to the cloud and access advanced features like sharing and collaboration.
+                </Typography>
+              </Alert>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setStrategyDialogOpen(false)}>Close</Button>
+            <Button 
+              variant="contained" 
+              startIcon={<Add />}
+              onClick={() => setNewStrategy({ name: '', description: '', code: '', isPublic: false })}
+            >
+              New Strategy
+            </Button>
+          </DialogActions>
+        </Dialog>
     </Container>
   );
 }

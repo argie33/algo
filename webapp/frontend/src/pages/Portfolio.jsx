@@ -99,6 +99,7 @@ import {
   Download,
   Security,
   NotificationsActive,
+  Notifications,
   Settings,
   ExpandMore,
   Report,
@@ -149,6 +150,14 @@ const Portfolio = () => {
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [timeframe, setTimeframe] = useState('1Y');
   const [riskToggle, setRiskToggle] = useState('standard');
+  const [riskSubTab, setRiskSubTab] = useState(0);
+  const [riskAlertDialogOpen, setRiskAlertDialogOpen] = useState(false);
+  const [newRiskAlert, setNewRiskAlert] = useState({
+    symbol: '',
+    metric: 'volatility',
+    threshold: 25,
+    condition: 'above'
+  });
 
   // Advanced portfolio metrics calculations
   const portfolioMetrics = useMemo(() => {
@@ -810,85 +819,250 @@ const Portfolio = () => {
       </TabPanel>
 
       <TabPanel value={activeTab} index={3}>
-        {/* Risk Management Tab */}
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
+        {/* Enhanced Risk Management Tab */}
+        {/* Risk Summary Cards */}
+        <Grid container spacing={3} sx={{ mb: 3 }}>
+          <Grid item xs={12} md={3}>
             <Card>
-              <CardHeader 
-                title="Risk Metrics" 
-                action={
-                  <FormControl size="small">
-                    <Select
-                      value={riskToggle}
-                      onChange={(e) => setRiskToggle(e.target.value)}
-                    >
-                      <MenuItem value="standard">Standard</MenuItem>
-                      <MenuItem value="stress">Stress Test</MenuItem>
-                      <MenuItem value="scenario">Scenario</MenuItem>
-                    </Select>
-                  </FormControl>
-                }
-              />
               <CardContent>
-                <Grid container spacing={2}>
-                  <Grid item xs={6}>
-                    <Box textAlign="center" p={2} border={1} borderColor="divider" borderRadius={2}>
-                      <Typography variant="h5" color="warning.main">
-                        {formatCurrency(portfolioMetrics.var95)}
-                      </Typography>
-                      <Typography variant="caption">VaR (95%)</Typography>
-                    </Box>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Box textAlign="center" p={2} border={1} borderColor="divider" borderRadius={2}>
-                      <Typography variant="h5" color="error.main">
-                        {formatCurrency(portfolioMetrics.var95 * 1.5)}
-                      </Typography>
-                      <Typography variant="caption">Expected Shortfall</Typography>
-                    </Box>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Box textAlign="center" p={2} border={1} borderColor="divider" borderRadius={2}>
-                      <Typography variant="h5" color="info.main">
-                        {formatNumber(portfolioMetrics.beta, 2)}
-                      </Typography>
-                      <Typography variant="caption">Portfolio Beta</Typography>
-                    </Box>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Box textAlign="center" p={2} border={1} borderColor="divider" borderRadius={2}>
-                      <Typography variant="h5" color="secondary.main">
-                        {formatPercentage(portfolioMetrics.volatility)}
-                      </Typography>
-                      <Typography variant="caption">Volatility</Typography>
-                    </Box>
-                  </Grid>
-                </Grid>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography color="text.secondary" gutterBottom>Portfolio VaR (95%)</Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                      {formatCurrency(portfolioMetrics.var95)}
+                    </Typography>
+                  </Box>
+                  <Security sx={{ fontSize: 40, color: 'primary.main' }} />
+                </Box>
+                <LinearProgress 
+                  variant="determinate" 
+                  value={(portfolioMetrics.var95 / portfolioMetrics.totalValue) * 100} 
+                  sx={{ mt: 1 }}
+                  color={(portfolioMetrics.var95 / portfolioMetrics.totalValue) * 100 <= 3 ? 'success' : (portfolioMetrics.var95 / portfolioMetrics.totalValue) * 100 <= 8 ? 'warning' : 'error'}
+                />
               </CardContent>
             </Card>
           </Grid>
 
-          <Grid item xs={12} md={6}>
+          <Grid item xs={12} md={3}>
             <Card>
-              <CardHeader title="Stress Test Results" />
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={portfolioData.stressTests}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="scenario" angle={-45} textAnchor="end" height={80} />
-                    <YAxis />
-                    <RechartsTooltip formatter={(value) => [formatPercentage(value), 'Impact']} />
-                    <Bar dataKey="impact">
-                      {portfolioData.stressTests.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.impact < 0 ? '#f44336' : '#4caf50'} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography color="text.secondary" gutterBottom>Sharpe Ratio</Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                      {formatNumber(portfolioMetrics.sharpeRatio, 2)}
+                    </Typography>
+                  </Box>
+                  <Assessment sx={{ fontSize: 40, color: 'success.main' }} />
+                </Box>
+                <Chip 
+                  label={portfolioMetrics.sharpeRatio > 1 ? 'Good' : 'Needs Improvement'} 
+                  color={portfolioMetrics.sharpeRatio > 1 ? 'success' : 'warning'}
+                  size="small"
+                  sx={{ mt: 1 }}
+                />
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} md={3}>
+            <Card>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography color="text.secondary" gutterBottom>Portfolio Beta</Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                      {formatNumber(portfolioMetrics.beta, 2)}
+                    </Typography>
+                  </Box>
+                  <TrendingUp sx={{ fontSize: 40, color: 'info.main' }} />
+                </Box>
+                <Chip 
+                  label={portfolioMetrics.beta > 1 ? 'High Risk' : 'Low Risk'} 
+                  color={portfolioMetrics.beta > 1.2 ? 'error' : portfolioMetrics.beta > 0.8 ? 'warning' : 'success'}
+                  size="small"
+                  sx={{ mt: 1 }}
+                />
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} md={3}>
+            <Card>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography color="text.secondary" gutterBottom>Max Drawdown</Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                      {formatPercentage(portfolioMetrics.maxDrawdown)}
+                    </Typography>
+                  </Box>
+                  <Warning sx={{ fontSize: 40, color: 'warning.main' }} />
+                </Box>
+                <LinearProgress 
+                  variant="determinate" 
+                  value={Math.abs(portfolioMetrics.maxDrawdown * 100)} 
+                  sx={{ mt: 1 }}
+                  color={Math.abs(portfolioMetrics.maxDrawdown) <= 0.1 ? 'success' : Math.abs(portfolioMetrics.maxDrawdown) <= 0.2 ? 'warning' : 'error'}
+                />
               </CardContent>
             </Card>
           </Grid>
         </Grid>
+
+        {/* Risk Management Sub-tabs */}
+        <Card>
+          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+            <Tabs value={riskSubTab} onChange={(e, v) => setRiskSubTab(v)} aria-label="risk management tabs">
+              <Tab label="Position Risk" />
+              <Tab label="VaR Analysis" />
+              <Tab label="Stress Testing" />
+              <Tab label="Risk Alerts" />
+            </Tabs>
+          </Box>
+
+          <Box sx={{ p: 3 }}>
+            {riskSubTab === 0 && (
+              <Box>
+                <Typography variant="h6" gutterBottom>Position Risk Analysis</Typography>
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Symbol</TableCell>
+                        <TableCell align="right">Weight</TableCell>
+                        <TableCell align="right">VaR (95%)</TableCell>
+                        <TableCell align="right">Beta</TableCell>
+                        <TableCell align="right">Volatility</TableCell>
+                        <TableCell align="right">Risk Contribution</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {portfolioData.holdings.map((holding) => (
+                        <TableRow key={holding.symbol}>
+                          <TableCell>
+                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                {holding.symbol}
+                              </Typography>
+                            </Box>
+                          </TableCell>
+                          <TableCell align="right">{formatPercentage(holding.weight)}</TableCell>
+                          <TableCell align="right">{formatCurrency(holding.value * 0.05)}</TableCell>
+                          <TableCell align="right">
+                            <Chip 
+                              label={formatNumber(holding.beta || 1.0, 2)} 
+                              color={(holding.beta || 1.0) <= 0.8 ? 'success' : (holding.beta || 1.0) <= 1.2 ? 'warning' : 'error'}
+                              size="small"
+                            />
+                          </TableCell>
+                          <TableCell align="right">
+                            <Chip 
+                              label={formatPercentage((holding.volatility || 0.2))} 
+                              color={(holding.volatility || 0.2) <= 0.2 ? 'success' : (holding.volatility || 0.2) <= 0.3 ? 'warning' : 'error'}
+                              size="small"
+                            />
+                          </TableCell>
+                          <TableCell align="right">
+                            <LinearProgress 
+                              variant="determinate" 
+                              value={holding.weight * 100} 
+                              sx={{ width: 60 }}
+                              color={holding.weight <= 0.2 ? 'success' : holding.weight <= 0.3 ? 'warning' : 'error'}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
+            )}
+
+            {riskSubTab === 1 && (
+              <Box>
+                <Typography variant="h6" gutterBottom>Value at Risk Trends</Typography>
+                <Box sx={{ height: 400, mt: 2 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={portfolioData.historicalVaR || [
+                      { date: '2025-06-28', var95: 65000, var99: 120000 },
+                      { date: '2025-06-29', var95: 67000, var99: 122000 },
+                      { date: '2025-06-30', var95: 66500, var99: 121000 },
+                      { date: '2025-07-01', var95: 68000, var99: 124000 },
+                      { date: '2025-07-02', var95: 68500, var99: 125000 }
+                    ]}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" />
+                      <YAxis />
+                      <RechartsTooltip formatter={(value) => [`$${value.toLocaleString()}`, '']} />
+                      <Line type="monotone" dataKey="var95" stroke="#1976d2" name="VaR 95%" strokeWidth={2} />
+                      <Line type="monotone" dataKey="var99" stroke="#d32f2f" name="VaR 99%" strokeWidth={2} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </Box>
+              </Box>
+            )}
+
+            {riskSubTab === 2 && (
+              <Box>
+                <Typography variant="h6" gutterBottom>Stress Test Results</Typography>
+                <Grid container spacing={2}>
+                  {portfolioData.stressTests.map((test, index) => (
+                    <Grid item xs={12} md={6} key={index}>
+                      <Card variant="outlined">
+                        <CardContent>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                            {test.scenario}
+                          </Typography>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+                            <Typography color="text.secondary">Potential Loss:</Typography>
+                            <Typography sx={{ color: 'error.main', fontWeight: 600 }}>
+                              ${Math.abs(test.impact * portfolioMetrics.totalValue).toLocaleString()} ({formatPercentage(Math.abs(test.impact))})
+                            </Typography>
+                          </Box>
+                          <LinearProgress 
+                            variant="determinate" 
+                            value={Math.abs(test.impact * 100)} 
+                            color="error"
+                            sx={{ mt: 1 }}
+                          />
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+              </Box>
+            )}
+
+            {riskSubTab === 3 && (
+              <Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h6">Risk Alerts</Typography>
+                  <Button variant="contained" startIcon={<Notifications />} onClick={() => setRiskAlertDialogOpen(true)}>
+                    Create Alert
+                  </Button>
+                </Box>
+                
+                {mockRiskAlerts.map((alert) => (
+                  <Alert 
+                    key={alert.id} 
+                    severity={alert.severity} 
+                    sx={{ mb: 2 }}
+                  >
+                    <Typography variant="body2">
+                      <strong>{alert.symbol}</strong> {alert.metric} is {alert.value}{typeof alert.value === 'number' && alert.value < 10 ? '' : '%'} 
+                      (threshold: {alert.threshold}{typeof alert.threshold === 'number' && alert.threshold < 10 ? '' : '%'})
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {new Date(alert.timestamp).toLocaleString()}
+                    </Typography>
+                  </Alert>
+                ))}
+              </Box>
+            )}
+          </Box>
+        </Card>
       </TabPanel>
 
       <TabPanel value={activeTab} index={4}>
@@ -1070,6 +1244,80 @@ const Portfolio = () => {
           </Grid>
         </Grid>
       </TabPanel>
+
+      {/* Risk Alert Dialog */}
+      <Dialog open={riskAlertDialogOpen} onClose={() => setRiskAlertDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Create Risk Alert</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Symbol"
+                value={newRiskAlert.symbol}
+                onChange={(e) => setNewRiskAlert({ ...newRiskAlert, symbol: e.target.value })}
+                placeholder="e.g., AAPL or PORTFOLIO"
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <FormControl fullWidth>
+                <InputLabel>Metric</InputLabel>
+                <Select
+                  value={newRiskAlert.metric}
+                  onChange={(e) => setNewRiskAlert({ ...newRiskAlert, metric: e.target.value })}
+                  label="Metric"
+                >
+                  <MenuItem value="volatility">Volatility</MenuItem>
+                  <MenuItem value="beta">Beta</MenuItem>
+                  <MenuItem value="var">Value at Risk</MenuItem>
+                  <MenuItem value="concentration">Concentration</MenuItem>
+                  <MenuItem value="correlation">Correlation</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={6}>
+              <FormControl fullWidth>
+                <InputLabel>Condition</InputLabel>
+                <Select
+                  value={newRiskAlert.condition}
+                  onChange={(e) => setNewRiskAlert({ ...newRiskAlert, condition: e.target.value })}
+                  label="Condition"
+                >
+                  <MenuItem value="above">Above</MenuItem>
+                  <MenuItem value="below">Below</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={6}>
+              <TextField
+                fullWidth
+                label="Threshold"
+                type="number"
+                value={newRiskAlert.threshold}
+                onChange={(e) => setNewRiskAlert({ ...newRiskAlert, threshold: Number(e.target.value) })}
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRiskAlertDialogOpen(false)}>Cancel</Button>
+          <Button 
+            onClick={() => {
+              console.log('Creating risk alert:', newRiskAlert);
+              setRiskAlertDialogOpen(false);
+              setNewRiskAlert({
+                symbol: '',
+                metric: 'volatility',
+                threshold: 25,
+                condition: 'above'
+              });
+            }} 
+            variant="contained"
+          >
+            Create Alert
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };
@@ -1211,6 +1459,14 @@ const mockPortfolioData = {
     { scenario: 'Geopolitical Crisis', impact: -18.9 }
   ]
 };
+
+// Mock risk alerts data
+const mockRiskAlerts = [
+  { id: 1, symbol: 'AAPL', metric: 'Volatility', value: 28.2, threshold: 25, severity: 'medium', timestamp: '2025-07-03T10:30:00Z' },
+  { id: 2, symbol: 'PORTFOLIO', metric: 'Concentration', value: 48, threshold: 40, severity: 'high', timestamp: '2025-07-03T09:15:00Z' },
+  { id: 3, symbol: 'JPM', metric: 'Beta', value: 1.3, threshold: 1.2, severity: 'medium', timestamp: '2025-07-03T08:45:00Z' },
+  { id: 4, symbol: 'MSFT', metric: 'VaR', value: 5.2, threshold: 5.0, severity: 'low', timestamp: '2025-07-02T16:20:00Z' }
+];
 
 // Color palette for charts
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
