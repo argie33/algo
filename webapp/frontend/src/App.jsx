@@ -107,7 +107,6 @@ const menuItems = [
   
   // Portfolio Section
   { text: 'Portfolio Overview', icon: <AccountBalanceIcon />, path: '/portfolio', category: 'portfolio' },
-  { text: 'Holdings Tracking', icon: <AccountBalanceIcon />, path: '/portfolio/holdings', category: 'portfolio' },
   { text: 'Performance Analysis', icon: <AssessmentIcon />, path: '/portfolio/performance', category: 'portfolio', premium: true },
   { text: 'Optimization Tools', icon: <AnalyticsIcon />, path: '/portfolio/optimize', category: 'portfolio', premium: true },
   
@@ -122,6 +121,9 @@ const menuItems = [
   { text: 'Pattern Recognition', icon: <AnalyticsIcon />, path: '/tools/patterns', category: 'tools', premium: true },
   { text: 'Backtester', icon: <PlayArrow />, path: '/backtest', category: 'tools', premium: true },
   { text: 'AI Assistant', icon: <PsychologyIcon />, path: '/tools/ai', category: 'tools', premium: true },
+  
+  // Settings Section
+  { text: 'Settings', icon: <SettingsIcon />, path: '/settings', category: 'settings' },
 ]
 
 
@@ -135,7 +137,8 @@ function App() {
     sentiment: false,
     portfolio: true,
     research: false,
-    tools: false
+    tools: false,
+    settings: false
   })
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
@@ -429,7 +432,6 @@ function App() {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/portfolio" element={<Portfolio />} />
-              <Route path="/portfolio/holdings" element={<PortfolioHoldings />} />
               <Route path="/portfolio/performance" element={<PortfolioPerformance />} />
               <Route path="/portfolio/optimize" element={<PortfolioOptimization />} />
               <Route path="/market" element={<MarketOverview />} />

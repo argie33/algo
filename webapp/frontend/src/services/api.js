@@ -1425,8 +1425,7 @@ export const getFinancialStatements = async (ticker, period = 'annual') => {
 export const getIncomeStatement = async (ticker, period = 'annual') => {
   try {
     const response = await api.get(`/api/financials/${ticker}/income-statement?period=${period}`)
-    // Always return { data: ... } structure for consistency
-    const result = normalizeApiResponse(response, true)
+    const result = normalizeApiResponse(response, true);
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, 'get income statement')
@@ -1437,8 +1436,7 @@ export const getIncomeStatement = async (ticker, period = 'annual') => {
 export const getCashFlowStatement = async (ticker, period = 'annual') => {
   try {
     const response = await api.get(`/api/financials/${ticker}/cash-flow?period=${period}`)
-    // Always return { data: ... } structure for consistency
-    const result = normalizeApiResponse(response, true)
+    const result = normalizeApiResponse(response, true);
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, 'get cash flow statement')
@@ -1449,8 +1447,7 @@ export const getCashFlowStatement = async (ticker, period = 'annual') => {
 export const getBalanceSheet = async (ticker, period = 'annual') => {
   try {
     const response = await api.get(`/api/financials/${ticker}/balance-sheet?period=${period}`)
-    // Always return { data: ... } structure for consistency
-    const result = normalizeApiResponse(response, true)
+    const result = normalizeApiResponse(response, true);
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, 'get balance sheet')
@@ -1464,8 +1461,7 @@ export const getKeyMetrics = async (ticker) => {
     const response = await api.get(url, {
       baseURL: currentConfig.baseURL
     })
-    // Always return { data: ... } structure for consistency
-    const result = normalizeApiResponse(response, false)
+    const result = normalizeApiResponse(response, false);
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, `get key metrics for ${ticker}`)

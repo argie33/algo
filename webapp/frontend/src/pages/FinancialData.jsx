@@ -184,11 +184,8 @@ function FinancialData() {
     onError: (error) => logger.queryError('keyMetrics', error, { ticker })
   })
   const renderKeyMetrics = (data) => {
-    // Access the correct nested data structure for key metrics
-    const metricsData = data?.data?.data ?? data?.data ?? data;
-    
-    // Check for API error responses
-    if (data?.data?.error ?? data?.error) {
+    // Handle error response
+    if (data?.error) {
       return (
         <Card>
           <CardContent>
@@ -196,11 +193,14 @@ function FinancialData() {
               <ShowChart />
               <Box sx={{ ml: 1 }}>Key Metrics</Box>
             </Typography>
-            <Alert severity="error">Error loading key metrics: {data?.data?.error || data?.error}</Alert>
+            <Alert severity="error">Error loading key metrics: {data.error}</Alert>
           </CardContent>
         </Card>
       )
     }
+    
+    // Access data from the { data: {...} } structure returned by API
+    const metricsData = data?.data || data
     
     if (!metricsData) {
       return (
@@ -271,14 +271,8 @@ function FinancialData() {
     )
   }
   const renderFinancialTable = (data, title, icon) => {
-    // Access the correct nested data structure: data.data.data (axios response -> API response -> actual data array)
-    let actualData = data?.data?.data ?? data?.data ?? data;
-    // If the data is wrapped in a 'success' or 'metadata' object, unwrap it
-    if (actualData && typeof actualData === 'object' && !Array.isArray(actualData)) {
-      if ('data' in actualData) actualData = actualData.data;
-    }
-    // Check for API error responses
-    if (data?.data?.error ?? data?.error) {
+    // Handle error response
+    if (data?.error) {
       return (
         <Card>
           <CardContent>
@@ -286,10 +280,18 @@ function FinancialData() {
               {icon}
               <Box sx={{ ml: 1 }}>{title}</Box>
             </Typography>
-            <Alert severity="error">Error loading {title.toLowerCase()}: {data?.data?.error || data?.error}</Alert>
+            <Alert severity="error">Error loading {title.toLowerCase()}: {data.error}</Alert>
           </CardContent>
         </Card>
       )
+    }
+    
+    // Access data from the { data: [...] } structure returned by API
+    let actualData = data?.data || data;
+    
+    // If the data is wrapped in a 'success' or 'metadata' object, unwrap it
+    if (actualData && typeof actualData === 'object' && !Array.isArray(actualData)) {
+      if ('data' in actualData) actualData = actualData.data;
     }
     if (!actualData || !Array.isArray(actualData) || actualData.length === 0) {
       return (
