@@ -1,6 +1,5 @@
 import React, { useState } from 'react'
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
-import ErrorBoundary from './components/ErrorBoundary'
 import { 
   AppBar, 
   Box, 
@@ -307,174 +306,172 @@ function App() {
   )
 
   return (
-    <ErrorBoundary>
-      <Box sx={{ display: 'flex' }}>
-        <AppBar
-          position="fixed"
-          sx={{
-            width: { md: `calc(100% - ${drawerWidth}px)` },
-            ml: { md: `${drawerWidth}px` },
-            backgroundColor: 'white',
-            color: 'text.primary',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-          }}
-        >
-          <Toolbar>
-            <IconButton
-              color="inherit"
-              aria-label="open drawer"
-              edge="start"
-              onClick={handleDrawerToggle}
-              sx={{ mr: 2, display: { md: 'none' } }}
-            >
-              <MenuIcon />
-            </IconButton>
-            <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-              {menuItems.find(item => item.path === location.pathname)?.text || 'Dashboard'}
-            </Typography>
-            
-            {/* Authentication UI */}
-            {isAuthenticated ? (
-              <>
-                <IconButton
-                  onClick={handleUserMenuOpen}
-                  size="large"
-                  edge="end"
-                  color="inherit"
-                >
-                  <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
-                    {user?.username?.[0]?.toUpperCase() || 'U'}
-                  </Avatar>
-                </IconButton>
-                <Menu
-                  anchorEl={userMenuAnchor}
-                  open={Boolean(userMenuAnchor)}
-                  onClose={handleUserMenuClose}
-                  anchorOrigin={{
-                    vertical: 'bottom',
-                    horizontal: 'right',
-                  }}
-                  transformOrigin={{
-                    vertical: 'top',
-                    horizontal: 'right',
-                  }}
-                >
-                  <MenuItem onClick={handleUserMenuClose}>
-                    <AccountCircleIcon sx={{ mr: 1 }} />
-                    {user?.username || 'User'}
-                  </MenuItem>
-                  <Divider />
-                  <MenuItem onClick={() => { handleUserMenuClose(); navigate('/settings'); }}>
-                    <SettingsIcon sx={{ mr: 1 }} />
-                    Settings
-                  </MenuItem>
-                  <MenuItem onClick={handleLogout}>
-                    <LogoutIcon sx={{ mr: 1 }} />
-                    Sign Out
-                  </MenuItem>
-                </Menu>
-              </>
-            ) : (
-              <Button
+    <Box sx={{ display: 'flex' }}>
+      <AppBar
+        position="fixed"
+        sx={{
+          width: { md: `calc(100% - ${drawerWidth}px)` },
+          ml: { md: `${drawerWidth}px` },
+          backgroundColor: 'white',
+          color: 'text.primary',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+        }}
+      >
+        <Toolbar>
+          <IconButton
+            color="inherit"
+            aria-label="open drawer"
+            edge="start"
+            onClick={handleDrawerToggle}
+            sx={{ mr: 2, display: { md: 'none' } }}
+          >
+            <MenuIcon />
+          </IconButton>
+          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
+            {menuItems.find(item => item.path === location.pathname)?.text || 'Dashboard'}
+          </Typography>
+          
+          {/* Authentication UI */}
+          {isAuthenticated ? (
+            <>
+              <IconButton
+                onClick={handleUserMenuOpen}
+                size="large"
+                edge="end"
                 color="inherit"
-                startIcon={<LoginIcon />}
-                onClick={() => setAuthModalOpen(true)}
-                sx={{ ml: 2 }}
               >
-                Sign In
-              </Button>
-            )}
-          </Toolbar>
-        </AppBar>
+                <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
+                  {user?.username?.[0]?.toUpperCase() || 'U'}
+                </Avatar>
+              </IconButton>
+              <Menu
+                anchorEl={userMenuAnchor}
+                open={Boolean(userMenuAnchor)}
+                onClose={handleUserMenuClose}
+                anchorOrigin={{
+                  vertical: 'bottom',
+                  horizontal: 'right',
+                }}
+                transformOrigin={{
+                  vertical: 'top',
+                  horizontal: 'right',
+                }}
+              >
+                <MenuItem onClick={handleUserMenuClose}>
+                  <AccountCircleIcon sx={{ mr: 1 }} />
+                  {user?.username || 'User'}
+                </MenuItem>
+                <Divider />
+                <MenuItem onClick={() => { handleUserMenuClose(); navigate('/settings'); }}>
+                  <SettingsIcon sx={{ mr: 1 }} />
+                  Settings
+                </MenuItem>
+                <MenuItem onClick={handleLogout}>
+                  <LogoutIcon sx={{ mr: 1 }} />
+                  Sign Out
+                </MenuItem>
+              </Menu>
+            </>
+          ) : (
+            <Button
+              color="inherit"
+              startIcon={<LoginIcon />}
+              onClick={() => setAuthModalOpen(true)}
+              sx={{ ml: 2 }}
+            >
+              Sign In
+            </Button>
+          )}
+        </Toolbar>
+      </AppBar>
 
-        <Box
-          component="nav"
-          sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}
-        >
-          <Drawer
-            variant="temporary"
-            open={mobileOpen}
-            onClose={handleDrawerToggle}
-            ModalProps={{
-              keepMounted: true, // Better open performance on mobile.
-            }}
-            sx={{
-              display: { xs: 'block', md: 'none' },
-              '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
-            }}
-          >
-            {drawer}
-          </Drawer>
-          <Drawer
-            variant="permanent"
-            sx={{
-              display: { xs: 'none', md: 'block' },
-              '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
-            }}
-            open
-          >
-            {drawer}
-          </Drawer>
-        </Box>
-
-        <Box
-          component="main"
+      <Box
+        component="nav"
+        sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}
+      >
+        <Drawer
+          variant="temporary"
+          open={mobileOpen}
+          onClose={handleDrawerToggle}
+          ModalProps={{
+            keepMounted: true, // Better open performance on mobile.
+          }}
           sx={{
-            flexGrow: 1,
-            p: 3,
-            width: { md: `calc(100% - ${drawerWidth}px)` },
-            backgroundColor: theme.palette.background.default,
-            minHeight: '100vh',
+            display: { xs: 'block', md: 'none' },
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
           }}
         >
-          <Toolbar />
-          <Container maxWidth="xl">
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/portfolio" element={<Portfolio />} />
-              <Route path="/portfolio/performance" element={<PortfolioPerformance />} />
-              <Route path="/portfolio/optimize" element={<PortfolioOptimization />} />
-              <Route path="/market" element={<MarketOverview />} />
-              <Route path="/screener-advanced" element={<AdvancedScreener />} />
-              <Route path="/scores" element={<ScoresDashboard />} />
-              <Route path="/sentiment" element={<SentimentAnalysis />} />
-              <Route path="/economic" element={<EconomicModeling />} />
-              <Route path="/metrics" element={<MetricsDashboard />} />
-              <Route path="/stocks" element={<StockExplorer />} />
-              <Route path="/stocks/:ticker" element={<StockDetail />} />
-              <Route path="/screener" element={<StockExplorer />} />
-              <Route path="/trading" element={<TradingSignals />} />
-              <Route path="/technical" element={<TechnicalAnalysis />} />
-              <Route path="/analysts" element={<AnalystInsights />} />
-              <Route path="/earnings" element={<EarningsCalendar />} />
-              <Route path="/backtest" element={<Backtest />} />
-              <Route path="/financial-data" element={<FinancialData />} />
-              <Route path="/service-health" element={<ServiceHealth />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/technical-history/:symbol" element={<TechnicalHistory />} />
-              
-              {/* Missing pages - Coming Soon */}
-              <Route path="/sectors" element={<ComingSoon pageName="Sector Analysis" description="Comprehensive sector performance analysis and comparisons." />} />
-              <Route path="/watchlist" element={<ComingSoon pageName="Watchlist" description="Track your favorite stocks and get personalized alerts." />} />
-              <Route path="/sentiment/social" element={<ComingSoon pageName="Social Media Sentiment" description="Real-time social media sentiment analysis for stocks." />} />
-              <Route path="/sentiment/news" element={<ComingSoon pageName="News Sentiment" description="AI-powered news sentiment analysis and impact predictions." />} />
-              <Route path="/sentiment/analysts" element={<AnalystInsights />} />
-              <Route path="/research/commentary" element={<ComingSoon pageName="Market Commentary" description="Expert market commentary and analysis." />} />
-              <Route path="/research/education" element={<ComingSoon pageName="Educational Content" description="Learn about investing and market analysis." />} />
-              <Route path="/research/reports" element={<ComingSoon pageName="Research Reports" description="In-depth research reports and market insights." />} />
-              <Route path="/tools/patterns" element={<ComingSoon pageName="Pattern Recognition" description="Advanced pattern recognition and technical analysis tools." />} />
-              <Route path="/tools/ai" element={<ComingSoon pageName="AI Assistant" description="Your personal AI-powered investment assistant." />} />
-            </Routes>
-          </Container>
-        </Box>
-        
-        {/* Authentication Modal */}
-        <AuthModal
-          open={authModalOpen}
-          onClose={() => setAuthModalOpen(false)}
-        />
+          {drawer}
+        </Drawer>
+        <Drawer
+          variant="permanent"
+          sx={{
+            display: { xs: 'none', md: 'block' },
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+          }}
+          open
+        >
+          {drawer}
+        </Drawer>
       </Box>
-    </ErrorBoundary>
+
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          p: 3,
+          width: { md: `calc(100% - ${drawerWidth}px)` },
+          backgroundColor: theme.palette.background.default,
+          minHeight: '100vh',
+        }}
+      >
+        <Toolbar />
+        <Container maxWidth="xl">
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/portfolio" element={<Portfolio />} />
+            <Route path="/portfolio/performance" element={<PortfolioPerformance />} />
+            <Route path="/portfolio/optimize" element={<PortfolioOptimization />} />
+            <Route path="/market" element={<MarketOverview />} />
+            <Route path="/screener-advanced" element={<AdvancedScreener />} />
+            <Route path="/scores" element={<ScoresDashboard />} />
+            <Route path="/sentiment" element={<SentimentAnalysis />} />
+            <Route path="/economic" element={<EconomicModeling />} />
+            <Route path="/metrics" element={<MetricsDashboard />} />
+            <Route path="/stocks" element={<StockExplorer />} />
+            <Route path="/stocks/:ticker" element={<StockDetail />} />
+            <Route path="/screener" element={<StockExplorer />} />
+            <Route path="/trading" element={<TradingSignals />} />
+            <Route path="/technical" element={<TechnicalAnalysis />} />
+            <Route path="/analysts" element={<AnalystInsights />} />
+            <Route path="/earnings" element={<EarningsCalendar />} />
+            <Route path="/backtest" element={<Backtest />} />
+            <Route path="/financial-data" element={<FinancialData />} />
+            <Route path="/service-health" element={<ServiceHealth />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/technical-history/:symbol" element={<TechnicalHistory />} />
+            
+            {/* Missing pages - Coming Soon */}
+            <Route path="/sectors" element={<ComingSoon pageName="Sector Analysis" description="Comprehensive sector performance analysis and comparisons." />} />
+            <Route path="/watchlist" element={<ComingSoon pageName="Watchlist" description="Track your favorite stocks and get personalized alerts." />} />
+            <Route path="/sentiment/social" element={<ComingSoon pageName="Social Media Sentiment" description="Real-time social media sentiment analysis for stocks." />} />
+            <Route path="/sentiment/news" element={<ComingSoon pageName="News Sentiment" description="AI-powered news sentiment analysis and impact predictions." />} />
+            <Route path="/sentiment/analysts" element={<AnalystInsights />} />
+            <Route path="/research/commentary" element={<ComingSoon pageName="Market Commentary" description="Expert market commentary and analysis." />} />
+            <Route path="/research/education" element={<ComingSoon pageName="Educational Content" description="Learn about investing and market analysis." />} />
+            <Route path="/research/reports" element={<ComingSoon pageName="Research Reports" description="In-depth research reports and market insights." />} />
+            <Route path="/tools/patterns" element={<ComingSoon pageName="Pattern Recognition" description="Advanced pattern recognition and technical analysis tools." />} />
+            <Route path="/tools/ai" element={<ComingSoon pageName="AI Assistant" description="Your personal AI-powered investment assistant." />} />
+          </Routes>
+        </Container>
+      </Box>
+      
+      {/* Authentication Modal */}
+      <AuthModal
+        open={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+      />
+    </Box>
   )
 }
 
