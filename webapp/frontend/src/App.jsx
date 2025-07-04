@@ -92,6 +92,7 @@ const menuItems = [
   { text: 'Stock Screener', icon: <SearchIcon />, path: '/screener-advanced', category: 'stocks' },
   { text: 'Stock Analysis', icon: <FilterListIcon />, path: '/stocks', category: 'stocks' },
   { text: 'Stock Scores', icon: <Stars />, path: '/scores', category: 'stocks', premium: true },
+  { text: 'Earnings Calendar', icon: <EventIcon />, path: '/earnings', category: 'stocks' },
   { text: 'Watchlist', icon: <TimelineIcon />, path: '/watchlist', category: 'stocks' },
   
   // Sentiment Analysis Section (Premium)
@@ -109,10 +110,12 @@ const menuItems = [
   { text: 'Market Commentary', icon: <EventIcon />, path: '/research/commentary', category: 'research' },
   { text: 'Educational Content', icon: <HealthAndSafetyIcon />, path: '/research/education', category: 'research' },
   { text: 'Research Reports', icon: <AnalyticsIcon />, path: '/research/reports', category: 'research', premium: true },
+  { text: 'Financial Data', icon: <StorageIcon />, path: '/financial-data', category: 'research' },
+  { text: 'Service Health', icon: <HealthAndSafetyIcon />, path: '/service-health', category: 'research' },
   
   // Tools Section (Premium Only)
   { text: 'Pattern Recognition', icon: <AnalyticsIcon />, path: '/tools/patterns', category: 'tools', premium: true },
-  { text: 'Economic Modeling', icon: <PublicIcon />, path: '/tools/economic', category: 'tools', premium: true },
+  { text: 'Backtester', icon: <PlayArrow />, path: '/backtest', category: 'tools', premium: true },
   { text: 'AI Assistant', icon: <PsychologyIcon />, path: '/tools/ai', category: 'tools', premium: true },
 ]
 
@@ -459,7 +462,6 @@ function App() {
               <Route path="/research/education" element={<ComingSoon pageName="Educational Content" description="Learn about investing and market analysis." />} />
               <Route path="/research/reports" element={<ComingSoon pageName="Research Reports" description="In-depth research reports and market insights." />} />
               <Route path="/tools/patterns" element={<ComingSoon pageName="Pattern Recognition" description="Advanced pattern recognition and technical analysis tools." />} />
-              <Route path="/tools/economic" element={<EconomicModeling />} />
               <Route path="/tools/ai" element={<ComingSoon pageName="AI Assistant" description="Your personal AI-powered investment assistant." />} />
             </Routes>
           </Container>
