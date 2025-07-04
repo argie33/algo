@@ -116,13 +116,9 @@ const PortfolioOptimization = () => {
     excludeList: []
   });
 
-  const isPremium = true; // Removed premium restriction - available to all users
-
   useEffect(() => {
-    if (isPremium) {
-      fetchOptimizationData();
-    }
-  }, [isPremium]);
+    fetchOptimizationData();
+  }, []);
 
   const fetchOptimizationData = async () => {
     try {
@@ -542,26 +538,6 @@ const PortfolioOptimization = () => {
     }
   ];
 
-  if (!isPremium) {
-    return (
-      <Container maxWidth="xl">
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h4" gutterBottom>
-            Portfolio Optimization
-          </Typography>
-          <Alert severity="info" sx={{ mt: 2 }}>
-            <Typography variant="body1">
-              Portfolio optimization tools are a premium feature. 
-              Upgrade your account to access AI-driven portfolio optimization, rebalancing recommendations, and advanced risk analysis.
-            </Typography>
-            <Button variant="contained" sx={{ mt: 2 }}>
-              Upgrade to Premium
-            </Button>
-          </Alert>
-        </Box>
-      </Container>
-    );
-  }
 
   if (loading) {
     return (

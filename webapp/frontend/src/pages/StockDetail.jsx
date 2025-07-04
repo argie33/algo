@@ -170,7 +170,7 @@ function StockDetail() {
     )
   }
 
-  const stockData = profile[0]
+  const stockData = profile?.[0] || {}
   const currentMetrics = metrics?.[0] || {}
   const currentFinancials = financials?.[0] || {}
   const currentRecs = recommendations?.[0] || {}
