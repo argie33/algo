@@ -241,7 +241,7 @@ const Settings = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user.tokens?.accessToken || 'dev-token'}`
+          'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
         },
         body: JSON.stringify(newApiKey)
       });
@@ -268,7 +268,7 @@ const Settings = () => {
       const response = await fetch(`${apiUrl}/api/portfolio/api-keys/${brokerName}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${user.tokens?.accessToken || 'dev-token'}`
+          'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
         }
       });
 
@@ -291,7 +291,7 @@ const Settings = () => {
       const response = await fetch(`${apiUrl}/api/portfolio/test-connection/${brokerName}`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${user.tokens?.accessToken || 'dev-token'}`
+          'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
         }
       });
 
@@ -327,7 +327,7 @@ const Settings = () => {
       const response = await fetch(`${apiUrl}/api/portfolio/import/${brokerName}`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${user.tokens?.accessToken || 'dev-token'}`
+          'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
         }
       });
 
@@ -358,12 +358,23 @@ const Settings = () => {
   };
 
   // Show loading state while authentication is being checked
-  if (loading) {
+  if (loading || isLoading) {
     return (
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
         <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
           <CircularProgress size={60} />
         </Box>
+      </Container>
+    );
+  }
+
+  // If we don't have a user object at all, show a fallback
+  if (!user && !isLoading) {
+    return (
+      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        <Alert severity="warning">
+          Unable to load user information. Please try refreshing the page.
+        </Alert>
       </Container>
     );
   }
@@ -482,14 +493,14 @@ const Settings = () => {
                 <CardContent>
                   <Box display="flex" alignItems="center" mb={2}>
                     <Avatar sx={{ mr: 2, width: 56, height: 56 }}>
-                      {(user.firstName?.[0] || user.username?.[0] || 'U').toUpperCase()}
+                      {(user?.firstName?.[0] || user?.username?.[0] || 'U').toUpperCase()}
                     </Avatar>
                     <Box>
                       <Typography variant="h6">
-                        {user.firstName} {user.lastName}
+                        {user?.firstName || 'Unknown'} {user?.lastName || 'User'}
                       </Typography>
                       <Typography color="text.secondary">
-                        {user.email}
+                        {user?.email || 'No email provided'}
                       </Typography>
                     </Box>
                   </Box>
@@ -506,7 +517,7 @@ const Settings = () => {
                     <ListItem>
                       <ListItemText
                         primary="Member Since"
-                        secondary={new Date(user.createdAt || Date.now()).toLocaleDateString()}
+                        secondary={new Date(user?.createdAt || Date.now()).toLocaleDateString()}
                       />
                     </ListItem>
                   </List>
