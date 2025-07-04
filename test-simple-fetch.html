@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .result { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .success { background-color: #d4edda; }
+        .error { background-color: #f8d7da; }
+        button { padding: 10px 20px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>API Test</h1>
+    <button onclick="testHealth()">Test Health</button>
+    <button onclick="testPerformance()">Test Portfolio Performance</button>
+    <button onclick="testAnalytics()">Test Portfolio Analytics</button>
+    <div id="results"></div>
+
+    <script>
+        const apiUrl = 'https://ye9syrnj8c.execute-api.us-east-1.amazonaws.com/dev';
+        
+        function log(message, type = 'info') {
+            const resultsDiv = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
+            resultsDiv.appendChild(div);
+            console.log(message);
+        }
+
+        async function testHealth() {
+            try {
+                log('Testing health endpoint...');
+                const response = await fetch(`${apiUrl}/health`);
+                const data = await response.json();
+                log(`Health check success: ${JSON.stringify(data, null, 2)}`, 'success');
+            } catch (error) {
+                log(`Health check failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testPerformance() {
+            try {
+                log('Testing portfolio performance endpoint...');
+                const response = await fetch(`${apiUrl}/portfolio/performance?timeframe=1Y`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                log(`Performance API success: ${data.success ? 'true' : 'false'}, data points: ${data.data?.performance?.length || 0}`, 'success');
+                log(`Sample data: ${JSON.stringify(data.data?.performance?.[0] || {}, null, 2)}`);
+            } catch (error) {
+                log(`Performance API failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testAnalytics() {
+            try {
+                log('Testing portfolio analytics endpoint...');
+                const response = await fetch(`${apiUrl}/portfolio/analytics?timeframe=1Y`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                log(`Analytics API success: ${data.success ? 'true' : 'false'}, holdings: ${data.data?.holdings?.length || 0}`, 'success');
+                log(`Sample holding: ${JSON.stringify(data.data?.holdings?.[0] || {}, null, 2)}`);
+            } catch (error) {
+                log(`Analytics API failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Test on page load
+        window.onload = function() {
+            log('Page loaded, testing APIs...');
+            testHealth();
+            setTimeout(testPerformance, 1000);
+            setTimeout(testAnalytics, 2000);
+        };
+    </script>
+</body>
+</html>
