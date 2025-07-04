@@ -639,6 +639,104 @@ router.delete('/api-keys/:brokerName', async (req, res) => {
   }
 });
 
+// Test broker connection
+router.post('/test-connection/:brokerName', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { brokerName } = req.params;
+    
+    console.log(`Testing connection for user ${userId}, broker: ${brokerName}`);
+    
+    // Get encrypted API credentials
+    const keyQuery = `
+      SELECT encrypted_api_key, encrypted_api_secret, key_iv, key_auth_tag, 
+             secret_iv, secret_auth_tag, is_sandbox
+      FROM user_api_keys 
+      WHERE user_id = $1 AND broker_name = $2
+    `;
+    
+    const keyResult = await query(keyQuery, [userId, brokerName]);
+    
+    if (keyResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No API key found for this broker. Please connect your account first.',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const keyData = keyResult.rows[0];
+    const userSalt = crypto.createHash('sha256').update(userId).digest('hex').slice(0, 16);
+    
+    // Decrypt API credentials
+    const apiKey = decryptApiKey({
+      encrypted: keyData.encrypted_api_key,
+      iv: keyData.key_iv,
+      authTag: keyData.key_auth_tag
+    }, userSalt);
+    
+    const apiSecret = keyData.encrypted_api_secret ? decryptApiKey({
+      encrypted: keyData.encrypted_api_secret,
+      iv: keyData.secret_iv,
+      authTag: keyData.secret_auth_tag
+    }, userSalt) : null;
+    
+    // Test connection based on broker
+    let connectionResult;
+    switch (brokerName.toLowerCase()) {
+      case 'alpaca':
+        const AlpacaService = require('../utils/alpacaService');
+        const alpaca = new AlpacaService(apiKey, apiSecret, keyData.is_sandbox);
+        connectionResult = await alpaca.validateCredentials();
+        
+        if (connectionResult.valid) {
+          // Get basic account info
+          const account = await alpaca.getAccount();
+          connectionResult.accountInfo = {
+            accountId: account.accountId,
+            status: account.status,
+            portfolioValue: account.portfolioValue,
+            cash: account.cash,
+            environment: account.environment
+          };
+        }
+        break;
+        
+      default:
+        return res.status(400).json({
+          success: false,
+          error: `Broker '${brokerName}' connection testing not yet implemented`,
+          supportedBrokers: ['alpaca'],
+          timestamp: new Date().toISOString()
+        });
+    }
+    
+    // Update last used timestamp if connection successful
+    if (connectionResult.valid) {
+      await query(
+        'UPDATE user_api_keys SET last_used = CURRENT_TIMESTAMP WHERE user_id = $1 AND broker_name = $2',
+        [userId, brokerName]
+      );
+    }
+    
+    res.json({
+      success: true,
+      connection: connectionResult,
+      broker: brokerName,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error(`Connection test error for broker ${req.params.brokerName}:`, error.message);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to test broker connection',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Import portfolio from connected broker
 router.post('/import/:brokerName', async (req, res) => {
   try {
@@ -737,18 +835,69 @@ router.post('/import/:brokerName', async (req, res) => {
   }
 });
 
-// Broker-specific import functions (placeholder implementations)
+// Broker-specific import functions
 async function importFromAlpaca(apiKey, apiSecret, sandbox) {
-  // TODO: Implement Alpaca API integration
-  // For now, return mock data
-  return {
-    holdings: [
-      { symbol: 'AAPL', quantity: 10, market_value: 1500, cost_basis: 1400 },
-      { symbol: 'MSFT', quantity: 5, market_value: 1000, cost_basis: 950 }
-    ],
-    totalValue: 2500,
-    summary: { positions: 2, cash: 500 }
-  };
+  try {
+    const AlpacaService = require('../utils/alpacaService');
+    const alpaca = new AlpacaService(apiKey, apiSecret, sandbox);
+    
+    // Validate credentials first
+    const validation = await alpaca.validateCredentials();
+    if (!validation.valid) {
+      throw new Error(`Invalid Alpaca credentials: ${validation.error}`);
+    }
+    
+    console.log(`🔗 Connected to Alpaca ${validation.environment} environment`);
+    
+    // Get comprehensive portfolio data
+    const portfolioSummary = await alpaca.getPortfolioSummary();
+    
+    // Transform Alpaca positions to our format
+    const holdings = portfolioSummary.positions.map(position => ({
+      symbol: position.symbol,
+      quantity: position.quantity,
+      market_value: position.marketValue,
+      cost_basis: position.costBasis,
+      pnl: position.unrealizedPL,
+      pnl_percent: position.unrealizedPLPercent,
+      weight: portfolioSummary.summary.totalValue > 0 ? 
+        (position.marketValue / portfolioSummary.summary.totalValue) : 0,
+      sector: position.sector || 'Unknown',
+      current_price: position.currentPrice,
+      average_entry_price: position.averageEntryPrice,
+      day_change: position.unrealizedIntradayPL,
+      day_change_percent: position.unrealizedIntradayPLPercent,
+      exchange: position.exchange,
+      asset_class: position.assetClass,
+      last_updated: position.lastUpdated
+    }));
+    
+    return {
+      holdings: holdings,
+      totalValue: portfolioSummary.summary.totalValue,
+      summary: {
+        positions: holdings.length,
+        cash: portfolioSummary.summary.totalCash,
+        totalPnL: portfolioSummary.summary.totalPnL,
+        totalPnLPercent: portfolioSummary.summary.totalPnLPercent,
+        dayPnL: portfolioSummary.summary.dayPnL,
+        dayPnLPercent: portfolioSummary.summary.dayPnLPercent,
+        buyingPower: portfolioSummary.summary.buyingPower,
+        accountStatus: portfolioSummary.account.status,
+        environment: validation.environment
+      },
+      account: portfolioSummary.account,
+      performance: portfolioSummary.performance,
+      sectorAllocation: portfolioSummary.sectorAllocation,
+      riskMetrics: portfolioSummary.riskMetrics,
+      broker: 'alpaca',
+      importedAt: new Date().toISOString()
+    };
+    
+  } catch (error) {
+    console.error('Alpaca import error:', error.message);
+    throw new Error(`Failed to import from Alpaca: ${error.message}`);
+  }
 }
 
 async function importFromRobinhood(apiKey, apiSecret, sandbox) {
@@ -770,28 +919,117 @@ async function importFromTDAmeritrade(apiKey, apiSecret, sandbox) {
 }
 
 async function storeImportedPortfolio(userId, portfolioData) {
-  // Clear existing holdings for this user
-  await query('DELETE FROM portfolio_holdings WHERE user_id = $1', [userId]);
+  const client = await query('BEGIN');
   
-  // Insert new holdings
-  for (const holding of portfolioData.holdings) {
-    const insertHoldingQuery = `
-      INSERT INTO portfolio_holdings (
-        user_id, symbol, quantity, market_value, cost_basis, 
-        weight, last_updated
-      ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+  try {
+    // Clear existing holdings for this user
+    await query('DELETE FROM portfolio_holdings WHERE user_id = $1', [userId]);
+    
+    // Store portfolio metadata
+    const portfolioMetaQuery = `
+      INSERT INTO portfolio_metadata (
+        user_id, broker, total_value, total_cash, total_pnl, 
+        total_pnl_percent, day_pnl, day_pnl_percent, 
+        positions_count, account_status, environment, imported_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP)
+      ON CONFLICT (user_id, broker) 
+      DO UPDATE SET
+        total_value = EXCLUDED.total_value,
+        total_cash = EXCLUDED.total_cash,
+        total_pnl = EXCLUDED.total_pnl,
+        total_pnl_percent = EXCLUDED.total_pnl_percent,
+        day_pnl = EXCLUDED.day_pnl,
+        day_pnl_percent = EXCLUDED.day_pnl_percent,
+        positions_count = EXCLUDED.positions_count,
+        account_status = EXCLUDED.account_status,
+        environment = EXCLUDED.environment,
+        imported_at = CURRENT_TIMESTAMP
     `;
     
-    const weight = portfolioData.totalValue > 0 ? holding.market_value / portfolioData.totalValue : 0;
-    
-    await query(insertHoldingQuery, [
+    await query(portfolioMetaQuery, [
       userId,
-      holding.symbol,
-      holding.quantity,
-      holding.market_value,
-      holding.cost_basis,
-      weight
+      portfolioData.broker || 'unknown',
+      portfolioData.totalValue || 0,
+      portfolioData.summary?.cash || 0,
+      portfolioData.summary?.totalPnL || 0,
+      portfolioData.summary?.totalPnLPercent || 0,
+      portfolioData.summary?.dayPnL || 0,
+      portfolioData.summary?.dayPnLPercent || 0,
+      portfolioData.holdings?.length || 0,
+      portfolioData.summary?.accountStatus || 'unknown',
+      portfolioData.summary?.environment || 'unknown'
     ]);
+    
+    // Insert new holdings with enhanced data
+    for (const holding of portfolioData.holdings) {
+      const insertHoldingQuery = `
+        INSERT INTO portfolio_holdings (
+          user_id, symbol, quantity, market_value, cost_basis, 
+          pnl, pnl_percent, weight, sector, current_price,
+          average_entry_price, day_change, day_change_percent,
+          exchange, asset_class, broker, last_updated
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, CURRENT_TIMESTAMP)
+      `;
+      
+      await query(insertHoldingQuery, [
+        userId,
+        holding.symbol,
+        holding.quantity || 0,
+        holding.market_value || 0,
+        holding.cost_basis || 0,
+        holding.pnl || 0,
+        holding.pnl_percent || 0,
+        holding.weight || 0,
+        holding.sector || 'Unknown',
+        holding.current_price || 0,
+        holding.average_entry_price || 0,
+        holding.day_change || 0,
+        holding.day_change_percent || 0,
+        holding.exchange || '',
+        holding.asset_class || 'equity',
+        portfolioData.broker || 'unknown'
+      ]);
+    }
+    
+    // Store performance history if available
+    if (portfolioData.performance && portfolioData.performance.length > 0) {
+      // Clear existing performance data
+      await query('DELETE FROM portfolio_performance WHERE user_id = $1', [userId]);
+      
+      for (const perfData of portfolioData.performance) {
+        const insertPerfQuery = `
+          INSERT INTO portfolio_performance (
+            user_id, date, total_value, daily_pnl, daily_pnl_percent,
+            total_pnl, total_pnl_percent, broker
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          ON CONFLICT (user_id, date, broker) DO UPDATE SET
+            total_value = EXCLUDED.total_value,
+            daily_pnl = EXCLUDED.daily_pnl,
+            daily_pnl_percent = EXCLUDED.daily_pnl_percent,
+            total_pnl = EXCLUDED.total_pnl,
+            total_pnl_percent = EXCLUDED.total_pnl_percent
+        `;
+        
+        await query(insertPerfQuery, [
+          userId,
+          perfData.date,
+          perfData.equity || 0,
+          perfData.profitLoss || 0,
+          perfData.profitLossPercent || 0,
+          perfData.equity - (perfData.baseValue || 0),
+          perfData.profitLossPercent || 0,
+          portfolioData.broker || 'unknown'
+        ]);
+      }
+    }
+    
+    await query('COMMIT');
+    console.log(`✅ Portfolio data stored successfully for user ${userId}`);
+    
+  } catch (error) {
+    await query('ROLLBACK');
+    console.error('Error storing portfolio data:', error);
+    throw new Error(`Failed to store portfolio data: ${error.message}`);
   }
 }
 

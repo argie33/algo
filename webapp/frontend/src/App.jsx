@@ -67,6 +67,9 @@ import TechnicalHistory from './pages/TechnicalHistory'
 import Backtest from './pages/Backtest'
 import TradingSignals from './pages/TradingSignals'
 import Portfolio from './pages/Portfolio'
+import PortfolioHoldings from './pages/PortfolioHoldings'
+import PortfolioPerformance from './pages/PortfolioPerformance'
+import PortfolioOptimization from './pages/PortfolioOptimization'
 import SentimentAnalysis from './pages/SentimentAnalysis'
 import AdvancedScreener from './pages/AdvancedScreener'
 import EconomicModeling from './pages/EconomicModeling'
@@ -103,7 +106,8 @@ const menuItems = [
   { text: 'Analyst Insights', icon: <PersonIcon />, path: '/sentiment/analysts', category: 'sentiment', premium: true },
   
   // Portfolio Section
-  { text: 'Portfolio Tracking', icon: <AccountBalanceIcon />, path: '/portfolio', category: 'portfolio' },
+  { text: 'Portfolio Overview', icon: <AccountBalanceIcon />, path: '/portfolio', category: 'portfolio' },
+  { text: 'Holdings Tracking', icon: <AccountBalanceIcon />, path: '/portfolio/holdings', category: 'portfolio' },
   { text: 'Performance Analysis', icon: <AssessmentIcon />, path: '/portfolio/performance', category: 'portfolio', premium: true },
   { text: 'Optimization Tools', icon: <AnalyticsIcon />, path: '/portfolio/optimize', category: 'portfolio', premium: true },
   
@@ -432,6 +436,9 @@ function App() {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/portfolio" element={<Portfolio />} />
+              <Route path="/portfolio/holdings" element={<PortfolioHoldings />} />
+              <Route path="/portfolio/performance" element={<PortfolioPerformance />} />
+              <Route path="/portfolio/optimize" element={<PortfolioOptimization />} />
               <Route path="/market" element={<MarketOverview />} />
               <Route path="/screener-advanced" element={<AdvancedScreener />} />
               <Route path="/scores" element={<ScoresDashboard />} />
@@ -457,8 +464,6 @@ function App() {
               <Route path="/sentiment/social" element={<ComingSoon pageName="Social Media Sentiment" description="Real-time social media sentiment analysis for stocks." />} />
               <Route path="/sentiment/news" element={<ComingSoon pageName="News Sentiment" description="AI-powered news sentiment analysis and impact predictions." />} />
               <Route path="/sentiment/analysts" element={<AnalystInsights />} />
-              <Route path="/portfolio/performance" element={<ComingSoon pageName="Performance Analysis" description="Advanced portfolio performance analytics and attribution." />} />
-              <Route path="/portfolio/optimize" element={<ComingSoon pageName="Portfolio Optimization" description="AI-driven portfolio optimization and rebalancing suggestions." />} />
               <Route path="/research/commentary" element={<ComingSoon pageName="Market Commentary" description="Expert market commentary and analysis." />} />
               <Route path="/research/education" element={<ComingSoon pageName="Educational Content" description="Learn about investing and market analysis." />} />
               <Route path="/research/reports" element={<ComingSoon pageName="Research Reports" description="In-depth research reports and market insights." />} />

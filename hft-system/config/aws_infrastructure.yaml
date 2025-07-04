@@ -1,0 +1,296 @@
+# AWS HFT System Infrastructure Configuration
+# Optimized for ultra-low latency trading on AWS
+# Minimizing VPC usage for maximum performance
+
+infrastructure:
+  # AWS Region Configuration
+  primary_region: "us-east-1"  # Closest to major exchanges
+  dr_region: "us-west-2"       # Disaster recovery
+  
+  # Networking Strategy - Minimal VPC usage
+  networking:
+    # Only VPC components that absolutely require it
+    vpc_components:
+      # RDS requires VPC
+      database_subnet: "10.0.1.0/24"
+      # EFS requires VPC  
+      storage_subnet: "10.0.2.0/24"
+      # ALB/NLB for internal communication
+      loadbalancer_subnet: "10.0.3.0/24"
+    
+    # Direct EC2-Classic style deployment where possible
+    ec2_classic_mode:
+      enabled: true
+      components:
+        - "trading_engines"
+        - "market_data_handlers" 
+        - "risk_managers"
+        - "signal_generators"
+    
+    # Enhanced networking for low latency
+    placement_groups:
+      trading_cluster: "cluster"           # Physical proximity
+      market_data_cluster: "cluster"
+    
+    # Dedicated Tenancy for critical components
+    tenancy: "dedicated"
+    
+    # Direct internet connectivity (no NAT gateway latency)
+    internet_gateway: "direct"
+    
+    # Direct Connect for market data feeds (outside VPC)
+    direct_connect:
+      enabled: true
+      bandwidth: "10Gbps"
+      deployment: "classic"  # Not VPC-based
+      exchanges:
+        - "NYSE"
+        - "NASDAQ" 
+        - "CME"
+        - "ICE"
+
+# Compute Configuration - High Performance Instances
+compute:
+  # Trading Engine Servers - EC2 Classic deployment
+  trading_servers:
+    instance_type: "c6in.8xlarge"    # Intel 3rd gen, 100 Gbps networking
+    count: 2                         # Active/standby
+    deployment_mode: "ec2_classic"   # Outside VPC for max performance
+    
+    cpu_optimization:
+      cpu_credits: "unlimited"
+      enhanced_networking: true
+      sriov: true
+      placement_group: "trading_cluster"
+      dedicated_tenancy: true
+      
+      # CPU affinity and isolation
+      cpu_isolation: "1-7"           # Reserve cores 1-7 for trading
+      cpu_governor: "performance"
+      hyperthreading: false          # Disable for consistent latency
+    
+    # Local NVMe storage (no EBS latency)
+    storage:
+      primary:
+        type: "instance_store"       # Local NVMe SSDs
+        raid: "raid0"                # Stripe for performance
+      backup:
+        type: "io2"                  # EBS for persistence
+        size: 1000
+        iops: 64000
+    
+    # Memory Configuration
+    memory_optimization:
+      huge_pages: "2MB"              # Enable huge pages
+      numa_aware: true
+      memory_locking: true           # Lock critical data in RAM
+      
+  # Market Data Servers  
+  market_data_servers:
+    instance_type: "c6in.4xlarge"
+    count: 3                         # Redundancy for feeds
+    placement_group: "market_data_cluster"
+    
+    # Enhanced networking for data ingestion
+    networking:
+      enhanced_networking: true
+      elastic_fabric_adapter: true
+    
+  # Risk Management Servers
+  risk_servers:
+    instance_type: "r6i.2xlarge"    # Memory optimized
+    count: 2                        # Active/standby
+    
+  # GPU Instances for ML/Analytics
+  ml_servers:
+    instance_type: "p4d.xlarge"     # A100 GPU
+    count: 1                        # On-demand scaling
+    use_spot: false                 # Reliability over cost
+
+# Database Configuration
+databases:
+  # Time-series data (InfluxDB on EC2)
+  timeseries:
+    instance_type: "r6i.xlarge"
+    storage_type: "io2"
+    storage_size: 2000
+    iops: 32000
+    
+  # Operational data (RDS PostgreSQL)
+  operational:
+    engine: "postgres"
+    instance_class: "db.r6i.xlarge"
+    allocated_storage: 1000
+    storage_type: "io1"
+    iops: 10000
+    multi_az: true
+    
+  # In-memory cache (ElastiCache Redis)
+  cache:
+    node_type: "r6g.xlarge"
+    num_cache_nodes: 3
+    cluster_mode: true
+
+# Container Infrastructure (ECS with EC2)
+containers:
+  cluster_name: "hft-trading-cluster"
+  
+  # Task definitions
+  services:
+    trading_engine:
+      cpu: 4096
+      memory: 8192
+      placement_strategy: "binpack"
+      
+    market_data_handler:
+      cpu: 2048
+      memory: 4096
+      
+    risk_manager:
+      cpu: 1024
+      memory: 2048
+      
+    signal_generator:
+      cpu: 2048
+      memory: 4096
+
+# Storage Configuration
+storage:
+  # Market data storage
+  market_data:
+    hot_storage:
+      type: "EFS"
+      throughput_mode: "max_io"
+      performance_mode: "max_io"
+    
+    warm_storage:
+      type: "S3"
+      storage_class: "STANDARD_IA"
+      
+    cold_storage:
+      type: "S3_GLACIER"
+      
+  # Application logs
+  logs:
+    type: "CloudWatch_Logs"
+    retention_days: 90
+
+# Monitoring & Observability
+monitoring:
+  # CloudWatch Enhanced Monitoring
+  cloudwatch:
+    detailed_monitoring: true
+    custom_metrics: true
+    
+  # X-Ray for distributed tracing
+  xray:
+    enabled: true
+    sampling_rate: 0.1
+    
+  # Performance monitoring
+  performance:
+    # Custom StatsD for microsecond metrics
+    statsd_enabled: true
+    # Prometheus for application metrics
+    prometheus_enabled: true
+
+# Security Configuration
+security:
+  # WAF for external APIs
+  waf:
+    enabled: true
+    
+  # VPC Security
+  vpc_flow_logs: true
+  
+  # IAM Roles with least privilege
+  iam:
+    trading_role: "arn:aws:iam::account:role/HFT-Trading-Role"
+    data_role: "arn:aws:iam::account:role/HFT-Data-Role"
+    risk_role: "arn:aws:iam::account:role/HFT-Risk-Role"
+    
+  # Encryption
+  encryption:
+    at_rest: true
+    in_transit: true
+    kms_key: "alias/hft-trading-key"
+
+# Auto Scaling Configuration
+autoscaling:
+  # Predictive scaling for known patterns
+  predictive_scaling: true
+  
+  # Target tracking for CPU/Memory
+  target_tracking:
+    cpu_target: 70
+    memory_target: 80
+    
+  # Custom metrics scaling
+  custom_metrics:
+    - metric: "latency_p99"
+      target: 100  # microseconds
+    - metric: "order_queue_depth"
+      target: 1000
+
+# Cost Optimization
+cost_optimization:
+  # Reserved Instances for predictable workloads
+  reserved_instances:
+    enabled: true
+    term: "1year"
+    
+  # Spot instances for non-critical workloads
+  spot_instances:
+    enabled: true
+    max_price: "0.50"
+    
+  # Scheduled scaling
+  scheduled_scaling:
+    market_hours_only: true
+    
+# Disaster Recovery
+disaster_recovery:
+  # RTO/RPO targets
+  rto_minutes: 5
+  rpo_minutes: 1
+  
+  # Cross-region replication
+  replication:
+    database: true
+    storage: true
+    configuration: true
+    
+  # Automated failover
+  automated_failover: true
+
+# Compliance & Audit
+compliance:
+  # CloudTrail for API auditing
+  cloudtrail:
+    enabled: true
+    log_group: "hft-audit-logs"
+    
+  # Config for compliance monitoring
+  config:
+    enabled: true
+    
+  # GuardDuty for threat detection
+  guardduty:
+    enabled: true
+
+# Environment-specific overrides
+environments:
+  production:
+    instance_sizes: "production"
+    monitoring_level: "detailed"
+    backup_frequency: "continuous"
+    
+  staging:
+    instance_sizes: "half_production"
+    monitoring_level: "standard"
+    backup_frequency: "daily"
+    
+  development:
+    instance_sizes: "minimal"
+    monitoring_level: "basic"
+    backup_frequency: "weekly"

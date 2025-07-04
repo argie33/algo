@@ -46,6 +46,178 @@ const api = axios.create({
 // Export the api instance for direct use
 export { api }
 
+// Portfolio API functions
+export const getPortfolioData = async () => {
+  try {
+    const response = await api.get('/api/portfolio/holdings');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching portfolio data:', error);
+    throw error;
+  }
+};
+
+export const addHolding = async (holding) => {
+  try {
+    const response = await api.post('/api/portfolio/holdings', holding);
+    return response.data;
+  } catch (error) {
+    console.error('Error adding holding:', error);
+    throw error;
+  }
+};
+
+export const updateHolding = async (holdingId, holding) => {
+  try {
+    const response = await api.put(`/api/portfolio/holdings/${holdingId}`, holding);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating holding:', error);
+    throw error;
+  }
+};
+
+export const deleteHolding = async (holdingId) => {
+  try {
+    const response = await api.delete(`/api/portfolio/holdings/${holdingId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error deleting holding:', error);
+    throw error;
+  }
+};
+
+export const importPortfolioFromBroker = async (broker) => {
+  try {
+    const response = await api.post(`/api/portfolio/import/${broker}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error importing portfolio from broker:', error);
+    throw error;
+  }
+};
+
+export const getPortfolioPerformance = async (timeframe = '1Y') => {
+  try {
+    const response = await api.get(`/api/portfolio/performance?timeframe=${timeframe}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching portfolio performance:', error);
+    throw error;
+  }
+};
+
+export const getPortfolioAnalytics = async (timeframe = '1Y') => {
+  try {
+    const response = await api.get(`/api/portfolio/analytics?timeframe=${timeframe}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching portfolio analytics:', error);
+    throw error;
+  }
+};
+
+export const getBenchmarkData = async (timeframe = '1Y') => {
+  try {
+    const response = await api.get(`/api/portfolio/benchmark?timeframe=${timeframe}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching benchmark data:', error);
+    throw error;
+  }
+};
+
+export const getPortfolioOptimizationData = async () => {
+  try {
+    const response = await api.get('/api/portfolio/optimization');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching optimization data:', error);
+    throw error;
+  }
+};
+
+export const runPortfolioOptimization = async (params) => {
+  try {
+    const response = await api.post('/api/portfolio/optimization/run', params);
+    return response.data;
+  } catch (error) {
+    console.error('Error running portfolio optimization:', error);
+    throw error;
+  }
+};
+
+export const getRebalancingRecommendations = async () => {
+  try {
+    const response = await api.get('/api/portfolio/rebalance');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching rebalancing recommendations:', error);
+    throw error;
+  }
+};
+
+export const getRiskAnalysis = async () => {
+  try {
+    const response = await api.get('/api/portfolio/risk');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching risk analysis:', error);
+    throw error;
+  }
+};
+
+// API Keys management
+export const getApiKeys = async () => {
+  try {
+    const response = await api.get('/api/settings/api-keys');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching API keys:', error);
+    throw error;
+  }
+};
+
+export const addApiKey = async (apiKeyData) => {
+  try {
+    const response = await api.post('/api/settings/api-keys', apiKeyData);
+    return response.data;
+  } catch (error) {
+    console.error('Error adding API key:', error);
+    throw error;
+  }
+};
+
+export const updateApiKey = async (keyId, apiKeyData) => {
+  try {
+    const response = await api.put(`/api/settings/api-keys/${keyId}`, apiKeyData);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating API key:', error);
+    throw error;
+  }
+};
+
+export const deleteApiKey = async (keyId) => {
+  try {
+    const response = await api.delete(`/api/settings/api-keys/${keyId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error deleting API key:', error);
+    throw error;
+  }
+};
+
+export const testApiConnection = async (keyId) => {
+  try {
+    const response = await api.post(`/api/settings/api-keys/${keyId}/test`);
+    return response.data;
+  } catch (error) {
+    console.error('Error testing API connection:', error);
+    throw error;
+  }
+};
+
 // Function to get current base URL
 export const getCurrentBaseURL = () => {
   return currentConfig.baseURL
@@ -1538,6 +1710,79 @@ export const getFearGreedData = async (params = {}) => {
     return { data: [], error: errorMessage }
   }
 }
+
+// Get price history data from price_daily/weekly/monthly tables
+export const getPriceHistory = async (timeframe = 'daily', params = {}) => {
+  console.log(`📈 [API] Fetching price history for timeframe: ${timeframe}`, params);
+  
+  try {
+    const queryParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value);
+      }
+    });
+    
+    // Try multiple endpoint variations
+    const endpoints = [
+      `/price/history/${timeframe}?${queryParams.toString()}`,
+      `/api/price/history/${timeframe}?${queryParams.toString()}`
+    ];
+    
+    let response = null;
+    let lastError = null;
+    
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`📈 [API] Trying price history endpoint: ${endpoint}`);
+        response = await api.get(endpoint);
+        console.log(`📈 [API] SUCCESS with price history endpoint: ${endpoint}`, response);
+        break;
+      } catch (err) {
+        console.log(`📈 [API] FAILED price history endpoint: ${endpoint}`, err.message);
+        lastError = err;
+        continue;
+      }
+    }
+    
+    if (!response) {
+      console.error('📈 [API] All price history endpoints failed:', lastError);
+      throw lastError;
+    }
+    
+    console.log('📈 [API] Price history raw response:', response.data);
+    
+    // Handle backend response structure: { success: true, data: [...], pagination: {...} }
+    if (response.data && response.data.success && Array.isArray(response.data.data)) {
+      console.log('📈 [API] Price history backend structure:', response.data);
+      return {
+        data: response.data.data,
+        pagination: response.data.pagination,
+        statistics: response.data.statistics,
+        metadata: response.data.metadata
+      };
+    }
+    
+    // Fallback: normalize the response
+    const normalizedData = normalizeApiResponse(response, true);
+    return {
+      data: normalizedData,
+      pagination: response.data?.pagination || null,
+      statistics: response.data?.statistics || null,
+      metadata: response.data?.metadata || null
+    };
+    
+  } catch (error) {
+    console.error('❌ [API] Price history error details:', error);
+    const errorMessage = handleApiError(error, 'get price history');
+    return { 
+      data: [], 
+      error: errorMessage,
+      pagination: null,
+      timestamp: new Date().toISOString()
+    };
+  }
+};
 
 // Patch all API methods to always return normalizeApiResponse 
 export const getTechnicalData = async (timeframe = 'daily', params = {}) => {

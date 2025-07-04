@@ -66,7 +66,8 @@ import {
   TrendingUp,
   MonetizationOn
 } from '@mui/icons-material';
-// import { getApiConfig } from '../utils/apiConfig';
+import { getApiConfig } from '../services/api';
+import SettingsApiKeys from './SettingsApiKeys';
 
 function TabPanel({ children, value, index, ...other }) {
   return (
@@ -262,6 +263,42 @@ const Settings = () => {
     }
   };
 
+  const handleTestConnection = async (brokerName) => {
+    try {
+      setLoading(true);
+      
+      const response = await fetch(`${apiUrl}/api/portfolio/test-connection/${brokerName}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${user.tokens?.accessToken || 'dev-token'}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.connection.valid) {
+          const accountInfo = data.connection.accountInfo;
+          showSnackbar(
+            `✅ Connection successful! Account: ${accountInfo.accountId}, 
+            Portfolio Value: $${accountInfo.portfolioValue?.toLocaleString()}, 
+            Environment: ${accountInfo.environment}`, 
+            'success'
+          );
+        } else {
+          showSnackbar(`❌ Connection failed: ${data.connection.error}`, 'error');
+        }
+      } else {
+        const error = await response.json();
+        showSnackbar(error.error || 'Failed to test connection', 'error');
+      }
+    } catch (error) {
+      console.error('Error testing connection:', error);
+      showSnackbar('Failed to test connection', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleImportPortfolio = async (brokerName) => {
     try {
       setLoading(true);
@@ -275,7 +312,18 @@ const Settings = () => {
 
       if (response.ok) {
         const data = await response.json();
-        showSnackbar(`Portfolio imported: ${data.summary.positions} positions, ${data.summary.totalValue} total value`);
+        const summary = data.data.summary;
+        showSnackbar(
+          `✅ Portfolio imported! ${summary.positions} positions, 
+          $${summary.totalValue?.toLocaleString()} total value, 
+          $${summary.totalPnL?.toLocaleString()} P&L (${summary.totalPnLPercent?.toFixed(2)}%)`, 
+          'success'
+        );
+        
+        // Refresh the page or redirect to portfolio view
+        setTimeout(() => {
+          window.location.href = '/portfolio';
+        }, 2000);
       } else {
         const error = await response.json();
         showSnackbar(error.error || 'Failed to import portfolio', 'error');
@@ -449,87 +497,7 @@ const Settings = () => {
 
         {/* API Keys Tab */}
         <TabPanel value={activeTab} index={1}>
-          <Card>
-            <CardHeader
-              title="Broker API Keys"
-              subheader="Connect your brokerage accounts to sync portfolio data"
-              action={
-                <Button
-                  variant="contained"
-                  startIcon={<Add />}
-                  onClick={() => setAddApiKeyDialog(true)}
-                >
-                  Add API Key
-                </Button>
-              }
-            />
-            <CardContent>
-              {apiKeys.length === 0 ? (
-                <Alert severity="info" sx={{ mb: 2 }}>
-                  No API keys configured. Add your brokerage API keys to automatically sync your portfolio data.
-                </Alert>
-              ) : (
-                <TableContainer>
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Broker</TableCell>
-                        <TableCell>Environment</TableCell>
-                        <TableCell>Last Used</TableCell>
-                        <TableCell>Status</TableCell>
-                        <TableCell align="right">Actions</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {apiKeys.map((key) => (
-                        <TableRow key={key.broker_name}>
-                          <TableCell>
-                            <Box display="flex" alignItems="center">
-                              <BusinessCenter sx={{ mr: 1 }} />
-                              {key.broker_name.charAt(0).toUpperCase() + key.broker_name.slice(1)}
-                            </Box>
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              label={key.is_sandbox ? 'Sandbox' : 'Live'}
-                              color={key.is_sandbox ? 'warning' : 'success'}
-                              size="small"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            {key.last_used ? new Date(key.last_used).toLocaleDateString() : 'Never'}
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              label="Connected"
-                              color="success"
-                              size="small"
-                              icon={<CheckCircle />}
-                            />
-                          </TableCell>
-                          <TableCell align="right">
-                            <IconButton
-                              onClick={() => handleImportPortfolio(key.broker_name)}
-                              title="Import Portfolio"
-                            >
-                              <CloudUpload />
-                            </IconButton>
-                            <IconButton
-                              onClick={() => handleDeleteApiKey(key.broker_name)}
-                              color="error"
-                              title="Delete API Key"
-                            >
-                              <Delete />
-                            </IconButton>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              )}
-            </CardContent>
-          </Card>
+          <SettingsApiKeys />
         </TabPanel>
 
         {/* Notifications Tab */}

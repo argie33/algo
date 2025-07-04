@@ -10,6 +10,7 @@
     "deploy-package": "npm run package && aws lambda update-function-code --function-name financial-dashboard-api --zip-file fileb://function.zip"
   },
   "dependencies": {
+    "@alpacahq/alpaca-trade-api": "^3.0.3",
     "@aws-sdk/client-cognito-identity-provider": "^3.840.0",
     "@aws-sdk/client-secrets-manager": "^3.454.0",
     "@aws-sdk/rds-signer": "^3.454.0",

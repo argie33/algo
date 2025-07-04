@@ -95,43 +95,52 @@ export function AuthProvider({ children }) {
     try {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
       
-      // DEVELOPMENT MODE - Auto-login with test user
-      const isDevelopmentMode = import.meta.env.DEV || !isCognitoConfigured();
+      // Check if we're in a real production environment
+      const isProductionBuild = import.meta.env.PROD;
+      const cognitoConfigured = isCognitoConfigured();
       
-      if (isDevelopmentMode) {
-        console.log('🔧 DEVELOPMENT MODE - Auto-login enabled');
+      // Use Cognito in production or when properly configured
+      if (isProductionBuild && cognitoConfigured) {
+        console.log('🚀 PRODUCTION MODE - Using AWS Cognito authentication');
         
-        // Create a mock development user
-        const devUser = {
-          username: 'dev_user',
-          userId: 'dev-user-123',
-          email: 'dev@example.com',
-          firstName: 'Developer',
-          lastName: 'User',
-          isPremium: true // Enable all features in dev mode
-        };
-        
-        const devTokens = {
-          accessToken: 'dev-access-token',
-          idToken: 'dev-id-token',
-          refreshToken: 'dev-refresh-token'
-        };
-        
-        dispatch({
-          type: AUTH_ACTIONS.LOGIN_SUCCESS,
-          payload: {
-            user: devUser,
-            tokens: devTokens
+        try {
+          // Get current authenticated user
+          const user = await getCurrentUser();
+          
+          // Get current session with tokens
+          const session = await fetchAuthSession();
+          
+          if (user && session.tokens) {
+            dispatch({
+              type: AUTH_ACTIONS.LOGIN_SUCCESS,
+              payload: {
+                user: {
+                  username: user.username,
+                  userId: user.userId,
+                  email: user.signInDetails?.loginId || user.username,
+                  firstName: user.userAttributes?.given_name || '',
+                  lastName: user.userAttributes?.family_name || '',
+                  signInDetails: user.signInDetails
+                },
+                tokens: {
+                  accessToken: session.tokens.accessToken.toString(),
+                  idToken: session.tokens.idToken?.toString(),
+                  refreshToken: session.tokens.refreshToken?.toString()
+                }
+              }
+            });
+            console.log('✅ User authenticated with Cognito');
+            return;
           }
-        });
-        
-        console.log('✅ Development user logged in automatically');
-        return;
+        } catch (error) {
+          console.log('No Cognito session found:', error);
+        }
       }
       
-      // If Cognito is not configured, use dev auth
-      if (!isCognitoConfigured()) {
-        console.log('Cognito not configured - using development authentication');
+      // Development fallback when Cognito is not configured
+      if (!cognitoConfigured && import.meta.env.DEV) {
+        console.log('🔧 DEVELOPMENT MODE - Cognito not configured, using dev auth fallback');
+        
         try {
           const user = await devAuth.getCurrentUser();
           const session = await devAuth.fetchAuthSession();
@@ -144,43 +153,19 @@ export function AuthProvider({ children }) {
                 tokens: session.tokens
               }
             });
-          } else {
-            dispatch({ type: AUTH_ACTIONS.LOGOUT });
+            console.log('✅ Development user authenticated');
+            return;
           }
         } catch (error) {
           console.log('No dev auth session found');
-          dispatch({ type: AUTH_ACTIONS.LOGOUT });
         }
-        return;
       }
       
-      // Get current authenticated user
-      const user = await getCurrentUser();
+      // No valid session found
+      dispatch({ type: AUTH_ACTIONS.LOGOUT });
       
-      // Get current session with tokens
-      const session = await fetchAuthSession();
-      
-      if (user && session.tokens) {
-        dispatch({
-          type: AUTH_ACTIONS.LOGIN_SUCCESS,
-          payload: {
-            user: {
-              username: user.username,
-              userId: user.userId,
-              signInDetails: user.signInDetails
-            },
-            tokens: {
-              accessToken: session.tokens.accessToken.toString(),
-              idToken: session.tokens.idToken?.toString(),
-              refreshToken: session.tokens.refreshToken?.toString()
-            }
-          }
-        });
-      } else {
-        dispatch({ type: AUTH_ACTIONS.LOGOUT });
-      }
     } catch (error) {
-      console.log('No authenticated user found:', error);
+      console.log('Authentication check failed:', error);
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
     }
   };
@@ -190,9 +175,58 @@ export function AuthProvider({ children }) {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
       dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
 
-      // If Cognito is not configured, use dev auth
-      if (!isCognitoConfigured()) {
-        console.log('Cognito not configured - using development authentication');
+      const isProductionBuild = import.meta.env.PROD;
+      const cognitoConfigured = isCognitoConfigured();
+
+      // Use Cognito in production or when properly configured
+      if (isProductionBuild && cognitoConfigured) {
+        console.log('🚀 PRODUCTION LOGIN - Using AWS Cognito');
+        
+        const { isSignedIn, nextStep } = await signIn({
+          username,
+          password
+        });
+
+        if (isSignedIn) {
+          // Get user and session after successful sign in
+          const user = await getCurrentUser();
+          const session = await fetchAuthSession();
+          
+          dispatch({
+            type: AUTH_ACTIONS.LOGIN_SUCCESS,
+            payload: {
+              user: {
+                username: user.username,
+                userId: user.userId,
+                email: user.signInDetails?.loginId || user.username,
+                firstName: user.userAttributes?.given_name || '',
+                lastName: user.userAttributes?.family_name || '',
+                signInDetails: user.signInDetails
+              },
+              tokens: {
+                accessToken: session.tokens.accessToken.toString(),
+                idToken: session.tokens.idToken?.toString(),
+                refreshToken: session.tokens.refreshToken?.toString()
+              }
+            }
+          });
+          
+          console.log('✅ Production login successful');
+          return { success: true };
+        } else {
+          // Handle additional steps (MFA, password change, etc.)
+          return { 
+            success: false, 
+            nextStep: nextStep,
+            message: 'Additional authentication step required'
+          };
+        }
+      }
+
+      // Development fallback when Cognito is not configured
+      if (!cognitoConfigured && import.meta.env.DEV) {
+        console.log('🔧 DEVELOPMENT LOGIN - Using dev auth fallback');
+        
         try {
           const result = await devAuth.signIn(username, password);
           
@@ -204,6 +238,7 @@ export function AuthProvider({ children }) {
             }
           });
           
+          console.log('✅ Development login successful');
           return { success: true };
         } catch (error) {
           console.error('Dev auth login error:', error);
@@ -213,41 +248,9 @@ export function AuthProvider({ children }) {
         }
       }
 
-      const { isSignedIn, nextStep } = await signIn({
-        username,
-        password
-      });
+      // If we get here, neither production nor development auth is available
+      throw new Error('Authentication service is not properly configured');
 
-      if (isSignedIn) {
-        // Get user and session after successful sign in
-        const user = await getCurrentUser();
-        const session = await fetchAuthSession();
-        
-        dispatch({
-          type: AUTH_ACTIONS.LOGIN_SUCCESS,
-          payload: {
-            user: {
-              username: user.username,
-              userId: user.userId,
-              signInDetails: user.signInDetails
-            },
-            tokens: {
-              accessToken: session.tokens.accessToken.toString(),
-              idToken: session.tokens.idToken?.toString(),
-              refreshToken: session.tokens.refreshToken?.toString()
-            }
-          }
-        });
-        
-        return { success: true };
-      } else {
-        // Handle additional steps (MFA, password change, etc.)
-        return { 
-          success: false, 
-          nextStep: nextStep,
-          message: 'Additional authentication step required'
-        };
-      }
     } catch (error) {
       console.error('Login error:', error);
       const errorMessage = getErrorMessage(error);
