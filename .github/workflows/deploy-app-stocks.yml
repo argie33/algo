@@ -1,7 +1,55 @@
-name: Deploy App Stocks
+name: deploy-app-stocks
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - '*'
+  pull_request:
+    branches:
+      - '*'
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+  AWS_ROLE_SESSION: github-deploy
+  FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+
+jobs:
+################################################################################
+# Path filtering                                                              #
+################################################################################
+  filter:
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.filter.outputs.app }}
+      tasks: ${{ steps.filter.outputs.tasks }}
+      qualitymetrics: ${{ steps.filter.outputs.qualitymetrics }}
+      valuemetrics: ${{ steps.filter.outputs.valuemetrics }}
+      stepfunctions: ${{ steps.filter.outputs.stepfunctions }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            app:
+              - 'cloudformation/template-app-stocks.yml'
+              - '.github/workflows/deploy-app-stocks.yml'
+            tasks:
+              - 'cloudformation/template-app-ecs-tasks.yml'
+              - 'requirements.txt'
+              - 'scripts/**'
+            qualitymetrics:
+              - 'scripts/quality-metrics/**'
+            valuemetrics:
+              - 'scripts/value-metrics/**'
+            stepfunctions:
+              - 'cloudformation/template-step-functions-orchestration.yml'
 
 # 6) Run value-metrics loader
   run_valuemetrics:
@@ -180,30 +228,6 @@ on:
             echo "❌ Quality-metrics failed with exit code $EXIT"
             exit $EXIT
           fi
-# Workflow name
-name: deploy-app-stocks
-
-# Event triggers
-on:
-  push:
-    branches:
-      - '*'
-  pull_request:
-    branches:
-      - '*'
-
-# Permissions
-permissions:
-  id-token: write
-  contents: read
-
-env:
-  AWS_REGION: us-east-1
-  AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
-  AWS_ROLE_SESSION: github-deploy
-  FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-
-jobs:
 ################################################################################
 # 1) Deploy core infrastructure (RDS, Secrets, ECS cluster)                    #
 ################################################################################
