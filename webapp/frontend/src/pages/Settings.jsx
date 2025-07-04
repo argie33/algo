@@ -88,7 +88,7 @@ function TabPanel({ children, value, index, ...other }) {
 }
 
 const Settings = () => {
-  const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, logout, checkAuthState } = useAuth();
   const navigate = useNavigate();
   const { apiUrl } = getApiConfig();
   
@@ -146,8 +146,12 @@ const Settings = () => {
   useEffect(() => {
     if (isAuthenticated && user) {
       loadUserSettings();
+    } else if (!isLoading && !user && !isAuthenticated) {
+      // If we're not loading, have no user, and not authenticated, try to re-check auth
+      console.log('Settings: No user found, attempting to re-check authentication');
+      checkAuthState();
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, isLoading]);
 
   const loadUserSettings = async () => {
     try {
@@ -170,6 +174,36 @@ const Settings = () => {
         console.error('API keys loading failed:', apiError);
         showSnackbar(`Failed to load API keys: ${apiError.message}`, 'error');
         // Don't fail the entire settings load if API keys fail
+      }
+
+      // Load notification preferences
+      try {
+        const notifResponse = await fetch(`${apiUrl}/api/user/notifications`, {
+          headers: {
+            'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
+          }
+        });
+        if (notifResponse.ok) {
+          const notifData = await notifResponse.json();
+          setNotifications(prev => ({ ...prev, ...notifData.preferences }));
+        }
+      } catch (error) {
+        console.log('Failed to load notification preferences, using defaults');
+      }
+
+      // Load theme preferences
+      try {
+        const themeResponse = await fetch(`${apiUrl}/api/user/theme`, {
+          headers: {
+            'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
+          }
+        });
+        if (themeResponse.ok) {
+          const themeData = await themeResponse.json();
+          setThemeSettings(prev => ({ ...prev, ...themeData.preferences }));
+        }
+      } catch (error) {
+        console.log('Failed to load theme preferences, using defaults');
       }
       
     } catch (error) {
@@ -223,8 +257,30 @@ const Settings = () => {
   const handleSaveProfile = async () => {
     try {
       setLoading(true);
-      // TODO: Implement profile update API call
-      showSnackbar('Profile updated successfully');
+      
+      const response = await fetch(`${apiUrl}/api/user/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
+        },
+        body: JSON.stringify(profileData)
+      });
+
+      if (response.ok) {
+        const updatedUser = await response.json();
+        showSnackbar('Profile updated successfully');
+        
+        // Update the user context with new data
+        if (updatedUser.user) {
+          // This would typically update the auth context
+          // For now, just refresh the settings
+          await loadUserSettings();
+        }
+      } else {
+        const error = await response.json();
+        showSnackbar(error.error || 'Failed to update profile', 'error');
+      }
     } catch (error) {
       console.error('Error saving profile:', error);
       showSnackbar('Failed to update profile', 'error');
@@ -357,6 +413,201 @@ const Settings = () => {
     }
   };
 
+  const handleSaveNotifications = async () => {
+    try {
+      setLoading(true);
+      
+      const response = await fetch(`${apiUrl}/api/user/notifications`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
+        },
+        body: JSON.stringify(notifications)
+      });
+
+      if (response.ok) {
+        showSnackbar('Notification preferences updated successfully');
+      } else {
+        const error = await response.json();
+        showSnackbar(error.error || 'Failed to update notification preferences', 'error');
+      }
+    } catch (error) {
+      console.error('Error saving notifications:', error);
+      showSnackbar('Failed to update notification preferences', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveTheme = async () => {
+    try {
+      setLoading(true);
+      
+      const response = await fetch(`${apiUrl}/api/user/theme`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
+        },
+        body: JSON.stringify(themeSettings)
+      });
+
+      if (response.ok) {
+        showSnackbar('Theme preferences updated successfully');
+      } else {
+        const error = await response.json();
+        showSnackbar(error.error || 'Failed to update theme preferences', 'error');
+      }
+    } catch (error) {
+      console.error('Error saving theme:', error);
+      showSnackbar('Failed to update theme preferences', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    // TODO: Implement password change dialog
+    showSnackbar('Password change functionality will be available soon', 'info');
+  };
+
+  const handleToggleTwoFactor = async () => {
+    try {
+      setLoading(true);
+      
+      const action = user?.twoFactorEnabled ? 'disable' : 'enable';
+      const response = await fetch(`${apiUrl}/api/user/two-factor/${action}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        showSnackbar(
+          user?.twoFactorEnabled 
+            ? 'Two-factor authentication disabled' 
+            : 'Two-factor authentication enabled'
+        );
+        
+        // Show QR code or setup instructions if enabling
+        if (!user?.twoFactorEnabled && data.qrCode) {
+          showSnackbar('Please scan the QR code with your authenticator app', 'info');
+        }
+        
+        // Refresh user settings
+        await loadUserSettings();
+      } else {
+        const error = await response.json();
+        showSnackbar(error.error || 'Failed to toggle two-factor authentication', 'error');
+      }
+    } catch (error) {
+      console.error('Error toggling two-factor auth:', error);
+      showSnackbar('Failed to toggle two-factor authentication', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadRecoveryCodes = async () => {
+    try {
+      setLoading(true);
+      
+      const response = await fetch(`${apiUrl}/api/user/recovery-codes`, {
+        headers: {
+          'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Create and download recovery codes file
+        const codesText = data.codes.join('\n');
+        const blob = new Blob([codesText], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'recovery-codes.txt';
+        link.click();
+        URL.revokeObjectURL(url);
+        
+        showSnackbar('Recovery codes downloaded successfully', 'success');
+      } else {
+        const error = await response.json();
+        showSnackbar(error.error || 'Failed to download recovery codes', 'error');
+      }
+    } catch (error) {
+      console.error('Error downloading recovery codes:', error);
+      showSnackbar('Failed to download recovery codes', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+      if (window.confirm('This will permanently delete all your data. Type "DELETE" to confirm.')) {
+        const userInput = window.prompt('Type "DELETE" to confirm account deletion:');
+        if (userInput === 'DELETE') {
+          try {
+            setLoading(true);
+            
+            const response = await fetch(`${apiUrl}/api/user/delete-account`, {
+              method: 'DELETE',
+              headers: {
+                'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
+              }
+            });
+
+            if (response.ok) {
+              showSnackbar('Account deleted successfully', 'success');
+              await logout();
+              navigate('/');
+            } else {
+              const error = await response.json();
+              showSnackbar(error.error || 'Failed to delete account', 'error');
+            }
+          } catch (error) {
+            console.error('Error deleting account:', error);
+            showSnackbar('Failed to delete account', 'error');
+          } finally {
+            setLoading(false);
+          }
+        }
+      }
+    }
+  };
+
+  const handleRevokeAllSessions = async () => {
+    if (window.confirm('This will sign you out of all devices except this one. Continue?')) {
+      try {
+        setLoading(true);
+        
+        const response = await fetch(`${apiUrl}/api/user/revoke-sessions`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
+          }
+        });
+
+        if (response.ok) {
+          showSnackbar('All other sessions have been revoked', 'success');
+        } else {
+          const error = await response.json();
+          showSnackbar(error.error || 'Failed to revoke sessions', 'error');
+        }
+      } catch (error) {
+        console.error('Error revoking sessions:', error);
+        showSnackbar('Failed to revoke sessions', 'error');
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
   // Show loading state while authentication is being checked
   if (loading || isLoading) {
     return (
@@ -368,12 +619,32 @@ const Settings = () => {
     );
   }
 
-  // If we don't have a user object at all, show a fallback
+  // If we don't have a user object at all, show a fallback with more options
   if (!user && !isLoading) {
     return (
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-        <Alert severity="warning">
-          Unable to load user information. Please try refreshing the page.
+        <Alert 
+          severity="warning" 
+          action={
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button 
+                color="inherit" 
+                size="small" 
+                onClick={() => window.location.reload()}
+              >
+                Refresh
+              </Button>
+              <Button 
+                color="inherit" 
+                size="small" 
+                onClick={() => navigate('/login')}
+              >
+                Login
+              </Button>
+            </Box>
+          }
+        >
+          Unable to load user information. This may be due to an expired session or authentication issue.
         </Alert>
       </Container>
     );
@@ -535,72 +806,88 @@ const Settings = () => {
         {/* Notifications Tab */}
         <TabPanel value={activeTab} index={2}>
           <Card>
-            <CardHeader title="Notification Preferences" />
+            <CardHeader 
+              title="Notification Preferences" 
+              action={
+                <Button
+                  variant="contained"
+                  startIcon={<Save />}
+                  onClick={handleSaveNotifications}
+                  disabled={loading}
+                >
+                  Save
+                </Button>
+              }
+            />
             <CardContent>
               <Grid container spacing={3}>
                 <Grid item xs={12} md={6}>
                   <Typography variant="h6" gutterBottom>
                     Delivery Methods
                   </Typography>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={notifications.email}
-                        onChange={(e) => setNotifications({ ...notifications, email: e.target.checked })}
-                      />
-                    }
-                    label="Email Notifications"
-                  />
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={notifications.push}
-                        onChange={(e) => setNotifications({ ...notifications, push: e.target.checked })}
-                      />
-                    }
-                    label="Push Notifications"
-                  />
+                  <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={notifications.email}
+                          onChange={(e) => setNotifications({ ...notifications, email: e.target.checked })}
+                        />
+                      }
+                      label="Email Notifications"
+                    />
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={notifications.push}
+                          onChange={(e) => setNotifications({ ...notifications, push: e.target.checked })}
+                        />
+                      }
+                      label="Push Notifications"
+                    />
+                  </Box>
                 </Grid>
                 <Grid item xs={12} md={6}>
                   <Typography variant="h6" gutterBottom>
                     Content Types
                   </Typography>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={notifications.priceAlerts}
-                        onChange={(e) => setNotifications({ ...notifications, priceAlerts: e.target.checked })}
-                      />
-                    }
-                    label="Price Alerts"
-                  />
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={notifications.portfolioUpdates}
-                        onChange={(e) => setNotifications({ ...notifications, portfolioUpdates: e.target.checked })}
-                      />
-                    }
-                    label="Portfolio Updates"
-                  />
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={notifications.marketNews}
-                        onChange={(e) => setNotifications({ ...notifications, marketNews: e.target.checked })}
-                      />
-                    }
-                    label="Market News"
-                  />
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={notifications.weeklyReports}
-                        onChange={(e) => setNotifications({ ...notifications, weeklyReports: e.target.checked })}
-                      />
-                    }
-                    label="Weekly Reports"
-                  />
+                  <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={notifications.priceAlerts}
+                          onChange={(e) => setNotifications({ ...notifications, priceAlerts: e.target.checked })}
+                        />
+                      }
+                      label="Price Alerts"
+                    />
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={notifications.portfolioUpdates}
+                          onChange={(e) => setNotifications({ ...notifications, portfolioUpdates: e.target.checked })}
+                        />
+                      }
+                      label="Portfolio Updates"
+                    />
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={notifications.marketNews}
+                          onChange={(e) => setNotifications({ ...notifications, marketNews: e.target.checked })}
+                        />
+                      }
+                      label="Market News"
+                    />
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={notifications.weeklyReports}
+                          onChange={(e) => setNotifications({ ...notifications, weeklyReports: e.target.checked })}
+                        />
+                      }
+                      label="Weekly Reports"
+                    />
+                  </Box>
                 </Grid>
               </Grid>
             </CardContent>
@@ -610,23 +897,67 @@ const Settings = () => {
         {/* Appearance Tab */}
         <TabPanel value={activeTab} index={3}>
           <Card>
-            <CardHeader title="Appearance Settings" />
+            <CardHeader 
+              title="Appearance Settings" 
+              action={
+                <Button
+                  variant="contained"
+                  startIcon={<Save />}
+                  onClick={handleSaveTheme}
+                  disabled={loading}
+                >
+                  Save
+                </Button>
+              }
+            />
             <CardContent>
               <Grid container spacing={3}>
                 <Grid item xs={12} md={6}>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={themeSettings.darkMode}
-                        onChange={(e) => setThemeSettings({ ...themeSettings, darkMode: e.target.checked })}
-                      />
-                    }
-                    label="Dark Mode"
-                  />
+                  <Typography variant="h6" gutterBottom>
+                    Theme Settings
+                  </Typography>
+                  <Box sx={{ mb: 2 }}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={themeSettings.darkMode}
+                          onChange={(e) => setThemeSettings({ ...themeSettings, darkMode: e.target.checked })}
+                        />
+                      }
+                      label="Dark Mode"
+                    />
+                  </Box>
+                  <FormControl fullWidth sx={{ mb: 2 }}>
+                    <InputLabel>Primary Color</InputLabel>
+                    <Select
+                      value={themeSettings.primaryColor}
+                      onChange={(e) => setThemeSettings({ ...themeSettings, primaryColor: e.target.value })}
+                    >
+                      <MenuItem value="#1976d2">Blue</MenuItem>
+                      <MenuItem value="#2e7d32">Green</MenuItem>
+                      <MenuItem value="#ed6c02">Orange</MenuItem>
+                      <MenuItem value="#9c27b0">Purple</MenuItem>
+                      <MenuItem value="#d32f2f">Red</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <FormControl fullWidth>
+                    <InputLabel>Layout Style</InputLabel>
+                    <Select
+                      value={themeSettings.layout}
+                      onChange={(e) => setThemeSettings({ ...themeSettings, layout: e.target.value })}
+                    >
+                      <MenuItem value="standard">Standard</MenuItem>
+                      <MenuItem value="compact">Compact</MenuItem>
+                      <MenuItem value="spacious">Spacious</MenuItem>
+                    </Select>
+                  </FormControl>
                 </Grid>
                 <Grid item xs={12} md={6}>
-                  <FormControl fullWidth>
-                    <InputLabel>Chart Style</InputLabel>
+                  <Typography variant="h6" gutterBottom>
+                    Chart Settings
+                  </Typography>
+                  <FormControl fullWidth sx={{ mb: 2 }}>
+                    <InputLabel>Default Chart Style</InputLabel>
                     <Select
                       value={themeSettings.chartStyle}
                       onChange={(e) => setThemeSettings({ ...themeSettings, chartStyle: e.target.value })}
@@ -634,8 +965,12 @@ const Settings = () => {
                       <MenuItem value="candlestick">Candlestick</MenuItem>
                       <MenuItem value="line">Line</MenuItem>
                       <MenuItem value="area">Area</MenuItem>
+                      <MenuItem value="bar">Bar</MenuItem>
                     </Select>
                   </FormControl>
+                  <Alert severity="info">
+                    Theme changes will be applied immediately. Some changes may require a page refresh.
+                  </Alert>
                 </Grid>
               </Grid>
             </CardContent>
@@ -649,11 +984,34 @@ const Settings = () => {
               <Card>
                 <CardHeader title="Password & Authentication" />
                 <CardContent>
-                  <Button variant="outlined" fullWidth sx={{ mb: 2 }}>
+                  <Button 
+                    variant="outlined" 
+                    fullWidth 
+                    sx={{ mb: 2 }}
+                    startIcon={<Security />}
+                    onClick={handleChangePassword}
+                    disabled={loading}
+                  >
                     Change Password
                   </Button>
-                  <Button variant="outlined" fullWidth>
-                    Enable Two-Factor Authentication
+                  <Button 
+                    variant="outlined" 
+                    fullWidth 
+                    sx={{ mb: 2 }}
+                    startIcon={<Security />}
+                    onClick={handleToggleTwoFactor}
+                    disabled={loading}
+                  >
+                    {user?.twoFactorEnabled ? 'Disable' : 'Enable'} Two-Factor Authentication
+                  </Button>
+                  <Button 
+                    variant="outlined" 
+                    fullWidth
+                    startIcon={<Download />}
+                    onClick={handleDownloadRecoveryCodes}
+                    disabled={loading || !user?.twoFactorEnabled}
+                  >
+                    Download Recovery Codes
                   </Button>
                 </CardContent>
               </Card>
@@ -667,6 +1025,7 @@ const Settings = () => {
                     fullWidth
                     onClick={logout}
                     sx={{ mb: 2 }}
+                    disabled={loading}
                   >
                     Sign Out
                   </Button>
@@ -674,8 +1033,44 @@ const Settings = () => {
                     variant="outlined"
                     color="error"
                     fullWidth
+                    startIcon={<Warning />}
+                    onClick={handleDeleteAccount}
+                    disabled={loading}
                   >
                     Delete Account
+                  </Button>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12}>
+              <Card>
+                <CardHeader title="Active Sessions" />
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Manage your active login sessions across different devices.
+                  </Typography>
+                  <List>
+                    <ListItem>
+                      <ListItemIcon>
+                        <CheckCircle color="success" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Current Session"
+                        secondary={`${navigator.userAgent.includes('Chrome') ? 'Chrome' : 'Browser'} on ${navigator.platform} - ${new Date().toLocaleString()}`}
+                      />
+                      <ListItemSecondaryAction>
+                        <Chip label="Current" color="primary" size="small" />
+                      </ListItemSecondaryAction>
+                    </ListItem>
+                  </List>
+                  <Button
+                    variant="outlined"
+                    color="warning"
+                    startIcon={<Security />}
+                    onClick={handleRevokeAllSessions}
+                    disabled={loading}
+                  >
+                    Revoke All Other Sessions
                   </Button>
                 </CardContent>
               </Card>
