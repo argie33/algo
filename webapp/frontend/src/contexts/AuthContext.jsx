@@ -95,6 +95,40 @@ export function AuthProvider({ children }) {
     try {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
       
+      // DEVELOPMENT MODE - Auto-login with test user
+      const isDevelopmentMode = import.meta.env.DEV || !isCognitoConfigured();
+      
+      if (isDevelopmentMode) {
+        console.log('🔧 DEVELOPMENT MODE - Auto-login enabled');
+        
+        // Create a mock development user
+        const devUser = {
+          username: 'dev_user',
+          userId: 'dev-user-123',
+          email: 'dev@example.com',
+          firstName: 'Developer',
+          lastName: 'User',
+          isPremium: true // Enable all features in dev mode
+        };
+        
+        const devTokens = {
+          accessToken: 'dev-access-token',
+          idToken: 'dev-id-token',
+          refreshToken: 'dev-refresh-token'
+        };
+        
+        dispatch({
+          type: AUTH_ACTIONS.LOGIN_SUCCESS,
+          payload: {
+            user: devUser,
+            tokens: devTokens
+          }
+        });
+        
+        console.log('✅ Development user logged in automatically');
+        return;
+      }
+      
       // If Cognito is not configured, use dev auth
       if (!isCognitoConfigured()) {
         console.log('Cognito not configured - using development authentication');

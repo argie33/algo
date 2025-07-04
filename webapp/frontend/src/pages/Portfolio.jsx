@@ -145,10 +145,29 @@ const Portfolio = () => {
   const [portfolioData, setPortfolioData] = useState(mockPortfolioData);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  
+  // State variables that were defined later but used earlier
+  const [addHoldingDialog, setAddHoldingDialog] = useState(false);
+  const [orderBy, setOrderBy] = useState('allocation');
+  const [order, setOrder] = useState('desc');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [timeframe, setTimeframe] = useState('1Y');
+  const [riskToggle, setRiskToggle] = useState('standard');
+  const [riskSubTab, setRiskSubTab] = useState(0);
+  const [riskAlertDialogOpen, setRiskAlertDialogOpen] = useState(false);
+  const [newRiskAlert, setNewRiskAlert] = useState({
+    symbol: '',
+    metric: 'volatility',
+    threshold: 25,
+    condition: 'above'
+  });
 
-  // Authentication guard
+  // Authentication guard - disabled in development mode
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    // Skip authentication check in development mode
+    const isDevelopmentMode = import.meta.env.DEV;
+    if (!isDevelopmentMode && !isLoading && !isAuthenticated) {
       navigate('/login');
     }
   }, [isAuthenticated, isLoading, navigate]);
@@ -186,8 +205,8 @@ const Portfolio = () => {
       // Use real portfolio data from database
       setPortfolioData({
         ...portfolioResponse.data,
-        userId: user.userId,
-        username: user.username,
+        userId: user?.userId,
+        username: user?.username,
         lastUpdated: new Date().toISOString(),
         preferences: {
           displayCurrency: 'USD',
@@ -207,7 +226,7 @@ const Portfolio = () => {
 
   // ⚠️ MOCK DATA - Generate realistic portfolio data that simulates market conditions
   // This function generates mock portfolio data and should be replaced with real API calls
-  const generateRealisticPortfolioData = (user) => {
+  /* const generateRealisticPortfolioData = (user) => {
     const now = new Date();
     const marketOpen = now.getHours() >= 9 && now.getHours() < 16; // Simple market hours check
     
@@ -276,7 +295,7 @@ const Portfolio = () => {
       riskMetrics: generateRiskMetrics(holdings),
       stressTests: generateStressTests()
     };
-  };
+  }; */
 
   // ⚠️ MOCK DATA - Replace with real API when available
   const generatePerformanceHistory = () => {
@@ -357,25 +376,9 @@ const Portfolio = () => {
   }
 
   // Don't render anything if not authenticated (will redirect)
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !import.meta.env.DEV) {
     return null;
   }
-  
-  const [addHoldingDialog, setAddHoldingDialog] = useState(false);
-  const [orderBy, setOrderBy] = useState('allocation');
-  const [order, setOrder] = useState('desc');
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(25);
-  const [timeframe, setTimeframe] = useState('1Y');
-  const [riskToggle, setRiskToggle] = useState('standard');
-  const [riskSubTab, setRiskSubTab] = useState(0);
-  const [riskAlertDialogOpen, setRiskAlertDialogOpen] = useState(false);
-  const [newRiskAlert, setNewRiskAlert] = useState({
-    symbol: '',
-    metric: 'volatility',
-    threshold: 25,
-    condition: 'above'
-  });
 
   // Advanced portfolio metrics calculations
   const portfolioMetrics = useMemo(() => {

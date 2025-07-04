@@ -26,7 +26,7 @@ function ProtectedRoute({ children, requireAuth = true, fallback = null }) {
   }
 
   // If authentication is required but user is not authenticated
-  if (requireAuth && !isAuthenticated) {
+  if (requireAuth && !isAuthenticated && !import.meta.env.DEV) {
     if (fallback) {
       return fallback;
     }

@@ -75,6 +75,7 @@ import ScoresDashboard from './pages/ScoresDashboard'
 import { useAuth } from './contexts/AuthContext'
 import AuthModal from './components/auth/AuthModal'
 import ProtectedRoute from './components/auth/ProtectedRoute'
+import ComingSoon from './pages/ComingSoon'
 
 const drawerWidth = 240
 
@@ -445,6 +446,21 @@ function App() {
               <Route path="/service-health" element={<ServiceHealth />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/technical-history/:symbol" element={<TechnicalHistory />} />
+              
+              {/* Missing pages - Coming Soon */}
+              <Route path="/sectors" element={<ComingSoon pageName="Sector Analysis" description="Comprehensive sector performance analysis and comparisons." />} />
+              <Route path="/watchlist" element={<ComingSoon pageName="Watchlist" description="Track your favorite stocks and get personalized alerts." />} />
+              <Route path="/sentiment/social" element={<ComingSoon pageName="Social Media Sentiment" description="Real-time social media sentiment analysis for stocks." />} />
+              <Route path="/sentiment/news" element={<ComingSoon pageName="News Sentiment" description="AI-powered news sentiment analysis and impact predictions." />} />
+              <Route path="/sentiment/analysts" element={<AnalystInsights />} />
+              <Route path="/portfolio/performance" element={<ComingSoon pageName="Performance Analysis" description="Advanced portfolio performance analytics and attribution." />} />
+              <Route path="/portfolio/optimize" element={<ComingSoon pageName="Portfolio Optimization" description="AI-driven portfolio optimization and rebalancing suggestions." />} />
+              <Route path="/research/commentary" element={<ComingSoon pageName="Market Commentary" description="Expert market commentary and analysis." />} />
+              <Route path="/research/education" element={<ComingSoon pageName="Educational Content" description="Learn about investing and market analysis." />} />
+              <Route path="/research/reports" element={<ComingSoon pageName="Research Reports" description="In-depth research reports and market insights." />} />
+              <Route path="/tools/patterns" element={<ComingSoon pageName="Pattern Recognition" description="Advanced pattern recognition and technical analysis tools." />} />
+              <Route path="/tools/economic" element={<EconomicModeling />} />
+              <Route path="/tools/ai" element={<ComingSoon pageName="AI Assistant" description="Your personal AI-powered investment assistant." />} />
             </Routes>
           </Container>
         </Box>
