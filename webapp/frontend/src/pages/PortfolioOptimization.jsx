@@ -61,7 +61,7 @@ import {
   Line
 } from 'recharts';
 import {
-  OptimizeOutlined as OptimizeIcon,
+  Tune as OptimizeIcon,
   TrendingUp,
   TrendingDown,
   Analytics,
