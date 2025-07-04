@@ -175,7 +175,7 @@ router.get('/analytics', async (req, res) => {
       },
       timestamp: new Date().toISOString(),
       isMockData: true
-    });
+    };
     
     res.json(mockPortfolioData);
   }
@@ -273,7 +273,7 @@ router.get('/risk-analysis', async (req, res) => {
       },
       timestamp: new Date().toISOString(),
       isMockData: true
-    });
+    };
     
     res.json(mockRiskData);
   }
@@ -670,7 +670,7 @@ router.get('/optimization', async (req, res) => {
       },
       timestamp: new Date().toISOString(),
       isMockData: true
-    });
+    };
     
     res.json(mockOptimizationData);
   }

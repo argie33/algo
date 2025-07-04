@@ -102,15 +102,72 @@ const PortfolioHoldings = () => {
   const fetchHoldings = async () => {
     try {
       setLoading(true);
-      const data = await getPortfolioData();
+      const response = await getPortfolioData();
       
-      if (data?.holdings) {
-        setHoldings(data.holdings);
-        setPortfolioSummary(data.summary || portfolioSummary);
+      // Handle both direct data and wrapped response structures
+      const data = response?.data || response;
+      
+      if (data?.holdings && Array.isArray(data.holdings)) {
+        // Transform API data to component format
+        const transformedHoldings = data.holdings.map(holding => ({
+          id: holding.id || holding.symbol,
+          symbol: holding.symbol,
+          companyName: holding.name || holding.company || holding.companyName,
+          quantity: holding.quantity,
+          costBasis: holding.avgCost || holding.cost_basis || holding.averageEntryPrice || holding.average_entry_price,
+          currentPrice: holding.currentPrice || holding.current_price,
+          marketValue: holding.marketValue || holding.market_value,
+          gainLoss: holding.unrealizedPnl || holding.pnl || holding.gainLoss,
+          gainLossPercent: holding.unrealizedPnlPercent || holding.pnl_percent || holding.gainLossPercent,
+          dayChange: holding.dayChange || holding.day_change,
+          dayChangePercent: holding.dayChangePercent || holding.day_change_percent,
+          sector: holding.sector,
+          weight: holding.weight,
+          purchaseDate: holding.purchaseDate
+        }));
+        
+        setHoldings(transformedHoldings);
+        
+        // Transform summary data
+        const transformedSummary = {
+          totalValue: data.summary?.totalValue || data.totalValue || transformedHoldings.reduce((sum, h) => sum + (h.marketValue || 0), 0),
+          totalCost: data.summary?.totalCost || transformedHoldings.reduce((sum, h) => sum + ((h.costBasis || 0) * (h.quantity || 0)), 0),
+          totalGainLoss: data.summary?.totalPnl || data.summary?.totalGainLoss || transformedHoldings.reduce((sum, h) => sum + (h.gainLoss || 0), 0),
+          totalGainLossPercent: data.summary?.totalPnlPercent || data.summary?.totalGainLossPercent || 0,
+          dayGainLoss: data.summary?.dayPnl || data.summary?.dayGainLoss || transformedHoldings.reduce((sum, h) => sum + (h.dayChange || 0), 0),
+          dayGainLossPercent: data.summary?.dayPnlPercent || data.summary?.dayGainLossPercent || 0,
+          cashBalance: data.summary?.cash || data.summary?.cashBalance || 0
+        };
+        
+        setPortfolioSummary(transformedSummary);
+      } else {
+        // If no holdings data, show empty state
+        setHoldings([]);
+        setPortfolioSummary({
+          totalValue: 0,
+          totalCost: 0,
+          totalGainLoss: 0,
+          totalGainLossPercent: 0,
+          dayGainLoss: 0,
+          dayGainLossPercent: 0,
+          cashBalance: 0
+        });
       }
     } catch (err) {
-      setError('Failed to fetch portfolio holdings');
       console.error('Holdings fetch error:', err);
+      setError('Failed to fetch portfolio holdings');
+      
+      // Set empty state on error
+      setHoldings([]);
+      setPortfolioSummary({
+        totalValue: 0,
+        totalCost: 0,
+        totalGainLoss: 0,
+        totalGainLossPercent: 0,
+        dayGainLoss: 0,
+        dayGainLossPercent: 0,
+        cashBalance: 0
+      });
     } finally {
       setLoading(false);
     }
