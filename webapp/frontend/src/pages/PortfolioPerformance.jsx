@@ -103,8 +103,9 @@ const PortfolioPerformance = () => {
   const fetchPerformanceData = async () => {
     try {
       setLoading(true);
+      setError(null); // Clear any previous errors
       
-      // Fetch portfolio performance data
+      // Fetch portfolio performance data with better error handling
       const performanceResponse = await getPortfolioPerformance(timeframe);
       const perfData = performanceResponse?.data || performanceResponse;
       
@@ -176,10 +177,10 @@ const PortfolioPerformance = () => {
         });
       }
     } catch (err) {
-      setError('Failed to fetch performance data');
-      console.error('Performance fetch error:', err);
+      console.error('Portfolio performance API failed:', err);
+      setError(`Failed to fetch performance data: ${err.message}`);
       
-      // Set mock data on error
+      // Set empty data on error so user knows there's a problem
       setPerformanceData([]);
       setMetrics({
         totalReturn: 0,

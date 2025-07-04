@@ -155,20 +155,36 @@ const Settings = () => {
       
       // Load user profile data
       setProfileData({
-        firstName: user.firstName || '',
-        lastName: user.lastName || '',
-        email: user.email || '',
-        phone: user.phone || '',
-        timezone: user.timezone || 'America/New_York',
-        currency: user.currency || 'USD'
+        firstName: user?.firstName || '',
+        lastName: user?.lastName || '',
+        email: user?.email || '',
+        phone: user?.phone || '',
+        timezone: user?.timezone || 'America/New_York',
+        currency: user?.currency || 'USD'
       });
 
-      // Load API keys
-      await loadApiKeys();
+      // Load API keys with error handling
+      try {
+        await loadApiKeys();
+      } catch (apiError) {
+        console.error('API keys loading failed:', apiError);
+        showSnackbar(`Failed to load API keys: ${apiError.message}`, 'error');
+        // Don't fail the entire settings load if API keys fail
+      }
       
     } catch (error) {
       console.error('Error loading settings:', error);
       showSnackbar('Failed to load settings', 'error');
+      
+      // Set empty profile data to show there's an issue
+      setProfileData({
+        firstName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+        timezone: 'America/New_York',
+        currency: 'USD'
+      });
     } finally {
       setLoading(false);
     }
@@ -178,16 +194,21 @@ const Settings = () => {
     try {
       const response = await fetch(`${apiUrl}/api/portfolio/api-keys`, {
         headers: {
-          'Authorization': `Bearer ${user.tokens?.accessToken || 'dev-token'}`
+          'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
         }
       });
       
       if (response.ok) {
         const data = await response.json();
         setApiKeys(data.apiKeys || []);
+      } else {
+        console.error('API keys endpoint returned non-OK status:', response.status);
+        throw new Error(`API keys endpoint failed: ${response.status}`);
       }
     } catch (error) {
       console.error('Error loading API keys:', error);
+      setApiKeys([]); // Set empty array and let user see there's no data
+      throw error; // Re-throw so parent catch can handle it
     }
   };
 

@@ -36,8 +36,23 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
+    // Only catch React rendering errors, not API/async errors
+    const isReactRenderError = errorInfo && errorInfo.componentStack;
+    const isNetworkError = error.message && (
+      error.message.includes('Network Error') ||
+      error.message.includes('fetch') ||
+      error.message.includes('ECONNREFUSED') ||
+      error.message.includes('timeout')
+    );
+
+    // Don't catch network/API errors - let components handle them
+    if (isNetworkError && !isReactRenderError) {
+      console.warn('API/Network error caught by ErrorBoundary, but not showing error UI:', error);
+      return;
+    }
+
     // Log the error to our error reporting service
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    console.error('ErrorBoundary caught a React render error:', error, errorInfo);
     
     this.setState({
       error: error,
