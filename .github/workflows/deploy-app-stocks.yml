@@ -1,3 +1,8 @@
+name: Deploy App Stocks
+
+on:
+  workflow_dispatch:
+
 # 6) Run value-metrics loader
   run_valuemetrics:
     name: Run value-metrics calculator
