@@ -52,7 +52,10 @@ import {
   Rating,
   Stack,
   List,
-  ListItem
+  ListItem,
+  Menu,
+  ListItemIcon,
+  ListItemText
 } from '@mui/material';
 import {
   PieChart,
@@ -112,7 +115,14 @@ import {
   Lightbulb,
   StarRate,
   CompareArrows,
-  AccountBalanceWallet
+  AccountBalanceWallet,
+  FileDownload,
+  PictureAsPdf,
+  GetApp,
+  NotificationsNone,
+  Refresh,
+  Visibility,
+  VisibilityOff
 } from '@mui/icons-material';
 import { getApiConfig } from '../services/api';
 import { formatCurrency, formatPercentage, formatNumber } from '../utils/formatters';
@@ -162,6 +172,27 @@ const Portfolio = () => {
     threshold: 25,
     condition: 'above'
   });
+
+  // Export functionality
+  const [exportMenuAnchor, setExportMenuAnchor] = useState(null);
+  
+  // Portfolio notifications
+  const [notifications, setNotifications] = useState([
+    { id: 1, type: 'warning', message: 'Technology allocation exceeds 50%', timestamp: new Date() },
+    { id: 2, type: 'info', message: 'Quarterly rebalancing suggested', timestamp: new Date() }
+  ]);
+  const [notificationsPanelOpen, setNotificationsPanelOpen] = useState(false);
+  
+  // Watchlist
+  const [watchlist, setWatchlist] = useState([
+    { symbol: 'NVDA', name: 'NVIDIA Corp', price: 875.42, change: 2.3 },
+    { symbol: 'AMD', name: 'Advanced Micro Devices', price: 156.78, change: -1.2 }
+  ]);
+  const [watchlistDialogOpen, setWatchlistDialogOpen] = useState(false);
+  
+  // Refresh settings
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState(new Date());
 
   // Authentication guard - disabled (portfolio available to all users)
   // useEffect(() => {
@@ -444,6 +475,72 @@ const Portfolio = () => {
     setOrderBy(property);
   };
 
+  // Export functions
+  const handleExportClick = (event) => {
+    setExportMenuAnchor(event.currentTarget);
+  };
+
+  const handleExportClose = () => {
+    setExportMenuAnchor(null);
+  };
+
+  const exportToCSV = () => {
+    const csvData = portfolioData.holdings.map(holding => ({
+      Symbol: holding.symbol,
+      Company: holding.company,
+      Shares: holding.shares,
+      'Avg Cost': holding.avgCost,
+      'Current Price': holding.currentPrice,
+      'Market Value': holding.marketValue,
+      'Gain/Loss': holding.gainLoss,
+      'Gain/Loss %': holding.gainLossPercent,
+      'Allocation %': holding.allocation,
+      Sector: holding.sector
+    }));
+    
+    const csvContent = [
+      Object.keys(csvData[0]).join(','),
+      ...csvData.map(row => Object.values(row).join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `portfolio_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    handleExportClose();
+  };
+
+  const exportToPDF = () => {
+    // In a real implementation, you would use jsPDF or similar
+    alert('PDF export would be implemented here with detailed portfolio report');
+    handleExportClose();
+  };
+
+  // Refresh functions
+  const handleManualRefresh = () => {
+    setLastRefresh(new Date());
+    if (isAuthenticated && user) {
+      loadUserPortfolio();
+    }
+  };
+
+  // Auto-refresh effect
+  useEffect(() => {
+    if (autoRefresh) {
+      const interval = setInterval(() => {
+        setLastRefresh(new Date());
+        if (isAuthenticated && user) {
+          loadUserPortfolio();
+        }
+      }, 30000); // Refresh every 30 seconds
+      
+      return () => clearInterval(interval);
+    }
+  }, [autoRefresh, isAuthenticated, user]);
+
   const sortedHoldings = useMemo(() => {
     return portfolioData.holdings.sort((a, b) => {
       const aValue = a[orderBy];
@@ -486,7 +583,7 @@ const Portfolio = () => {
         </Box>
         
         <Box display="flex" alignItems="center" gap={2}>
-          <FormControl size="small" sx={{ minWidth: 120 }}>
+          <FormControl size="small" sx={{ minWidth: 140 }}>
             <InputLabel>Timeframe</InputLabel>
             <Select
               value={timeframe}
@@ -497,13 +594,69 @@ const Portfolio = () => {
               <MenuItem value="1W">1 Week</MenuItem>
               <MenuItem value="1M">1 Month</MenuItem>
               <MenuItem value="3M">3 Months</MenuItem>
+              <MenuItem value="6M">6 Months</MenuItem>
+              <MenuItem value="YTD">Year to Date</MenuItem>
               <MenuItem value="1Y">1 Year</MenuItem>
               <MenuItem value="3Y">3 Years</MenuItem>
+              <MenuItem value="5Y">5 Years</MenuItem>
+              <MenuItem value="MAX">All Time</MenuItem>
             </Select>
           </FormControl>
-          <Button variant="outlined" startIcon={<Download />}>
+          
+          <Tooltip title="Portfolio Notifications">
+            <IconButton 
+              onClick={() => setNotificationsPanelOpen(true)}
+              color={notifications.length > 0 ? "warning" : "default"}
+            >
+              <Badge badgeContent={notifications.length} color="error">
+                <NotificationsNone />
+              </Badge>
+            </IconButton>
+          </Tooltip>
+          
+          <Tooltip title="Watchlist">
+            <IconButton onClick={() => setWatchlistDialogOpen(true)}>
+              <Visibility />
+            </IconButton>
+          </Tooltip>
+          
+          <Tooltip title={`Auto-refresh: ${autoRefresh ? 'ON' : 'OFF'}`}>
+            <IconButton 
+              onClick={handleManualRefresh}
+              onDoubleClick={() => setAutoRefresh(!autoRefresh)}
+              color={autoRefresh ? "primary" : "default"}
+            >
+              <Refresh />
+            </IconButton>
+          </Tooltip>
+          
+          <Button 
+            variant="outlined" 
+            startIcon={<Download />}
+            onClick={handleExportClick}
+          >
             Export
           </Button>
+          
+          <Menu
+            anchorEl={exportMenuAnchor}
+            open={Boolean(exportMenuAnchor)}
+            onClose={handleExportClose}
+          >
+            <MenuItem onClick={exportToCSV}>
+              <ListItemIcon>
+                <FileDownload fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Export to CSV</ListItemText>
+            </MenuItem>
+            <MenuItem onClick={exportToPDF}>
+              <ListItemIcon>
+                <PictureAsPdf fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Export to PDF</ListItemText>
+            </MenuItem>
+          </Menu>
+          
           <Button variant="contained" startIcon={<Add />}>
             Add Position
           </Button>
@@ -1547,6 +1700,111 @@ const Portfolio = () => {
           >
             Create Alert
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Portfolio Notifications Panel */}
+      <Dialog 
+        open={notificationsPanelOpen} 
+        onClose={() => setNotificationsPanelOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1}>
+            <NotificationsActive />
+            Portfolio Notifications
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {notifications.length === 0 ? (
+            <Typography color="text.secondary">No new notifications</Typography>
+          ) : (
+            <List>
+              {notifications.map((notification) => (
+                <ListItem key={notification.id}>
+                  <ListItemIcon>
+                    {notification.type === 'warning' ? <Warning color="warning" /> : <Info color="info" />}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={notification.message}
+                    secondary={notification.timestamp.toLocaleString()}
+                  />
+                </ListItem>
+              ))}
+            </List>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setNotifications([])}>Clear All</Button>
+          <Button onClick={() => setNotificationsPanelOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Watchlist Dialog */}
+      <Dialog 
+        open={watchlistDialogOpen} 
+        onClose={() => setWatchlistDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1}>
+            <Visibility />
+            Investment Watchlist
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" mb={2}>
+            Track potential investments and monitor their performance
+          </Typography>
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Symbol</TableCell>
+                  <TableCell>Company</TableCell>
+                  <TableCell align="right">Price</TableCell>
+                  <TableCell align="right">Change</TableCell>
+                  <TableCell align="center">Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {watchlist.map((item) => (
+                  <TableRow key={item.symbol}>
+                    <TableCell>{item.symbol}</TableCell>
+                    <TableCell>{item.name}</TableCell>
+                    <TableCell align="right">{formatCurrency(item.price)}</TableCell>
+                    <TableCell align="right">
+                      <Box display="flex" alignItems="center" justifyContent="flex-end">
+                        {item.change >= 0 ? (
+                          <TrendingUp color="success" fontSize="small" />
+                        ) : (
+                          <TrendingDown color="error" fontSize="small" />
+                        )}
+                        <Typography 
+                          variant="body2" 
+                          color={item.change >= 0 ? 'success.main' : 'error.main'}
+                          ml={0.5}
+                        >
+                          {item.change > 0 ? '+' : ''}{item.change}%
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell align="center">
+                      <Button size="small" variant="outlined" startIcon={<Add />}>
+                        Add to Portfolio
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </DialogContent>
+        <DialogActions>
+          <Button startIcon={<Add />}>Add Symbol</Button>
+          <Button onClick={() => setWatchlistDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
     </Container>
