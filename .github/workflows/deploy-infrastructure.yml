@@ -1,0 +1,121 @@
+name: deploy-infrastructure
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - '*'
+    paths:
+      - 'cloudformation/template-app-stocks.yml'
+      - 'cloudformation/template-app-ecs-tasks.yml'  
+      - 'cloudformation/template-step-functions-orchestration.yml'
+      - '.github/workflows/deploy-infrastructure.yml'
+  pull_request:
+    branches:
+      - '*'
+    paths:
+      - 'cloudformation/template-app-stocks.yml'
+      - 'cloudformation/template-app-ecs-tasks.yml'
+      - 'cloudformation/template-step-functions-orchestration.yml'
+      - '.github/workflows/deploy-infrastructure.yml'
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+  AWS_ROLE_SESSION: github-deploy
+  FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+
+jobs:
+  filter:
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.filter.outputs.app }}
+      tasks: ${{ steps.filter.outputs.tasks }}
+      stepfunctions: ${{ steps.filter.outputs.stepfunctions }}
+      any: ${{ steps.filter.outputs.any }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            app:
+              - 'cloudformation/template-app-stocks.yml'
+              - '.github/workflows/deploy-infrastructure.yml'
+            tasks:
+              - 'cloudformation/template-app-ecs-tasks.yml'
+              - 'requirements.txt'
+              - 'scripts/**'
+            stepfunctions:
+              - 'cloudformation/template-step-functions-orchestration.yml'
+            any:
+              - '**/*'
+
+  infra:
+    name: Deploy core infrastructure
+    needs: filter
+    if: ${{ needs.filter.outputs.app == 'true' || needs.filter.outputs.tasks == 'true' || needs.filter.outputs.stepfunctions == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Get CloudFormation templates bucket from core stack
+        id: bucket
+        run: |
+          BUCKET=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
+            --output text)
+          echo "CF_BUCKET=$BUCKET" >> $GITHUB_OUTPUT
+          echo "Using S3 bucket: $BUCKET"
+
+      - name: Set image tag defaults
+        run: |
+          echo "VALUE_METRICS_IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
+          echo "QUALITY_METRICS_IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
+
+      - name: Deploy application stack
+        if: ${{ needs.filter.outputs.app == 'true' }}
+        run: |
+          aws cloudformation deploy \
+            --stack-name stocks-app-stack \
+            --template-file cloudformation/template-app-stocks.yml \
+            --parameter-overrides \
+              RDSUsername=${{ secrets.RDS_USERNAME }} \
+              RDSPassword=${{ secrets.RDS_PASSWORD }} \
+              FREDApiKey=${{ secrets.FRED_API_KEY }} \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+            --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}
+
+      - name: Deploy ECS tasks stack
+        if: ${{ needs.filter.outputs.tasks == 'true' }}
+        run: |
+          aws cloudformation deploy \
+            --stack-name stocks-ecs-tasks-stack \
+            --template-file cloudformation/template-app-ecs-tasks.yml \
+            --parameter-overrides \
+              ValueMetricsImageTag=${{ env.VALUE_METRICS_IMAGE_TAG }} \
+              QualityMetricsImageTag=${{ env.QUALITY_METRICS_IMAGE_TAG }} \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+            --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}
+
+      - name: Deploy Step Functions stack
+        if: ${{ needs.filter.outputs.stepfunctions == 'true' }}
+        run: |
+          aws cloudformation deploy \
+            --stack-name stocks-step-functions-stack \
+            --template-file cloudformation/template-step-functions-orchestration.yml \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+            --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}

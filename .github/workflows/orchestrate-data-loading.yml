@@ -1,0 +1,322 @@
+name: orchestrate-data-loading
+
+on:
+  workflow_dispatch:
+    inputs:
+      components:
+        description: 'Comma-separated list of components to run (or "all")'
+        required: false
+        default: 'all'
+  push:
+    branches:
+      - '*'
+    paths:
+      - 'scripts/**'
+      - 'requirements.txt'
+      - '.github/workflows/orchestrate-data-loading.yml'
+  pull_request:
+    branches:
+      - '*'
+    paths:
+      - 'scripts/**'
+      - 'requirements.txt'
+      - '.github/workflows/orchestrate-data-loading.yml'
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+  AWS_ROLE_SESSION: github-deploy
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      has-changes: ${{ steps.matrix.outputs.has-changes }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed components
+        id: paths
+        uses: dorny/paths-filter@v2
+        with:
+          base: ${{ github.event.before != '0000000000000000000000000000000000000000' && github.event.before || github.sha }}
+          filters: |
+            symbols:
+              - 'scripts/symbols/**'
+            symbolsalt:
+              - 'scripts/symbolsalt/**'  
+            econ:
+              - 'scripts/econ/**'
+            pricedaily:
+              - 'scripts/pricedaily/**'
+            priceweekly:
+              - 'scripts/priceweekly/**'
+            pricemonthly:
+              - 'scripts/pricemonthly/**'
+            latestpricedaily:
+              - 'scripts/latestpricedaily/**'
+            latestpriceweekly:
+              - 'scripts/latestpriceweekly/**'
+            latestpricemonthly:
+              - 'scripts/latestpricemonthly/**'
+            latesttechnicalsdaily:
+              - 'scripts/latesttechnicalsdaily/**'
+            latesttechnicalsweekly:
+              - 'scripts/latesttechnicalsweekly/**'
+            latesttechnicalsmonthly:
+              - 'scripts/latesttechnicalsmonthly/**'
+            technicalsdaily:
+              - 'scripts/technicalsdaily/**'
+            technicalsweekly:
+              - 'scripts/technicalsweekly/**'
+            technicalsmonthly:
+              - 'scripts/technicalsmonthly/**'
+            loadinfo:
+              - 'scripts/loadinfo/**'
+            earningsestimate:
+              - 'scripts/earningsestimate/**'
+            earningsmetrics:
+              - 'scripts/earningsmetrics/**'
+            earningshistory:
+              - 'scripts/earningshistory/**'
+            revenueestimate:
+              - 'scripts/revenueestimate/**'
+            swingtrader:
+              - 'scripts/swingtrader/**'
+            calendar:
+              - 'scripts/calendar/**'
+            buyselldaily:
+              - 'scripts/buyselldaily/**'
+            buysellweekly:
+              - 'scripts/buysellweekly/**'
+            buysellmonthly:
+              - 'scripts/buysellmonthly/**'
+            naaim:
+              - 'scripts/naaim/**'
+            aaii:
+              - 'scripts/aaii/**'
+            feargreed:
+              - 'scripts/feargreed/**'
+            quarterlybalancesheet:
+              - 'scripts/quarterlybalancesheet/**'
+            annualbalancesheet:
+              - 'scripts/annualbalancesheet/**'
+            quarterlyincomestatement:
+              - 'scripts/quarterlyincomestatement/**'
+            annualincomestatement:
+              - 'scripts/annualincomestatement/**'
+            quarterlycashflow:
+              - 'scripts/quarterlycashflow/**'
+            annualcashflow:
+              - 'scripts/annualcashflow/**'
+            ttmincomestatement:
+              - 'scripts/ttmincomestatement/**'
+            ttmcashflow:
+              - 'scripts/ttmcashflow/**'
+            fundamentalmetrics:
+              - 'scripts/fundamentalmetrics/**'
+            analystupgradedowngrade:
+              - 'scripts/analystupgradedowngrade/**'
+            financials:
+              - 'scripts/financials/**'
+            sentiment:
+              - 'scripts/sentiment/**'
+            technicals:
+              - 'scripts/technicals/**'
+            market:
+              - 'scripts/market/**'
+            momentum:
+              - 'scripts/momentum/**'
+            sentiment_realtime:
+              - 'scripts/sentiment_realtime/**'
+            positioning:
+              - 'scripts/positioning/**'
+            qualitymetrics:
+              - 'scripts/quality-metrics/**'
+            valuemetrics:
+              - 'scripts/value-metrics/**'
+            valuescores:
+              - 'scripts/valuescores/**'
+            growthmetrics:
+              - 'scripts/growthmetrics/**'
+            loadnews:
+              - 'scripts/loadnews/**'
+            any:
+              - '**/*'
+
+      - name: Generate matrix
+        id: matrix
+        run: |
+          matrix=""
+          
+          # Handle workflow dispatch with specific components
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            components="${{ github.event.inputs.components }}"
+            if [[ "$components" == "all" ]]; then
+              # Include all components
+              matrix="symbols,symbolsalt,econ,pricedaily,priceweekly,pricemonthly,latestpricedaily,latestpriceweekly,latestpricemonthly,latesttechnicalsdaily,latesttechnicalsweekly,latesttechnicalsmonthly,technicalsdaily,technicalsweekly,technicalsmonthly,loadinfo,earningsestimate,earningsmetrics,earningshistory,revenueestimate,swingtrader,calendar,buyselldaily,buysellweekly,buysellmonthly,naaim,aaii,feargreed,quarterlybalancesheet,annualbalancesheet,quarterlyincomestatement,annualincomestatement,quarterlycashflow,annualcashflow,ttmincomestatement,ttmcashflow,fundamentalmetrics,analystupgradedowngrade,financials,sentiment,technicals,market,momentum,sentiment_realtime,positioning,qualitymetrics,valuemetrics,valuescores,growthmetrics,loadnews"
+            else
+              matrix="$components"
+            fi
+          else
+            # Build matrix from changed files
+            components=(
+              "symbols" "symbolsalt" "econ" "pricedaily" "priceweekly" "pricemonthly"
+              "latestpricedaily" "latestpriceweekly" "latestpricemonthly"
+              "latesttechnicalsdaily" "latesttechnicalsweekly" "latesttechnicalsmonthly"
+              "technicalsdaily" "technicalsweekly" "technicalsmonthly"
+              "loadinfo" "earningsestimate" "earningsmetrics" "earningshistory"
+              "revenueestimate" "swingtrader" "calendar" "buyselldaily" "buysellweekly"
+              "buysellmonthly" "naaim" "aaii" "feargreed" "quarterlybalancesheet"
+              "annualbalancesheet" "quarterlyincomestatement" "annualincomestatement"
+              "quarterlycashflow" "annualcashflow" "ttmincomestatement" "ttmcashflow"
+              "fundamentalmetrics" "analystupgradedowngrade" "financials" "sentiment"
+              "technicals" "market" "momentum" "sentiment_realtime" "positioning"
+              "qualitymetrics" "valuemetrics" "valuescores" "growthmetrics" "loadnews"
+            )
+            
+            for component in "${components[@]}"; do
+              if [[ "${{ steps.paths.outputs[component] }}" == "true" ]]; then
+                if [[ -n "$matrix" ]]; then
+                  matrix="$matrix,$component"
+                else
+                  matrix="$component"
+                fi
+              fi
+            done
+          fi
+          
+          # If no changes detected, run a default set
+          if [[ -z "$matrix" ]]; then
+            matrix="symbols"
+          fi
+          
+          echo "matrix=[$matrix]" >> $GITHUB_OUTPUT
+          echo "has-changes=true" >> $GITHUB_OUTPUT
+          echo "Generated matrix: [$matrix]"
+
+  run-data-loading:
+    name: Run ${{ matrix.component }}
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.has-changes == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        component: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+    
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Get task definition mapping
+        id: task-mapping
+        run: |
+          # Map component names to CloudFormation output keys
+          case "${{ matrix.component }}" in
+            "symbols") echo "task_output_key=SymbolsTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "symbolsalt") echo "task_output_key=SymbolsAltTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "econ") echo "task_output_key=EconTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "pricedaily") echo "task_output_key=PriceDailyTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "priceweekly") echo "task_output_key=PriceWeeklyTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "pricemonthly") echo "task_output_key=PriceMonthlyTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "latestpricedaily") echo "task_output_key=LatestPriceDailyTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "latestpriceweekly") echo "task_output_key=LatestPriceWeeklyTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "latestpricemonthly") echo "task_output_key=LatestPriceMonthlyTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "latesttechnicalsdaily") echo "task_output_key=LatestTechnicalsDailyTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "latesttechnicalsweekly") echo "task_output_key=LatestTechnicalsWeeklyTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "latesttechnicalsmonthly") echo "task_output_key=LatestTechnicalsMonthlyTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "technicalsdaily") echo "task_output_key=TechnicalsDailyTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "technicalsweekly") echo "task_output_key=TechnicalsWeeklyTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "technicalsmonthly") echo "task_output_key=TechnicalsMonthlyTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "loadinfo") echo "task_output_key=LoadInfoTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "earningsestimate") echo "task_output_key=EarningsEstimateTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "earningsmetrics") echo "task_output_key=EarningsMetricsTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "earningshistory") echo "task_output_key=EarningsHistoryTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "revenueestimate") echo "task_output_key=RevenueEstimateTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "swingtrader") echo "task_output_key=SwingTraderTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "calendar") echo "task_output_key=CalendarTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "buyselldaily") echo "task_output_key=BuySellDailyTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "buysellweekly") echo "task_output_key=BuySellWeeklyTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "buysellmonthly") echo "task_output_key=BuySellMonthlyTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "naaim") echo "task_output_key=NaaimTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "aaii") echo "task_output_key=AaiiTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "feargreed") echo "task_output_key=FearGreedTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "quarterlybalancesheet") echo "task_output_key=QuarterlyBalanceSheetTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "annualbalancesheet") echo "task_output_key=AnnualBalanceSheetTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "quarterlyincomestatement") echo "task_output_key=QuarterlyIncomeStatementTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "annualincomestatement") echo "task_output_key=AnnualIncomeStatementTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "quarterlycashflow") echo "task_output_key=QuarterlyCashFlowTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "annualcashflow") echo "task_output_key=AnnualCashFlowTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "ttmincomestatement") echo "task_output_key=TtmIncomeStatementTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "ttmcashflow") echo "task_output_key=TtmCashFlowTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "fundamentalmetrics") echo "task_output_key=FundamentalMetricsTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "analystupgradedowngrade") echo "task_output_key=AnalystUpgradeDowngradeTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "financials") echo "task_output_key=FinancialsTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "sentiment") echo "task_output_key=SentimentTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "technicals") echo "task_output_key=TechnicalsTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "market") echo "task_output_key=MarketTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "momentum") echo "task_output_key=MomentumTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "sentiment_realtime") echo "task_output_key=SentimentRealtimeTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "positioning") echo "task_output_key=PositioningTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "qualitymetrics") echo "task_output_key=QualityMetricsTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "valuemetrics") echo "task_output_key=ValueMetricsTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "valuescores") echo "task_output_key=ValueScoresTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "growthmetrics") echo "task_output_key=GrowthMetricsTaskDefArn" >> $GITHUB_OUTPUT ;;
+            "loadnews") echo "task_output_key=LoadNewsTaskDefArn" >> $GITHUB_OUTPUT ;;
+            *) echo "Unknown component: ${{ matrix.component }}"; exit 1 ;;
+          esac
+
+      - name: Fetch Task Definition ARN
+        id: task-def
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='${{ steps.task-mapping.outputs.task_output_key }}'].OutputValue" \
+            --output text)
+          echo "task_def_arn=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Get cluster and subnets
+        id: infra
+        run: |
+          CLUSTER=$(aws cloudformation describe-stacks \
+            --stack-name stocks-app-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='EcsClusterArn'].OutputValue" \
+            --output text)
+          SUBNETS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-app-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='DataSubnetIds'].OutputValue" \
+            --output text)
+          SECURITY_GROUP=$(aws cloudformation describe-stacks \
+            --stack-name stocks-app-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='DataSecurityGroupId'].OutputValue" \
+            --output text)
+          echo "cluster=$CLUSTER" >> $GITHUB_OUTPUT
+          echo "subnets=$SUBNETS" >> $GITHUB_OUTPUT
+          echo "security_group=$SECURITY_GROUP" >> $GITHUB_OUTPUT
+
+      - name: Run ECS Task
+        id: run-task
+        run: |
+          aws ecs run-task \
+            --cluster "${{ steps.infra.outputs.cluster }}" \
+            --task-definition "${{ steps.task-def.outputs.task_def_arn }}" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.subnets }}],securityGroups=[${{ steps.infra.outputs.security_group }}],assignPublicIp=DISABLED}" \
+            --count 1
+
+      - name: Log completion
+        run: |
+          echo "Successfully started ECS task for component: ${{ matrix.component }}"
