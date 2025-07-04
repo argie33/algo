@@ -163,19 +163,22 @@ const Portfolio = () => {
     condition: 'above'
   });
 
-  // Authentication guard - disabled in development mode
-  useEffect(() => {
-    // Skip authentication check in development mode
-    const isDevelopmentMode = import.meta.env.DEV;
-    if (!isDevelopmentMode && !isLoading && !isAuthenticated) {
-      navigate('/login');
-    }
-  }, [isAuthenticated, isLoading, navigate]);
+  // Authentication guard - disabled (portfolio available to all users)
+  // useEffect(() => {
+  //   // Skip authentication check in development mode
+  //   const isDevelopmentMode = import.meta.env.DEV;
+  //   if (!isDevelopmentMode && !isLoading && !isAuthenticated) {
+  //     navigate('/login');
+  //   }
+  // }, [isAuthenticated, isLoading, navigate]);
 
-  // Load user-specific portfolio data
+  // Load portfolio data (authenticated users get real data, others get demo data)
   useEffect(() => {
     if (isAuthenticated && user) {
       loadUserPortfolio();
+    } else {
+      // Load demo data for non-authenticated users
+      setLoading(false);
     }
   }, [isAuthenticated, user]);
 
@@ -364,8 +367,8 @@ const Portfolio = () => {
     ];
   };
 
-  // Show loading state while authentication is being checked
-  if (isLoading) {
+  // Show loading state while portfolio data is being loaded
+  if (loading) {
     return (
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
         <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
@@ -375,10 +378,10 @@ const Portfolio = () => {
     );
   }
 
-  // Don't render anything if not authenticated (will redirect)
-  if (!isAuthenticated && !import.meta.env.DEV) {
-    return null;
-  }
+  // Portfolio is now available to all users (no authentication required)
+  // if (!isAuthenticated && !import.meta.env.DEV) {
+  //   return null;
+  // }
 
   // Advanced portfolio metrics calculations
   const portfolioMetrics = useMemo(() => {

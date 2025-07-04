@@ -95,7 +95,7 @@ const PortfolioPerformance = () => {
     sortinoRatio: 0
   });
 
-  const isPremium = user?.isPremium || false;
+  const isPremium = true; // Removed premium restriction - available to all users
 
   useEffect(() => {
     fetchPerformanceData();

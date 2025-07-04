@@ -164,11 +164,7 @@ function App() {
   }
 
   const handleNavigation = (path, isPremiumFeature = false) => {
-    if (isPremiumFeature && !isPremium) {
-      // Show premium upgrade modal or redirect to pricing
-      setAuthModalOpen(true)
-      return
-    }
+    // All features are now available - no premium restrictions
     navigate(path)
     if (isMobile) {
       setMobileOpen(false)
@@ -267,7 +263,7 @@ function App() {
                     <ListItemButton
                       selected={location.pathname === item.path}
                       onClick={() => handleNavigation(item.path, item.premium)}
-                      disabled={item.premium && !isPremium}
+                      disabled={false}
                       sx={{
                         borderRadius: 1,
                         py: 0.5,
@@ -295,9 +291,6 @@ function App() {
                           variant: 'body2'
                         }}
                       />
-                      {item.premium && !isPremium && (
-                        <LockIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                      )}
                     </ListItemButton>
                   </ListItem>
                 ))}

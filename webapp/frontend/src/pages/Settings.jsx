@@ -135,12 +135,12 @@ const Settings = () => {
     layout: 'standard'
   });
 
-  // Authentication guard
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      navigate('/login');
-    }
-  }, [isAuthenticated, isLoading, navigate]);
+  // Authentication guard - disabled
+  // useEffect(() => {
+  //   if (!isLoading && !isAuthenticated) {
+  //     navigate('/login');
+  //   }
+  // }, [isAuthenticated, isLoading, navigate]);
 
   // Load user data
   useEffect(() => {
@@ -337,7 +337,7 @@ const Settings = () => {
   };
 
   // Show loading state while authentication is being checked
-  if (isLoading || !isAuthenticated) {
+  if (loading) {
     return (
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
         <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
