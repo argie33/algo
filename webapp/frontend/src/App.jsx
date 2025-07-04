@@ -78,6 +78,10 @@ import { useAuth } from './contexts/AuthContext'
 import AuthModal from './components/auth/AuthModal'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import ComingSoon from './pages/ComingSoon'
+import TestApiPage from './pages/TestApiPage'
+import PortfolioPerformanceSimple from './pages/PortfolioPerformanceSimple'
+import PortfolioPerformanceDebug from './pages/PortfolioPerformanceDebug'
+import AuthTest from './pages/AuthTest'
 
 const drawerWidth = 240
 
@@ -449,6 +453,10 @@ function App() {
             <Route path="/financial-data" element={<FinancialData />} />
             <Route path="/service-health" element={<ServiceHealth />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/test-api" element={<TestApiPage />} />
+            <Route path="/portfolio/performance-simple" element={<PortfolioPerformanceSimple />} />
+            <Route path="/portfolio/performance-debug" element={<PortfolioPerformanceDebug />} />
+            <Route path="/auth-test" element={<AuthTest />} />
             <Route path="/technical-history/:symbol" element={<TechnicalHistory />} />
             
             {/* Missing pages - Coming Soon */}

@@ -241,6 +241,27 @@ api.interceptors.request.use(
       config.url = config.url.replace('/api/api', '/api');
     }
     
+    // Add authentication token if available
+    try {
+      // Try to get auth token from localStorage or sessionStorage
+      let authToken = null;
+      
+      // Check if we're in browser context
+      if (typeof window !== 'undefined') {
+        // Try various storage locations for auth token
+        authToken = localStorage.getItem('authToken') || 
+                   sessionStorage.getItem('authToken') ||
+                   localStorage.getItem('accessToken') ||
+                   sessionStorage.getItem('accessToken');
+      }
+      
+      if (authToken) {
+        config.headers['Authorization'] = `Bearer ${authToken}`;
+      }
+    } catch (error) {
+      console.log('Could not retrieve auth token:', error.message);
+    }
+    
     const fullUrl = `${config.baseURL || api.defaults.baseURL}${config.url}`;
     console.log('[API REQUEST FINAL URL]', fullUrl, config);
     if (config.isServerless) {
@@ -747,11 +768,11 @@ export const getMarketResearchIndicators = async () => {
   }
 }
 
-export const getPortfolioAnalytics = async (userId, timeframe = '1y') => {
+export const getPortfolioAnalytics = async (timeframe = '1y') => {
   console.log('📈 [API] Fetching portfolio analytics...');
   
   try {
-    const endpoints = [`/portfolio/analytics/${userId}?timeframe=${timeframe}`, `/api/portfolio/analytics/${userId}?timeframe=${timeframe}`];
+    const endpoints = [`/portfolio/analytics?timeframe=${timeframe}`, `/api/portfolio/analytics?timeframe=${timeframe}`];
     
     let response = null;
     let lastError = null;
@@ -787,11 +808,11 @@ export const getPortfolioAnalytics = async (userId, timeframe = '1y') => {
   }
 }
 
-export const getPortfolioRiskAnalysis = async (userId) => {
+export const getPortfolioRiskAnalysis = async () => {
   console.log('⚠️ [API] Fetching portfolio risk analysis...');
   
   try {
-    const endpoints = [`/portfolio/risk-analysis/${userId}`, `/api/portfolio/risk-analysis/${userId}`];
+    const endpoints = [`/portfolio/risk-analysis`, `/api/portfolio/risk-analysis`];
     
     let response = null;
     let lastError = null;
@@ -827,11 +848,11 @@ export const getPortfolioRiskAnalysis = async (userId) => {
   }
 }
 
-export const getPortfolioOptimization = async (userId) => {
+export const getPortfolioOptimization = async () => {
   console.log('🎯 [API] Fetching portfolio optimization...');
   
   try {
-    const endpoints = [`/portfolio/optimization/${userId}`, `/api/portfolio/optimization/${userId}`];
+    const endpoints = [`/portfolio/optimization`, `/api/portfolio/optimization`];
     
     let response = null;
     let lastError = null;

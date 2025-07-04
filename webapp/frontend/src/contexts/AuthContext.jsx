@@ -50,6 +50,12 @@ function authReducer(state, action) {
         error: action.payload
       };
     case AUTH_ACTIONS.LOGOUT:
+      // Clear stored tokens
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('authToken');
+      sessionStorage.removeItem('accessToken');
+      sessionStorage.removeItem('authToken');
+      
       return {
         ...state,
         user: null,
@@ -111,6 +117,15 @@ export function AuthProvider({ children }) {
           const session = await fetchAuthSession();
           
           if (user && session.tokens) {
+            const tokens = {
+              accessToken: session.tokens.accessToken.toString(),
+              idToken: session.tokens.idToken?.toString(),
+              refreshToken: session.tokens.refreshToken?.toString()
+            };
+            
+            // Store access token for API requests
+            localStorage.setItem('accessToken', tokens.accessToken);
+            
             dispatch({
               type: AUTH_ACTIONS.LOGIN_SUCCESS,
               payload: {
@@ -122,11 +137,7 @@ export function AuthProvider({ children }) {
                   lastName: user.userAttributes?.family_name || '',
                   signInDetails: user.signInDetails
                 },
-                tokens: {
-                  accessToken: session.tokens.accessToken.toString(),
-                  idToken: session.tokens.idToken?.toString(),
-                  refreshToken: session.tokens.refreshToken?.toString()
-                }
+                tokens
               }
             });
             console.log('✅ User authenticated with Cognito');
@@ -146,6 +157,9 @@ export function AuthProvider({ children }) {
           const session = await devAuth.fetchAuthSession();
           
           if (user && session.tokens) {
+            // Store access token for API requests
+            localStorage.setItem('accessToken', session.tokens.accessToken);
+            
             dispatch({
               type: AUTH_ACTIONS.LOGIN_SUCCESS,
               payload: {
@@ -192,6 +206,15 @@ export function AuthProvider({ children }) {
           const user = await getCurrentUser();
           const session = await fetchAuthSession();
           
+          const tokens = {
+            accessToken: session.tokens.accessToken.toString(),
+            idToken: session.tokens.idToken?.toString(),
+            refreshToken: session.tokens.refreshToken?.toString()
+          };
+          
+          // Store access token for API requests
+          localStorage.setItem('accessToken', tokens.accessToken);
+          
           dispatch({
             type: AUTH_ACTIONS.LOGIN_SUCCESS,
             payload: {
@@ -203,11 +226,7 @@ export function AuthProvider({ children }) {
                 lastName: user.userAttributes?.family_name || '',
                 signInDetails: user.signInDetails
               },
-              tokens: {
-                accessToken: session.tokens.accessToken.toString(),
-                idToken: session.tokens.idToken?.toString(),
-                refreshToken: session.tokens.refreshToken?.toString()
-              }
+              tokens
             }
           });
           
@@ -229,6 +248,9 @@ export function AuthProvider({ children }) {
         
         try {
           const result = await devAuth.signIn(username, password);
+          
+          // Store access token for API requests
+          localStorage.setItem('accessToken', result.tokens.accessToken);
           
           dispatch({
             type: AUTH_ACTIONS.LOGIN_SUCCESS,
@@ -366,6 +388,12 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     try {
+      // Clear stored auth token
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('authToken');
+      sessionStorage.removeItem('accessToken');
+      sessionStorage.removeItem('authToken');
+      
       // If Cognito is not configured, use dev auth
       if (!isCognitoConfigured()) {
         console.log('Cognito not configured - using development authentication');
