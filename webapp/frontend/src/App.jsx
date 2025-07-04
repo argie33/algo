@@ -91,6 +91,7 @@ const menuItems = [
   // Stocks Section
   { text: 'Stock Screener', icon: <SearchIcon />, path: '/screener-advanced', category: 'stocks' },
   { text: 'Stock Analysis', icon: <FilterListIcon />, path: '/stocks', category: 'stocks' },
+  { text: 'Technical Analysis', icon: <ShowChartIcon />, path: '/technical', category: 'stocks' },
   { text: 'Stock Scores', icon: <Stars />, path: '/scores', category: 'stocks', premium: true },
   { text: 'Earnings Calendar', icon: <EventIcon />, path: '/earnings', category: 'stocks' },
   { text: 'Watchlist', icon: <TimelineIcon />, path: '/watchlist', category: 'stocks' },

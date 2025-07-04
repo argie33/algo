@@ -1681,7 +1681,7 @@ export const testApiConnection = async (customUrl = null) => {
     const testUrl = customUrl || currentConfig.baseURL
     const response = await api.get('/api/health?quick=true', {
       baseURL: testUrl,
-      timeout: 10000
+      timeout: 7000
     })
     return {
       success: true,

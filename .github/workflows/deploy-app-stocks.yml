@@ -308,7 +308,6 @@ jobs:
       sentiment_realtime: ${{ steps.paths.outputs.sentiment_realtime }}
       positioning: ${{ steps.paths.outputs.positioning }}
       qualitymetrics: ${{ steps.paths.outputs.qualitymetrics }}
-      qualityscores: ${{ steps.paths.outputs.qualityscores }}
       valuemetrics: ${{ steps.paths.outputs.valuemetrics }}
       valuescores: ${{ steps.paths.outputs.valuescores }}
       growthmetrics: ${{ steps.paths.outputs.growthmetrics }}
@@ -517,10 +516,6 @@ jobs:
               - 'calculate_quality_metrics.py'
               - 'Dockerfile.quality-metrics'
               - 'requirements.txt'
-            qualityscores:
-              - 'calculate_quality_scores.py'
-              - 'Dockerfile.calculate_quality_scores'
-              - 'requirements-quality-scores.txt'
             valuemetrics:
               - 'calculate_value_metrics.py'
               - 'Dockerfile.value-metrics'
@@ -584,7 +579,6 @@ jobs:
              [ "${{ steps.paths.outputs.sentiment_realtime }}" = "true" ] || \
              [ "${{ steps.paths.outputs.positioning }}" = "true" ] || \
              [ "${{ steps.paths.outputs.qualitymetrics }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.qualityscores }}" = "true" ] || \
              [ "${{ steps.paths.outputs.valuemetrics }}" = "true" ] || \
              [ "${{ steps.paths.outputs.valuescores }}" = "true" ] || \
              [ "${{ steps.paths.outputs.growthmetrics }}" = "true" ] || \
@@ -646,7 +640,6 @@ jobs:
           [ "${{ steps.paths.outputs.sentiment_realtime }}" = "true" ] && arr="$arr,\"sentiment_realtime\""
           [ "${{ steps.paths.outputs.positioning }}" = "true" ] && arr="$arr,\"positioning\""
           [ "${{ steps.paths.outputs.qualitymetrics }}" = "true" ] && arr="$arr,\"qualitymetrics\""
-          [ "${{ steps.paths.outputs.qualityscores }}" = "true" ] && arr="$arr,\"qualityscores\""
           [ "${{ steps.paths.outputs.valuemetrics }}" = "true" ] && arr="$arr,\"valuemetrics\""
           [ "${{ steps.paths.outputs.valuescores }}" = "true" ] && arr="$arr,\"valuescores\""
           [ "${{ steps.paths.outputs.growthmetrics }}" = "true" ] && arr="$arr,\"growthmetrics\""
@@ -737,7 +730,6 @@ jobs:
             sentiment_realtime) DOCKERFILE=Dockerfile.loadsentiment_realtime; PARAM=SentimentRealtimeImageTag;;\
             positioning) DOCKERFILE=Dockerfile.loadpositioning; PARAM=PositioningImageTag;;\
             qualitymetrics) DOCKERFILE=Dockerfile.quality-metrics; PARAM=QualityMetricsImageTag;;\
-            qualityscores) DOCKERFILE=Dockerfile.calculate_quality_scores; PARAM=QualityScoresImageTag;;\
             valuemetrics) DOCKERFILE=Dockerfile.value-metrics; PARAM=ValueMetricsImageTag;;\
             valuescores) DOCKERFILE=Dockerfile.calculate_value_scores; PARAM=ValueScoresImageTag;;\
             growthmetrics) DOCKERFILE=Dockerfile.growth-metrics; PARAM=GrowthMetricsImageTag;;\
@@ -4576,12 +4568,6 @@ jobs:
             exit $EXIT
           fi
 
-  run_qualityscores:
-    name: Run quality-scores calculator
-    needs: [deploy-tasks, filter]
-    if: ${{ needs.filter.outputs.qualityscores == 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
 
     steps:
       - name: Configure AWS credentials
