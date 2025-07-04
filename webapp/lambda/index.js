@@ -30,6 +30,7 @@ const authRoutes = require('./routes/auth');
 const portfolioRoutes = require('./routes/portfolio');
 const scoringRoutes = require('./routes/scoring');
 const priceRoutes = require('./routes/price');
+const settingsRoutes = require('./routes/settings');
 
 const app = express();
 
@@ -244,6 +245,7 @@ app.use('/backtest', backtestRoutes);
 app.use('/portfolio', portfolioRoutes);
 app.use('/scoring', scoringRoutes);
 app.use('/price', priceRoutes);
+app.use('/settings', settingsRoutes);
 
 // Also mount routes with /api prefix for frontend compatibility
 app.use('/api/health', healthRoutes);
@@ -263,6 +265,7 @@ app.use('/api/backtest', backtestRoutes);
 app.use('/api/portfolio', portfolioRoutes);
 app.use('/api/scoring', scoringRoutes);
 app.use('/api/price', priceRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Default route
 app.get('/', (req, res) => {
