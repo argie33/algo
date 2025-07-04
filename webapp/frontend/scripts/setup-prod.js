@@ -5,8 +5,14 @@ const path = require('path');
 
 console.log('🚀 Setting up production environment...');
 
-// Get parameters from command line or use defaults
-const apiUrl = process.argv[2] || 'https://ye9syrnj8c.execute-api.us-east-1.amazonaws.com/dev';
+// Get parameters from command line - NO HARDCODED DEFAULTS
+const apiUrl = process.argv[2];
+if (!apiUrl) {
+  console.error('❌ Error: API URL is required');
+  console.error('Usage: node setup-prod.js <API_URL> [environment] [userPoolId] [clientId] [cognitoDomain] [cloudfrontUrl]');
+  console.error('Example: node setup-prod.js https://your-api-id.execute-api.us-east-1.amazonaws.com/dev production');
+  process.exit(1);
+}
 const environment = process.argv[3] || 'production';
 const userPoolId = process.argv[4] || '';
 const clientId = process.argv[5] || '';

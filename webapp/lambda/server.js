@@ -9,6 +9,7 @@ const { initializeDatabase } = require('./utils/database');
 const errorHandler = require('./middleware/errorHandler');
 
 // Import routes
+const authRoutes = require('./routes/auth');
 const stockRoutes = require('./routes/stocks');
 const metricsRoutes = require('./routes/metrics');
 const healthRoutes = require('./routes/health');
@@ -27,8 +28,29 @@ const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(helmet());
+// Dynamic CORS configuration
+const allowedOrigins = [
+  'http://localhost:3000', 
+  'http://127.0.0.1:3000'
+];
+
+// Add API Gateway URL if available
+if (process.env.API_GATEWAY_URL) {
+  allowedOrigins.push(process.env.API_GATEWAY_URL);
+}
+
+// Add custom CORS origins from environment
+if (process.env.CORS_ALLOWED_ORIGINS) {
+  const customOrigins = process.env.CORS_ALLOWED_ORIGINS.split(',').map(o => o.trim());
+  allowedOrigins.push(...customOrigins);
+}
+
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+  origin: [
+    ...allowedOrigins,
+    /^https:\/\/.*\.cloudfront\.net$/,
+    /^https:\/\/.*\.amazonaws\.com$/
+  ],
   credentials: true
 }));
 
@@ -45,6 +67,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 initializeDatabase();
 
 // Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/stocks', stockRoutes);
 app.use('/api/metrics', metricsRoutes);
 app.use('/api/health', healthRoutes);

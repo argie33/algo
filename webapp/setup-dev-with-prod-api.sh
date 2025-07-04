@@ -7,8 +7,18 @@ set -e
 
 echo "🚀 Setting up development environment with production API..."
 
-# Known production API URL
-API_URL="https://ye9syrnj8c.execute-api.us-east-1.amazonaws.com/dev"
+# Get API URL from parameter or detect from existing config
+API_URL="${1:-$(grep VITE_API_URL frontend/.env.development 2>/dev/null | cut -d'=' -f2)}"
+
+if [ -z "$API_URL" ]; then
+    echo "❌ Error: API URL not found"
+    echo "Usage: $0 <API_URL>" 
+    echo "Example: $0 https://your-api-id.execute-api.us-east-1.amazonaws.com/dev"
+    echo "Or ensure frontend/.env.development contains VITE_API_URL"
+    exit 1
+fi
+
+echo "Using API URL: $API_URL"
 
 # Update frontend environment
 cd frontend
