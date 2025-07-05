@@ -78,6 +78,7 @@ import { useAuth } from './contexts/AuthContext'
 import AuthModal from './components/auth/AuthModal'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import ComingSoon from './pages/ComingSoon'
+import SectorAnalysis from './pages/SectorAnalysis'
 import TestApiPage from './pages/TestApiPage'
 import PortfolioPerformanceSimple from './pages/PortfolioPerformanceSimple'
 import PortfolioPerformanceDebug from './pages/PortfolioPerformanceDebug'
@@ -459,8 +460,8 @@ function App() {
             <Route path="/auth-test" element={<AuthTest />} />
             <Route path="/technical-history/:symbol" element={<TechnicalHistory />} />
             
-            {/* Missing pages - Coming Soon */}
-            <Route path="/sectors" element={<ComingSoon pageName="Sector Analysis" description="Comprehensive sector performance analysis and comparisons." />} />
+            {/* Sector Analysis */}
+            <Route path="/sectors" element={<SectorAnalysis />} />
             <Route path="/watchlist" element={<ComingSoon pageName="Watchlist" description="Track your favorite stocks and get personalized alerts." />} />
             <Route path="/sentiment/social" element={<ComingSoon pageName="Social Media Sentiment" description="Real-time social media sentiment analysis for stocks." />} />
             <Route path="/sentiment/news" element={<ComingSoon pageName="News Sentiment" description="AI-powered news sentiment analysis and impact predictions." />} />

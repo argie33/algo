@@ -2973,11 +2973,4 @@ export const getStockOptions = async () => {
   }
 };
 
-// Export additional scoring functions
-export {
-  getStockScores,
-  getPeerComparison,
-  getHistoricalScores,
-  getStockOptions
-}
 
