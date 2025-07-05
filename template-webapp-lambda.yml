@@ -28,7 +28,6 @@ Globals:
         DB_SECRET_ARN: !Ref DatabaseSecretArn
         DB_ENDPOINT: !Ref DatabaseEndpoint
         ENVIRONMENT: !Ref EnvironmentName
-        AWS_REGION: !Ref AWS::Region
 
 Resources:
   # Cognito User Pool for authentication
@@ -137,9 +136,6 @@ Resources:
       FunctionName: !Sub 'financial-dashboard-api-dev'
       CodeUri: webapp/lambda/
       Handler: index.handler
-      Environment:
-        Variables:
-          AWS_REGION: !Ref AWS::Region
       Policies:
         - Version: '2012-10-17'
           Statement:
