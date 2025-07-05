@@ -28,8 +28,6 @@ Globals:
         DB_SECRET_ARN: !Ref DatabaseSecretArn
         DB_ENDPOINT: !Ref DatabaseEndpoint
         ENVIRONMENT: !Ref EnvironmentName
-        COGNITO_USER_POOL_ID: !Ref UserPool
-        COGNITO_CLIENT_ID: !Ref UserPoolClient
         AWS_REGION: !Ref AWS::Region
 
 Resources:
@@ -140,8 +138,6 @@ Resources:
       Handler: index.handler
       Environment:
         Variables:
-          COGNITO_USER_POOL_ID: !Ref UserPool
-          COGNITO_CLIENT_ID: !Ref UserPoolClient
           AWS_REGION: !Ref AWS::Region
       Policies:
         - Version: '2012-10-17'
@@ -206,9 +202,6 @@ Resources:
   # Lambda Permission for API Gateway
   LambdaApiGatewayPermission:
     Type: AWS::Lambda::Permission
-    DependsOn: 
-      - ServerlessRestApi
-      - ApiFunction
     Properties:
       FunctionName: !GetAtt ApiFunction.Arn
       Action: lambda:InvokeFunction
@@ -314,7 +307,6 @@ Resources:
   # API Gateway Deployment (forces stage deployment)
   ApiGatewayDeployment:
     Type: AWS::ApiGateway::Deployment
-    DependsOn: ApiFunction
     Properties:
       RestApiId: !Ref ServerlessRestApi
       StageName: dev
