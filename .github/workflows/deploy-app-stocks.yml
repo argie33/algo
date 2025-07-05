@@ -265,10 +265,6 @@ jobs:
       - name: Deploy application stack
         run: |
           aws cloudformation deploy \
-            --template-file your-template-file.yaml \
-            --stack-name your-stack-name \
-            --parameter-overrides ValueMetricsImageTag=${{ env.VALUE_METRICS_IMAGE_TAG }} QualityMetricsImageTag=${{ env.QUALITY_METRICS_IMAGE_TAG }}
-          aws cloudformation deploy \
             --stack-name stocks-app-stack \
             --template-file template-app-stocks.yml \
             --parameter-overrides \

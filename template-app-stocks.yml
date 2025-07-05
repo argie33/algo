@@ -103,7 +103,7 @@ Resources:
   EcsTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: ecs-task-execution-role
+      RoleName: !Sub ecs-task-execution-role-${AWS::StackName}
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
