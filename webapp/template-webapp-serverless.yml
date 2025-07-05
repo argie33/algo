@@ -158,7 +158,6 @@ Resources:
           WEBAPP_AWS_REGION: !Ref AWS::Region
           COGNITO_USER_POOL_ID: !Ref UserPool
           COGNITO_CLIENT_ID: !Ref UserPoolClient
-          AWS_REGION: !Ref AWS::Region
 
   ## 5) HTTP API (API Gateway v2)
   StocksApi:
