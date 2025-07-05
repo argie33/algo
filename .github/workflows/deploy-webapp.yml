@@ -495,7 +495,7 @@ jobs:
           cat .env 2>/dev/null || echo "No .env file found"
           
           # Create/update .env file with all configuration
-          cat > .env << EOF
+          cat > .env << 'EOF'
 VITE_API_URL=$VITE_API_URL
 VITE_COGNITO_USER_POOL_ID=$VITE_COGNITO_USER_POOL_ID
 VITE_COGNITO_CLIENT_ID=$VITE_COGNITO_CLIENT_ID
