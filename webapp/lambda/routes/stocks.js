@@ -16,6 +16,7 @@ router.get('/ping', (req, res) => {
 router.get('/', async (req, res) => {
   try {
     console.log('OPTIMIZED Stocks main endpoint called with params:', req.query);
+    console.log('Triggering deployment workflow from loaddata branch');
     
     const page = parseInt(req.query.page) || 1;
     const limit = Math.min(parseInt(req.query.limit) || 50, 200); // Increased limit
