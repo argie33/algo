@@ -155,7 +155,7 @@ Resources:
         Variables:
           DB_SECRET_ARN: !ImportValue StocksInfra-SecretArn
           NODE_ENV: production
-          WEBAPP_AWS_REGION: !Ref AWS::Region
+          AWS_DEFAULT_REGION: !Ref AWS::Region
           COGNITO_USER_POOL_ID: !Ref UserPool
           COGNITO_CLIENT_ID: !Ref UserPoolClient
 

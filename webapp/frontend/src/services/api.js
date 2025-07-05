@@ -2811,3 +2811,173 @@ export default {
   getHealth
 }
 
+// Stock Scoring API Functions
+export const getStockScores = async (symbol) => {
+  console.log(`📊 [API] Fetching stock scores for ${symbol}...`);
+  
+  try {
+    // Try multiple endpoint variations
+    const endpoints = [`/scores/${symbol}`, `/scores?symbol=${symbol}`, `/api/scores/${symbol}`];
+    
+    let response = null;
+    let lastError = null;
+    
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`📊 [API] Trying scores endpoint: ${endpoint}`);
+        response = await api.get(endpoint);
+        console.log(`📊 [API] SUCCESS with scores endpoint: ${endpoint}`, response);
+        break;
+      } catch (err) {
+        console.log(`📊 [API] FAILED scores endpoint: ${endpoint}`, err.message);
+        lastError = err;
+        continue;
+      }
+    }
+    
+    if (!response) {
+      console.error('📊 [API] All scores endpoints failed:', lastError);
+      throw lastError;
+    }
+    
+    console.log('📊 [API] Returning scores data:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('❌ [API] Stock scores error:', error);
+    const errorMessage = handleApiError(error, 'get stock scores');
+    return { error: errorMessage };
+  }
+};
+
+export const getPeerComparison = async (symbol) => {
+  console.log(`📊 [API] Fetching peer comparison for ${symbol}...`);
+  
+  try {
+    // Try multiple endpoint variations
+    const endpoints = [`/peer-comparison?symbol=${symbol}`, `/api/peer-comparison?symbol=${symbol}`];
+    
+    let response = null;
+    let lastError = null;
+    
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`📊 [API] Trying peer comparison endpoint: ${endpoint}`);
+        response = await api.get(endpoint);
+        console.log(`📊 [API] SUCCESS with peer comparison endpoint: ${endpoint}`, response);
+        break;
+      } catch (err) {
+        console.log(`📊 [API] FAILED peer comparison endpoint: ${endpoint}`, err.message);
+        lastError = err;
+        continue;
+      }
+    }
+    
+    if (!response) {
+      console.error('📊 [API] All peer comparison endpoints failed:', lastError);
+      throw lastError;
+    }
+    
+    console.log('📊 [API] Returning peer comparison data:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('❌ [API] Peer comparison error:', error);
+    const errorMessage = handleApiError(error, 'get peer comparison');
+    return { peers: [], error: errorMessage };
+  }
+};
+
+export const getHistoricalScores = async (symbol, period = '3M') => {
+  console.log(`📊 [API] Fetching historical scores for ${symbol}, period: ${period}...`);
+  
+  try {
+    // Try multiple endpoint variations
+    const endpoints = [
+      `/historical-scores?symbol=${symbol}&period=${period}`, 
+      `/api/historical-scores?symbol=${symbol}&period=${period}`
+    ];
+    
+    let response = null;
+    let lastError = null;
+    
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`📊 [API] Trying historical scores endpoint: ${endpoint}`);
+        response = await api.get(endpoint);
+        console.log(`📊 [API] SUCCESS with historical scores endpoint: ${endpoint}`, response);
+        break;
+      } catch (err) {
+        console.log(`📊 [API] FAILED historical scores endpoint: ${endpoint}`, err.message);
+        lastError = err;
+        continue;
+      }
+    }
+    
+    if (!response) {
+      console.error('📊 [API] All historical scores endpoints failed:', lastError);
+      throw lastError;
+    }
+    
+    console.log('📊 [API] Returning historical scores data:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('❌ [API] Historical scores error:', error);
+    const errorMessage = handleApiError(error, 'get historical scores');
+    return { historical_scores: [], error: errorMessage };
+  }
+};
+
+export const getStockOptions = async () => {
+  console.log('📊 [API] Fetching stock options...');
+  
+  try {
+    // Try multiple endpoint variations
+    const endpoints = ['/stocks', '/api/stocks'];
+    
+    let response = null;
+    let lastError = null;
+    
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`📊 [API] Trying stock options endpoint: ${endpoint}`);
+        response = await api.get(endpoint);
+        console.log(`📊 [API] SUCCESS with stock options endpoint: ${endpoint}`, response);
+        break;
+      } catch (err) {
+        console.log(`📊 [API] FAILED stock options endpoint: ${endpoint}`, err.message);
+        lastError = err;
+        continue;
+      }
+    }
+    
+    if (!response) {
+      console.error('📊 [API] All stock options endpoints failed:', lastError);
+      throw lastError;
+    }
+    
+    // Handle both array and object responses
+    let stocks = [];
+    if (response.data && Array.isArray(response.data.stocks)) {
+      stocks = response.data.stocks;
+    } else if (response.data && Array.isArray(response.data)) {
+      stocks = response.data;
+    } else {
+      stocks = [];
+    }
+    
+    console.log('📊 [API] Returning stock options:', stocks);
+    return { stocks };
+  } catch (error) {
+    console.error('❌ [API] Stock options error:', error);
+    const errorMessage = handleApiError(error, 'get stock options');
+    return { stocks: [], error: errorMessage };
+  }
+};
+
+// Export additional scoring functions
+export {
+  getStockScores,
+  getPeerComparison,
+  getHistoricalScores,
+  getStockOptions
+}
+

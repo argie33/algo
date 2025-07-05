@@ -129,7 +129,7 @@ import {
   Remove,
   Lock
 } from '@mui/icons-material';
-import { api } from '../services/api';
+import { getStockScores, getPeerComparison, getHistoricalScores, getStockOptions } from '../services/api';
 import { formatPercentage, formatNumber } from '../utils/formatters';
 
 // Custom styled components
@@ -393,7 +393,29 @@ const ScoresDashboard = () => {
   useEffect(() => {
     const loadStockOptions = async () => {
       try {
-        // Mock data for demonstration
+        console.log('📊 Loading stock options...');
+        const response = await getStockOptions();
+        
+        if (response.stocks && Array.isArray(response.stocks)) {
+          setStockOptions(response.stocks);
+          console.log('📊 Loaded stock options:', response.stocks.length, 'stocks');
+        } else {
+          console.warn('📊 No stocks returned, using fallback data');
+          // Fallback data
+          setStockOptions([
+            { symbol: 'AAPL', company_name: 'Apple Inc.' },
+            { symbol: 'MSFT', company_name: 'Microsoft Corporation' },
+            { symbol: 'GOOGL', company_name: 'Alphabet Inc.' },
+            { symbol: 'AMZN', company_name: 'Amazon.com Inc.' },
+            { symbol: 'NVDA', company_name: 'NVIDIA Corporation' },
+            { symbol: 'META', company_name: 'Meta Platforms Inc.' },
+            { symbol: 'TSLA', company_name: 'Tesla Inc.' },
+            { symbol: 'BRK.B', company_name: 'Berkshire Hathaway Inc.' }
+          ]);
+        }
+      } catch (error) {
+        console.error('Error loading stock options:', error);
+        // Use fallback data on error
         setStockOptions([
           { symbol: 'AAPL', company_name: 'Apple Inc.' },
           { symbol: 'MSFT', company_name: 'Microsoft Corporation' },
@@ -404,8 +426,6 @@ const ScoresDashboard = () => {
           { symbol: 'TSLA', company_name: 'Tesla Inc.' },
           { symbol: 'BRK.B', company_name: 'Berkshire Hathaway Inc.' }
         ]);
-      } catch (error) {
-        console.error('Error loading stock options:', error);
       }
     };
     loadStockOptions();
@@ -423,46 +443,116 @@ const ScoresDashboard = () => {
   const loadScores = async (symbol) => {
     setLoading(true);
     try {
-      // Mock data loading
-      setTimeout(() => {
-        setScores(mockScores);
-        setLoading(false);
-      }, 1000);
+      console.log(`📊 Loading scores for ${symbol}...`);
+      const response = await getStockScores(symbol);
+      
+      if (response && !response.error) {
+        setScores(response);
+        console.log('📊 Loaded scores successfully:', response);
+      } else {
+        console.warn('📊 Error loading scores, using mock data:', response.error);
+        // Fallback to mock data with updated symbol
+        const fallbackScores = {
+          ...mockScores,
+          symbol: symbol,
+          company_name: selectedStock?.company_name || symbol
+        };
+        setScores(fallbackScores);
+      }
     } catch (error) {
       console.error('Error loading scores:', error);
+      // Fallback to mock data with updated symbol
+      const fallbackScores = {
+        ...mockScores,
+        symbol: symbol,
+        company_name: selectedStock?.company_name || symbol
+      };
+      setScores(fallbackScores);
+    } finally {
       setLoading(false);
     }
   };
 
   const loadHistoricalScores = async (symbol) => {
-    // Mock historical data
-    const mockHistorical = Array.from({ length: 90 }, (_, i) => {
-      const date = new Date();
-      date.setDate(date.getDate() - (90 - i));
-      return {
-        date: date.toISOString().split('T')[0],
-        composite: 75 + Math.random() * 15 + (i / 90) * 5,
-        quality: 80 + Math.random() * 10 + (i / 90) * 3,
-        growth: 70 + Math.random() * 15 + (i / 90) * 4,
-        value: 60 + Math.random() * 20 + (i / 90) * 2,
-        momentum: 75 + Math.random() * 20 + (i / 90) * 6,
-        sentiment: 65 + Math.random() * 25 + (i / 90) * 5,
-        positioning: 70 + Math.random() * 20 + (i / 90) * 3
-      };
-    });
-    setHistoricalScores(mockHistorical);
+    try {
+      console.log(`📊 Loading historical scores for ${symbol}, timeframe: ${selectedTimeframe}...`);
+      const response = await getHistoricalScores(symbol, selectedTimeframe);
+      
+      if (response && response.historical_scores && Array.isArray(response.historical_scores)) {
+        setHistoricalScores(response.historical_scores);
+        console.log('📊 Loaded historical scores successfully:', response.historical_scores.length, 'data points');
+      } else {
+        console.warn('📊 Error loading historical scores, using mock data:', response.error);
+        // Fallback to mock historical data
+        const mockHistorical = Array.from({ length: 90 }, (_, i) => {
+          const date = new Date();
+          date.setDate(date.getDate() - (90 - i));
+          return {
+            date: date.toISOString().split('T')[0],
+            composite: 75 + Math.random() * 15 + (i / 90) * 5,
+            quality: 80 + Math.random() * 10 + (i / 90) * 3,
+            growth: 70 + Math.random() * 15 + (i / 90) * 4,
+            value: 60 + Math.random() * 20 + (i / 90) * 2,
+            momentum: 75 + Math.random() * 20 + (i / 90) * 6,
+            sentiment: 65 + Math.random() * 25 + (i / 90) * 5,
+            positioning: 70 + Math.random() * 20 + (i / 90) * 3
+          };
+        });
+        setHistoricalScores(mockHistorical);
+      }
+    } catch (error) {
+      console.error('Error loading historical scores:', error);
+      // Fallback to mock historical data
+      const mockHistorical = Array.from({ length: 90 }, (_, i) => {
+        const date = new Date();
+        date.setDate(date.getDate() - (90 - i));
+        return {
+          date: date.toISOString().split('T')[0],
+          composite: 75 + Math.random() * 15 + (i / 90) * 5,
+          quality: 80 + Math.random() * 10 + (i / 90) * 3,
+          growth: 70 + Math.random() * 15 + (i / 90) * 4,
+          value: 60 + Math.random() * 20 + (i / 90) * 2,
+          momentum: 75 + Math.random() * 20 + (i / 90) * 6,
+          sentiment: 65 + Math.random() * 25 + (i / 90) * 5,
+          positioning: 70 + Math.random() * 20 + (i / 90) * 3
+        };
+      });
+      setHistoricalScores(mockHistorical);
+    }
   };
 
   const loadPeerComparison = async (symbol) => {
-    // Mock peer comparison data
-    const mockPeers = [
-      { symbol: 'AAPL', name: 'Apple', composite: 82, quality: 88, growth: 78, value: 65, momentum: 85, sentiment: 79, positioning: 84 },
-      { symbol: 'MSFT', name: 'Microsoft', composite: 85, quality: 90, growth: 82, value: 70, momentum: 80, sentiment: 85, positioning: 88 },
-      { symbol: 'GOOGL', name: 'Google', composite: 78, quality: 85, growth: 75, value: 68, momentum: 78, sentiment: 72, positioning: 80 },
-      { symbol: 'AMZN', name: 'Amazon', composite: 76, quality: 82, growth: 88, value: 55, momentum: 75, sentiment: 70, positioning: 78 },
-      { symbol: 'META', name: 'Meta', composite: 72, quality: 78, growth: 70, value: 75, momentum: 68, sentiment: 65, positioning: 72 }
-    ];
-    setPeerComparison(mockPeers);
+    try {
+      console.log(`📊 Loading peer comparison for ${symbol}...`);
+      const response = await getPeerComparison(symbol);
+      
+      if (response && response.peers && Array.isArray(response.peers)) {
+        setPeerComparison(response.peers);
+        console.log('📊 Loaded peer comparison successfully:', response.peers.length, 'peers');
+      } else {
+        console.warn('📊 Error loading peer comparison, using mock data:', response.error);
+        // Fallback to mock peer comparison data
+        const mockPeers = [
+          { symbol: 'AAPL', name: 'Apple', composite: 82, quality: 88, growth: 78, value: 65, momentum: 85, sentiment: 79, positioning: 84 },
+          { symbol: 'MSFT', name: 'Microsoft', composite: 85, quality: 90, growth: 82, value: 70, momentum: 80, sentiment: 85, positioning: 88 },
+          { symbol: 'GOOGL', name: 'Google', composite: 78, quality: 85, growth: 75, value: 68, momentum: 78, sentiment: 72, positioning: 80 },
+          { symbol: 'AMZN', name: 'Amazon', composite: 76, quality: 82, growth: 88, value: 55, momentum: 75, sentiment: 70, positioning: 78 },
+          { symbol: 'META', name: 'Meta', composite: 72, quality: 78, growth: 70, value: 75, momentum: 68, sentiment: 65, positioning: 72 }
+        ];
+        setPeerComparison(mockPeers);
+      }
+    } catch (error) {
+      console.error('Error loading peer comparison:', error);
+      // Fallback to mock peer comparison data
+      const mockPeers = [
+        { symbol: 'AAPL', name: 'Apple', composite: 82, quality: 88, growth: 78, value: 65, momentum: 85, sentiment: 79, positioning: 84 },
+        { symbol: 'MSFT', name: 'Microsoft', composite: 85, quality: 90, growth: 82, value: 70, momentum: 80, sentiment: 85, positioning: 88 },
+        { symbol: 'GOOGL', name: 'Google', composite: 78, quality: 85, growth: 75, value: 68, momentum: 78, sentiment: 72, positioning: 80 },
+        { symbol: 'AMZN', name: 'Amazon', composite: 76, quality: 82, growth: 88, value: 55, momentum: 75, sentiment: 70, positioning: 78 },
+        { symbol: 'META', name: 'Meta', composite: 72, quality: 78, growth: 70, value: 75, momentum: 68, sentiment: 65, positioning: 72 }
+      ];
+      setPeerComparison(mockPeers);
+    }
   };
 
   const handleCategoryToggle = (categoryId) => {

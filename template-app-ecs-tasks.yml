@@ -93,6 +93,15 @@ Parameters:
   EarningsMetricsImageTag:
     Type: String
     Description: "Tag for earnings metrics loader image"
+  ScoresDailyImageTag:
+    Type: String
+    Description: "Tag for scores daily loader image"
+  ScoresWeeklyImageTag:
+    Type: String
+    Description: "Tag for scores weekly loader image"
+  ScoresMonthlyImageTag:
+    Type: String
+    Description: "Tag for scores monthly loader image"
 
   FREDApiKey:
     Type: String
@@ -2493,6 +2502,183 @@ Resources:
           AssignPublicIp: ENABLED
 
   #########################################
+  # Scoring Task Definitions              #
+  #########################################
+  ScoresDailyTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: scores-daily-loader
+      Cpu: "2048"
+      Memory: "4096"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: scores-daily-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ScoresDailyImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+            - Name: SYMBOL_LIMIT
+              Value: "100"
+            - Name: AWS_DEFAULT_REGION
+              Value: !Ref AWS::Region
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/scores-daily-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  ScoresDailyService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: scores-daily-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref ScoresDailyTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ScoresWeeklyTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: scores-weekly-loader
+      Cpu: "2048"
+      Memory: "4096"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: scores-weekly-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ScoresWeeklyImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+            - Name: SYMBOL_LIMIT
+              Value: "50"
+            - Name: AWS_DEFAULT_REGION
+              Value: !Ref AWS::Region
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/scores-weekly-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  ScoresWeeklyService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: scores-weekly-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref ScoresWeeklyTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ScoresMonthlyTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: scores-monthly-loader
+      Cpu: "2048"
+      Memory: "4096"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: scores-monthly-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ScoresMonthlyImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+            - Name: SYMBOL_LIMIT
+              Value: "25"
+            - Name: AWS_DEFAULT_REGION
+              Value: !Ref AWS::Region
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/scores-monthly-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  ScoresMonthlyService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: scores-monthly-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref ScoresMonthlyTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  #########################################
   # Outputs                               #
   #########################################
 Outputs:
@@ -2735,3 +2921,21 @@ Outputs:
     Value: !Ref ValueMetricsTaskDefinition
     Export:
       Name: ValueMetricsTaskDefArn
+
+  ScoresDailyTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for scores daily loader
+    Value: !Ref ScoresDailyTaskDefinition
+    Export:
+      Name: ScoresDailyTaskDefArn
+
+  ScoresWeeklyTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for scores weekly loader
+    Value: !Ref ScoresWeeklyTaskDefinition
+    Export:
+      Name: ScoresWeeklyTaskDefArn
+
+  ScoresMonthlyTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for scores monthly loader
+    Value: !Ref ScoresMonthlyTaskDefinition
+    Export:
+      Name: ScoresMonthlyTaskDefArn
