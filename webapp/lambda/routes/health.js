@@ -205,11 +205,8 @@ router.get('/', async (req, res) => {
       tables = { error: tableError.message };
     }
     
-    // Filter to only keep naaim table if it exists
-    const filteredTables = {};
-    if (tables.naaim !== undefined) {
-      filteredTables.naaim = tables.naaim;
-    }
+    // Show all tables instead of filtering
+    const filteredTables = tables;
     
     const health = {
       status: 'healthy',
