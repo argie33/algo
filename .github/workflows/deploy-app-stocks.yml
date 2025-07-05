@@ -31,6 +31,56 @@ jobs:
       qualitymetrics: ${{ steps.filter.outputs.qualitymetrics }}
       valuemetrics: ${{ steps.filter.outputs.valuemetrics }}
       stepfunctions: ${{ steps.filter.outputs.stepfunctions }}
+      symbols: ${{ steps.filter.outputs.symbols }}
+      symbolsalt: ${{ steps.filter.outputs.symbolsalt }}
+      econ: ${{ steps.filter.outputs.econ }}
+      pricedaily: ${{ steps.filter.outputs.pricedaily }}
+      priceweekly: ${{ steps.filter.outputs.priceweekly }}
+      pricemonthly: ${{ steps.filter.outputs.pricemonthly }}
+      technicalsdaily: ${{ steps.filter.outputs.technicalsdaily }}
+      technicalsweekly: ${{ steps.filter.outputs.technicalsweekly }}
+      technicalsmonthly: ${{ steps.filter.outputs.technicalsmonthly }}
+      loadinfo: ${{ steps.filter.outputs.loadinfo }}
+      earningshistory: ${{ steps.filter.outputs.earningshistory }}
+      earningsestimate: ${{ steps.filter.outputs.earningsestimate }}
+      earningsmetrics: ${{ steps.filter.outputs.earningsmetrics }}
+      revenueestimate: ${{ steps.filter.outputs.revenueestimate }}
+      swingtrader: ${{ steps.filter.outputs.swingtrader }}
+      buyselldaily: ${{ steps.filter.outputs.buyselldaily }}
+      buysellweekly: ${{ steps.filter.outputs.buysellweekly }}
+      buysellmonthly: ${{ steps.filter.outputs.buysellmonthly }}
+      latestpricedaily: ${{ steps.filter.outputs.latestpricedaily }}
+      latestpriceweekly: ${{ steps.filter.outputs.latestpriceweekly }}
+      latestpricemonthly: ${{ steps.filter.outputs.latestpricemonthly }}
+      latesttechnicalsdaily: ${{ steps.filter.outputs.latesttechnicalsdaily }}
+      latesttechnicalsweekly: ${{ steps.filter.outputs.latesttechnicalsweekly }}
+      latesttechnicalsmonthly: ${{ steps.filter.outputs.latesttechnicalsmonthly }}
+      naaim: ${{ steps.filter.outputs.naaim }}
+      aaii: ${{ steps.filter.outputs.aaii }}
+      feargreed: ${{ steps.filter.outputs.feargreed }}
+      quarterlybalancesheet: ${{ steps.filter.outputs.quarterlybalancesheet }}
+      annualbalancesheet: ${{ steps.filter.outputs.annualbalancesheet }}
+      quarterlyincomestatement: ${{ steps.filter.outputs.quarterlyincomestatement }}
+      annualincomestatement: ${{ steps.filter.outputs.annualincomestatement }}
+      quarterlycashflow: ${{ steps.filter.outputs.quarterlycashflow }}
+      annualcashflow: ${{ steps.filter.outputs.annualcashflow }}
+      ttmincomestatement: ${{ steps.filter.outputs.ttmincomestatement }}
+      ttmcashflow: ${{ steps.filter.outputs.ttmcashflow }}
+      loadnews: ${{ steps.filter.outputs.loadnews }}
+      fundamentalmetrics: ${{ steps.filter.outputs.fundamentalmetrics }}
+      analystupgradedowngrade: ${{ steps.filter.outputs.analystupgradedowngrade }}
+      financials: ${{ steps.filter.outputs.financials }}
+      sentiment: ${{ steps.filter.outputs.sentiment }}
+      technicals: ${{ steps.filter.outputs.technicals }}
+      market: ${{ steps.filter.outputs.market }}
+      momentum: ${{ steps.filter.outputs.momentum }}
+      sentiment_realtime: ${{ steps.filter.outputs.sentiment_realtime }}
+      positioning: ${{ steps.filter.outputs.positioning }}
+      qualityscores: ${{ steps.filter.outputs.qualityscores }}
+      valuescores: ${{ steps.filter.outputs.valuescores }}
+      growthmetrics: ${{ steps.filter.outputs.growthmetrics }}
+      calendar: ${{ steps.filter.outputs.calendar }}
+      any: ${{ steps.filter.outputs.any }}
     steps:
       - uses: actions/checkout@v3
       - uses: dorny/paths-filter@v2
@@ -50,6 +100,109 @@ jobs:
               - 'scripts/value-metrics/**'
             stepfunctions:
               - 'cloudformation/template-step-functions-orchestration.yml'
+            symbols:
+              - 'scripts/stock-symbols/**'
+            symbolsalt:
+              - 'scripts/symbols-alt/**'
+            econ:
+              - 'scripts/econ-data/**'
+            pricedaily:
+              - 'scripts/pricedaily/**'
+            priceweekly:
+              - 'scripts/priceweekly/**'
+            pricemonthly:
+              - 'scripts/pricemonthly/**'
+            technicalsdaily:
+              - 'scripts/technicals-daily/**'
+            technicalsweekly:
+              - 'scripts/technicals-weekly/**'
+            technicalsmonthly:
+              - 'scripts/technicals-monthly/**'
+            loadinfo:
+              - 'scripts/load-info/**'
+            earningshistory:
+              - 'scripts/earnings-history/**'
+            earningsestimate:
+              - 'scripts/earnings-estimate/**'
+            earningsmetrics:
+              - 'scripts/earnings-metrics/**'
+            revenueestimate:
+              - 'scripts/revenue-estimate/**'
+            swingtrader:
+              - 'scripts/swing-trader/**'
+            buyselldaily:
+              - 'scripts/buysell-daily/**'
+            buysellweekly:
+              - 'scripts/buysell-weekly/**'
+            buysellmonthly:
+              - 'scripts/buysell-monthly/**'
+            latestpricedaily:
+              - 'scripts/load-latest-price-daily/**'
+            latestpriceweekly:
+              - 'scripts/load-latest-price-weekly/**'
+            latestpricemonthly:
+              - 'scripts/load-latest-price-monthly/**'
+            latesttechnicalsdaily:
+              - 'scripts/latest-technicals-daily/**'
+            latesttechnicalsweekly:
+              - 'scripts/latest-technicals-weekly/**'
+            latesttechnicalsmonthly:
+              - 'scripts/latest-technicals-monthly/**'
+            naaim:
+              - 'scripts/naaim/**'
+            aaii:
+              - 'scripts/aaii/**'
+            feargreed:
+              - 'scripts/fear-greed/**'
+            quarterlybalancesheet:
+              - 'scripts/quarterly-balance-sheet/**'
+            annualbalancesheet:
+              - 'scripts/annual-balance-sheet/**'
+            quarterlyincomestatement:
+              - 'scripts/quarterly-income-statement/**'
+            annualincomestatement:
+              - 'scripts/annual-income-statement/**'
+            quarterlycashflow:
+              - 'scripts/quarterly-cash-flow/**'
+            annualcashflow:
+              - 'scripts/annual-cash-flow/**'
+            ttmincomestatement:
+              - 'scripts/ttm-income-statement/**'
+            ttmcashflow:
+              - 'scripts/ttm-cash-flow/**'
+            loadnews:
+              - 'scripts/load-news/**'
+            fundamentalmetrics:
+              - 'scripts/fundamental-metrics/**'
+            analystupgradedowngrade:
+              - 'scripts/analyst-upgrade-downgrade/**'
+            financials:
+              - 'scripts/financials/**'
+            sentiment:
+              - 'scripts/sentiment/**'
+            technicals:
+              - 'scripts/technicals/**'
+            market:
+              - 'scripts/market/**'
+            momentum:
+              - 'scripts/momentum/**'
+            sentiment_realtime:
+              - 'scripts/sentiment-realtime/**'
+            positioning:
+              - 'scripts/positioning/**'
+            qualityscores:
+              - 'scripts/quality-scores/**'
+            valuescores:
+              - 'scripts/value-scores/**'
+            growthmetrics:
+              - 'scripts/growth-metrics/**'
+            calendar:
+              - 'scripts/calendar/**'
+            any:
+              - 'scripts/**'
+              - 'cloudformation/**'
+              - '.github/workflows/**'
+              - 'requirements.txt'
 
 # 6) Run value-metrics loader
   run_valuemetrics:
