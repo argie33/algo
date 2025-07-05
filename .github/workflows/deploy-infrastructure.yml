@@ -85,9 +85,7 @@ jobs:
         run: |
           echo "VALUE_METRICS_IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
           echo "QUALITY_METRICS_IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
-          echo "SCORES_DAILY_IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
-          echo "SCORES_WEEKLY_IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
-          echo "SCORES_MONTHLY_IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
+          echo "SCORES_IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
 
       - name: Deploy application stack
         if: ${{ needs.filter.outputs.app == 'true' }}
@@ -111,9 +109,7 @@ jobs:
             --parameter-overrides \
               ValueMetricsImageTag=${{ env.VALUE_METRICS_IMAGE_TAG }} \
               QualityMetricsImageTag=${{ env.QUALITY_METRICS_IMAGE_TAG }} \
-              ScoresDailyImageTag=${{ env.SCORES_DAILY_IMAGE_TAG }} \
-              ScoresWeeklyImageTag=${{ env.SCORES_WEEKLY_IMAGE_TAG }} \
-              ScoresMonthlyImageTag=${{ env.SCORES_MONTHLY_IMAGE_TAG }} \
+              ScoresImageTag=${{ env.SCORES_IMAGE_TAG }} \
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}
 
