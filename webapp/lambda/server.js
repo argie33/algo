@@ -22,6 +22,8 @@ const calendarRoutes = require('./routes/calendar');
 const signalsRoutes = require('./routes/signals');
 const dataRoutes = require('./routes/data');
 const dashboardRoutes = require('./routes/dashboard');
+const portfolioRoutes = require('./routes/portfolio');
+const sentimentRoutes = require('./routes/sentiment');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -80,6 +82,8 @@ app.use('/api/calendar', calendarRoutes);
 app.use('/api/signals', signalsRoutes);
 app.use('/api/data', dataRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/portfolio', portfolioRoutes);
+app.use('/api/sentiment', sentimentRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

@@ -83,6 +83,7 @@ import TestApiPage from './pages/TestApiPage'
 import PortfolioPerformanceSimple from './pages/PortfolioPerformanceSimple'
 import PortfolioPerformanceDebug from './pages/PortfolioPerformanceDebug'
 import AuthTest from './pages/AuthTest'
+import SocialMediaSentiment from './pages/SocialMediaSentiment'
 
 const drawerWidth = 240
 
@@ -463,7 +464,7 @@ function App() {
             {/* Sector Analysis */}
             <Route path="/sectors" element={<SectorAnalysis />} />
             <Route path="/watchlist" element={<ComingSoon pageName="Watchlist" description="Track your favorite stocks and get personalized alerts." />} />
-            <Route path="/sentiment/social" element={<ComingSoon pageName="Social Media Sentiment" description="Real-time social media sentiment analysis for stocks." />} />
+            <Route path="/sentiment/social" element={<SocialMediaSentiment />} />
             <Route path="/sentiment/news" element={<ComingSoon pageName="News Sentiment" description="AI-powered news sentiment analysis and impact predictions." />} />
             <Route path="/sentiment/analysts" element={<AnalystInsights />} />
             <Route path="/research/commentary" element={<ComingSoon pageName="Market Commentary" description="Expert market commentary and analysis." />} />
