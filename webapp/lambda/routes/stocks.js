@@ -613,17 +613,31 @@ router.get('/:ticker', async (req, res) => {
   }
 });
 
-// Get stock price history 
+// Get stock price history with timeframe support
 router.get('/:ticker/prices', async (req, res) => {
   try {
     const { ticker } = req.params;
-    const limit = Math.min(parseInt(req.query.limit) || 30, 90); // Max 90 days for performance
+    const { timeframe = 'daily' } = req.query;
+    const limit = Math.min(parseInt(req.query.limit) || 30, 90); // Max 90 for performance
     
-    console.log(`SIMPLIFIED prices endpoint called for ticker: ${ticker}, limit: ${limit}`);
+    // Validate timeframe
+    const validTimeframes = ['daily', 'weekly', 'monthly'];
+    if (!validTimeframes.includes(timeframe)) {
+      return res.status(400).json({
+        error: 'Invalid timeframe',
+        validTimeframes,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    console.log(`ENHANCED prices endpoint called for ticker: ${ticker}, timeframe: ${timeframe}, limit: ${limit}`);
+    
+    // Determine table name based on timeframe
+    const tableName = `price_${timeframe}`;
     
     const pricesQuery = `
-      SELECT date, open, high, low, close, adj_close, volume
-      FROM price_daily
+      SELECT date, open, high, low, close, adj_close, volume, dividends, stock_splits
+      FROM ${tableName}
       WHERE UPPER(symbol) = UPPER($1)
       ORDER BY date DESC
       LIMIT $2
@@ -664,6 +678,8 @@ router.get('/:ticker/prices', async (req, res) => {
         close: parseFloat(price.close),
         adjClose: parseFloat(price.adj_close),
         volume: parseInt(price.volume) || 0,
+        dividends: price.dividends ? parseFloat(price.dividends) : 0,
+        stockSplits: price.stock_splits ? parseFloat(price.stock_splits) : 0,
         priceChange,
         priceChangePct
       };
@@ -672,6 +688,7 @@ router.get('/:ticker/prices', async (req, res) => {
     res.json({
       success: true,
       ticker: ticker.toUpperCase(),
+      timeframe: timeframe,
       dataPoints: result.rows.length,
       data: pricesWithChange,
       summary: {
@@ -679,6 +696,10 @@ router.get('/:ticker/prices', async (req, res) => {
         latestDate: latest.date,
         periodReturn: parseFloat(periodReturn.toFixed(2)),
         latestVolume: parseInt(latest.volume) || 0
+      },
+      metadata: {
+        tableName: tableName,
+        availableTimeframes: validTimeframes
       },
       timestamp: new Date().toISOString()
     });

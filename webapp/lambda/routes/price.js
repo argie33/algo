@@ -92,9 +92,9 @@ router.get('/history/:timeframe', async (req, res) => {
         low,
         close,
         volume,
-        adjusted_close,
-        split_factor,
-        dividend
+        adj_close,
+        stock_splits,
+        dividends
       FROM ${tableName}
       ${whereClause}
       ORDER BY date DESC
@@ -127,9 +127,9 @@ router.get('/history/:timeframe', async (req, res) => {
         low: parseFloat(row.low),
         close: parseFloat(row.close),
         volume: parseInt(row.volume),
-        adjustedClose: row.adjusted_close ? parseFloat(row.adjusted_close) : null,
-        splitFactor: row.split_factor ? parseFloat(row.split_factor) : null,
-        dividend: row.dividend ? parseFloat(row.dividend) : null
+        adjustedClose: row.adj_close ? parseFloat(row.adj_close) : null,
+        splitFactor: row.stock_splits ? parseFloat(row.stock_splits) : null,
+        dividend: row.dividends ? parseFloat(row.dividends) : null
       })),
       pagination: {
         page: parseInt(page),
