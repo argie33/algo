@@ -28,8 +28,72 @@ Globals:
         DB_SECRET_ARN: !Ref DatabaseSecretArn
         DB_ENDPOINT: !Ref DatabaseEndpoint
         ENVIRONMENT: !Ref EnvironmentName
+        COGNITO_USER_POOL_ID: !Ref UserPool
+        COGNITO_CLIENT_ID: !Ref UserPoolClient
+        AWS_REGION: !Ref AWS::Region
 
 Resources:
+  # Cognito User Pool for authentication
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub 'financial-dashboard-user-pool-${EnvironmentName}'
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      PasswordPolicy:
+        MinimumLength: 8
+        RequireUppercase: true
+        RequireLowercase: true
+        RequireNumbers: true
+        RequireSymbols: false
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+        EmailMessage: 'Your verification code is {####}'
+        EmailSubject: 'Your verification code'
+      UserPoolTags:
+        Project: financial-dashboard
+        Environment: !Ref EnvironmentName
+
+  # Cognito User Pool Client
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn: CloudFrontDistribution
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: !Sub 'financial-dashboard-client-${EnvironmentName}'
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+      SupportedIdentityProviders:
+        - COGNITO
+      CallbackURLs:
+        - !Sub 'https://${CloudFrontDistribution.DomainName}'
+        - 'http://localhost:5173'
+        - 'http://localhost:3000'
+      LogoutURLs:
+        - !Sub 'https://${CloudFrontDistribution.DomainName}'
+        - 'http://localhost:5173'
+        - 'http://localhost:3000'
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      AllowedOAuthFlowsUserPoolClient: true
+
+  # Cognito User Pool Domain
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      UserPoolId: !Ref UserPool
+      Domain: !Sub 'financial-dashboard-${EnvironmentName}-${AWS::AccountId}'
   # S3 Bucket for frontend hosting
   FrontendBucket:
     Type: AWS::S3::Bucket
@@ -75,7 +139,12 @@ Resources:
     Properties:
       FunctionName: !Sub 'financial-dashboard-api-dev'
       CodeUri: webapp/lambda/
-      Handler: index.handler      
+      Handler: index.handler
+      Environment:
+        Variables:
+          COGNITO_USER_POOL_ID: !Ref UserPool
+          COGNITO_CLIENT_ID: !Ref UserPoolClient
+          AWS_REGION: !Ref AWS::Region
       Policies:
         - Version: '2012-10-17'
           Statement:
@@ -94,6 +163,13 @@ Resources:
                 - logs:CreateLogStream
                 - logs:PutLogEvents
               Resource: '*'
+            - Effect: Allow
+              Action:
+                - cognito-idp:AdminGetUser
+                - cognito-idp:AdminCreateUser
+                - cognito-idp:AdminUpdateUserAttributes
+                - cognito-idp:AdminDeleteUser
+              Resource: !GetAtt UserPool.Arn
       Events:
         ApiProxy:
           Type: Api
@@ -329,3 +405,22 @@ Outputs:
     Value: !Ref AWS::StackName
     Export:
       Name: !Sub '${AWS::StackName}-StackName'
+
+  # Cognito outputs for frontend configuration
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref UserPool
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolId'
+
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolClientId'
+
+  UserPoolDomain:
+    Description: Cognito User Pool Domain
+    Value: !Sub 'https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com'
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolDomain'
