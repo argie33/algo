@@ -216,20 +216,22 @@ update_runtime_config() {
     
     cd webapp/frontend
     
-    # Create the actual runtime config with real API URL
-    cat > dist/config.js << EOF
-// Runtime configuration - Production
-// Auto-generated during deployment
-window.__CONFIG__ = {
-  API_URL: "$API_URL",
-  BUILD_TIME: "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-  VERSION: "1.0.0",
-  ENVIRONMENT: "$ENVIRONMENT"
-};
-EOF
-
-    log_info "Runtime configuration updated:"
-    cat dist/config.js
+    # Set environment variables for the dynamic config script
+    export API_URL="$API_URL"
+    export ENVIRONMENT="$ENVIRONMENT"
+    
+    # Use our dynamic config system
+    log_info "Running dynamic configuration setup..."
+    node setup-api-config.js
+    
+    # Verify the config was updated correctly
+    if [ -f "dist/config.js" ]; then
+        log_info "Runtime configuration updated:"
+        cat dist/config.js
+    else
+        log_error "Failed to create dist/config.js"
+        exit 1
+    fi
     
     cd ../..
     log_success "Runtime configuration updated with actual API URL"
