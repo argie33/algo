@@ -417,15 +417,60 @@ jobs:
           else
             echo "No lint script found, skipping"
           fi
+      - name: Get Cognito configuration
+        id: cognito_config
+        run: |
+          STACK_NAME="${{ needs.deploy_infrastructure.outputs.stack_name }}"
+          
+          # Get Cognito configuration from CloudFormation outputs
+          USER_POOL_ID=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" \
+            --output text 2>/dev/null || echo "")
+          
+          CLIENT_ID=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='UserPoolClientId'].OutputValue" \
+            --output text 2>/dev/null || echo "")
+          
+          COGNITO_DOMAIN=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='UserPoolDomain'].OutputValue" \
+            --output text 2>/dev/null || echo "")
+          
+          WEBSITE_URL="${{ needs.deploy_infrastructure.outputs.website_url }}"
+          
+          # Set outputs for use in build step
+          echo "user_pool_id=$USER_POOL_ID" >> $GITHUB_OUTPUT
+          echo "client_id=$CLIENT_ID" >> $GITHUB_OUTPUT
+          echo "cognito_domain=$COGNITO_DOMAIN" >> $GITHUB_OUTPUT
+          echo "website_url=$WEBSITE_URL" >> $GITHUB_OUTPUT
+          
+          echo "✅ Cognito configuration retrieved:"
+          echo "  User Pool ID: $USER_POOL_ID"
+          echo "  Client ID: $CLIENT_ID"
+          echo "  Cognito Domain: $COGNITO_DOMAIN"
+          echo "  Website URL: $WEBSITE_URL"
+
       - name: Build Frontend
         working-directory: webapp/frontend
         env:
           API_URL: ${{ needs.deploy_infrastructure.outputs.api_url }}
           VITE_API_URL: ${{ needs.deploy_infrastructure.outputs.api_url }}
+          VITE_COGNITO_USER_POOL_ID: ${{ steps.cognito_config.outputs.user_pool_id }}
+          VITE_COGNITO_CLIENT_ID: ${{ steps.cognito_config.outputs.client_id }}
+          VITE_AWS_REGION: ${{ env.AWS_REGION }}
+          VITE_COGNITO_DOMAIN: ${{ steps.cognito_config.outputs.cognito_domain }}
+          VITE_COGNITO_REDIRECT_SIGN_IN: ${{ steps.cognito_config.outputs.website_url }}
+          VITE_COGNITO_REDIRECT_SIGN_OUT: ${{ steps.cognito_config.outputs.website_url }}
         run: |
           echo "🔧 Environment variables for build:"
           echo "API_URL: $API_URL"
           echo "VITE_API_URL: $VITE_API_URL"
+          echo "VITE_COGNITO_USER_POOL_ID: $VITE_COGNITO_USER_POOL_ID"
+          echo "VITE_COGNITO_CLIENT_ID: $VITE_COGNITO_CLIENT_ID"
+          echo "VITE_AWS_REGION: $VITE_AWS_REGION"
+          echo "VITE_COGNITO_DOMAIN: $VITE_COGNITO_DOMAIN"
           echo "Node environment: $NODE_ENV"
           
           # Verify the API URL is not empty
@@ -436,11 +481,32 @@ jobs:
             exit 1
           fi
           
+          # Verify Cognito configuration
+          if [[ -z "$VITE_COGNITO_USER_POOL_ID" || -z "$VITE_COGNITO_CLIENT_ID" ]]; then
+            echo "⚠️  Cognito configuration is incomplete - authentication may not work"
+            echo "  User Pool ID: '$VITE_COGNITO_USER_POOL_ID'"
+            echo "  Client ID: '$VITE_COGNITO_CLIENT_ID'"
+          else
+            echo "✅ Cognito configuration looks complete"
+          fi
+          
           # Show what's in the .env file for debugging
           echo "📄 Current .env content (if exists):"
           cat .env 2>/dev/null || echo "No .env file found"
-          # Create/update .env file with the API URL
-          echo "VITE_API_URL=$VITE_API_URL" > .env
+          
+          # Create/update .env file with all configuration
+          cat > .env << EOF
+VITE_API_URL=$VITE_API_URL
+VITE_COGNITO_USER_POOL_ID=$VITE_COGNITO_USER_POOL_ID
+VITE_COGNITO_CLIENT_ID=$VITE_COGNITO_CLIENT_ID
+VITE_AWS_REGION=$VITE_AWS_REGION
+VITE_COGNITO_DOMAIN=$VITE_COGNITO_DOMAIN
+VITE_COGNITO_REDIRECT_SIGN_IN=$VITE_COGNITO_REDIRECT_SIGN_IN
+VITE_COGNITO_REDIRECT_SIGN_OUT=$VITE_COGNITO_REDIRECT_SIGN_OUT
+VITE_SERVERLESS=true
+VITE_ENVIRONMENT=production
+EOF
+          
           echo "📝 Created .env file with:"
           cat .env
           # Also create runtime config file for dynamic loading
@@ -450,7 +516,15 @@ jobs:
           echo "  API_URL: '$VITE_API_URL'," >> public/config.js
           echo "  ENVIRONMENT: '${{ needs.deploy_infrastructure.outputs.environment }}'," >> public/config.js
           echo "  VERSION: '$(date +%Y%m%d-%H%M%S)'," >> public/config.js
-          echo "  BUILD_TIME: '$(date -u +%Y-%m-%dT%H:%M:%SZ)'" >> public/config.js
+          echo "  BUILD_TIME: '$(date -u +%Y-%m-%dT%H:%M:%SZ)'," >> public/config.js
+          echo "  COGNITO: {" >> public/config.js
+          echo "    USER_POOL_ID: '$VITE_COGNITO_USER_POOL_ID'," >> public/config.js
+          echo "    CLIENT_ID: '$VITE_COGNITO_CLIENT_ID'," >> public/config.js
+          echo "    REGION: '$VITE_AWS_REGION'," >> public/config.js
+          echo "    DOMAIN: '$VITE_COGNITO_DOMAIN'," >> public/config.js
+          echo "    REDIRECT_SIGN_IN: '$VITE_COGNITO_REDIRECT_SIGN_IN'," >> public/config.js
+          echo "    REDIRECT_SIGN_OUT: '$VITE_COGNITO_REDIRECT_SIGN_OUT'" >> public/config.js
+          echo "  }" >> public/config.js
           echo "};" >> public/config.js
           echo "console.log('Runtime config loaded:', window.__CONFIG__);" >> public/config.js
           echo "📝 Created runtime config:"
