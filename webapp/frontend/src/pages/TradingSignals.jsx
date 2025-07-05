@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { keyframes } from '@mui/system';
 import {
   Box,
   Container,
@@ -116,6 +117,19 @@ import {
 import { api } from '../services/api';
 import { formatPercentage, formatNumber, formatCurrency } from '../utils/formatters';
 
+// Animation keyframes
+const pulse = keyframes`
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 1;
+  }
+`;
+
 // Trading signal strength indicator
 const SignalStrength = ({ strength, type = 'buy' }) => {
   const theme = useTheme();
@@ -159,9 +173,9 @@ const SignalStrength = ({ strength, type = 'buy' }) => {
 };
 
 // Signal type chip
-const SignalTypeChip = ({ signal, strength }) => {
+const SignalTypeChip = ({ signal, strength, signalType }) => {
   const theme = useTheme();
-  const isPositive = parseFloat(signal) > 0;
+  const isPositive = signalType === 'buy' || (signal && parseFloat(signal) > 0);
   
   return (
     <Chip
@@ -176,6 +190,82 @@ const SignalTypeChip = ({ signal, strength }) => {
         '& .MuiChip-icon': {
           fontSize: '1rem'
         }
+      }}
+    />
+  );
+};
+
+// Performance indicator
+const PerformanceIndicator = ({ performance, status }) => {
+  const theme = useTheme();
+  
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'WINNING': return theme.palette.success.main;
+      case 'STOPPED': return theme.palette.error.main;
+      case 'ACTIVE': return theme.palette.info.main;
+      default: return theme.palette.text.secondary;
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'WINNING': return <CheckCircle />;
+      case 'STOPPED': return <Warning />;
+      case 'ACTIVE': return <Timeline />;
+      default: return <Info />;
+    }
+  };
+
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        {React.cloneElement(getStatusIcon(status), { 
+          sx: { fontSize: '1rem', color: getStatusColor(status) } 
+        })}
+        <Typography 
+          variant="body2" 
+          sx={{ 
+            color: getStatusColor(status),
+            fontWeight: 600
+          }}
+        >
+          {performance ? `${performance > 0 ? '+' : ''}${performance.toFixed(1)}%` : '0.0%'}
+        </Typography>
+      </Box>
+      <Chip
+        label={status}
+        size="small"
+        sx={{
+          fontSize: '0.65rem',
+          height: 20,
+          backgroundColor: alpha(getStatusColor(status), 0.1),
+          color: getStatusColor(status),
+          border: `1px solid ${alpha(getStatusColor(status), 0.3)}`
+        }}
+      />
+    </Box>
+  );
+};
+
+// Current period badge
+const CurrentPeriodBadge = ({ isCurrentPeriod, daysSince }) => {
+  const theme = useTheme();
+  
+  if (!isCurrentPeriod) return null;
+  
+  return (
+    <Chip
+      icon={<NewReleases />}
+      label={`${daysSince}d ago`}
+      size="small"
+      sx={{
+        fontSize: '0.65rem',
+        height: 20,
+        backgroundColor: alpha(theme.palette.primary.main, 0.1),
+        color: theme.palette.primary.main,
+        border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}`,
+        animation: `${pulse} 2s infinite`
       }}
     />
   );
@@ -273,56 +363,97 @@ const TradingSignals = () => {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [watchlist, setWatchlist] = useState(new Set());
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'cards'
+  const [analytics, setAnalytics] = useState({});
+  const [showCurrentPeriodOnly, setShowCurrentPeriodOnly] = useState(true);
 
-  // Load signals data
+  // Load signals data with enhanced current period focus
   const loadSignals = async () => {
     setLoading(true);
     try {
-      console.log(`📊 Loading signals for timeframe: ${timeframe}`);
+      console.log(`📊 Loading current period signals for timeframe: ${timeframe}`);
       
-      // Load both buy and sell signals
-      const [buyResponse, sellResponse] = await Promise.all([
-        api.get(`/signals/buy?timeframe=${timeframe}&limit=100`),
-        api.get(`/signals/sell?timeframe=${timeframe}&limit=100`)
+      // Load current period signals with analytics
+      const [currentSignalsResponse, analyticsResponse] = await Promise.all([
+        api.get(`/trading/signals/current/${timeframe}?limit=100&min_strength=0.3`),
+        api.get(`/trading/analytics/${timeframe}`)
       ]);
 
-      const buyData = buyResponse.data?.data || [];
-      const sellData = sellResponse.data?.data || [];
+      const currentSignalsData = currentSignalsResponse.data?.data || [];
+      const analyticsData = analyticsResponse.data?.summary || {};
 
-      // Add signal type and strength to the data
-      const processedBuyData = buyData.map(signal => ({
+      // Process current period signals with enhanced data
+      const processedSignals = currentSignalsData.map(signal => ({
         ...signal,
-        signal_type: 'buy',
-        signal_strength: Math.abs(parseFloat(signal.signal) || 0) / 100, // Normalize to 0-1
+        signal_type: signal.signal === 'Buy' ? 'buy' : 'sell',
+        signal_strength: signal.signal_strength || 0,
         timestamp: new Date(signal.date),
-        market_cap_billions: (signal.market_cap || 0) / 1e9
+        market_cap_billions: (signal.market_cap || 0) / 1e9,
+        is_current_period: true,
+        performance_percent: signal.performance_percent || 0,
+        days_since_signal: signal.days_since_signal || 0,
+        signal_status: signal.signal_status || 'ACTIVE',
+        entry_price: signal.entry_price || signal.buylevel,
+        stop_loss: signal.stop_loss || signal.stoplevel,
+        current_price: signal.current_price || signal.regular_market_price
       }));
 
-      const processedSellData = sellData.map(signal => ({
-        ...signal,
-        signal_type: 'sell',
-        signal_strength: Math.abs(parseFloat(signal.signal) || 0) / 100, // Normalize to 0-1
-        timestamp: new Date(signal.date),
-        market_cap_billions: (signal.market_cap || 0) / 1e9
-      }));
+      // Separate buy and sell signals
+      const buySignals = processedSignals.filter(s => s.signal_type === 'buy');
+      const sellSignals = processedSignals.filter(s => s.signal_type === 'sell');
 
-      setBuySignals(processedBuyData);
-      setSellSignals(processedSellData);
-      
-      // Combine all signals
-      const combined = [...processedBuyData, ...processedSellData];
-      setAllSignals(combined);
-      setFilteredSignals(combined);
+      setBuySignals(buySignals);
+      setSellSignals(sellSignals);
+      setAllSignals(processedSignals);
+      setFilteredSignals(processedSignals);
 
-      console.log(`📊 Loaded ${buyData.length} buy signals and ${sellData.length} sell signals`);
+      // Store analytics for display
+      setAnalytics(analyticsData);
+
+      console.log(`📊 Loaded ${processedSignals.length} current period signals (${buySignals.length} buy, ${sellSignals.length} sell)`);
     } catch (error) {
       console.error('Error loading signals:', error);
-      // Use mock data for development
-      const mockSignals = generateMockSignals();
-      setBuySignals(mockSignals.filter(s => s.signal_type === 'buy'));
-      setSellSignals(mockSignals.filter(s => s.signal_type === 'sell'));
-      setAllSignals(mockSignals);
-      setFilteredSignals(mockSignals);
+      // Fallback to basic signals API
+      try {
+        const [buyResponse, sellResponse] = await Promise.all([
+          api.get(`/signals/buy?timeframe=${timeframe}&limit=100`),
+          api.get(`/signals/sell?timeframe=${timeframe}&limit=100`)
+        ]);
+
+        const buyData = buyResponse.data?.data || [];
+        const sellData = sellResponse.data?.data || [];
+
+        const processedBuyData = buyData.map(signal => ({
+          ...signal,
+          signal_type: 'buy',
+          signal_strength: Math.abs(parseFloat(signal.signal) || 0) / 100,
+          timestamp: new Date(signal.date),
+          market_cap_billions: (signal.market_cap || 0) / 1e9,
+          is_current_period: false
+        }));
+
+        const processedSellData = sellData.map(signal => ({
+          ...signal,
+          signal_type: 'sell',
+          signal_strength: Math.abs(parseFloat(signal.signal) || 0) / 100,
+          timestamp: new Date(signal.date),
+          market_cap_billions: (signal.market_cap || 0) / 1e9,
+          is_current_period: false
+        }));
+
+        setBuySignals(processedBuyData);
+        setSellSignals(processedSellData);
+        
+        const combined = [...processedBuyData, ...processedSellData];
+        setAllSignals(combined);
+        setFilteredSignals(combined);
+      } catch (fallbackError) {
+        console.error('Fallback also failed, using mock data:', fallbackError);
+        const mockSignals = generateMockSignals();
+        setBuySignals(mockSignals.filter(s => s.signal_type === 'buy'));
+        setSellSignals(mockSignals.filter(s => s.signal_type === 'sell'));
+        setAllSignals(mockSignals);
+        setFilteredSignals(mockSignals);
+      }
     } finally {
       setLoading(false);
     }
@@ -345,21 +476,36 @@ const TradingSignals = () => {
       'JNJ': 'Johnson & Johnson'
     };
 
-    return symbols.map((symbol, index) => ({
-      symbol,
-      company_name: companies[symbol],
-      sector: sectors[index % sectors.length],
-      signal: (Math.random() - 0.5) * 100, // Random signal between -50 and 50
-      signal_type: Math.random() > 0.5 ? 'buy' : 'sell',
-      signal_strength: Math.random() * 0.8 + 0.2, // Random strength 0.2-1.0
-      date: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      timestamp: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000),
-      current_price: Math.random() * 300 + 50,
-      market_cap: Math.random() * 2000e9 + 10e9,
-      market_cap_billions: (Math.random() * 2000 + 10),
-      trailing_pe: Math.random() * 30 + 10,
-      dividend_yield: Math.random() * 5
-    }));
+    return symbols.map((symbol, index) => {
+      const signalType = Math.random() > 0.5 ? 'buy' : 'sell';
+      const entryPrice = Math.random() * 300 + 50;
+      const currentPrice = entryPrice * (0.8 + Math.random() * 0.4); // ±20% from entry
+      const performance = ((currentPrice - entryPrice) / entryPrice) * 100;
+      const daysSince = Math.floor(Math.random() * 30);
+      
+      return {
+        symbol,
+        company_name: companies[symbol],
+        sector: sectors[index % sectors.length],
+        signal: signalType === 'buy' ? 'Buy' : 'Sell',
+        signal_type: signalType,
+        signal_strength: Math.random() * 0.8 + 0.2,
+        date: new Date(Date.now() - daysSince * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        timestamp: new Date(Date.now() - daysSince * 24 * 60 * 60 * 1000),
+        entry_price: entryPrice,
+        current_price: currentPrice,
+        stop_loss: entryPrice * (signalType === 'buy' ? 0.95 : 1.05),
+        market_cap: Math.random() * 2000e9 + 10e9,
+        market_cap_billions: (Math.random() * 2000 + 10),
+        trailing_pe: Math.random() * 30 + 10,
+        dividend_yield: Math.random() * 5,
+        beta: Math.random() * 2 + 0.5,
+        is_current_period: true,
+        performance_percent: signalType === 'buy' ? performance : -performance,
+        days_since_signal: daysSince,
+        signal_status: Math.random() > 0.7 ? 'WINNING' : Math.random() > 0.5 ? 'ACTIVE' : 'STOPPED'
+      };
+    });
   };
 
   // Load data on component mount and when timeframe changes
@@ -441,24 +587,47 @@ const TradingSignals = () => {
     return filteredSignals.slice(start, start + rowsPerPage);
   }, [filteredSignals, page, rowsPerPage]);
 
-  // Statistics
+  // Statistics with analytics integration
   const stats = useMemo(() => {
-    const totalSignals = allSignals.length;
-    const buyCount = allSignals.filter(s => s.signal_type === 'buy').length;
-    const sellCount = allSignals.filter(s => s.signal_type === 'sell').length;
-    const strongSignals = allSignals.filter(s => s.signal_strength >= 0.7).length;
-    const avgStrength = allSignals.length ? allSignals.reduce((sum, s) => sum + s.signal_strength, 0) / allSignals.length : 0;
+    if (analytics && Object.keys(analytics).length > 0) {
+      // Use analytics data when available
+      return {
+        total: analytics.total_signals || 0,
+        buy: analytics.buy_signals || 0,
+        sell: analytics.sell_signals || 0,
+        winning: analytics.winning_signals || 0,
+        winRate: analytics.win_rate || 0,
+        avgWinning: analytics.avg_winning_performance || 0,
+        avgLosing: analytics.avg_losing_performance || 0,
+        bestPerformance: analytics.best_performance || 0,
+        worstPerformance: analytics.worst_performance || 0,
+        sectors: analytics.sectors_covered || 0,
+        uniqueSymbols: analytics.unique_symbols || 0,
+        buyPercentage: analytics.total_signals ? (analytics.buy_signals / analytics.total_signals) * 100 : 0,
+        sellPercentage: analytics.total_signals ? (analytics.sell_signals / analytics.total_signals) * 100 : 0
+      };
+    } else {
+      // Fallback to calculated stats
+      const totalSignals = allSignals.length;
+      const buyCount = allSignals.filter(s => s.signal_type === 'buy').length;
+      const sellCount = allSignals.filter(s => s.signal_type === 'sell').length;
+      const strongSignals = allSignals.filter(s => s.signal_strength >= 0.7).length;
+      const winningSignals = allSignals.filter(s => s.signal_status === 'WINNING').length;
+      const avgStrength = allSignals.length ? allSignals.reduce((sum, s) => sum + s.signal_strength, 0) / allSignals.length : 0;
 
-    return {
-      total: totalSignals,
-      buy: buyCount,
-      sell: sellCount,
-      strong: strongSignals,
-      avgStrength: avgStrength,
-      buyPercentage: totalSignals ? (buyCount / totalSignals) * 100 : 0,
-      sellPercentage: totalSignals ? (sellCount / totalSignals) * 100 : 0
-    };
-  }, [allSignals]);
+      return {
+        total: totalSignals,
+        buy: buyCount,
+        sell: sellCount,
+        strong: strongSignals,
+        winning: winningSignals,
+        winRate: totalSignals ? (winningSignals / totalSignals) * 100 : 0,
+        avgStrength: avgStrength,
+        buyPercentage: totalSignals ? (buyCount / totalSignals) * 100 : 0,
+        sellPercentage: totalSignals ? (sellCount / totalSignals) * 100 : 0
+      };
+    }
+  }, [allSignals, analytics]);
 
   // Watchlist functions
   const toggleWatchlist = (symbol) => {
@@ -473,7 +642,7 @@ const TradingSignals = () => {
     });
   };
 
-  // Render statistics cards
+  // Render enhanced statistics cards
   const renderStatsCards = () => (
     <Grid container spacing={3} sx={{ mb: 3 }}>
       <Grid item xs={12} sm={6} md={3}>
@@ -491,8 +660,13 @@ const TradingSignals = () => {
                   {stats.total}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Total Signals
+                  Active Signals
                 </Typography>
+                {stats.uniqueSymbols > 0 && (
+                  <Typography variant="caption" color="text.secondary">
+                    {stats.uniqueSymbols} symbols, {stats.sectors} sectors
+                  </Typography>
+                )}
               </Box>
             </Box>
           </CardContent>
@@ -516,6 +690,11 @@ const TradingSignals = () => {
                 <Typography variant="body2" color="text.secondary">
                   Buy Signals ({stats.buyPercentage.toFixed(1)}%)
                 </Typography>
+                {stats.avgWinning > 0 && (
+                  <Typography variant="caption" color="success.main">
+                    Avg Win: +{stats.avgWinning.toFixed(1)}%
+                  </Typography>
+                )}
               </Box>
             </Box>
           </CardContent>
@@ -539,6 +718,11 @@ const TradingSignals = () => {
                 <Typography variant="body2" color="text.secondary">
                   Sell Signals ({stats.sellPercentage.toFixed(1)}%)
                 </Typography>
+                {stats.avgLosing < 0 && (
+                  <Typography variant="caption" color="error.main">
+                    Avg Loss: {stats.avgLosing.toFixed(1)}%
+                  </Typography>
+                )}
               </Box>
             </Box>
           </CardContent>
@@ -547,21 +731,26 @@ const TradingSignals = () => {
 
       <Grid item xs={12} sm={6} md={3}>
         <Card sx={{ 
-          background: `linear-gradient(135deg, ${alpha(theme.palette.warning.main, 0.1)} 0%, ${alpha(theme.palette.warning.main, 0.2)} 100%)`,
-          border: `1px solid ${alpha(theme.palette.warning.main, 0.2)}`
+          background: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.1)} 0%, ${alpha(theme.palette.info.main, 0.2)} 100%)`,
+          border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`
         }}>
           <CardContent>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Avatar sx={{ bgcolor: theme.palette.warning.main }}>
-                <Whatshot />
+              <Avatar sx={{ bgcolor: theme.palette.info.main }}>
+                <CheckCircle />
               </Avatar>
               <Box>
-                <Typography variant="h4" fontWeight={700} color="warning.main">
-                  {stats.strong}
+                <Typography variant="h4" fontWeight={700} color="info.main">
+                  {stats.winning || stats.strong}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Strong Signals
+                  {stats.winning ? 'Winning' : 'Strong'} Signals
                 </Typography>
+                {stats.winRate > 0 && (
+                  <Typography variant="caption" color="info.main">
+                    Win Rate: {stats.winRate.toFixed(1)}%
+                  </Typography>
+                )}
               </Box>
             </Box>
           </CardContent>
@@ -697,6 +886,7 @@ const TradingSignals = () => {
                   </TableSortLabel>
                 </TableCell>
                 <TableCell>Signal</TableCell>
+                <TableCell>Performance</TableCell>
                 <TableCell>Strength</TableCell>
                 <TableCell>
                   <TableSortLabel
@@ -710,10 +900,9 @@ const TradingSignals = () => {
                     Date
                   </TableSortLabel>
                 </TableCell>
-                <TableCell>Price</TableCell>
+                <TableCell>Entry/Current</TableCell>
                 <TableCell>Market Cap</TableCell>
                 <TableCell>P/E</TableCell>
-                <TableCell>Dividend</TableCell>
                 <TableCell>Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -730,12 +919,25 @@ const TradingSignals = () => {
                 ))
               ) : (
                 paginatedSignals.map((signal, index) => (
-                  <TableRow key={`${signal.symbol}-${signal.date}-${index}`} hover>
+                  <TableRow 
+                    key={`${signal.symbol}-${signal.date}-${index}`} 
+                    hover
+                    sx={{
+                      backgroundColor: signal.is_current_period ? alpha(theme.palette.primary.main, 0.05) : 'inherit',
+                      borderLeft: signal.is_current_period ? `4px solid ${theme.palette.primary.main}` : 'none'
+                    }}
+                  >
                     <TableCell>
                       <Box>
-                        <Typography variant="subtitle2" fontWeight={600}>
-                          {signal.symbol}
-                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="subtitle2" fontWeight={600}>
+                            {signal.symbol}
+                          </Typography>
+                          <CurrentPeriodBadge 
+                            isCurrentPeriod={signal.is_current_period} 
+                            daysSince={signal.days_since_signal} 
+                          />
+                        </Box>
                         <Typography variant="caption" color="text.secondary">
                           {signal.company_name}
                         </Typography>
@@ -745,7 +947,17 @@ const TradingSignals = () => {
                       </Box>
                     </TableCell>
                     <TableCell>
-                      <SignalTypeChip signal={signal.signal} strength={signal.signal_strength} />
+                      <SignalTypeChip 
+                        signal={signal.signal} 
+                        strength={signal.signal_strength} 
+                        signalType={signal.signal_type}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <PerformanceIndicator 
+                        performance={signal.performance_percent} 
+                        status={signal.signal_status} 
+                      />
                     </TableCell>
                     <TableCell>
                       <SignalStrength strength={signal.signal_strength} type={signal.signal_type} />
@@ -759,9 +971,19 @@ const TradingSignals = () => {
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="subtitle2">
-                        {formatCurrency(signal.current_price)}
-                      </Typography>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">
+                          Entry: {formatCurrency(signal.entry_price || signal.current_price)}
+                        </Typography>
+                        <Typography variant="subtitle2">
+                          Current: {formatCurrency(signal.current_price)}
+                        </Typography>
+                        {signal.stop_loss && (
+                          <Typography variant="caption" color="error.main">
+                            Stop: {formatCurrency(signal.stop_loss)}
+                          </Typography>
+                        )}
+                      </Box>
                     </TableCell>
                     <TableCell>
                       <Box>
@@ -775,11 +997,11 @@ const TradingSignals = () => {
                       <Typography variant="body2">
                         {signal.trailing_pe ? signal.trailing_pe.toFixed(1) : 'N/A'}
                       </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {signal.dividend_yield ? formatPercentage(signal.dividend_yield / 100) : 'N/A'}
-                      </Typography>
+                      {signal.beta && (
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          β: {signal.beta.toFixed(2)}
+                        </Typography>
+                      )}
                     </TableCell>
                     <TableCell>
                       <IconButton
@@ -950,19 +1172,26 @@ const TradingSignals = () => {
           </Box>
         </Typography>
         <Typography variant="h6" color="text.secondary" paragraph>
-          Real-time buy and sell signals based on advanced technical analysis and market data
+          Current period active signals with real-time performance tracking and technical analysis
         </Typography>
         
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 3 }}>
           <Chip
-            icon={<NotificationsActive />}
-            label="Live Signals"
+            icon={<NewReleases />}
+            label="Current Period Focus"
             color="primary"
+            variant="filled"
+          />
+          <Chip
+            icon={<Timeline />}
+            label="Performance Tracking"
+            color="success"
             variant="outlined"
           />
           <Chip
             icon={<Schedule />}
-            label="Multi-Timeframe"
+            label={timeframe === 'daily' ? 'Last 30 Days' : 
+                   timeframe === 'weekly' ? 'Last 12 Weeks' : 'Last 6 Months'}
             variant="outlined"
           />
           <Chip
@@ -970,6 +1199,14 @@ const TradingSignals = () => {
             label="Technical Analysis"
             variant="outlined"
           />
+          {stats.winRate > 0 && (
+            <Chip
+              icon={<CheckCircle />}
+              label={`${stats.winRate.toFixed(1)}% Win Rate`}
+              color="info"
+              variant="outlined"
+            />
+          )}
         </Box>
       </Box>
 

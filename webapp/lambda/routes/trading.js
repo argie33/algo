@@ -512,4 +512,350 @@ router.get('/performance', async (req, res) => {
   }
 });
 
+// Get current period active signals with enhanced filtering
+router.get('/signals/current/:timeframe', async (req, res) => {
+  console.log('[TRADING] Current period signals endpoint called');
+  
+  try {
+    const { timeframe } = req.params;
+    const { limit = 50, page = 1, signal_type, sector, min_strength = 0.4 } = req.query;
+    const pageNum = Math.max(1, parseInt(page));
+    const pageSize = Math.max(1, parseInt(limit));
+    const offset = (pageNum - 1) * pageSize;
+
+    // Validate timeframe
+    const validTimeframes = ['daily', 'weekly', 'monthly'];
+    if (!validTimeframes.includes(timeframe)) {
+      return res.status(400).json({ error: 'Invalid timeframe. Must be daily, weekly, or monthly' });
+    }
+
+    const tableName = `buy_sell_${timeframe}`;
+    
+    // Check if table exists
+    const tableExistsResult = await query(
+      `SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = $1
+      );`,
+      [tableName]
+    );
+    
+    if (!tableExistsResult.rows[0].exists) {
+      return res.status(500).json({ 
+        error: `Table ${tableName} does not exist in the database.`
+      });
+    }
+
+    // Build WHERE clause for current period active signals
+    let whereClause = '';
+    const queryParams = [];
+    let paramCount = 0;
+
+    const conditions = [];
+    
+    // Only get recent signals (last 30 days for daily, 12 weeks for weekly, 6 months for monthly)
+    let dateFilter;
+    if (timeframe === 'daily') {
+      dateFilter = "date >= CURRENT_DATE - INTERVAL '30 days'";
+    } else if (timeframe === 'weekly') {
+      dateFilter = "date >= CURRENT_DATE - INTERVAL '12 weeks'";
+    } else {
+      dateFilter = "date >= CURRENT_DATE - INTERVAL '6 months'";
+    }
+    conditions.push(dateFilter);
+    
+    // Only get actual signals (not None or null)
+    conditions.push("signal IS NOT NULL");
+    conditions.push("signal != 'None'");
+    conditions.push("signal != ''");
+    
+    // Filter by signal type if specified
+    if (signal_type === 'buy') {
+      conditions.push("signal = 'Buy'");
+    } else if (signal_type === 'sell') {
+      conditions.push("signal = 'Sell'");
+    }
+    
+    // Filter by sector if specified
+    if (sector && sector !== 'all') {
+      paramCount++;
+      conditions.push(`cp.sector = $${paramCount}`);
+      queryParams.push(sector);
+    }
+
+    if (conditions.length > 0) {
+      whereClause = 'WHERE ' + conditions.join(' AND ');
+    }
+
+    // Enhanced query with current period focus and signal strength calculation
+    const sqlQuery = `
+      WITH latest_signals AS (
+        SELECT 
+          bs.symbol,
+          bs.date,
+          bs.signal,
+          bs.buylevel as entry_price,
+          bs.stoplevel as stop_loss,
+          bs.inposition,
+          md.current_price,
+          md.regular_market_price,
+          cp.short_name as company_name,
+          cp.sector,
+          cp.industry,
+          md.market_cap,
+          km.trailing_pe,
+          km.dividend_yield,
+          km.beta,
+          -- Calculate signal strength based on price movement and position
+          CASE 
+            WHEN bs.signal = 'Buy' THEN 
+              LEAST(1.0, GREATEST(0.0, 
+                (ABS(CAST(bs.signal AS NUMERIC)) / 100.0) * 
+                CASE 
+                  WHEN md.current_price > bs.buylevel THEN 1.2
+                  ELSE 0.8
+                END
+              ))
+            WHEN bs.signal = 'Sell' THEN 
+              LEAST(1.0, GREATEST(0.0, 
+                (ABS(CAST(bs.signal AS NUMERIC)) / 100.0) * 
+                CASE 
+                  WHEN md.current_price < bs.buylevel THEN 1.2
+                  ELSE 0.8
+                END
+              ))
+            ELSE 0.0
+          END as signal_strength,
+          -- Calculate performance since signal
+          CASE 
+            WHEN bs.signal = 'Buy' AND md.current_price > bs.buylevel AND bs.buylevel > 0
+            THEN ((md.current_price - bs.buylevel) / bs.buylevel * 100)
+            WHEN bs.signal = 'Sell' AND md.current_price < bs.buylevel AND bs.buylevel > 0
+            THEN ((bs.buylevel - md.current_price) / bs.buylevel * 100)
+            ELSE 0
+          END as performance_percent,
+          -- Days since signal
+          EXTRACT(DAY FROM (CURRENT_DATE - bs.date)) as days_since_signal,
+          -- Signal status
+          CASE 
+            WHEN bs.signal = 'Buy' AND md.current_price > bs.buylevel THEN 'WINNING'
+            WHEN bs.signal = 'Sell' AND md.current_price < bs.buylevel THEN 'WINNING'
+            WHEN bs.signal = 'Buy' AND bs.stoplevel > 0 AND md.current_price <= bs.stoplevel THEN 'STOPPED'
+            WHEN bs.signal = 'Sell' AND bs.stoplevel > 0 AND md.current_price >= bs.stoplevel THEN 'STOPPED'
+            ELSE 'ACTIVE'
+          END as signal_status,
+          ROW_NUMBER() OVER (PARTITION BY bs.symbol ORDER BY bs.date DESC) as rn
+        FROM ${tableName} bs
+        LEFT JOIN market_data md ON bs.symbol = md.ticker
+        LEFT JOIN company_profile cp ON bs.symbol = cp.ticker
+        LEFT JOIN key_metrics km ON bs.symbol = km.ticker
+        ${whereClause}
+      )
+      SELECT *
+      FROM latest_signals 
+      WHERE rn = 1 
+        AND signal_strength >= $${queryParams.length + 1}
+      ORDER BY 
+        signal_strength DESC,
+        ABS(performance_percent) DESC,
+        date DESC
+      LIMIT $${queryParams.length + 2} OFFSET $${queryParams.length + 3}
+    `;
+
+    // Count query for pagination
+    const countQuery = `
+      WITH latest_signals AS (
+        SELECT 
+          bs.symbol,
+          CASE 
+            WHEN bs.signal = 'Buy' THEN 
+              LEAST(1.0, GREATEST(0.0, (ABS(CAST(bs.signal AS NUMERIC)) / 100.0)))
+            WHEN bs.signal = 'Sell' THEN 
+              LEAST(1.0, GREATEST(0.0, (ABS(CAST(bs.signal AS NUMERIC)) / 100.0)))
+            ELSE 0.0
+          END as signal_strength,
+          ROW_NUMBER() OVER (PARTITION BY bs.symbol ORDER BY bs.date DESC) as rn
+        FROM ${tableName} bs
+        LEFT JOIN company_profile cp ON bs.symbol = cp.ticker
+        ${whereClause}
+      )
+      SELECT COUNT(*) as total
+      FROM latest_signals 
+      WHERE rn = 1 
+        AND signal_strength >= $${queryParams.length + 1}
+    `;
+
+    queryParams.push(parseFloat(min_strength), pageSize, offset);
+
+    console.log('[TRADING] Executing current period query:', sqlQuery);
+    console.log('[TRADING] Query params:', queryParams);
+
+    const [result, countResult] = await Promise.all([
+      query(sqlQuery, queryParams),
+      query(countQuery, queryParams.slice(0, queryParams.length - 2))
+    ]);
+
+    const total = parseInt(countResult.rows[0].total);
+    const totalPages = Math.ceil(total / pageSize);
+
+    res.json({
+      success: true,
+      data: result.rows,
+      timeframe,
+      current_period: true,
+      count: result.rows.length,
+      pagination: {
+        page: pageNum,
+        limit: pageSize,
+        total,
+        totalPages,
+        hasNext: pageNum < totalPages,
+        hasPrev: pageNum > 1
+      },
+      metadata: {
+        signal_type: signal_type || 'all',
+        sector: sector || 'all',
+        min_strength: parseFloat(min_strength),
+        period_description: timeframe === 'daily' ? 'Last 30 days' : 
+                           timeframe === 'weekly' ? 'Last 12 weeks' : 'Last 6 months',
+        message: result.rows.length === 0 ? 'No active signals found for current period' : null
+      }
+    });
+
+  } catch (error) {
+    console.error('[TRADING] Error fetching current period signals:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch current period signals',
+      message: error.message
+    });
+  }
+});
+
+// Get signal analytics and summary for current period
+router.get('/analytics/:timeframe', async (req, res) => {
+  try {
+    const { timeframe } = req.params;
+    
+    const validTimeframes = ['daily', 'weekly', 'monthly'];
+    if (!validTimeframes.includes(timeframe)) {
+      return res.status(400).json({ error: 'Invalid timeframe' });
+    }
+
+    const tableName = `buy_sell_${timeframe}`;
+    
+    // Get comprehensive analytics
+    const analyticsQuery = `
+      WITH signal_analytics AS (
+        SELECT 
+          bs.symbol,
+          bs.signal,
+          bs.date,
+          bs.buylevel,
+          md.current_price,
+          cp.sector,
+          CASE 
+            WHEN bs.signal = 'Buy' AND md.current_price > bs.buylevel AND bs.buylevel > 0
+            THEN ((md.current_price - bs.buylevel) / bs.buylevel * 100)
+            WHEN bs.signal = 'Sell' AND md.current_price < bs.buylevel AND bs.buylevel > 0
+            THEN ((bs.buylevel - md.current_price) / bs.buylevel * 100)
+            ELSE 0
+          END as performance_percent,
+          CASE 
+            WHEN bs.signal = 'Buy' AND md.current_price > bs.buylevel THEN 1
+            WHEN bs.signal = 'Sell' AND md.current_price < bs.buylevel THEN 1
+            ELSE 0
+          END as is_winning
+        FROM ${tableName} bs
+        LEFT JOIN market_data md ON bs.symbol = md.ticker
+        LEFT JOIN company_profile cp ON bs.symbol = cp.ticker
+        WHERE bs.date >= CURRENT_DATE - INTERVAL '30 days'
+          AND bs.signal IS NOT NULL 
+          AND bs.signal != 'None'
+          AND bs.signal != ''
+      )
+      SELECT 
+        COUNT(*) as total_signals,
+        COUNT(CASE WHEN signal = 'Buy' THEN 1 END) as buy_signals,
+        COUNT(CASE WHEN signal = 'Sell' THEN 1 END) as sell_signals,
+        COUNT(CASE WHEN is_winning = 1 THEN 1 END) as winning_signals,
+        AVG(CASE WHEN is_winning = 1 THEN performance_percent END) as avg_winning_performance,
+        AVG(CASE WHEN is_winning = 0 THEN performance_percent END) as avg_losing_performance,
+        MAX(performance_percent) as best_performance,
+        MIN(performance_percent) as worst_performance,
+        COUNT(DISTINCT sector) as sectors_covered,
+        COUNT(DISTINCT symbol) as unique_symbols
+      FROM signal_analytics
+    `;
+
+    // Get sector breakdown
+    const sectorQuery = `
+      SELECT 
+        cp.sector,
+        COUNT(*) as signal_count,
+        AVG(CASE 
+          WHEN bs.signal = 'Buy' AND md.current_price > bs.buylevel AND bs.buylevel > 0
+          THEN ((md.current_price - bs.buylevel) / bs.buylevel * 100)
+          WHEN bs.signal = 'Sell' AND md.current_price < bs.buylevel AND bs.buylevel > 0
+          THEN ((bs.buylevel - md.current_price) / bs.buylevel * 100)
+          ELSE 0
+        END) as avg_performance
+      FROM ${tableName} bs
+      LEFT JOIN market_data md ON bs.symbol = md.ticker
+      LEFT JOIN company_profile cp ON bs.symbol = cp.ticker
+      WHERE bs.date >= CURRENT_DATE - INTERVAL '30 days'
+        AND bs.signal IS NOT NULL 
+        AND bs.signal != 'None'
+        AND bs.signal != ''
+        AND cp.sector IS NOT NULL
+      GROUP BY cp.sector
+      ORDER BY signal_count DESC
+    `;
+
+    const [analyticsResult, sectorResult] = await Promise.all([
+      query(analyticsQuery),
+      query(sectorQuery)
+    ]);
+
+    const analytics = analyticsResult.rows[0];
+    const sectorBreakdown = sectorResult.rows;
+
+    // Calculate win rate
+    const winRate = analytics.total_signals > 0 ? 
+      (analytics.winning_signals / analytics.total_signals * 100) : 0;
+
+    res.json({
+      success: true,
+      timeframe,
+      period: 'last_30_days',
+      summary: {
+        total_signals: parseInt(analytics.total_signals),
+        buy_signals: parseInt(analytics.buy_signals),
+        sell_signals: parseInt(analytics.sell_signals),
+        winning_signals: parseInt(analytics.winning_signals),
+        win_rate: winRate,
+        avg_winning_performance: parseFloat(analytics.avg_winning_performance) || 0,
+        avg_losing_performance: parseFloat(analytics.avg_losing_performance) || 0,
+        best_performance: parseFloat(analytics.best_performance) || 0,
+        worst_performance: parseFloat(analytics.worst_performance) || 0,
+        sectors_covered: parseInt(analytics.sectors_covered),
+        unique_symbols: parseInt(analytics.unique_symbols)
+      },
+      sector_breakdown: sectorBreakdown.map(sector => ({
+        sector: sector.sector,
+        signal_count: parseInt(sector.signal_count),
+        avg_performance: parseFloat(sector.avg_performance) || 0
+      })),
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('[TRADING] Error fetching analytics:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch signal analytics',
+      message: error.message 
+    });
+  }
+});
+
 module.exports = router;
