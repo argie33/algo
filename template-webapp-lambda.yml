@@ -61,7 +61,6 @@ Resources:
   # Cognito User Pool Client
   UserPoolClient:
     Type: AWS::Cognito::UserPoolClient
-    DependsOn: CloudFrontDistribution
     Properties:
       UserPoolId: !Ref UserPool
       ClientName: !Sub 'financial-dashboard-client-${EnvironmentName}'
@@ -118,7 +117,6 @@ Resources:
         SigningProtocol: sigv4  # Bucket Policy to allow CloudFront access via OAC
   FrontendBucketPolicy:
     Type: AWS::S3::BucketPolicy
-    DependsOn: CloudFrontDistribution
     Properties:
       Bucket: !Ref FrontendBucket
       PolicyDocument:
@@ -325,7 +323,6 @@ Resources:
   # CloudFront Distribution
   CloudFrontDistribution:
     Type: AWS::CloudFront::Distribution
-    DependsOn: ApiGatewayDeployment
     Properties:
       DistributionConfig:
         Enabled: true
