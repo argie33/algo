@@ -347,6 +347,7 @@ const TradingSignals = () => {
   const theme = useTheme();
   const [activeTab, setActiveTab] = useState(0);
   const [timeframe, setTimeframe] = useState('daily');
+  const [aggregateSignals, setAggregateSignals] = useState([]);
   const [signalType, setSignalType] = useState('all');
   const [loading, setLoading] = useState(false);
   const [buySignals, setBuySignals] = useState([]);
@@ -370,7 +371,37 @@ const TradingSignals = () => {
   const loadSignals = async () => {
     setLoading(true);
     try {
-      console.log(`📊 Loading current period signals for timeframe: ${timeframe}`);
+      console.log(`📊 Loading signals for timeframe: ${timeframe}`);
+      
+      // Handle aggregate/summary view
+      if (timeframe === 'summary') {
+        const aggregateResponse = await api.get('/trading/aggregate?limit=100&min_confidence=50');
+        const aggregateData = aggregateResponse.data?.data || [];
+        
+        // Process aggregate signals
+        const processedAggregateSignals = aggregateData.map(signal => ({
+          ...signal,
+          signal_type: signal.aggregate_signal === 'Buy' ? 'buy' : signal.aggregate_signal === 'Sell' ? 'sell' : 'hold',
+          signal_strength: signal.confidence / 100,
+          timestamp: new Date(),
+          is_aggregate: true,
+          performance_percent: 0,
+          signal_status: 'AGGREGATE'
+        }));
+
+        setAggregateSignals(processedAggregateSignals);
+        setAllSignals(processedAggregateSignals);
+        setFilteredSignals(processedAggregateSignals);
+        
+        const buySignals = processedAggregateSignals.filter(s => s.signal_type === 'buy');
+        const sellSignals = processedAggregateSignals.filter(s => s.signal_type === 'sell');
+        setBuySignals(buySignals);
+        setSellSignals(sellSignals);
+        
+        console.log(`📊 Loaded ${processedAggregateSignals.length} aggregate signals`);
+        setLoading(false);
+        return;
+      }
       
       // Load current period signals with analytics
       const [currentSignalsResponse, analyticsResponse] = await Promise.all([
@@ -793,6 +824,12 @@ const TradingSignals = () => {
                 <MenuItem value="daily">Daily</MenuItem>
                 <MenuItem value="weekly">Weekly</MenuItem>
                 <MenuItem value="monthly">Monthly</MenuItem>
+                <MenuItem value="summary">
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Analytics sx={{ fontSize: '1rem' }} />
+                    Summary
+                  </Box>
+                </MenuItem>
               </Select>
             </FormControl>
           </Grid>
@@ -886,8 +923,10 @@ const TradingSignals = () => {
                   </TableSortLabel>
                 </TableCell>
                 <TableCell>Signal</TableCell>
+                {timeframe === 'summary' && <TableCell>Confidence</TableCell>}
                 <TableCell>Performance</TableCell>
                 <TableCell>Strength</TableCell>
+                {timeframe === 'summary' && <TableCell>Recommendation</TableCell>}
                 <TableCell>
                   <TableSortLabel
                     active={sortBy === 'date'}
@@ -910,7 +949,7 @@ const TradingSignals = () => {
               {loading ? (
                 [...Array(5)].map((_, index) => (
                   <TableRow key={index}>
-                    {[...Array(9)].map((_, cellIndex) => (
+                    {[...Array(timeframe === 'summary' ? 11 : 9)].map((_, cellIndex) => (
                       <TableCell key={cellIndex}>
                         <Skeleton animation="wave" />
                       </TableCell>
@@ -923,8 +962,16 @@ const TradingSignals = () => {
                     key={`${signal.symbol}-${signal.date}-${index}`} 
                     hover
                     sx={{
-                      backgroundColor: signal.is_current_period ? alpha(theme.palette.primary.main, 0.05) : 'inherit',
-                      borderLeft: signal.is_current_period ? `4px solid ${theme.palette.primary.main}` : 'none'
+                      backgroundColor: signal.is_aggregate 
+                        ? alpha(theme.palette.secondary.main, 0.08)
+                        : signal.is_current_period 
+                          ? alpha(theme.palette.primary.main, 0.05) 
+                          : 'inherit',
+                      borderLeft: signal.is_aggregate 
+                        ? `4px solid ${theme.palette.secondary.main}`
+                        : signal.is_current_period 
+                          ? `4px solid ${theme.palette.primary.main}` 
+                          : 'none'
                     }}
                   >
                     <TableCell>
@@ -953,6 +1000,21 @@ const TradingSignals = () => {
                         signalType={signal.signal_type}
                       />
                     </TableCell>
+                    {timeframe === 'summary' && (
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="body2" fontWeight={600}>
+                            {Math.round(signal.confidence || 0)}%
+                          </Typography>
+                          <LinearProgress 
+                            variant="determinate" 
+                            value={signal.confidence || 0} 
+                            sx={{ width: 60, height: 6, borderRadius: 3 }}
+                            color={signal.confidence >= 70 ? 'success' : signal.confidence >= 50 ? 'warning' : 'error'}
+                          />
+                        </Box>
+                      </TableCell>
+                    )}
                     <TableCell>
                       <PerformanceIndicator 
                         performance={signal.performance_percent} 
@@ -962,6 +1024,13 @@ const TradingSignals = () => {
                     <TableCell>
                       <SignalStrength strength={signal.signal_strength} type={signal.signal_type} />
                     </TableCell>
+                    {timeframe === 'summary' && (
+                      <TableCell>
+                        <Typography variant="body2" sx={{ maxWidth: 200 }}>
+                          {signal.recommendation || 'No recommendation'}
+                        </Typography>
+                      </TableCell>
+                    )}
                     <TableCell>
                       <Typography variant="body2">
                         {new Date(signal.date).toLocaleDateString()}
@@ -1167,45 +1236,81 @@ const TradingSignals = () => {
       <Box sx={{ mb: 4 }}>
         <Typography variant="h3" fontWeight={700} gutterBottom>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <FlashOn sx={{ fontSize: '2.5rem', color: 'primary.main' }} />
-            Trading Signals
+            {timeframe === 'summary' ? (
+              <Analytics sx={{ fontSize: '2.5rem', color: 'secondary.main' }} />
+            ) : (
+              <FlashOn sx={{ fontSize: '2.5rem', color: 'primary.main' }} />
+            )}
+            {timeframe === 'summary' ? 'Aggregate Signal Summary' : 'Trading Signals'}
           </Box>
         </Typography>
         <Typography variant="h6" color="text.secondary" paragraph>
-          Current period active signals with real-time performance tracking and technical analysis
+          {timeframe === 'summary' 
+            ? 'Cross-timeframe aggregate signals with confidence scoring and recommendations'
+            : 'Current period active signals with real-time performance tracking and technical analysis'
+          }
         </Typography>
         
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 3 }}>
-          <Chip
-            icon={<NewReleases />}
-            label="Current Period Focus"
-            color="primary"
-            variant="filled"
-          />
-          <Chip
-            icon={<Timeline />}
-            label="Performance Tracking"
-            color="success"
-            variant="outlined"
-          />
-          <Chip
-            icon={<Schedule />}
-            label={timeframe === 'daily' ? 'Last 30 Days' : 
-                   timeframe === 'weekly' ? 'Last 12 Weeks' : 'Last 6 Months'}
-            variant="outlined"
-          />
-          <Chip
-            icon={<Analytics />}
-            label="Technical Analysis"
-            variant="outlined"
-          />
-          {stats.winRate > 0 && (
-            <Chip
-              icon={<CheckCircle />}
-              label={`${stats.winRate.toFixed(1)}% Win Rate`}
-              color="info"
-              variant="outlined"
-            />
+          {timeframe === 'summary' ? (
+            <>
+              <Chip
+                icon={<Analytics />}
+                label="Multi-Timeframe Analysis"
+                color="secondary"
+                variant="filled"
+              />
+              <Chip
+                icon={<CompareArrows />}
+                label="Cross-Signal Validation"
+                color="info"
+                variant="outlined"
+              />
+              <Chip
+                icon={<Psychology />}
+                label="Confidence Scoring"
+                variant="outlined"
+              />
+              <Chip
+                icon={<Assessment />}
+                label="Smart Recommendations"
+                variant="outlined"
+              />
+            </>
+          ) : (
+            <>
+              <Chip
+                icon={<NewReleases />}
+                label="Current Period Focus"
+                color="primary"
+                variant="filled"
+              />
+              <Chip
+                icon={<Timeline />}
+                label="Performance Tracking"
+                color="success"
+                variant="outlined"
+              />
+              <Chip
+                icon={<Schedule />}
+                label={timeframe === 'daily' ? 'Last 30 Days' : 
+                       timeframe === 'weekly' ? 'Last 12 Weeks' : 'Last 6 Months'}
+                variant="outlined"
+              />
+              <Chip
+                icon={<Analytics />}
+                label="Technical Analysis"
+                variant="outlined"
+              />
+              {stats.winRate > 0 && (
+                <Chip
+                  icon={<CheckCircle />}
+                  label={`${stats.winRate.toFixed(1)}% Win Rate`}
+                  color="info"
+                  variant="outlined"
+                />
+              )}
+            </>
           )}
         </Box>
       </Box>

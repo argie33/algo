@@ -90,6 +90,7 @@ def create_buy_sell_table(cur):
         buylevel     REAL,
         stoplevel    REAL,
         inposition   BOOLEAN,
+        strength     REAL,
         UNIQUE(symbol, timeframe, date)
       );
     """)
@@ -99,8 +100,8 @@ def insert_symbol_results(cur, symbol, timeframe, df):
       INSERT INTO buy_sell_weekly (
         symbol, timeframe, date,
         open, high, low, close, volume,
-        signal, buylevel, stoplevel, inposition
-      ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        signal, buylevel, stoplevel, inposition, strength
+      ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
       ON CONFLICT (symbol, timeframe, date) DO NOTHING;
     """
     inserted = 0
@@ -108,7 +109,7 @@ def insert_symbol_results(cur, symbol, timeframe, df):
         try:
             # Check for NaNs or missing values
             vals = [row.get('open'), row.get('high'), row.get('low'), row.get('close'), row.get('volume'),
-                    row.get('Signal'), row.get('buyLevel'), row.get('stopLevel'), row.get('inPosition')]
+                    row.get('Signal'), row.get('buyLevel'), row.get('stopLevel'), row.get('inPosition'), row.get('strength')]
             if any(pd.isnull(v) for v in vals):
                 logging.warning(f"Skipping row {idx} for {symbol} {timeframe} due to NaN: {vals}")
                 continue
@@ -119,7 +120,7 @@ def insert_symbol_results(cur, symbol, timeframe, df):
                 float(row['open']), float(row['high']), float(row['low']),
                 float(row['close']), int(row['volume']),
                 row['Signal'], float(row['buyLevel']),
-                float(row['stopLevel']), bool(row['inPosition'])
+                float(row['stopLevel']), bool(row['inPosition']), float(row['strength'])
             ))
             inserted += 1
         except Exception as e:
@@ -199,7 +200,161 @@ def fetch_symbol_from_db(symbol, timeframe):
     return df.reset_index(drop=True)
 
 ###############################################################################
-# 4) SIGNAL GENERATION & IN-POSITION LOGIC
+# 4) SIGNAL STRENGTH CALCULATION
+###############################################################################
+def calculate_signal_strength(df, index):
+    """Calculate signal strength score (0-100) for a given row"""
+    try:
+        row = df.iloc[index]
+        signal_type = row.get('Signal', 'None')
+        
+        if signal_type == 'None':
+            return 50.0
+        
+        # Get required values
+        rsi = row.get('rsi', 50)
+        adx = row.get('adx', 25)
+        close = row.get('close', 0)
+        high = row.get('high', close)
+        low = row.get('low', close)
+        volume = row.get('volume', 0)
+        sma_50 = row.get('sma_50', close)
+        atr = row.get('atr', 0)
+        pivot_high = row.get('pivot_high', 0)
+        pivot_low = row.get('pivot_low', 0)
+        
+        # Calculate average volume (20-period rolling average)
+        start_idx = max(0, index - 19)
+        avg_volume = df.iloc[start_idx:index+1]['volume'].mean()
+        
+        strength = 0.0
+        
+        # 1. Technical Momentum (30%)
+        if signal_type == 'Buy':
+            if rsi > 70:
+                strength += 12  # Very bullish
+            elif rsi > 60:
+                strength += 9   # Bullish
+            elif rsi > 50:
+                strength += 6   # Neutral bullish
+            else:
+                strength += 3   # Weak
+        elif signal_type == 'Sell':
+            if rsi < 30:
+                strength += 12  # Very bearish
+            elif rsi < 40:
+                strength += 9   # Bearish
+            elif rsi < 50:
+                strength += 6   # Neutral bearish
+            else:
+                strength += 3   # Weak
+        
+        # ADX trend strength
+        if adx > 40:
+            strength += 9   # Very strong trend
+        elif adx > 30:
+            strength += 6   # Strong trend
+        elif adx > 20:
+            strength += 3   # Moderate trend
+        else:
+            strength += 1   # Weak trend
+        
+        # Price vs SMA-50
+        if signal_type == 'Buy' and close > sma_50:
+            price_above_sma = ((close - sma_50) / sma_50) * 100
+            strength += min(9, max(0, price_above_sma * 3))
+        elif signal_type == 'Sell' and close < sma_50:
+            price_below_sma = ((sma_50 - close) / sma_50) * 100
+            strength += min(9, max(0, price_below_sma * 3))
+        
+        # 2. Volume Confirmation (25%)
+        if avg_volume > 0:
+            volume_ratio = volume / avg_volume
+            if volume_ratio > 2.0:
+                strength += 25  # Exceptional volume
+            elif volume_ratio > 1.5:
+                strength += 20  # High volume
+            elif volume_ratio > 1.2:
+                strength += 15  # Above average volume
+            elif volume_ratio > 0.8:
+                strength += 10  # Normal volume
+            else:
+                strength += 5   # Low volume
+        else:
+            strength += 12.5  # Default if no volume data
+        
+        # 3. Price Action (25%)
+        if high != low:
+            close_position = (close - low) / (high - low)
+            if signal_type == 'Buy':
+                if close_position > 0.8:
+                    strength += 25  # Strong bullish close
+                elif close_position > 0.6:
+                    strength += 19  # Good bullish close
+                elif close_position > 0.4:
+                    strength += 12  # Neutral
+                else:
+                    strength += 6   # Weak bullish close
+            elif signal_type == 'Sell':
+                if close_position < 0.2:
+                    strength += 25  # Strong bearish close
+                elif close_position < 0.4:
+                    strength += 19  # Good bearish close
+                elif close_position < 0.6:
+                    strength += 12  # Neutral
+                else:
+                    strength += 6   # Weak bearish close
+        else:
+            strength += 12.5  # Default if no price action
+        
+        # 4. Volatility Context (10%)
+        if close > 0 and atr > 0:
+            atr_percentage = (atr / close) * 100
+            if 1.5 <= atr_percentage <= 3.0:
+                strength += 10  # Ideal volatility
+            elif 1.0 <= atr_percentage <= 4.0:
+                strength += 8   # Good volatility
+            elif 0.5 <= atr_percentage <= 5.0:
+                strength += 6   # Acceptable volatility
+            elif atr_percentage > 5.0:
+                strength += 3   # High volatility (risky)
+            else:
+                strength += 4   # Low volatility (less opportunity)
+        else:
+            strength += 5  # Default if no volatility data
+        
+        # 5. Breakout Magnitude (10%)
+        if signal_type == 'Buy' and pivot_high > 0:
+            breakout_percent = ((close - pivot_high) / pivot_high) * 100
+            if breakout_percent > 3.0:
+                strength += 10  # Strong breakout
+            elif breakout_percent > 1.5:
+                strength += 7   # Good breakout
+            elif breakout_percent > 0.5:
+                strength += 5   # Moderate breakout
+            else:
+                strength += 2   # Weak breakout
+        elif signal_type == 'Sell' and pivot_low > 0:
+            breakdown_percent = ((pivot_low - close) / pivot_low) * 100
+            if breakdown_percent > 3.0:
+                strength += 10  # Strong breakdown
+            elif breakdown_percent > 1.5:
+                strength += 7   # Good breakdown
+            elif breakdown_percent > 0.5:
+                strength += 5   # Moderate breakdown
+            else:
+                strength += 2   # Weak breakdown
+        else:
+            strength += 5  # Default if no breakout data
+        
+        return min(100.0, max(0.0, strength))
+        
+    except Exception as e:
+        logging.warning(f"Error calculating signal strength at index {index}: {e}")
+        return 50.0
+
+###############################################################################
+# 5) SIGNAL GENERATION & IN-POSITION LOGIC
 ###############################################################################
 def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     df['TrendOK']     = df['close'] > df['sma_50']
@@ -238,6 +393,14 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
 
     df['Signal']    = sigs
     df['inPosition']= pos
+    
+    # Calculate signal strength for each row
+    strengths = []
+    for i in range(len(df)):
+        strength = calculate_signal_strength(df, i)
+        strengths.append(strength)
+    
+    df['strength'] = strengths
     return df
 
 ###############################################################################

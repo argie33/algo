@@ -146,6 +146,7 @@ router.get('/signals/:timeframe', async (req, res) => {
             bs.buylevel as price,
             bs.stoplevel,
             bs.inposition,
+            bs.strength,
             md.current_price,
             cp.short_name as company_name,
             cp.sector,
@@ -180,6 +181,7 @@ router.get('/signals/:timeframe', async (req, res) => {
           bs.buylevel as price,
           bs.stoplevel,
           bs.inposition,
+          bs.strength,
           md.current_price,
           cp.short_name as company_name,
           cp.sector,
@@ -853,6 +855,289 @@ router.get('/analytics/:timeframe', async (req, res) => {
     console.error('[TRADING] Error fetching analytics:', error);
     res.status(500).json({ 
       error: 'Failed to fetch signal analytics',
+      message: error.message 
+    });
+  }
+});
+
+// Get aggregate signals across all timeframes for a symbol
+router.get('/aggregate/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    
+    // Get latest signals from all timeframes for the symbol
+    const aggregateQuery = `
+      WITH daily_signals AS (
+        SELECT 
+          symbol, signal, strength, date, 'daily' as timeframe,
+          ROW_NUMBER() OVER (ORDER BY date DESC) as rn
+        FROM buy_sell_daily 
+        WHERE symbol = $1 AND signal != 'None'
+        ORDER BY date DESC
+        LIMIT 1
+      ),
+      weekly_signals AS (
+        SELECT 
+          symbol, signal, strength, date, 'weekly' as timeframe,
+          ROW_NUMBER() OVER (ORDER BY date DESC) as rn
+        FROM buy_sell_weekly 
+        WHERE symbol = $1 AND signal != 'None'
+        ORDER BY date DESC
+        LIMIT 1
+      ),
+      monthly_signals AS (
+        SELECT 
+          symbol, signal, strength, date, 'monthly' as timeframe,
+          ROW_NUMBER() OVER (ORDER BY date DESC) as rn
+        FROM buy_sell_monthly 
+        WHERE symbol = $1 AND signal != 'None'
+        ORDER BY date DESC
+        LIMIT 1
+      )
+      SELECT * FROM daily_signals WHERE rn = 1
+      UNION ALL
+      SELECT * FROM weekly_signals WHERE rn = 1
+      UNION ALL
+      SELECT * FROM monthly_signals WHERE rn = 1
+    `;
+
+    const signalsResult = await query(aggregateQuery, [symbol.toUpperCase()]);
+    const signals = signalsResult.rows;
+
+    if (signals.length === 0) {
+      return res.json({
+        symbol: symbol.toUpperCase(),
+        aggregate_signal: 'Hold',
+        confidence: 50.0,
+        score: 0.0,
+        signals: {},
+        recommendation: 'Hold - No recent signals found',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Calculate aggregate signal using weighted approach
+    const timeframeWeights = { daily: 0.50, weekly: 0.30, monthly: 0.20 };
+    let totalWeight = 0;
+    let weightedScore = 0;
+    const signalAlignment = {};
+
+    signals.forEach(signal => {
+      const weight = timeframeWeights[signal.timeframe] || 0;
+      const strength = parseFloat(signal.strength) || 50;
+      
+      let signalScore = 0;
+      if (signal.signal === 'Buy') {
+        signalScore = strength;
+      } else if (signal.signal === 'Sell') {
+        signalScore = -strength;
+      }
+
+      weightedScore += signalScore * weight;
+      totalWeight += weight;
+      signalAlignment[signal.timeframe] = signal.signal;
+    });
+
+    const finalScore = totalWeight > 0 ? weightedScore / totalWeight : 0;
+
+    // Determine aggregate signal
+    let aggregateSignal = 'Hold';
+    let confidence = 50;
+
+    if (finalScore > 20) {
+      aggregateSignal = 'Buy';
+      confidence = Math.min(100, Math.abs(finalScore));
+    } else if (finalScore < -20) {
+      aggregateSignal = 'Sell';
+      confidence = Math.min(100, Math.abs(finalScore));
+    } else {
+      confidence = 50 - Math.abs(finalScore);
+    }
+
+    // Calculate alignment bonus
+    const signalTypes = Object.values(signalAlignment);
+    let alignmentBonus = 0;
+    
+    if (signalTypes.length >= 2) {
+      const uniqueSignals = [...new Set(signalTypes)];
+      if (uniqueSignals.length === 1 && uniqueSignals[0] !== 'None') {
+        alignmentBonus = 15; // All aligned
+      } else {
+        const buyCount = signalTypes.filter(s => s === 'Buy').length;
+        const sellCount = signalTypes.filter(s => s === 'Sell').length;
+        if (buyCount >= 2 || sellCount >= 2) {
+          alignmentBonus = 10; // Majority aligned
+        }
+      }
+    }
+
+    confidence = Math.min(100, confidence + alignmentBonus);
+
+    // Get recommendation
+    let recommendation;
+    if (confidence < 40) {
+      recommendation = "Watch - Low confidence signal";
+    } else if (confidence < 60) {
+      recommendation = `Consider ${aggregateSignal} - Moderate confidence`;
+    } else if (confidence < 80) {
+      recommendation = `Strong ${aggregateSignal} signal - High confidence`;
+    } else {
+      recommendation = `Very Strong ${aggregateSignal} signal - Execute trade`;
+    }
+
+    // Format signals object
+    const signalsObj = {};
+    signals.forEach(signal => {
+      signalsObj[signal.timeframe] = {
+        signal: signal.signal,
+        strength: parseFloat(signal.strength),
+        date: signal.date
+      };
+    });
+
+    res.json({
+      symbol: symbol.toUpperCase(),
+      aggregate_signal: aggregateSignal,
+      confidence: Math.round(confidence * 10) / 10,
+      score: Math.round(finalScore * 10) / 10,
+      signals: signalsObj,
+      alignment_bonus: alignmentBonus,
+      recommendation,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('[TRADING] Error fetching aggregate signals:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch aggregate signals',
+      message: error.message 
+    });
+  }
+});
+
+// Get aggregate signals summary for all symbols
+router.get('/aggregate', async (req, res) => {
+  try {
+    const { limit = 50, min_confidence = 60, signal_type } = req.query;
+    
+    // Get symbols with recent signals
+    const symbolsQuery = `
+      SELECT DISTINCT symbol 
+      FROM (
+        SELECT symbol FROM buy_sell_daily WHERE date >= CURRENT_DATE - INTERVAL '30 days' AND signal != 'None'
+        UNION
+        SELECT symbol FROM buy_sell_weekly WHERE date >= CURRENT_DATE - INTERVAL '12 weeks' AND signal != 'None'
+        UNION
+        SELECT symbol FROM buy_sell_monthly WHERE date >= CURRENT_DATE - INTERVAL '6 months' AND signal != 'None'
+      ) symbols
+      LIMIT $1
+    `;
+
+    const symbolsResult = await query(symbolsQuery, [parseInt(limit)]);
+    const symbols = symbolsResult.rows.map(row => row.symbol);
+
+    const aggregateSignals = [];
+
+    // Process each symbol for aggregate signals
+    for (const symbol of symbols) {
+      const aggregateQuery = `
+        WITH daily_signals AS (
+          SELECT signal, strength, date, 'daily' as timeframe
+          FROM buy_sell_daily 
+          WHERE symbol = $1 AND signal != 'None'
+          ORDER BY date DESC LIMIT 1
+        ),
+        weekly_signals AS (
+          SELECT signal, strength, date, 'weekly' as timeframe
+          FROM buy_sell_weekly 
+          WHERE symbol = $1 AND signal != 'None'
+          ORDER BY date DESC LIMIT 1
+        ),
+        monthly_signals AS (
+          SELECT signal, strength, date, 'monthly' as timeframe
+          FROM buy_sell_monthly 
+          WHERE symbol = $1 AND signal != 'None'
+          ORDER BY date DESC LIMIT 1
+        )
+        SELECT * FROM daily_signals
+        UNION ALL
+        SELECT * FROM weekly_signals
+        UNION ALL
+        SELECT * FROM monthly_signals
+      `;
+
+      const signalsResult = await query(aggregateQuery, [symbol]);
+      const signals = signalsResult.rows;
+
+      if (signals.length === 0) continue;
+
+      // Calculate aggregate for this symbol
+      const timeframeWeights = { daily: 0.50, weekly: 0.30, monthly: 0.20 };
+      let totalWeight = 0;
+      let weightedScore = 0;
+
+      signals.forEach(signal => {
+        const weight = timeframeWeights[signal.timeframe] || 0;
+        const strength = parseFloat(signal.strength) || 50;
+        
+        let signalScore = 0;
+        if (signal.signal === 'Buy') {
+          signalScore = strength;
+        } else if (signal.signal === 'Sell') {
+          signalScore = -strength;
+        }
+
+        weightedScore += signalScore * weight;
+        totalWeight += weight;
+      });
+
+      const finalScore = totalWeight > 0 ? weightedScore / totalWeight : 0;
+      let aggregateSignal = 'Hold';
+      let confidence = 50;
+
+      if (finalScore > 20) {
+        aggregateSignal = 'Buy';
+        confidence = Math.min(100, Math.abs(finalScore));
+      } else if (finalScore < -20) {
+        aggregateSignal = 'Sell';
+        confidence = Math.min(100, Math.abs(finalScore));
+      } else {
+        confidence = 50 - Math.abs(finalScore);
+      }
+
+      // Apply filters
+      if (confidence >= parseFloat(min_confidence)) {
+        if (!signal_type || aggregateSignal.toLowerCase() === signal_type.toLowerCase()) {
+          aggregateSignals.push({
+            symbol,
+            aggregate_signal: aggregateSignal,
+            confidence: Math.round(confidence * 10) / 10,
+            score: Math.round(finalScore * 10) / 10,
+            signal_count: signals.length
+          });
+        }
+      }
+    }
+
+    // Sort by confidence descending
+    aggregateSignals.sort((a, b) => b.confidence - a.confidence);
+
+    res.json({
+      success: true,
+      data: aggregateSignals,
+      count: aggregateSignals.length,
+      filters: {
+        min_confidence: parseFloat(min_confidence),
+        signal_type: signal_type || 'all',
+        limit: parseInt(limit)
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('[TRADING] Error fetching aggregate signals summary:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch aggregate signals summary',
       message: error.message 
     });
   }
