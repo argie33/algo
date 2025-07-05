@@ -694,6 +694,94 @@ router.get('/:ticker/prices', async (req, res) => {
   }
 });
 
+// Get recent stock price history (alias for /prices with recent in the path)
+router.get('/:ticker/prices/recent', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    const limit = Math.min(parseInt(req.query.limit) || 30, 90); // Max 90 days for performance
+    
+    console.log(`📊 [STOCKS] Recent prices endpoint called for ticker: ${ticker}, limit: ${limit}`);
+    
+    const pricesQuery = `
+      SELECT date, open, high, low, close, adj_close, volume
+      FROM price_daily
+      WHERE UPPER(symbol) = UPPER($1)
+      ORDER BY date DESC
+      LIMIT $2
+    `;
+    
+    const result = await query(pricesQuery, [ticker, limit]);
+    
+    if (result.rows.length === 0) {
+      console.log(`📊 [STOCKS] No price data found for ${ticker}`);
+      return res.status(404).json({
+        success: false,
+        error: 'No price data found',
+        ticker: ticker.toUpperCase(),
+        message: 'Price data not available for this symbol',
+        data: [],
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Process the data
+    const prices = result.rows;
+    const latest = prices[0];
+    const oldest = prices[prices.length - 1];
+
+    const periodReturn = oldest.close > 0 ? 
+      ((latest.close - oldest.close) / oldest.close * 100) : 0;
+
+    // Format data for frontend
+    const pricesWithChange = prices.map((price, idx) => {
+      let priceChange = null, priceChangePct = null;
+      if (idx < prices.length - 1) {
+        const prev = prices[idx + 1];
+        priceChange = price.close - prev.close;
+        priceChangePct = prev.close !== 0 ? priceChange / prev.close : null;
+      }
+      return {
+        date: price.date,
+        open: parseFloat(price.open),
+        high: parseFloat(price.high),
+        low: parseFloat(price.low),
+        close: parseFloat(price.close),
+        adjClose: parseFloat(price.adj_close),
+        volume: parseInt(price.volume) || 0,
+        priceChange,
+        priceChangePct
+      };
+    });
+
+    console.log(`📊 [STOCKS] Successfully returning ${pricesWithChange.length} price records for ${ticker}`);
+
+    res.json({
+      success: true,
+      ticker: ticker.toUpperCase(),
+      dataPoints: result.rows.length,
+      data: pricesWithChange,
+      summary: {
+        latestPrice: parseFloat(latest.close),
+        latestDate: latest.date,
+        periodReturn: parseFloat(periodReturn.toFixed(2)),
+        latestVolume: parseInt(latest.volume) || 0
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ [STOCKS] Error fetching recent stock prices:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch recent stock prices', 
+      details: error.message,
+      data: [], // Always return data as an array for frontend safety
+      ticker: req.params.ticker,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Get available filters - exchanges instead of sectors
 router.get('/filters/sectors', async (req, res) => {
   try {
