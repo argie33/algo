@@ -4592,6 +4592,12 @@ jobs:
             exit $EXIT
           fi
 
+  run_qualityscores:
+    name: Run quality-scores calculator
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.qualityscores == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     steps:
       - name: Configure AWS credentials

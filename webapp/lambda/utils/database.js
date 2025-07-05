@@ -89,6 +89,100 @@ async function getDbConfig() {
 }
 
 /**
+ * Create required tables if they don't exist
+ */
+async function createRequiredTables() {
+    try {
+        console.log('Checking and creating required tables...');
+        
+        // API Keys table
+        await query(`
+            CREATE TABLE IF NOT EXISTS user_api_keys (
+                id SERIAL PRIMARY KEY,
+                user_id VARCHAR(255) NOT NULL,
+                provider VARCHAR(50) NOT NULL,
+                encrypted_api_key TEXT NOT NULL,
+                key_iv VARCHAR(32) NOT NULL,
+                key_auth_tag VARCHAR(32) NOT NULL,
+                encrypted_api_secret TEXT,
+                secret_iv VARCHAR(32),
+                secret_auth_tag VARCHAR(32),
+                user_salt VARCHAR(32) NOT NULL,
+                is_sandbox BOOLEAN DEFAULT true,
+                is_active BOOLEAN DEFAULT true,
+                description TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_used TIMESTAMP,
+                UNIQUE(user_id, provider)
+            );
+        `);
+        
+        // API Keys indexes
+        await query(`CREATE INDEX IF NOT EXISTS idx_user_api_keys_user_id ON user_api_keys(user_id);`);
+        await query(`CREATE INDEX IF NOT EXISTS idx_user_api_keys_provider ON user_api_keys(provider);`);
+        await query(`CREATE INDEX IF NOT EXISTS idx_user_api_keys_active ON user_api_keys(is_active);`);
+        
+        // Portfolio holdings table
+        await query(`
+            CREATE TABLE IF NOT EXISTS portfolio_holdings (
+                id SERIAL PRIMARY KEY,
+                user_id VARCHAR(255) NOT NULL,
+                api_key_id INTEGER REFERENCES user_api_keys(id) ON DELETE CASCADE,
+                symbol VARCHAR(10) NOT NULL,
+                quantity DECIMAL(15, 6) NOT NULL,
+                avg_cost DECIMAL(15, 4),
+                current_price DECIMAL(15, 4),
+                market_value DECIMAL(15, 2),
+                unrealized_pl DECIMAL(15, 2),
+                unrealized_plpc DECIMAL(8, 4),
+                side VARCHAR(10) CHECK (side IN ('long', 'short')),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, symbol, api_key_id)
+            );
+        `);
+        
+        // Portfolio metadata table
+        await query(`
+            CREATE TABLE IF NOT EXISTS portfolio_metadata (
+                id SERIAL PRIMARY KEY,
+                user_id VARCHAR(255) NOT NULL,
+                api_key_id INTEGER REFERENCES user_api_keys(id) ON DELETE CASCADE,
+                total_equity DECIMAL(15, 2),
+                total_market_value DECIMAL(15, 2),
+                total_unrealized_pl DECIMAL(15, 2),
+                total_unrealized_plpc DECIMAL(8, 4),
+                account_type VARCHAR(50),
+                last_sync TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, api_key_id)
+            );
+        `);
+        
+        // Health status table
+        await query(`
+            CREATE TABLE IF NOT EXISTS health_status (
+                id SERIAL PRIMARY KEY,
+                table_name VARCHAR(100) NOT NULL,
+                status VARCHAR(20) NOT NULL,
+                last_check TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                record_count INTEGER,
+                last_updated TIMESTAMP,
+                error_message TEXT,
+                UNIQUE(table_name)
+            );
+        `);
+        
+        console.log('✅ Required tables created successfully');
+    } catch (error) {
+        console.error('Error creating required tables:', error);
+        throw error;
+    }
+}
+
+/**
  * Initialize database connection pool
  */
 async function initializeDatabase() {

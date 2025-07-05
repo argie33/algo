@@ -189,6 +189,21 @@ else
     log_success "Lambda function updated"
 fi
 
+# Setup database tables
+log_info "Setting up database tables..."
+if [ -f "setup-database.js" ]; then
+    export DB_SECRET_ARN="$DB_SECRET_ARN"
+    export AWS_REGION="$AWS_REGION"
+    if node setup-database.js; then
+        log_success "Database tables created successfully"
+    else
+        log_error "Failed to create database tables"
+        exit 1
+    fi
+else
+    log_warning "setup-database.js not found, skipping database setup"
+fi
+
 # Create or update API Gateway if needed
 log_info "Setting up API Gateway..."
 
