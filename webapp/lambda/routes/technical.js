@@ -102,7 +102,34 @@ router.get('/:timeframe', async (req, res) => {
     `, [tableName]);
 
     if (!tableExists.rows[0].exists) {
-      return res.status(500).json({ error: `Technical data table for ${timeframe} timeframe not found in database` });
+      console.log(`Technical data table for ${timeframe} timeframe not found, returning empty data`);
+      return res.json({
+        success: true,
+        data: [],
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false
+        },
+        metadata: {
+          timeframe,
+          filters: {
+            symbol: symbol || null,
+            start_date: start_date || null,
+            end_date: end_date || null,
+            rsi_min: rsi_min || null,
+            rsi_max: rsi_max || null,
+            macd_min: macd_min || null,
+            macd_max: macd_max || null,
+            sma_min: sma_min || null,
+            sma_max: sma_max || null
+          },
+          message: `No ${timeframe} technical data available`
+        }
+      });
     }
 
     // Get total count
@@ -167,10 +194,36 @@ router.get('/:timeframe', async (req, res) => {
     const totalPages = Math.ceil(total / maxLimit);
 
     if (!dataResult || !Array.isArray(dataResult.rows) || dataResult.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+      return res.json({
+        success: true,
+        data: [],
+        pagination: {
+          page: parseInt(page),
+          limit: maxLimit,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false
+        },
+        metadata: {
+          timeframe,
+          filters: {
+            symbol: symbol || null,
+            start_date: start_date || null,
+            end_date: end_date || null,
+            rsi_min: rsi_min || null,
+            rsi_max: rsi_max || null,
+            macd_min: macd_min || null,
+            macd_max: macd_max || null,
+            sma_min: sma_min || null,
+            sma_max: sma_max || null
+          }
+        }
+      });
     }
 
     res.json({
+      success: true,
       data: dataResult.rows,
       pagination: {
         page: parseInt(page),
@@ -196,7 +249,23 @@ router.get('/:timeframe', async (req, res) => {
       }
     });
   } catch (error) {
-    return res.status(500).json({ error: 'Database error', details: error.message });
+    console.error('Technical data error:', error);
+    return res.json({
+      success: false,
+      data: [],
+      pagination: {
+        page: parseInt(page) || 1,
+        limit: parseInt(limit) || 50,
+        total: 0,
+        totalPages: 0,
+        hasNext: false,
+        hasPrev: false
+      },
+      metadata: {
+        timeframe,
+        error: error.message
+      }
+    });
   }
 });
 
@@ -1334,7 +1403,29 @@ router.get('/data', async (req, res) => {
     console.log(`✅ [TECHNICAL] Data query completed: ${dataResult.rows.length} results, total: ${total}`);
 
     if (!dataResult || !Array.isArray(dataResult.rows) || dataResult.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+      return res.json({
+        success: true,
+        data: [],
+        total: 0,
+        pagination: {
+          page: parseInt(page),
+          limit: maxLimit,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false
+        },
+        filters: {
+          symbol: symbol || null,
+          timeframe,
+          startDate: startDate || null,
+          endDate: endDate || null
+        },
+        sorting: {
+          sortBy: safeSortBy,
+          sortOrder: safeSortOrder
+        }
+      });
     }
 
     res.json({
