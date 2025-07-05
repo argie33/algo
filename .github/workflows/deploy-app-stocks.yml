@@ -281,7 +281,7 @@ jobs:
 ################################################################################
 # 2) Detect changed components                                                 #
 ################################################################################
-  filter:
+  detect-changes:
     name: Detect changed components
     runs-on: ubuntu-latest
     outputs:
