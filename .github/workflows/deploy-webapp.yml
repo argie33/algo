@@ -374,12 +374,15 @@ jobs:
         run: |
           echo "🗄️ Initializing database tables..."
           
-          # Install required Python packages with sudo to avoid user path issues
+          # Install Python3 and venv
           sudo apt-get update -qq
-          sudo apt-get install -y python3-pip
-          # Use --break-system-packages to allow pip upgrade on system Python
-          sudo python3 -m pip install --upgrade pip --break-system-packages
-          sudo python3 -m pip install psycopg2-binary boto3
+          sudo apt-get install -y python3-venv python3-pip
+          
+          # Create virtual environment and install packages
+          python3 -m venv venv
+          source venv/bin/activate
+          pip install --upgrade pip
+          pip install psycopg2-binary boto3
           
           # Set environment variables for database initialization
           export DB_SECRET_ARN=${{ steps.db_info.outputs.DB_SECRET_ARN }}
@@ -388,18 +391,18 @@ jobs:
           # Run combined database initialization script (replaces separate scripts)
           if [ -f "init_database_combined.py" ]; then
             echo "Running combined database initialization script..."
-            python3 init_database_combined.py
+            source venv/bin/activate && python3 init_database_combined.py
           else
             echo "⚠️ Combined init script not found, falling back to individual scripts..."
             # Fallback to individual scripts for backwards compatibility
             if [ -f "init_database_tables.py" ]; then
               echo "Running init_database_tables.py..."
-              python3 init_database_tables.py
+              source venv/bin/activate && python3 init_database_tables.py
             fi
             
             if [ -f "init_portfolio_tables.py" ]; then
               echo "Running init_portfolio_tables.py..."
-              python3 init_portfolio_tables.py
+              source venv/bin/activate && python3 init_portfolio_tables.py
             fi
           fi
           
