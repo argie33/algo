@@ -348,6 +348,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Create trigger to automatically update the updated_at field
+DROP TRIGGER IF EXISTS trigger_health_status_updated_at ON health_status;
 CREATE TRIGGER trigger_health_status_updated_at
     BEFORE UPDATE ON health_status
     FOR EACH ROW
