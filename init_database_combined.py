@@ -1,0 +1,336 @@
+#!/usr/bin/env python3
+"""
+Combined Database Initialization Script
+Combines all database initialization functionality into a single comprehensive script.
+Handles AWS Secrets Manager, package installation, and comprehensive table creation.
+"""
+
+import os
+import sys
+import json
+import subprocess
+import logging
+from datetime import datetime
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Ensure packages are available
+def install_required_packages():
+    """Install required packages if not available"""
+    required_packages = [
+        ('psycopg2', 'psycopg2-binary'),
+        ('boto3', 'boto3')
+    ]
+    
+    for package, install_name in required_packages:
+        try:
+            __import__(package)
+            logger.info(f"{package} already installed")
+        except ImportError:
+            logger.info(f"{package} not found, installing {install_name}...")
+            try:
+                subprocess.run([sys.executable, "-m", "pip", "install", "--user", install_name], 
+                              check=True, capture_output=True, text=True)
+                logger.info(f"Successfully installed {install_name}")
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Failed to install {install_name}: {e}")
+                sys.exit(1)
+
+# Install packages first
+install_required_packages()
+
+# Now import the packages
+import psycopg2
+from psycopg2.extras import RealDictCursor
+import boto3
+
+def get_db_credentials(secret_arn):
+    """Fetch database credentials from AWS Secrets Manager."""
+    logger.info(f"Fetching database credentials from secret: {secret_arn}")
+    
+    try:
+        client = boto3.client('secretsmanager', region_name='us-east-1')
+        response = client.get_secret_value(SecretId=secret_arn)
+        secret = json.loads(response['SecretString'])
+        
+        return {
+            'host': secret['host'],
+            'port': secret.get('port', 5432),
+            'database': secret.get('dbname', 'postgres'),
+            'user': secret['username'],
+            'password': secret['password']
+        }
+    except Exception as e:
+        logger.error(f"Failed to get database credentials: {e}")
+        return None
+
+def execute_sql_file(cursor, conn, sql_file_path):
+    """Execute SQL commands from a file"""
+    logger.info(f"Executing SQL file: {sql_file_path}")
+    
+    try:
+        with open(sql_file_path, 'r') as file:
+            sql_content = file.read()
+        
+        # Execute the SQL content
+        cursor.execute(sql_content)
+        conn.commit()
+        logger.info(f"Successfully executed {sql_file_path}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error executing SQL file {sql_file_path}: {e}")
+        conn.rollback()
+        return False
+
+def create_all_tables(conn):
+    """Create all database tables using the combined SQL script."""
+    cursor = conn.cursor()
+    
+    try:
+        # Path to the combined SQL file
+        sql_file_path = os.path.join(os.path.dirname(__file__), 'init_database_combined.sql')
+        
+        if os.path.exists(sql_file_path):
+            logger.info("Using combined SQL file for table creation")
+            success = execute_sql_file(cursor, conn, sql_file_path)
+            if not success:
+                raise Exception("Failed to execute combined SQL file")
+        else:
+            logger.info("Combined SQL file not found, creating tables manually")
+            create_tables_manually(cursor, conn)
+        
+        # Verify critical tables exist
+        verify_tables(cursor)
+        
+        logger.info("All database tables created successfully!")
+        
+    except Exception as e:
+        logger.error(f"Error creating tables: {e}")
+        conn.rollback()
+        raise
+    finally:
+        cursor.close()
+
+def create_tables_manually(cursor, conn):
+    """Create tables manually if SQL file is not available"""
+    logger.info("Creating tables manually...")
+    
+    # Create core tables
+    logger.info("Creating core tables...")
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS stocks (
+            id SERIAL PRIMARY KEY,
+            symbol VARCHAR(10) NOT NULL UNIQUE,
+            name VARCHAR(255) NOT NULL,
+            market VARCHAR(50),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS last_updated (
+            script_name VARCHAR(255) PRIMARY KEY,
+            last_run TIMESTAMP WITH TIME ZONE
+        )
+    """)
+    
+    # Create API keys table
+    logger.info("Creating user_api_keys table...")
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS user_api_keys (
+            id SERIAL PRIMARY KEY,
+            user_id VARCHAR(255) NOT NULL,
+            provider VARCHAR(50) NOT NULL,
+            encrypted_api_key TEXT NOT NULL,
+            key_iv VARCHAR(32) NOT NULL,
+            key_auth_tag VARCHAR(32) NOT NULL,
+            encrypted_api_secret TEXT,
+            secret_iv VARCHAR(32),
+            secret_auth_tag VARCHAR(32),
+            user_salt VARCHAR(32) NOT NULL,
+            is_sandbox BOOLEAN DEFAULT true,
+            is_active BOOLEAN DEFAULT true,
+            description TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_used TIMESTAMP,
+            UNIQUE(user_id, provider)
+        )
+    """)
+    
+    # Create portfolio tables
+    logger.info("Creating portfolio tables...")
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS portfolio_holdings (
+            id SERIAL PRIMARY KEY,
+            user_id VARCHAR(255) NOT NULL,
+            symbol VARCHAR(10) NOT NULL,
+            quantity DECIMAL(15,4) NOT NULL,
+            market_value DECIMAL(15,2),
+            cost_basis DECIMAL(15,2),
+            pnl DECIMAL(15,2),
+            pnl_percent DECIMAL(8,4),
+            weight DECIMAL(8,4),
+            sector VARCHAR(100),
+            current_price DECIMAL(12,4),
+            average_entry_price DECIMAL(12,4),
+            day_change DECIMAL(15,2),
+            day_change_percent DECIMAL(8,4),
+            exchange VARCHAR(20),
+            broker VARCHAR(50),
+            imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, symbol, broker)
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS portfolio_metadata (
+            id SERIAL PRIMARY KEY,
+            user_id VARCHAR(255) NOT NULL,
+            broker VARCHAR(50) NOT NULL,
+            total_value DECIMAL(15,2),
+            total_cash DECIMAL(15,2),
+            total_pnl DECIMAL(15,2),
+            total_pnl_percent DECIMAL(8,4),
+            positions_count INTEGER,
+            account_status VARCHAR(50),
+            environment VARCHAR(20),
+            imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, broker)
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS trading_alerts (
+            id SERIAL PRIMARY KEY,
+            user_id VARCHAR(255) NOT NULL,
+            symbol VARCHAR(10) NOT NULL,
+            alert_type VARCHAR(50) NOT NULL,
+            target_value DECIMAL(12,4),
+            current_value DECIMAL(12,4),
+            condition_met BOOLEAN DEFAULT FALSE,
+            is_active BOOLEAN DEFAULT TRUE,
+            message TEXT,
+            triggered_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Create indexes
+    logger.info("Creating indexes...")
+    indexes = [
+        "CREATE INDEX IF NOT EXISTS idx_user_api_keys_user_id ON user_api_keys(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_user_api_keys_provider ON user_api_keys(provider)",
+        "CREATE INDEX IF NOT EXISTS idx_user_api_keys_active ON user_api_keys(is_active)",
+        "CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_user_id ON portfolio_holdings(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_symbol ON portfolio_holdings(symbol)",
+        "CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_broker ON portfolio_holdings(broker)",
+        "CREATE INDEX IF NOT EXISTS idx_portfolio_metadata_user_id ON portfolio_metadata(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_trading_alerts_user_id ON trading_alerts(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_trading_alerts_symbol ON trading_alerts(symbol)",
+        "CREATE INDEX IF NOT EXISTS idx_trading_alerts_active ON trading_alerts(is_active)"
+    ]
+    
+    for index_sql in indexes:
+        cursor.execute(index_sql)
+    
+    conn.commit()
+
+def verify_tables(cursor):
+    """Verify that critical tables exist"""
+    logger.info("Verifying table creation...")
+    
+    critical_tables = [
+        'user_api_keys',
+        'portfolio_holdings', 
+        'portfolio_metadata',
+        'last_updated'
+    ]
+    
+    cursor.execute("""
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = ANY(%s)
+        ORDER BY table_name
+    """, (critical_tables,))
+    
+    existing_tables = [row[0] for row in cursor.fetchall()]
+    missing_tables = set(critical_tables) - set(existing_tables)
+    
+    if missing_tables:
+        logger.warning(f"Missing critical tables: {missing_tables}")
+    else:
+        logger.info("All critical tables verified successfully")
+    
+    logger.info(f"Existing tables: {existing_tables}")
+
+def update_last_run_tracking(conn):
+    """Update the last_updated table to track script execution"""
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("""
+            INSERT INTO last_updated (script_name, last_run) 
+            VALUES ('init_database_combined.py', %s)
+            ON CONFLICT (script_name) 
+            DO UPDATE SET last_run = EXCLUDED.last_run
+        """, (datetime.now(),))
+        
+        conn.commit()
+        logger.info("Updated last_updated tracking")
+        
+    except Exception as e:
+        logger.error(f"Error updating last_updated tracking: {e}")
+        conn.rollback()
+    finally:
+        cursor.close()
+
+def main():
+    """Main function to initialize all database tables."""
+    logger.info("Starting combined database initialization...")
+    
+    # Get database secret ARN from environment
+    secret_arn = os.environ.get('DB_SECRET_ARN')
+    if not secret_arn:
+        logger.error("ERROR: DB_SECRET_ARN environment variable not set")
+        sys.exit(1)
+    
+    try:
+        # Get database credentials
+        db_config = get_db_credentials(secret_arn)
+        if not db_config:
+            logger.error("Failed to get database configuration")
+            sys.exit(1)
+        
+        # Connect to database
+        logger.info(f"Connecting to database at {db_config['host']}:{db_config['port']}")
+        conn = psycopg2.connect(**db_config)
+        conn.autocommit = False
+        
+        # Create all database tables
+        create_all_tables(conn)
+        
+        # Update tracking
+        update_last_run_tracking(conn)
+        
+        # Close connection
+        conn.close()
+        logger.info("Combined database initialization completed successfully!")
+        
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {e}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
