@@ -1001,6 +1001,7 @@ jobs:
             --parameter-overrides \
               StockSymbolsImageTag=$(grep '^StockSymbolsImageTag=' tags.env | cut -d= -f2-) \
               EconDataImageTag=$(grep '^EconDataImageTag=' tags.env | cut -d= -f2-) \
+              FindataImageTag=$(grep '^FindataImageTag=' tags.env | cut -d= -f2-) \
               PriceImageTag=$(grep '^PriceImageTag=' tags.env | cut -d= -f2-) \
               PriceWeeklyImageTag=$(grep '^PriceWeeklyImageTag=' tags.env | cut -d= -f2-) \
               PriceMonthlyImageTag=$(grep '^PriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
@@ -1016,6 +1017,7 @@ jobs:
               RevenueEstimateImageTag=$(grep '^RevenueEstimateImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsWeeklyImageTag=$(grep '^TechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsMonthlyImageTag=$(grep '^TechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-) \
+              BuySellImageTag=$(grep '^BuySellImageTag=' tags.env | cut -d= -f2-) \
               SwingTraderImageTag=$(grep '^SwingTraderImageTag=' tags.env | cut -d= -f2-) \
               CalendarImageTag=$(grep '^CalendarImageTag=' tags.env | cut -d= -f2-) \
               BuySellDailyImageTag=$(grep '^BuySellDailyImageTag=' tags.env | cut -d= -f2-) \
@@ -1024,6 +1026,7 @@ jobs:
               LatestTechnicalsDailyImageTag=$(grep '^LatestTechnicalsDailyImageTag=' tags.env | cut -d= -f2-) \
               LatestTechnicalsWeeklyImageTag=$(grep '^LatestTechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-) \
               LatestTechnicalsMonthlyImageTag=$(grep '^LatestTechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-) \
+              ScoresImageTag=$(grep '^ScoresImageTag=' tags.env | cut -d= -f2-) \
               NaaimImageTag=$(grep '^NaaimImageTag=' tags.env | cut -d= -f2-) \
               AaiiImageTag=$(grep '^AaiiImageTag=' tags.env | cut -d= -f2-) \
               FearGreedImageTag=$(grep '^FearGreedImageTag=' tags.env | cut -d= -f2-) \
@@ -1035,6 +1038,8 @@ jobs:
               AnnualCashFlowImageTag=$(grep '^AnnualCashFlowImageTag=' tags.env | cut -d= -f2-) \
               TTMIncomeStatementImageTag=$(grep '^TTMIncomeStatementImageTag=' tags.env | cut -d= -f2-) \
               TTMCashFlowImageTag=$(grep '^TTMCashFlowImageTag=' tags.env | cut -d= -f2-) \
+              QualityMetricsImageTag=$(grep '^QualityMetricsImageTag=' tags.env | cut -d= -f2-) \
+              ValueMetricsImageTag=$(grep '^ValueMetricsImageTag=' tags.env | cut -d= -f2-) \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
               IBKRUsername=${{ secrets.IBKR_USERNAME }} \
               IBKRPassword=${{ secrets.IBKR_PASSWORD }} \
@@ -1055,8 +1060,13 @@ jobs:
         run: |
           echo "Setting up Python environment for table initialization..."
           python3 -m pip install --quiet psycopg2-binary boto3
+          echo "Fetching database secret ARN..."
+          DB_SECRET_ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-app-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='SecretArn'].OutputValue" \
+            --output text)
           echo "Running portfolio tables initialization..."
-          python3 init_portfolio_tables.py
+          DB_SECRET_ARN=$DB_SECRET_ARN python3 init_portfolio_tables.py
           echo "Portfolio and API keys tables initialized successfully!"
 
 ################################################################################

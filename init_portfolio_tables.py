@@ -5,6 +5,7 @@ Creates necessary tables for portfolio management and API key storage
 """
 
 import sys
+import os
 import json
 import logging
 import psycopg2
@@ -22,12 +23,12 @@ def get_db_config():
     """Get database configuration from AWS Secrets Manager"""
     try:
         secret_str = boto3.client("secretsmanager") \
-                         .get_secret_value(SecretId="loadfundamentals-secrets")["SecretString"]
+                         .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
         secret_json = json.loads(secret_str)
         return {
             "host": secret_json["host"],
-            "port": secret_json["port"],
-            "user": secret_json["user"],
+            "port": secret_json.get("port", 5432),
+            "user": secret_json["username"],
             "password": secret_json["password"],
             "dbname": secret_json["dbname"]
         }
