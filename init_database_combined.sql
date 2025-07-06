@@ -348,11 +348,19 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Create trigger to automatically update the updated_at field
-DROP TRIGGER IF EXISTS trigger_health_status_updated_at ON health_status;
-CREATE TRIGGER trigger_health_status_updated_at
-    BEFORE UPDATE ON health_status
-    FOR EACH ROW
-    EXECUTE FUNCTION update_health_status_updated_at();
+DO $$ 
+BEGIN
+    DROP TRIGGER IF EXISTS trigger_health_status_updated_at ON health_status;
+    
+    CREATE TRIGGER trigger_health_status_updated_at
+        BEFORE UPDATE ON health_status
+        FOR EACH ROW
+        EXECUTE FUNCTION update_health_status_updated_at();
+EXCEPTION
+    WHEN duplicate_object THEN
+        -- Trigger already exists, ignore
+        NULL;
+END $$;
 
 -- Insert all tables that should be monitored
 INSERT INTO health_status (table_name, table_category, critical_table, expected_update_frequency) VALUES
