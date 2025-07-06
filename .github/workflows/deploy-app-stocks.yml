@@ -1065,9 +1065,9 @@ jobs:
             --stack-name stocks-app-stack \
             --query "Stacks[0].Outputs[?OutputKey=='SecretArn'].OutputValue" \
             --output text)
-          echo "Running portfolio tables initialization..."
-          DB_SECRET_ARN=$DB_SECRET_ARN python3 init_portfolio_tables.py
-          echo "Portfolio and API keys tables initialized successfully!"
+          echo "Running database tables initialization..."
+          DB_SECRET_ARN=$DB_SECRET_ARN python3 init_database_tables.py
+          echo "Database tables initialized successfully!"
 
 ################################################################################
 # 6) Run each changed loader                                                    #
