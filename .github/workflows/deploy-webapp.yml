@@ -8,8 +8,8 @@ on:
       - 'webapp/**'
       - 'template-webapp-lambda.yml'
       - '.github/workflows/deploy-webapp.yml'
-      - 'init_database_tables.py'
-      - 'init_portfolio_tables.py'
+      - 'init_database_combined.py'
+      - 'init_database_combined.sql'
   workflow_dispatch:
 
 permissions:
@@ -388,23 +388,9 @@ jobs:
           export DB_SECRET_ARN=${{ steps.db_info.outputs.DB_SECRET_ARN }}
           export AWS_REGION=${{ env.AWS_REGION }}
           
-          # Run combined database initialization script (replaces separate scripts)
-          if [ -f "init_database_combined.py" ]; then
-            echo "Running combined database initialization script..."
-            source venv/bin/activate && python3 init_database_combined.py
-          else
-            echo "⚠️ Combined init script not found, falling back to individual scripts..."
-            # Fallback to individual scripts for backwards compatibility
-            if [ -f "init_database_tables.py" ]; then
-              echo "Running init_database_tables.py..."
-              source venv/bin/activate && python3 init_database_tables.py
-            fi
-            
-            if [ -f "init_portfolio_tables.py" ]; then
-              echo "Running init_portfolio_tables.py..."
-              source venv/bin/activate && python3 init_portfolio_tables.py
-            fi
-          fi
+          # Run database initialization script
+          echo "Running database initialization script..."
+          source venv/bin/activate && python3 init_database_combined.py
           
           # Alternative: Run the webapp database setup script
           if [ -f "webapp/setup-database.js" ]; then
