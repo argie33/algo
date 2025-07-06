@@ -8,6 +8,8 @@ on:
       - 'webapp/**'
       - 'template-webapp-lambda.yml'
       - '.github/workflows/deploy-webapp.yml'
+      - 'init_database_tables.py'
+      - 'init_portfolio_tables.py'
   workflow_dispatch:
 
 permissions:
@@ -383,20 +385,22 @@ jobs:
           export DB_SECRET_ARN=${{ steps.db_info.outputs.DB_SECRET_ARN }}
           export AWS_REGION=${{ env.AWS_REGION }}
           
-          # Run database initialization script
-          if [ -f "init_database_tables.py" ]; then
-            echo "Running init_database_tables.py..."
-            python3 init_database_tables.py
+          # Run combined database initialization script (replaces separate scripts)
+          if [ -f "init_database_combined.py" ]; then
+            echo "Running combined database initialization script..."
+            python3 init_database_combined.py
           else
-            echo "⚠️ init_database_tables.py not found, skipping"
-          fi
-          
-          # Also run portfolio tables initialization if it exists
-          if [ -f "init_portfolio_tables.py" ]; then
-            echo "Running init_portfolio_tables.py..."
-            python3 init_portfolio_tables.py
-          else
-            echo "⚠️ init_portfolio_tables.py not found, skipping"
+            echo "⚠️ Combined init script not found, falling back to individual scripts..."
+            # Fallback to individual scripts for backwards compatibility
+            if [ -f "init_database_tables.py" ]; then
+              echo "Running init_database_tables.py..."
+              python3 init_database_tables.py
+            fi
+            
+            if [ -f "init_portfolio_tables.py" ]; then
+              echo "Running init_portfolio_tables.py..."
+              python3 init_portfolio_tables.py
+            fi
           fi
           
           # Alternative: Run the webapp database setup script
