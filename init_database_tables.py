@@ -4,6 +4,7 @@
 import os
 import sys
 import json
+import subprocess
 from datetime import datetime
 
 # Ensure packages are available
@@ -11,14 +12,24 @@ try:
     import psycopg2
 except ImportError:
     print("psycopg2 not found, installing...")
-    os.system("python3 -m pip install --user psycopg2-binary")
+    try:
+        subprocess.run([sys.executable, "-m", "pip", "install", "--user", "psycopg2-binary"], 
+                      check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to install psycopg2-binary: {e}")
+        sys.exit(1)
     import psycopg2
 
 try:
     import boto3
 except ImportError:
     print("boto3 not found, installing...")
-    os.system("python3 -m pip install --user boto3")
+    try:
+        subprocess.run([sys.executable, "-m", "pip", "install", "--user", "boto3"], 
+                      check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to install boto3: {e}")
+        sys.exit(1)
     import boto3
 
 
