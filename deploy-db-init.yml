@@ -1,0 +1,110 @@
+# GitHub Actions workflow snippet to add database initialization
+# This should be integrated into the deploy-app-stocks.yml workflow
+
+# Add to the path filters section:
+#            dbinit:
+#              - 'init_database_ecs.py'
+#              - 'Dockerfile.dbinit'
+#              - '*.sql'
+#              - 'template-db-init-ecs.yml'
+
+# Add to the outputs section:
+#      dbinit: ${{ steps.paths.outputs.dbinit }}
+
+# Add to the matrix building section:
+#          [ "${{ steps.paths.outputs.dbinit }}" = "true" ] && arr="$arr,\"dbinit\""
+
+# Add to the Docker build case statement:
+#            dbinit)           DOCKERFILE=Dockerfile.dbinit;        PARAM=DBInitImageTag;;
+
+# Add a new job after the deploy-ecs-tasks job:
+################################################################################
+# Database Initialization                                                      #
+################################################################################
+  init-database:
+    name: Initialize Database
+    needs: [deploy-app]
+    if: success()
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+      
+      - name: Get CloudFormation templates bucket
+        id: bucket
+        run: |
+          BUCKET=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
+            --output text)
+          echo "CF_BUCKET=$BUCKET" >> $GITHUB_OUTPUT
+      
+      - name: Check if DB init image exists
+        id: check-image
+        run: |
+          REPO_URI=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-ContainerRepositoryUri'].Value" \
+            --output text)
+          
+          # Check if we have a DB init image
+          if aws ecr describe-images --repository-name stocks-app-registry \
+            --image-ids imageTag=dbinit-${{ github.sha }} >/dev/null 2>&1; then
+            echo "IMAGE_EXISTS=true" >> $GITHUB_OUTPUT
+            echo "IMAGE_TAG=dbinit-${{ github.sha }}" >> $GITHUB_OUTPUT
+          else
+            # Use latest if no new image was built
+            echo "IMAGE_EXISTS=false" >> $GITHUB_OUTPUT
+            echo "IMAGE_TAG=dbinit-latest" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Build DB init image if needed
+        if: steps.check-image.outputs.IMAGE_EXISTS == 'false'
+        run: |
+          REPO_URI=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-ContainerRepositoryUri'].Value" \
+            --output text)
+          
+          aws ecr get-login-password --region $AWS_REGION | \
+            docker login --username AWS --password-stdin "$REPO_URI"
+          
+          docker buildx build \
+            --platform linux/arm64 \
+            --push \
+            -t $REPO_URI:dbinit-${{ github.sha }} \
+            -t $REPO_URI:dbinit-latest \
+            -f Dockerfile.dbinit .
+      
+      - name: Deploy database initialization stack
+        run: |
+          aws cloudformation deploy \
+            --stack-name stocks-db-init \
+            --template-file template-db-init-ecs.yml \
+            --parameter-overrides \
+              DBInitImageTag=${{ steps.check-image.outputs.IMAGE_TAG }} \
+            --capabilities CAPABILITY_IAM \
+            --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}
+      
+      - name: Check initialization status
+        run: |
+          # Wait for stack to complete
+          aws cloudformation wait stack-create-complete \
+            --stack-name stocks-db-init || \
+          aws cloudformation wait stack-update-complete \
+            --stack-name stocks-db-init
+          
+          # Check if initialization succeeded
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-db-init \
+            --query 'Stacks[0].StackStatus' --output text)
+          
+          if [[ "$STATUS" == *"COMPLETE" ]]; then
+            echo "✅ Database initialization completed successfully"
+          else
+            echo "❌ Database initialization failed with status: $STATUS"
+            exit 1
+          fi
