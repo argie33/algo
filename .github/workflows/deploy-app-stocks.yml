@@ -106,8 +106,6 @@ jobs:
               - 'scripts/symbols-alt/**'
             econ:
               - 'scripts/econ-data/**'
-            pricedaily:
-              - 'scripts/pricedaily/**'
             priceweekly:
               - 'scripts/priceweekly/**'
             pricemonthly:
