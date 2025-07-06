@@ -500,7 +500,7 @@ jobs:
         name: Which files changed?
         uses: dorny/paths-filter@v2
         with:
-          base: ${{ github.event.before != '0000000000000000000000000000000000000000' && github.event.before || 'HEAD~1' }}
+          base: ${{ github.event.before != '0000000000000000000000000000000000000000' && github.event.before || github.sha }}
           filters: |
             app:
               - 'template-app-stocks.yml'
