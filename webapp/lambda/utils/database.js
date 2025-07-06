@@ -28,6 +28,13 @@ async function getDbConfig() {
     try {
         const secretArn = process.env.DB_SECRET_ARN;
         
+        console.log('Environment check:', {
+            DB_SECRET_ARN: secretArn ? 'SET' : 'MISSING',
+            DB_ENDPOINT: process.env.DB_ENDPOINT ? 'SET' : 'MISSING',
+            AWS_REGION: process.env.AWS_REGION || 'MISSING',
+            NODE_ENV: process.env.NODE_ENV || 'MISSING'
+        });
+        
         // If we have a secret ARN, use Secrets Manager
         if (secretArn) {
             try {

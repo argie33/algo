@@ -18,7 +18,12 @@ router.get('/', async (req, res) => {
         uptime: process.uptime(),
         note: 'Quick health check - database not tested',
         database: { status: 'not_tested' },
-        api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' }
+        api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' },
+        config: {
+          hasDbSecret: !!process.env.DB_SECRET_ARN,
+          hasDbEndpoint: !!process.env.DB_ENDPOINT,
+          hasAwsRegion: !!process.env.AWS_REGION
+        }
       });
     }
     // Full health check with database
