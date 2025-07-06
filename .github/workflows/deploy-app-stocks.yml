@@ -1051,6 +1051,14 @@ jobs:
             --cluster "$CLUSTER" \
             --settings name=containerInsights,value=enabled
 
+      - name: Initialize Portfolio and API Keys Tables
+        run: |
+          echo "Setting up Python environment for table initialization..."
+          python3 -m pip install --quiet psycopg2-binary boto3
+          echo "Running portfolio tables initialization..."
+          python3 init_portfolio_tables.py
+          echo "Portfolio and API keys tables initialized successfully!"
+
 ################################################################################
 # 6) Run each changed loader                                                    #
 ################################################################################
