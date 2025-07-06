@@ -203,6 +203,9 @@ jobs:
               - 'cloudformation/**'
               - '.github/workflows/**'
               - 'requirements.txt'
+              - 'load*.py'
+              - 'Dockerfile.*'
+              - 'requirements-*.txt'
 
 # 6) Run value-metrics loader
   run_valuemetrics:
