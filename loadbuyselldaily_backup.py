@@ -92,28 +92,6 @@ def create_buy_sell_table(cur):
         stoplevel    REAL,
         inposition   BOOLEAN,
         strength     REAL,
-        -- O'Neill methodology columns
-        signal_type  VARCHAR(50),
-        pivot_price  REAL,
-        buy_zone_start REAL,
-        buy_zone_end REAL,
-        exit_trigger_1_price REAL,     -- 20% profit target
-        exit_trigger_2_price REAL,     -- 25% profit target
-        exit_trigger_3_condition VARCHAR(50), -- '50_SMA_BREACH_WITH_VOLUME'
-        exit_trigger_3_price REAL,     -- Current 50-day SMA level
-        exit_trigger_4_condition VARCHAR(50), -- 'STOP_LOSS_HIT'
-        exit_trigger_4_price REAL,     -- Stop loss price
-        initial_stop REAL,
-        trailing_stop REAL,
-        base_type    VARCHAR(50),
-        base_length_days INTEGER,
-        avg_volume_50d BIGINT,
-        volume_surge_pct REAL,
-        rs_rating    INTEGER,
-        breakout_quality VARCHAR(20),
-        risk_reward_ratio REAL,
-        current_gain_pct REAL,
-        days_in_position INTEGER,
         UNIQUE(symbol, timeframe, date)
       );
     """)
@@ -123,51 +101,27 @@ def insert_symbol_results(cur, symbol, timeframe, df):
       INSERT INTO buy_sell_daily (
         symbol, timeframe, date,
         open, high, low, close, volume,
-        signal, buylevel, stoplevel, inposition, strength,
-        signal_type, pivot_price, buy_zone_start, buy_zone_end,
-        exit_trigger_1_price, exit_trigger_2_price, exit_trigger_3_condition, exit_trigger_3_price,
-        exit_trigger_4_condition, exit_trigger_4_price, initial_stop, trailing_stop,
-        base_type, base_length_days, avg_volume_50d, volume_surge_pct,
-        rs_rating, breakout_quality, risk_reward_ratio, current_gain_pct, days_in_position
-      ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-      ON CONFLICT (symbol, timeframe, date) DO UPDATE SET
-        open = EXCLUDED.open, high = EXCLUDED.high, low = EXCLUDED.low,
-        close = EXCLUDED.close, volume = EXCLUDED.volume,
-        signal = EXCLUDED.signal, buylevel = EXCLUDED.buylevel,
-        stoplevel = EXCLUDED.stoplevel, inposition = EXCLUDED.inposition,
-        strength = EXCLUDED.strength, signal_type = EXCLUDED.signal_type,
-        pivot_price = EXCLUDED.pivot_price, buy_zone_start = EXCLUDED.buy_zone_start,
-        buy_zone_end = EXCLUDED.buy_zone_end, exit_trigger_1_price = EXCLUDED.exit_trigger_1_price,
-        exit_trigger_2_price = EXCLUDED.exit_trigger_2_price, exit_trigger_3_condition = EXCLUDED.exit_trigger_3_condition,
-        exit_trigger_3_price = EXCLUDED.exit_trigger_3_price, exit_trigger_4_condition = EXCLUDED.exit_trigger_4_condition,
-        exit_trigger_4_price = EXCLUDED.exit_trigger_4_price, initial_stop = EXCLUDED.initial_stop,
-        trailing_stop = EXCLUDED.trailing_stop, base_type = EXCLUDED.base_type,
-        base_length_days = EXCLUDED.base_length_days, avg_volume_50d = EXCLUDED.avg_volume_50d,
-        volume_surge_pct = EXCLUDED.volume_surge_pct, rs_rating = EXCLUDED.rs_rating,
-        breakout_quality = EXCLUDED.breakout_quality, risk_reward_ratio = EXCLUDED.risk_reward_ratio,
-        current_gain_pct = EXCLUDED.current_gain_pct, days_in_position = EXCLUDED.days_in_position;
+        signal, buylevel, stoplevel, inposition, strength
+      ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+      ON CONFLICT (symbol, timeframe, date) DO NOTHING;
     """
     inserted = 0
     for idx, row in df.iterrows():
         try:
-            # Check for NaNs or missing values in core fields
+            # Check for NaNs or missing values
             vals = [row.get('open'), row.get('high'), row.get('low'), row.get('close'), row.get('volume'),
                     row.get('Signal'), row.get('buyLevel'), row.get('stopLevel'), row.get('inPosition'), row.get('strength')]
-            if any(pd.isnull(v) for v in vals[:10]):  # Only check core fields
+            if any(pd.isnull(v) for v in vals):
                 logging.warning(f"Skipping row {idx} for {symbol} {timeframe} due to NaN: {vals}")
                 continue
             cur.execute(insert_q, (
-                symbol, timeframe, row['date'].date(),
+                symbol,
+                timeframe,
+                row['date'].date(),
                 float(row['open']), float(row['high']), float(row['low']),
                 float(row['close']), int(row['volume']),
                 row['Signal'], float(row['buyLevel']),
-                float(row['stopLevel']), bool(row['inPosition']), float(row['strength']),
-                # O'Neill methodology fields
-                row.get('signal_type'), row.get('pivot_price'), row.get('buy_zone_start'), row.get('buy_zone_end'),
-                row.get('exit_trigger_1_price'), row.get('exit_trigger_2_price'), row.get('exit_trigger_3_condition'), row.get('exit_trigger_3_price'),
-                row.get('exit_trigger_4_condition'), row.get('exit_trigger_4_price'), row.get('initial_stop'), row.get('trailing_stop'),
-                row.get('base_type'), row.get('base_length_days'), row.get('avg_volume_50d'), row.get('volume_surge_pct'),
-                row.get('rs_rating'), row.get('breakout_quality'), row.get('risk_reward_ratio'), row.get('current_gain_pct'), row.get('days_in_position')
+                float(row['stopLevel']), bool(row['inPosition']), float(row['strength'])
             ))
             inserted += 1
         except Exception as e:
@@ -400,193 +354,10 @@ def calculate_signal_strength(df, index):
         logging.warning(f"Error calculating signal strength at index {index}: {e}")
         return 50.0
 
-def calculate_signal_strength_enhanced(df, index):
-    """Enhanced signal strength calculation with O'Neill factors"""
-    try:
-        row = df.iloc[index]
-        signal_type = row.get('Signal', 'None')
-        
-        if signal_type == 'None':
-            return 50.0
-        
-        strength = 0.0
-        
-        # 1. Volume Surge (30%) - Critical for O'Neill
-        volume_surge = row.get('volume_surge_pct', 0)
-        if volume_surge >= 100:
-            strength += 30
-        elif volume_surge >= 50:
-            strength += 25
-        elif volume_surge >= 40:
-            strength += 20
-        elif volume_surge >= 25:
-            strength += 15
-        else:
-            strength += 5
-        
-        # 2. Base Pattern Quality (25%)
-        base_type = row.get('base_type', None)
-        if base_type in ['Cup', 'Cup with Handle']:
-            strength += 25
-        elif base_type == 'Flat Base':
-            strength += 20
-        elif base_type == 'Double Bottom':
-            strength += 15
-        elif base_type:
-            strength += 10
-        else:
-            strength += 5
-        
-        # 3. Price Action in Range (20%)
-        if row['high'] != row['low']:
-            close_position = (row['close'] - row['low']) / (row['high'] - row['low'])
-            if signal_type == 'Buy' and close_position > 0.75:
-                strength += 20
-            elif signal_type == 'Buy' and close_position > 0.5:
-                strength += 15
-            elif signal_type == 'Sell' and close_position < 0.25:
-                strength += 20
-            elif signal_type == 'Sell' and close_position < 0.5:
-                strength += 15
-            else:
-                strength += 10
-        
-        # 4. Trend Alignment (15%)
-        if signal_type == 'Buy':
-            if (pd.notna(row.get('sma_50')) and row['close'] > row['sma_50']):
-                strength += 15
-            else:
-                strength += 5
-        
-        # 5. Buy Zone Position (10%) - O'Neill specific
-        if signal_type == 'Buy':
-            buy_zone_start = row.get('buy_zone_start')
-            buy_zone_end = row.get('buy_zone_end')
-            if (pd.notna(buy_zone_start) and pd.notna(buy_zone_end) and 
-                buy_zone_start <= row['close'] <= buy_zone_end):
-                strength += 10
-            else:
-                strength += 3
-        
-        return min(100, max(0, strength))
-        
-    except Exception as e:
-        logging.error(f"Error calculating enhanced signal strength: {e}")
-        return 50.0
-
 ###############################################################################
 # 5) SIGNAL GENERATION & IN-POSITION LOGIC
 ###############################################################################
-def calculate_ema(prices, period):
-    """Calculate Exponential Moving Average"""
-    return prices.ewm(span=period, adjust=False).mean()
-
-def identify_base_pattern(df, current_idx, lookback_days=65):
-    """Identify O'Neill base patterns: Cup, Flat Base, Double Bottom"""
-    if current_idx < lookback_days:
-        return None, 0
-    
-    window = df.iloc[current_idx - lookback_days:current_idx + 1]
-    high_price = window['high'].max()
-    low_price = window['low'].min()
-    depth_pct = ((high_price - low_price) / high_price) * 100
-    
-    # Simple pattern detection
-    if 12 <= depth_pct <= 33:
-        # Check for cup shape
-        mid_point = len(window) // 2
-        left_low = window.iloc[:mid_point]['low'].min()
-        right_low = window.iloc[mid_point:]['low'].min()
-        
-        if abs(left_low - right_low) / low_price < 0.05:  # Within 5% of each other
-            return 'Cup', lookback_days
-    
-    if depth_pct <= 15 and lookback_days >= 25:
-        return 'Flat Base', lookback_days
-    
-    # Check for double bottom
-    lows = window[window['low'] == low_price].index
-    if len(lows) >= 2 and (lows[-1] - lows[0]) >= 10:
-        return 'Double Bottom', lookback_days
-    
-    return None, 0
-
-def calculate_pivot_price(df, current_idx, base_type):
-    """Calculate pivot point based on base pattern type"""
-    if base_type == 'Cup' or base_type == 'Cup with Handle':
-        lookback = min(65, current_idx)
-        base_high = df.iloc[current_idx - lookback:current_idx + 1]['high'].max()
-        return base_high + 0.10
-    elif base_type == 'Flat Base':
-        lookback = min(25, current_idx)
-        base_high = df.iloc[current_idx - lookback:current_idx + 1]['high'].max()
-        return base_high * 1.01
-    elif base_type == 'Double Bottom':
-        lookback = min(50, current_idx)
-        window = df.iloc[current_idx - lookback:current_idx + 1]
-        return window['high'].median()
-    else:
-        lookback = min(20, current_idx)
-        return df.iloc[current_idx - lookback:current_idx + 1]['high'].max()
-
-def rate_breakout_quality(row, base_info, volume_surge):
-    """Rate breakout quality A+ to C based on O'Neill criteria"""
-    score = 0
-    
-    # Volume (0-30 points)
-    if volume_surge >= 100:
-        score += 30
-    elif volume_surge >= 50:
-        score += 20
-    elif volume_surge >= 40:
-        score += 10
-    
-    # RS Rating (0-30 points)
-    rs_rating = row.get('rs_rating', 50)
-    if rs_rating >= 90:
-        score += 30
-    elif rs_rating >= 80:
-        score += 20
-    elif rs_rating >= 70:
-        score += 10
-    
-    # Base Quality (0-20 points)
-    if base_info.get('pattern_type') in ['Cup', 'Cup with Handle']:
-        score += 20
-    elif base_info.get('pattern_type') == 'Flat Base':
-        score += 15
-    elif base_info.get('pattern_type') == 'Double Bottom':
-        score += 10
-    
-    # Price action (0-20 points)
-    price_range = row['high'] - row['low']
-    if price_range > 0:
-        close_position = (row['close'] - row['low']) / price_range
-        if close_position >= 0.75:
-            score += 20
-        elif close_position >= 0.5:
-            score += 10
-    
-    # Convert to letter grade
-    if score >= 90:
-        return 'A+'
-    elif score >= 80:
-        return 'A'
-    elif score >= 70:
-        return 'B+'
-    elif score >= 60:
-        return 'B'
-    else:
-        return 'C'
-
 def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
-    """Generate signals with O'Neill methodology including volume-confirmed exits"""
-    
-    # Calculate additional indicators needed for O'Neill method
-    df['sma_50'] = df['close'].rolling(window=50).mean()
-    df['avg_volume_50d'] = df['volume'].rolling(window=50).mean()
-    
-    # Original signal logic
     df['TrendOK']     = df['close'] > df['sma_50']
     df['RSI_prev']    = df['rsi'].shift(1)
     df['rsiBuy']      = (df['rsi']>50)&(df['RSI_prev']<=50)
@@ -599,170 +370,35 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     df['breakoutBuy'] = df['high'] > df['buyLevel']
     df['breakoutSell']= df['low']  < df['stopLevel']
 
-    # Initialize O'Neill methodology columns
-    df['signal_type'] = 'None'
-    df['pivot_price'] = np.nan
-    df['buy_zone_start'] = np.nan
-    df['buy_zone_end'] = np.nan
-    df['exit_trigger_1_price'] = np.nan  # 20% profit
-    df['exit_trigger_2_price'] = np.nan  # 25% profit
-    df['exit_trigger_3_condition'] = None  # 50_SMA_BREACH_WITH_VOLUME
-    df['exit_trigger_3_price'] = np.nan  # 50-day SMA level
-    df['exit_trigger_4_condition'] = None  # STOP_LOSS_HIT
-    df['exit_trigger_4_price'] = np.nan  # Stop loss price
-    df['base_type'] = None
-    df['base_length_days'] = 0
-    df['volume_surge_pct'] = 0
-    df['rs_rating'] = 50  # Default RS rating
-    df['breakout_quality'] = None
-    df['risk_reward_ratio'] = 0
-    df['current_gain_pct'] = 0
-    df['days_in_position'] = 0
-    
-    # Enhanced signal generation with O'Neill methodology
-    in_pos = False
-    sigs = []
-    pos = []
-    entry_price = None
-    entry_date = None
-    entry_idx = None
-    
+    if useADX:
+        flt    = ((df['adx']>adxS) |
+                  ((df['adx']>adxW) & (df['adx']>df['adx'].shift(1))))
+        adxOK  = (df['plus_di']>df['minus_di']) & flt
+        exitD  = ((df['plus_di'].shift(1)>df['minus_di'].shift(1)) &
+                  (df['plus_di']<df['minus_di']))
+        df['finalBuy']  = ((df['rsiBuy'] & df['TrendOK'] & adxOK) | df['breakoutBuy'])
+        df['finalSell'] = (df['rsiSell'] | df['breakoutSell'] | exitD)
+    else:
+        df['finalBuy']  = ((df['rsiBuy'] & df['TrendOK']) | df['breakoutBuy'])
+        df['finalSell'] = (df['rsiSell'] | df['breakoutSell'])
+
+    in_pos, sigs, pos = False, [], []
     for i in range(len(df)):
-        row = df.iloc[i]
-        
-        # Calculate volume surge percentage
-        if pd.notna(row['avg_volume_50d']) and row['avg_volume_50d'] > 0:
-            volume_surge = ((row['volume'] / row['avg_volume_50d']) - 1) * 100
-            df.loc[i, 'volume_surge_pct'] = volume_surge
+        if in_pos and df.loc[i,'finalSell']:
+            sigs.append('Sell'); in_pos=False
+        elif not in_pos and df.loc[i,'finalBuy']:
+            sigs.append('Buy'); in_pos=True
         else:
-            volume_surge = 0
-        
-        # Check for base pattern
-        base_type, base_length = identify_base_pattern(df, i)
-        if base_type:
-            df.loc[i, 'base_type'] = base_type
-            df.loc[i, 'base_length_days'] = base_length
-            
-            # Calculate pivot price and buy zone
-            pivot = calculate_pivot_price(df, i, base_type)
-            df.loc[i, 'pivot_price'] = pivot
-            df.loc[i, 'buy_zone_start'] = pivot
-            df.loc[i, 'buy_zone_end'] = pivot * 1.05  # 5% buy zone
-        
-        # BUY SIGNAL LOGIC
-        if not in_pos:
-            buy_signal = False
-            signal_type = 'None'
-            
-            # O'Neill breakout with volume (primary signal)
-            if (row['breakoutBuy'] and volume_surge >= 40 and 
-                pd.notna(df.loc[i, 'pivot_price']) and 
-                row['close'] <= df.loc[i, 'buy_zone_end']):
-                buy_signal = True
-                signal_type = 'Breakout'
-                entry_price = row['close']
-                entry_date = row['date']
-                entry_idx = i
-                
-                # Set exit triggers
-                df.loc[i, 'exit_trigger_1_price'] = entry_price * 1.20  # 20% target
-                df.loc[i, 'exit_trigger_2_price'] = entry_price * 1.25  # 25% target
-                df.loc[i, 'exit_trigger_3_condition'] = '50_SMA_BREACH_WITH_VOLUME'
-                df.loc[i, 'exit_trigger_3_price'] = row['sma_50']
-                df.loc[i, 'exit_trigger_4_condition'] = 'STOP_LOSS_HIT'
-                df.loc[i, 'exit_trigger_4_price'] = entry_price * 0.925  # 7.5% stop
-                
-                # Rate breakout quality
-                base_info = {'pattern_type': base_type or 'Unknown'}
-                df.loc[i, 'breakout_quality'] = rate_breakout_quality(row, base_info, volume_surge)
-                
-                # Calculate risk/reward
-                risk = (entry_price - df.loc[i, 'exit_trigger_4_price']) / entry_price
-                reward = 0.20  # Target 20% gain
-                df.loc[i, 'risk_reward_ratio'] = reward / risk if risk > 0 else 0
-                
-            # RSI momentum buy (secondary signal)
-            elif row['rsiBuy'] and row['TrendOK'] and volume_surge >= 25:
-                buy_signal = True
-                signal_type = 'Momentum'
-                entry_price = row['close']
-                entry_date = row['date']
-                entry_idx = i
-                
-                # Set exit triggers
-                df.loc[i, 'exit_trigger_1_price'] = entry_price * 1.20
-                df.loc[i, 'exit_trigger_2_price'] = entry_price * 1.25
-                df.loc[i, 'exit_trigger_3_condition'] = '50_SMA_BREACH_WITH_VOLUME'
-                df.loc[i, 'exit_trigger_3_price'] = row['sma_50']
-                df.loc[i, 'exit_trigger_4_condition'] = 'STOP_LOSS_HIT'
-                df.loc[i, 'exit_trigger_4_price'] = entry_price * 0.925
-                
-            if buy_signal:
-                sigs.append('Buy')
-                in_pos = True
-                df.loc[i, 'signal_type'] = signal_type
-            else:
-                sigs.append('None')
-        
-        # SELL SIGNAL LOGIC
-        else:  # in position
-            sell_signal = False
-            sell_reason = 'None'
-            
-            # Calculate current gain and update position tracking
-            if entry_price:
-                current_gain = ((row['close'] - entry_price) / entry_price) * 100
-                df.loc[i, 'current_gain_pct'] = current_gain
-                
-                # Days in position
-                if entry_date:
-                    days_held = (row['date'] - entry_date).days
-                    df.loc[i, 'days_in_position'] = days_held
-            
-            # EXIT TRIGGER 4: Stop loss (7.5%) - Highest Priority
-            if entry_price and row['close'] <= entry_price * 0.925:
-                sell_signal = True
-                sell_reason = 'Stop Loss (7.5%)'
-                df.loc[i, 'signal_type'] = 'STOP_LOSS_HIT'
-            
-            # EXIT TRIGGER 3: 50-day SMA breach with volume confirmation
-            elif (row['close'] < row['sma_50'] and volume_surge >= 40):
-                sell_signal = True
-                sell_reason = '50-day SMA Breach (Volume Confirmed)'
-                df.loc[i, 'signal_type'] = '50_SMA_BREACH_WITH_VOLUME'
-            
-            # EXIT TRIGGER 1 & 2: Profit targets (discretionary)
-            elif current_gain >= 25:
-                # Could sell at 25% but keep as discretionary
-                df.loc[i, 'signal_type'] = 'TARGET_2_REACHED'
-            elif current_gain >= 20:
-                # Could sell at 20% but keep as discretionary
-                df.loc[i, 'signal_type'] = 'TARGET_1_REACHED'
-            
-            # Original sell signals as backup
-            elif row['rsiSell'] or row['breakoutSell']:
-                sell_signal = True
-                sell_reason = 'Technical Sell'
-                df.loc[i, 'signal_type'] = 'Technical'
-            
-            if sell_signal:
-                sigs.append('Sell')
-                in_pos = False
-                entry_price = None
-                entry_date = None
-                entry_idx = None
-            else:
-                sigs.append('None')
-        
+            sigs.append('None')
         pos.append(in_pos)
+
+    df['Signal']    = sigs
+    df['inPosition']= pos
     
-    df['Signal'] = sigs
-    df['inPosition'] = pos
-    
-    # Calculate enhanced signal strength
+    # Calculate signal strength for each row
     strengths = []
     for i in range(len(df)):
-        strength = calculate_signal_strength_enhanced(df, i)
+        strength = calculate_signal_strength(df, i)
         strengths.append(strength)
     
     df['strength'] = strengths

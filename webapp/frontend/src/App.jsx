@@ -84,6 +84,10 @@ import PortfolioPerformanceSimple from './pages/PortfolioPerformanceSimple'
 import PortfolioPerformanceDebug from './pages/PortfolioPerformanceDebug'
 import AuthTest from './pages/AuthTest'
 import SocialMediaSentiment from './pages/SocialMediaSentiment'
+import NewsSentiment from './pages/NewsSentiment'
+import Watchlist from './pages/Watchlist'
+import MarketCommentary from './pages/MarketCommentary'
+import EducationalContent from './pages/EducationalContent'
 
 const drawerWidth = 240
 
@@ -464,9 +468,9 @@ function App() {
             
             {/* Sector Analysis */}
             <Route path="/sectors" element={<SectorAnalysis />} />
-            <Route path="/watchlist" element={<ComingSoon pageName="Watchlist" description="Track your favorite stocks and get personalized alerts." />} />
+            <Route path="/watchlist" element={<Watchlist />} />
             <Route path="/sentiment/social" element={<SocialMediaSentiment />} />
-            <Route path="/sentiment/news" element={<ComingSoon pageName="News Sentiment" description="AI-powered news sentiment analysis and impact predictions." />} />
+            <Route path="/sentiment/news" element={<NewsSentiment />} />
             <Route path="/sentiment/analysts" element={<AnalystInsights />} />
             <Route path="/research/commentary" element={<ComingSoon pageName="Market Commentary" description="Expert market commentary and analysis." />} />
             <Route path="/research/education" element={<ComingSoon pageName="Educational Content" description="Learn about investing and market analysis." />} />

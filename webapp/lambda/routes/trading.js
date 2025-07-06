@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { query } = require('../utils/database');
+const { getEnhancedSignals, getActivePositions, getMarketTiming } = require('./trading_enhanced');
 
 // Helper function to check if required tables exist
 async function checkRequiredTables(tableNames) {
@@ -1139,6 +1140,67 @@ router.get('/aggregate', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to fetch aggregate signals summary',
       message: error.message 
+    });
+  }
+});
+
+// Enhanced O'Neill methodology endpoints
+router.get('/signals/enhanced', async (req, res) => {
+  try {
+    const result = await getEnhancedSignals({ queryStringParameters: req.query });
+    const data = JSON.parse(result.body);
+    
+    if (result.statusCode === 200) {
+      res.json(data);
+    } else {
+      res.status(result.statusCode).json(data);
+    }
+  } catch (error) {
+    console.error('[TRADING] Error in enhanced signals:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch enhanced signals',
+      message: error.message
+    });
+  }
+});
+
+router.get('/positions/active', async (req, res) => {
+  try {
+    const result = await getActivePositions({ queryStringParameters: req.query });
+    const data = JSON.parse(result.body);
+    
+    if (result.statusCode === 200) {
+      res.json(data);
+    } else {
+      res.status(result.statusCode).json(data);
+    }
+  } catch (error) {
+    console.error('[TRADING] Error in active positions:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch active positions',
+      message: error.message
+    });
+  }
+});
+
+router.get('/market-timing', async (req, res) => {
+  try {
+    const result = await getMarketTiming({ queryStringParameters: req.query });
+    const data = JSON.parse(result.body);
+    
+    if (result.statusCode === 200) {
+      res.json(data);
+    } else {
+      res.status(result.statusCode).json(data);
+    }
+  } catch (error) {
+    console.error('[TRADING] Error in market timing:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch market timing data',
+      message: error.message
     });
   }
 });

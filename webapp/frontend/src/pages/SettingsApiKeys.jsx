@@ -97,42 +97,18 @@ const SettingsApiKeys = () => {
     {
       id: 'alpaca',
       name: 'Alpaca Markets',
-      description: 'Commission-free stock trading with API access',
-      features: ['Portfolio Import', 'Real-time Data', 'Trading'],
+      description: 'Commission-free stock trading with API access - Paper & Live trading',
+      features: ['Portfolio Import', 'Real-time Data', 'Paper Trading', 'Live Trading'],
       icon: <AccountBalance />,
       color: '#FFD700'
     },
     {
-      id: 'robinhood',
-      name: 'Robinhood',
-      description: 'Popular commission-free trading platform',
-      features: ['Portfolio Import', 'Basic Data'],
+      id: 'td_ameritrade',
+      name: 'TD Ameritrade',
+      description: 'Professional trading platform with comprehensive API (Legacy - Migrating to Schwab)',
+      features: ['Portfolio Import', 'Real-time Data', 'Options Trading', 'Advanced Orders'],
       icon: <TrendingUp />,
       color: '#00C851'
-    },
-    {
-      id: 'polygon',
-      name: 'Polygon.io',
-      description: 'Financial market data provider',
-      features: ['Real-time Data', 'Historical Data', 'Options Data'],
-      icon: <DataObject />,
-      color: '#2196F3'
-    },
-    {
-      id: 'alpha_vantage',
-      name: 'Alpha Vantage',
-      description: 'Free and premium financial data APIs',
-      features: ['Market Data', 'Technical Indicators', 'Forex'],
-      icon: <Api />,
-      color: '#FF9800'
-    },
-    {
-      id: 'sentiment_one',
-      name: 'SentimentInvestor',
-      description: 'Social sentiment and alternative data',
-      features: ['Social Sentiment', 'News Analysis', 'Options Flow'],
-      icon: <Psychology />,
-      color: '#9C27B0'
     }
   ];
 

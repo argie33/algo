@@ -824,13 +824,13 @@ jobs:
 ################################################################################
   build:
     name: Build changed images
-    needs: filter
-    if: ${{ needs.filter.outputs.any == 'true' }}
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.any == 'true' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        loader: ${{ fromJson(needs.filter.outputs.matrix) }}
+        loader: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
 
     steps:
       - uses: actions/checkout@v3
