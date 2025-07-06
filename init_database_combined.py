@@ -44,10 +44,26 @@ def install_required_packages():
 # Install packages first
 install_required_packages()
 
-# Now import the packages
-import psycopg2
-from psycopg2.extras import RealDictCursor
-import boto3
+# Now import the packages after refreshing the module path
+import importlib
+import site
+
+# Refresh the module search paths to include newly installed packages
+importlib.invalidate_caches()
+site.main()
+
+try:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+except ImportError as e:
+    logger.error(f"Failed to import psycopg2 after installation: {e}")
+    sys.exit(1)
+
+try:
+    import boto3
+except ImportError as e:
+    logger.error(f"Failed to import boto3 after installation: {e}")
+    sys.exit(1)
 
 def get_db_credentials(secret_arn):
     """Fetch database credentials from AWS Secrets Manager."""
