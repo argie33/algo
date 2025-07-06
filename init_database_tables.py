@@ -4,9 +4,22 @@
 import os
 import sys
 import json
-import psycopg2
-import boto3
 from datetime import datetime
+
+# Ensure packages are available
+try:
+    import psycopg2
+except ImportError:
+    print("psycopg2 not found, installing...")
+    os.system("python3 -m pip install --user psycopg2-binary")
+    import psycopg2
+
+try:
+    import boto3
+except ImportError:
+    print("boto3 not found, installing...")
+    os.system("python3 -m pip install --user boto3")
+    import boto3
 
 
 def get_db_credentials(secret_arn):
