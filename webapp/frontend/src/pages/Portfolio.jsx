@@ -127,6 +127,165 @@ import {
 import { getApiConfig, testApiConnection, importPortfolioFromBroker, getApiKeys } from '../services/api';
 import { formatCurrency, formatPercentage, formatNumber } from '../utils/formatters';
 
+// ⚠️ MOCK DATA - Replace with real API when available
+// Enhanced mock data with realistic portfolio metrics
+const mockPortfolioData = {
+  isMockData: true,
+  holdings: [
+    {
+      symbol: 'AAPL',
+      company: 'Apple Inc.',
+      shares: 100,
+      avgCost: 150.00,
+      currentPrice: 189.45,
+      marketValue: 18945,
+      gainLoss: 3945,
+      gainLossPercent: 26.30,
+      sector: 'Technology',
+      allocation: 23.5,
+      beta: 1.2,
+      isMockData: true,
+      factorScores: { quality: 85, growth: 60, value: 25, momentum: 75, sentiment: 70, positioning: 45 }
+    },
+    {
+      symbol: 'MSFT',
+      company: 'Microsoft Corporation',
+      shares: 50,
+      avgCost: 300.00,
+      currentPrice: 342.56,
+      marketValue: 17128,
+      gainLoss: 2128,
+      gainLossPercent: 14.19,
+      sector: 'Technology',
+      allocation: 21.3,
+      beta: 0.9,
+      isMockData: true,
+      factorScores: { quality: 90, growth: 65, value: 30, momentum: 80, sentiment: 75, positioning: 50 }
+    },
+    {
+      symbol: 'GOOGL',
+      company: 'Alphabet Inc.',
+      shares: 25,
+      avgCost: 120.00,
+      currentPrice: 134.23,
+      marketValue: 3356,
+      gainLoss: 356,
+      gainLossPercent: 11.86,
+      sector: 'Technology',
+      allocation: 4.2,
+      beta: 1.1,
+      isMockData: true,
+      factorScores: { quality: 80, growth: 70, value: 40, momentum: 65, sentiment: 60, positioning: 35 }
+    },
+    {
+      symbol: 'JNJ',
+      company: 'Johnson & Johnson',
+      shares: 75,
+      avgCost: 160.00,
+      currentPrice: 156.78,
+      marketValue: 11759,
+      gainLoss: -241,
+      gainLossPercent: -2.01,
+      sector: 'Healthcare',
+      allocation: 14.6,
+      beta: 0.7,
+      isMockData: true,
+      factorScores: { quality: 95, growth: 25, value: 60, momentum: 30, sentiment: 45, positioning: 65 }
+    },
+    {
+      symbol: 'JPM',
+      company: 'JPMorgan Chase & Co.',
+      shares: 60,
+      avgCost: 140.00,
+      currentPrice: 167.89,
+      marketValue: 10073,
+      gainLoss: 1673,
+      gainLossPercent: 19.89,
+      sector: 'Financials',
+      allocation: 12.5,
+      beta: 1.3,
+      isMockData: true,
+      factorScores: { quality: 75, growth: 40, value: 70, momentum: 55, sentiment: 50, positioning: 60 }
+    },
+    {
+      symbol: 'PG',
+      company: 'Procter & Gamble Co.',
+      shares: 40,
+      avgCost: 145.00,
+      currentPrice: 153.21,
+      marketValue: 6128,
+      gainLoss: 328,
+      gainLossPercent: 5.66,
+      sector: 'Consumer Staples',
+      allocation: 7.6,
+      beta: 0.5,
+      isMockData: true,
+      factorScores: { quality: 85, growth: 20, value: 45, momentum: 25, sentiment: 55, positioning: 70 }
+    },
+    {
+      symbol: 'BRK.B',
+      company: 'Berkshire Hathaway Inc.',
+      shares: 30,
+      avgCost: 320.00,
+      currentPrice: 345.67,
+      marketValue: 10370,
+      gainLoss: 770,
+      gainLossPercent: 8.01,
+      sector: 'Financials',
+      allocation: 12.9,
+      beta: 0.8,
+      isMockData: true,
+      factorScores: { quality: 90, growth: 35, value: 80, momentum: 40, sentiment: 60, positioning: 75 }
+    },
+    {
+      symbol: 'V',
+      company: 'Visa Inc.',
+      shares: 35,
+      avgCost: 200.00,
+      currentPrice: 234.56,
+      marketValue: 8210,
+      gainLoss: 1210,
+      gainLossPercent: 17.29,
+      sector: 'Financials',
+      allocation: 10.2,
+      beta: 1.0,
+      isMockData: true,
+      factorScores: { quality: 85, growth: 55, value: 35, momentum: 70, sentiment: 65, positioning: 55 }
+    }
+  ],
+  sectorAllocation: [
+    { name: 'Technology', value: 48.9, isMockData: true },
+    { name: 'Financials', value: 25.6, isMockData: true },
+    { name: 'Healthcare', value: 14.6, isMockData: true },
+    { name: 'Consumer Staples', value: 7.6, isMockData: true },
+    { name: 'Others', value: 3.3, isMockData: true }
+  ],
+  performanceHistory: Array.from({ length: 365 }, (_, i) => ({
+    date: new Date(Date.now() - (365 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    portfolioValue: 75000 + Math.random() * 15000 + i * 20,
+    benchmarkValue: 75000 + Math.random() * 12000 + i * 18,
+    isMockData: true
+  })),
+  stressTests: [
+    { scenario: '2008 Financial Crisis', impact: -37.2, isMockData: true },
+    { scenario: 'COVID-19 Crash', impact: -22.8, isMockData: true },
+    { scenario: 'Tech Bubble Burst', impact: -28.5, isMockData: true },
+    { scenario: 'Interest Rate Shock', impact: -15.3, isMockData: true },
+    { scenario: 'Inflation Spike', impact: -12.7, isMockData: true },
+    { scenario: 'Geopolitical Crisis', impact: -18.9, isMockData: true }
+  ],
+  activityHistory: [
+    { date: '2025-07-03', type: 'BUY', symbol: 'AAPL', description: 'Buy Apple Inc.', quantity: 10, price: 189.45, amount: -1894.50, isMockData: true },
+    { date: '2025-07-02', type: 'SELL', symbol: 'JPM', description: 'Sell JPMorgan Chase & Co.', quantity: 15, price: 142.30, amount: 2134.50, isMockData: true },
+    { date: '2025-07-01', type: 'DIVIDEND', symbol: 'MSFT', description: 'Microsoft Corporation - Dividend', quantity: null, price: null, amount: 68.75, isMockData: true },
+    { date: '2025-06-30', type: 'BUY', symbol: 'GOOGL', description: 'Buy Alphabet Inc.', quantity: 5, price: 134.23, amount: -671.15, isMockData: true },
+    { date: '2025-06-28', type: 'DEPOSIT', symbol: null, description: 'Cash deposit', quantity: null, price: null, amount: 5000.00, isMockData: true },
+    { date: '2025-06-27', type: 'SELL', symbol: 'TSLA', description: 'Sell Tesla Inc.', quantity: 8, price: 245.60, amount: 1964.80, isMockData: true },
+    { date: '2025-06-25', type: 'BUY', symbol: 'JNJ', description: 'Buy Johnson & Johnson', quantity: 20, price: 156.78, amount: -3135.60, isMockData: true },
+    { date: '2025-06-24', type: 'DIVIDEND', symbol: 'JPM', description: 'JPMorgan Chase & Co. - Dividend', quantity: null, price: null, amount: 45.00, isMockData: true }
+  ]
+};
+
 function TabPanel({ children, value, index, ...other }) {
   return (
     <div
@@ -2792,162 +2951,6 @@ const Portfolio = () => {
 
 // ⚠️ MOCK DATA - Replace with real API when available
 // Enhanced mock data with realistic portfolio metrics
-const mockPortfolioData = {
-  isMockData: true,
-  holdings: [
-    {
-      symbol: 'AAPL',
-      company: 'Apple Inc.',
-      shares: 100,
-      avgCost: 150.00,
-      currentPrice: 189.45,
-      marketValue: 18945,
-      gainLoss: 3945,
-      gainLossPercent: 26.30,
-      sector: 'Technology',
-      allocation: 23.5,
-      beta: 1.2,
-      isMockData: true,
-      factorScores: { quality: 85, growth: 60, value: 25, momentum: 75, sentiment: 70, positioning: 45 }
-    },
-    {
-      symbol: 'MSFT',
-      company: 'Microsoft Corporation',
-      shares: 50,
-      avgCost: 300.00,
-      currentPrice: 342.56,
-      marketValue: 17128,
-      gainLoss: 2128,
-      gainLossPercent: 14.19,
-      sector: 'Technology',
-      allocation: 21.3,
-      beta: 0.9,
-      isMockData: true,
-      factorScores: { quality: 90, growth: 65, value: 30, momentum: 80, sentiment: 75, positioning: 50 }
-    },
-    {
-      symbol: 'GOOGL',
-      company: 'Alphabet Inc.',
-      shares: 25,
-      avgCost: 120.00,
-      currentPrice: 134.23,
-      marketValue: 3356,
-      gainLoss: 356,
-      gainLossPercent: 11.86,
-      sector: 'Technology',
-      allocation: 4.2,
-      beta: 1.1,
-      isMockData: true,
-      factorScores: { quality: 80, growth: 70, value: 40, momentum: 65, sentiment: 60, positioning: 35 }
-    },
-    {
-      symbol: 'JNJ',
-      company: 'Johnson & Johnson',
-      shares: 75,
-      avgCost: 160.00,
-      currentPrice: 156.78,
-      marketValue: 11759,
-      gainLoss: -241,
-      gainLossPercent: -2.01,
-      sector: 'Healthcare',
-      allocation: 14.6,
-      beta: 0.7,
-      isMockData: true,
-      factorScores: { quality: 95, growth: 25, value: 60, momentum: 30, sentiment: 45, positioning: 65 }
-    },
-    {
-      symbol: 'JPM',
-      company: 'JPMorgan Chase & Co.',
-      shares: 60,
-      avgCost: 140.00,
-      currentPrice: 167.89,
-      marketValue: 10073,
-      gainLoss: 1673,
-      gainLossPercent: 19.89,
-      sector: 'Financials',
-      allocation: 12.5,
-      beta: 1.3,
-      isMockData: true,
-      factorScores: { quality: 75, growth: 40, value: 70, momentum: 55, sentiment: 50, positioning: 60 }
-    },
-    {
-      symbol: 'PG',
-      company: 'Procter & Gamble Co.',
-      shares: 40,
-      avgCost: 145.00,
-      currentPrice: 153.21,
-      marketValue: 6128,
-      gainLoss: 328,
-      gainLossPercent: 5.66,
-      sector: 'Consumer Staples',
-      allocation: 7.6,
-      beta: 0.5,
-      isMockData: true,
-      factorScores: { quality: 85, growth: 20, value: 45, momentum: 25, sentiment: 55, positioning: 70 }
-    },
-    {
-      symbol: 'BRK.B',
-      company: 'Berkshire Hathaway Inc.',
-      shares: 30,
-      avgCost: 320.00,
-      currentPrice: 345.67,
-      marketValue: 10370,
-      gainLoss: 770,
-      gainLossPercent: 8.01,
-      sector: 'Financials',
-      allocation: 12.9,
-      beta: 0.8,
-      isMockData: true,
-      factorScores: { quality: 90, growth: 35, value: 80, momentum: 40, sentiment: 60, positioning: 75 }
-    },
-    {
-      symbol: 'V',
-      company: 'Visa Inc.',
-      shares: 35,
-      avgCost: 200.00,
-      currentPrice: 234.56,
-      marketValue: 8210,
-      gainLoss: 1210,
-      gainLossPercent: 17.29,
-      sector: 'Financials',
-      allocation: 10.2,
-      beta: 1.0,
-      isMockData: true,
-      factorScores: { quality: 85, growth: 55, value: 35, momentum: 70, sentiment: 65, positioning: 55 }
-    }
-  ],
-  sectorAllocation: [
-    { name: 'Technology', value: 48.9, isMockData: true },
-    { name: 'Financials', value: 25.6, isMockData: true },
-    { name: 'Healthcare', value: 14.6, isMockData: true },
-    { name: 'Consumer Staples', value: 7.6, isMockData: true },
-    { name: 'Others', value: 3.3, isMockData: true }
-  ],
-  performanceHistory: Array.from({ length: 365 }, (_, i) => ({
-    date: new Date(Date.now() - (365 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    portfolioValue: 75000 + Math.random() * 15000 + i * 20,
-    benchmarkValue: 75000 + Math.random() * 12000 + i * 18,
-    isMockData: true
-  })),
-  stressTests: [
-    { scenario: '2008 Financial Crisis', impact: -37.2, isMockData: true },
-    { scenario: 'COVID-19 Crash', impact: -22.8, isMockData: true },
-    { scenario: 'Tech Bubble Burst', impact: -28.5, isMockData: true },
-    { scenario: 'Interest Rate Shock', impact: -15.3, isMockData: true },
-    { scenario: 'Inflation Spike', impact: -12.7, isMockData: true },
-    { scenario: 'Geopolitical Crisis', impact: -18.9, isMockData: true }
-  ],
-  activityHistory: [
-    { date: '2025-07-03', type: 'BUY', symbol: 'AAPL', description: 'Buy Apple Inc.', quantity: 10, price: 189.45, amount: -1894.50, isMockData: true },
-    { date: '2025-07-02', type: 'SELL', symbol: 'JPM', description: 'Sell JPMorgan Chase & Co.', quantity: 15, price: 142.30, amount: 2134.50, isMockData: true },
-    { date: '2025-07-01', type: 'DIVIDEND', symbol: 'MSFT', description: 'Microsoft Corporation - Dividend', quantity: null, price: null, amount: 68.75, isMockData: true },
-    { date: '2025-06-30', type: 'BUY', symbol: 'GOOGL', description: 'Buy Alphabet Inc.', quantity: 5, price: 134.23, amount: -671.15, isMockData: true },
-    { date: '2025-06-28', type: 'DEPOSIT', symbol: null, description: 'Cash deposit', quantity: null, price: null, amount: 5000.00, isMockData: true },
-    { date: '2025-06-27', type: 'SELL', symbol: 'TSLA', description: 'Sell Tesla Inc.', quantity: 8, price: 245.60, amount: 1964.80, isMockData: true },
-    { date: '2025-06-25', type: 'BUY', symbol: 'JNJ', description: 'Buy Johnson & Johnson', quantity: 20, price: 156.78, amount: -3135.60, isMockData: true },
-    { date: '2025-06-24', type: 'DIVIDEND', symbol: 'JPM', description: 'JPMorgan Chase & Co. - Dividend', quantity: null, price: null, amount: 45.00, isMockData: true }
-  ]
-};
 
 // ⚠️ MOCK DATA - Replace with real API when available
 // Mock risk alerts data
