@@ -1,5 +1,7 @@
 {
   "dependencies": {
-    "axios": "^1.10.0"
+    "axios": "^1.10.0",
+    "@aws-sdk/client-secrets-manager": "^3.0.0",
+    "pg": "^8.0.0"
   }
 }
