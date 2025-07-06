@@ -124,7 +124,7 @@ import {
   Visibility,
   VisibilityOff
 } from '@mui/icons-material';
-import { getApiConfig, testApiConnection, importPortfolioFromBroker, getApiKeys } from '../services/api';
+import { getApiConfig, testApiConnection, importPortfolioFromBroker, getApiKeys, getPortfolioData, getAvailableAccounts, getAccountInfo } from '../services/api';
 import { formatCurrency, formatPercentage, formatNumber } from '../utils/formatters';
 
 // ⚠️ MOCK DATA - Replace with real API when available
@@ -310,10 +310,15 @@ const Portfolio = () => {
   const navigate = useNavigate();
   
   const [activeTab, setActiveTab] = useState(0);
-  // ⚠️ MOCK DATA - Replace with real API when available
-  const [portfolioData, setPortfolioData] = useState(mockPortfolioData);
-  const [loading, setLoading] = useState(false);
+  
+  // Portfolio data and account management
+  const [portfolioData, setPortfolioData] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [dataSource, setDataSource] = useState('mock'); // 'mock', 'paper', 'live'
+  const [accountType, setAccountType] = useState('paper');
+  const [availableAccounts, setAvailableAccounts] = useState([]);
+  const [accountInfo, setAccountInfo] = useState(null);
   
   // State variables that were defined later but used earlier
   const [addHoldingDialog, setAddHoldingDialog] = useState(false);
@@ -386,59 +391,74 @@ const Portfolio = () => {
   //   }
   // }, [isAuthenticated, isLoading, navigate]);
 
-  // Load portfolio data (authenticated users get real data, others get demo data)
+  // Load portfolio data when authentication, data source, or account type changes
+  useEffect(() => {
+    loadPortfolioData();
+  }, [isAuthenticated, user, dataSource, accountType]);
+
+  // Load available accounts when authenticated
   useEffect(() => {
     if (isAuthenticated && user) {
-      loadUserPortfolio();
       loadAvailableConnections();
-    } else {
-      // Load demo data for non-authenticated users
-      setLoading(false);
     }
   }, [isAuthenticated, user]);
 
-  const loadUserPortfolio = async () => {
+  const loadPortfolioData = async () => {
+    if (!isAuthenticated && dataSource !== 'mock') {
+      setDataSource('mock');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    
     try {
-      setLoading(true);
-      setError(null);
-      
-      // Fetch real portfolio data from production API
-      const response = await fetch(`${API_BASE}/api/portfolio/analytics?timeframe=${timeframe}`, {
-        headers: {
-          'Authorization': `Bearer ${tokens?.accessToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Portfolio API failed: ${response.status} ${response.statusText}`);
+      if (dataSource === 'mock') {
+        // Use mock data for demonstration
+        setPortfolioData(mockPortfolioData);
+        setAccountInfo({ 
+          accountType: 'mock', 
+          balance: 250000, 
+          equity: 80500, 
+          dayChange: 1250.75, 
+          dayChangePercent: 1.58 
+        });
+      } else {
+        // Load real data from Alpaca API
+        const [portfolioResponse, accountResponse] = await Promise.all([
+          getPortfolioData(accountType),
+          getAccountInfo(accountType)
+        ]);
+        
+        setPortfolioData(portfolioResponse);
+        setAccountInfo(accountResponse);
       }
-      
-      const portfolioResponse = await response.json();
-      
-      if (!portfolioResponse.data || !portfolioResponse.data.holdings) {
-        throw new Error('Invalid portfolio data structure received from API');
-      }
-      
-      // Use real portfolio data from database
-      setPortfolioData({
-        ...portfolioResponse.data,
-        userId: user?.userId,
-        username: user?.username,
-        lastUpdated: new Date().toISOString(),
-        preferences: {
-          displayCurrency: 'USD',
-          timeZone: 'America/New_York',
-          riskTolerance: 'moderate',
-          investmentStyle: 'growth'
-        }
-      });
-      
     } catch (error) {
       console.error('Error loading portfolio:', error);
-      setError('Failed to load portfolio data');
+      setError(error.message || 'Failed to load portfolio data');
+      
+      // Fallback to mock data if real data fails
+      if (dataSource !== 'mock') {
+        console.log('Falling back to mock data due to API error');
+        setPortfolioData(mockPortfolioData);
+        setDataSource('mock');
+        setAccountInfo({ 
+          accountType: 'mock (fallback)', 
+          balance: 250000, 
+          equity: 80500, 
+          dayChange: 1250.75, 
+          dayChangePercent: 1.58 
+        });
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDataSourceChange = (newDataSource, newAccountType = null) => {
+    setDataSource(newDataSource);
+    if (newAccountType) {
+      setAccountType(newAccountType);
     }
   };
 
@@ -1375,9 +1395,7 @@ const Portfolio = () => {
     if (autoRefresh) {
       const interval = setInterval(() => {
         setLastRefresh(new Date());
-        if (isAuthenticated && user) {
-          loadUserPortfolio();
-        }
+        loadPortfolioData();
       }, 30000); // Refresh every 30 seconds
       
       return () => clearInterval(interval);
@@ -1385,6 +1403,7 @@ const Portfolio = () => {
   }, [autoRefresh, isAuthenticated, user]);
 
   const sortedHoldings = useMemo(() => {
+    if (!portfolioData?.holdings) return [];
     return portfolioData.holdings.sort((a, b) => {
       const aValue = a[orderBy];
       const bValue = b[orderBy];
@@ -1395,9 +1414,9 @@ const Portfolio = () => {
         return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
       }
     });
-  }, [portfolioData.holdings, orderBy, order]);
+  }, [portfolioData?.holdings, orderBy, order]);
 
-  if (isLoading) {
+  if (isLoading || loading || !portfolioData) {
     return (
       <Container maxWidth="xl" sx={{ py: 4 }}>
         <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -1420,12 +1439,81 @@ const Portfolio = () => {
           </Typography>
           {user && (
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              Welcome back, {user.firstName || user.username} • Last updated: {new Date(portfolioData.lastUpdated).toLocaleString()}
+              Welcome back, {user.firstName || user.username} • Last updated: {portfolioData?.lastUpdated ? new Date(portfolioData.lastUpdated).toLocaleString() : 'Never'}
             </Typography>
           )}
+          
+          {/* Data Source Status */}
+          <Box display="flex" alignItems="center" gap={1} sx={{ mt: 1 }}>
+            <Chip 
+              size="small" 
+              label={
+                dataSource === 'mock' ? 'Demo Data' :
+                dataSource === 'paper' ? 'Paper Trading' :
+                dataSource === 'live' ? 'Live Trading' : 
+                'Unknown'
+              }
+              color={
+                dataSource === 'mock' ? 'default' :
+                dataSource === 'paper' ? 'info' :
+                dataSource === 'live' ? 'error' : 
+                'default'
+              }
+              variant="outlined"
+            />
+            {accountInfo && (
+              <Typography variant="caption" color="text.secondary">
+                Balance: {formatCurrency(accountInfo.balance)} • 
+                Equity: {formatCurrency(accountInfo.equity)} • 
+                {accountInfo.dayChange >= 0 ? '+' : ''}{formatCurrency(accountInfo.dayChange)} 
+                ({accountInfo.dayChangePercent >= 0 ? '+' : ''}{formatNumber(accountInfo.dayChangePercent, 2)}%)
+              </Typography>
+            )}
+          </Box>
         </Box>
         
         <Box display="flex" alignItems="center" gap={2}>
+          {/* Account Type Switcher */}
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <InputLabel>Data Source</InputLabel>
+            <Select
+              value={dataSource}
+              label="Data Source"
+              onChange={(e) => {
+                const newSource = e.target.value;
+                if (newSource === 'mock') {
+                  handleDataSourceChange('mock');
+                } else {
+                  // For paper/live, show account type selector
+                  handleDataSourceChange(newSource, newSource);
+                }
+              }}
+            >
+              <MenuItem value="mock">
+                <Box display="flex" alignItems="center" gap={1}>
+                  <Chip size="small" label="Demo" color="default" />
+                  Mock Data
+                </Box>
+              </MenuItem>
+              {availableAccounts.filter(acc => acc.isSandbox).length > 0 && (
+                <MenuItem value="paper">
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <Chip size="small" label="Paper" color="info" />
+                    Paper Trading
+                  </Box>
+                </MenuItem>
+              )}
+              {availableAccounts.filter(acc => !acc.isSandbox).length > 0 && (
+                <MenuItem value="live">
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <Chip size="small" label="Live" color="error" />
+                    Live Trading
+                  </Box>
+                </MenuItem>
+              )}
+            </Select>
+          </FormControl>
+
           <FormControl size="small" sx={{ minWidth: 140 }}>
             <InputLabel>Timeframe</InputLabel>
             <Select

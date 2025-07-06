@@ -47,9 +47,9 @@ const api = axios.create({
 export { api }
 
 // Portfolio API functions
-export const getPortfolioData = async () => {
+export const getPortfolioData = async (accountType = 'paper') => {
   try {
-    const response = await api.get('/api/portfolio/holdings');
+    const response = await api.get(`/api/portfolio/holdings?accountType=${accountType}`);
     return response.data;
   } catch (error) {
     console.error('Error fetching portfolio data:', error);
@@ -87,12 +87,34 @@ export const deleteHolding = async (holdingId) => {
   }
 };
 
-export const importPortfolioFromBroker = async (broker) => {
+export const importPortfolioFromBroker = async (broker, accountType = 'paper') => {
   try {
-    const response = await api.post(`/api/portfolio/import/${broker}`);
+    const response = await api.post(`/api/portfolio/import/${broker}?accountType=${accountType}`);
     return response.data;
   } catch (error) {
     console.error('Error importing portfolio from broker:', error);
+    throw error;
+  }
+};
+
+// Get available account types for user
+export const getAvailableAccounts = async () => {
+  try {
+    const response = await api.get('/api/portfolio/accounts');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching available accounts:', error);
+    throw error;
+  }
+};
+
+// Get account information for specific account type
+export const getAccountInfo = async (accountType = 'paper') => {
+  try {
+    const response = await api.get(`/api/portfolio/account?accountType=${accountType}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching account info:', error);
     throw error;
   }
 };
