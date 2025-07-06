@@ -311,3 +311,5 @@ For questions and support:
 ---
 
 **Disclaimer**: This platform is for educational and research purposes. Past performance does not guarantee future results. Always consult with a qualified financial advisor before making investment decisions.
+
+*Updated: 2025-07-06*
