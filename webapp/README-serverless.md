@@ -2,6 +2,8 @@
 
 This directory contains the serverless web application built with Lambda + API Gateway + CloudFront architecture, providing **85-95% cost savings** compared to the previous ECS + ALB setup.
 
+# Database init trigger - fix portfolio pages
+
 ## 🏗️ Architecture Overview
 
 ```
