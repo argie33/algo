@@ -367,6 +367,48 @@ jobs:
           echo "  CloudFront ID: $CLOUDFRONT_ID"
           echo "  API URL: $API_URL"
           echo "  Website URL: $WEBSITE_URL"
+      
+      - name: Initialize Database Tables
+        run: |
+          echo "🗄️ Initializing database tables..."
+          
+          # Install required Python packages
+          python3 -m pip install --upgrade pip
+          python3 -m pip install psycopg2-binary boto3
+          
+          # Set environment variables for database initialization
+          export DB_SECRET_ARN=${{ steps.db_info.outputs.DB_SECRET_ARN }}
+          export AWS_REGION=${{ env.AWS_REGION }}
+          
+          # Run database initialization script
+          if [ -f "init_database_tables.py" ]; then
+            echo "Running init_database_tables.py..."
+            python3 init_database_tables.py
+          else
+            echo "⚠️ init_database_tables.py not found, skipping"
+          fi
+          
+          # Also run portfolio tables initialization if it exists
+          if [ -f "init_portfolio_tables.py" ]; then
+            echo "Running init_portfolio_tables.py..."
+            python3 init_portfolio_tables.py
+          else
+            echo "⚠️ init_portfolio_tables.py not found, skipping"
+          fi
+          
+          # Alternative: Run the webapp database setup script
+          if [ -f "webapp/setup-database.js" ]; then
+            echo "Running webapp/setup-database.js..."
+            cd webapp
+            export DB_SECRET_ARN=${{ steps.db_info.outputs.DB_SECRET_ARN }}
+            export AWS_REGION=${{ env.AWS_REGION }}
+            node setup-database.js
+            cd ..
+          else
+            echo "⚠️ webapp/setup-database.js not found, skipping"
+          fi
+          
+          echo "✅ Database tables initialization completed!"
 ################################################################################
 # 3) Build and deploy Frontend                                                 #
 ################################################################################
