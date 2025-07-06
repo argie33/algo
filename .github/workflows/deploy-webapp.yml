@@ -372,9 +372,11 @@ jobs:
         run: |
           echo "🗄️ Initializing database tables..."
           
-          # Install required Python packages
-          python3 -m pip install --upgrade pip
-          python3 -m pip install psycopg2-binary boto3
+          # Install required Python packages with sudo to avoid user path issues
+          sudo apt-get update -qq
+          sudo apt-get install -y python3-pip
+          sudo python3 -m pip install --upgrade pip
+          sudo python3 -m pip install psycopg2-binary boto3
           
           # Set environment variables for database initialization
           export DB_SECRET_ARN=${{ steps.db_info.outputs.DB_SECRET_ARN }}
