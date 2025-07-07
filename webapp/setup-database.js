@@ -2,6 +2,11 @@
 /**
  * Database setup script for deployment workflow
  * Creates required tables during deployment, not at runtime
+ * 
+ * Usage:
+ *   node setup-database.js                # Check if tables exist, create only if missing
+ *   node setup-database.js --force        # Force table creation regardless
+ *   node setup-database.js --check-only   # Only check if tables exist, don't create
  */
 
 const fs = require('fs');
@@ -52,6 +57,21 @@ async function executeSQL(client, sql, description) {
     }
 }
 
+async function checkTablesExist(client) {
+    const result = await client.query(`
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name IN ('user_api_keys', 'portfolio_holdings', 'portfolio_metadata')
+        ORDER BY table_name;
+    `);
+    
+    const existingTables = result.rows.map(row => row.table_name);
+    const requiredTables = ['user_api_keys', 'portfolio_holdings', 'portfolio_metadata'];
+    
+    return requiredTables.every(table => existingTables.includes(table));
+}
+
 async function setupDatabase() {
     let client = null;
     
@@ -69,6 +89,37 @@ async function setupDatabase() {
         // Test connection
         await client.query('SELECT NOW()');
         console.log('✅ Database connection established');
+        
+        // Parse command line arguments
+        const args = process.argv.slice(2);
+        const forceCreate = args.includes('--force');
+        const checkOnly = args.includes('--check-only');
+        
+        // Check if all required tables already exist
+        const tablesExist = await checkTablesExist(client);
+        
+        if (checkOnly) {
+            if (tablesExist) {
+                console.log('✅ All required tables exist');
+                process.exit(0);
+            } else {
+                console.log('❌ Some required tables are missing');
+                process.exit(1);
+            }
+        }
+        
+        if (tablesExist && !forceCreate) {
+            console.log('✅ All required tables already exist - skipping table creation');
+            console.log('📊 Database setup completed successfully!');
+            console.log('💡 Use --force flag to recreate tables anyway');
+            return;
+        }
+        
+        if (forceCreate) {
+            console.log('🔧 Force flag detected - proceeding with table creation...');
+        } else {
+            console.log('🔧 Some tables missing - proceeding with table creation...');
+        }
         
         // Create API Keys table
         await executeSQL(client, `

@@ -148,13 +148,6 @@ Resources:
       Description: Financial Dashboard API Lambda Function
       Policies:
         - SecretsManagerReadWrite
-        - VPCAccessPolicy: {}
-      VpcConfig:
-        SecurityGroupIds:
-          - !Ref LambdaSecurityGroup
-        SubnetIds:
-          - !Ref PrivateSubnet1
-          - !Ref PrivateSubnet2
       Events:
         ApiGateway:
           Type: HttpApi
@@ -185,45 +178,8 @@ Resources:
         MaxAge: 600
         AllowCredentials: false
 
-  # VPC Configuration
-  VPC:
-    Type: AWS::EC2::VPC
-    Properties:
-      CidrBlock: 10.0.0.0/16
-      EnableDnsHostnames: true
-      EnableDnsSupport: true
-      Tags:
-        - Key: Name
-          Value: !Sub '${EnvironmentName}-vpc'
-
-  PrivateSubnet1:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      AvailabilityZone: !Select [0, !GetAZs '']
-      CidrBlock: 10.0.1.0/24
-      Tags:
-        - Key: Name
-          Value: !Sub '${EnvironmentName}-private-subnet-1'
-
-  PrivateSubnet2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      AvailabilityZone: !Select [1, !GetAZs '']
-      CidrBlock: 10.0.2.0/24
-      Tags:
-        - Key: Name
-          Value: !Sub '${EnvironmentName}-private-subnet-2'
-
-  LambdaSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Security group for Lambda function
-      VpcId: !Ref VPC
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
+  # Note: Lambda runs in AWS managed VPC to connect to existing public RDS
+  # No VPC configuration needed - Lambda will use AWS managed infrastructure
 
   # SSM Parameters for easy access
   ApiUrlParameter:
