@@ -28,7 +28,6 @@ Globals:
         DB_SECRET_ARN: !Ref DatabaseSecretArn
         DB_ENDPOINT: !Ref DatabaseEndpoint
         ENVIRONMENT: !Ref EnvironmentName
-        AWS_REGION: !Ref AWS::Region
         NODE_ENV: production
 
 Resources:
