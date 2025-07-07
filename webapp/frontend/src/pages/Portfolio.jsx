@@ -308,6 +308,14 @@ const Portfolio = () => {
   const { apiUrl: API_BASE } = getApiConfig();
   const { user, isAuthenticated, isLoading, tokens } = useAuth();
   const navigate = useNavigate();
+
+  // Debug logging for auth state
+  console.log('🏗️ Portfolio component rendered', { 
+    isAuthenticated, 
+    isLoading, 
+    user: user?.username || 'none',
+    API_BASE 
+  });
   
   const [activeTab, setActiveTab] = useState(0);
   
@@ -393,6 +401,12 @@ const Portfolio = () => {
 
   // Load portfolio data when authentication, data source, or account type changes
   useEffect(() => {
+    console.log('🔃 Portfolio useEffect triggered', { 
+      isAuthenticated, 
+      user: user?.username || 'none', 
+      dataSource, 
+      accountType 
+    });
     loadPortfolioData();
   }, [isAuthenticated, user, dataSource, accountType]);
 
@@ -404,7 +418,15 @@ const Portfolio = () => {
   }, [isAuthenticated, user]);
 
   const loadPortfolioData = async () => {
+    console.log('🔄 Loading portfolio data...', { 
+      isAuthenticated, 
+      dataSource, 
+      accountType,
+      hasUser: !!user 
+    });
+
     if (!isAuthenticated && dataSource !== 'mock') {
+      console.log('🔀 Not authenticated, switching to mock data');
       setDataSource('mock');
       return;
     }
@@ -414,6 +436,7 @@ const Portfolio = () => {
     
     try {
       if (dataSource === 'mock') {
+        console.log('📊 Loading mock portfolio data');
         // Use mock data for demonstration
         setPortfolioData(mockPortfolioData);
         setAccountInfo({ 
@@ -423,7 +446,9 @@ const Portfolio = () => {
           dayChange: 1250.75, 
           dayChangePercent: 1.58 
         });
+        console.log('✅ Mock data loaded successfully');
       } else {
+        console.log('🌐 Loading real portfolio data from API');
         // Load real data from Alpaca API
         const [portfolioResponse, accountResponse] = await Promise.all([
           getPortfolioData(accountType),
@@ -432,14 +457,15 @@ const Portfolio = () => {
         
         setPortfolioData(portfolioResponse);
         setAccountInfo(accountResponse);
+        console.log('✅ Real data loaded successfully');
       }
     } catch (error) {
-      console.error('Error loading portfolio:', error);
+      console.error('❌ Error loading portfolio:', error);
       setError(error.message || 'Failed to load portfolio data');
       
       // Fallback to mock data if real data fails
       if (dataSource !== 'mock') {
-        console.log('Falling back to mock data due to API error');
+        console.log('🔄 Falling back to mock data due to API error');
         setPortfolioData(mockPortfolioData);
         setDataSource('mock');
         setAccountInfo({ 
@@ -449,9 +475,13 @@ const Portfolio = () => {
           dayChange: 1250.75, 
           dayChangePercent: 1.58 
         });
+        console.log('✅ Fallback to mock data successful');
+      } else {
+        console.error('❌ Failed to load even mock data');
       }
     } finally {
       setLoading(false);
+      console.log('🏁 Portfolio data loading finished');
     }
   };
 
@@ -1416,7 +1446,9 @@ const Portfolio = () => {
     });
   }, [portfolioData?.holdings, orderBy, order]);
 
-  if (isLoading || loading || !portfolioData) {
+  // Show loading spinner while loading
+  if (isLoading || loading) {
+    console.log('⏳ Showing loading spinner', { isLoading, loading, hasPortfolioData: !!portfolioData });
     return (
       <Container maxWidth="xl" sx={{ py: 4 }}>
         <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -1425,6 +1457,58 @@ const Portfolio = () => {
       </Container>
     );
   }
+
+  // Show error if data failed to load and no fallback
+  if (error && !portfolioData) {
+    return (
+      <Container maxWidth="xl" sx={{ py: 4 }}>
+        <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" minHeight="400px">
+          <Alert severity="error" sx={{ mb: 2 }}>
+            <Typography variant="h6">Failed to Load Portfolio Data</Typography>
+            <Typography variant="body2">{error}</Typography>
+          </Alert>
+          <Button 
+            variant="contained" 
+            onClick={() => {
+              setError(null);
+              setDataSource('mock');
+              loadPortfolioData();
+            }}
+          >
+            Retry with Demo Data
+          </Button>
+        </Box>
+      </Container>
+    );
+  }
+
+  // If no data and not loading, force mock data
+  if (!portfolioData) {
+    console.log('No portfolio data, forcing mock data load');
+    setDataSource('mock');
+    setPortfolioData(mockPortfolioData);
+    setAccountInfo({ 
+      accountType: 'mock (forced)', 
+      balance: 250000, 
+      equity: 80500, 
+      dayChange: 1250.75, 
+      dayChangePercent: 1.58 
+    });
+    return (
+      <Container maxWidth="xl" sx={{ py: 4 }}>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+          <CircularProgress size={60} />
+        </Box>
+      </Container>
+    );
+  }
+
+  console.log('✅ Rendering Portfolio main content', { 
+    dataSource, 
+    hasPortfolioData: !!portfolioData, 
+    holdingsCount: portfolioData?.holdings?.length || 0,
+    accountInfo: accountInfo?.accountType || 'none'
+  });
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
