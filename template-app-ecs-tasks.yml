@@ -96,6 +96,9 @@ Parameters:
   ScoresImageTag:
     Type: String
     Description: "Tag for unified scores loader image"
+  PatternRecognitionImageTag:
+    Type: String
+    Description: "Tag for pattern recognition loader image"
 
   FREDApiKey:
     Type: String
@@ -2560,6 +2563,80 @@ Resources:
           AssignPublicIp: ENABLED
 
   #########################################
+  # Pattern Recognition Task              #
+  #########################################
+  PatternRecognitionTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: pattern-recognition-loader
+      Cpu: "1024"
+      Memory: "2048"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: pattern-recognition-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref PatternRecognitionImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+            # Pattern Recognition Configuration
+            - Name: TIMEFRAMES
+              Value: "1d"
+            - Name: SYMBOL_LIMIT
+              Value: "100"
+            - Name: BATCH_SIZE
+              Value: "10"
+            - Name: CONFIDENCE_THRESHOLD
+              Value: "0.60"
+            - Name: MAX_RUNTIME_MINUTES
+              Value: "55"
+            - Name: MAX_MEMORY_MB
+              Value: "1800"
+            - Name: AWS_DEFAULT_REGION
+              Value: !Ref AWS::Region
+            - Name: PYTHONPATH
+              Value: "/app"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/pattern-recognition-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  PatternRecognitionService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: pattern-recognition-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref PatternRecognitionTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  #########################################
   # Outputs                               #
   #########################################
 Outputs:
@@ -2808,3 +2885,9 @@ Outputs:
     Value: !Ref ScoresTaskDefinition
     Export:
       Name: ScoresTaskDefArn
+
+  PatternRecognitionTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for pattern recognition loader
+    Value: !Ref PatternRecognitionTaskDefinition
+    Export:
+      Name: PatternRecognitionTaskDefArn

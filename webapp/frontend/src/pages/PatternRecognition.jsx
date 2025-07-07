@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { api } from '../services/api';
 import {
   Box,
   Container,
@@ -64,14 +65,20 @@ const PatternRecognition = () => {
   const loadPatterns = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/patterns/scan?timeframe=${selectedTimeframe}&confidence=${confidenceFilter}&pattern=${selectedPattern}`);
-      const data = await response.json();
-      // ⚠️ MOCK DATA - Using mock patterns when API unavailable
-      setPatterns(data.patterns || mockPatterns);
+      const timeframe = selectedTimeframe.toLowerCase();
+      const response = await api.get(`/api/patterns/scan`, {
+        params: {
+          timeframe: timeframe,
+          min_confidence: confidenceFilter / 100,
+          category: selectedPattern !== 'all' ? selectedPattern : undefined,
+          limit: 50
+        }
+      });
+      
+      setPatterns(response.data.patterns || []);
     } catch (error) {
       console.error('Failed to load patterns:', error);
-      // ⚠️ MOCK DATA - Fallback to mock patterns
-      setPatterns(mockPatterns);
+      setPatterns([]);
     } finally {
       setLoading(false);
     }
@@ -82,10 +89,17 @@ const PatternRecognition = () => {
     
     setLoading(true);
     try {
-      const response = await fetch(`/api/patterns/analyze/${searchSymbol.toUpperCase()}?timeframe=${selectedTimeframe}`);
-      const data = await response.json();
-      // Add the analyzed symbol patterns to the top of the list
-      setPatterns([...data.patterns, ...patterns]);
+      const timeframe = selectedTimeframe.toLowerCase();
+      const response = await api.post(`/api/patterns/analyze`, {
+        symbol: searchSymbol.toUpperCase(),
+        timeframe: timeframe,
+        categories: selectedPattern !== 'all' ? [selectedPattern] : undefined
+      });
+      
+      if (response.data.success) {
+        // Add the analyzed symbol patterns to the top of the list
+        setPatterns([...response.data.patterns, ...patterns]);
+      }
     } catch (error) {
       console.error('Failed to analyze symbol:', error);
     } finally {
@@ -93,19 +107,16 @@ const PatternRecognition = () => {
     }
   };
 
-  const getPatternColor = (pattern) => {
-    const bullishPatterns = ['bullish_flag', 'cup_handle', 'ascending_triangle', 'double_bottom', 'inverse_head_shoulders'];
-    const bearishPatterns = ['bearish_flag', 'head_shoulders', 'descending_triangle', 'double_top', 'falling_wedge'];
-    
-    if (bullishPatterns.some(p => pattern.includes(p))) return 'success';
-    if (bearishPatterns.some(p => pattern.includes(p))) return 'error';
+  const getPatternColor = (direction) => {
+    if (direction === 'bullish') return 'success';
+    if (direction === 'bearish') return 'error';
     return 'info';
   };
 
   const getConfidenceColor = (confidence) => {
-    if (confidence >= 90) return 'success';
-    if (confidence >= 75) return 'info';
-    if (confidence >= 60) return 'warning';
+    if (confidence >= 0.90) return 'success';
+    if (confidence >= 0.75) return 'info';
+    if (confidence >= 0.60) return 'warning';
     return 'error';
   };
 
@@ -115,10 +126,10 @@ const PatternRecognition = () => {
     ).join(' ');
   };
 
-  const getPatternIcon = (bias) => {
-    if (bias === 'bullish') return <TrendingUp className="w-4 h-4 text-green-600" />;
-    if (bias === 'bearish') return <TrendingDown className="w-4 h-4 text-red-600" />;
-    return <BarChart3 className="w-4 h-4 text-blue-600" />;
+  const getPatternIcon = (direction) => {
+    if (direction === 'bullish') return <TrendingUp color="success" />;
+    if (direction === 'bearish') return <TrendingDown color="error" />;
+    return <BarChart3 color="primary" />;
   };
 
   return (

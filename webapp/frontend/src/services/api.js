@@ -231,7 +231,7 @@ export const deleteApiKey = async (keyId) => {
 
 export const testApiKeyConnection = async (keyId) => {
   try {
-    const response = await api.post(`/api/settings/api-keys/${keyId}/test`);
+    const response = await api.post(`/api/settings/test-connection/${keyId}`);
     return response.data;
   } catch (error) {
     console.error('Error testing API key connection:', error);

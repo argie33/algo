@@ -31,6 +31,7 @@ const portfolioRoutes = require('./routes/portfolio');
 const scoringRoutes = require('./routes/scoring');
 const priceRoutes = require('./routes/price');
 const settingsRoutes = require('./routes/settings');
+const patternsRoutes = require('./routes/patterns');
 
 const app = express();
 
@@ -266,6 +267,7 @@ app.use('/api/portfolio', portfolioRoutes);
 app.use('/api/scoring', scoringRoutes);
 app.use('/api/price', priceRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/patterns', patternsRoutes);
 
 // Default route
 app.get('/', (req, res) => {

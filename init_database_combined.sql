@@ -524,8 +524,177 @@ INSERT INTO health_status (table_name, table_category, critical_table, expected_
 ('stock_scores', 'scoring', true, '1 day'),
 
 -- System Health Monitoring
-('health_status', 'system', true, '1 hour')
+('health_status', 'system', true, '1 hour'),
+
+-- Pattern Recognition Tables
+('pattern_types', 'patterns', true, '1 week'),
+('detected_patterns', 'patterns', true, '1 hour'),
+('pattern_performance', 'patterns', false, '1 day'),
+('pattern_ml_models', 'patterns', false, '1 week'),
+('pattern_scan_config', 'patterns', true, '1 day'),
+('pattern_alerts', 'patterns', true, '1 hour'),
+('pattern_features', 'patterns', false, '1 hour')
 ON CONFLICT (table_name) DO NOTHING;
+
+-- ================================
+-- PATTERN RECOGNITION TABLES
+-- ================================
+
+-- Pattern types and their configurations
+CREATE TABLE IF NOT EXISTS pattern_types (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    category VARCHAR(50) NOT NULL, -- 'candlestick', 'classical', 'harmonic', 'elliott_wave', 'ml_based'
+    description TEXT,
+    min_bars INTEGER NOT NULL DEFAULT 5,
+    max_bars INTEGER NOT NULL DEFAULT 100,
+    reliability_score DECIMAL(3,2) DEFAULT 0.75,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Detected patterns with enhanced ML scoring
+CREATE TABLE IF NOT EXISTS detected_patterns (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(10) NOT NULL,
+    pattern_type_id INTEGER REFERENCES pattern_types(id),
+    timeframe VARCHAR(10) NOT NULL, -- '1d', '1h', '4h', '1w', '1m'
+    detection_date TIMESTAMP NOT NULL,
+    start_date TIMESTAMP NOT NULL,
+    end_date TIMESTAMP,
+    confidence_score DECIMAL(5,4) NOT NULL, -- 0.0000 to 1.0000
+    ml_confidence DECIMAL(5,4), -- ML model confidence
+    traditional_confidence DECIMAL(5,4), -- Traditional TA confidence
+    signal_strength VARCHAR(20), -- 'weak', 'moderate', 'strong', 'very_strong'
+    direction VARCHAR(10), -- 'bullish', 'bearish', 'neutral'
+    target_price DECIMAL(12,4),
+    stop_loss DECIMAL(12,4),
+    risk_reward_ratio DECIMAL(6,2),
+    pattern_data JSONB, -- Store pattern-specific metrics
+    key_levels JSONB, -- Support/resistance levels
+    volume_confirmation BOOLEAN DEFAULT false,
+    momentum_confirmation BOOLEAN DEFAULT false,
+    status VARCHAR(20) DEFAULT 'active', -- 'active', 'triggered', 'invalidated', 'expired'
+    outcome VARCHAR(20), -- 'success', 'failure', 'partial', 'pending'
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Pattern performance tracking for ML training
+CREATE TABLE IF NOT EXISTS pattern_performance (
+    id SERIAL PRIMARY KEY,
+    detected_pattern_id INTEGER REFERENCES detected_patterns(id),
+    evaluation_date TIMESTAMP NOT NULL,
+    price_at_detection DECIMAL(12,4) NOT NULL,
+    price_at_evaluation DECIMAL(12,4) NOT NULL,
+    percentage_change DECIMAL(8,4) NOT NULL,
+    target_hit BOOLEAN DEFAULT false,
+    stop_loss_hit BOOLEAN DEFAULT false,
+    max_favorable_excursion DECIMAL(8,4),
+    max_adverse_excursion DECIMAL(8,4),
+    time_to_target INTEGER, -- days
+    accuracy_score DECIMAL(5,4), -- How accurate the prediction was
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ML model metadata and performance
+CREATE TABLE IF NOT EXISTS pattern_ml_models (
+    id SERIAL PRIMARY KEY,
+    model_name VARCHAR(100) NOT NULL UNIQUE,
+    model_type VARCHAR(50) NOT NULL, -- 'cnn', 'lstm', 'transformer', 'ensemble'
+    version VARCHAR(20) NOT NULL,
+    training_date TIMESTAMP NOT NULL,
+    accuracy DECIMAL(5,4),
+    precision_score DECIMAL(5,4),
+    recall_score DECIMAL(5,4),
+    f1_score DECIMAL(5,4),
+    model_path TEXT, -- S3 path or local path
+    feature_set JSONB, -- Features used in training
+    hyperparameters JSONB,
+    training_data_size INTEGER,
+    validation_data_size INTEGER,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Real-time pattern scanning configuration
+CREATE TABLE IF NOT EXISTS pattern_scan_config (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(10) NOT NULL,
+    pattern_type_id INTEGER REFERENCES pattern_types(id),
+    timeframe VARCHAR(10) NOT NULL,
+    is_enabled BOOLEAN DEFAULT true,
+    min_confidence DECIMAL(3,2) DEFAULT 0.70,
+    last_scan TIMESTAMP,
+    scan_interval INTEGER DEFAULT 3600, -- seconds
+    alert_enabled BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, pattern_type_id, timeframe)
+);
+
+-- Pattern alerts and notifications
+CREATE TABLE IF NOT EXISTS pattern_alerts (
+    id SERIAL PRIMARY KEY,
+    detected_pattern_id INTEGER REFERENCES detected_patterns(id),
+    alert_type VARCHAR(50) NOT NULL, -- 'new_pattern', 'target_hit', 'stop_loss_hit', 'pattern_invalidated'
+    message TEXT NOT NULL,
+    is_sent BOOLEAN DEFAULT false,
+    sent_at TIMESTAMP,
+    priority VARCHAR(20) DEFAULT 'medium', -- 'low', 'medium', 'high', 'critical'
+    recipients JSONB, -- Array of notification targets
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Pattern feature cache for ML models
+CREATE TABLE IF NOT EXISTS pattern_features (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(10) NOT NULL,
+    timeframe VARCHAR(10) NOT NULL,
+    calculation_date TIMESTAMP NOT NULL,
+    features JSONB NOT NULL, -- All calculated features for ML
+    price_data JSONB, -- OHLCV data used
+    technical_indicators JSONB, -- RSI, MACD, etc.
+    volume_features JSONB, -- Volume-based features
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, timeframe, calculation_date)
+);
+
+-- ================================
+-- PATTERN RECOGNITION INDEXES
+-- ================================
+
+-- Performance indexes for pattern detection
+CREATE INDEX IF NOT EXISTS idx_detected_patterns_symbol_timeframe ON detected_patterns(symbol, timeframe);
+CREATE INDEX IF NOT EXISTS idx_detected_patterns_type_confidence ON detected_patterns(pattern_type_id, confidence_score);
+CREATE INDEX IF NOT EXISTS idx_detected_patterns_detection_date ON detected_patterns(detection_date);
+CREATE INDEX IF NOT EXISTS idx_detected_patterns_status ON detected_patterns(status);
+CREATE INDEX IF NOT EXISTS idx_pattern_performance_evaluation_date ON pattern_performance(evaluation_date);
+CREATE INDEX IF NOT EXISTS idx_pattern_scan_config_symbol ON pattern_scan_config(symbol);
+CREATE INDEX IF NOT EXISTS idx_pattern_features_symbol_timeframe ON pattern_features(symbol, timeframe);
+CREATE INDEX IF NOT EXISTS idx_pattern_alerts_sent ON pattern_alerts(is_sent, created_at);
+
+-- JSONB indexes for better query performance
+CREATE INDEX IF NOT EXISTS idx_detected_patterns_pattern_data ON detected_patterns USING GIN (pattern_data);
+CREATE INDEX IF NOT EXISTS idx_pattern_features_features ON pattern_features USING GIN (features);
+
+-- ================================
+-- PATTERN RECOGNITION TRIGGERS
+-- ================================
+
+-- Update timestamp trigger
+CREATE OR REPLACE FUNCTION update_pattern_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Apply trigger to detected_patterns
+DROP TRIGGER IF EXISTS update_detected_patterns_timestamp ON detected_patterns;
+CREATE TRIGGER update_detected_patterns_timestamp
+    BEFORE UPDATE ON detected_patterns
+    FOR EACH ROW EXECUTE FUNCTION update_pattern_timestamp();
 
 -- ================================
 -- SAMPLE DATA
@@ -537,6 +706,59 @@ INSERT INTO stocks (symbol, name, market) VALUES
     ('GOOGL', 'Alphabet Inc.', 'NASDAQ'),
     ('MSFT', 'Microsoft Corporation', 'NASDAQ')
 ON CONFLICT (symbol) DO NOTHING;
+
+-- Insert pattern types
+INSERT INTO pattern_types (name, category, description, min_bars, max_bars, reliability_score) VALUES 
+    -- Candlestick Patterns
+    ('Doji', 'candlestick', 'Indecision pattern with equal open and close', 1, 1, 0.65),
+    ('Hammer', 'candlestick', 'Bullish reversal pattern with long lower shadow', 1, 1, 0.72),
+    ('Hanging Man', 'candlestick', 'Bearish reversal pattern with long lower shadow', 1, 1, 0.68),
+    ('Shooting Star', 'candlestick', 'Bearish reversal pattern with long upper shadow', 1, 1, 0.70),
+    ('Engulfing Bullish', 'candlestick', 'Bullish reversal with larger white body engulfing previous black', 2, 2, 0.75),
+    ('Engulfing Bearish', 'candlestick', 'Bearish reversal with larger black body engulfing previous white', 2, 2, 0.75),
+    ('Morning Star', 'candlestick', 'Three-candle bullish reversal pattern', 3, 3, 0.78),
+    ('Evening Star', 'candlestick', 'Three-candle bearish reversal pattern', 3, 3, 0.78),
+    ('Three White Soldiers', 'candlestick', 'Strong bullish continuation pattern', 3, 3, 0.80),
+    ('Three Black Crows', 'candlestick', 'Strong bearish continuation pattern', 3, 3, 0.80),
+    
+    -- Classical Chart Patterns
+    ('Head and Shoulders', 'classical', 'Bearish reversal pattern with three peaks', 15, 50, 0.82),
+    ('Inverse Head and Shoulders', 'classical', 'Bullish reversal pattern with three troughs', 15, 50, 0.82),
+    ('Double Top', 'classical', 'Bearish reversal pattern with two peaks at similar levels', 10, 40, 0.76),
+    ('Double Bottom', 'classical', 'Bullish reversal pattern with two troughs at similar levels', 10, 40, 0.76),
+    ('Triple Top', 'classical', 'Strong bearish reversal with three peaks', 15, 60, 0.85),
+    ('Triple Bottom', 'classical', 'Strong bullish reversal with three troughs', 15, 60, 0.85),
+    ('Ascending Triangle', 'classical', 'Bullish continuation pattern with horizontal resistance', 8, 30, 0.73),
+    ('Descending Triangle', 'classical', 'Bearish continuation pattern with horizontal support', 8, 30, 0.73),
+    ('Symmetrical Triangle', 'classical', 'Continuation pattern with converging trendlines', 8, 30, 0.68),
+    ('Rising Wedge', 'classical', 'Bearish pattern with upward sloping converging lines', 8, 25, 0.71),
+    ('Falling Wedge', 'classical', 'Bullish pattern with downward sloping converging lines', 8, 25, 0.71),
+    ('Cup and Handle', 'classical', 'Bullish continuation pattern resembling a cup', 20, 100, 0.79),
+    ('Flag Bull', 'classical', 'Bullish continuation pattern after strong move up', 5, 15, 0.74),
+    ('Flag Bear', 'classical', 'Bearish continuation pattern after strong move down', 5, 15, 0.74),
+    ('Pennant Bull', 'classical', 'Bullish continuation with small symmetrical triangle', 5, 15, 0.72),
+    ('Pennant Bear', 'classical', 'Bearish continuation with small symmetrical triangle', 5, 15, 0.72),
+    
+    -- Harmonic Patterns
+    ('Gartley Bullish', 'harmonic', 'Bullish harmonic pattern with specific Fibonacci ratios', 10, 30, 0.81),
+    ('Gartley Bearish', 'harmonic', 'Bearish harmonic pattern with specific Fibonacci ratios', 10, 30, 0.81),
+    ('Butterfly Bullish', 'harmonic', 'Bullish butterfly pattern with 127.2% and 161.8% extensions', 10, 30, 0.83),
+    ('Butterfly Bearish', 'harmonic', 'Bearish butterfly pattern with 127.2% and 161.8% extensions', 10, 30, 0.83),
+    ('Bat Bullish', 'harmonic', 'Bullish bat pattern with 88.6% retracement', 10, 30, 0.79),
+    ('Bat Bearish', 'harmonic', 'Bearish bat pattern with 88.6% retracement', 10, 30, 0.79),
+    ('Crab Bullish', 'harmonic', 'Bullish crab pattern with 161.8% extension', 10, 30, 0.85),
+    ('Crab Bearish', 'harmonic', 'Bearish crab pattern with 161.8% extension', 10, 30, 0.85),
+    
+    -- Elliott Wave Patterns
+    ('Elliott Wave 5', 'elliott_wave', 'Five-wave impulse pattern', 20, 100, 0.77),
+    ('Elliott Wave ABC', 'elliott_wave', 'Three-wave corrective pattern', 15, 80, 0.74),
+    
+    -- ML-Based Patterns
+    ('ML Trend Reversal', 'ml_based', 'AI-detected trend reversal pattern', 5, 50, 0.88),
+    ('ML Breakout', 'ml_based', 'AI-detected breakout pattern', 5, 30, 0.85),
+    ('ML Continuation', 'ml_based', 'AI-detected continuation pattern', 5, 25, 0.82),
+    ('ML Volume Anomaly', 'ml_based', 'AI-detected unusual volume pattern', 3, 20, 0.79)
+ON CONFLICT (name) DO NOTHING;
 
 -- ================================
 -- COMPLETION MESSAGE

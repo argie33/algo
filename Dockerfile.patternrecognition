@@ -1,0 +1,52 @@
+# Multi-stage build for Pattern Recognition Loader
+# Optimized for ARM64 Fargate with Python 3.11
+
+FROM python:3.11-slim-bullseye AS base
+
+# Install system dependencies for numerical computing and ML
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    gfortran \
+    libopenblas-dev \
+    liblapack-dev \
+    pkg-config \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set up Python environment
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONPATH=/app
+
+# Create app directory
+WORKDIR /app
+
+# Copy requirements files
+COPY requirements-loadpatternrecognition.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -r requirements-loadpatternrecognition.txt
+
+# Production stage
+FROM base AS production
+
+# Copy application code
+COPY loadpatternrecognition.py .
+COPY enhanced_pattern_recognition.py .
+COPY database_config.py .
+COPY pattern_recognition.py .
+COPY advanced_pattern_recognition.py .
+
+# Create non-root user for security
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+RUN chown -R appuser:appuser /app
+USER appuser
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD python -c "import sys; sys.exit(0)"
+
+# Set default command
+CMD ["python", "loadpatternrecognition.py"]
