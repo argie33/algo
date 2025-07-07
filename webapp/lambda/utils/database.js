@@ -213,6 +213,10 @@ async function initializeDatabase() {
             const client = await pool.connect();
             await client.query('SELECT NOW()');
             client.release();
+            
+            // Create required tables
+            await createRequiredTables();
+            
             dbInitialized = true;
             console.log('✅ Database connection pool initialized successfully');
             pool.on('error', (err) => {
