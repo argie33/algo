@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Daily price data loader - fetches OHLCV data for all symbols
-# Trigger deploy-app-stocks workflow test - daily loader update v14 - workflow fix verification
+# Trigger deploy-app-stocks workflow test - daily loader update v15 - workflow verification test
 import sys
 import time
 import logging
