@@ -50,6 +50,10 @@ export { api }
 export const getPortfolioData = async (accountType = 'paper') => {
   try {
     const response = await api.get(`/api/portfolio/holdings?accountType=${accountType}`);
+    // Extract the data from the response
+    if (response.data && response.data.success && response.data.data) {
+      return response.data.data;
+    }
     return response.data;
   } catch (error) {
     console.error('Error fetching portfolio data:', error);
@@ -112,6 +116,10 @@ export const getAvailableAccounts = async () => {
 export const getAccountInfo = async (accountType = 'paper') => {
   try {
     const response = await api.get(`/api/portfolio/account?accountType=${accountType}`);
+    // Extract the data from the response
+    if (response.data && response.data.success && response.data.data) {
+      return response.data.data;
+    }
     return response.data;
   } catch (error) {
     console.error('Error fetching account info:', error);

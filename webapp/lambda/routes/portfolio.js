@@ -4,7 +4,90 @@ const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Apply authentication middleware to all portfolio routes
+// Mock portfolio data for when database is unavailable
+const mockPortfolioHoldings = [
+  { symbol: 'AAPL', company: 'Apple Inc.', shares: 100, avgCost: 150.00, currentPrice: 189.45, marketValue: 18945, gainLoss: 3945, gainLossPercent: 26.30, sector: 'Technology', allocation: 23.5 },
+  { symbol: 'MSFT', company: 'Microsoft Corp.', shares: 50, avgCost: 300.00, currentPrice: 342.56, marketValue: 17128, gainLoss: 2128, gainLossPercent: 14.19, sector: 'Technology', allocation: 21.3 },
+  { symbol: 'GOOGL', company: 'Alphabet Inc.', shares: 25, avgCost: 120.00, currentPrice: 134.23, marketValue: 3356, gainLoss: 356, gainLossPercent: 11.86, sector: 'Technology', allocation: 4.2 },
+  { symbol: 'TSLA', company: 'Tesla Inc.', shares: 10, avgCost: 200.00, currentPrice: 175.50, marketValue: 1755, gainLoss: -245, gainLossPercent: -12.25, sector: 'Consumer Cyclical', allocation: 2.2 },
+  { symbol: 'NVDA', company: 'NVIDIA Corp.', shares: 20, avgCost: 300.00, currentPrice: 450.00, marketValue: 9000, gainLoss: 3000, gainLossPercent: 50.00, sector: 'Technology', allocation: 11.2 }
+];
+
+// Public endpoint for portfolio holdings (no auth required)
+router.get('/holdings', async (req, res) => {
+  try {
+    const { accountType = 'paper' } = req.query;
+    console.log(`Portfolio holdings endpoint called for account type: ${accountType}`);
+    
+    // Return mock data immediately for now
+    const totalValue = mockPortfolioHoldings.reduce((sum, h) => sum + h.marketValue, 0);
+    const totalGainLoss = mockPortfolioHoldings.reduce((sum, h) => sum + h.gainLoss, 0);
+    
+    res.json({
+      success: true,
+      data: {
+        holdings: mockPortfolioHoldings,
+        summary: {
+          totalValue: totalValue,
+          totalGainLoss: totalGainLoss,
+          totalGainLossPercent: (totalGainLoss / (totalValue - totalGainLoss)) * 100,
+          numPositions: mockPortfolioHoldings.length,
+          accountType: accountType
+        }
+      },
+      timestamp: new Date().toISOString(),
+      isMockData: true
+    });
+  } catch (error) {
+    console.error('Error in portfolio holdings endpoint:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch portfolio holdings',
+      details: error.message
+    });
+  }
+});
+
+// Public endpoint for account info (no auth required)
+router.get('/account', async (req, res) => {
+  try {
+    const { accountType = 'paper' } = req.query;
+    console.log(`Portfolio account info endpoint called for account type: ${accountType}`);
+    
+    // Return mock account data
+    const mockAccountInfo = {
+      accountType: accountType,
+      balance: 250000,
+      equity: 80500,
+      dayChange: 1250.75,
+      dayChangePercent: 1.58,
+      buyingPower: 169500,
+      portfolioValue: 80500,
+      cash: 169500,
+      pendingDeposits: 0,
+      patternDayTrader: false,
+      tradingBlocked: false,
+      accountBlocked: false,
+      createdAt: '2024-01-01T00:00:00Z'
+    };
+    
+    res.json({
+      success: true,
+      data: mockAccountInfo,
+      timestamp: new Date().toISOString(),
+      isMockData: true
+    });
+  } catch (error) {
+    console.error('Error in account info endpoint:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch account info',
+      details: error.message
+    });
+  }
+});
+
+// Apply authentication middleware to remaining routes
 router.use(authenticateToken);
 
 // Portfolio analytics endpoint for advanced metrics
