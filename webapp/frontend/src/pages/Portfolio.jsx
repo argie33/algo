@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+// Portfolio page - updated to use real data instead of mock data
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import {
