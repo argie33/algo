@@ -397,7 +397,7 @@ def main():
         insert_all(conn, all_records)
         insert_etfs(conn, all_etf_records)
         update_timestamp(conn)
-        logger.info("Load complete")
+        logger.info("Load complete - symbols updated successfully")
     finally:
         conn.close()
 
