@@ -385,6 +385,7 @@ def main():
 
     logger.info("Total stock records after filtering: %d", len(all_records))
     logger.info("Total ETF records: %d", len(all_etf_records))
+    logger.info("Stock symbols loading process initiated")
 
     conn = psycopg2.connect(
         host=PG_HOST, port=PG_PORT,
