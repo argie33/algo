@@ -39,6 +39,8 @@ jobs:
       any: ${{ steps.filter.outputs.any }}
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       - uses: dorny/paths-filter@v2
         id: filter
         with:
@@ -64,6 +66,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
