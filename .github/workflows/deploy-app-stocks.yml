@@ -999,56 +999,168 @@ jobs:
             echo "Stack status is $STATUS, not deleting."
           fi
 
-      - name: Deploy ECS-tasks CloudFormation stack
+      - name: Get current stack parameters
+        id: current-params
+        run: |
+          # Get current parameter values from existing stack (if it exists)
+          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then
+            aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
+              --query 'Stacks[0].Parameters' --output json > current_params.json
+            echo "Stack exists, using current parameters for unchanged components"
+          else
+            echo "[]" > current_params.json
+            echo "Stack does not exist, will create new stack"
+          fi
+
+      - name: Build selective parameter overrides
+        id: build-params
+        run: |
+          # Function to get current parameter value
+          get_current_param() {
+            local param_name="$1"
+            jq -r ".[] | select(.ParameterKey == \"$param_name\") | .ParameterValue" current_params.json
+          }
+          
+          # Function to get new tag value
+          get_new_tag() {
+            local tag_name="$1"
+            grep "^${tag_name}=" tags.env | cut -d= -f2- || echo ""
+          }
+          
+          # Start building parameter overrides
+          PARAMS="FREDApiKey=${{ secrets.FRED_API_KEY }} IBKRUsername=${{ secrets.IBKR_USERNAME }} IBKRPassword=${{ secrets.IBKR_PASSWORD }}"
+          
+          # Define component to parameter mapping
+          declare -A COMPONENT_PARAMS
+          COMPONENT_PARAMS["symbols"]="StockSymbolsImageTag"
+          COMPONENT_PARAMS["econ"]="EconDataImageTag"
+          COMPONENT_PARAMS["pricedaily"]="PriceImageTag"
+          COMPONENT_PARAMS["priceweekly"]="PriceWeeklyImageTag"
+          COMPONENT_PARAMS["pricemonthly"]="PriceMonthlyImageTag"
+          COMPONENT_PARAMS["latestpricedaily"]="LatestPriceDailyImageTag"
+          COMPONENT_PARAMS["latestpriceweekly"]="LatestPriceWeeklyImageTag"
+          COMPONENT_PARAMS["latestpricemonthly"]="LatestPriceMonthlyImageTag"
+          COMPONENT_PARAMS["technicalsdaily"]="TechnicalsDailyImageTag"
+          COMPONENT_PARAMS["loadinfo"]="LoadInfoImageTag"
+          COMPONENT_PARAMS["loadnews"]="LoadNewsImageTag"
+          COMPONENT_PARAMS["earningsestimate"]="EarningsEstimateImageTag"
+          COMPONENT_PARAMS["earningsmetrics"]="EarningsMetricsImageTag"
+          COMPONENT_PARAMS["earningshistory"]="EarningsHistoryImageTag"
+          COMPONENT_PARAMS["revenueestimate"]="RevenueEstimateImageTag"
+          COMPONENT_PARAMS["technicalsweekly"]="TechnicalsWeeklyImageTag"
+          COMPONENT_PARAMS["technicalsmonthly"]="TechnicalsMonthlyImageTag"
+          COMPONENT_PARAMS["buyselldaily"]="BuySellDailyImageTag"
+          COMPONENT_PARAMS["buysellweekly"]="BuySellWeeklyImageTag"
+          COMPONENT_PARAMS["buysellmonthly"]="BuySellMonthlyImageTag"
+          COMPONENT_PARAMS["swingtrader"]="SwingTraderImageTag"
+          COMPONENT_PARAMS["calendar"]="CalendarImageTag"
+          COMPONENT_PARAMS["latesttechnicalsdaily"]="LatestTechnicalsDailyImageTag"
+          COMPONENT_PARAMS["latesttechnicalsweekly"]="LatestTechnicalsWeeklyImageTag"
+          COMPONENT_PARAMS["latesttechnicalsmonthly"]="LatestTechnicalsMonthlyImageTag"
+          COMPONENT_PARAMS["naaim"]="NaaimImageTag"
+          COMPONENT_PARAMS["aaii"]="AaiiImageTag"
+          COMPONENT_PARAMS["feargreed"]="FearGreedImageTag"
+          COMPONENT_PARAMS["quarterlybalancesheet"]="QuarterlyBalanceSheetImageTag"
+          COMPONENT_PARAMS["annualbalancesheet"]="AnnualBalanceSheetImageTag"
+          COMPONENT_PARAMS["quarterlyincomestatement"]="QuarterlyIncomeStatementImageTag"
+          COMPONENT_PARAMS["annualincomestatement"]="AnnualIncomeStatementImageTag"
+          COMPONENT_PARAMS["quarterlycashflow"]="QuarterlyCashFlowImageTag"
+          COMPONENT_PARAMS["annualcashflow"]="AnnualCashFlowImageTag"
+          COMPONENT_PARAMS["ttmincomestatement"]="TTMIncomeStatementImageTag"
+          COMPONENT_PARAMS["ttmcashflow"]="TTMCashFlowImageTag"
+          COMPONENT_PARAMS["qualitymetrics"]="QualityMetricsImageTag"
+          COMPONENT_PARAMS["valuemetrics"]="ValueMetricsImageTag"
+          COMPONENT_PARAMS["fundamentalmetrics"]="FundamentalMetricsImageTag"
+          COMPONENT_PARAMS["analystupgradedowngrade"]="AnalystUpgradeDowngradeImageTag"
+          COMPONENT_PARAMS["financials"]="FinancialsImageTag"
+          COMPONENT_PARAMS["symbolsalt"]="SymbolsAltImageTag"
+          COMPONENT_PARAMS["sentiment"]="SentimentImageTag"
+          COMPONENT_PARAMS["technicals"]="TechnicalsImageTag"
+          COMPONENT_PARAMS["market"]="MarketImageTag"
+          COMPONENT_PARAMS["momentum"]="MomentumImageTag"
+          COMPONENT_PARAMS["sentiment_realtime"]="SentimentRealtimeImageTag"
+          COMPONENT_PARAMS["positioning"]="PositioningImageTag"
+          COMPONENT_PARAMS["valuescores"]="ValueScoresImageTag"
+          COMPONENT_PARAMS["growthmetrics"]="GrowthMetricsImageTag"
+          COMPONENT_PARAMS["qualityscores"]="QualityScoresImageTag"
+          
+          # Define components that have changed
+          CHANGED_COMPONENTS=()
+          [[ "${{ needs.detect-changes.outputs.symbols }}" == "true" ]] && CHANGED_COMPONENTS+=("symbols")
+          [[ "${{ needs.detect-changes.outputs.econ }}" == "true" ]] && CHANGED_COMPONENTS+=("econ")
+          [[ "${{ needs.detect-changes.outputs.pricedaily }}" == "true" ]] && CHANGED_COMPONENTS+=("pricedaily")
+          [[ "${{ needs.detect-changes.outputs.priceweekly }}" == "true" ]] && CHANGED_COMPONENTS+=("priceweekly")
+          [[ "${{ needs.detect-changes.outputs.pricemonthly }}" == "true" ]] && CHANGED_COMPONENTS+=("pricemonthly")
+          [[ "${{ needs.detect-changes.outputs.latestpricedaily }}" == "true" ]] && CHANGED_COMPONENTS+=("latestpricedaily")
+          [[ "${{ needs.detect-changes.outputs.latestpriceweekly }}" == "true" ]] && CHANGED_COMPONENTS+=("latestpriceweekly")
+          [[ "${{ needs.detect-changes.outputs.latestpricemonthly }}" == "true" ]] && CHANGED_COMPONENTS+=("latestpricemonthly")
+          [[ "${{ needs.detect-changes.outputs.technicalsdaily }}" == "true" ]] && CHANGED_COMPONENTS+=("technicalsdaily")
+          [[ "${{ needs.detect-changes.outputs.loadinfo }}" == "true" ]] && CHANGED_COMPONENTS+=("loadinfo")
+          [[ "${{ needs.detect-changes.outputs.loadnews }}" == "true" ]] && CHANGED_COMPONENTS+=("loadnews")
+          [[ "${{ needs.detect-changes.outputs.earningsestimate }}" == "true" ]] && CHANGED_COMPONENTS+=("earningsestimate")
+          [[ "${{ needs.detect-changes.outputs.earningsmetrics }}" == "true" ]] && CHANGED_COMPONENTS+=("earningsmetrics")
+          [[ "${{ needs.detect-changes.outputs.earningshistory }}" == "true" ]] && CHANGED_COMPONENTS+=("earningshistory")
+          [[ "${{ needs.detect-changes.outputs.revenueestimate }}" == "true" ]] && CHANGED_COMPONENTS+=("revenueestimate")
+          [[ "${{ needs.detect-changes.outputs.technicalsweekly }}" == "true" ]] && CHANGED_COMPONENTS+=("technicalsweekly")
+          [[ "${{ needs.detect-changes.outputs.technicalsmonthly }}" == "true" ]] && CHANGED_COMPONENTS+=("technicalsmonthly")
+          [[ "${{ needs.detect-changes.outputs.buyselldaily }}" == "true" ]] && CHANGED_COMPONENTS+=("buyselldaily")
+          [[ "${{ needs.detect-changes.outputs.buysellweekly }}" == "true" ]] && CHANGED_COMPONENTS+=("buysellweekly")
+          [[ "${{ needs.detect-changes.outputs.buysellmonthly }}" == "true" ]] && CHANGED_COMPONENTS+=("buysellmonthly")
+          [[ "${{ needs.detect-changes.outputs.swingtrader }}" == "true" ]] && CHANGED_COMPONENTS+=("swingtrader")
+          [[ "${{ needs.detect-changes.outputs.calendar }}" == "true" ]] && CHANGED_COMPONENTS+=("calendar")
+          [[ "${{ needs.detect-changes.outputs.latesttechnicalsdaily }}" == "true" ]] && CHANGED_COMPONENTS+=("latesttechnicalsdaily")
+          [[ "${{ needs.detect-changes.outputs.latesttechnicalsweekly }}" == "true" ]] && CHANGED_COMPONENTS+=("latesttechnicalsweekly")
+          [[ "${{ needs.detect-changes.outputs.latesttechnicalsmonthly }}" == "true" ]] && CHANGED_COMPONENTS+=("latesttechnicalsmonthly")
+          [[ "${{ needs.detect-changes.outputs.naaim }}" == "true" ]] && CHANGED_COMPONENTS+=("naaim")
+          [[ "${{ needs.detect-changes.outputs.aaii }}" == "true" ]] && CHANGED_COMPONENTS+=("aaii")
+          [[ "${{ needs.detect-changes.outputs.feargreed }}" == "true" ]] && CHANGED_COMPONENTS+=("feargreed")
+          [[ "${{ needs.detect-changes.outputs.quarterlybalancesheet }}" == "true" ]] && CHANGED_COMPONENTS+=("quarterlybalancesheet")
+          [[ "${{ needs.detect-changes.outputs.annualbalancesheet }}" == "true" ]] && CHANGED_COMPONENTS+=("annualbalancesheet")
+          [[ "${{ needs.detect-changes.outputs.quarterlyincomestatement }}" == "true" ]] && CHANGED_COMPONENTS+=("quarterlyincomestatement")
+          [[ "${{ needs.detect-changes.outputs.annualincomestatement }}" == "true" ]] && CHANGED_COMPONENTS+=("annualincomestatement")
+          [[ "${{ needs.detect-changes.outputs.quarterlycashflow }}" == "true" ]] && CHANGED_COMPONENTS+=("quarterlycashflow")
+          [[ "${{ needs.detect-changes.outputs.annualcashflow }}" == "true" ]] && CHANGED_COMPONENTS+=("annualcashflow")
+          [[ "${{ needs.detect-changes.outputs.ttmincomestatement }}" == "true" ]] && CHANGED_COMPONENTS+=("ttmincomestatement")
+          [[ "${{ needs.detect-changes.outputs.ttmcashflow }}" == "true" ]] && CHANGED_COMPONENTS+=("ttmcashflow")
+          [[ "${{ needs.detect-changes.outputs.qualitymetrics }}" == "true" ]] && CHANGED_COMPONENTS+=("qualitymetrics")
+          [[ "${{ needs.detect-changes.outputs.valuemetrics }}" == "true" ]] && CHANGED_COMPONENTS+=("valuemetrics")
+          [[ "${{ needs.detect-changes.outputs.fundamentalmetrics }}" == "true" ]] && CHANGED_COMPONENTS+=("fundamentalmetrics")
+          [[ "${{ needs.detect-changes.outputs.analystupgradedowngrade }}" == "true" ]] && CHANGED_COMPONENTS+=("analystupgradedowngrade")
+          [[ "${{ needs.detect-changes.outputs.financials }}" == "true" ]] && CHANGED_COMPONENTS+=("financials")
+          [[ "${{ needs.detect-changes.outputs.symbolsalt }}" == "true" ]] && CHANGED_COMPONENTS+=("symbolsalt")
+          [[ "${{ needs.detect-changes.outputs.sentiment }}" == "true" ]] && CHANGED_COMPONENTS+=("sentiment")
+          [[ "${{ needs.detect-changes.outputs.technicals }}" == "true" ]] && CHANGED_COMPONENTS+=("technicals")
+          [[ "${{ needs.detect-changes.outputs.market }}" == "true" ]] && CHANGED_COMPONENTS+=("market")
+          [[ "${{ needs.detect-changes.outputs.momentum }}" == "true" ]] && CHANGED_COMPONENTS+=("momentum")
+          [[ "${{ needs.detect-changes.outputs.sentiment_realtime }}" == "true" ]] && CHANGED_COMPONENTS+=("sentiment_realtime")
+          [[ "${{ needs.detect-changes.outputs.positioning }}" == "true" ]] && CHANGED_COMPONENTS+=("positioning")
+          [[ "${{ needs.detect-changes.outputs.valuescores }}" == "true" ]] && CHANGED_COMPONENTS+=("valuescores")
+          [[ "${{ needs.detect-changes.outputs.growthmetrics }}" == "true" ]] && CHANGED_COMPONENTS+=("growthmetrics")
+          [[ "${{ needs.detect-changes.outputs.qualityscores }}" == "true" ]] && CHANGED_COMPONENTS+=("qualityscores")
+          
+          echo "Changed components: ${CHANGED_COMPONENTS[@]}"
+          
+          # Add parameters for changed components only
+          for component in "${CHANGED_COMPONENTS[@]}"; do
+            if [[ -n "${COMPONENT_PARAMS[$component]}" ]]; then
+              param_name="${COMPONENT_PARAMS[$component]}"
+              new_value=$(get_new_tag "$param_name")
+              if [[ -n "$new_value" ]]; then
+                PARAMS+=" ${param_name}=${new_value}"
+                echo "Adding parameter: ${param_name}=${new_value}"
+              fi
+            fi
+          done
+          
+          echo "PARAMETER_OVERRIDES=$PARAMS" >> $GITHUB_OUTPUT
+          echo "Final parameter overrides: $PARAMS"
+
+      - name: Deploy ECS-tasks CloudFormation stack (selective)
         run: |
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
             --template-file template-app-ecs-tasks.yml \
-            --parameter-overrides \
-              StockSymbolsImageTag=$(grep '^StockSymbolsImageTag=' tags.env | cut -d= -f2-) \
-              EconDataImageTag=$(grep '^EconDataImageTag=' tags.env | cut -d= -f2-) \
-              FindataImageTag=$(grep '^FindataImageTag=' tags.env | cut -d= -f2-) \
-              PriceImageTag=$(grep '^PriceImageTag=' tags.env | cut -d= -f2-) \
-              PriceWeeklyImageTag=$(grep '^PriceWeeklyImageTag=' tags.env | cut -d= -f2-) \
-              PriceMonthlyImageTag=$(grep '^PriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
-              LatestPriceDailyImageTag=$(grep '^LatestPriceDailyImageTag=' tags.env | cut -d= -f2-) \
-              LatestPriceWeeklyImageTag=$(grep '^LatestPriceWeeklyImageTag=' tags.env | cut -d= -f2-) \
-              LatestPriceMonthlyImageTag=$(grep '^LatestPriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
-              TechnicalsDailyImageTag=$(grep '^TechnicalsDailyImageTag=' tags.env | cut -d= -f2-) \
-              LoadInfoImageTag=$(grep '^LoadInfoImageTag=' tags.env | cut -d= -f2-) \
-              LoadNewsImageTag=$(grep '^LoadNewsImageTag=' tags.env | cut -d= -f2-) \
-              EarningsEstimateImageTag=$(grep '^EarningsEstimateImageTag=' tags.env | cut -d= -f2-) \
-              EarningsMetricsImageTag=$(grep '^EarningsMetricsImageTag=' tags.env | cut -d= -f2-) \
-              EarningsHistoryImageTag=$(grep '^EarningsHistoryImageTag=' tags.env | cut -d= -f2-) \
-              RevenueEstimateImageTag=$(grep '^RevenueEstimateImageTag=' tags.env | cut -d= -f2-) \
-              TechnicalsWeeklyImageTag=$(grep '^TechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-) \
-              TechnicalsMonthlyImageTag=$(grep '^TechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-) \
-              BuySellImageTag=$(grep '^BuySellImageTag=' tags.env | cut -d= -f2-) \
-              SwingTraderImageTag=$(grep '^SwingTraderImageTag=' tags.env | cut -d= -f2-) \
-              CalendarImageTag=$(grep '^CalendarImageTag=' tags.env | cut -d= -f2-) \
-              BuySellDailyImageTag=$(grep '^BuySellDailyImageTag=' tags.env | cut -d= -f2-) \
-              BuySellWeeklyImageTag=$(grep '^BuySellWeeklyImageTag=' tags.env | cut -d= -f2-) \
-              BuySellMonthlyImageTag=$(grep '^BuySellMonthlyImageTag=' tags.env | cut -d= -f2-) \
-              LatestTechnicalsDailyImageTag=$(grep '^LatestTechnicalsDailyImageTag=' tags.env | cut -d= -f2-) \
-              LatestTechnicalsWeeklyImageTag=$(grep '^LatestTechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-) \
-              LatestTechnicalsMonthlyImageTag=$(grep '^LatestTechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-) \
-              ScoresImageTag=$(grep '^ScoresImageTag=' tags.env | cut -d= -f2-) \
-              NaaimImageTag=$(grep '^NaaimImageTag=' tags.env | cut -d= -f2-) \
-              AaiiImageTag=$(grep '^AaiiImageTag=' tags.env | cut -d= -f2-) \
-              FearGreedImageTag=$(grep '^FearGreedImageTag=' tags.env | cut -d= -f2-) \
-              QuarterlyBalanceSheetImageTag=$(grep '^QuarterlyBalanceSheetImageTag=' tags.env | cut -d= -f2-) \
-              AnnualBalanceSheetImageTag=$(grep '^AnnualBalanceSheetImageTag=' tags.env | cut -d= -f2-) \
-              QuarterlyIncomeStatementImageTag=$(grep '^QuarterlyIncomeStatementImageTag=' tags.env | cut -d= -f2-) \
-              AnnualIncomeStatementImageTag=$(grep '^AnnualIncomeStatementImageTag=' tags.env | cut -d= -f2-) \
-              QuarterlyCashFlowImageTag=$(grep '^QuarterlyCashFlowImageTag=' tags.env | cut -d= -f2-) \
-              AnnualCashFlowImageTag=$(grep '^AnnualCashFlowImageTag=' tags.env | cut -d= -f2-) \
-              TTMIncomeStatementImageTag=$(grep '^TTMIncomeStatementImageTag=' tags.env | cut -d= -f2-) \
-              TTMCashFlowImageTag=$(grep '^TTMCashFlowImageTag=' tags.env | cut -d= -f2-) \
-              QualityMetricsImageTag=$(grep '^QualityMetricsImageTag=' tags.env | cut -d= -f2-) \
-              ValueMetricsImageTag=$(grep '^ValueMetricsImageTag=' tags.env | cut -d= -f2-) \
-              FREDApiKey=${{ secrets.FRED_API_KEY }} \
-              IBKRUsername=${{ secrets.IBKR_USERNAME }} \
-              IBKRPassword=${{ secrets.IBKR_PASSWORD }} \
+            --parameter-overrides ${{ steps.build-params.outputs.PARAMETER_OVERRIDES }} \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset \
             --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}
