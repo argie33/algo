@@ -390,59 +390,45 @@ jobs:
           
           # Run database initialization script
           echo "Running database initialization script..."
-          source venv/bin/activate && python3 init_database_combined.py
+          source venv/bin/activate
+          python3 init_database_combined.py
           INIT_EXIT_CODE=$?
           
           if [ $INIT_EXIT_CODE -eq 0 ]; then
             echo "✅ Python database initialization completed successfully"
           else
             echo "❌ Python database initialization FAILED with exit code $INIT_EXIT_CODE"
-            echo "Deployment will continue but database tables may be missing!"
+            echo "Attempting to verify if tables exist anyway..."
           fi
           
-          # Verify tables were created
-          echo "Verifying database tables..."
-          cat > check_tables.py << 'SCRIPT_END'
-import os, sys, json, boto3, psycopg2
-
-try:
-    client = boto3.client('secretsmanager', region_name='us-east-1')
-    response = client.get_secret_value(SecretId=os.environ['DB_SECRET_ARN'])
-    secret = json.loads(response['SecretString'])
-    
-    print(f"Connecting to database at {secret['host']}...")
-    conn = psycopg2.connect(
-        host=secret['host'], 
-        port=secret.get('port', 5432), 
-        database=secret.get('dbname', 'postgres'), 
-        user=secret['username'], 
-        password=secret['password']
-    )
-    cur = conn.cursor()
-    
-    cur.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
-    tables = [row[0] for row in cur.fetchall()]
-    print(f"Existing tables: {tables}")
-    
-    required = ['user_api_keys', 'portfolio_holdings', 'portfolio_metadata']
-    missing = [t for t in required if t not in tables]
-    
-    if missing:
-        print(f"❌ Missing required tables: {missing}")
-        sys.exit(1)
-    else:
-        print("✅ All required tables exist")
-        sys.exit(0)
-        
-except Exception as e:
-    print(f"❌ Error checking tables: {e}")
-    sys.exit(1)
-SCRIPT_END
+          # Create a simple verification script
+          echo "Creating table verification script..."
+          echo 'import os, sys, json, boto3, psycopg2' > verify_db.py
+          echo 'try:' >> verify_db.py
+          echo '    client = boto3.client("secretsmanager", region_name="us-east-1")' >> verify_db.py
+          echo '    response = client.get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])' >> verify_db.py
+          echo '    secret = json.loads(response["SecretString"])' >> verify_db.py
+          echo '    conn = psycopg2.connect(host=secret["host"], port=secret.get("port", 5432),' >> verify_db.py
+          echo '                            database=secret.get("dbname", "postgres"),' >> verify_db.py
+          echo '                            user=secret["username"], password=secret["password"])' >> verify_db.py
+          echo '    cur = conn.cursor()' >> verify_db.py
+          echo '    cur.execute("SELECT tablename FROM pg_tables WHERE schemaname = %s", ("public",))' >> verify_db.py
+          echo '    tables = [row[0] for row in cur.fetchall()]' >> verify_db.py
+          echo '    print("Existing tables:", tables)' >> verify_db.py
+          echo '    required = ["user_api_keys", "portfolio_holdings", "portfolio_metadata"]' >> verify_db.py
+          echo '    missing = [t for t in required if t not in tables]' >> verify_db.py
+          echo '    if missing:' >> verify_db.py
+          echo '        print("ERROR: Missing required tables:", missing)' >> verify_db.py
+          echo '        sys.exit(1)' >> verify_db.py
+          echo '    else:' >> verify_db.py
+          echo '        print("SUCCESS: All required tables exist")' >> verify_db.py
+          echo '        sys.exit(0)' >> verify_db.py
+          echo 'except Exception as e:' >> verify_db.py
+          echo '    print("ERROR: Failed to check tables:", str(e))' >> verify_db.py
+          echo '    sys.exit(1)' >> verify_db.py
           
-          source venv/bin/activate && python3 check_tables.py
-          if [ $? -ne 0 ]; then
-            echo "⚠️ WARNING: Some database tables are missing! Frontend may not work properly."
-          fi
+          echo "Running table verification..."
+          python3 verify_db.py || echo "WARNING: Table verification failed"
           
           # Alternative: Run the webapp database setup script
           if [ -f "webapp/setup-database.js" ]; then

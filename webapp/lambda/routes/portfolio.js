@@ -4,7 +4,7 @@ const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Mock portfolio data for when database is unavailable
+// Mock portfolio data for when database is unavailable - Updated for deployment trigger
 const mockPortfolioHoldings = [
   { symbol: 'AAPL', company: 'Apple Inc.', shares: 100, avgCost: 150.00, currentPrice: 189.45, marketValue: 18945, gainLoss: 3945, gainLossPercent: 26.30, sector: 'Technology', allocation: 23.5 },
   { symbol: 'MSFT', company: 'Microsoft Corp.', shares: 50, avgCost: 300.00, currentPrice: 342.56, marketValue: 17128, gainLoss: 2128, gainLossPercent: 14.19, sector: 'Technology', allocation: 21.3 },
