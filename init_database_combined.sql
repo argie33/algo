@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS stocks (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create stock_symbols table (used by loadstocksymbols_test)
+-- Create stock_symbols table (used by loadstocksymbols_test and pricedaily)
+-- This table must be populated with symbols for pricedaily to work properly
 CREATE TABLE IF NOT EXISTS stock_symbols (
     symbol VARCHAR(50),
     exchange VARCHAR(100),
