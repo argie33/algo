@@ -323,7 +323,7 @@ const Portfolio = () => {
   const [portfolioData, setPortfolioData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [dataSource, setDataSource] = useState('mock'); // 'mock', 'paper', 'live'
+  const [dataSource, setDataSource] = useState('mock'); // Default to mock to avoid auth issues
   const [accountType, setAccountType] = useState('paper');
   const [availableAccounts, setAvailableAccounts] = useState([]);
   const [accountInfo, setAccountInfo] = useState(null);
@@ -422,7 +422,8 @@ const Portfolio = () => {
       isAuthenticated, 
       dataSource, 
       accountType,
-      hasUser: !!user 
+      hasUser: !!user,
+      apiUrl: getApiConfig().apiUrl 
     });
 
     if (!isAuthenticated && dataSource !== 'mock') {
@@ -449,15 +450,29 @@ const Portfolio = () => {
         console.log('✅ Mock data loaded successfully');
       } else {
         console.log('🌐 Loading real portfolio data from API');
-        // Load real data from Alpaca API
-        const [portfolioResponse, accountResponse] = await Promise.all([
-          getPortfolioData(accountType),
-          getAccountInfo(accountType)
-        ]);
+        console.log('API Config:', getApiConfig());
         
-        setPortfolioData(portfolioResponse);
-        setAccountInfo(accountResponse);
-        console.log('✅ Real data loaded successfully');
+        try {
+          // Load real data from API
+          const portfolioResponse = await getPortfolioData(accountType);
+          console.log('Portfolio API Response:', portfolioResponse);
+          
+          const accountResponse = await getAccountInfo(accountType);
+          console.log('Account API Response:', accountResponse);
+          
+          setPortfolioData(portfolioResponse);
+          setAccountInfo(accountResponse);
+          console.log('✅ Real data loaded successfully');
+        } catch (apiError) {
+          console.error('API call failed:', apiError);
+          console.error('API Error details:', {
+            message: apiError.message,
+            response: apiError.response?.data,
+            status: apiError.response?.status,
+            url: apiError.config?.url
+          });
+          throw apiError;
+        }
       }
     } catch (error) {
       console.error('❌ Error loading portfolio:', error);
@@ -1446,8 +1461,8 @@ const Portfolio = () => {
     });
   }, [portfolioData?.holdings, orderBy, order]);
 
-  // Show loading spinner while loading
-  if (isLoading || loading) {
+  // Show loading spinner only while actually loading data
+  if (loading) {
     console.log('⏳ Showing loading spinner', { isLoading, loading, hasPortfolioData: !!portfolioData });
     return (
       <Container maxWidth="xl" sx={{ py: 4 }}>
