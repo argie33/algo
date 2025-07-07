@@ -217,24 +217,19 @@ function TechnicalAnalysis() {
   };
 
   // --- Accordion rendering for each row (fixed syntax, requirements met) ---
-  // Normalize technical data list to handle API response structure
-  let technicalList = [];
-  if (technicalData) {
-    // Backend returns { success: true, data: [...], total: ..., pagination: {...} }
-    if (technicalData.success && Array.isArray(technicalData.data)) {
-      technicalList = technicalData.data;
-    } else if (Array.isArray(technicalData.data)) {
-      technicalList = technicalData.data;
-    } else if (Array.isArray(technicalData)) {
-      technicalList = technicalData;
-    }
-    
-    // Add debug logging to see the actual data structure
-    console.log('TechnicalAnalysis: Raw API response:', technicalData);
-    console.log('TechnicalAnalysis: Data array:', technicalData?.data);
-    console.log('TechnicalAnalysis: Normalized technicalList:', technicalList);
-    console.log('TechnicalAnalysis: First item structure:', technicalList?.[0]);
-  }
+  // Simplified data access: API always returns { success: true, data: [...] }
+  const technicalList = technicalData?.data || [];
+  
+  // Debug logging
+  console.log('TechnicalAnalysis data structure:', {
+    hasTechnicalData: !!technicalData,
+    success: technicalData?.success,
+    dataIsArray: Array.isArray(technicalData?.data),
+    dataLength: technicalData?.data?.length || 0,
+    pagination: technicalData?.pagination,
+    metadata: technicalData?.metadata,
+    firstItem: technicalData?.data?.[0]
+  });
 
   const renderAccordionTable = () => (
     <Box sx={{ width: '100%' }}>

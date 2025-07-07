@@ -104,6 +104,135 @@ CREATE TABLE IF NOT EXISTS technicals_weekly (
     UNIQUE(symbol, date)
 );
 
+-- Create technical_data_daily table (required by TechnicalAnalysis webapp)
+CREATE TABLE IF NOT EXISTS technical_data_daily (
+    symbol VARCHAR(50) NOT NULL,
+    date TIMESTAMP NOT NULL,
+    open DECIMAL(12,4),
+    high DECIMAL(12,4),
+    low DECIMAL(12,4),
+    close DECIMAL(12,4),
+    volume BIGINT,
+    rsi DECIMAL(8,4),
+    macd DECIMAL(12,6),
+    macd_signal DECIMAL(12,6),
+    macd_histogram DECIMAL(12,6),
+    sma_20 DECIMAL(12,4),
+    sma_50 DECIMAL(12,4),
+    ema_12 DECIMAL(12,4),
+    ema_26 DECIMAL(12,4),
+    bollinger_upper DECIMAL(12,4),
+    bollinger_lower DECIMAL(12,4),
+    bollinger_middle DECIMAL(12,4),
+    stochastic_k DECIMAL(8,4),
+    stochastic_d DECIMAL(8,4),
+    williams_r DECIMAL(8,4),
+    cci DECIMAL(8,4),
+    adx DECIMAL(8,4),
+    atr DECIMAL(12,4),
+    obv BIGINT,
+    mfi DECIMAL(8,4),
+    roc DECIMAL(8,4),
+    momentum DECIMAL(8,4),
+    ad BIGINT,
+    cmf DECIMAL(8,4),
+    td_sequential DECIMAL(8,4),
+    td_combo DECIMAL(8,4),
+    marketwatch DECIMAL(8,4),
+    dm DECIMAL(8,4),
+    pivot_high DECIMAL(12,4),
+    pivot_low DECIMAL(12,4),
+    pivot_high_triggered BOOLEAN DEFAULT FALSE,
+    pivot_low_triggered BOOLEAN DEFAULT FALSE,
+    UNIQUE(symbol, date)
+);
+
+-- Create technical_data_weekly table (required by TechnicalAnalysis webapp)
+CREATE TABLE IF NOT EXISTS technical_data_weekly (
+    symbol VARCHAR(50) NOT NULL,
+    date TIMESTAMP NOT NULL,
+    open DECIMAL(12,4),
+    high DECIMAL(12,4),
+    low DECIMAL(12,4),
+    close DECIMAL(12,4),
+    volume BIGINT,
+    rsi DECIMAL(8,4),
+    macd DECIMAL(12,6),
+    macd_signal DECIMAL(12,6),
+    macd_histogram DECIMAL(12,6),
+    sma_20 DECIMAL(12,4),
+    sma_50 DECIMAL(12,4),
+    ema_12 DECIMAL(12,4),
+    ema_26 DECIMAL(12,4),
+    bollinger_upper DECIMAL(12,4),
+    bollinger_lower DECIMAL(12,4),
+    bollinger_middle DECIMAL(12,4),
+    stochastic_k DECIMAL(8,4),
+    stochastic_d DECIMAL(8,4),
+    williams_r DECIMAL(8,4),
+    cci DECIMAL(8,4),
+    adx DECIMAL(8,4),
+    atr DECIMAL(12,4),
+    obv BIGINT,
+    mfi DECIMAL(8,4),
+    roc DECIMAL(8,4),
+    momentum DECIMAL(8,4),
+    ad BIGINT,
+    cmf DECIMAL(8,4),
+    td_sequential DECIMAL(8,4),
+    td_combo DECIMAL(8,4),
+    marketwatch DECIMAL(8,4),
+    dm DECIMAL(8,4),
+    pivot_high DECIMAL(12,4),
+    pivot_low DECIMAL(12,4),
+    pivot_high_triggered BOOLEAN DEFAULT FALSE,
+    pivot_low_triggered BOOLEAN DEFAULT FALSE,
+    UNIQUE(symbol, date)
+);
+
+-- Create technical_data_monthly table (required by TechnicalAnalysis webapp)
+CREATE TABLE IF NOT EXISTS technical_data_monthly (
+    symbol VARCHAR(50) NOT NULL,
+    date TIMESTAMP NOT NULL,
+    open DECIMAL(12,4),
+    high DECIMAL(12,4),
+    low DECIMAL(12,4),
+    close DECIMAL(12,4),
+    volume BIGINT,
+    rsi DECIMAL(8,4),
+    macd DECIMAL(12,6),
+    macd_signal DECIMAL(12,6),
+    macd_histogram DECIMAL(12,6),
+    sma_20 DECIMAL(12,4),
+    sma_50 DECIMAL(12,4),
+    ema_12 DECIMAL(12,4),
+    ema_26 DECIMAL(12,4),
+    bollinger_upper DECIMAL(12,4),
+    bollinger_lower DECIMAL(12,4),
+    bollinger_middle DECIMAL(12,4),
+    stochastic_k DECIMAL(8,4),
+    stochastic_d DECIMAL(8,4),
+    williams_r DECIMAL(8,4),
+    cci DECIMAL(8,4),
+    adx DECIMAL(8,4),
+    atr DECIMAL(12,4),
+    obv BIGINT,
+    mfi DECIMAL(8,4),
+    roc DECIMAL(8,4),
+    momentum DECIMAL(8,4),
+    ad BIGINT,
+    cmf DECIMAL(8,4),
+    td_sequential DECIMAL(8,4),
+    td_combo DECIMAL(8,4),
+    marketwatch DECIMAL(8,4),
+    dm DECIMAL(8,4),
+    pivot_high DECIMAL(12,4),
+    pivot_low DECIMAL(12,4),
+    pivot_high_triggered BOOLEAN DEFAULT FALSE,
+    pivot_low_triggered BOOLEAN DEFAULT FALSE,
+    UNIQUE(symbol, date)
+);
+
 -- Create last_updated table
 CREATE TABLE IF NOT EXISTS last_updated (
     script_name VARCHAR(255) PRIMARY KEY,
@@ -308,6 +437,9 @@ CREATE INDEX IF NOT EXISTS idx_stock_symbols_symbol ON stock_symbols(symbol);
 CREATE INDEX IF NOT EXISTS idx_etf_symbols_symbol ON etf_symbols(symbol);
 CREATE INDEX IF NOT EXISTS idx_price_weekly_symbol_date ON price_weekly(symbol, date);
 CREATE INDEX IF NOT EXISTS idx_technicals_weekly_symbol_date ON technicals_weekly(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_technical_data_daily_symbol_date ON technical_data_daily(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_technical_data_weekly_symbol_date ON technical_data_weekly(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_technical_data_monthly_symbol_date ON technical_data_monthly(symbol, date);
 CREATE INDEX IF NOT EXISTS idx_earnings_symbol ON earnings(symbol);
 CREATE INDEX IF NOT EXISTS idx_prices_symbol_date ON prices(symbol, date);
 
@@ -376,6 +508,9 @@ INSERT INTO health_status (table_name, table_category, critical_table, expected_
 -- Price & Market Data Tables
 ('price_weekly', 'prices', true, '1 week'),
 ('technicals_weekly', 'technicals', true, '1 week'),
+('technical_data_daily', 'technicals', true, '1 day'),
+('technical_data_weekly', 'technicals', true, '1 week'),
+('technical_data_monthly', 'technicals', true, '1 month'),
 
 -- Portfolio & Trading Tables
 ('user_api_keys', 'trading', true, '1 hour'),

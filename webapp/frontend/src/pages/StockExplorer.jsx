@@ -386,18 +386,17 @@ function StockExplorer() {
     )
   }
 
-  // Normalize stocks list to handle API response structure
-  let stocksList = [];
-  if (stocksData) {
-    // Backend returns { success: true, data: [...], total: ..., pagination: {...} }
-    if (stocksData.success && Array.isArray(stocksData.data)) {
-      stocksList = stocksData.data;
-    } else if (Array.isArray(stocksData.data)) {
-      stocksList = stocksData.data;
-    } else if (Array.isArray(stocksData)) {
-      stocksList = stocksData;
-    }
-  }
+  // Simplified data access: API always returns { success: true, data: [...] }
+  const stocksList = stocksData?.data || [];
+  
+  // Debug logging
+  console.log('StockExplorer data structure:', {
+    hasStocksData: !!stocksData,
+    success: stocksData?.success,
+    dataIsArray: Array.isArray(stocksData?.data),
+    dataLength: stocksData?.data?.length || 0,
+    pagination: stocksData?.pagination
+  });
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>

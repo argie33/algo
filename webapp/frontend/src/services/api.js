@@ -335,7 +335,7 @@ function handleApiError(error, context = '') {
   return message;
 }
 
-// Enhanced normalizeApiResponse function to handle all backend response formats
+// Simplified normalizeApiResponse function to handle backend response formats consistently
 function normalizeApiResponse(response, expectArray = true) {
   console.log('🔍 normalizeApiResponse input:', {
     hasResponse: !!response,
@@ -346,63 +346,41 @@ function normalizeApiResponse(response, expectArray = true) {
     expectArray
   });
   
-  // Handle axios response wrapper
+  // Handle axios response wrapper first
+  let data = response;
   if (response && response.data !== undefined) {
-    response = response.data;
+    data = response.data;
   }
   
-  // Handle backend API response format
-  if (response && typeof response === 'object') {
-    // If response has a 'data' property, use that
-    if (response.data !== undefined) {
-      response = response.data;
-    }
-    
-    // If response has 'success' property, check if it's successful
-    if (response.success === false) {
-      console.error('❌ API request failed:', response.error);
-      throw new Error(response.error || 'API request failed');
-    }
-    
-    // If response has 'error' property, throw error
-    if (response.error) {
-      console.error('❌ API response contains error:', response.error);
-      throw new Error(response.error);
-    }
+  // Handle API error responses
+  if (data && typeof data === 'object' && data.success === false) {
+    console.error('❌ API request failed:', data.error);
+    throw new Error(data.error || 'API request failed');
   }
   
-  // Ensure we return an array if expected
-  if (expectArray && !Array.isArray(response)) {
-    if (response && typeof response === 'object') {
-      // Try to extract array from common response structures
-      if (Array.isArray(response.data)) {
-        response = response.data;
-      } else if (Array.isArray(response.items)) {
-        response = response.items;
-      } else if (Array.isArray(response.results)) {
-        response = response.results;
-      } else {
-        // Convert object to array if it has numeric keys
-        const keys = Object.keys(response);
-        if (keys.length > 0 && keys.every(key => !isNaN(key))) {
-          response = Object.values(response);
-        } else {
-          // Single item, wrap in array
-          response = [response];
-        }
-      }
+  // Handle API error property
+  if (data && typeof data === 'object' && data.error) {
+    console.error('❌ API response contains error:', data.error);
+    throw new Error(data.error);
+  }
+  
+  // Extract data from successful API response structure
+  // Backend format: { success: true, data: [...], pagination: {...} }
+  if (data && typeof data === 'object' && data.success === true && data.data !== undefined) {
+    data = data.data;
+  }
+  
+  // Ensure we return correct type
+  if (expectArray) {
+    if (Array.isArray(data)) {
+      return data;
     } else {
-      response = [];
+      console.warn('⚠️ Expected array but got:', typeof data, data);
+      return [];
     }
+  } else {
+    return data;
   }
-  
-  console.log('✅ normalizeApiResponse output:', {
-    resultType: typeof response,
-    isArray: Array.isArray(response),
-    length: Array.isArray(response) ? response.length : 'N/A',
-    sample: Array.isArray(response) && response.length > 0 ? response[0] : response
-  });
-  return response;
 }
 
 // --- PATCH: Log API config at startup ---
@@ -1234,7 +1212,7 @@ export const getFinancialStrengthMetrics = async (params = {}) => {
   }
 }
 
-// New method for stock screening with proper parameter handling
+// Stock screening with consistent response format
 export const screenStocks = async (params) => {
   try {
     // Use the main stocks endpoint since /screen endpoint has routing issues
@@ -1248,25 +1226,29 @@ export const screenStocks = async (params) => {
       baseURL: currentConfig.baseURL
     });
     
-    console.log(`✅ [API] Success with main stocks endpoint:`, response.data);
+    console.log(`✅ [API] Raw backend response:`, response.data);
     
     // Backend returns: { success: true, data: [...], total: ..., pagination: {...} }
-    if (response.data && response.data.success && Array.isArray(response.data.data)) {
-      console.log('✅ [API] Using backend response structure:', response.data);
+    // Return the backend response as-is if it has the correct structure
+    if (response.data && response.data.success === true && Array.isArray(response.data.data)) {
+      console.log('✅ [API] Returning backend response structure directly');
       return response.data;
     }
     
-    // Fallback to normalized response
-    const result = normalizeApiResponse(response, true);
-    console.log('✅ [API] Using normalized response:', result);
+    // If backend doesn't return expected structure, normalize it
+    console.warn('⚠️ [API] Backend response missing expected structure, normalizing...');
+    const data = normalizeApiResponse(response, true);
     return { 
       success: true,
-      data: result,
-      total: result.length,
+      data: data,
+      total: data.length,
       pagination: {
-        total: result.length,
+        total: data.length,
         page: 1,
-        limit: result.length
+        limit: data.length,
+        totalPages: 1,
+        hasNext: false,
+        hasPrev: false
       }
     };
   } catch (error) {
@@ -1280,7 +1262,10 @@ export const screenStocks = async (params) => {
       pagination: {
         total: 0,
         page: 1,
-        limit: 25
+        limit: 25,
+        totalPages: 0,
+        hasNext: false,
+        hasPrev: false
       }
     };
   }
@@ -1856,39 +1841,32 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
     
     console.log('📊 [API] Technical data raw response:', response.data);
     
-    // Handle backend response structure: { success: true, data: [...], pagination: {...} }
-    if (response.data && response.data.success && Array.isArray(response.data.data)) {
-      console.log('📊 [API] Technical data backend structure:', response.data);
-      return {
-        data: response.data.data,
-        pagination: response.data.pagination || {},
-        metadata: response.data.metadata || {},
-        success: true,
-        ...response.data
-      };
+    // Backend returns: { success: true, data: [...], pagination: {...} }
+    // Return the backend response as-is if it has the correct structure
+    if (response.data && response.data.success === true && Array.isArray(response.data.data)) {
+      console.log('📊 [API] Returning technical backend response structure directly');
+      return response.data;
     }
     
-    // Handle case where response.data is directly an array
-    if (Array.isArray(response.data)) {
-      console.log('📊 [API] Technical data is direct array:', response.data);
-      return {
-        data: response.data,
-        pagination: {},
-        metadata: {},
-        success: true,
-        timestamp: new Date().toISOString()
-      };
-    }
-    
-    // Fallback to normalized response
-    const result = normalizeApiResponse(response, true);
-    console.log('📊 [API] Technical fallback normalized result:', result);
+    // If backend doesn't return expected structure, normalize it
+    console.warn('⚠️ [API] Technical backend response missing expected structure, normalizing...');
+    const data = normalizeApiResponse(response, true);
     return {
-      data: result,
-      pagination: {},
-      metadata: {},
       success: true,
-      timestamp: new Date().toISOString()
+      data: data,
+      total: data.length,
+      pagination: {
+        total: data.length,
+        page: 1,
+        limit: data.length,
+        totalPages: 1,
+        hasNext: false,
+        hasPrev: false
+      },
+      metadata: {
+        timeframe: timeframe,
+        timestamp: new Date().toISOString()
+      }
     };
   } catch (error) {
     console.error('❌ [API] Technical data error details:', {
