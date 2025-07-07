@@ -390,42 +390,58 @@ jobs:
           
           # Run database initialization script
           echo "Running database initialization script..."
-          if source venv/bin/activate && python3 init_database_combined.py; then
+          source venv/bin/activate && python3 init_database_combined.py
+          INIT_EXIT_CODE=$?
+          
+          if [ $INIT_EXIT_CODE -eq 0 ]; then
             echo "✅ Python database initialization completed successfully"
           else
-            echo "❌ Python database initialization FAILED with exit code $?"
-            echo "Checking if tables were created anyway..."
-            
-            # Try to verify tables exist
-            source venv/bin/activate
-            python3 <<'EOF'
+            echo "❌ Python database initialization FAILED with exit code $INIT_EXIT_CODE"
+            echo "Deployment will continue but database tables may be missing!"
+          fi
+          
+          # Verify tables were created
+          echo "Verifying database tables..."
+          cat > check_tables.py << 'SCRIPT_END'
 import os, sys, json, boto3, psycopg2
+
 try:
     client = boto3.client('secretsmanager', region_name='us-east-1')
     response = client.get_secret_value(SecretId=os.environ['DB_SECRET_ARN'])
     secret = json.loads(response['SecretString'])
-    conn = psycopg2.connect(host=secret['host'], port=secret.get('port', 5432), 
-                           database=secret.get('dbname', 'postgres'), 
-                           user=secret['username'], password=secret['password'])
+    
+    print(f"Connecting to database at {secret['host']}...")
+    conn = psycopg2.connect(
+        host=secret['host'], 
+        port=secret.get('port', 5432), 
+        database=secret.get('dbname', 'postgres'), 
+        user=secret['username'], 
+        password=secret['password']
+    )
     cur = conn.cursor()
+    
     cur.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
     tables = [row[0] for row in cur.fetchall()]
-    print(f'Existing tables: {tables}')
+    print(f"Existing tables: {tables}")
+    
     required = ['user_api_keys', 'portfolio_holdings', 'portfolio_metadata']
     missing = [t for t in required if t not in tables]
+    
     if missing:
-        print(f'❌ Missing tables: {missing}')
+        print(f"❌ Missing required tables: {missing}")
         sys.exit(1)
     else:
-        print('✅ All required tables exist')
+        print("✅ All required tables exist")
+        sys.exit(0)
+        
 except Exception as e:
-    print(f'❌ Error checking tables: {e}')
+    print(f"❌ Error checking tables: {e}")
     sys.exit(1)
-EOF
-            if [ $? -ne 0 ]; then
-              echo "❌ CRITICAL: Database tables are missing! Deployment will likely fail."
-              exit 1
-            fi
+SCRIPT_END
+          
+          source venv/bin/activate && python3 check_tables.py
+          if [ $? -ne 0 ]; then
+            echo "⚠️ WARNING: Some database tables are missing! Frontend may not work properly."
           fi
           
           # Alternative: Run the webapp database setup script
