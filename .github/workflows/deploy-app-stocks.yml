@@ -106,6 +106,10 @@ jobs:
               - 'scripts/symbols-alt/**'
             econ:
               - 'scripts/econ-data/**'
+            pricedaily:
+              - 'loadpricedaily.py'
+              - 'Dockerfile.pricedaily'
+              - 'requirements-loadpricedaily.txt'
             priceweekly:
               - 'scripts/priceweekly/**'
             pricemonthly:
