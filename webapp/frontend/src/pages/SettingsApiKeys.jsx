@@ -66,7 +66,7 @@ import {
   addApiKey, 
   updateApiKey, 
   deleteApiKey, 
-  testApiConnection,
+  testApiKeyConnection,
   importPortfolioFromBroker 
 } from '../services/api';
 
@@ -183,7 +183,7 @@ const SettingsApiKeys = () => {
   const handleTestConnection = async (keyId, provider) => {
     try {
       setTesting(prev => ({ ...prev, [keyId]: true }));
-      const result = await testApiConnection(keyId);
+      const result = await testApiKeyConnection(keyId);
       
       if (result.success) {
         setSuccess(`${provider} connection test successful`);

@@ -229,6 +229,16 @@ export const deleteApiKey = async (keyId) => {
   }
 };
 
+export const testApiKeyConnection = async (keyId) => {
+  try {
+    const response = await api.post(`/api/settings/api-keys/${keyId}/test`);
+    return response.data;
+  } catch (error) {
+    console.error('Error testing API key connection:', error);
+    throw error;
+  }
+};
+
 
 // Function to get current base URL
 export const getCurrentBaseURL = () => {
