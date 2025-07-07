@@ -1066,8 +1066,8 @@ jobs:
 ################################################################################
   run_symbols:
     name: Run stock-symbols loader
-    needs: [deploy-tasks, filter]
-    if: ${{ needs.filter.outputs.symbols == 'true' }}
+    needs: [deploy-tasks, detect-changes]
+    if: ${{ needs.detect-changes.outputs.symbols == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -1326,8 +1326,8 @@ jobs:
 
   run_pricedaily:
     name: Run pricedaily loader
-    needs: [deploy-tasks, filter]
-    if: ${{ needs.filter.outputs.pricedaily == 'true' }}
+    needs: [deploy-tasks, detect-changes]
+    if: ${{ needs.detect-changes.outputs.pricedaily == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
