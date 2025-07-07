@@ -217,9 +217,28 @@ function TechnicalAnalysis() {
   };
 
   // --- Accordion rendering for each row (fixed syntax, requirements met) ---
+  // Normalize technical data list to handle API response structure
+  let technicalList = [];
+  if (technicalData) {
+    // Backend returns { success: true, data: [...], total: ..., pagination: {...} }
+    if (technicalData.success && Array.isArray(technicalData.data)) {
+      technicalList = technicalData.data;
+    } else if (Array.isArray(technicalData.data)) {
+      technicalList = technicalData.data;
+    } else if (Array.isArray(technicalData)) {
+      technicalList = technicalData;
+    }
+    
+    // Add debug logging to see the actual data structure
+    console.log('TechnicalAnalysis: Raw API response:', technicalData);
+    console.log('TechnicalAnalysis: Data array:', technicalData?.data);
+    console.log('TechnicalAnalysis: Normalized technicalList:', technicalList);
+    console.log('TechnicalAnalysis: First item structure:', technicalList?.[0]);
+  }
+
   const renderAccordionTable = () => (
     <Box sx={{ width: '100%' }}>
-      {(Array.isArray(technicalData?.data) ? technicalData.data : []).map((row, idx) => (
+      {technicalList.map((row, idx) => (
         <Accordion
           key={row.symbol + '-' + row.date + '-' + idx}
           expanded={expandedRow === idx}
@@ -471,7 +490,7 @@ function TechnicalAnalysis() {
             </Box>
           ) : (
             <>
-              {(Array.isArray(technicalData?.data) ? technicalData.data : []).length === 0 ? (
+              {technicalList.length === 0 ? (
                 <Alert severity="warning" sx={{ mb: 2 }}>No technical data found.</Alert>
               ) : (
                 renderAccordionTable()
