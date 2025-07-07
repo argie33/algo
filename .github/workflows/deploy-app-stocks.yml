@@ -808,7 +808,6 @@ jobs:
           [ "${{ steps.paths.outputs.ttmcashflow }}" = "true" ] && arr="$arr,\"ttmcashflow\""
           [ "${{ steps.paths.outputs.fundamentalmetrics }}" = "true" ] && arr="$arr,\"fundamentalmetrics\""
           [ "${{ steps.paths.outputs.analystupgradedowngrade }}" = "true" ] && arr="$arr,\"analystupgradedowngrade\""
-          [ "${{ steps.paths.outputs.symbols }}" = "true" ] && arr="$arr,\"symbols\""
           [ "${{ steps.paths.outputs.symbolsalt }}" = "true" ] && arr="$arr,\"symbolsalt\""
           [ "${{ steps.paths.outputs.financials }}" = "true" ] && arr="$arr,\"financials\""
           [ "${{ steps.paths.outputs.sentiment }}" = "true" ] && arr="$arr,\"sentiment\""
