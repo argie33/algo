@@ -64,7 +64,8 @@ import {
   Cancel,
   BusinessCenter,
   TrendingUp,
-  MonetizationOn
+  MonetizationOn,
+  ContentCopy
 } from '@mui/icons-material';
 import { getApiConfig } from '../services/api';
 import SettingsApiKeys from './SettingsApiKeys';
@@ -481,40 +482,98 @@ const Settings = () => {
     }
   };
 
+  const [mfaSetupDialog, setMfaSetupDialog] = useState({ open: false, qrCode: null, secret: null });
+  const [mfaVerifyCode, setMfaVerifyCode] = useState('');
+
   const handleToggleTwoFactor = async () => {
     try {
       setLoading(true);
       
-      const action = user?.twoFactorEnabled ? 'disable' : 'enable';
-      const response = await fetch(`${apiUrl}/api/user/two-factor/${action}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
-        }
-      });
+      if (user?.twoFactorEnabled) {
+        // Disable 2FA
+        const response = await fetch(`${apiUrl}/api/user/two-factor/disable`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
+          }
+        });
 
-      if (response.ok) {
-        const data = await response.json();
-        showSnackbar(
-          user?.twoFactorEnabled 
-            ? 'Two-factor authentication disabled' 
-            : 'Two-factor authentication enabled'
-        );
-        
-        // Show QR code or setup instructions if enabling
-        if (!user?.twoFactorEnabled && data.qrCode) {
-          showSnackbar('Please scan the QR code with your authenticator app', 'info');
+        if (response.ok) {
+          showSnackbar('Two-factor authentication disabled', 'success');
+          await loadUserSettings();
+        } else {
+          const error = await response.json();
+          showSnackbar(error.error || 'Failed to disable two-factor authentication', 'error');
         }
-        
-        // Refresh user settings
-        await loadUserSettings();
       } else {
-        const error = await response.json();
-        showSnackbar(error.error || 'Failed to toggle two-factor authentication', 'error');
+        // Enable 2FA - start setup process
+        const response = await fetch(`${apiUrl}/api/user/two-factor/enable`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setMfaSetupDialog({
+            open: true,
+            qrCode: data.qrCodeUrl,
+            secret: data.manualEntryKey
+          });
+          showSnackbar('Scan the QR code with your authenticator app, then enter a code to verify', 'info');
+        } else {
+          const error = await response.json();
+          showSnackbar(error.error || 'Failed to enable two-factor authentication', 'error');
+        }
       }
     } catch (error) {
       console.error('Error toggling two-factor auth:', error);
       showSnackbar('Failed to toggle two-factor authentication', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyMfa = async () => {
+    try {
+      setLoading(true);
+      
+      const response = await fetch(`${apiUrl}/api/user/two-factor/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
+        },
+        body: JSON.stringify({ code: mfaVerifyCode })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setMfaSetupDialog({ open: false, qrCode: null, secret: null });
+        setMfaVerifyCode('');
+        showSnackbar('Two-factor authentication enabled successfully!', 'success');
+        
+        // Show recovery codes
+        if (data.recoveryCodes) {
+          const codesText = data.recoveryCodes.join('\n');
+          const blob = new Blob([`Recovery Codes for Financial Platform\n\nSave these codes in a safe place. You can use them to access your account if you lose your authenticator device.\n\n${codesText}\n\nGenerated: ${new Date().toLocaleDateString()}`], { type: 'text/plain' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'recovery-codes.txt';
+          a.click();
+          URL.revokeObjectURL(url);
+        }
+        
+        await loadUserSettings();
+      } else {
+        const error = await response.json();
+        showSnackbar(error.error || 'Invalid verification code', 'error');
+      }
+    } catch (error) {
+      console.error('Error verifying MFA:', error);
+      showSnackbar('Failed to verify code', 'error');
     } finally {
       setLoading(false);
     }
@@ -1171,6 +1230,97 @@ const Settings = () => {
             disabled={!newApiKey.brokerName || !newApiKey.apiKey || loading}
           >
             Add API Key
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* MFA Setup Dialog */}
+      <Dialog open={mfaSetupDialog.open} onClose={() => setMfaSetupDialog({ open: false, qrCode: null, secret: null })} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1}>
+            <Security color="primary" />
+            Setup Two-Factor Authentication
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="info" sx={{ mb: 3 }}>
+            Two-factor authentication adds an extra layer of security to your account and is required for managing API keys.
+          </Alert>
+          
+          {mfaSetupDialog.qrCode && (
+            <Box textAlign="center" mb={3}>
+              <Typography variant="h6" gutterBottom>
+                Step 1: Scan QR Code
+              </Typography>
+              <img 
+                src={mfaSetupDialog.qrCode} 
+                alt="2FA QR Code" 
+                style={{ maxWidth: '200px', height: 'auto' }}
+              />
+              <Typography variant="body2" color="textSecondary" mt={1}>
+                Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
+              </Typography>
+            </Box>
+          )}
+          
+          {mfaSetupDialog.secret && (
+            <Box mb={3}>
+              <Typography variant="h6" gutterBottom>
+                Step 2: Manual Entry (if needed)
+              </Typography>
+              <TextField
+                label="Manual Entry Key"
+                value={mfaSetupDialog.secret}
+                fullWidth
+                InputProps={{
+                  readOnly: true,
+                  endAdornment: (
+                    <IconButton
+                      onClick={() => navigator.clipboard.writeText(mfaSetupDialog.secret)}
+                      size="small"
+                    >
+                      <ContentCopy />
+                    </IconButton>
+                  )
+                }}
+                sx={{ mb: 2 }}
+              />
+              <Typography variant="body2" color="textSecondary">
+                Enter this key manually in your authenticator app if you can't scan the QR code.
+              </Typography>
+            </Box>
+          )}
+          
+          <Box>
+            <Typography variant="h6" gutterBottom>
+              Step 3: Verify Setup
+            </Typography>
+            <TextField
+              label="Verification Code"
+              value={mfaVerifyCode}
+              onChange={(e) => setMfaVerifyCode(e.target.value)}
+              fullWidth
+              placeholder="Enter 6-digit code from your authenticator app"
+              inputProps={{ maxLength: 6, pattern: '[0-9]*' }}
+            />
+            <Typography variant="body2" color="textSecondary" mt={1}>
+              Enter the 6-digit code shown in your authenticator app to complete setup.
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => setMfaSetupDialog({ open: false, qrCode: null, secret: null })}
+            disabled={loading}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleVerifyMfa}
+            variant="contained"
+            disabled={!mfaVerifyCode || mfaVerifyCode.length !== 6 || loading}
+          >
+            Verify & Enable 2FA
           </Button>
         </DialogActions>
       </Dialog>

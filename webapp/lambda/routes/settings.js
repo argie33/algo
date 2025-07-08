@@ -8,6 +8,75 @@ const router = express.Router();
 // Apply authentication middleware to all settings routes
 router.use(authenticateToken);
 
+// 2FA verification middleware for sensitive operations
+const require2FA = async (req, res, next) => {
+  const userId = req.user.sub;
+  const { mfaCode } = req.headers;
+  
+  try {
+    // Check if user has 2FA enabled
+    const userResult = await query(`
+      SELECT two_factor_enabled, two_factor_secret 
+      FROM users 
+      WHERE id = $1
+    `, [userId]);
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+    
+    const user = userResult.rows[0];
+    
+    // If 2FA is not enabled, allow the request but warn
+    if (!user.two_factor_enabled) {
+      console.warn(`⚠️  User ${userId} accessing sensitive operations without 2FA enabled`);
+      return next();
+    }
+    
+    // If 2FA is enabled, require MFA code
+    if (!mfaCode) {
+      return res.status(401).json({
+        success: false,
+        error: 'MFA verification required',
+        requiresMFA: true,
+        message: 'This operation requires 2FA verification. Please provide your authenticator code.'
+      });
+    }
+    
+    // Verify the MFA code
+    const speakeasy = require('speakeasy');
+    const verified = speakeasy.totp.verify({
+      secret: user.two_factor_secret,
+      encoding: 'base32',
+      token: mfaCode,
+      window: 2
+    });
+    
+    if (!verified) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid MFA code',
+        requiresMFA: true,
+        message: 'The provided MFA code is invalid. Please try again.'
+      });
+    }
+    
+    console.log(`🔐 MFA verification successful for user ${userId}`);
+    next();
+    
+  } catch (error) {
+    console.error('❌ Error in 2FA verification middleware:', error);
+    res.status(500).json({
+      success: false,
+      error: 'MFA verification failed',
+      details: error.message
+    });
+  }
+};
+
 // Encryption utilities
 const ALGORITHM = 'aes-256-gcm';
 
@@ -43,8 +112,8 @@ function decryptApiKey(encryptedData, userSalt) {
   return decrypted;
 }
 
-// Get all API keys for authenticated user
-router.get('/api-keys', async (req, res) => {
+// Get all API keys for authenticated user (requires 2FA)
+router.get('/api-keys', require2FA, async (req, res) => {
   console.log('🔍 API Keys fetch requested');
   console.log('📋 Request headers:', {
     authorization: req.headers.authorization ? 'Present' : 'Missing',
@@ -162,8 +231,8 @@ router.get('/api-keys', async (req, res) => {
   }
 });
 
-// Add new API key
-router.post('/api-keys', async (req, res) => {
+// Add new API key (requires 2FA)
+router.post('/api-keys', require2FA, async (req, res) => {
   const userId = req.user.sub;
   const { provider, apiKey, apiSecret, isSandbox = true, description } = req.body;
 
@@ -237,7 +306,7 @@ router.post('/api-keys', async (req, res) => {
 });
 
 // Update API key
-router.put('/api-keys/:keyId', async (req, res) => {
+router.put('/api-keys/:keyId', require2FA, async (req, res) => {
   const userId = req.user.sub;
   const { keyId } = req.params;
   const { description, isSandbox } = req.body;
@@ -275,7 +344,7 @@ router.put('/api-keys/:keyId', async (req, res) => {
 });
 
 // Delete API key
-router.delete('/api-keys/:keyId', async (req, res) => {
+router.delete('/api-keys/:keyId', require2FA, async (req, res) => {
   const userId = req.user.sub;
   const { keyId } = req.params;
 
@@ -657,34 +726,137 @@ router.post('/two-factor/enable', async (req, res) => {
   const userId = req.user.sub;
   
   try {
+    console.log('🔐 Enabling 2FA for user:', userId);
+    
     // Generate a secret for 2FA setup
     const speakeasy = require('speakeasy');
+    const QRCode = require('qrcode');
+    
     const secret = speakeasy.generateSecret({
-      name: 'Financial Platform',
+      name: `Financial Platform (${req.user.email || req.user.username})`,
       account: req.user.email || req.user.username,
+      issuer: 'Financial Platform',
       length: 32
     });
 
-    // Store the secret temporarily (user needs to verify)
+    console.log('🔑 Generated 2FA secret for user');
+
+    // Generate QR code as data URL
+    const qrCodeDataUrl = await QRCode.toDataURL(secret.otpauth_url);
+
+    // Store the secret temporarily (user needs to verify setup)
     await query(`
       UPDATE users 
       SET 
         two_factor_secret = $2,
+        two_factor_enabled = false,
         updated_at = NOW()
       WHERE id = $1
     `, [userId, secret.base32]);
 
+    console.log('✅ 2FA secret stored, awaiting verification');
+
     res.json({
       success: true,
-      message: 'Two-factor authentication setup initiated',
-      qrCode: secret.otpauth_url,
-      manualEntryKey: secret.base32
+      qrCodeUrl: qrCodeDataUrl,
+      manualEntryKey: secret.base32,
+      message: 'Scan the QR code with your authenticator app, then verify with a code to complete setup'
     });
   } catch (error) {
-    console.error('Error enabling two-factor auth:', error);
+    console.error('❌ Error enabling two-factor auth:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to enable two-factor authentication'
+      error: 'Failed to enable two-factor authentication',
+      details: error.message
+    });
+  }
+});
+
+// Verify 2FA setup
+router.post('/two-factor/verify', async (req, res) => {
+  const userId = req.user.sub;
+  const { code } = req.body;
+  
+  try {
+    console.log('🔐 Verifying 2FA setup for user:', userId);
+    
+    if (!code) {
+      return res.status(400).json({
+        success: false,
+        error: 'Verification code is required'
+      });
+    }
+    
+    // Get user's 2FA secret
+    const userResult = await query(`
+      SELECT two_factor_secret 
+      FROM users 
+      WHERE id = $1
+    `, [userId]);
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+    
+    const secret = userResult.rows[0].two_factor_secret;
+    if (!secret) {
+      return res.status(400).json({
+        success: false,
+        error: '2FA setup not initiated. Please enable 2FA first.'
+      });
+    }
+    
+    // Verify the code
+    const speakeasy = require('speakeasy');
+    const verified = speakeasy.totp.verify({
+      secret: secret,
+      encoding: 'base32',
+      token: code,
+      window: 2 // Allow some time drift
+    });
+    
+    if (!verified) {
+      console.log('❌ Invalid 2FA code provided');
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid verification code. Please try again.'
+      });
+    }
+    
+    // Generate recovery codes
+    const crypto = require('crypto');
+    const recoveryCodes = [];
+    for (let i = 0; i < 10; i++) {
+      recoveryCodes.push(crypto.randomBytes(4).toString('hex').toUpperCase());
+    }
+    
+    // Enable 2FA and store recovery codes
+    await query(`
+      UPDATE users 
+      SET 
+        two_factor_enabled = true,
+        recovery_codes = $2,
+        updated_at = NOW()
+      WHERE id = $1
+    `, [userId, JSON.stringify(recoveryCodes)]);
+    
+    console.log('✅ 2FA enabled successfully for user');
+    
+    res.json({
+      success: true,
+      message: '2FA enabled successfully',
+      recoveryCodes: recoveryCodes
+    });
+    
+  } catch (error) {
+    console.error('❌ Error verifying 2FA setup:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to verify 2FA setup',
+      details: error.message
     });
   }
 });
