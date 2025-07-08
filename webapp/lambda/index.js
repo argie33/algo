@@ -35,6 +35,7 @@ const patternsRoutes = require('./routes/patterns');
 const sectorsRoutes = require('./routes/sectors');
 const watchlistRoutes = require('./routes/watchlist');
 const aiAssistantRoutes = require('./routes/ai-assistant');
+const tradesRoutes = require('./routes/trades');
 
 const app = express();
 
@@ -268,6 +269,7 @@ app.use('/price', priceRoutes);
 app.use('/settings', settingsRoutes);
 app.use('/watchlist', watchlistRoutes);
 app.use('/sectors', sectorsRoutes);
+app.use('/trades', tradesRoutes);
 
 // Also mount routes with /api prefix for frontend compatibility
 app.use('/api/health', healthRoutes);
@@ -292,6 +294,7 @@ app.use('/api/patterns', patternsRoutes);
 app.use('/api/watchlist', watchlistRoutes);
 app.use('/api/sectors', sectorsRoutes);
 app.use('/api/ai', aiAssistantRoutes);
+app.use('/api/trades', tradesRoutes);
 
 // Default route
 app.get('/', (req, res) => {
@@ -314,7 +317,8 @@ app.get('/', (req, res) => {
         trading: '/trading',
         technical: '/technical',
         calendar: '/calendar',
-        signals: '/signals'
+        signals: '/signals',
+        trades: '/trades'
       }
     },
     notes: 'Use /health?quick=true for fast status check without database dependency'
