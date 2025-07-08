@@ -79,7 +79,8 @@ def get_db_credentials(secret_arn):
             'port': secret.get('port', 5432),
             'database': secret.get('dbname', 'postgres'),
             'user': secret['username'],
-            'password': secret['password']
+            'password': secret['password'],
+            'sslmode': 'require'
         }
     except Exception as e:
         logger.error(f"Failed to get database credentials: {e}")
