@@ -5,7 +5,7 @@ const { query } = require('../utils/database');
 /**
  * GET /sectors/analysis
  * Comprehensive sector analysis using live data from company_profile, price tables, and technical tables
- * Updated: 2025-07-08 - Trigger deployment
+ * Updated: 2025-07-08 - Trigger original webapp deployment
  */
 router.get('/analysis', async (req, res) => {
     try {
