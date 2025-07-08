@@ -160,7 +160,7 @@ Resources:
                   
                   if tasks['tasks']:
                       task = tasks['tasks'][0]
-                      exit_code = task.get('containers', [{}])[0].get('exitCode', -1)
+                      exit_code = task.get('containers', [{}])[0].get('exitCode')
                       
                       if exit_code == 0:
                           logger.info("Database initialization completed successfully")
@@ -168,6 +168,8 @@ Resources:
                               'TaskArn': task_arn,
                               'Message': 'Database initialized successfully'
                           })
+                      elif exit_code is None:
+                          raise Exception("Task failed to complete - no exit code available")
                       else:
                           raise Exception(f"Task failed with exit code: {exit_code}")
                   else:
