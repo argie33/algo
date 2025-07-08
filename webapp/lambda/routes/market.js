@@ -623,53 +623,101 @@ router.get('/overview', async (req, res) => {
       console.error('Full AAII error:', e);
     }
 
-    // Get market breadth
+    // Optimize market data queries with parallel execution and timeouts
+    console.log('Fetching market breadth and cap data in parallel...');
+    
+    // Get latest date once to avoid repeated subqueries
+    let latestDate = null;
     let marketBreadth = {};
+    let marketCap = {};
+    
     try {
-      console.log('Fetching market breadth data...');
-      const breadthQuery = `
-        SELECT 
-          COUNT(*) as total_stocks,
-          COUNT(CASE WHEN COALESCE(change_percent, percent_change, pct_change, daily_change) > 0 THEN 1 END) as advancing,
-          COUNT(CASE WHEN COALESCE(change_percent, percent_change, pct_change, daily_change) < 0 THEN 1 END) as declining,
-          COUNT(CASE WHEN COALESCE(change_percent, percent_change, pct_change, daily_change) = 0 THEN 1 END) as unchanged,
-          AVG(COALESCE(change_percent, percent_change, pct_change, daily_change)) as average_change_percent
-        FROM market_data
-        WHERE date = (SELECT MAX(date) FROM market_data)
-          AND COALESCE(change_percent, percent_change, pct_change, daily_change) IS NOT NULL
-      `;
-      const breadthResult = await query(breadthQuery);
-      console.log('Market breadth query result:', breadthResult.rows);
+      // Fast latest date lookup with timeout
+      const dateResult = await Promise.race([
+        query('SELECT MAX(date) as latest_date FROM market_data'),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Date query timeout')), 3000))
+      ]);
       
-      if (breadthResult.rows.length > 0 && breadthResult.rows[0].total_stocks > 0) {
-        const breadth = breadthResult.rows[0];
-        const advancing = parseInt(breadth.advancing) || 0;
-        const declining = parseInt(breadth.declining) || 0;
+      latestDate = dateResult.rows[0]?.latest_date;
+      console.log('Latest market data date:', latestDate);
+      
+      if (latestDate) {
+        // Run market breadth and market cap queries in parallel with timeouts
+        const [breadthResult, marketCapResult] = await Promise.allSettled([
+          // Optimized market breadth query
+          Promise.race([
+            query(`
+              SELECT 
+                COUNT(*) as total_stocks,
+                COUNT(CASE WHEN COALESCE(change_percent, percent_change, pct_change, daily_change) > 0 THEN 1 END) as advancing,
+                COUNT(CASE WHEN COALESCE(change_percent, percent_change, pct_change, daily_change) < 0 THEN 1 END) as declining,
+                COUNT(CASE WHEN COALESCE(change_percent, percent_change, pct_change, daily_change) = 0 THEN 1 END) as unchanged,
+                AVG(COALESCE(change_percent, percent_change, pct_change, daily_change)) as average_change_percent
+              FROM market_data
+              WHERE date = $1
+                AND COALESCE(change_percent, percent_change, pct_change, daily_change) IS NOT NULL
+            `, [latestDate]),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Market breadth timeout')), 8000))
+          ]),
+          
+          // Optimized market cap query
+          Promise.race([
+            query(`
+              SELECT 
+                SUM(CASE WHEN market_cap >= 10000000000 THEN market_cap ELSE 0 END) as large_cap,
+                SUM(CASE WHEN market_cap >= 2000000000 AND market_cap < 10000000000 THEN market_cap ELSE 0 END) as mid_cap,
+                SUM(CASE WHEN market_cap < 2000000000 THEN market_cap ELSE 0 END) as small_cap,
+                SUM(market_cap) as total
+              FROM market_data
+              WHERE date = $1 AND market_cap IS NOT NULL
+            `, [latestDate]),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Market cap timeout')), 8000))
+          ])
+        ]);
         
-        marketBreadth = {
-          total_stocks: parseInt(breadth.total_stocks) || 0,
-          advancing: advancing,
-          declining: declining,
-          unchanged: parseInt(breadth.unchanged) || 0,
-          advance_decline_ratio: declining > 0 ? (advancing / declining).toFixed(2) : 'N/A',
-          average_change_percent: breadth.average_change_percent ? parseFloat(breadth.average_change_percent).toFixed(2) : '0.00'
-        };
-        console.log('Market breadth data processed:', marketBreadth);
+        // Process market breadth results
+        if (breadthResult.status === 'fulfilled' && breadthResult.value.rows.length > 0) {
+          const breadth = breadthResult.value.rows[0];
+          const advancing = parseInt(breadth.advancing) || 0;
+          const declining = parseInt(breadth.declining) || 0;
+          
+          marketBreadth = {
+            total_stocks: parseInt(breadth.total_stocks) || 0,
+            advancing: advancing,
+            declining: declining,
+            unchanged: parseInt(breadth.unchanged) || 0,
+            advance_decline_ratio: declining > 0 ? (advancing / declining).toFixed(2) : 'N/A',
+            average_change_percent: breadth.average_change_percent ? parseFloat(breadth.average_change_percent).toFixed(2) : '0.00'
+          };
+          console.log('Market breadth data processed successfully');
+        } else {
+          console.log('Market breadth query failed or returned no data:', breadthResult.reason?.message);
+          throw new Error('No breadth data');
+        }
+        
+        // Process market cap results
+        if (marketCapResult.status === 'fulfilled' && marketCapResult.value.rows.length > 0) {
+          const cap = marketCapResult.value.rows[0];
+          marketCap = {
+            large_cap: parseFloat(cap.large_cap) || 0,
+            mid_cap: parseFloat(cap.mid_cap) || 0,
+            small_cap: parseFloat(cap.small_cap) || 0,
+            total: parseFloat(cap.total) || 0
+          };
+          console.log('Market cap data processed successfully');
+        } else {
+          console.log('Market cap query failed or returned no data:', marketCapResult.reason?.message);
+          throw new Error('No market cap data');
+        }
+        
       } else {
-        console.log('No market breadth data found, using realistic fallback');
-        // Provide realistic fallback data when no market data is available
-        marketBreadth = {
-          total_stocks: 4800,
-          advancing: 2650,
-          declining: 1920,
-          unchanged: 230,
-          advance_decline_ratio: '1.38',
-          average_change_percent: '0.45'
-        };
+        throw new Error('No latest date found');
       }
+      
     } catch (e) {
-      console.error('Market breadth data error:', e.message);
-      console.log('Using fallback breadth data due to error');
+      console.log('Market data queries failed, using fallback data:', e.message);
+      
+      // Realistic fallback data
       marketBreadth = {
         total_stocks: 4800,
         advancing: 2650,
@@ -678,46 +726,12 @@ router.get('/overview', async (req, res) => {
         advance_decline_ratio: '1.38',
         average_change_percent: '0.45'
       };
-    }
-
-    // Get market cap distribution
-    let marketCap = {};
-    try {
-      const marketCapQuery = `
-        SELECT 
-          SUM(CASE WHEN market_cap >= 10000000000 THEN market_cap ELSE 0 END) as large_cap,
-          SUM(CASE WHEN market_cap >= 2000000000 AND market_cap < 10000000000 THEN market_cap ELSE 0 END) as mid_cap,
-          SUM(CASE WHEN market_cap < 2000000000 THEN market_cap ELSE 0 END) as small_cap,
-          SUM(market_cap) as total
-        FROM market_data
-        WHERE date = (SELECT MAX(date) FROM market_data)
-          AND market_cap IS NOT NULL
-      `;
-      const marketCapResult = await query(marketCapQuery);
-      if (marketCapResult.rows.length > 0 && marketCapResult.rows[0].total > 0) {
-        marketCap = {
-          large_cap: parseFloat(marketCapResult.rows[0].large_cap) || 0,
-          mid_cap: parseFloat(marketCapResult.rows[0].mid_cap) || 0,
-          small_cap: parseFloat(marketCapResult.rows[0].small_cap) || 0,
-          total: parseFloat(marketCapResult.rows[0].total) || 0
-        };
-      } else {
-        console.log('No market cap data found, using realistic fallback');
-        // Provide realistic fallback market cap data (approximate US market values in billions)
-        marketCap = {
-          large_cap: 42000000000000, // $42T
-          mid_cap: 8500000000000,    // $8.5T
-          small_cap: 3200000000000,  // $3.2T
-          total: 53700000000000      // $53.7T total
-        };
-      }
-    } catch (e) {
-      console.log('Market cap data error, using fallback:', e.message);
+      
       marketCap = {
-        large_cap: 42000000000000,
-        mid_cap: 8500000000000,
-        small_cap: 3200000000000,
-        total: 53700000000000
+        large_cap: 42000000000000, // $42T
+        mid_cap: 8500000000000,    // $8.5T
+        small_cap: 3200000000000,  // $3.2T
+        total: 53700000000000      // $53.7T total
       };
     }
 
