@@ -125,12 +125,12 @@ const menuItems = [
   { text: 'Educational Content', icon: <HealthAndSafetyIcon />, path: '/research/education', category: 'research' },
   { text: 'Research Reports', icon: <AnalyticsIcon />, path: '/research/reports', category: 'research', premium: true },
   { text: 'Financial Data', icon: <StorageIcon />, path: '/financial-data', category: 'research' },
-  { text: 'Service Health', icon: <HealthAndSafetyIcon />, path: '/service-health', category: 'research' },
   
   // Tools Section
   { text: 'Pattern Recognition', icon: <AnalyticsIcon />, path: '/tools/patterns', category: 'tools', premium: true },
   { text: 'Backtester', icon: <PlayArrow />, path: '/backtest', category: 'tools', premium: true },
   { text: 'AI Assistant', icon: <PsychologyIcon />, path: '/tools/ai', category: 'tools', premium: true },
+  { text: 'Service Health', icon: <HealthAndSafetyIcon />, path: '/service-health', category: 'tools' },
   { text: 'Settings', icon: <SettingsIcon />, path: '/settings', category: 'tools' },
 ]
 

@@ -127,7 +127,7 @@ router.get('/', async (req, res) => {
       });
     }
     const dbTime = Date.now() - dbStart;
-    // Get table information (check existence first) with global timeout
+    // Get table information (optimized with shorter timeout)
     let tables = {};
     try {
       const tableExistenceCheck = await Promise.race([
@@ -135,35 +135,21 @@ router.get('/', async (req, res) => {
           SELECT table_name 
           FROM information_schema.tables 
           WHERE table_schema = 'public' 
-          AND table_name IN (
-            'stock_symbols', 'etf_symbols', 'last_updated',
-            'price_daily', 'price_weekly', 'price_monthly', 'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly', 'price_data_montly',
-            'technical_data_daily', 'technical_data_weekly', 'technical_data_monthly',
-            'annual_balance_sheet', 'annual_income_statement', 'annual_cash_flow',
-            'quarterly_balance_sheet', 'quarterly_income_statement', 'quarterly_cash_flow',
-            'ttm_income_statement', 'ttm_cash_flow',
-            'company_profile', 'market_data', 'key_metrics', 'analyst_estimates', 'governance_scores', 'leadership_team',
-            'earnings_history', 'earnings_estimates', 'revenue_estimates', 'calendar_events', 'earnings_metrics',
-            'fear_greed_index', 'aaii_sentiment', 'naaim', 'economic_data', 'analyst_upgrade_downgrade',
-            'portfolio_holdings', 'portfolio_performance', 'trading_alerts',
-            'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
-            'stock_news', 'stocks',
-            'quality_metrics', 'value_metrics', 'stock_scores',
-            'earnings_quality_metrics', 'balance_sheet_strength', 'profitability_metrics', 'management_effectiveness',
-            'valuation_multiples', 'intrinsic_value_analysis', 'revenue_growth_analysis', 'earnings_growth_analysis',
-            'price_momentum_analysis', 'technical_momentum_analysis', 'analyst_sentiment_analysis', 'social_sentiment_analysis',
-            'institutional_positioning', 'insider_trading_analysis', 'score_performance_tracking', 'market_regime', 'stock_symbols_enhanced',
-            'health_status', 'earnings', 'prices'
-          )
+          ORDER BY table_name
         `),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Table existence check timeout')), 2000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Table existence check timeout')), 3000))
       ]);
       const existingTables = tableExistenceCheck.rows.map(row => row.table_name);
-      if (existingTables.length > 0) {
-        const countQueries = existingTables.map(tableName => 
+      
+      // Only get counts for key tables to avoid timeout
+      const keyTables = ['stock_symbols', 'etf_symbols', 'price_daily', 'portfolio_holdings', 'health_status'];
+      const existingKeyTables = existingTables.filter(table => keyTables.includes(table));
+      
+      if (existingKeyTables.length > 0) {
+        const countQueries = existingKeyTables.map(tableName => 
           Promise.race([
             query(`SELECT COUNT(*) as count FROM ${tableName}`),
-            new Promise((_, reject) => setTimeout(() => reject(new Error(`Count timeout for ${tableName}`)), 3000))
+            new Promise((_, reject) => setTimeout(() => reject(new Error(`Count timeout for ${tableName}`)), 2000))
           ]).then(result => ({
             table: tableName,
             count: parseInt(result.rows[0].count)
@@ -175,37 +161,20 @@ router.get('/', async (req, res) => {
         );
         const tableResults = await Promise.race([
           Promise.all(countQueries),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Table count global timeout')), 10000)) // 10 second timeout
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Table count global timeout')), 5000)) // 5 second timeout
         ]);
         tableResults.forEach(result => {
           tables[result.table] = result.count !== null ? result.count : `Error: ${result.error}`;
         });
       }
-      // Add missing tables as "not_found" - comprehensive list
-      [
-        'stock_symbols', 'etf_symbols', 'last_updated',
-        'price_daily', 'price_weekly', 'price_monthly', 'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly', 'price_data_montly',
-        'technical_data_daily', 'technical_data_weekly', 'technical_data_monthly',
-        'annual_balance_sheet', 'annual_income_statement', 'annual_cash_flow',
-        'quarterly_balance_sheet', 'quarterly_income_statement', 'quarterly_cash_flow',
-        'ttm_income_statement', 'ttm_cash_flow',
-        'company_profile', 'market_data', 'key_metrics', 'analyst_estimates', 'governance_scores', 'leadership_team',
-        'earnings_history', 'earnings_estimates', 'revenue_estimates', 'calendar_events', 'earnings_metrics',
-        'fear_greed_index', 'aaii_sentiment', 'naaim', 'economic_data', 'analyst_upgrade_downgrade',
-        'portfolio_holdings', 'portfolio_performance', 'trading_alerts',
-        'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
-        'stock_news', 'stocks',
-        'quality_metrics', 'value_metrics', 'stock_scores',
-        'earnings_quality_metrics', 'balance_sheet_strength', 'profitability_metrics', 'management_effectiveness',
-        'valuation_multiples', 'intrinsic_value_analysis', 'revenue_growth_analysis', 'earnings_growth_analysis',
-        'price_momentum_analysis', 'technical_momentum_analysis', 'analyst_sentiment_analysis', 'social_sentiment_analysis',
-        'institutional_positioning', 'insider_trading_analysis', 'score_performance_tracking', 'market_regime', 'stock_symbols_enhanced',
-        'health_status', 'earnings', 'prices'
-      ].forEach(tableName => {
-        if (!existingTables.includes(tableName)) {
-          tables[tableName] = 'not_found';
-        }
-      });
+      
+      // Add summary of all tables
+      tables['_summary'] = {
+        total_tables: existingTables.length,
+        key_tables_checked: existingKeyTables.length,
+        all_tables: existingTables
+      };
+      
     } catch (tableError) {
       tables = { error: tableError.message };
     }

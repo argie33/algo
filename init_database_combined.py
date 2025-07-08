@@ -242,6 +242,36 @@ def create_tables_manually(cursor, conn):
         )
     """)
     
+    # Create watchlist tables
+    logger.info("Creating watchlist tables...")
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS watchlists (
+            id SERIAL PRIMARY KEY,
+            user_id VARCHAR(255) NOT NULL,
+            name VARCHAR(255) NOT NULL,
+            description TEXT,
+            color VARCHAR(7) DEFAULT '#1976d2',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, name)
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS watchlist_items (
+            id SERIAL PRIMARY KEY,
+            watchlist_id INTEGER NOT NULL REFERENCES watchlists(id) ON DELETE CASCADE,
+            symbol VARCHAR(10) NOT NULL,
+            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            notes TEXT,
+            alert_price DECIMAL(12,4),
+            alert_type VARCHAR(20) CHECK (alert_type IN ('above', 'below', 'change_percent')),
+            alert_value DECIMAL(12,4),
+            position_order INTEGER DEFAULT 0,
+            UNIQUE(watchlist_id, symbol)
+        )
+    """)
+    
     # Create indexes
     logger.info("Creating indexes...")
     indexes = [
@@ -254,7 +284,10 @@ def create_tables_manually(cursor, conn):
         "CREATE INDEX IF NOT EXISTS idx_portfolio_metadata_user_id ON portfolio_metadata(user_id)",
         "CREATE INDEX IF NOT EXISTS idx_trading_alerts_user_id ON trading_alerts(user_id)",
         "CREATE INDEX IF NOT EXISTS idx_trading_alerts_symbol ON trading_alerts(symbol)",
-        "CREATE INDEX IF NOT EXISTS idx_trading_alerts_active ON trading_alerts(is_active)"
+        "CREATE INDEX IF NOT EXISTS idx_trading_alerts_active ON trading_alerts(is_active)",
+        "CREATE INDEX IF NOT EXISTS idx_watchlists_user_id ON watchlists(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_watchlist_items_watchlist_id ON watchlist_items(watchlist_id)",
+        "CREATE INDEX IF NOT EXISTS idx_watchlist_items_symbol ON watchlist_items(symbol)"
     ]
     
     for index_sql in indexes:
@@ -270,7 +303,9 @@ def verify_tables(cursor):
         'user_api_keys',
         'portfolio_holdings', 
         'portfolio_metadata',
-        'last_updated'
+        'last_updated',
+        'watchlists',
+        'watchlist_items'
     ]
     
     cursor.execute("""
