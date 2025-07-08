@@ -141,6 +141,17 @@ router.get('/summary', async (req, res) => {
         
         console.log('🔍 Executing comprehensive dashboard queries...');
         
+        // Execute queries with individual error handling
+        const executeQuery = async (queryText, name) => {
+            try {
+                const result = await query(queryText);
+                return { success: true, data: result, error: null };
+            } catch (error) {
+                console.warn(`Dashboard query failed for ${name}:`, error.message);
+                return { success: false, data: null, error: error.message };
+            }
+        };
+        
         const [
             marketResult, 
             gainersResult, 
@@ -151,59 +162,60 @@ router.get('/summary', async (req, res) => {
             volumeResult,
             breadthResult
         ] = await Promise.all([
-            query(marketQuery),
-            query(gainersQuery),
-            query(losersQuery),
-            query(sectorQuery),
-            query(earningsQuery),
-            query(sentimentQuery),
-            query(volumeQuery),
-            query(breadthQuery)
+            executeQuery(marketQuery, 'market'),
+            executeQuery(gainersQuery, 'gainers'),
+            executeQuery(losersQuery, 'losers'),
+            executeQuery(sectorQuery, 'sector'),
+            executeQuery(earningsQuery, 'earnings'),
+            executeQuery(sentimentQuery, 'sentiment'),
+            executeQuery(volumeQuery, 'volume'),
+            executeQuery(breadthQuery, 'breadth')
         ]);
         
-        console.log(`✅ Dashboard queries completed: ${marketResult.rowCount} market, ${gainersResult.rowCount} gainers, ${losersResult.rowCount} losers, ${sectorResult.rowCount} sectors, ${earningsResult.rowCount} earnings, ${sentimentResult.rowCount} sentiment, ${volumeResult.rowCount} volume, ${breadthResult.rowCount} breadth`);
+        console.log(`✅ Dashboard queries completed with partial data support`);
         
         const summary = {
-            market_overview: marketResult.rows,
-            top_gainers: gainersResult.rows,
-            top_losers: losersResult.rows,
-            sector_performance: sectorResult.rows,
-            recent_earnings: earningsResult.rows,
-            market_sentiment: sentimentResult.rows[0] || null,
-            volume_leaders: volumeResult.rows,
-            market_breadth: breadthResult.rows[0] || null,
-            timestamp: new Date().toISOString()
+            market_overview: marketResult.success ? marketResult.data.rows : [],
+            top_gainers: gainersResult.success ? gainersResult.data.rows : [],
+            top_losers: losersResult.success ? losersResult.data.rows : [],
+            sector_performance: sectorResult.success ? sectorResult.data.rows : [],
+            recent_earnings: earningsResult.success ? earningsResult.data.rows : [],
+            market_sentiment: sentimentResult.success ? (sentimentResult.data.rows[0] || null) : null,
+            volume_leaders: volumeResult.success ? volumeResult.data.rows : [],
+            market_breadth: breadthResult.success ? (breadthResult.data.rows[0] || null) : null,
+            timestamp: new Date().toISOString(),
+            data_status: {
+                market_overview: marketResult.success,
+                top_gainers: gainersResult.success,
+                top_losers: losersResult.success,
+                sector_performance: sectorResult.success,
+                recent_earnings: earningsResult.success,
+                market_sentiment: sentimentResult.success,
+                volume_leaders: volumeResult.success,
+                market_breadth: breadthResult.success
+            },
+            errors: {
+                market_overview: marketResult.error,
+                top_gainers: gainersResult.error,
+                top_losers: losersResult.error,
+                sector_performance: sectorResult.error,
+                recent_earnings: earningsResult.error,
+                market_sentiment: sentimentResult.error,
+                volume_leaders: volumeResult.error,
+                market_breadth: breadthResult.error
+            }
         };
         
-        console.log('📤 Sending comprehensive dashboard summary response');
-        if (!marketResult || !Array.isArray(marketResult.rows) || marketResult.rows.length === 0) {
-            return res.status(404).json({ error: 'No data found for market overview' });
-        }
-        if (!gainersResult || !Array.isArray(gainersResult.rows) || gainersResult.rows.length === 0) {
-            return res.status(404).json({ error: 'No data found for top gainers' });
-        }
-        if (!losersResult || !Array.isArray(losersResult.rows) || losersResult.rows.length === 0) {
-            return res.status(404).json({ error: 'No data found for top losers' });
-        }
-        if (!sectorResult || !Array.isArray(sectorResult.rows) || sectorResult.rows.length === 0) {
-            return res.status(404).json({ error: 'No data found for sector performance' });
-        }
-        if (!earningsResult || !Array.isArray(earningsResult.rows) || earningsResult.rows.length === 0) {
-            return res.status(404).json({ error: 'No data found for recent earnings' });
-        }
-        if (!sentimentResult || !Array.isArray(sentimentResult.rows) || sentimentResult.rows.length === 0) {
-            return res.status(404).json({ error: 'No data found for market sentiment' });
-        }
-        if (!volumeResult || !Array.isArray(volumeResult.rows) || volumeResult.rows.length === 0) {
-            return res.status(404).json({ error: 'No data found for volume leaders' });
-        }
-        if (!breadthResult || !Array.isArray(breadthResult.rows) || breadthResult.rows.length === 0) {
-            return res.status(404).json({ error: 'No data found for market breadth' });
-        }
-        res.json({
-            success: true,
-            data: summary
-        });
+        console.log('📤 Sending comprehensive dashboard summary response with partial data support');
+        
+        // Count successful queries
+        const successfulQueries = Object.values(summary.data_status).filter(Boolean).length;
+        const totalQueries = Object.keys(summary.data_status).length;
+        
+        console.log(`Dashboard returning ${successfulQueries}/${totalQueries} successful data sections`);
+        
+        // Return partial data - even if some queries failed, show what we can
+        res.json(summary);
         
     } catch (error) {
         console.error('❌ Dashboard summary error:', error);

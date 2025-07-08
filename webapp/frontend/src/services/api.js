@@ -137,6 +137,16 @@ export const getPortfolioPerformance = async (timeframe = '1Y') => {
   }
 };
 
+export const getPortfolioAnalytics = async (timeframe = '1Y') => {
+  try {
+    const response = await api.get(`/api/portfolio/analytics?timeframe=${timeframe}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching portfolio analytics:', error);
+    throw error;
+  }
+};
+
 
 export const getBenchmarkData = async (timeframe = '1Y') => {
   try {

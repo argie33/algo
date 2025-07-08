@@ -1,13 +1,13 @@
 const express = require('express');
 const { query } = require('../utils/database');
-const { authenticateUser } = require('../utils/auth');
+const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
 // Get all watchlists for a user
-router.get('/', authenticateUser, async (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.sub;
     
     const result = await query(`
       SELECT w.*, 
@@ -27,10 +27,10 @@ router.get('/', authenticateUser, async (req, res) => {
 });
 
 // Get watchlist items for a specific watchlist
-router.get('/:id/items', authenticateUser, async (req, res) => {
+router.get('/:id/items', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.id;
+    const userId = req.user.sub;
     
     // First verify the watchlist belongs to the user
     const watchlistResult = await query(`
@@ -60,13 +60,21 @@ router.get('/:id/items', authenticateUser, async (req, res) => {
 });
 
 // Create a new watchlist
-router.post('/', authenticateUser, async (req, res) => {
+router.post('/', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.sub;
     const { name, description, color } = req.body;
     
     if (!name || name.trim() === '') {
       return res.status(400).json({ error: 'Watchlist name is required' });
+    }
+    
+    // Check if database/table is available
+    if (req.dbError) {
+      return res.status(503).json({ 
+        error: 'Watchlist service temporarily unavailable',
+        details: 'Database connection issues - please try again later'
+      });
     }
     
     const result = await query(`
@@ -81,15 +89,18 @@ router.post('/', authenticateUser, async (req, res) => {
       return res.status(409).json({ error: 'Watchlist name already exists' });
     }
     console.error('Error creating watchlist:', error);
-    res.status(500).json({ error: 'Failed to create watchlist' });
+    res.status(500).json({ 
+      error: 'Failed to create watchlist',
+      details: error.message.includes('timeout') ? 'Database timeout - please try again' : 'Internal server error'
+    });
   }
 });
 
 // Update a watchlist
-router.put('/:id', authenticateUser, async (req, res) => {
+router.put('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.id;
+    const userId = req.user.sub;
     const { name, description, color } = req.body;
     
     if (!name || name.trim() === '') {
@@ -118,10 +129,10 @@ router.put('/:id', authenticateUser, async (req, res) => {
 });
 
 // Delete a watchlist
-router.delete('/:id', authenticateUser, async (req, res) => {
+router.delete('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.id;
+    const userId = req.user.sub;
     
     const result = await query(`
       DELETE FROM watchlists 
@@ -141,10 +152,10 @@ router.delete('/:id', authenticateUser, async (req, res) => {
 });
 
 // Add item to watchlist
-router.post('/:id/items', authenticateUser, async (req, res) => {
+router.post('/:id/items', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.id;
+    const userId = req.user.sub;
     const { symbol, notes, alert_price, alert_type, alert_value } = req.body;
     
     if (!symbol || symbol.trim() === '') {
@@ -185,10 +196,10 @@ router.post('/:id/items', authenticateUser, async (req, res) => {
 });
 
 // Update watchlist item
-router.put('/:id/items/:itemId', authenticateUser, async (req, res) => {
+router.put('/:id/items/:itemId', authenticateToken, async (req, res) => {
   try {
     const { id, itemId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user.sub;
     const { notes, alert_price, alert_type, alert_value, position_order } = req.body;
     
     // First verify the watchlist belongs to the user
@@ -219,10 +230,10 @@ router.put('/:id/items/:itemId', authenticateUser, async (req, res) => {
 });
 
 // Delete item from watchlist
-router.delete('/:id/items/:itemId', authenticateUser, async (req, res) => {
+router.delete('/:id/items/:itemId', authenticateToken, async (req, res) => {
   try {
     const { id, itemId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user.sub;
     
     // First verify the watchlist belongs to the user
     const watchlistResult = await query(`
@@ -251,10 +262,10 @@ router.delete('/:id/items/:itemId', authenticateUser, async (req, res) => {
 });
 
 // Reorder watchlist items
-router.post('/:id/items/reorder', authenticateUser, async (req, res) => {
+router.post('/:id/items/reorder', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.id;
+    const userId = req.user.sub;
     const { itemIds } = req.body; // Array of item IDs in new order
     
     if (!Array.isArray(itemIds)) {

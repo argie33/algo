@@ -151,6 +151,28 @@ if (!isProduction) {
 // Global database initialization promise
 let dbInitPromise = null;
 let dbAvailable = false;
+let tableAvailability = {}; // Track which tables are available
+
+// Check availability of specific tables
+const checkTableAvailability = async (tableName) => {
+  if (!dbAvailable) return false;
+  
+  try {
+    const { query } = require('./utils/database');
+    await Promise.race([
+      query(`SELECT 1 FROM ${tableName} LIMIT 1`),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error(`Table ${tableName} check timeout`)), 3000)
+      )
+    ]);
+    tableAvailability[tableName] = true;
+    return true;
+  } catch (error) {
+    console.warn(`Table ${tableName} not available:`, error.message);
+    tableAvailability[tableName] = false;
+    return false;
+  }
+};
 
 // Initialize database connection with shorter timeout
 const ensureDatabase = async () => {
@@ -215,17 +237,11 @@ app.use(async (req, res, next) => {
       return next();
     }
     
-    // For other endpoints, return service unavailable instead of forbidden
-    res.status(503).json({ 
-      error: 'Service temporarily unavailable - database connection failed',
-      message: 'The database is currently unavailable. Please try again later.',
-      timestamp: new Date().toISOString(),
-      details: !isProduction ? error.message : undefined,
-      debug: !isProduction ? {
-        config: error.config,
-        env: error.env
-      } : undefined
-    });
+    // For data endpoints, proceed but mark database as unavailable
+    req.dbError = error;
+    req.dbAvailable = false;
+    console.log('Proceeding with endpoint despite database issues - will return partial data');
+    next();
   }
 });
 
