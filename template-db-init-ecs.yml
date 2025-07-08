@@ -27,8 +27,8 @@ Resources:
       RuntimePlatform:
         CpuArchitecture: ARM64
         OperatingSystemFamily: LINUX
-      ExecutionRoleArn: !ImportValue StocksApp-TaskExecutionRoleArn
-      TaskRoleArn: !ImportValue StocksApp-TaskExecutionRoleArn
+      ExecutionRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: db-init
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref DBInitImageTag]]
@@ -70,7 +70,7 @@ Resources:
                 Action:
                   - iam:PassRole
                 Resource:
-                  - !ImportValue StocksApp-TaskExecutionRoleArn
+                  - !ImportValue StocksApp-EcsTaskExecutionRoleArn
 
   # Lambda function to trigger ECS task
   DBInitTriggerFunction:
