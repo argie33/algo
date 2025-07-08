@@ -220,6 +220,8 @@ Resources:
       LogGroupName: !Sub '/aws/lambda/financial-dashboard-api-dev'
       RetentionInDays: 14
 
+
+
   # IAM Role for Lambda execution
   LambdaExecutionRole:
     Type: AWS::IAM::Role

@@ -373,76 +373,142 @@ jobs:
           echo "  API URL: $API_URL"
           echo "  Website URL: $WEBSITE_URL"
       
-      - name: Initialize Database Tables
+      - name: Check if database initialization is needed
+        id: check_db_changes
         run: |
-          echo "🗄️ Initializing database tables..."
+          echo "🔍 Checking if database initialization is needed..."
           
-          # Install Python3 and venv
-          sudo apt-get update -qq
-          sudo apt-get install -y python3-venv python3-pip
+          # Check if database-related files have changed
+          DB_FILES_CHANGED="false"
           
-          # Create virtual environment and install packages
-          python3 -m venv venv
-          source venv/bin/activate
-          pip install --upgrade pip
-          pip install psycopg2-binary boto3
+          # Files that trigger database initialization
+          DB_TRIGGER_FILES=(
+            "webapp-db-init-ecs.js"
+            "template-webapp-db-init-ecs.yml"
+            "Dockerfile.webapp-db-init"
+            "webapp/lambda/utils/database.js"
+            "webapp/lambda/initDatabase.js"
+          )
           
-          # Set environment variables for database initialization
-          export DB_SECRET_ARN=${{ steps.db_info.outputs.DB_SECRET_ARN }}
-          export AWS_REGION=${{ env.AWS_REGION }}
+          # Check if any DB files changed in the last commit
+          for file in "${DB_TRIGGER_FILES[@]}"; do
+            if git diff --name-only HEAD~1 HEAD | grep -q "$file"; then
+              echo "📝 Database file changed: $file"
+              DB_FILES_CHANGED="true"
+              break
+            fi
+          done
           
-          # Run database initialization script
-          echo "Running database initialization script..."
-          source venv/bin/activate
-          python3 init_database_combined.py
-          INIT_EXIT_CODE=$?
-          
-          if [ $INIT_EXIT_CODE -eq 0 ]; then
-            echo "✅ Python database initialization completed successfully"
-          else
-            echo "❌ Python database initialization FAILED with exit code $INIT_EXIT_CODE"
-            echo "Attempting to verify if tables exist anyway..."
+          # Also check if this is the first deployment (no previous commit)
+          if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+            echo "🆕 First deployment - database initialization required"
+            DB_FILES_CHANGED="true"
           fi
           
-          # Create a simple verification script
-          echo "Creating table verification script..."
-          echo 'import os, sys, json, boto3, psycopg2' > verify_db.py
-          echo 'try:' >> verify_db.py
-          echo '    client = boto3.client("secretsmanager", region_name="us-east-1")' >> verify_db.py
-          echo '    response = client.get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])' >> verify_db.py
-          echo '    secret = json.loads(response["SecretString"])' >> verify_db.py
-          echo '    conn = psycopg2.connect(host=secret["host"], port=secret.get("port", 5432),' >> verify_db.py
-          echo '                            database=secret.get("dbname", "postgres"),' >> verify_db.py
-          echo '                            user=secret["username"], password=secret["password"])' >> verify_db.py
-          echo '    cur = conn.cursor()' >> verify_db.py
-          echo '    cur.execute("SELECT tablename FROM pg_tables WHERE schemaname = %s", ("public",))' >> verify_db.py
-          echo '    tables = [row[0] for row in cur.fetchall()]' >> verify_db.py
-          echo '    print("Existing tables:", tables)' >> verify_db.py
-          echo '    required = ["user_api_keys", "portfolio_holdings", "portfolio_metadata"]' >> verify_db.py
-          echo '    missing = [t for t in required if t not in tables]' >> verify_db.py
-          echo '    if missing:' >> verify_db.py
-          echo '        print("ERROR: Missing required tables:", missing)' >> verify_db.py
-          echo '        sys.exit(1)' >> verify_db.py
-          echo '    else:' >> verify_db.py
-          echo '        print("SUCCESS: All required tables exist")' >> verify_db.py
-          echo '        sys.exit(0)' >> verify_db.py
-          echo 'except Exception as e:' >> verify_db.py
-          echo '    print("ERROR: Failed to check tables:", str(e))' >> verify_db.py
-          echo '    sys.exit(1)' >> verify_db.py
+          # Check if template changed (indicates stack recreation)
+          if git diff --name-only HEAD~1 HEAD | grep -q "template-webapp-lambda.yml"; then
+            echo "🔄 Webapp template changed - database initialization may be needed"
+            DB_FILES_CHANGED="true"
+          fi
           
-          echo "Running table verification..."
-          python3 verify_db.py || echo "WARNING: Table verification failed"
+          echo "db_init_needed=$DB_FILES_CHANGED" >> $GITHUB_OUTPUT
           
-          # Alternative: Run the webapp database setup script
-          if [ -f "webapp/setup-database.js" ]; then
-            echo "Running webapp/setup-database.js..."
-            cd webapp
-            export DB_SECRET_ARN=${{ steps.db_info.outputs.DB_SECRET_ARN }}
-            export AWS_REGION=${{ env.AWS_REGION }}
-            node setup-database.js
-            cd ..
+          if [ "$DB_FILES_CHANGED" = "true" ]; then
+            echo "✅ Database initialization will be triggered"
           else
-            echo "⚠️ webapp/setup-database.js not found, skipping"
+            echo "⏭️  No database changes detected - skipping initialization"
+          fi
+
+      - name: Initialize Database Tables via ECS
+        if: steps.check_db_changes.outputs.db_init_needed == 'true'
+        run: |
+          echo "🗄️ Initializing database tables via ECS task..."
+          
+          # Build and push database initialization image
+          echo "🏗️  Building webapp database initialization image..."
+          
+          # Get ECR repository URI
+          ECR_REPO=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-ContainerRepositoryUri'].Value" \
+            --output text)
+          
+          if [ -z "$ECR_REPO" ]; then
+            echo "❌ Could not get ECR repository URI"
+            exit 1
+          fi
+          
+          # Build image
+          IMAGE_TAG="webapp-db-init-$(date +%Y%m%d-%H%M%S)"
+          docker build -f Dockerfile.webapp-db-init -t "$ECR_REPO:$IMAGE_TAG" .
+          
+          # Push to ECR
+          echo "📤 Pushing image to ECR..."
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $ECR_REPO
+          docker push "$ECR_REPO:$IMAGE_TAG"
+          
+          echo "✅ Image pushed: $ECR_REPO:$IMAGE_TAG"
+          
+          # Deploy the database initialization ECS task
+          echo "🚀 Deploying database initialization ECS task..."
+          
+          DB_INIT_STACK_NAME="${{ env.STACK_NAME }}-db-init"
+          
+          aws cloudformation deploy \
+            --template-file template-webapp-db-init-ecs.yml \
+            --stack-name "$DB_INIT_STACK_NAME" \
+            --parameter-overrides \
+              "EnvironmentName=${{ needs.setup.outputs.environment }}" \
+              "WebappDBInitImageTag=$IMAGE_TAG" \
+            --capabilities CAPABILITY_IAM \
+            --no-fail-on-empty-changeset
+          
+          # Get the trigger Lambda function ARN
+          TRIGGER_FUNCTION_ARN=$(aws cloudformation describe-stacks \
+            --stack-name "$DB_INIT_STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='WebappDBInitTriggerFunctionArn'].OutputValue" \
+            --output text)
+          
+          if [ -z "$TRIGGER_FUNCTION_ARN" ]; then
+            echo "❌ Could not get trigger function ARN"
+            exit 1
+          fi
+          
+          # Invoke the trigger function
+          echo "🎯 Triggering database initialization..."
+          
+          RESPONSE=$(aws lambda invoke \
+            --function-name "$TRIGGER_FUNCTION_ARN" \
+            --payload '{"source": "github-actions", "environment": "${{ needs.setup.outputs.environment }}"}' \
+            --cli-binary-format raw-in-base64-out \
+            response.json)
+          
+          # Check response
+          STATUS_CODE=$(echo "$RESPONSE" | jq -r '.StatusCode // empty')
+          FUNCTION_ERROR=$(echo "$RESPONSE" | jq -r '.FunctionError // empty')
+          
+          echo "Lambda response status: $STATUS_CODE"
+          
+          if [ "$STATUS_CODE" = "200" ] && [ -z "$FUNCTION_ERROR" ] || [ "$FUNCTION_ERROR" = "null" ]; then
+            echo "✅ Database initialization triggered successfully"
+            
+            # Show the response
+            echo "📋 Response:"
+            cat response.json | jq '.' 2>/dev/null || cat response.json
+            
+            # Check if the response indicates success
+            if cat response.json | jq -r '.body' | jq -r '.statusCode' | grep -q "200"; then
+              echo "✅ Database initialization completed successfully"
+            else
+              echo "❌ Database initialization failed"
+              cat response.json | jq -r '.body' | jq -r '.error' || echo "Unknown error"
+              exit 1
+            fi
+          else
+            echo "❌ Database initialization failed"
+            echo "Status: $STATUS_CODE"
+            echo "Error: $FUNCTION_ERROR"
+            cat response.json
+            exit 1
           fi
 ################################################################################
 # 3) Build and deploy Frontend                                                 #
