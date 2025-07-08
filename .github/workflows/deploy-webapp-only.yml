@@ -5,6 +5,7 @@ on:
     branches: [ main, loaddata ]
     paths:
       - 'webapp/**'
+      - '!webapp/../**'
   workflow_dispatch:
 
 permissions:

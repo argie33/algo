@@ -2,7 +2,7 @@
 require('dotenv').config();
 
 // Financial Dashboard API - Lambda Function
-// Updated: 2025-07-08 - Fixed database connection and secret discovery
+// Updated: 2025-07-08 - Fixed database connection and secret discovery - Deploy test
 
 const serverless = require('serverless-http');
 const express = require('express');
