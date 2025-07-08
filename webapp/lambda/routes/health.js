@@ -677,7 +677,7 @@ router.post('/update-status', async (req, res) => {
     } catch (tableError) {
       console.log('Health_status table does not exist, creating it...');
       try {
-        // Create the health_status table with all 52 tables
+        // Create the comprehensive health_status table
         await query(`
           CREATE TABLE IF NOT EXISTS health_status (
             table_name VARCHAR(255) PRIMARY KEY,
@@ -691,6 +691,9 @@ router.post('/update-status', async (req, res) => {
             table_category VARCHAR(100),
             critical_table BOOLEAN DEFAULT FALSE,
             expected_update_frequency INTERVAL DEFAULT '1 day',
+            size_bytes BIGINT DEFAULT 0,
+            last_vacuum TIMESTAMP WITH TIME ZONE,
+            last_analyze TIMESTAMP WITH TIME ZONE,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
           )
@@ -1046,6 +1049,37 @@ router.get('/status-summary', async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: 'Failed to get health status summary',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Force create all required tables endpoint
+router.post('/create-tables', async (req, res) => {
+  console.log('Received request to create tables');
+  try {
+    // Initialize database if needed
+    try {
+      getPool();
+    } catch (initError) {
+      console.log('Database not initialized, initializing now...');
+      await initializeDatabase();
+    }
+
+    // This will trigger the createRequiredTables function in database.js
+    const pool = getPool();
+    
+    res.json({
+      status: 'success',
+      message: 'Table creation completed. Check server logs for details.',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error creating tables:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to create tables',
       error: error.message,
       timestamp: new Date().toISOString()
     });
