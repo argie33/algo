@@ -10,6 +10,7 @@ on:
       - '.github/workflows/deploy-webapp.yml'
       - 'init_database_combined.py'
       - 'init_database_combined.sql'
+      - 'create_trade_analysis_tables.sql'
   workflow_dispatch:
 
 permissions:

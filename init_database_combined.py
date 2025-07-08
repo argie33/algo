@@ -123,6 +123,9 @@ def create_all_tables(conn):
             logger.info("Combined SQL file not found, creating tables manually")
             create_tables_manually(cursor, conn)
         
+        # Create trade analysis tables
+        create_trade_analysis_tables(cursor, conn)
+        
         # Verify critical tables exist
         verify_tables(cursor)
         
@@ -359,6 +362,66 @@ def create_tables_manually(cursor, conn):
         cursor.execute(index_sql)
     
     conn.commit()
+
+def create_trade_analysis_tables(cursor, conn):
+    """Create trade analysis tables for professional trading analytics"""
+    logger.info("Creating trade analysis tables...")
+    
+    try:
+        # Path to the trade analysis SQL file
+        sql_file_path = os.path.join(os.path.dirname(__file__), 'create_trade_analysis_tables.sql')
+        
+        if os.path.exists(sql_file_path):
+            logger.info("Using trade analysis SQL file for table creation")
+            success = execute_sql_file(cursor, conn, sql_file_path)
+            if not success:
+                raise Exception("Failed to execute trade analysis SQL file")
+        else:
+            logger.warning("Trade analysis SQL file not found, skipping trade analysis tables")
+        
+        # Update health status for trade analysis tables
+        trade_tables = [
+            'trade_executions',
+            'position_history', 
+            'trade_analytics',
+            'performance_benchmarks',
+            'trade_insights',
+            'trading_psychology_profiles',
+            'trade_tags',
+            'market_context_snapshots',
+            'broker_api_configs',
+            'risk_alerts_config',
+            'trade_journal_entries'
+        ]
+        
+        for table_name in trade_tables:
+            try:
+                # Check if table exists
+                cursor.execute("""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables 
+                        WHERE table_schema = 'public' 
+                        AND table_name = %s
+                    )
+                """, (table_name,))
+                
+                if cursor.fetchone()[0]:
+                    cursor.execute("""
+                        INSERT INTO health_status (table_name, table_category, critical_table, expected_update_frequency) 
+                        VALUES (%s, 'trade_analysis', %s, '1 hour')
+                        ON CONFLICT (table_name) DO NOTHING
+                    """, (table_name, table_name in ['trade_executions', 'position_history']))
+                    
+            except Exception as e:
+                logger.warning(f"Error setting up health status for {table_name}: {e}")
+        
+        conn.commit()
+        logger.info("Trade analysis tables created successfully!")
+        
+    except Exception as e:
+        logger.error(f"Error creating trade analysis tables: {e}")
+        conn.rollback()
+        raise
 
 def verify_tables(cursor):
     """Verify that critical tables exist"""
