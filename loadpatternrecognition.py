@@ -34,7 +34,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Import our pattern recognition service
 try:
-    from enhanced_pattern_recognition import EnhancedPatternRecognitionService
+    from pattern_recognition_main import PatternRecognitionSystem
     from database_config import get_database_config
     HAS_PATTERN_SERVICE = True
 except ImportError as e:
