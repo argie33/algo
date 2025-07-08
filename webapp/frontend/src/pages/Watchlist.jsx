@@ -62,7 +62,14 @@ import {
   ArrowDownward,
   AttachMoney,
   ShowChart,
-  Assessment
+  Assessment,
+  Info,
+  BarChart,
+  Timeline,
+  Visibility,
+  Business,
+  Schedule,
+  AccountBalance
 } from '@mui/icons-material';
 import { api } from '../services/api';
 import { formatCurrency, formatPercentage } from '../utils/formatters';

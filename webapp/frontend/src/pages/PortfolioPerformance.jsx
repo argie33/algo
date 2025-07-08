@@ -278,6 +278,21 @@ const PortfolioPerformance = () => {
     );
   }
 
+  // Add error boundary
+  if (error && !performanceData) {
+    return (
+      <Container maxWidth="xl">
+        <Box sx={{ py: 4 }}>
+          <Alert severity="error">
+            <Typography variant="h6">Error Loading Portfolio Performance</Typography>
+            <Typography>{error}</Typography>
+            <Button onClick={fetchPerformanceData} sx={{ mt: 2 }}>Retry</Button>
+          </Alert>
+        </Box>
+      </Container>
+    );
+  }
+
   return (
     <Container maxWidth="xl">
       <Box sx={{ mb: 4 }}>

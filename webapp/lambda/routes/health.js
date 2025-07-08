@@ -127,8 +127,11 @@ router.get('/', async (req, res) => {
       });
     }
     const dbTime = Date.now() - dbStart;
-    // Get table information (optimized with shorter timeout)
+    // Get table information with individual timeouts for partial results
     let tables = {};
+    let existingTables = [];
+    
+    // First, try to get list of all tables
     try {
       const tableExistenceCheck = await Promise.race([
         query(`
@@ -137,47 +140,80 @@ router.get('/', async (req, res) => {
           WHERE table_schema = 'public' 
           ORDER BY table_name
         `),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Table existence check timeout')), 3000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Table list timeout')), 2000))
       ]);
-      const existingTables = tableExistenceCheck.rows.map(row => row.table_name);
-      
-      // Only get counts for key tables to avoid timeout
-      const keyTables = ['stock_symbols', 'etf_symbols', 'price_daily', 'portfolio_holdings', 'health_status'];
-      const existingKeyTables = existingTables.filter(table => keyTables.includes(table));
-      
-      if (existingKeyTables.length > 0) {
-        const countQueries = existingKeyTables.map(tableName => 
-          Promise.race([
-            query(`SELECT COUNT(*) as count FROM ${tableName}`),
-            new Promise((_, reject) => setTimeout(() => reject(new Error(`Count timeout for ${tableName}`)), 2000))
-          ]).then(result => ({
-            table: tableName,
-            count: parseInt(result.rows[0].count)
-          })).catch(err => ({
+      existingTables = tableExistenceCheck.rows.map(row => row.table_name);
+      console.log(`Found ${existingTables.length} tables in database`);
+    } catch (listError) {
+      console.error('Failed to get table list:', listError.message);
+      tables['_error'] = `Failed to list tables: ${listError.message}`;
+    }
+    
+    // Define priority tables to check
+    const priorityTables = [
+      'stock_symbols', 'etf_symbols', 'price_daily', 'price_weekly', 
+      'technical_data_daily', 'portfolio_holdings', 'health_status',
+      'company_profile', 'market_data', 'key_metrics', 'annual_income_statement',
+      'quarterly_income_statement', 'fear_greed_index', 'economic_data'
+    ];
+    
+    // Check each table individually to get partial results
+    const tablesToCheck = existingTables.length > 0 ? 
+      [...new Set([...priorityTables.filter(t => existingTables.includes(t)), ...existingTables])] :
+      priorityTables;
+    
+    // Process tables in batches to avoid overwhelming the DB
+    const batchSize = 5;
+    for (let i = 0; i < tablesToCheck.length; i += batchSize) {
+      const batch = tablesToCheck.slice(i, i + batchSize);
+      const batchPromises = batch.map(tableName => {
+        return Promise.race([
+          query(`SELECT COUNT(*) as count FROM "${tableName}" LIMIT 1`)
+            .then(result => ({
+              table: tableName,
+              count: parseInt(result.rows[0].count),
+              status: 'success'
+            }))
+            .catch(err => ({
+              table: tableName,
+              count: null,
+              status: 'error',
+              error: err.message.includes('does not exist') ? 'Table does not exist' : err.message
+            })),
+          new Promise((resolve) => setTimeout(() => resolve({
             table: tableName,
             count: null,
-            error: err.message
-          }))
-        );
-        const tableResults = await Promise.race([
-          Promise.all(countQueries),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Table count global timeout')), 5000)) // 5 second timeout
+            status: 'timeout',
+            error: 'Query timeout (1s)'
+          }), 1000))
         ]);
-        tableResults.forEach(result => {
-          tables[result.table] = result.count !== null ? result.count : `Error: ${result.error}`;
-        });
-      }
+      });
       
-      // Add summary of all tables
-      tables['_summary'] = {
-        total_tables: existingTables.length,
-        key_tables_checked: existingKeyTables.length,
-        all_tables: existingTables
-      };
-      
-    } catch (tableError) {
-      tables = { error: tableError.message };
+      const batchResults = await Promise.all(batchPromises);
+      batchResults.forEach(result => {
+        if (result.status === 'success') {
+          tables[result.table] = result.count;
+        } else {
+          tables[result.table] = `${result.status}: ${result.error}`;
+        }
+      });
     }
+    
+    // Add comprehensive summary
+    const successfulTables = Object.entries(tables).filter(([k, v]) => typeof v === 'number' && k !== '_summary' && k !== '_error');
+    const errorTables = Object.entries(tables).filter(([k, v]) => typeof v === 'string' && k !== '_summary' && k !== '_error');
+    
+    tables['_summary'] = {
+      total_tables: existingTables.length || tablesToCheck.length,
+      tables_checked: tablesToCheck.length,
+      successful_checks: successfulTables.length,
+      failed_checks: errorTables.length,
+      total_records: successfulTables.reduce((sum, [, count]) => sum + count, 0),
+      priority_tables_status: priorityTables.map(t => ({
+        table: t,
+        status: tables[t] !== undefined ? (typeof tables[t] === 'number' ? 'ok' : 'error') : 'not_checked'
+      }))
+    };
     
     // Show all tables instead of filtering
     const filteredTables = tables;
@@ -216,7 +252,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Comprehensive database health check endpoint (RESTORED health_status logic)
+// Comprehensive database health check endpoint with partial results
 router.get('/database', async (req, res) => {
   console.log('Received request for /health/database');
   try {
@@ -247,7 +283,8 @@ router.get('/database', async (req, res) => {
         });
       }
     }
-    // Query health_status table for summary
+    
+    // Initialize response structure
     let summary = {
       total_tables: 0,
       healthy_tables: 0,
@@ -256,54 +293,132 @@ router.get('/database', async (req, res) => {
       error_tables: 0,
       missing_tables: 0,
       total_records: 0,
-      total_missing_data: 0
+      total_missing_data: 0,
+      health_status_available: false
     };
     let tables = {};
+    let healthStatusData = {};
+    
+    // First, try to get data from health_status table if it exists
     try {
-      const result = await query('SELECT * FROM health_status');
-      summary.total_tables = result.rowCount;
-      for (const row of result.rows) {
-        tables[row.table_name] = {
-          status: row.status,
-          record_count: row.record_count,
-          missing_data_count: row.missing_data_count,
-          last_updated: row.last_updated,
-          last_checked: row.last_checked,
-          is_stale: row.is_stale,
-          error: row.error
-        };
-        summary.total_records += row.record_count || 0;
-        summary.total_missing_data += row.missing_data_count || 0;
-        if (row.status === 'healthy') summary.healthy_tables++;
-        else if (row.status === 'stale') summary.stale_tables++;
-        else if (row.status === 'empty') summary.empty_tables++;
-        else if (row.status === 'error') summary.error_tables++;
-        else if (row.status === 'missing') summary.missing_tables++;
+      const healthStatusResult = await Promise.race([
+        query('SELECT * FROM health_status ORDER BY table_name'),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('health_status query timeout')), 3000))
+      ]);
+      
+      if (healthStatusResult.rowCount > 0) {
+        summary.health_status_available = true;
+        summary.total_tables = healthStatusResult.rowCount;
+        
+        for (const row of healthStatusResult.rows) {
+          healthStatusData[row.table_name] = {
+            status: row.status,
+            record_count: row.record_count,
+            missing_data_count: row.missing_data_count,
+            last_updated: row.last_updated,
+            last_checked: row.last_checked,
+            is_stale: row.is_stale,
+            error: row.error
+          };
+          summary.total_records += row.record_count || 0;
+          summary.total_missing_data += row.missing_data_count || 0;
+          if (row.status === 'healthy') summary.healthy_tables++;
+          else if (row.status === 'stale') summary.stale_tables++;
+          else if (row.status === 'empty') summary.empty_tables++;
+          else if (row.status === 'error') summary.error_tables++;
+          else if (row.status === 'missing') summary.missing_tables++;
+        }
       }
-    } catch (err) {
-      // If health_status table is missing or empty, return fallback
-      console.error('Error querying health_status table:', err.message);
-      return res.json({
-        status: 'ok',
-        healthy: true,
-        timestamp: new Date().toISOString(),
-        database: {
-          status: 'connected',
-          tables: {},
-          summary: summary,
-          note: 'health_status table is missing or empty'
-        },
-        api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' },
-        memory: process.memoryUsage(),
-        uptime: process.uptime()
-      });
+    } catch (healthErr) {
+      console.log('health_status table not available or timed out:', healthErr.message);
     }
+    
+    // Get direct table information for comparison or fallback
+    let directTableInfo = {};
+    try {
+      // Get list of all tables
+      const tableList = await Promise.race([
+        query(`
+          SELECT table_name 
+          FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          ORDER BY table_name
+        `),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Table list timeout')), 2000))
+      ]);
+      
+      const existingTables = tableList.rows.map(row => row.table_name);
+      console.log(`Found ${existingTables.length} tables in database`);
+      
+      // Check a subset of important tables directly
+      const importantTables = [
+        'stock_symbols', 'etf_symbols', 'price_daily', 'technical_data_daily',
+        'company_profile', 'market_data', 'fear_greed_index', 'economic_data'
+      ].filter(t => existingTables.includes(t));
+      
+      // Check each table with individual timeout
+      for (const tableName of importantTables.slice(0, 10)) { // Limit to 10 tables
+        try {
+          const countResult = await Promise.race([
+            query(`SELECT COUNT(*) as count FROM "${tableName}"`),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Count timeout')), 1000))
+          ]);
+          directTableInfo[tableName] = {
+            record_count: parseInt(countResult.rows[0].count),
+            status: 'checked'
+          };
+        } catch (tableErr) {
+          directTableInfo[tableName] = {
+            record_count: null,
+            status: 'error',
+            error: tableErr.message
+          };
+        }
+      }
+      
+      // Merge health_status data with direct checks
+      existingTables.forEach(tableName => {
+        if (healthStatusData[tableName]) {
+          tables[tableName] = {
+            ...healthStatusData[tableName],
+            direct_check: directTableInfo[tableName] || { status: 'not_checked' }
+          };
+        } else if (directTableInfo[tableName]) {
+          tables[tableName] = {
+            status: directTableInfo[tableName].record_count > 0 ? 'healthy' : 'empty',
+            record_count: directTableInfo[tableName].record_count,
+            direct_check: directTableInfo[tableName]
+          };
+        } else {
+          tables[tableName] = {
+            status: 'unknown',
+            record_count: null,
+            note: 'Not checked in this request'
+          };
+        }
+      });
+      
+      // Update summary if we have more info
+      if (!summary.health_status_available) {
+        summary.total_tables = existingTables.length;
+        summary.tables_directly_checked = Object.keys(directTableInfo).length;
+      }
+      
+    } catch (err) {
+      console.error('Error getting direct table info:', err.message);
+      // If we have health_status data, use that; otherwise return error
+      if (!summary.health_status_available) {
+        tables['_error'] = `Failed to get table information: ${err.message}`;
+      }
+    }
+    
     return res.json({
       status: 'ok',
       healthy: true,
       timestamp: new Date().toISOString(),
       database: {
         status: 'connected',
+        health_monitoring: summary.health_status_available ? 'active' : 'inactive',
         tables: tables,
         summary: summary
       },

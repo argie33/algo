@@ -7,8 +7,7 @@ import {
   Analytics, PlayArrow, Refresh, Assessment, Timeline, TrendingUp, TrendingDown, Speed, ShowChart, BarChart, Warning, CheckCircle, Info, Settings, ExpandMore, Download as DownloadIcon, Save as SaveIcon, ContentCopy as ContentCopyIcon, HelpOutline, Stop, Share, Delete, Edit, Add, FolderOpen, Person, FileDownload as FileDownloadIcon
 } from '@mui/icons-material';
 import Autocomplete from '@mui/material/Autocomplete';
-import { Line } from 'react-chartjs-2';
-import { Bar } from 'react-chartjs-2';
+import { Line, Bar } from 'react-chartjs-2';
 import CodeMirror from '@uiw/react-codemirror';
 import { python } from '@codemirror/lang-python';
 import { javascript } from '@codemirror/lang-javascript';

@@ -1,5 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { 
+  runPortfolioOptimization, 
+  getOptimizationRecommendations, 
+  executeRebalancing,
+  getPortfolioRiskAnalysis 
+} from '../services/api';
 import {
   Box,
   Container,
@@ -101,19 +107,18 @@ const PortfolioOptimization = () => {
 
   // Optimization parameters
   const [optimizationParams, setOptimizationParams] = useState({
-    objective: 'max_sharpe', // max_sharpe, min_risk, max_return
+    objective: 'maxSharpe', // maxSharpe, minRisk, maxReturn, targetReturn
     riskTolerance: 50, // 1-100
     targetReturn: 10, // percentage
     constraints: {
-      maxSinglePosition: 20, // percentage
-      minSinglePosition: 1, // percentage
-      maxSectorAllocation: 30, // percentage
-      allowShortSelling: false,
-      rebalanceThreshold: 5 // percentage
+      maxWeight: 0.20, // 20% max single position
+      minWeight: 0.01, // 1% min single position
+      allowShorts: false,
+      rebalanceThreshold: 0.05 // 5% threshold
     },
-    timeHorizon: '1Y', // 3M, 6M, 1Y, 2Y, 5Y
-    includeAlternatives: false,
-    excludeList: []
+    lookbackDays: 252, // 1 year of historical data
+    includeAssets: [],
+    excludeAssets: []
   });
 
   useEffect(() => {
@@ -249,47 +254,82 @@ const PortfolioOptimization = () => {
   const handleOptimization = async () => {
     try {
       setOptimizing(true);
+      setError(null);
       
-      const response = await runPortfolioOptimization(optimizationParams);
+      // Call the real optimization API with proper parameters
+      const optimizationRequest = {
+        objective: optimizationParams.objective,
+        constraints: {
+          maxWeight: optimizationParams.constraints.maxWeight,
+          minWeight: optimizationParams.constraints.minWeight,
+          allowShorts: optimizationParams.constraints.allowShorts
+        },
+        includeAssets: optimizationParams.includeAssets,
+        excludeAssets: optimizationParams.excludeAssets,
+        lookbackDays: optimizationParams.lookbackDays
+      };
+      
+      console.log('Running optimization with params:', optimizationRequest);
+      const response = await runPortfolioOptimization(optimizationRequest);
       const results = response?.data || response;
       
-      if (results) {
-        // Transform optimization results
+      if (results && results.success !== false) {
+        // Use real optimization results
+        const optimizationData = results.optimization || results;
+        const currentData = results.currentPortfolio || {};
+        
         const transformedResults = {
           current: {
-            expectedReturn: currentPortfolio?.expectedReturn || 12.5,
-            risk: currentPortfolio?.risk || 18.5,
-            sharpeRatio: currentPortfolio?.sharpeRatio || 1.24
+            expectedReturn: currentData.expectedReturn || currentPortfolio?.expectedReturn || 12.5,
+            risk: currentData.volatility || currentPortfolio?.risk || 18.5,
+            sharpeRatio: currentData.sharpeRatio || currentPortfolio?.sharpeRatio || 1.24
           },
           optimized: {
-            expectedReturn: results.expectedImprovement?.expectedReturn?.optimized || results.expectedReturn || 14.2,
-            risk: results.expectedImprovement?.volatility?.optimized || results.risk || 16.8,
-            sharpeRatio: results.expectedImprovement?.sharpeRatio?.optimized || results.sharpeRatio || 1.45
+            expectedReturn: (optimizationData.expectedReturn || 0.14) * 100, // Convert to percentage
+            risk: (optimizationData.volatility || 0.18) * 100, // Convert to percentage  
+            sharpeRatio: optimizationData.sharpeRatio || 1.45
           }
         };
         
         setOptimizationResults(transformedResults);
         
-        // Set optimized portfolio allocation
-        const optimizedAllocation = results.currentAllocation || results.allocation || [
-          { symbol: 'AAPL', weight: 20.0 },
-          { symbol: 'MSFT', weight: 25.0 },
-          { symbol: 'GOOGL', weight: 15.0 },
-          { symbol: 'AMZN', weight: 18.0 },
-          { symbol: 'TSLA', weight: 12.0 },
-          { symbol: 'JNJ', weight: 10.0 }
-        ];
+        // Set optimized portfolio allocation from real results
+        const optimizedAllocation = optimizationData.weights || [];
+        const formattedAllocation = optimizedAllocation.map(item => ({
+          symbol: item.symbol,
+          weight: typeof item.weight === 'number' ? item.weight : parseFloat(item.weight) || 0
+        }));
         
-        setOptimizedPortfolio({ allocation: optimizedAllocation });
+        setOptimizedPortfolio({ allocation: formattedAllocation });
+        
+        // Update rebalancing recommendations if available
+        if (results.rebalancing && results.rebalancing.length > 0) {
+          const formattedRebalancing = results.rebalancing.map(rec => ({
+            symbol: rec.symbol,
+            currentWeight: rec.currentWeight,
+            targetWeight: rec.targetWeight,
+            difference: rec.targetWeight - rec.currentWeight,
+            action: rec.action,
+            priority: rec.priority || 'Medium'
+          }));
+          setRebalanceRecommendations(formattedRebalancing);
+        }
+        
         setShowResultsDialog(true);
+        
+        // Show insights if available
+        if (results.insights && results.insights.length > 0) {
+          console.log('Optimization insights:', results.insights);
+        }
+        
       } else {
-        throw new Error('No optimization results received');
+        throw new Error(results?.message || results?.error || 'No optimization results received');
       }
     } catch (err) {
-      setError('Failed to run portfolio optimization');
       console.error('Optimization error:', err);
+      setError(`Optimization failed: ${err.message}. Using demo results.`);
       
-      // Show mock optimization results
+      // Fallback to mock results but still show them
       const mockResults = {
         current: {
           expectedReturn: 12.5,
@@ -337,10 +377,10 @@ const PortfolioOptimization = () => {
                   objective: e.target.value
                 })}
               >
-                <MenuItem value="max_sharpe">Maximize Sharpe Ratio</MenuItem>
-                <MenuItem value="min_risk">Minimize Risk</MenuItem>
-                <MenuItem value="max_return">Maximize Return</MenuItem>
-                <MenuItem value="target_return">Target Return</MenuItem>
+                <MenuItem value="maxSharpe">Maximize Sharpe Ratio</MenuItem>
+                <MenuItem value="minRisk">Minimize Risk</MenuItem>
+                <MenuItem value="equalWeight">Equal Weight</MenuItem>
+                <MenuItem value="riskParity">Risk Parity</MenuItem>
               </Select>
             </FormControl>
           </Grid>
@@ -379,7 +419,7 @@ const PortfolioOptimization = () => {
               max={100}
             />
           </Grid>
-          {optimizationParams.objective === 'target_return' && (
+          {optimizationParams.objective === 'targetReturn' && (
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
@@ -406,12 +446,12 @@ const PortfolioOptimization = () => {
               fullWidth
               label="Max Single Position (%)"
               type="number"
-              value={optimizationParams.constraints.maxSinglePosition}
+              value={optimizationParams.constraints.maxWeight * 100}
               onChange={(e) => setOptimizationParams({
                 ...optimizationParams,
                 constraints: {
                   ...optimizationParams.constraints,
-                  maxSinglePosition: parseFloat(e.target.value)
+                  maxWeight: parseFloat(e.target.value) / 100
                 }
               })}
             />
@@ -421,12 +461,12 @@ const PortfolioOptimization = () => {
               fullWidth
               label="Min Single Position (%)"
               type="number"
-              value={optimizationParams.constraints.minSinglePosition}
+              value={optimizationParams.constraints.minWeight * 100}
               onChange={(e) => setOptimizationParams({
                 ...optimizationParams,
                 constraints: {
                   ...optimizationParams.constraints,
-                  minSinglePosition: parseFloat(e.target.value)
+                  minWeight: parseFloat(e.target.value) / 100
                 }
               })}
             />
@@ -434,16 +474,14 @@ const PortfolioOptimization = () => {
           <Grid item xs={12} md={6}>
             <TextField
               fullWidth
-              label="Max Sector Allocation (%)"
+              label="Historical Data Lookback (Days)"
               type="number"
-              value={optimizationParams.constraints.maxSectorAllocation}
+              value={optimizationParams.lookbackDays}
               onChange={(e) => setOptimizationParams({
                 ...optimizationParams,
-                constraints: {
-                  ...optimizationParams.constraints,
-                  maxSectorAllocation: parseFloat(e.target.value)
-                }
+                lookbackDays: parseInt(e.target.value)
               })}
+              helperText="Number of days of historical data to use"
             />
           </Grid>
           <Grid item xs={12} md={6}>
@@ -451,12 +489,12 @@ const PortfolioOptimization = () => {
               fullWidth
               label="Rebalance Threshold (%)"
               type="number"
-              value={optimizationParams.constraints.rebalanceThreshold}
+              value={optimizationParams.constraints.rebalanceThreshold * 100}
               onChange={(e) => setOptimizationParams({
                 ...optimizationParams,
                 constraints: {
                   ...optimizationParams.constraints,
-                  rebalanceThreshold: parseFloat(e.target.value)
+                  rebalanceThreshold: parseFloat(e.target.value) / 100
                 }
               })}
             />
@@ -465,12 +503,12 @@ const PortfolioOptimization = () => {
             <FormControlLabel
               control={
                 <Switch
-                  checked={optimizationParams.constraints.allowShortSelling}
+                  checked={optimizationParams.constraints.allowShorts}
                   onChange={(e) => setOptimizationParams({
                     ...optimizationParams,
                     constraints: {
                       ...optimizationParams.constraints,
-                      allowShortSelling: e.target.checked
+                      allowShorts: e.target.checked
                     }
                   })}
                 />
@@ -479,18 +517,15 @@ const PortfolioOptimization = () => {
             />
           </Grid>
           <Grid item xs={12}>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={optimizationParams.includeAlternatives}
-                  onChange={(e) => setOptimizationParams({
-                    ...optimizationParams,
-                    includeAlternatives: e.target.checked
-                  })}
-                />
-              }
-              label="Include Alternative Investments (REITs, Commodities)"
-            />
+            <Box>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Additional Settings
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Optimization uses Modern Portfolio Theory with real market data.
+                Advanced constraints and alternative assets can be configured via API.
+              </Typography>
+            </Box>
           </Grid>
         </Grid>
       )
@@ -521,15 +556,15 @@ const PortfolioOptimization = () => {
             <ListItem>
               <ListItemIcon><Speed /></ListItemIcon>
               <ListItemText 
-                primary="Time Horizon" 
-                secondary={optimizationParams.timeHorizon} 
+                primary="Lookback Period" 
+                secondary={`${optimizationParams.lookbackDays} days`} 
               />
             </ListItem>
             <ListItem>
               <ListItemIcon><Balance /></ListItemIcon>
               <ListItemText 
                 primary="Max Position Size" 
-                secondary={`${optimizationParams.constraints.maxSinglePosition}%`} 
+                secondary={`${(optimizationParams.constraints.maxWeight * 100).toFixed(1)}%`} 
               />
             </ListItem>
           </List>

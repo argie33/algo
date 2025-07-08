@@ -112,77 +112,145 @@ function ServiceHealth() {
     return () => window.removeEventListener('error', handleError);
   }, []);
 
-  // Cached database health check - uses the backend's cached health_status table
+  // Enhanced comprehensive health checks
   const { data: dbHealth, isLoading: dbLoading, error: dbError, refetch: refetchDb } = useQuery({
     queryKey: ['databaseHealth'],
     queryFn: async () => {
       try {
-        console.log('Starting cached database health check...');
+        console.log('Starting enhanced database health check...');
         
-        // Use the standard api instance but with better error handling
         const response = await api.get('/health/database', {
-          timeout: 15000, // 15 second timeout
-          validateStatus: (status) => status < 500 // Don't throw on 4xx errors
+          timeout: 15000,
+          validateStatus: (status) => status < 500
         });
         
-        console.log('Database health response:', response.data);
-        console.log('Response structure:', {
-          hasData: !!response.data,
-          hasDatabase: !!response.data?.database,
-          hasTables: !!response.data?.database?.tables,
-          hasSummary: !!response.data?.database?.summary,
-          tableCount: response.data?.database?.tables ? Object.keys(response.data.database.tables).length : 0
-        });
-        
-        // Ensure we return a proper object structure
-        if (response.data && typeof response.data === 'object') {
-          return response.data;
-        } else {
-          throw new Error('Invalid response structure from database health endpoint');
-        }
-        
+        return response.data;
       } catch (error) {
         console.error('Database health check failed:', error);
-        console.error('Error details:', {
-          message: error.message,
-          response: error.response?.data,
-          status: error.response?.status
-        });
-        
-        // Return a structured error object instead of throwing
         return {
           error: true,
           message: error.message || 'Unknown database health error',
-          details: error.response?.data || error.response?.status || 'No additional details',
           timestamp: new Date().toISOString(),
-          // Provide fallback data structure that matches the expected format
           database: { 
             status: 'error',
-            currentTime: new Date().toISOString(),
-            postgresVersion: 'unknown',
             tables: {},
             summary: { 
               total_tables: 0, 
               healthy_tables: 0, 
-              stale_tables: 0, 
-              empty_tables: 0,
-              error_tables: 1,
-              missing_tables: 0,
-              total_records: 0,
-              total_missing_data: 0
+              total_records: 0
             }
           }
         };
       }
     },
-    refetchInterval: false,
+    refetchInterval: 60000, // Auto-refresh every minute
     retry: 1,
     staleTime: 30000,
-    enabled: true, // Auto-run on mount
-    // Add error handling to prevent React Query from throwing
-    onError: (error) => {
-      console.error('React Query database health error:', error);
-    }
+    enabled: true
+  });
+
+  // Market API health check
+  const { data: marketHealth, isLoading: marketLoading, refetch: refetchMarket } = useQuery({
+    queryKey: ['marketHealth'],
+    queryFn: async () => {
+      try {
+        const response = await api.get('/market/health', { timeout: 10000 });
+        return response.data;
+      } catch (error) {
+        return {
+          status: 'unhealthy',
+          error: error.message,
+          timestamp: new Date().toISOString()
+        };
+      }
+    },
+    refetchInterval: 60000,
+    retry: 1,
+    staleTime: 30000
+  });
+
+  // Data quality metrics
+  const { data: dataQuality, isLoading: qualityLoading, refetch: refetchQuality } = useQuery({
+    queryKey: ['dataQuality'],
+    queryFn: async () => {
+      try {
+        // Check multiple data sources for quality metrics
+        const [stocksRes, economicRes, pricesRes] = await Promise.all([
+          api.get('/stocks/symbols?limit=1').catch(() => null),
+          api.get('/market/economic?days=7').catch(() => null),
+          api.get('/price/daily/AAPL?days=5').catch(() => null)
+        ]);
+
+        const quality = {
+          stocks: {
+            available: !!stocksRes?.data,
+            count: stocksRes?.data?.symbols?.length || 0,
+            last_updated: stocksRes?.data?.timestamp
+          },
+          economic: {
+            available: !!economicRes?.data,
+            indicators: economicRes?.data?.data?.length || 0,
+            last_updated: economicRes?.data?.timestamp
+          },
+          prices: {
+            available: !!pricesRes?.data,
+            data_points: pricesRes?.data?.data?.length || 0,
+            last_updated: pricesRes?.data?.timestamp
+          }
+        };
+
+        return quality;
+      } catch (error) {
+        return {
+          error: error.message,
+          timestamp: new Date().toISOString()
+        };
+      }
+    },
+    refetchInterval: 120000, // Every 2 minutes
+    retry: 1,
+    staleTime: 60000
+  });
+
+  // API endpoint tests
+  const { data: endpointTests, isLoading: endpointLoading, refetch: refetchEndpoints } = useQuery({
+    queryKey: ['endpointTests'],
+    queryFn: async () => {
+      const endpoints = [
+        { name: 'Health Check', path: '/health', critical: true },
+        { name: 'Stock Symbols', path: '/stocks/symbols?limit=1', critical: true },
+        { name: 'Market Overview', path: '/market/overview', critical: false },
+        { name: 'Economic Data', path: '/market/economic?days=1', critical: false },
+        { name: 'Portfolio Holdings', path: '/portfolio/holdings', critical: false },
+        { name: 'Watchlist', path: '/watchlist', critical: false }
+      ];
+
+      const results = {};
+      for (const endpoint of endpoints) {
+        try {
+          const start = Date.now();
+          const response = await api.get(endpoint.path, { timeout: 5000 });
+          results[endpoint.name] = {
+            status: 'healthy',
+            response_time: Date.now() - start,
+            critical: endpoint.critical,
+            data_available: !!response.data
+          };
+        } catch (error) {
+          results[endpoint.name] = {
+            status: 'unhealthy',
+            error: error.message,
+            critical: endpoint.critical,
+            response_time: null
+          };
+        }
+      }
+
+      return results;
+    },
+    refetchInterval: 180000, // Every 3 minutes
+    retry: 1,
+    staleTime: 120000
   });
 
   // Early return if component has error
@@ -508,6 +576,107 @@ function ServiceHealth() {
               <Typography variant="caption" display="block" sx={{ mt: 1 }} title={import.meta.env.VITE_API_URL || ''}>
                 {import.meta.env.VITE_API_URL ? `API: ${import.meta.env.VITE_API_URL}` : ''}
               </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Enhanced Health Dashboard */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        {/* Market API Health */}
+        <Grid item xs={12} md={4}>
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <Api sx={{ mr: 1, color: marketHealth?.status === 'healthy' ? 'success.main' : 'error.main' }} />
+                <Typography variant="h6">Market API</Typography>
+                <Box sx={{ ml: 'auto' }}>
+                  <Chip 
+                    label={marketHealth?.status || 'Unknown'} 
+                    color={marketHealth?.status === 'healthy' ? 'success' : 'error'}
+                    size="small"
+                  />
+                </Box>
+              </Box>
+              {marketLoading ? (
+                <CircularProgress size={20} />
+              ) : marketHealth?.checks ? (
+                <Box>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Tables with data: {marketHealth.summary?.tables_with_data || 0}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Total records: {formatNumber(marketHealth.summary?.total_records || 0)}
+                  </Typography>
+                </Box>
+              ) : (
+                <Typography variant="body2" color="error">
+                  {marketHealth?.error || 'Market API unavailable'}
+                </Typography>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Data Quality Metrics */}
+        <Grid item xs={12} md={4}>
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <CheckCircle sx={{ mr: 1, color: 'info.main' }} />
+                <Typography variant="h6">Data Quality</Typography>
+              </Box>
+              {qualityLoading ? (
+                <CircularProgress size={20} />
+              ) : dataQuality?.error ? (
+                <Typography variant="body2" color="error">
+                  {dataQuality.error}
+                </Typography>
+              ) : (
+                <Box>
+                  <Typography variant="body2" color="text.secondary">
+                    Stocks: {dataQuality?.stocks?.count || 0} symbols
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Economic: {dataQuality?.economic?.indicators || 0} indicators
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Price data: {dataQuality?.prices?.data_points || 0} points
+                  </Typography>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Endpoint Performance */}
+        <Grid item xs={12} md={4}>
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <Speed sx={{ mr: 1, color: 'warning.main' }} />
+                <Typography variant="h6">Performance</Typography>
+              </Box>
+              {endpointLoading ? (
+                <CircularProgress size={20} />
+              ) : endpointTests ? (
+                <Box>
+                  {Object.entries(endpointTests).map(([name, result]) => (
+                    <Box key={name} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        {name}:
+                      </Typography>
+                      <Typography variant="body2" color={result.status === 'healthy' ? 'success.main' : 'error.main'}>
+                        {result.response_time ? `${result.response_time}ms` : 'Error'}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No performance data
+                </Typography>
+              )}
             </CardContent>
           </Card>
         </Grid>

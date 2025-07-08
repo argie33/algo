@@ -24,6 +24,10 @@ const dataRoutes = require('./routes/data');
 const dashboardRoutes = require('./routes/dashboard');
 const portfolioRoutes = require('./routes/portfolio');
 const sentimentRoutes = require('./routes/sentiment');
+const patternRoutes = require('./routes/patterns');
+const scoreRoutes = require('./routes/scores');
+const backtestRoutes = require('./routes/backtest');
+const settingsRoutes = require('./routes/settings');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -84,6 +88,10 @@ app.use('/api/data', dataRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/portfolio', portfolioRoutes);
 app.use('/api/sentiment', sentimentRoutes);
+app.use('/api/patterns', patternRoutes);
+app.use('/api/scores', scoreRoutes);
+app.use('/api/backtest', backtestRoutes);
+app.use('/api/user', settingsRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -112,7 +120,10 @@ app.get('/api', (req, res) => {
       technical: '/api/technical',
       calendar: '/api/calendar',
       signals: '/api/signals',
-      data: '/api/data'
+      data: '/api/data',
+      patterns: '/api/patterns',
+      scores: '/api/scores',
+      backtest: '/api/backtest'
     },
     timestamp: new Date().toISOString()
   });
@@ -181,7 +192,10 @@ app.get('/', (req, res) => {
         trading: '/api/trading',
         technical: '/api/technical',
         calendar: '/api/calendar',
-        signals: '/api/signals'
+        signals: '/api/signals',
+        patterns: '/api/patterns',
+        scores: '/api/scores',
+        backtest: '/api/backtest'
       }
     },
     notes: 'Use /health?quick=true for fast status check without database dependency'

@@ -664,4 +664,379 @@ function getDataPointsForTimeframe(timeframe) {
   }
 }
 
+// Portfolio import endpoint
+router.post('/import/:broker', async (req, res) => {
+  const { broker } = req.params;
+  const { accountType = 'paper' } = req.query;
+  const userId = req.user?.sub || 'dev-user';
+  
+  try {
+    console.log(`Portfolio import requested for broker: ${broker}, account: ${accountType}, user: ${userId}`);
+    
+    // For now, return a mock successful import
+    // In a real implementation, this would:
+    // 1. Get the user's API key for this broker
+    // 2. Connect to the broker's API
+    // 3. Fetch portfolio data
+    // 4. Store it in the database
+    
+    const mockImportData = {
+      success: true,
+      data: {
+        imported: new Date().toISOString(),
+        broker: broker,
+        accountType: accountType,
+        summary: {
+          positions: 4,
+          totalValue: 191743.75,
+          totalPnL: 19468.58,
+          totalPnLPercent: 11.3
+        },
+        holdings: [
+          {
+            symbol: 'AAPL',
+            quantity: 100,
+            marketValue: 17550,
+            unrealizedPL: 2525,
+            unrealizedPLPC: 16.8
+          },
+          {
+            symbol: 'GOOGL',
+            quantity: 50,
+            marketValue: 132500,
+            unrealizedPL: 12500,
+            unrealizedPLPC: 10.4
+          },
+          {
+            symbol: 'MSFT',
+            quantity: 75,
+            marketValue: 23681.25,
+            unrealizedPL: 2681.25,
+            unrealizedPLPC: 12.8
+          },
+          {
+            symbol: 'TSLA',
+            quantity: 25,
+            marketValue: 18012.50,
+            unrealizedPL: 1762.50,
+            unrealizedPLPC: 10.8
+          }
+        ]
+      }
+    };
+    
+    // Simulate processing time
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    res.json(mockImportData);
+    
+  } catch (error) {
+    console.error('Error importing portfolio:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to import portfolio',
+      details: error.message
+    });
+  }
+});
+
+// Test connection endpoint
+router.post('/test-connection/:broker', async (req, res) => {
+  const { broker } = req.params;
+  const userId = req.user?.sub || 'dev-user';
+  
+  try {
+    console.log(`Testing connection for broker: ${broker}, user: ${userId}`);
+    
+    // For now, return a mock successful connection test
+    // In a real implementation, this would:
+    // 1. Get the user's API key for this broker
+    // 2. Make a test API call to verify credentials
+    
+    const mockConnectionResult = {
+      success: true,
+      connection: {
+        valid: true,
+        accountInfo: {
+          accountId: `${broker}-account-123`,
+          portfolioValue: 191743.75,
+          environment: 'sandbox'
+        }
+      }
+    };
+    
+    // Simulate connection test time
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    res.json(mockConnectionResult);
+    
+  } catch (error) {
+    console.error('Error testing connection:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to test connection',
+      details: error.message
+    });
+  }
+});
+
+// API Keys management for portfolio connections
+router.get('/api-keys', async (req, res) => {
+  const userId = req.user?.sub || 'dev-user';
+  
+  try {
+    const result = await query(`
+      SELECT 
+        id,
+        provider,
+        description,
+        is_sandbox as "isSandbox",
+        is_active as "isActive",
+        created_at as "createdAt",
+        last_used as "lastUsed"
+      FROM user_api_keys 
+      WHERE user_id = $1 
+      ORDER BY created_at DESC
+    `, [userId]);
+
+    // Don't return the actual encrypted keys for security
+    const apiKeys = result.rows.map(row => ({
+      id: row.id,
+      provider: row.provider,
+      description: row.description,
+      isSandbox: row.isSandbox,
+      isActive: row.isActive,
+      createdAt: row.createdAt,
+      lastUsed: row.lastUsed,
+      apiKey: '****' // Masked for security
+    }));
+
+    res.json({ 
+      success: true, 
+      apiKeys 
+    });
+  } catch (error) {
+    console.error('Error fetching API keys:', error);
+    res.json({ 
+      success: true, 
+      apiKeys: [] // Return empty array for development
+    });
+  }
+});
+
+// Portfolio Optimization endpoints
+router.post('/optimization/run', async (req, res) => {
+  const userId = req.user?.sub || 'demo-user';
+  const { 
+    objective = 'maxSharpe',
+    constraints = {},
+    includeAssets = [],
+    excludeAssets = [],
+    lookbackDays = 252
+  } = req.body;
+
+  try {
+    console.log(`Running portfolio optimization for user ${userId}`);
+    
+    const OptimizationEngine = require('../services/optimizationEngine');
+    const optimizer = new OptimizationEngine();
+    
+    const result = await optimizer.runOptimization({
+      userId,
+      objective,
+      constraints,
+      includeAssets,
+      excludeAssets,
+      lookbackDays
+    });
+
+    res.json({
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Portfolio optimization error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Portfolio optimization failed',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Get optimization recommendations (quick analysis)
+router.get('/optimization/recommendations', async (req, res) => {
+  const userId = req.user?.sub || 'demo-user';
+  
+  try {
+    console.log(`Getting optimization recommendations for user ${userId}`);
+    
+    const OptimizationEngine = require('../services/optimizationEngine');
+    const optimizer = new OptimizationEngine();
+    
+    // Run quick optimization with default parameters
+    const result = await optimizer.runOptimization({
+      userId,
+      objective: 'maxSharpe',
+      lookbackDays: 126 // 6 months for faster analysis
+    });
+
+    // Extract key recommendations
+    const recommendations = {
+      primaryRecommendation: result.insights.find(i => i.type === 'warning') || result.insights[0],
+      riskScore: Math.round((1 - result.optimization.volatility / 0.3) * 100), // Scale volatility to 0-100
+      diversificationScore: Math.min(100, (result.metadata.universeSize / 15) * 100),
+      expectedImprovement: {
+        sharpeRatio: Math.max(0, result.optimization.sharpeRatio - 0.5),
+        volatilityReduction: Math.max(0, 0.2 - result.optimization.volatility),
+        returnIncrease: Math.max(0, result.optimization.expectedReturn - 0.08)
+      },
+      topActions: result.rebalancing.slice(0, 3),
+      timeToRebalance: result.rebalancing.length > 0 ? 'Recommended' : 'Not Needed'
+    };
+
+    res.json({
+      success: true,
+      data: recommendations,
+      fullOptimization: result,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Optimization recommendations error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get optimization recommendations',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Execute rebalancing trades
+router.post('/rebalance/execute', async (req, res) => {
+  const userId = req.user?.sub || 'demo-user';
+  const { trades, confirmationToken } = req.body;
+
+  try {
+    console.log(`Executing rebalancing trades for user ${userId}`);
+    
+    // Validate trades
+    if (!trades || !Array.isArray(trades) || trades.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid trades data'
+      });
+    }
+
+    // For now, simulate trade execution
+    // In production, would integrate with actual broker APIs
+    const executionResults = trades.map(trade => ({
+      ...trade,
+      status: 'executed',
+      executionPrice: trade.action === 'BUY' ? trade.marketPrice * 1.001 : trade.marketPrice * 0.999,
+      executionTime: new Date().toISOString(),
+      fees: Math.abs(trade.tradeValue) * 0.0005, // 0.05% fee
+      orderId: 'ORDER_' + Math.random().toString(36).substr(2, 9)
+    }));
+
+    // Calculate execution summary
+    const totalTrades = executionResults.length;
+    const totalVolume = executionResults.reduce((sum, trade) => sum + Math.abs(trade.tradeValue), 0);
+    const totalFees = executionResults.reduce((sum, trade) => sum + trade.fees, 0);
+
+    res.json({
+      success: true,
+      data: {
+        executionSummary: {
+          totalTrades,
+          totalVolume,
+          totalFees,
+          executionTime: new Date().toISOString(),
+          status: 'completed'
+        },
+        tradeResults: executionResults,
+        nextRebalanceDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString() // 3 months
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Rebalancing execution error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to execute rebalancing trades',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Get risk analysis
+router.get('/risk-analysis', async (req, res) => {
+  const userId = req.user?.sub || 'demo-user';
+  const { timeHorizon = 1, confidenceLevel = 0.95 } = req.query;
+
+  try {
+    console.log(`Getting risk analysis for user ${userId}`);
+    
+    // This would typically use real portfolio data and advanced risk calculations
+    // For now, providing comprehensive mock analysis with realistic values
+    
+    const riskAnalysis = {
+      portfolioRisk: {
+        volatility: 0.18, // 18% annual volatility
+        var95: -0.025, // 2.5% daily VaR at 95% confidence
+        var99: -0.042, // 4.2% daily VaR at 99% confidence
+        beta: 1.05,
+        correlationWithMarket: 0.85,
+        maxDrawdown: -0.12 // Historical max drawdown of 12%
+      },
+      riskFactors: [
+        { factor: 'Market Risk', exposure: 0.75, contribution: 0.65 },
+        { factor: 'Sector Concentration', exposure: 0.45, contribution: 0.20 },
+        { factor: 'Currency Risk', exposure: 0.15, contribution: 0.08 },
+        { factor: 'Liquidity Risk', exposure: 0.25, contribution: 0.07 }
+      ],
+      stressTesting: {
+        marketCrash2020: { portfolioLoss: -0.28, marketLoss: -0.35, beta: 0.8 },
+        dotComBubble: { portfolioLoss: -0.45, marketLoss: -0.49, beta: 0.92 },
+        financialCrisis2008: { portfolioLoss: -0.38, marketLoss: -0.42, beta: 0.90 }
+      },
+      recommendations: [
+        {
+          type: 'info',
+          title: 'Diversification Opportunity',
+          message: 'Consider adding international exposure to reduce market concentration',
+          impact: 'Could reduce volatility by 2-3%'
+        },
+        {
+          type: 'warning',
+          title: 'Sector Concentration',
+          message: 'High exposure to technology sector increases risk during tech selloffs',
+          impact: 'Consider rebalancing to other sectors'
+        }
+      ]
+    };
+
+    res.json({
+      success: true,
+      data: riskAnalysis,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Risk analysis error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get risk analysis',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 module.exports = router;

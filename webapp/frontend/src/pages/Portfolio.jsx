@@ -428,8 +428,18 @@ const Portfolio = () => {
     });
 
     if (!isAuthenticated && dataSource !== 'mock') {
-      console.log('🔀 Not authenticated, switching to mock data');
-      setDataSource('mock');
+      console.log('🔀 Not authenticated but dataSource is not mock - using mock data without changing state');
+      // Don't change dataSource here to avoid infinite loop
+      // Just load mock data instead
+      setPortfolioData(mockPortfolioData);
+      setAccountInfo({ 
+        accountType: 'mock', 
+        balance: 250000, 
+        equity: 80500, 
+        dayChange: 1250.75, 
+        dayChangePercent: 1.58 
+      });
+      setLoading(false);
       return;
     }
 
@@ -1520,6 +1530,17 @@ const Portfolio = () => {
     holdingsCount: portfolioData?.holdings?.length || 0,
     accountInfo: accountInfo?.accountType || 'none'
   });
+
+  // Show loading state while auth is loading
+  if (isLoading) {
+    return (
+      <Container maxWidth="xl" sx={{ py: 4 }}>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+          <CircularProgress />
+        </Box>
+      </Container>
+    );
+  }
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>

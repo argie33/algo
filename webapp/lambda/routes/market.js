@@ -286,6 +286,207 @@ router.get('/ping', (req, res) => {
   });
 });
 
+// Comprehensive health check endpoint
+router.get('/health', async (req, res) => {
+  console.log('[MARKET] Health check endpoint called');
+  
+  const healthCheck = {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    checks: {
+      database_connection: { status: 'unknown', message: '', duration_ms: 0 },
+      required_tables: { status: 'unknown', tables: {}, missing: [] },
+      data_availability: { status: 'unknown', tables: {} },
+      api_endpoints: { status: 'unknown', working: [], failing: [] }
+    },
+    summary: {
+      tables_with_data: 0,
+      tables_missing: 0,
+      total_records: 0,
+      last_data_update: null
+    }
+  };
+
+  try {
+    // 1. Test database connection
+    const dbStart = Date.now();
+    try {
+      await query('SELECT 1 as test');
+      healthCheck.checks.database_connection = {
+        status: 'healthy',
+        message: 'Database connection successful',
+        duration_ms: Date.now() - dbStart
+      };
+    } catch (dbError) {
+      healthCheck.checks.database_connection = {
+        status: 'unhealthy',
+        message: `Database connection failed: ${dbError.message}`,
+        duration_ms: Date.now() - dbStart
+      };
+      healthCheck.status = 'unhealthy';
+    }
+
+    // 2. Check required tables
+    const requiredTables = [
+      'market_data', 'economic_data', 'fear_greed_index', 
+      'naaim', 'aaii_sentiment', 'company_profile'
+    ];
+    
+    const tableResults = {};
+    const missingTables = [];
+    
+    for (const tableName of requiredTables) {
+      try {
+        const tableCheck = await query(`
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' AND table_name = $1
+          ) as exists
+        `, [tableName]);
+        
+        const exists = tableCheck.rows[0].exists;
+        tableResults[tableName] = exists;
+        
+        if (!exists) {
+          missingTables.push(tableName);
+        }
+      } catch (error) {
+        tableResults[tableName] = false;
+        missingTables.push(tableName);
+      }
+    }
+    
+    healthCheck.checks.required_tables = {
+      status: missingTables.length === 0 ? 'healthy' : 'degraded',
+      tables: tableResults,
+      missing: missingTables
+    };
+
+    // 3. Check data availability in existing tables
+    let tablesWithData = 0;
+    let totalRecords = 0;
+    const dataAvailability = {};
+    
+    for (const [tableName, exists] of Object.entries(tableResults)) {
+      if (exists) {
+        try {
+          const countResult = await query(`SELECT COUNT(*) as count FROM ${tableName}`);
+          const count = parseInt(countResult.rows[0].count);
+          dataAvailability[tableName] = {
+            record_count: count,
+            status: count > 0 ? 'has_data' : 'empty'
+          };
+          
+          if (count > 0) {
+            tablesWithData++;
+            totalRecords += count;
+            
+            // Try to get last update timestamp
+            try {
+              const timestampCols = ['date', 'timestamp', 'updated_at', 'created_at'];
+              for (const col of timestampCols) {
+                try {
+                  const lastUpdate = await query(`
+                    SELECT ${col} FROM ${tableName} 
+                    ORDER BY ${col} DESC LIMIT 1
+                  `);
+                  if (lastUpdate.rows.length > 0) {
+                    dataAvailability[tableName].last_update = lastUpdate.rows[0][col];
+                    break;
+                  }
+                } catch (e) {
+                  // Try next column
+                }
+              }
+            } catch (e) {
+              // No timestamp data available
+            }
+          }
+        } catch (error) {
+          dataAvailability[tableName] = {
+            status: 'error',
+            error: error.message
+          };
+        }
+      } else {
+        dataAvailability[tableName] = {
+          status: 'table_missing'
+        };
+      }
+    }
+    
+    healthCheck.checks.data_availability = {
+      status: tablesWithData > 0 ? 'healthy' : 'unhealthy',
+      tables: dataAvailability
+    };
+    
+    healthCheck.summary = {
+      tables_with_data: tablesWithData,
+      tables_missing: missingTables.length,
+      total_records: totalRecords,
+      last_data_update: null // Could compute from timestamps
+    };
+
+    // 4. Test key API endpoints (simplified)
+    const workingEndpoints = [];
+    const failingEndpoints = [];
+    
+    // Test if we can generate basic responses
+    try {
+      // Test fear & greed endpoint logic
+      if (tableResults['fear_greed_index']) {
+        workingEndpoints.push('/market/fear-greed');
+      } else {
+        failingEndpoints.push('/market/fear-greed (table missing)');
+      }
+      
+      // Test economic endpoint logic  
+      if (tableResults['economic_data']) {
+        workingEndpoints.push('/market/economic');
+      } else {
+        failingEndpoints.push('/market/economic (table missing)');
+      }
+      
+      // Test overview endpoint logic
+      if (tableResults['market_data']) {
+        workingEndpoints.push('/market/overview');
+      } else {
+        failingEndpoints.push('/market/overview (market_data missing)');
+      }
+      
+    } catch (error) {
+      failingEndpoints.push(`endpoint_test_error: ${error.message}`);
+    }
+    
+    healthCheck.checks.api_endpoints = {
+      status: workingEndpoints.length > 0 ? 'healthy' : 'degraded',
+      working: workingEndpoints,
+      failing: failingEndpoints
+    };
+
+    // Overall status determination
+    if (healthCheck.checks.database_connection.status === 'unhealthy') {
+      healthCheck.status = 'unhealthy';
+    } else if (missingTables.length > 2 || tablesWithData === 0) {
+      healthCheck.status = 'degraded';
+    } else if (failingEndpoints.length > workingEndpoints.length) {
+      healthCheck.status = 'degraded';
+    }
+
+    res.json(healthCheck);
+    
+  } catch (error) {
+    console.error('[MARKET] Health check failed:', error);
+    res.status(500).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      error: 'Health check failed',
+      message: error.message,
+      checks: healthCheck.checks
+    });
+  }
+});
+
 // Get comprehensive market overview with sentiment indicators
 router.get('/overview', async (req, res) => {
   console.log('Market overview endpoint called');
@@ -1959,6 +2160,104 @@ router.get('/research-indicators', async (req, res) => {
       success: false,
       error: 'Failed to fetch market research indicators',
       details: error.message
+    });
+  }
+});
+
+// FRED Economic Data endpoints
+router.get('/economic/fred', async (req, res) => {
+  console.log('[MARKET] FRED economic data endpoint called');
+  
+  try {
+    const FREDService = require('../services/fredService');
+    const fredService = new FREDService();
+    
+    // Try to get real FRED data first
+    try {
+      const data = await fredService.getLatestIndicators();
+      
+      res.json({
+        status: 'ok',
+        data: data,
+        source: 'fred_api',
+        timestamp: new Date().toISOString()
+      });
+    } catch (fredError) {
+      console.log('FRED API unavailable, using mock data:', fredError.message);
+      
+      // Fallback to mock data
+      const mockData = FREDService.generateMockData();
+      
+      res.json({
+        status: 'ok',
+        data: mockData,
+        source: 'mock_data',
+        note: 'FRED API unavailable, using mock data',
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch (error) {
+    console.error('[MARKET] Error in FRED endpoint:', error);
+    res.status(500).json({
+      error: 'Failed to fetch economic data',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Update FRED data endpoint (for admin/maintenance)
+router.post('/economic/fred/update', async (req, res) => {
+  console.log('[MARKET] FRED data update endpoint called');
+  
+  try {
+    const FREDService = require('../services/fredService');
+    const fredService = new FREDService();
+    
+    const result = await fredService.updateAllCoreSeries();
+    
+    res.json({
+      status: 'ok',
+      message: 'FRED data update completed',
+      ...result,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('[MARKET] Error updating FRED data:', error);
+    res.status(500).json({
+      error: 'Failed to update FRED data',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Search FRED series
+router.get('/economic/fred/search', async (req, res) => {
+  const { q: searchText = '', limit = 20 } = req.query;
+  console.log(`[MARKET] FRED search endpoint called for: "${searchText}"`);
+  
+  try {
+    const FREDService = require('../services/fredService');
+    const fredService = new FREDService();
+    
+    const results = await fredService.searchSeries(searchText, parseInt(limit));
+    
+    res.json({
+      status: 'ok',
+      data: {
+        search_text: searchText,
+        results: results,
+        count: results.length
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('[MARKET] Error searching FRED series:', error);
+    res.status(500).json({
+      error: 'Failed to search FRED series',
+      message: error.message,
+      timestamp: new Date().toISOString()
     });
   }
 });

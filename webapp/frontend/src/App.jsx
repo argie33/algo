@@ -107,6 +107,7 @@ const menuItems = [
   { text: 'Technical Analysis', icon: <ShowChartIcon />, path: '/technical', category: 'stocks' },
   { text: 'Trading Signals', icon: <TrendingUpIcon />, path: '/trading', category: 'stocks' },
   { text: 'Stock Scores', icon: <Stars />, path: '/scores', category: 'stocks', premium: true },
+  { text: 'Financial Data', icon: <StorageIcon />, path: '/financial-data', category: 'stocks' },
   { text: 'Earnings Calendar', icon: <EventIcon />, path: '/earnings', category: 'stocks' },
   { text: 'Watchlist', icon: <TimelineIcon />, path: '/watchlist', category: 'stocks' },
   
@@ -125,7 +126,6 @@ const menuItems = [
   { text: 'Market Commentary', icon: <EventIcon />, path: '/research/commentary', category: 'research' },
   { text: 'Educational Content', icon: <HealthAndSafetyIcon />, path: '/research/education', category: 'research' },
   { text: 'Research Reports', icon: <AnalyticsIcon />, path: '/research/reports', category: 'research', premium: true },
-  { text: 'Financial Data', icon: <StorageIcon />, path: '/financial-data', category: 'research' },
   
   // Tools Section
   { text: 'Pattern Recognition', icon: <AnalyticsIcon />, path: '/tools/patterns', category: 'tools', premium: true },

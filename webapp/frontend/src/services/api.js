@@ -2317,6 +2317,178 @@ export const getVolumeData = async (symbol, timeframe) => {
   }
 };
 
+// FRED Economic Data API functions
+export const getFredEconomicData = async () => {
+  console.log('📈 [API] Fetching FRED economic data...');
+  
+  try {
+    const response = await api.get('/api/market/economic/fred');
+    console.log('📈 [API] FRED economic data response:', response.data);
+    
+    return {
+      success: true,
+      data: response.data.data,
+      source: response.data.source,
+      timestamp: response.data.timestamp
+    };
+  } catch (error) {
+    console.error('❌ [API] FRED economic data error:', error);
+    const errorMessage = handleApiError(error, 'get FRED economic data');
+    return { 
+      success: false,
+      data: null, 
+      error: errorMessage,
+      timestamp: new Date().toISOString()
+    };
+  }
+};
+
+export const updateFredData = async () => {
+  console.log('🔄 [API] Updating FRED economic data...');
+  
+  try {
+    const response = await api.post('/api/market/economic/fred/update');
+    console.log('🔄 [API] FRED data update response:', response.data);
+    
+    return {
+      success: true,
+      data: response.data,
+      timestamp: response.data.timestamp
+    };
+  } catch (error) {
+    console.error('❌ [API] FRED data update error:', error);
+    const errorMessage = handleApiError(error, 'update FRED data');
+    return { 
+      success: false,
+      error: errorMessage,
+      timestamp: new Date().toISOString()
+    };
+  }
+};
+
+export const searchFredSeries = async (searchText, limit = 20) => {
+  console.log(`🔍 [API] Searching FRED series for: "${searchText}"`);
+  
+  try {
+    const response = await api.get('/api/market/economic/fred/search', {
+      params: { q: searchText, limit }
+    });
+    console.log('🔍 [API] FRED search response:', response.data);
+    
+    return {
+      success: true,
+      data: response.data.data,
+      timestamp: response.data.timestamp
+    };
+  } catch (error) {
+    console.error('❌ [API] FRED search error:', error);
+    const errorMessage = handleApiError(error, 'search FRED series');
+    return { 
+      success: false,
+      data: { results: [], count: 0 },
+      error: errorMessage,
+      timestamp: new Date().toISOString()
+    };
+  }
+};
+
+// Portfolio Optimization API functions
+export const runPortfolioOptimization = async (params) => {
+  console.log('🎯 [API] Running portfolio optimization...', params);
+  
+  try {
+    const response = await api.post('/api/portfolio/optimization/run', params);
+    console.log('🎯 [API] Portfolio optimization response:', response.data);
+    
+    return {
+      success: true,
+      data: response.data.data,
+      timestamp: response.data.timestamp
+    };
+  } catch (error) {
+    console.error('❌ [API] Portfolio optimization error:', error);
+    const errorMessage = handleApiError(error, 'run portfolio optimization');
+    return { 
+      success: false,
+      error: errorMessage,
+      timestamp: new Date().toISOString()
+    };
+  }
+};
+
+export const getOptimizationRecommendations = async () => {
+  console.log('💡 [API] Getting optimization recommendations...');
+  
+  try {
+    const response = await api.get('/api/portfolio/optimization/recommendations');
+    console.log('💡 [API] Optimization recommendations response:', response.data);
+    
+    return {
+      success: true,
+      data: response.data.data,
+      fullOptimization: response.data.fullOptimization,
+      timestamp: response.data.timestamp
+    };
+  } catch (error) {
+    console.error('❌ [API] Optimization recommendations error:', error);
+    const errorMessage = handleApiError(error, 'get optimization recommendations');
+    return { 
+      success: false,
+      error: errorMessage,
+      timestamp: new Date().toISOString()
+    };
+  }
+};
+
+export const executeRebalancing = async (trades, confirmationToken) => {
+  console.log('⚖️ [API] Executing rebalancing trades...', trades);
+  
+  try {
+    const response = await api.post('/api/portfolio/rebalance/execute', {
+      trades,
+      confirmationToken
+    });
+    console.log('⚖️ [API] Rebalancing execution response:', response.data);
+    
+    return {
+      success: true,
+      data: response.data.data,
+      timestamp: response.data.timestamp
+    };
+  } catch (error) {
+    console.error('❌ [API] Rebalancing execution error:', error);
+    const errorMessage = handleApiError(error, 'execute rebalancing');
+    return { 
+      success: false,
+      error: errorMessage,
+      timestamp: new Date().toISOString()
+    };
+  }
+};
+
+export const getPortfolioRiskAnalysis = async (params = {}) => {
+  console.log('📊 [API] Getting portfolio risk analysis...', params);
+  
+  try {
+    const response = await api.get('/api/portfolio/risk-analysis', { params });
+    console.log('📊 [API] Risk analysis response:', response.data);
+    
+    return {
+      success: true,
+      data: response.data.data,
+      timestamp: response.data.timestamp
+    };
+  } catch (error) {
+    console.error('❌ [API] Risk analysis error:', error);
+    const errorMessage = handleApiError(error, 'get portfolio risk analysis');
+    return { 
+      success: false,
+      error: errorMessage,
+      timestamp: new Date().toISOString()
+    };
+  }
+};
+
 // Support resistance levels
 export const getSupportResistanceLevels = async (symbol) => {
   console.log('🚀 getSupportResistanceLevels: Starting API call...', { symbol });

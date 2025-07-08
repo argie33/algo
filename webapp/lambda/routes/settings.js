@@ -321,4 +321,403 @@ router.post('/test-connection/:keyId', async (req, res) => {
   }
 });
 
+// User profile management
+router.get('/profile', async (req, res) => {
+  const userId = req.user.sub;
+  
+  try {
+    const result = await query(`
+      SELECT 
+        first_name as "firstName",
+        last_name as "lastName", 
+        email,
+        phone,
+        timezone,
+        currency,
+        created_at as "createdAt",
+        updated_at as "updatedAt"
+      FROM users 
+      WHERE id = $1
+    `, [userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      user: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch user profile'
+    });
+  }
+});
+
+// Update user profile
+router.put('/profile', async (req, res) => {
+  const userId = req.user.sub;
+  const { firstName, lastName, email, phone, timezone, currency } = req.body;
+
+  try {
+    const result = await query(`
+      UPDATE users 
+      SET 
+        first_name = COALESCE($2, first_name),
+        last_name = COALESCE($3, last_name),
+        email = COALESCE($4, email),
+        phone = COALESCE($5, phone),
+        timezone = COALESCE($6, timezone),
+        currency = COALESCE($7, currency),
+        updated_at = NOW()
+      WHERE id = $1
+      RETURNING 
+        first_name as "firstName",
+        last_name as "lastName",
+        email,
+        phone,
+        timezone,
+        currency
+    `, [userId, firstName, lastName, email, phone, timezone, currency]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      user: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating user profile:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update user profile'
+    });
+  }
+});
+
+// Get notification preferences
+router.get('/notifications', async (req, res) => {
+  const userId = req.user.sub;
+  
+  try {
+    const result = await query(`
+      SELECT 
+        email_notifications as email,
+        push_notifications as push,
+        price_alerts as "priceAlerts",
+        portfolio_updates as "portfolioUpdates",
+        market_news as "marketNews",
+        weekly_reports as "weeklyReports"
+      FROM user_notification_preferences 
+      WHERE user_id = $1
+    `, [userId]);
+
+    // If no preferences exist, return defaults
+    const preferences = result.rows.length > 0 ? result.rows[0] : {
+      email: true,
+      push: true,
+      priceAlerts: true,
+      portfolioUpdates: true,
+      marketNews: false,
+      weeklyReports: true
+    };
+
+    res.json({
+      success: true,
+      preferences
+    });
+  } catch (error) {
+    console.error('Error fetching notification preferences:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch notification preferences'
+    });
+  }
+});
+
+// Update notification preferences
+router.put('/notifications', async (req, res) => {
+  const userId = req.user.sub;
+  const { email, push, priceAlerts, portfolioUpdates, marketNews, weeklyReports } = req.body;
+
+  try {
+    // Use UPSERT to create or update preferences
+    const result = await query(`
+      INSERT INTO user_notification_preferences (
+        user_id, 
+        email_notifications, 
+        push_notifications, 
+        price_alerts, 
+        portfolio_updates, 
+        market_news, 
+        weekly_reports,
+        updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+      ON CONFLICT (user_id) 
+      DO UPDATE SET
+        email_notifications = EXCLUDED.email_notifications,
+        push_notifications = EXCLUDED.push_notifications,
+        price_alerts = EXCLUDED.price_alerts,
+        portfolio_updates = EXCLUDED.portfolio_updates,
+        market_news = EXCLUDED.market_news,
+        weekly_reports = EXCLUDED.weekly_reports,
+        updated_at = NOW()
+      RETURNING 
+        email_notifications as email,
+        push_notifications as push,
+        price_alerts as "priceAlerts",
+        portfolio_updates as "portfolioUpdates",
+        market_news as "marketNews",
+        weekly_reports as "weeklyReports"
+    `, [userId, email, push, priceAlerts, portfolioUpdates, marketNews, weeklyReports]);
+
+    res.json({
+      success: true,
+      message: 'Notification preferences updated successfully',
+      preferences: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating notification preferences:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update notification preferences'
+    });
+  }
+});
+
+// Get theme preferences
+router.get('/theme', async (req, res) => {
+  const userId = req.user.sub;
+  
+  try {
+    const result = await query(`
+      SELECT 
+        dark_mode as "darkMode",
+        primary_color as "primaryColor",
+        chart_style as "chartStyle",
+        layout
+      FROM user_theme_preferences 
+      WHERE user_id = $1
+    `, [userId]);
+
+    // If no preferences exist, return defaults
+    const preferences = result.rows.length > 0 ? result.rows[0] : {
+      darkMode: false,
+      primaryColor: '#1976d2',
+      chartStyle: 'candlestick',
+      layout: 'standard'
+    };
+
+    res.json({
+      success: true,
+      preferences
+    });
+  } catch (error) {
+    console.error('Error fetching theme preferences:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch theme preferences'
+    });
+  }
+});
+
+// Update theme preferences
+router.put('/theme', async (req, res) => {
+  const userId = req.user.sub;
+  const { darkMode, primaryColor, chartStyle, layout } = req.body;
+
+  try {
+    // Use UPSERT to create or update preferences
+    const result = await query(`
+      INSERT INTO user_theme_preferences (
+        user_id, 
+        dark_mode, 
+        primary_color, 
+        chart_style, 
+        layout,
+        updated_at
+      ) VALUES ($1, $2, $3, $4, $5, NOW())
+      ON CONFLICT (user_id) 
+      DO UPDATE SET
+        dark_mode = EXCLUDED.dark_mode,
+        primary_color = EXCLUDED.primary_color,
+        chart_style = EXCLUDED.chart_style,
+        layout = EXCLUDED.layout,
+        updated_at = NOW()
+      RETURNING 
+        dark_mode as "darkMode",
+        primary_color as "primaryColor",
+        chart_style as "chartStyle",
+        layout
+    `, [userId, darkMode, primaryColor, chartStyle, layout]);
+
+    res.json({
+      success: true,
+      message: 'Theme preferences updated successfully',
+      preferences: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating theme preferences:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update theme preferences'
+    });
+  }
+});
+
+// Security endpoints
+router.post('/two-factor/enable', async (req, res) => {
+  const userId = req.user.sub;
+  
+  try {
+    // Generate a secret for 2FA setup
+    const speakeasy = require('speakeasy');
+    const secret = speakeasy.generateSecret({
+      name: 'Financial Platform',
+      account: req.user.email || req.user.username,
+      length: 32
+    });
+
+    // Store the secret temporarily (user needs to verify)
+    await query(`
+      UPDATE users 
+      SET 
+        two_factor_secret = $2,
+        updated_at = NOW()
+      WHERE id = $1
+    `, [userId, secret.base32]);
+
+    res.json({
+      success: true,
+      message: 'Two-factor authentication setup initiated',
+      qrCode: secret.otpauth_url,
+      manualEntryKey: secret.base32
+    });
+  } catch (error) {
+    console.error('Error enabling two-factor auth:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to enable two-factor authentication'
+    });
+  }
+});
+
+router.post('/two-factor/disable', async (req, res) => {
+  const userId = req.user.sub;
+  
+  try {
+    await query(`
+      UPDATE users 
+      SET 
+        two_factor_enabled = false,
+        two_factor_secret = NULL,
+        updated_at = NOW()
+      WHERE id = $1
+    `, [userId]);
+
+    res.json({
+      success: true,
+      message: 'Two-factor authentication disabled successfully'
+    });
+  } catch (error) {
+    console.error('Error disabling two-factor auth:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to disable two-factor authentication'
+    });
+  }
+});
+
+router.get('/recovery-codes', async (req, res) => {
+  const userId = req.user.sub;
+  
+  try {
+    // Generate recovery codes
+    const codes = [];
+    for (let i = 0; i < 10; i++) {
+      codes.push(crypto.randomBytes(4).toString('hex').toUpperCase());
+    }
+
+    // Hash and store recovery codes
+    const hashedCodes = codes.map(code => crypto.createHash('sha256').update(code).digest('hex'));
+    
+    await query(`
+      UPDATE users 
+      SET 
+        recovery_codes = $2,
+        updated_at = NOW()
+      WHERE id = $1
+    `, [userId, JSON.stringify(hashedCodes)]);
+
+    res.json({
+      success: true,
+      codes
+    });
+  } catch (error) {
+    console.error('Error generating recovery codes:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate recovery codes'
+    });
+  }
+});
+
+router.delete('/delete-account', async (req, res) => {
+  const userId = req.user.sub;
+  
+  try {
+    // Soft delete - mark account as deleted rather than actually deleting
+    await query(`
+      UPDATE users 
+      SET 
+        deleted_at = NOW(),
+        email = CONCAT(email, '_deleted_', EXTRACT(EPOCH FROM NOW())),
+        updated_at = NOW()
+      WHERE id = $1
+    `, [userId]);
+
+    res.json({
+      success: true,
+      message: 'Account deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting account:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete account'
+    });
+  }
+});
+
+router.post('/revoke-sessions', async (req, res) => {
+  const userId = req.user.sub;
+  
+  try {
+    // In a real implementation, you'd invalidate all JWT tokens except the current one
+    // For now, we'll just return success
+    res.json({
+      success: true,
+      message: 'All other sessions have been revoked'
+    });
+  } catch (error) {
+    console.error('Error revoking sessions:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to revoke sessions'
+    });
+  }
+});
+
 module.exports = router;

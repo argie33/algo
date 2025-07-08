@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { getFredEconomicData, updateFredData, searchFredSeries } from '../services/api';
 import {
   Box,
   Container,
@@ -140,10 +141,136 @@ const EconomicModeling = () => {
   const [selectedScenario, setSelectedScenario] = useState('base');
   const [loading, setLoading] = useState(false);
   const [liveUpdates, setLiveUpdates] = useState(false);
-  // ⚠️ MOCK DATA - Using mock economic data
-  const [economicData, setEconomicData] = useState(mockEconomicData);
+  const [economicData, setEconomicData] = useState({});
+  const [fredData, setFredData] = useState(null);
+  const [dataSource, setDataSource] = useState('loading');
+  const [lastUpdated, setLastUpdated] = useState(null);
   const [alertsEnabled, setAlertsEnabled] = useState(true);
   const [confidenceThreshold, setConfidenceThreshold] = useState(70);
+
+  // Load FRED economic data
+  useEffect(() => {
+    loadEconomicData();
+  }, []);
+
+  const loadEconomicData = async () => {
+    setLoading(true);
+    try {
+      const response = await getFredEconomicData();
+      
+      if (response.success && response.data) {
+        setFredData(response.data);
+        setDataSource(response.source);
+        setLastUpdated(response.timestamp);
+        
+        // Transform FRED data to match the component's expected structure
+        const transformedData = transformFredDataForUI(response.data);
+        setEconomicData(transformedData);
+      } else {
+        console.warn('Failed to load FRED data, using mock data');
+        setEconomicData(mockEconomicData);
+        setDataSource('mock_data');
+      }
+    } catch (error) {
+      console.error('Error loading economic data:', error);
+      setEconomicData(mockEconomicData);
+      setDataSource('mock_data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefreshData = async () => {
+    await loadEconomicData();
+  };
+
+  const handleUpdateFredData = async () => {
+    setLoading(true);
+    try {
+      const response = await updateFredData();
+      if (response.success) {
+        // Reload data after update
+        await loadEconomicData();
+      }
+    } catch (error) {
+      console.error('Error updating FRED data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Transform FRED data to match UI expectations
+  const transformFredDataForUI = (fredData) => {
+    if (!fredData.indicators) return mockEconomicData;
+
+    const indicators = fredData.indicators;
+    const derivedMetrics = fredData.derived_metrics || {};
+
+    return {
+      ...mockEconomicData, // Keep structure but replace data
+      leadingIndicators: [
+        {
+          name: 'GDP Growth',
+          value: indicators.GDP?.value || 0,
+          change: '+2.1%',
+          signal: indicators.GDP?.value > 25000 ? 'Positive' : 'Negative',
+          confidence: 'High',
+          impact: 'Major'
+        },
+        {
+          name: 'Unemployment Rate',
+          value: `${indicators.UNRATE?.value || 0}%`,
+          change: '+0.1pp',
+          signal: indicators.UNRATE?.value < 5.0 ? 'Positive' : 'Negative',
+          confidence: 'High',
+          impact: 'Major'
+        },
+        {
+          name: 'Consumer Price Index',
+          value: indicators.CPIAUCSL?.value || 0,
+          change: '+0.3%',
+          signal: indicators.CPIAUCSL?.value < 320 ? 'Positive' : 'Negative',
+          confidence: 'High',
+          impact: 'Major'
+        },
+        {
+          name: 'Federal Funds Rate',
+          value: `${indicators.FEDFUNDS?.value || 0}%`,
+          change: '0.0pp',
+          signal: indicators.FEDFUNDS?.value < 6.0 ? 'Neutral' : 'Negative',
+          confidence: 'High',
+          impact: 'Major'
+        },
+        {
+          name: 'Consumer Sentiment',
+          value: indicators.UMCSENT?.value || 0,
+          change: '+2.1',
+          signal: indicators.UMCSENT?.value > 70 ? 'Positive' : 'Negative',
+          confidence: 'Medium',
+          impact: 'Moderate'
+        },
+        {
+          name: 'Industrial Production',
+          value: indicators.INDPRO?.value || 0,
+          change: '+0.4%',
+          signal: indicators.INDPRO?.value > 100 ? 'Positive' : 'Negative',
+          confidence: 'High',
+          impact: 'Major'
+        }
+      ],
+      yieldCurve: {
+        spread2y10y: derivedMetrics.yield_curve_spread ? Math.round(derivedMetrics.yield_curve_spread * 100) : 120,
+        spread3m10y: derivedMetrics.yield_curve_spread ? Math.round(derivedMetrics.yield_curve_spread * 100) + 20 : 140,
+        inversionProbability: derivedMetrics.yield_curve_inverted ? 85 : 15,
+        historicalContext: derivedMetrics.yield_curve_inverted ? 'Inverted - Historical Recession Predictor' : 'Normal Yield Curve'
+      },
+      ratesData: [
+        { name: '3M', rate: indicators.DGS3MO?.value || 2.8, color: '#8884d8' },
+        { name: '2Y', rate: indicators.DGS2?.value || 3.0, color: '#82ca9d' },
+        { name: '10Y', rate: indicators.DGS10?.value || 4.2, color: '#ffc658' }
+      ]
+    };
+  };
 
   // Calculate composite recession probability
   const compositeRecessionProbability = useMemo(() => {
@@ -246,7 +373,7 @@ const EconomicModeling = () => {
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
-      <Box display="flex" alignItems="center" justifyContent="between" mb={4}>
+      <Box display="flex" alignItems="center" justifyContent="between" mb={3}>
         <Box>
           <Typography variant="h3" component="h1" gutterBottom>
             Economic Modeling & Forecasting
@@ -283,11 +410,63 @@ const EconomicModeling = () => {
             label="Live Updates"
           />
           
-          <IconButton onClick={() => setLoading(true)}>
-            <Refresh />
-          </IconButton>
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={handleRefreshData}
+            startIcon={<Refresh />}
+            disabled={loading}
+          >
+            Refresh
+          </Button>
+          
+          {dataSource === 'fred_api' && (
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={handleUpdateFredData}
+              disabled={loading}
+              color="secondary"
+            >
+              Update FRED Data
+            </Button>
+          )}
         </Box>
       </Box>
+
+      {/* Data Source Information */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent sx={{ py: 2 }}>
+          <Box display="flex" alignItems="center" justifyContent="space-between">
+            <Box display="flex" alignItems="center" gap={2}>
+              <Typography variant="body2" color="text.secondary">
+                Data Source:
+              </Typography>
+              <Chip 
+                label={
+                  dataSource === 'fred_api' ? 'Federal Reserve Economic Data (FRED)' : 
+                  dataSource === 'mock_data' ? 'Mock Data' : 'Loading...'
+                }
+                color={dataSource === 'fred_api' ? 'success' : dataSource === 'mock_data' ? 'warning' : 'default'}
+                size="small"
+              />
+              {lastUpdated && (
+                <Typography variant="caption" color="text.secondary">
+                  Last Updated: {new Date(lastUpdated).toLocaleString()}
+                </Typography>
+              )}
+            </Box>
+            
+            {loading && <CircularProgress size={20} />}
+          </Box>
+          
+          {dataSource === 'mock_data' && (
+            <Alert severity="info" sx={{ mt: 2 }}>
+              Using mock data. To get real-time FRED data, set the FRED_API_KEY environment variable.
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Critical Alerts */}
       {alertsEnabled && compositeRecessionProbability > 40 && (
