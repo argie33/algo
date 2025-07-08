@@ -383,11 +383,8 @@ jobs:
           
           # Files that trigger database initialization
           DB_TRIGGER_FILES=(
-            "webapp-db-init-ecs.js"
-            "template-webapp-db-init-ecs.yml"
-            "Dockerfile.webapp-db-init"
             "webapp/lambda/utils/database.js"
-            "webapp/lambda/initDatabase.js"
+            "init_database.py"
           )
           
           # Check if any DB files changed in the last commit
@@ -419,95 +416,49 @@ jobs:
             echo "⏭️  No database changes detected - skipping initialization"
           fi
 
-      - name: Initialize Database Tables via ECS
+      - name: Initialize Database Tables via Python Script
         if: steps.check_db_changes.outputs.db_init_needed == 'true'
         run: |
-          echo "🗄️ Initializing database tables via ECS task..."
+          echo "🗄️ Initializing database tables via Python script..."
           
-          # Build and push database initialization image
-          echo "🏗️  Building webapp database initialization image..."
-          
-          # Get ECR repository URI
-          ECR_REPO=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksCore-ContainerRepositoryUri'].Value" \
+          # Get database connection info from stacks
+          DB_SECRET_ARN=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-SecretArn'].Value" \
+            --output text)
+          DB_ENDPOINT=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-DBEndpoint'].Value" \
             --output text)
           
-          if [ -z "$ECR_REPO" ]; then
-            echo "❌ Could not get ECR repository URI"
+          if [[ -z "$DB_SECRET_ARN" || "$DB_SECRET_ARN" == "None" ]]; then
+            echo "❌ Failed to get database secret ARN from app stack exports"
             exit 1
           fi
           
-          # Build image
-          IMAGE_TAG="webapp-db-init-$(date +%Y%m%d-%H%M%S)"
-          docker build -f Dockerfile.webapp-db-init -t "$ECR_REPO:$IMAGE_TAG" .
-          
-          # Push to ECR
-          echo "📤 Pushing image to ECR..."
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $ECR_REPO
-          docker push "$ECR_REPO:$IMAGE_TAG"
-          
-          echo "✅ Image pushed: $ECR_REPO:$IMAGE_TAG"
-          
-          # Deploy the database initialization ECS task
-          echo "🚀 Deploying database initialization ECS task..."
-          
-          DB_INIT_STACK_NAME="${{ env.STACK_NAME }}-db-init"
-          
-          aws cloudformation deploy \
-            --template-file template-webapp-db-init-ecs.yml \
-            --stack-name "$DB_INIT_STACK_NAME" \
-            --parameter-overrides \
-              "EnvironmentName=${{ needs.setup.outputs.environment }}" \
-              "WebappDBInitImageTag=$IMAGE_TAG" \
-            --capabilities CAPABILITY_IAM \
-            --no-fail-on-empty-changeset
-          
-          # Get the trigger Lambda function ARN
-          TRIGGER_FUNCTION_ARN=$(aws cloudformation describe-stacks \
-            --stack-name "$DB_INIT_STACK_NAME" \
-            --query "Stacks[0].Outputs[?OutputKey=='WebappDBInitTriggerFunctionArn'].OutputValue" \
-            --output text)
-          
-          if [ -z "$TRIGGER_FUNCTION_ARN" ]; then
-            echo "❌ Could not get trigger function ARN"
+          if [[ -z "$DB_ENDPOINT" || "$DB_ENDPOINT" == "None" ]]; then
+            echo "❌ Failed to get database endpoint from app stack exports"
             exit 1
           fi
           
-          # Invoke the trigger function
-          echo "🎯 Triggering database initialization..."
+          echo "Using database secret: $DB_SECRET_ARN"
+          echo "Using database endpoint: $DB_ENDPOINT"
           
-          RESPONSE=$(aws lambda invoke \
-            --function-name "$TRIGGER_FUNCTION_ARN" \
-            --payload '{"source": "github-actions", "environment": "${{ needs.setup.outputs.environment }}"}' \
-            --cli-binary-format raw-in-base64-out \
-            response.json)
+          # Install Python dependencies
+          pip install boto3 psycopg2-binary
           
-          # Check response
-          STATUS_CODE=$(echo "$RESPONSE" | jq -r '.StatusCode // empty')
-          FUNCTION_ERROR=$(echo "$RESPONSE" | jq -r '.FunctionError // empty')
+          # Set environment variables for the script
+          export DB_SECRET_ARN="$DB_SECRET_ARN"
+          export DB_ENDPOINT="$DB_ENDPOINT"
+          export AWS_REGION="${{ env.AWS_REGION }}"
           
-          echo "Lambda response status: $STATUS_CODE"
+          # Run the database initialization script
+          echo "🎯 Running database initialization script..."
           
-          if [ "$STATUS_CODE" = "200" ] && [ -z "$FUNCTION_ERROR" ] || [ "$FUNCTION_ERROR" = "null" ]; then
-            echo "✅ Database initialization triggered successfully"
-            
-            # Show the response
-            echo "📋 Response:"
-            cat response.json | jq '.' 2>/dev/null || cat response.json
-            
-            # Check if the response indicates success
-            if cat response.json | jq -r '.body' | jq -r '.statusCode' | grep -q "200"; then
-              echo "✅ Database initialization completed successfully"
-            else
-              echo "❌ Database initialization failed"
-              cat response.json | jq -r '.body' | jq -r '.error' || echo "Unknown error"
-              exit 1
-            fi
+          python init_database.py
+          
+          if [ $? -eq 0 ]; then
+            echo "✅ Database initialization completed successfully"
           else
             echo "❌ Database initialization failed"
-            echo "Status: $STATUS_CODE"
-            echo "Error: $FUNCTION_ERROR"
-            cat response.json
             exit 1
           fi
 ################################################################################
