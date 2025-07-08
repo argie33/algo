@@ -2,7 +2,7 @@
 require('dotenv').config();
 
 // Financial Dashboard API - Lambda Function
-// Updated: 2025-06-25 - Fixed CORS configuration for API Gateway
+// Updated: 2025-07-08 - Fixed database connection and secret discovery
 
 const serverless = require('serverless-http');
 const express = require('express');
