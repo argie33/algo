@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { getFredEconomicData, updateFredData, searchFredSeries } from '../services/api';
+import { getFredEconomicData, updateFredData, searchFredSeries, getEconomicCalendar } from '../services/api';
 import {
   Box,
   Container,
@@ -156,19 +156,39 @@ const EconomicModeling = () => {
   const loadEconomicData = async () => {
     setLoading(true);
     try {
-      const response = await getFredEconomicData();
+      // Load both FRED data and economic calendar in parallel
+      const [fredResponse, calendarResponse] = await Promise.all([
+        getFredEconomicData(),
+        getEconomicCalendar(30) // Get next 30 days of economic events
+      ]);
       
-      if (response.success && response.data) {
-        setFredData(response.data);
-        setDataSource(response.source);
-        setLastUpdated(response.timestamp);
+      if (fredResponse.success && fredResponse.data) {
+        setFredData(fredResponse.data);
+        setDataSource(fredResponse.source);
+        setLastUpdated(fredResponse.timestamp);
         
         // Transform FRED data to match the component's expected structure
-        const transformedData = transformFredDataForUI(response.data);
+        const transformedData = transformFredDataForUI(fredResponse.data);
+        
+        // Add calendar data to the transformed data
+        if (calendarResponse.success && calendarResponse.data) {
+          transformedData.upcomingEvents = transformCalendarData(calendarResponse.data);
+        } else {
+          console.warn('Failed to load calendar data, using mock calendar data');
+          transformedData.upcomingEvents = mockEconomicData.upcomingEvents;
+        }
+        
         setEconomicData(transformedData);
       } else {
         console.warn('Failed to load FRED data, using mock data');
-        setEconomicData(mockEconomicData);
+        const mockData = { ...mockEconomicData };
+        
+        // Try to use real calendar data even if FRED data failed
+        if (calendarResponse.success && calendarResponse.data) {
+          mockData.upcomingEvents = transformCalendarData(calendarResponse.data);
+        }
+        
+        setEconomicData(mockData);
         setDataSource('mock_data');
       }
     } catch (error) {
@@ -182,6 +202,52 @@ const EconomicModeling = () => {
 
   const handleRefreshData = async () => {
     await loadEconomicData();
+  };
+
+  const transformCalendarData = (calendarData) => {
+    if (!calendarData || !Array.isArray(calendarData)) {
+      return mockEconomicData.upcomingEvents;
+    }
+
+    return calendarData.slice(0, 10).map(event => {
+      // Format date
+      let displayDate = 'TBD';
+      let displayTime = '';
+      
+      if (event.date) {
+        const eventDate = new Date(event.date);
+        displayDate = eventDate.toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric', 
+          year: 'numeric' 
+        });
+      }
+      
+      if (event.time) {
+        displayTime = event.time.substring(0, 5); // Format HH:MM
+      }
+
+      // Create forecast text
+      let forecast = '';
+      if (event.forecast && event.previous) {
+        forecast = `${event.forecast} expected (prev: ${event.previous})`;
+      } else if (event.forecast) {
+        forecast = `${event.forecast} expected`;
+      } else if (event.description) {
+        forecast = event.description;
+      }
+
+      return {
+        event: event.event || event.event_name,
+        date: displayDate,
+        time: displayTime || 'TBD',
+        importance: event.importance || 'Medium',
+        forecast: forecast,
+        category: event.category,
+        source: event.source,
+        country: event.country || 'US'
+      };
+    });
   };
 
   const handleUpdateFredData = async () => {

@@ -2344,6 +2344,61 @@ export const searchFredSeries = async (searchText, limit = 20) => {
   }
 };
 
+export const getEconomicCalendar = async (days = 30, importance = null, category = null) => {
+  console.log(`📅 [API] Fetching economic calendar for ${days} days...`);
+  
+  try {
+    const params = { days };
+    if (importance) params.importance = importance;
+    if (category) params.category = category;
+    
+    // Try multiple endpoint variations for Lambda compatibility
+    const endpoints = ['/api/market/calendar', '/market/calendar'];
+    
+    let response = null;
+    let lastError = null;
+    
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`📅 [API] Trying calendar endpoint: ${endpoint}`);
+        response = await api.get(endpoint, { params });
+        console.log(`📅 [API] SUCCESS with calendar endpoint: ${endpoint}`, response);
+        break;
+      } catch (err) {
+        console.log(`📅 [API] FAILED calendar endpoint: ${endpoint}`, err.message);
+        lastError = err;
+        continue;
+      }
+    }
+    
+    if (!response) {
+      console.error('📅 [API] All calendar endpoints failed:', lastError);
+      throw lastError;
+    }
+    
+    console.log('📅 [API] Economic calendar response:', response.data);
+    
+    return {
+      success: true,
+      data: response.data.data,
+      count: response.data.count,
+      source: response.data.source,
+      filters: response.data.filters,
+      timestamp: new Date().toISOString()
+    };
+  } catch (error) {
+    console.error('❌ [API] Economic calendar error:', error);
+    const errorMessage = handleApiError(error, 'get economic calendar');
+    return { 
+      success: false,
+      data: [],
+      count: 0,
+      error: errorMessage,
+      timestamp: new Date().toISOString()
+    };
+  }
+};
+
 // Portfolio Optimization API functions
 export const runPortfolioOptimization = async (params) => {
   console.log('🎯 [API] Running portfolio optimization...', params);

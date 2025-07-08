@@ -251,6 +251,31 @@ CREATE TABLE IF NOT EXISTS earnings (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Create economic calendar table for upcoming events
+CREATE TABLE IF NOT EXISTS economic_calendar (
+    id SERIAL PRIMARY KEY,
+    event_id VARCHAR(50) UNIQUE,
+    event_name VARCHAR(255) NOT NULL,
+    country VARCHAR(10) DEFAULT 'US',
+    category VARCHAR(100), -- 'monetary_policy', 'employment', 'inflation', 'gdp', 'housing', 'manufacturing', 'consumer'
+    importance VARCHAR(20) NOT NULL, -- 'Low', 'Medium', 'High', 'Critical'
+    currency VARCHAR(3) DEFAULT 'USD',
+    event_date DATE NOT NULL,
+    event_time TIME,
+    timezone VARCHAR(50) DEFAULT 'America/New_York',
+    actual_value VARCHAR(100),
+    forecast_value VARCHAR(100),
+    previous_value VARCHAR(100),
+    unit VARCHAR(50), -- '%', 'K', 'M', 'B', 'Index', 'Points'
+    frequency VARCHAR(20), -- 'Monthly', 'Quarterly', 'Yearly', 'Weekly'
+    source VARCHAR(100), -- 'BLS', 'Fed', 'Commerce', 'Treasury', etc.
+    description TEXT,
+    impact_analysis TEXT,
+    is_revised BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS prices (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(10) NOT NULL,
@@ -442,6 +467,10 @@ CREATE INDEX IF NOT EXISTS idx_technical_data_weekly_symbol_date ON technical_da
 CREATE INDEX IF NOT EXISTS idx_technical_data_monthly_symbol_date ON technical_data_monthly(symbol, date);
 CREATE INDEX IF NOT EXISTS idx_earnings_symbol ON earnings(symbol);
 CREATE INDEX IF NOT EXISTS idx_prices_symbol_date ON prices(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_economic_calendar_event_date ON economic_calendar(event_date);
+CREATE INDEX IF NOT EXISTS idx_economic_calendar_importance ON economic_calendar(importance);
+CREATE INDEX IF NOT EXISTS idx_economic_calendar_category ON economic_calendar(category);
+CREATE INDEX IF NOT EXISTS idx_economic_calendar_country ON economic_calendar(country);
 
 -- API keys and portfolio indexes
 CREATE INDEX IF NOT EXISTS idx_user_api_keys_user_id ON user_api_keys(user_id);
@@ -504,6 +533,7 @@ INSERT INTO health_status (table_name, table_category, critical_table, expected_
 ('stocks', 'other', false, '1 day'),
 ('earnings', 'test', false, '1 day'),
 ('prices', 'test', false, '1 day'),
+('economic_calendar', 'economic', true, '1 day'),
 
 -- Price & Market Data Tables
 ('price_weekly', 'prices', true, '1 week'),

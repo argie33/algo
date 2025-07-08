@@ -1492,31 +1492,144 @@ router.get('/volatility', async (req, res) => {
 // Get economic calendar
 router.get('/calendar', async (req, res) => {
   try {
-    // Mock economic calendar data for now
-    const calendarData = [
-      {
-        event: 'FOMC Rate Decision',
-        date: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(),
-        importance: 'High',
-        currency: 'USD'
-      },
-      {
-        event: 'Nonfarm Payrolls',
-        date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
-        importance: 'High',
-        currency: 'USD'
-      },
-      {
-        event: 'CPI Data',
-        date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        importance: 'Medium',
-        currency: 'USD'
-      }
-    ];
+    console.log('📅 Economic calendar endpoint called');
+    
+    // Check if economic_calendar table exists
+    const tableExists = await checkRequiredTables(['economic_calendar']);
+    
+    if (!tableExists.economic_calendar) {
+      console.log('⚠️ Economic calendar table not found, returning mock data');
+      
+      // Mock economic calendar data for fallback
+      const calendarData = [
+        {
+          event: 'FOMC Rate Decision',
+          date: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(),
+          time: '14:00',
+          importance: 'High',
+          currency: 'USD',
+          category: 'monetary_policy',
+          forecast: '5.00-5.25%',
+          previous: '5.25-5.50%',
+          country: 'US',
+          source: 'Federal Reserve'
+        },
+        {
+          event: 'Nonfarm Payrolls',
+          date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
+          time: '08:30',
+          importance: 'High',
+          currency: 'USD',
+          category: 'employment',
+          forecast: '160K',
+          previous: '227K',
+          country: 'US',
+          source: 'Bureau of Labor Statistics'
+        },
+        {
+          event: 'Consumer Price Index',
+          date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          time: '08:30',
+          importance: 'High',
+          currency: 'USD',
+          category: 'inflation',
+          forecast: '2.4% Y/Y',
+          previous: '2.6% Y/Y',
+          country: 'US',
+          source: 'Bureau of Labor Statistics'
+        }
+      ];
+
+      return res.json({
+        data: calendarData,
+        count: calendarData.length,
+        source: 'mock'
+      });
+    }
+
+    // Get upcoming events from database
+    const days = parseInt(req.query.days) || 30;
+    const importance = req.query.importance;
+    const category = req.query.category;
+    
+    let whereClause = 'WHERE event_date >= CURRENT_DATE';
+    let queryParams = [days];
+    let paramCount = 1;
+
+    if (importance) {
+      whereClause += ` AND importance = $${++paramCount}`;
+      queryParams.push(importance);
+    }
+
+    if (category) {
+      whereClause += ` AND category = $${++paramCount}`;
+      queryParams.push(category);
+    }
+
+    const calendarQuery = `
+      SELECT 
+        event_id,
+        event_name,
+        country,
+        category,
+        importance,
+        currency,
+        event_date,
+        event_time,
+        timezone,
+        actual_value,
+        forecast_value,
+        previous_value,
+        unit,
+        frequency,
+        source,
+        description,
+        is_revised,
+        created_at,
+        updated_at
+      FROM economic_calendar
+      ${whereClause}
+      AND event_date <= CURRENT_DATE + INTERVAL '$1 days'
+      ORDER BY event_date ASC, event_time ASC
+      LIMIT 100
+    `;
+
+    const result = await query(calendarQuery, queryParams);
+    
+    // Format the results
+    const calendarData = result.rows.map(row => ({
+      event_id: row.event_id,
+      event: row.event_name,
+      date: row.event_date,
+      time: row.event_time,
+      importance: row.importance,
+      currency: row.currency,
+      category: row.category,
+      country: row.country,
+      forecast: row.forecast_value,
+      previous: row.previous_value,
+      actual: row.actual_value,
+      unit: row.unit,
+      frequency: row.frequency,
+      source: row.source,
+      description: row.description,
+      is_revised: row.is_revised,
+      timezone: row.timezone,
+      created_at: row.created_at,
+      updated_at: row.updated_at
+    }));
+
+    console.log(`✅ Retrieved ${calendarData.length} economic calendar events`);
 
     res.json({
       data: calendarData,
-      count: calendarData.length
+      count: calendarData.length,
+      source: 'database',
+      filters: {
+        days,
+        importance,
+        category
+      }
     });
   } catch (error) {
     console.error('Error fetching economic calendar:', error);
