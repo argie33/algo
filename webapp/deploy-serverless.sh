@@ -152,15 +152,32 @@ EOF
 deploy_infrastructure() {
     log_info "Deploying infrastructure..."
     
-    # Get database secret ARN
+    # Get database secret ARN - try multiple patterns
     log_info "Looking up database secret..."
-    DB_SECRET_ARN=$(aws secretsmanager list-secrets \
-        --query "SecretList[?contains(Name, 'rds-db-credentials')].ARN | [0]" \
+    
+    # Try CloudFormation exports first
+    DB_SECRET_ARN=$(aws cloudformation list-exports \
+        --query "Exports[?Name=='StocksApp-SecretArn'].Value | [0]" \
         --output text \
-        --region $AWS_REGION)
+        --region $AWS_REGION 2>/dev/null || echo "None")
+    
+    # If not found, try common patterns
+    if [ "$DB_SECRET_ARN" = "None" ] || [ -z "$DB_SECRET_ARN" ]; then
+        POSSIBLE_PATTERNS=("stocks-db-secrets" "rds-db-credentials")
+        for pattern in "${POSSIBLE_PATTERNS[@]}"; do
+            DB_SECRET_ARN=$(aws secretsmanager list-secrets \
+                --query "SecretList[?contains(Name, '${pattern}')].ARN | [0]" \
+                --output text \
+                --region $AWS_REGION 2>/dev/null || echo "None")
+            
+            if [ "$DB_SECRET_ARN" != "None" ] && [ -n "$DB_SECRET_ARN" ]; then
+                break
+            fi
+        done
+    fi
     
     if [ "$DB_SECRET_ARN" = "None" ] || [ -z "$DB_SECRET_ARN" ]; then
-        log_error "Database secret not found. Please ensure RDS is deployed first."
+        log_error "Database secret not found. Please ensure the stocks-app CloudFormation stack is deployed."
         exit 1
     fi
     

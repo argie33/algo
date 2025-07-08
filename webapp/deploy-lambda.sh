@@ -71,6 +71,7 @@ DB_SECRET_ARN=""
 
 # Try different possible secret names
 POSSIBLE_SECRETS=(
+    "stocks-db-secrets"
     "rds-db-credentials/financial-dashboard"
     "financial-dashboard-db"
     "stocks-db-credentials"
@@ -91,18 +92,21 @@ for secret_pattern in "${POSSIBLE_SECRETS[@]}"; do
 done
 
 if [ -z "$DB_SECRET_ARN" ] || [ "$DB_SECRET_ARN" = "None" ]; then
-    log_warning "Database secret not found. Creating mock secret for deployment..."
+    log_warning "Database secret not found in patterns. Trying CloudFormation exports..."
     
-    # Create a temporary secret for deployment
-    DB_SECRET_ARN=$(aws secretsmanager create-secret \
-        --name "financial-dashboard-db-temp" \
-        --description "Temporary database secret for Lambda deployment" \
-        --secret-string '{"host":"localhost","port":"5432","username":"user","password":"pass","dbname":"stocks"}' \
-        --query "ARN" \
+    # Try to get from CloudFormation exports
+    DB_SECRET_ARN=$(aws cloudformation list-exports \
+        --query "Exports[?Name=='StocksApp-SecretArn'].Value | [0]" \
         --output text \
-        --region $AWS_REGION)
+        --region $AWS_REGION 2>/dev/null || echo "None")
     
-    log_warning "Created temporary secret: $DB_SECRET_ARN"
+    if [ "$DB_SECRET_ARN" != "None" ] && [ -n "$DB_SECRET_ARN" ]; then
+        log_info "Found database secret from CloudFormation: $DB_SECRET_ARN"
+    else
+        log_error "Database secret not found in CloudFormation exports either!"
+        log_error "Please ensure the stocks-app CloudFormation stack is deployed."
+        exit 1
+    fi
 fi
 
 # Deploy Lambda function
