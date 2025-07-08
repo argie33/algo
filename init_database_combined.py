@@ -10,6 +10,7 @@ import sys
 import json
 import subprocess
 import logging
+import time
 from datetime import datetime
 
 # Configure logging
@@ -80,7 +81,7 @@ def get_db_credentials(secret_arn):
             'database': secret.get('dbname', 'postgres'),
             'user': secret['username'],
             'password': secret['password'],
-            'sslmode': 'require'
+            'connect_timeout': 10
         }
     except Exception as e:
         logger.error(f"Failed to get database credentials: {e}")
@@ -518,10 +519,29 @@ def main():
             logger.error("Failed to get database configuration")
             sys.exit(1)
         
-        # Connect to database
+        # Connect to database with retry logic
         logger.info(f"Connecting to database at {db_config['host']}:{db_config['port']}")
-        conn = psycopg2.connect(**db_config)
-        conn.autocommit = False
+        max_retries = 3
+        retry_delay = 10
+        
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"Connection attempt {attempt + 1}/{max_retries}")
+                conn = psycopg2.connect(**db_config)
+                conn.autocommit = False
+                logger.info("Database connection successful!")
+                break
+            except psycopg2.OperationalError as e:
+                if attempt < max_retries - 1:
+                    logger.warning(f"Connection attempt {attempt + 1} failed: {e}")
+                    logger.info(f"Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                else:
+                    logger.error(f"All connection attempts failed. Last error: {e}")
+                    raise
+        else:
+            logger.error("Failed to establish database connection after all retries")
+            raise Exception("Database connection failed")
         
         # Create all database tables
         create_all_tables(conn)
