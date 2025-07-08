@@ -1,4 +1,5 @@
 #!/usr/bin/env python3 
+# Weekly technicals loader - deployment test v1 - updated to trigger workflow
 import sys
 import time
 import logging

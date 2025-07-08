@@ -1,31 +1,199 @@
 const express = require('express');
 const { query, healthCheck, initializeDatabase } = require('../utils/database');
 const { authenticateToken } = require('../middleware/auth');
+const crypto = require('crypto');
 
 const router = express.Router();
+
+// Apply authentication middleware to all portfolio routes
+router.use(authenticateToken);
+
+// Utility function to get user's API key for a specific broker
+async function getUserApiKey(userId, broker) {
+  console.log(`🔑 Fetching API key for user ${userId} and broker ${broker}`);
+  
+  try {
+    const result = await query(`
+      SELECT 
+        id,
+        encrypted_api_key,
+        key_iv,
+        key_auth_tag,
+        encrypted_api_secret,
+        secret_iv,
+        secret_auth_tag,
+        user_salt,
+        is_sandbox,
+        is_active
+      FROM user_api_keys 
+      WHERE user_id = $1 AND provider = $2 AND is_active = true
+      ORDER BY created_at DESC
+      LIMIT 1
+    `, [userId, broker]);
+    
+    if (result.rows.length === 0) {
+      console.log(`❌ No API key found for user ${userId} and broker ${broker}`);
+      return null;
+    }
+    
+    const apiKeyData = result.rows[0];
+    console.log(`✅ Found API key for ${broker} (sandbox: ${apiKeyData.is_sandbox})`);
+    
+    // Decrypt the API key (you'd implement decryption here)
+    // For now, return the encrypted data structure
+    return {
+      id: apiKeyData.id,
+      broker: broker,
+      isSandbox: apiKeyData.is_sandbox,
+      encryptedData: {
+        apiKey: apiKeyData.encrypted_api_key,
+        apiSecret: apiKeyData.encrypted_api_secret,
+        keyIv: apiKeyData.key_iv,
+        keyAuthTag: apiKeyData.key_auth_tag,
+        secretIv: apiKeyData.secret_iv,
+        secretAuthTag: apiKeyData.secret_auth_tag,
+        userSalt: apiKeyData.user_salt
+      }
+    };
+    
+  } catch (error) {
+    console.error(`❌ Error fetching API key for ${broker}:`, error);
+    throw error;
+  }
+}
+
+// Utility function to decrypt API key
+function decryptApiKey(encryptedData, userSalt) {
+  const ALGORITHM = 'aes-256-gcm';
+  const secretKey = process.env.API_KEY_ENCRYPTION_SECRET || 'default-encryption-key-change-in-production';
+  
+  try {
+    const key = crypto.scryptSync(secretKey, userSalt, 32);
+    const iv = Buffer.from(encryptedData.keyIv, 'hex');
+    const decipher = crypto.createDecipherGCM(ALGORITHM, key, iv);
+    decipher.setAAD(Buffer.from(userSalt));
+    decipher.setAuthTag(Buffer.from(encryptedData.keyAuthTag, 'hex'));
+    
+    let decrypted = decipher.update(encryptedData.apiKey, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    
+    return decrypted;
+  } catch (error) {
+    console.error('❌ API key decryption failed:', error);
+    throw new Error('Failed to decrypt API key');
+  }
+}
+
+// Broker API integration functions
+async function fetchAlpacaPortfolio(apiKey, isSandbox) {
+  console.log(`📡 Fetching Alpaca portfolio (sandbox: ${isSandbox})`);
+  
+  // This is where you'd integrate with the actual Alpaca API
+  // For now, return mock data that simulates a successful API call
+  return {
+    positions: [
+      { symbol: 'AAPL', quantity: 100, avgCost: 150.25, currentPrice: 165.50 },
+      { symbol: 'MSFT', quantity: 50, avgCost: 250.75, currentPrice: 280.25 },
+      { symbol: 'GOOGL', quantity: 25, avgCost: 2500.00, currentPrice: 2650.75 }
+    ],
+    totalValue: 191743.75,
+    totalPnL: 19468.58,
+    totalPnLPercent: 11.3
+  };
+}
+
+async function fetchTDAmeritradePortfolio(apiKey, isSandbox) {
+  console.log(`📡 Fetching TD Ameritrade portfolio (sandbox: ${isSandbox})`);
+  
+  // This is where you'd integrate with the actual TD Ameritrade API
+  // For now, return mock data that simulates a successful API call
+  return {
+    positions: [
+      { symbol: 'TSLA', quantity: 75, avgCost: 200.50, currentPrice: 220.25 },
+      { symbol: 'NVDA', quantity: 40, avgCost: 450.00, currentPrice: 480.50 }
+    ],
+    totalValue: 135720.00,
+    totalPnL: 12850.00,
+    totalPnLPercent: 9.5
+  };
+}
+
+// Store portfolio data in database
+async function storePortfolioData(userId, apiKeyId, portfolioData, accountType) {
+  console.log(`💾 Storing portfolio data for user ${userId}`);
+  
+  try {
+    // Clear existing portfolio data for this user and API key
+    await query(`
+      DELETE FROM portfolio_holdings 
+      WHERE user_id = $1 AND api_key_id = $2
+    `, [userId, apiKeyId]);
+    
+    // Insert new portfolio holdings
+    for (const position of portfolioData.positions) {
+      await query(`
+        INSERT INTO portfolio_holdings (
+          user_id, api_key_id, symbol, quantity, avg_cost, 
+          current_price, market_value, unrealized_pl, unrealized_plpc, 
+          side, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+      `, [
+        userId,
+        apiKeyId,
+        position.symbol,
+        position.quantity,
+        position.avgCost,
+        position.currentPrice,
+        position.quantity * position.currentPrice,
+        (position.currentPrice - position.avgCost) * position.quantity,
+        ((position.currentPrice - position.avgCost) / position.avgCost) * 100,
+        'long'
+      ]);
+    }
+    
+    // Update portfolio metadata
+    await query(`
+      INSERT INTO portfolio_metadata (
+        user_id, api_key_id, total_equity, total_market_value, 
+        total_unrealized_pl, total_unrealized_plpc, account_type, 
+        last_sync, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW(), NOW())
+      ON CONFLICT (user_id, api_key_id) DO UPDATE SET
+        total_equity = EXCLUDED.total_equity,
+        total_market_value = EXCLUDED.total_market_value,
+        total_unrealized_pl = EXCLUDED.total_unrealized_pl,
+        total_unrealized_plpc = EXCLUDED.total_unrealized_plpc,
+        account_type = EXCLUDED.account_type,
+        last_sync = NOW(),
+        updated_at = NOW()
+    `, [
+      userId,
+      apiKeyId,
+      portfolioData.totalValue,
+      portfolioData.totalValue,
+      portfolioData.totalPnL,
+      portfolioData.totalPnLPercent,
+      accountType
+    ]);
+    
+    console.log(`✅ Portfolio data stored successfully`);
+  } catch (error) {
+    console.error('❌ Failed to store portfolio data:', error);
+    throw error;
+  }
+}
 
 // Portfolio holdings endpoint - uses real data, structured like mock data
 router.get('/holdings', async (req, res) => {
   try {
     const { accountType = 'paper' } = req.query;
-    console.log(`Portfolio holdings endpoint called for account type: ${accountType}`);
+    const userId = req.user.sub;
     
-    // Check if user is authenticated
-    const isAuthenticated = req.headers.authorization && req.headers.authorization.startsWith('Bearer ');
-    let userId = null;
+    console.log(`🔍 Portfolio holdings endpoint called`);
+    console.log(`👤 User ID: ${userId}`);
+    console.log(`📊 Account type: ${accountType}`);
     
-    if (isAuthenticated) {
-      try {
-        // Extract user ID from token (simplified - in production would verify JWT)
-        const token = req.headers.authorization.split(' ')[1];
-        // For now, we'll use a placeholder user ID - replace with actual JWT decode
-        userId = 'demo-user-123'; 
-      } catch (error) {
-        console.log('Token parsing failed, treating as unauthenticated');
-      }
-    }
-
-    // If authenticated, try to get real data
+    // User is authenticated via middleware, get their portfolio data
     if (userId) {
       try {
         // Check if database is available (don't fail on health check)
@@ -668,29 +836,89 @@ function getDataPointsForTimeframe(timeframe) {
 router.post('/import/:broker', async (req, res) => {
   const { broker } = req.params;
   const { accountType = 'paper' } = req.query;
-  const userId = req.user?.sub || 'dev-user';
+  const userId = req.user.sub;
   
   try {
-    console.log(`Portfolio import requested for broker: ${broker}, account: ${accountType}, user: ${userId}`);
+    console.log(`🔄 Portfolio import requested for broker: ${broker}, account: ${accountType}, user: ${userId}`);
     
-    // For now, return a mock successful import
-    // In a real implementation, this would:
-    // 1. Get the user's API key for this broker
-    // 2. Connect to the broker's API
-    // 3. Fetch portfolio data
-    // 4. Store it in the database
+    // Step 1: Get the user's API key for this broker
+    const userApiKey = await getUserApiKey(userId, broker);
     
-    const mockImportData = {
+    if (!userApiKey) {
+      console.log(`❌ No API key found for broker ${broker}`);
+      return res.status(400).json({
+        success: false,
+        error: 'API key not found',
+        message: `No API key configured for ${broker}. Please add your API key in Settings.`
+      });
+    }
+    
+    console.log(`✅ Found API key for ${broker}`);
+    
+    // Step 2: Decrypt the API key
+    let decryptedApiKey;
+    try {
+      decryptedApiKey = decryptApiKey(userApiKey.encryptedData, userApiKey.encryptedData.userSalt);
+      console.log(`🔓 API key decrypted successfully`);
+    } catch (error) {
+      console.error('❌ Failed to decrypt API key:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Decryption failed',
+        message: 'Failed to decrypt API key. Please try re-adding your API key.'
+      });
+    }
+    
+    // Step 3: Connect to the broker's API and fetch portfolio data
+    console.log(`📡 Connecting to ${broker} API...`);
+    
+    let portfolioData;
+    try {
+      // This is where you'd integrate with the actual broker API
+      // For now, simulate the API call
+      if (broker.toLowerCase() === 'alpaca') {
+        portfolioData = await fetchAlpacaPortfolio(decryptedApiKey, userApiKey.isSandbox);
+      } else if (broker.toLowerCase() === 'td_ameritrade') {
+        portfolioData = await fetchTDAmeritradePortfolio(decryptedApiKey, userApiKey.isSandbox);
+      } else {
+        throw new Error(`Unsupported broker: ${broker}`);
+      }
+    } catch (error) {
+      console.error(`❌ Failed to fetch portfolio from ${broker}:`, error);
+      return res.status(500).json({
+        success: false,
+        error: 'Broker API error',
+        message: `Failed to fetch portfolio from ${broker}. Please check your API key and try again.`
+      });
+    }
+    
+    // Step 4: Store the portfolio data in the database
+    console.log(`💾 Storing portfolio data in database...`);
+    
+    try {
+      await storePortfolioData(userId, userApiKey.id, portfolioData, accountType);
+      console.log(`✅ Portfolio data stored successfully`);
+    } catch (error) {
+      console.error('❌ Failed to store portfolio data:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Database error',
+        message: 'Failed to store portfolio data. Please try again.'
+      });
+    }
+    
+    // Return success response
+    const successResponse = {
       success: true,
       data: {
         imported: new Date().toISOString(),
         broker: broker,
         accountType: accountType,
         summary: {
-          positions: 4,
-          totalValue: 191743.75,
-          totalPnL: 19468.58,
-          totalPnLPercent: 11.3
+          positions: portfolioData.positions.length,
+          totalValue: portfolioData.totalValue,
+          totalPnL: portfolioData.totalPnL,
+          totalPnLPercent: portfolioData.totalPnLPercent
         },
         holdings: [
           {

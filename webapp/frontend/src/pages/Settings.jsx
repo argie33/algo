@@ -468,8 +468,17 @@ const Settings = () => {
   };
 
   const handleChangePassword = async () => {
-    // TODO: Implement password change dialog
-    showSnackbar('Password change functionality will be available soon', 'info');
+    // TODO: Implement password change dialog with proper form
+    try {
+      // For now, redirect to Cognito hosted UI for password change
+      // In a full implementation, you'd show a modal with old/new password fields
+      const cognitoUrl = `https://${process.env.REACT_APP_COGNITO_DOMAIN}/forgotPassword?client_id=${process.env.REACT_APP_COGNITO_CLIENT_ID}&response_type=code&scope=email+openid&redirect_uri=${encodeURIComponent(window.location.origin)}`;
+      window.open(cognitoUrl, '_blank');
+      showSnackbar('Password change opened in new tab', 'info');
+    } catch (error) {
+      console.error('Error opening password change:', error);
+      showSnackbar('Error opening password change. Please try again.', 'error');
+    }
   };
 
   const handleToggleTwoFactor = async () => {

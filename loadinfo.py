@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Stock info loader - fetches company information and metadata
-# Trigger deploy-app-stocks workflow test - loadinfo update v1 - selective deployment test
+# Trigger deploy-app-stocks workflow test - loadinfo update v2 - deployment trigger test
 import sys
 import time
 import logging
@@ -383,6 +383,9 @@ def load_company_info(symbols, cur, conn):
 # Entrypoint
 # -------------------------------
 if __name__ == "__main__":
+    logging.info("🎯 LOADINFO DEPLOYMENT TEST - Starting script execution")
+    logging.info(f"📅 Deployment timestamp: {datetime.now().isoformat()}")
+    logging.info("🔄 This is loadinfo update v2 - deployment trigger test")
     log_mem("startup")
 
     # Connect to DB
@@ -631,4 +634,6 @@ if __name__ == "__main__":
 
     cur.close()
     conn.close()
-    logging.info("All done.")
+    logging.info("✅ LOADINFO DEPLOYMENT TEST - All done! This confirms the deployment system is working.")
+    logging.info(f"🚀 Deployment successful - Script version: loadinfo update v2")
+    logging.info("📊 Company information processing completed successfully.")

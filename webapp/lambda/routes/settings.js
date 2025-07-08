@@ -45,9 +45,43 @@ function decryptApiKey(encryptedData, userSalt) {
 
 // Get all API keys for authenticated user
 router.get('/api-keys', async (req, res) => {
+  console.log('🔍 API Keys fetch requested');
+  console.log('📋 Request headers:', {
+    authorization: req.headers.authorization ? 'Present' : 'Missing',
+    'content-type': req.headers['content-type'],
+    'user-agent': req.headers['user-agent']
+  });
+  
+  // Check if user is authenticated
+  if (!req.user) {
+    console.error('❌ No user object in request - authentication failed');
+    return res.status(401).json({
+      success: false,
+      error: 'Authentication required',
+      message: 'User not authenticated'
+    });
+  }
+  
   const userId = req.user.sub;
+  console.log('👤 User ID:', userId);
+  console.log('🔐 User details:', {
+    sub: req.user.sub,
+    email: req.user.email,
+    username: req.user.username,
+    role: req.user.role
+  });
+  
+  if (!userId) {
+    console.error('❌ No user ID found in authentication token');
+    return res.status(401).json({
+      success: false,
+      error: 'Invalid authentication token',
+      message: 'User ID not found in token'
+    });
+  }
   
   try {
+    console.log('🔄 Attempting to query user_api_keys table...');
     const result = await query(`
       SELECT 
         id,
@@ -62,6 +96,9 @@ router.get('/api-keys', async (req, res) => {
       ORDER BY created_at DESC
     `, [userId]);
 
+    console.log('✅ Database query successful');
+    console.log('📊 Found API keys:', result.rows.length);
+
     // Don't return the actual encrypted keys for security
     const apiKeys = result.rows.map(row => ({
       id: row.id,
@@ -74,15 +111,53 @@ router.get('/api-keys', async (req, res) => {
       apiKey: '****' // Masked for security
     }));
 
+    console.log('🎯 Returning API keys response');
     res.json({ 
       success: true, 
       apiKeys 
     });
   } catch (error) {
-    console.error('Error fetching API keys:', error);
+    console.error('❌ Database error in API keys fetch:', error);
+    console.error('🔍 Error details:', {
+      message: error.message,
+      code: error.code,
+      severity: error.severity,
+      detail: error.detail,
+      hint: error.hint,
+      position: error.position,
+      internalPosition: error.internalPosition,
+      internalQuery: error.internalQuery,
+      where: error.where,
+      schema: error.schema,
+      table: error.table,
+      column: error.column,
+      dataType: error.dataType,
+      constraint: error.constraint,
+      file: error.file,
+      line: error.line,
+      routine: error.routine
+    });
+    
+    // Return more specific error information
+    let errorMessage = 'Failed to fetch API keys';
+    let errorCode = 'DATABASE_ERROR';
+    
+    if (error.code === '42P01') {
+      errorMessage = 'Database table does not exist';
+      errorCode = 'TABLE_NOT_FOUND';
+    } else if (error.code === '28000') {
+      errorMessage = 'Database authentication failed';
+      errorCode = 'DB_AUTH_FAILED';
+    } else if (error.code === 'ECONNREFUSED') {
+      errorMessage = 'Cannot connect to database';
+      errorCode = 'DB_CONNECTION_FAILED';
+    }
+    
     res.status(500).json({ 
       success: false, 
-      error: 'Failed to fetch API keys' 
+      error: errorMessage,
+      errorCode: errorCode,
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });

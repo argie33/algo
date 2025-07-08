@@ -112,44 +112,56 @@ async function getVerifier() {
 // Authentication middleware
 const authenticateToken = async (req, res, next) => {
   try {
+    console.log('🔐 Authentication middleware called');
+    console.log('🌍 Environment:', process.env.NODE_ENV);
+    console.log('⚙️  SKIP_AUTH:', process.env.SKIP_AUTH);
+    
     // Skip authentication in development mode
     if (process.env.NODE_ENV === 'development' && process.env.SKIP_AUTH === 'true') {
+      console.log('🛠️  Development mode: Skipping authentication');
       req.user = {
         sub: 'dev-user',
         email: 'dev@example.com',
         username: 'dev-user',
         role: 'admin'
       };
+      console.log('👤 Dev user set:', req.user);
       return next();
     }
 
     // Get verifier (will load config if needed)
+    console.log('🔍 Getting JWT verifier...');
     const jwtVerifier = await getVerifier();
 
     // If no verifier is available, skip authentication with warning
     if (!jwtVerifier) {
-      console.warn('JWT verifier not available, skipping authentication');
+      console.warn('⚠️  JWT verifier not available, skipping authentication');
       req.user = {
         sub: 'no-auth-user',
         email: 'no-auth@example.com',
         username: 'no-auth-user',
         role: 'user'
       };
+      console.log('👤 No-auth user set:', req.user);
       return next();
     }
 
+    console.log('🎫 Checking authorization header...');
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
     if (!token) {
+      console.error('❌ No token found in Authorization header');
       return res.status(401).json({
         error: 'Authentication required',
         message: 'Access token is missing from Authorization header'
       });
     }
 
+    console.log('✅ Token found, verifying...');
     // Verify the JWT token
     const payload = await jwtVerifier.verify(token);
+    console.log('🎯 Token verified successfully');
     
     // Add user information to request
     req.user = {
@@ -160,12 +172,20 @@ const authenticateToken = async (req, res, next) => {
       groups: payload['cognito:groups'] || []
     };
 
+    console.log('👤 User authenticated:', {
+      sub: req.user.sub,
+      email: req.user.email,
+      username: req.user.username,
+      role: req.user.role
+    });
+
     next();
   } catch (error) {
-    console.error('Authentication error:', error);
+    console.error('❌ Authentication error:', error);
     
     // Handle specific JWT errors
     if (error.name === 'TokenExpiredError') {
+      console.error('🕐 Token expired');
       return res.status(401).json({
         error: 'Token expired',
         message: 'Your session has expired. Please log in again.'
@@ -173,12 +193,14 @@ const authenticateToken = async (req, res, next) => {
     }
     
     if (error.name === 'JsonWebTokenError') {
+      console.error('🚫 Invalid token');
       return res.status(401).json({
         error: 'Invalid token',
         message: 'The provided token is invalid.'
       });
     }
 
+    console.error('🔥 Generic authentication failure');
     return res.status(401).json({
       error: 'Authentication failed',
       message: 'Could not verify authentication token'

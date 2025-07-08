@@ -96,14 +96,46 @@ app.use('/api/backtest', backtestRoutes);
 app.use('/api/user', settingsRoutes);
 
 // Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    service: 'Financial Dashboard API',
-    version: '1.0.0'
-  });
+app.get('/health', async (req, res) => {
+  try {
+    const { quick } = req.query;
+    
+    // Quick health check without database
+    if (quick === 'true') {
+      return res.json({ 
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development',
+        service: 'Financial Dashboard API',
+        version: '1.0.0'
+      });
+    }
+    
+    // Full health check with database
+    console.log('🔄 Health check requested');
+    const dbHealth = await healthCheck();
+    
+    res.json({
+      status: dbHealth.status,
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      service: 'Financial Dashboard API',
+      version: '1.0.0',
+      database: dbHealth,
+      memory: process.memoryUsage(),
+      uptime: process.uptime()
+    });
+  } catch (error) {
+    console.error('❌ Health check failed:', error);
+    res.status(503).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      service: 'Financial Dashboard API',
+      version: '1.0.0',
+      error: error.message
+    });
+  }
 });
 
 // API info endpoint
