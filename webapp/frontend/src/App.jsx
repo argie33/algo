@@ -88,6 +88,7 @@ import NewsSentiment from './pages/NewsSentiment'
 import Watchlist from './pages/Watchlist'
 import MarketCommentary from './pages/MarketCommentary'
 import EducationalContent from './pages/EducationalContent'
+import PatternRecognition from './pages/PatternRecognition'
 
 const drawerWidth = 240
 
@@ -472,7 +473,7 @@ function App() {
             <Route path="/research/commentary" element={<ComingSoon pageName="Market Commentary" description="Expert market commentary and analysis." />} />
             <Route path="/research/education" element={<ComingSoon pageName="Educational Content" description="Learn about investing and market analysis." />} />
             <Route path="/research/reports" element={<ComingSoon pageName="Research Reports" description="In-depth research reports and market insights." />} />
-            <Route path="/tools/patterns" element={<ComingSoon pageName="Pattern Recognition" description="Advanced pattern recognition and technical analysis tools." />} />
+            <Route path="/tools/patterns" element={<PatternRecognition />} />
             <Route path="/tools/ai" element={<ComingSoon pageName="AI Assistant" description="Your personal AI-powered investment assistant." />} />
           </Routes>
         </Container>
