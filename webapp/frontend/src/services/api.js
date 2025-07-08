@@ -796,7 +796,7 @@ export const getMarketResearchIndicators = async () => {
   }
 }
 
-export const getPortfolioAnalytics = async (timeframe = '1y') => {
+export const getPortfolioAnalyticsDetailed = async (timeframe = '1y') => {
   console.log('📈 [API] Fetching portfolio analytics...');
   
   try {
