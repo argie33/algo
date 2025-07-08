@@ -81,6 +81,20 @@ Resources:
       UserPoolId: !Ref UserPool
       Domain: !Sub 'stocks-webapp-${AWS::AccountId}'
 
+  ## 3.5) Cognito Configuration Secret
+  CognitoConfigSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${AWS::StackName}-cognito-config'
+      Description: Cognito configuration for the webapp
+      SecretString: !Sub |
+        {
+          "userPoolId": "${UserPool}",
+          "clientId": "${UserPoolClient}",
+          "domain": "stocks-webapp-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com",
+          "region": "${AWS::Region}"
+        }
+
   ## 4) Origin Access Identity
   OAI:
     Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
@@ -154,6 +168,7 @@ Resources:
       Environment:
         Variables:
           DB_SECRET_ARN: !ImportValue StocksApp-SecretArn
+          COGNITO_SECRET_ARN: !Ref CognitoConfigSecret
           NODE_ENV: production
           AWS_DEFAULT_REGION: !Ref AWS::Region
           COGNITO_USER_POOL_ID: !Ref UserPool
@@ -248,3 +263,9 @@ Outputs:
     Value: !Sub 'stocks-webapp-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com'
     Export:
       Name: !Sub '${AWS::StackName}-UserPoolDomain'
+
+  CognitoConfigSecretArn:
+    Description: ARN of the Cognito configuration secret
+    Value: !Ref CognitoConfigSecret
+    Export:
+      Name: !Sub '${AWS::StackName}-CognitoConfigSecretArn'

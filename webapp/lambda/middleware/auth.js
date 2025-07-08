@@ -1,27 +1,118 @@
 const { CognitoJwtVerifier } = require('aws-jwt-verify');
+const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
 
-// Create JWT verifier for Cognito User Pool only if environment variables are set
-let verifier = null;
-if (process.env.COGNITO_USER_POOL_ID && process.env.COGNITO_CLIENT_ID) {
-  try {
-    verifier = CognitoJwtVerifier.create({
-      userPoolId: process.env.COGNITO_USER_POOL_ID,
-      tokenUse: 'access',
-      clientId: process.env.COGNITO_CLIENT_ID,
-    });
-  } catch (error) {
-    console.warn('Failed to create Cognito JWT verifier:', error.message);
-    console.warn('Authentication will be disabled. Set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID environment variables to enable authentication.');
+// Initialize secrets manager client
+const secretsManager = new SecretsManagerClient({
+  region: process.env.AWS_DEFAULT_REGION || process.env.AWS_REGION || 'us-east-1'
+});
+
+// Cache for Cognito config
+let cognitoConfig = null;
+let configLoadPromise = null;
+
+// Load Cognito configuration from Secrets Manager or environment
+async function loadCognitoConfig() {
+  // If already loaded, return cached config
+  if (cognitoConfig) {
+    return cognitoConfig;
   }
-} else {
-  console.warn('Cognito environment variables not set. Authentication disabled.');
-  console.warn('Set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID environment variables to enable authentication.');
+
+  // If loading is in progress, wait for it
+  if (configLoadPromise) {
+    return configLoadPromise;
+  }
+
+  // Start loading config
+  configLoadPromise = (async () => {
+    try {
+      // First try to load from Secrets Manager if ARN is provided
+      if (process.env.COGNITO_SECRET_ARN) {
+        console.log('Loading Cognito config from Secrets Manager...');
+        const command = new GetSecretValueCommand({
+          SecretId: process.env.COGNITO_SECRET_ARN
+        });
+        const response = await secretsManager.send(command);
+        const secret = JSON.parse(response.SecretString);
+        
+        cognitoConfig = {
+          userPoolId: secret.userPoolId,
+          clientId: secret.clientId,
+          domain: secret.domain,
+          region: secret.region
+        };
+        
+        console.log('Cognito config loaded from Secrets Manager');
+        return cognitoConfig;
+      }
+      
+      // Fall back to environment variables
+      if (process.env.COGNITO_USER_POOL_ID && process.env.COGNITO_CLIENT_ID) {
+        cognitoConfig = {
+          userPoolId: process.env.COGNITO_USER_POOL_ID,
+          clientId: process.env.COGNITO_CLIENT_ID,
+          region: process.env.AWS_DEFAULT_REGION || process.env.AWS_REGION || 'us-east-1'
+        };
+        
+        console.log('Cognito config loaded from environment variables');
+        return cognitoConfig;
+      }
+      
+      console.warn('No Cognito configuration found');
+      return null;
+    } catch (error) {
+      console.error('Failed to load Cognito config:', error);
+      configLoadPromise = null; // Reset to allow retry
+      return null;
+    }
+  })();
+
+  return configLoadPromise;
+}
+
+// Create JWT verifier
+let verifier = null;
+let verifierPromise = null;
+
+async function getVerifier() {
+  if (verifier) {
+    return verifier;
+  }
+
+  if (verifierPromise) {
+    return verifierPromise;
+  }
+
+  verifierPromise = (async () => {
+    const config = await loadCognitoConfig();
+    
+    if (!config) {
+      console.warn('Cognito configuration not available. Authentication will be disabled.');
+      return null;
+    }
+
+    try {
+      verifier = CognitoJwtVerifier.create({
+        userPoolId: config.userPoolId,
+        tokenUse: 'access',
+        clientId: config.clientId,
+      });
+      
+      console.log('Cognito JWT verifier created successfully');
+      return verifier;
+    } catch (error) {
+      console.error('Failed to create Cognito JWT verifier:', error);
+      verifierPromise = null; // Reset to allow retry
+      return null;
+    }
+  })();
+
+  return verifierPromise;
 }
 
 // Authentication middleware
 const authenticateToken = async (req, res, next) => {
   try {
-    // Skip authentication in development mode or if verifier is not available
+    // Skip authentication in development mode
     if (process.env.NODE_ENV === 'development' && process.env.SKIP_AUTH === 'true') {
       req.user = {
         sub: 'dev-user',
@@ -32,8 +123,11 @@ const authenticateToken = async (req, res, next) => {
       return next();
     }
 
+    // Get verifier (will load config if needed)
+    const jwtVerifier = await getVerifier();
+
     // If no verifier is available, skip authentication with warning
-    if (!verifier) {
+    if (!jwtVerifier) {
       console.warn('JWT verifier not available, skipping authentication');
       req.user = {
         sub: 'no-auth-user',
@@ -55,7 +149,7 @@ const authenticateToken = async (req, res, next) => {
     }
 
     // Verify the JWT token
-    const payload = await verifier.verify(token);
+    const payload = await jwtVerifier.verify(token);
     
     // Add user information to request
     req.user = {
@@ -126,8 +220,11 @@ const optionalAuth = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
-    if (token && verifier) {
-      const payload = await verifier.verify(token);
+    // Get verifier
+    const jwtVerifier = await getVerifier();
+
+    if (token && jwtVerifier) {
+      const payload = await jwtVerifier.verify(token);
       req.user = {
         sub: payload.sub,
         email: payload.email,
@@ -135,7 +232,7 @@ const optionalAuth = async (req, res, next) => {
         role: payload['custom:role'] || 'user',
         groups: payload['cognito:groups'] || []
       };
-    } else if (!verifier) {
+    } else if (!jwtVerifier) {
       // If no verifier, create a default user
       req.user = {
         sub: 'no-auth-user',
