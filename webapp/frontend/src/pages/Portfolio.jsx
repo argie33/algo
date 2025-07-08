@@ -454,11 +454,22 @@ const Portfolio = () => {
         console.log('API Config:', getApiConfig());
         
         try {
-          // Load real data from API
-          const portfolioResponse = await getPortfolioData(accountType);
+          // Add timeout handling for API calls
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('API call timeout')), 5000)
+          );
+          
+          // Load real data from API with timeout
+          const portfolioResponse = await Promise.race([
+            getPortfolioData(accountType),
+            timeoutPromise
+          ]);
           console.log('Portfolio API Response:', portfolioResponse);
           
-          const accountResponse = await getAccountInfo(accountType);
+          const accountResponse = await Promise.race([
+            getAccountInfo(accountType),
+            timeoutPromise
+          ]);
           console.log('Account API Response:', accountResponse);
           
           setPortfolioData(portfolioResponse);
@@ -1498,25 +1509,9 @@ const Portfolio = () => {
     );
   }
 
-  // If no data and not loading, force mock data
-  if (!portfolioData) {
-    console.log('No portfolio data, forcing mock data load');
-    setDataSource('mock');
-    setPortfolioData(mockPortfolioData);
-    setAccountInfo({ 
-      accountType: 'mock (forced)', 
-      balance: 250000, 
-      equity: 80500, 
-      dayChange: 1250.75, 
-      dayChangePercent: 1.58 
-    });
-    return (
-      <Container maxWidth="xl" sx={{ py: 4 }}>
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-          <CircularProgress size={60} />
-        </Box>
-      </Container>
-    );
+  // If no data and not loading, use mock data (but don't return early to avoid render loop)
+  if (!portfolioData && !loading) {
+    console.log('No portfolio data available, component will render with empty state');
   }
 
   console.log('✅ Rendering Portfolio main content', { 
