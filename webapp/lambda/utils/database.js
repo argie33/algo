@@ -1,7 +1,7 @@
 const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
 const { Pool } = require('pg');
 
-// Configure AWS SDK v3 - Updated to trigger deployment for database fix
+// Configure AWS SDK v3 - Updated to trigger deployment for database connection fix v2
 const secretsManager = new SecretsManagerClient({
     region: process.env.WEBAPP_AWS_REGION || process.env.AWS_REGION || 'us-east-1'
 });
