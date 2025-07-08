@@ -168,16 +168,6 @@ export const getPortfolioOptimizationData = async () => {
   }
 };
 
-export const runPortfolioOptimization = async (params) => {
-  try {
-    const response = await api.post('/api/portfolio/optimization/run', params);
-    return response.data;
-  } catch (error) {
-    console.error('Error running portfolio optimization:', error);
-    throw error;
-  }
-};
-
 export const getRebalancingRecommendations = async () => {
   try {
     const response = await api.get('/api/portfolio/rebalance');
@@ -836,45 +826,7 @@ export const getPortfolioAnalyticsDetailed = async (timeframe = '1y') => {
   }
 }
 
-export const getPortfolioRiskAnalysis = async () => {
-  console.log('⚠️ [API] Fetching portfolio risk analysis...');
-  
-  try {
-    const endpoints = [`/portfolio/risk-analysis`, `/api/portfolio/risk-analysis`];
-    
-    let response = null;
-    let lastError = null;
-    
-    for (const endpoint of endpoints) {
-      try {
-        console.log(`⚠️ [API] Trying portfolio risk analysis endpoint: ${endpoint}`);
-        response = await api.get(endpoint);
-        console.log(`⚠️ [API] SUCCESS with portfolio risk analysis endpoint: ${endpoint}`, response);
-        break;
-      } catch (err) {
-        console.log(`⚠️ [API] FAILED portfolio risk analysis endpoint: ${endpoint}`, err.message);
-        lastError = err;
-        continue;
-      }
-    }
-    
-    if (!response) {
-      console.error('⚠️ [API] All portfolio risk analysis endpoints failed:', lastError);
-      throw lastError;
-    }
-    
-    return response.data;
-    
-  } catch (error) {
-    console.error('❌ [API] Portfolio risk analysis error details:', error);
-    const errorMessage = handleApiError(error, 'get portfolio risk analysis')
-    return { 
-      data: null, 
-      error: errorMessage,
-      timestamp: new Date().toISOString()
-    }
-  }
-}
+// getPortfolioRiskAnalysis moved to line 2469 to avoid duplication
 
 export const getPortfolioOptimization = async () => {
   console.log('🎯 [API] Fetching portfolio optimization...');

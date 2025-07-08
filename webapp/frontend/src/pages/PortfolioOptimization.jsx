@@ -87,7 +87,6 @@ import {
 } from '@mui/icons-material';
 import { 
   getPortfolioOptimizationData, 
-  runPortfolioOptimization, 
   getRebalancingRecommendations,
   getRiskAnalysis 
 } from '../services/api';

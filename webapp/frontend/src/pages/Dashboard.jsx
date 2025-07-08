@@ -329,28 +329,6 @@ function useTopStocks() {
   });
 }
 
-function usePortfolioData() {
-  const { isAuthenticated } = useAuth();
-  return useQuery({
-    queryKey: ['portfolio-data'],
-    queryFn: async () => {
-      if (!isAuthenticated) return { data: mockPortfolio };
-      try {
-        const res = await fetch(`${API_BASE}/api/portfolio/analytics`, {
-          credentials: 'include'
-        });
-        if (!res.ok) throw new Error('Failed to fetch portfolio');
-        return res.json();
-      } catch (err) {
-        console.warn('Portfolio API failed, using mock data:', err);
-        return { data: mockPortfolio };
-      }
-    },
-    staleTime: 2 * 60 * 1000,
-    enabled: true
-  });
-}
-
 function useUser() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-user'],
