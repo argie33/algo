@@ -154,7 +154,7 @@ Resources:
       TaskRoleArn: !ImportValue StocksApp-TaskExecutionRoleArn
       ContainerDefinitions:
         - Name: webapp-db-init
-          Image: !Sub '${AWS::ImportValue StocksCore-ContainerRepositoryUri}:webapp-db-init-latest'
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "webapp-db-init-latest"]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
