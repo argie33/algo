@@ -99,6 +99,7 @@ Parameters:
   PatternRecognitionImageTag:
     Type: String
     Description: "Tag for pattern recognition loader image"
+    Default: "latest"
 
   FREDApiKey:
     Type: String

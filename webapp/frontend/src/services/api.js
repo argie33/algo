@@ -191,7 +191,7 @@ export const getRiskAnalysis = async () => {
 // API Keys management
 export const getApiKeys = async () => {
   try {
-    const response = await api.get('/api/settings/api-keys');
+    const response = await api.get('/api/user/api-keys');
     return response.data;
   } catch (error) {
     console.error('Error fetching API keys:', error);
@@ -201,7 +201,7 @@ export const getApiKeys = async () => {
 
 export const addApiKey = async (apiKeyData) => {
   try {
-    const response = await api.post('/api/settings/api-keys', apiKeyData);
+    const response = await api.post('/api/user/api-keys', apiKeyData);
     return response.data;
   } catch (error) {
     console.error('Error adding API key:', error);
@@ -211,7 +211,7 @@ export const addApiKey = async (apiKeyData) => {
 
 export const updateApiKey = async (keyId, apiKeyData) => {
   try {
-    const response = await api.put(`/api/settings/api-keys/${keyId}`, apiKeyData);
+    const response = await api.put(`/api/user/api-keys/${keyId}`, apiKeyData);
     return response.data;
   } catch (error) {
     console.error('Error updating API key:', error);
@@ -221,7 +221,7 @@ export const updateApiKey = async (keyId, apiKeyData) => {
 
 export const deleteApiKey = async (keyId) => {
   try {
-    const response = await api.delete(`/api/settings/api-keys/${keyId}`);
+    const response = await api.delete(`/api/user/api-keys/${keyId}`);
     return response.data;
   } catch (error) {
     console.error('Error deleting API key:', error);
@@ -231,7 +231,7 @@ export const deleteApiKey = async (keyId) => {
 
 export const testApiKeyConnection = async (keyId) => {
   try {
-    const response = await api.post(`/api/settings/test-connection/${keyId}`);
+    const response = await api.post(`/api/user/test-connection/${keyId}`);
     return response.data;
   } catch (error) {
     console.error('Error testing API key connection:', error);
@@ -2169,29 +2169,6 @@ export const getMarketVolatility = async () => {
   }
 };
 
-// Economic calendar
-export const getEconomicCalendar = async () => {
-  console.log('🚀 getEconomicCalendar: Starting API call...');
-  try {
-    const response = await api.get('/api/market/calendar');
-    
-    console.log('📊 getEconomicCalendar: Raw response:', {
-      status: response.status,
-      hasData: !!response.data,
-      dataType: typeof response.data,
-      dataKeys: response.data ? Object.keys(response.data) : []
-    });
-    
-    // Always return { data: ... } structure for consistency
-    const result = normalizeApiResponse(response, true);
-    console.log('✅ getEconomicCalendar: returning result:', result);
-    return { data: result };
-  } catch (error) {
-    console.error('❌ Error fetching economic calendar:', error);
-    const errorMessage = handleApiError(error, 'get economic calendar');
-    return { data: [], error: errorMessage };
-  }
-};
 
 // Market cap categories
 export const getMarketCapCategories = async () => {

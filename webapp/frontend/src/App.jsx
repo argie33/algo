@@ -105,6 +105,7 @@ const menuItems = [
   { text: 'Stock Screener', icon: <SearchIcon />, path: '/screener-advanced', category: 'stocks' },
   { text: 'Stock Analysis', icon: <FilterListIcon />, path: '/stocks', category: 'stocks' },
   { text: 'Technical Analysis', icon: <ShowChartIcon />, path: '/technical', category: 'stocks' },
+  { text: 'Pattern Recognition', icon: <AnalyticsIcon />, path: '/stocks/patterns', category: 'stocks', premium: true },
   { text: 'Trading Signals', icon: <TrendingUpIcon />, path: '/trading', category: 'stocks' },
   { text: 'Stock Scores', icon: <Stars />, path: '/scores', category: 'stocks', premium: true },
   { text: 'Financial Data', icon: <StorageIcon />, path: '/financial-data', category: 'stocks' },
@@ -128,7 +129,6 @@ const menuItems = [
   { text: 'Research Reports', icon: <AnalyticsIcon />, path: '/research/reports', category: 'research', premium: true },
   
   // Tools Section
-  { text: 'Pattern Recognition', icon: <AnalyticsIcon />, path: '/tools/patterns', category: 'tools', premium: true },
   { text: 'Backtester', icon: <PlayArrow />, path: '/backtest', category: 'tools', premium: true },
   { text: 'AI Assistant', icon: <PsychologyIcon />, path: '/tools/ai', category: 'tools', premium: true },
   { text: 'Service Health', icon: <HealthAndSafetyIcon />, path: '/service-health', category: 'tools' },
@@ -473,7 +473,7 @@ function App() {
             <Route path="/research/commentary" element={<ComingSoon pageName="Market Commentary" description="Expert market commentary and analysis." />} />
             <Route path="/research/education" element={<ComingSoon pageName="Educational Content" description="Learn about investing and market analysis." />} />
             <Route path="/research/reports" element={<ComingSoon pageName="Research Reports" description="In-depth research reports and market insights." />} />
-            <Route path="/tools/patterns" element={<PatternRecognition />} />
+            <Route path="/stocks/patterns" element={<PatternRecognition />} />
             <Route path="/tools/ai" element={<ComingSoon pageName="AI Assistant" description="Your personal AI-powered investment assistant." />} />
           </Routes>
         </Container>

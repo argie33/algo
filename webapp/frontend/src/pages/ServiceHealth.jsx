@@ -34,26 +34,19 @@ import {
   Refresh,
   Storage,
   Api,
-  Cloud,
-  Speed,
-  Memory
+  Cloud
 } from '@mui/icons-material';
 
 // Import API functions
 import {
   healthCheck,
-  getDataValidationSummary,
   getTechnicalData,
   getStocks,
   getMarketOverview,
   testApiConnection,
-  getBalanceSheet,
-  getIncomeStatement,
-  getCashFlowStatement,
   screenStocks,
   getBuySignals,
   getSellSignals,
-  getEarningsEstimates,
   getNaaimData,
   getFearGreedData,
   getApiConfig,
@@ -116,20 +109,55 @@ function ServiceHealth() {
   const { data: dbHealth, isLoading: dbLoading, error: dbError, refetch: refetchDb } = useQuery({
     queryKey: ['databaseHealth'],
     queryFn: async () => {
+      const startTime = Date.now();
       try {
         console.log('Starting enhanced database health check...');
+        console.log('Request started at:', new Date().toISOString());
         
         const response = await api.get('/health/database', {
-          timeout: 15000,
+          timeout: 180000, // 3 minutes
           validateStatus: (status) => status < 500
         });
         
+        const endTime = Date.now();
+        const duration = endTime - startTime;
+        console.log(`Database health check completed in ${duration}ms`);
+        
         return response.data;
       } catch (error) {
+        const endTime = Date.now();
+        const duration = endTime - startTime;
+        
         console.error('Database health check failed:', error);
+        console.error('Request duration before failure:', duration + 'ms');
+        console.error('Error details:', {
+          message: error.message,
+          code: error.code,
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          timeout: error.code === 'ECONNABORTED',
+          networkError: !error.response
+        });
+        
+        // Determine likely cause of timeout
+        let timeoutCause = 'Unknown';
+        if (error.code === 'ECONNABORTED' && duration >= 179000) {
+          timeoutCause = 'Request timeout (3 min) - likely slow database query';
+        } else if (error.code === 'ECONNABORTED' && duration < 30000) {
+          timeoutCause = 'Early timeout - likely connection issue';
+        } else if (!error.response && error.code !== 'ECONNABORTED') {
+          timeoutCause = 'Network error - cannot reach server';
+        } else if (error.response?.status >= 500) {
+          timeoutCause = 'Server error - backend issue';
+        }
+        
         return {
           error: true,
           message: error.message || 'Unknown database health error',
+          timeoutCause: timeoutCause,
+          requestDuration: duration,
+          errorCode: error.code,
+          httpStatus: error.response?.status,
           timestamp: new Date().toISOString(),
           database: { 
             status: 'error',
@@ -143,115 +171,14 @@ function ServiceHealth() {
         };
       }
     },
-    refetchInterval: 60000, // Auto-refresh every minute
+    refetchInterval: 120000, // Auto-refresh every 2 minutes (less frequent due to longer timeout)
     retry: 1,
-    staleTime: 30000,
+    staleTime: 60000,
     enabled: true
   });
 
-  // Market API health check
-  const { data: marketHealth, isLoading: marketLoading, refetch: refetchMarket } = useQuery({
-    queryKey: ['marketHealth'],
-    queryFn: async () => {
-      try {
-        const response = await api.get('/market/health', { timeout: 10000 });
-        return response.data;
-      } catch (error) {
-        return {
-          status: 'unhealthy',
-          error: error.message,
-          timestamp: new Date().toISOString()
-        };
-      }
-    },
-    refetchInterval: 60000,
-    retry: 1,
-    staleTime: 30000
-  });
 
-  // Data quality metrics
-  const { data: dataQuality, isLoading: qualityLoading, refetch: refetchQuality } = useQuery({
-    queryKey: ['dataQuality'],
-    queryFn: async () => {
-      try {
-        // Check multiple data sources for quality metrics
-        const [stocksRes, economicRes, pricesRes] = await Promise.all([
-          api.get('/stocks/symbols?limit=1').catch(() => null),
-          api.get('/market/economic?days=7').catch(() => null),
-          api.get('/price/daily/AAPL?days=5').catch(() => null)
-        ]);
 
-        const quality = {
-          stocks: {
-            available: !!stocksRes?.data,
-            count: stocksRes?.data?.symbols?.length || 0,
-            last_updated: stocksRes?.data?.timestamp
-          },
-          economic: {
-            available: !!economicRes?.data,
-            indicators: economicRes?.data?.data?.length || 0,
-            last_updated: economicRes?.data?.timestamp
-          },
-          prices: {
-            available: !!pricesRes?.data,
-            data_points: pricesRes?.data?.data?.length || 0,
-            last_updated: pricesRes?.data?.timestamp
-          }
-        };
-
-        return quality;
-      } catch (error) {
-        return {
-          error: error.message,
-          timestamp: new Date().toISOString()
-        };
-      }
-    },
-    refetchInterval: 120000, // Every 2 minutes
-    retry: 1,
-    staleTime: 60000
-  });
-
-  // API endpoint tests
-  const { data: endpointTests, isLoading: endpointLoading, refetch: refetchEndpoints } = useQuery({
-    queryKey: ['endpointTests'],
-    queryFn: async () => {
-      const endpoints = [
-        { name: 'Health Check', path: '/health', critical: true },
-        { name: 'Stock Symbols', path: '/stocks/symbols?limit=1', critical: true },
-        { name: 'Market Overview', path: '/market/overview', critical: false },
-        { name: 'Economic Data', path: '/market/economic?days=1', critical: false },
-        { name: 'Portfolio Holdings', path: '/portfolio/holdings', critical: false },
-        { name: 'Watchlist', path: '/watchlist', critical: false }
-      ];
-
-      const results = {};
-      for (const endpoint of endpoints) {
-        try {
-          const start = Date.now();
-          const response = await api.get(endpoint.path, { timeout: 5000 });
-          results[endpoint.name] = {
-            status: 'healthy',
-            response_time: Date.now() - start,
-            critical: endpoint.critical,
-            data_available: !!response.data
-          };
-        } catch (error) {
-          results[endpoint.name] = {
-            status: 'unhealthy',
-            error: error.message,
-            critical: endpoint.critical,
-            response_time: null
-          };
-        }
-      }
-
-      return results;
-    },
-    refetchInterval: 180000, // Every 3 minutes
-    retry: 1,
-    staleTime: 120000
-  });
 
   // Early return if component has error
   if (componentError) {
@@ -581,106 +508,6 @@ function ServiceHealth() {
         </Grid>
       </Grid>
 
-      {/* Enhanced Health Dashboard */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        {/* Market API Health */}
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <Api sx={{ mr: 1, color: marketHealth?.status === 'healthy' ? 'success.main' : 'error.main' }} />
-                <Typography variant="h6">Market API</Typography>
-                <Box sx={{ ml: 'auto' }}>
-                  <Chip 
-                    label={marketHealth?.status || 'Unknown'} 
-                    color={marketHealth?.status === 'healthy' ? 'success' : 'error'}
-                    size="small"
-                  />
-                </Box>
-              </Box>
-              {marketLoading ? (
-                <CircularProgress size={20} />
-              ) : marketHealth?.checks ? (
-                <Box>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
-                    Tables with data: {marketHealth.summary?.tables_with_data || 0}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Total records: {formatNumber(marketHealth.summary?.total_records || 0)}
-                  </Typography>
-                </Box>
-              ) : (
-                <Typography variant="body2" color="error">
-                  {marketHealth?.error || 'Market API unavailable'}
-                </Typography>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Data Quality Metrics */}
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <CheckCircle sx={{ mr: 1, color: 'info.main' }} />
-                <Typography variant="h6">Data Quality</Typography>
-              </Box>
-              {qualityLoading ? (
-                <CircularProgress size={20} />
-              ) : dataQuality?.error ? (
-                <Typography variant="body2" color="error">
-                  {dataQuality.error}
-                </Typography>
-              ) : (
-                <Box>
-                  <Typography variant="body2" color="text.secondary">
-                    Stocks: {dataQuality?.stocks?.count || 0} symbols
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Economic: {dataQuality?.economic?.indicators || 0} indicators
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Price data: {dataQuality?.prices?.data_points || 0} points
-                  </Typography>
-                </Box>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Endpoint Performance */}
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <Speed sx={{ mr: 1, color: 'warning.main' }} />
-                <Typography variant="h6">Performance</Typography>
-              </Box>
-              {endpointLoading ? (
-                <CircularProgress size={20} />
-              ) : endpointTests ? (
-                <Box>
-                  {Object.entries(endpointTests).map(([name, result]) => (
-                    <Box key={name} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        {name}:
-                      </Typography>
-                      <Typography variant="body2" color={result.status === 'healthy' ? 'success.main' : 'error.main'}>
-                        {result.response_time ? `${result.response_time}ms` : 'Error'}
-                      </Typography>
-                    </Box>
-                  ))}
-                </Box>
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  No performance data
-                </Typography>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
 
       {/* Detailed Health Information */}
       <Grid container spacing={3}>
@@ -717,7 +544,7 @@ function ServiceHealth() {
                 <Button
                   variant="outlined" 
                   size="small" 
-                  startIcon={<Speed />}
+                  startIcon={<Refresh />}
                   onClick={testAllEndpoints}
                   disabled={testingInProgress}
                 >
@@ -825,6 +652,26 @@ function ServiceHealth() {
                       {safeDbHealth.message && (
                         <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
                           <b>Message:</b> {safeDbHealth.message}
+                        </Typography>
+                      )}
+                      {safeDbHealth.timeoutCause && (
+                        <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
+                          <b>Likely Cause:</b> {safeDbHealth.timeoutCause}
+                        </Typography>
+                      )}
+                      {safeDbHealth.requestDuration && (
+                        <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
+                          <b>Request Duration:</b> {Math.round(safeDbHealth.requestDuration / 1000)}s
+                        </Typography>
+                      )}
+                      {safeDbHealth.errorCode && (
+                        <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
+                          <b>Error Code:</b> {safeDbHealth.errorCode}
+                        </Typography>
+                      )}
+                      {safeDbHealth.httpStatus && (
+                        <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
+                          <b>HTTP Status:</b> {safeDbHealth.httpStatus}
                         </Typography>
                       )}
                       {safeDbHealth.details && (
@@ -1172,35 +1019,6 @@ function ServiceHealth() {
           </Accordion>
         </Grid>
 
-        {/* Error Information */}
-        {(healthError || Object.values(safeTestResults).some(r => r.status === 'error')) && (
-          <Grid item xs={12} lg={6}>
-            <Accordion>
-              <AccordionSummary expandIcon={<ExpandMore />}>
-                <Typography variant="h6" color="error">
-                  <Error sx={{ mr: 1, verticalAlign: 'middle' }} />
-                  Error Details
-                </Typography>
-              </AccordionSummary>
-              <AccordionDetails>
-                {healthError && (
-                  <Alert severity="error" sx={{ mb: 2 }}>
-                    <Typography variant="subtitle2">Health Check Error:</Typography>
-                    <Typography variant="body2">{healthError.message}</Typography>
-                  </Alert>
-                )}
-                {Object.entries(safeTestResults)
-                  .filter(([, result]) => result?.status === 'error')
-                  .map(([name, result]) => (
-                    <Alert severity="error" key={name} sx={{ mb: 1 }}>
-                      <Typography variant="subtitle2">{name} Endpoint Error:</Typography>
-                      <Typography variant="body2">{result?.error || 'Unknown error'}</Typography>
-                    </Alert>
-                  ))}
-              </AccordionDetails>
-            </Accordion>
-          </Grid>
-        )}
       </Grid>
     </Container>
   );
