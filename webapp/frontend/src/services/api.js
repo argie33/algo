@@ -272,7 +272,7 @@ export const requestDigitalHuman = async (message, avatar = 'default') => {
 // API Keys management
 export const getApiKeys = async () => {
   try {
-    const response = await api.get('/api/settings/api-keys');
+    const response = await api.get('/api/user/api-keys');
     return response.data;
   } catch (error) {
     console.error('Error fetching API keys:', error);
@@ -282,7 +282,7 @@ export const getApiKeys = async () => {
 
 export const addApiKey = async (apiKeyData) => {
   try {
-    const response = await api.post('/api/settings/api-keys', apiKeyData);
+    const response = await api.post('/api/user/api-keys', apiKeyData);
     return response.data;
   } catch (error) {
     console.error('Error adding API key:', error);
@@ -292,7 +292,7 @@ export const addApiKey = async (apiKeyData) => {
 
 export const updateApiKey = async (keyId, apiKeyData) => {
   try {
-    const response = await api.put(`/api/settings/api-keys/${keyId}`, apiKeyData);
+    const response = await api.put(`/api/user/api-keys/${keyId}`, apiKeyData);
     return response.data;
   } catch (error) {
     console.error('Error updating API key:', error);
@@ -302,7 +302,7 @@ export const updateApiKey = async (keyId, apiKeyData) => {
 
 export const deleteApiKey = async (keyId) => {
   try {
-    const response = await api.delete(`/api/settings/api-keys/${keyId}`);
+    const response = await api.delete(`/api/user/api-keys/${keyId}`);
     return response.data;
   } catch (error) {
     console.error('Error deleting API key:', error);
@@ -312,7 +312,7 @@ export const deleteApiKey = async (keyId) => {
 
 export const testApiKeyConnection = async (keyId) => {
   try {
-    const response = await api.post(`/api/settings/test-connection/${keyId}`);
+    const response = await api.post(`/api/user/test-connection/${keyId}`);
     return response.data;
   } catch (error) {
     console.error('Error testing API key connection:', error);
@@ -320,6 +320,86 @@ export const testApiKeyConnection = async (keyId) => {
   }
 };
 
+// Watchlist API functions
+export const getWatchlists = async () => {
+  try {
+    const response = await api.get('/api/watchlist');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching watchlists:', error);
+    throw error;
+  }
+};
+
+export const createWatchlist = async (watchlistData) => {
+  try {
+    const response = await api.post('/api/watchlist', watchlistData);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating watchlist:', error);
+    throw error;
+  }
+};
+
+export const updateWatchlist = async (watchlistId, watchlistData) => {
+  try {
+    const response = await api.put(`/api/watchlist/${watchlistId}`, watchlistData);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating watchlist:', error);
+    throw error;
+  }
+};
+
+export const deleteWatchlist = async (watchlistId) => {
+  try {
+    const response = await api.delete(`/api/watchlist/${watchlistId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error deleting watchlist:', error);
+    throw error;
+  }
+};
+
+export const getWatchlistItems = async (watchlistId) => {
+  try {
+    const response = await api.get(`/api/watchlist/${watchlistId}/items`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching watchlist items:', error);
+    throw error;
+  }
+};
+
+export const addWatchlistItem = async (watchlistId, itemData) => {
+  try {
+    const response = await api.post(`/api/watchlist/${watchlistId}/items`, itemData);
+    return response.data;
+  } catch (error) {
+    console.error('Error adding watchlist item:', error);
+    throw error;
+  }
+};
+
+export const deleteWatchlistItem = async (watchlistId, itemId) => {
+  try {
+    const response = await api.delete(`/api/watchlist/${watchlistId}/items/${itemId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error deleting watchlist item:', error);
+    throw error;
+  }
+};
+
+export const reorderWatchlistItems = async (watchlistId, itemIds) => {
+  try {
+    const response = await api.post(`/api/watchlist/${watchlistId}/items/reorder`, { itemIds });
+    return response.data;
+  } catch (error) {
+    console.error('Error reordering watchlist items:', error);
+    throw error;
+  }
+};
 
 // Function to get current base URL
 export const getCurrentBaseURL = () => {

@@ -71,7 +71,16 @@ import {
   Schedule,
   AccountBalance
 } from '@mui/icons-material';
-import { api } from '../services/api';
+import { 
+  api, 
+  getWatchlists, 
+  createWatchlist, 
+  deleteWatchlist, 
+  getWatchlistItems, 
+  addWatchlistItem, 
+  deleteWatchlistItem, 
+  reorderWatchlistItems 
+} from '../services/api';
 import { formatCurrency, formatPercentage } from '../utils/formatters';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import { useAuth } from '../contexts/AuthContext';
@@ -105,24 +114,49 @@ const Watchlist = () => {
 
   // Load watchlists on mount
   useEffect(() => {
-    if (isAuthenticated) {
-      loadWatchlists();
-      loadAllStocks();
-    }
+    const initializeWatchlists = async () => {
+      try {
+        if (isAuthenticated) {
+          await loadWatchlists();
+          await loadAllStocks();
+        }
+      } catch (error) {
+        console.error('Error initializing watchlists:', error);
+        setSnackbar({ 
+          open: true, 
+          message: 'Error loading watchlists. Please refresh the page.', 
+          severity: 'error' 
+        });
+      }
+    };
+    
+    initializeWatchlists();
   }, [isAuthenticated]);
 
   // Load watchlist items when active watchlist changes
   useEffect(() => {
-    if (watchlists.length > 0 && watchlists[activeWatchlist]) {
-      loadWatchlistItems(watchlists[activeWatchlist].id);
-    }
+    const loadItems = async () => {
+      try {
+        if (watchlists.length > 0 && watchlists[activeWatchlist]) {
+          await loadWatchlistItems(watchlists[activeWatchlist].id);
+        }
+      } catch (error) {
+        console.error('Error loading watchlist items on change:', error);
+      }
+    };
+    
+    loadItems();
   }, [activeWatchlist, watchlists]);
 
   // Auto-refresh every 30 seconds when market is open
   useEffect(() => {
     const interval = setInterval(() => {
-      if (isMarketOpen() && watchlists.length > 0 && watchlists[activeWatchlist]) {
-        loadWatchlistItems(watchlists[activeWatchlist].id);
+      try {
+        if (isMarketOpen() && watchlists.length > 0 && watchlists[activeWatchlist]) {
+          loadWatchlistItems(watchlists[activeWatchlist].id);
+        }
+      } catch (error) {
+        console.error('Error in auto-refresh:', error);
       }
     }, 30000);
     
@@ -149,12 +183,12 @@ const Watchlist = () => {
       );
       
       const response = await Promise.race([
-        api.get('/watchlist'),
+        getWatchlists(),
         timeoutPromise
       ]);
       
-      setWatchlists(response.data);
-      if (response.data.length > 0) {
+      setWatchlists(response);
+      if (response.length > 0) {
         setActiveWatchlist(0);
       }
     } catch (error) {
@@ -179,11 +213,11 @@ const Watchlist = () => {
       );
       
       const response = await Promise.race([
-        api.get(`/watchlist/${watchlistId}/items`),
+        getWatchlistItems(watchlistId),
         timeoutPromise
       ]);
       
-      setWatchlistItems(response.data);
+      setWatchlistItems(response);
     } catch (error) {
       console.error('Error loading watchlist items:', error);
       console.log('Using mock watchlist items');
@@ -216,12 +250,12 @@ const Watchlist = () => {
     }
 
     try {
-      const response = await api.post('/watchlist', {
+      const response = await createWatchlist({
         name: newWatchlistName.trim(),
         description: newWatchlistDescription.trim() || null
       });
       
-      setWatchlists([...watchlists, response.data]);
+      setWatchlists([...watchlists, response]);
       setNewWatchlistName('');
       setNewWatchlistDescription('');
       setCreateDialogOpen(false);
@@ -235,7 +269,7 @@ const Watchlist = () => {
 
   const handleDeleteWatchlist = async (watchlistId) => {
     try {
-      await api.delete(`/watchlist/${watchlistId}`);
+      await deleteWatchlist(watchlistId);
       const updatedWatchlists = watchlists.filter(w => w.id !== watchlistId);
       setWatchlists(updatedWatchlists);
       
@@ -258,11 +292,11 @@ const Watchlist = () => {
     if (!currentWatchlist) return;
 
     try {
-      const response = await api.post(`/watchlist/${currentWatchlist.id}/items`, {
+      const response = await addWatchlistItem(currentWatchlist.id, {
         symbol: symbol.toUpperCase()
       });
       
-      setWatchlistItems([...watchlistItems, response.data]);
+      setWatchlistItems([...watchlistItems, response]);
       setSnackbar({ open: true, message: `${symbol} added to watchlist`, severity: 'success' });
     } catch (error) {
       console.error('Error adding stock to watchlist:', error);
@@ -278,7 +312,7 @@ const Watchlist = () => {
     if (!currentWatchlist) return;
 
     try {
-      await api.delete(`/watchlist/${currentWatchlist.id}/items/${itemId}`);
+      await deleteWatchlistItem(currentWatchlist.id, itemId);
       setWatchlistItems(watchlistItems.filter(item => item.id !== itemId));
       setSnackbar({ open: true, message: 'Stock removed from watchlist', severity: 'success' });
     } catch (error) {
@@ -302,9 +336,7 @@ const Watchlist = () => {
     // Update order on server
     try {
       const itemIds = items.map(item => item.id);
-      await api.post(`/watchlist/${currentWatchlist.id}/items/reorder`, {
-        itemIds
-      });
+      await reorderWatchlistItems(currentWatchlist.id, itemIds);
     } catch (error) {
       console.error('Error reordering items:', error);
       // Revert on error
