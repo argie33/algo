@@ -90,6 +90,7 @@ import MarketCommentary from './pages/MarketCommentary'
 import EducationalContent from './pages/EducationalContent'
 import PatternRecognition from './pages/PatternRecognition'
 import AIAssistant from './pages/AIAssistant'
+import Commodities from './pages/Commodities'
 
 const drawerWidth = 240
 
