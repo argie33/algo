@@ -130,6 +130,46 @@ Resources:
               StringEquals:
                 'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
 
+  # Log Group for Database Initialization
+  DatabaseInitLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ecs/webapp-db-init-${EnvironmentName}'
+      RetentionInDays: 14
+
+  # ECS Task Definition for Database Initialization
+  DatabaseInitTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub 'webapp-db-init-${EnvironmentName}'
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !ImportValue StocksApp-TaskExecutionRoleArn
+      TaskRoleArn: !ImportValue StocksApp-TaskExecutionRoleArn
+      ContainerDefinitions:
+        - Name: webapp-db-init
+          Image: !Sub '${AWS::ImportValue StocksCore-ContainerRepositoryUri}:webapp-db-init-latest'
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !Ref DatabaseSecretArn
+            - Name: ENVIRONMENT
+              Value: !Ref EnvironmentName
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref DatabaseInitLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
   # Main API Lambda function (handles all routes)
   ApiFunction:
     Type: AWS::Serverless::Function
@@ -413,4 +453,10 @@ Outputs:
     Value: !Sub 'https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com'
     Export:
       Name: !Sub '${AWS::StackName}-UserPoolDomain'
+
+  DatabaseInitTaskDefArn:
+    Description: ARN of the database initialization ECS task definition
+    Value: !Ref DatabaseInitTaskDefinition
+    Export:
+      Name: !Sub '${AWS::StackName}-DatabaseInitTaskDefArn'
 

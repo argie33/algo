@@ -8,9 +8,8 @@ on:
       - 'webapp/**'
       - 'template-webapp-lambda.yml'
       - '.github/workflows/deploy-webapp.yml'
-      - 'init_database_combined.py'
-      - 'init_database_combined.sql'
-      - 'create_trade_analysis_tables.sql'
+      - 'webapp-db-init.js'
+      - 'Dockerfile.webapp-db-init'
   workflow_dispatch:
 
 permissions:
@@ -384,7 +383,8 @@ jobs:
           # Files that trigger database initialization
           DB_TRIGGER_FILES=(
             "webapp/lambda/utils/database.js"
-            "init_database.py"
+            "webapp-db-init.js"
+            "Dockerfile.webapp-db-init"
           )
           
           # Check if any DB files changed in the last commit
@@ -416,49 +416,75 @@ jobs:
             echo "⏭️  No database changes detected - skipping initialization"
           fi
 
-      - name: Initialize Database Tables via Python Script
+      - name: Initialize Database Tables via ECS Task
         if: steps.check_db_changes.outputs.db_init_needed == 'true'
         run: |
-          echo "🗄️ Initializing database tables via Python script..."
+          echo "🗄️ Initializing database tables via ECS task..."
           
-          # Get database connection info from stacks
-          DB_SECRET_ARN=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksApp-SecretArn'].Value" \
-            --output text)
-          DB_ENDPOINT=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksApp-DBEndpoint'].Value" \
+          # Get the task definition ARN from the stack
+          TASK_DEF_ARN=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query "Stacks[0].Outputs[?OutputKey=='DatabaseInitTaskDefArn'].OutputValue" \
             --output text)
           
-          if [[ -z "$DB_SECRET_ARN" || "$DB_SECRET_ARN" == "None" ]]; then
-            echo "❌ Failed to get database secret ARN from app stack exports"
+          if [[ -z "$TASK_DEF_ARN" || "$TASK_DEF_ARN" == "None" ]]; then
+            echo "❌ Failed to get database init task definition ARN from stack"
             exit 1
           fi
           
-          if [[ -z "$DB_ENDPOINT" || "$DB_ENDPOINT" == "None" ]]; then
-            echo "❌ Failed to get database endpoint from app stack exports"
+          echo "Using task definition: $TASK_DEF_ARN"
+          
+          # Get infrastructure info
+          CLUSTER_ARN=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+          SUBNET_1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUBNET_2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          SECURITY_GROUP=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+          
+          # Run the ECS task
+          echo "🎯 Running database initialization ECS task..."
+          
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$CLUSTER_ARN" \
+            --task-definition "$TASK_DEF_ARN" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNET_1,$SUBNET_2],securityGroups=[$SECURITY_GROUP],assignPublicIp=ENABLED}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          
+          if [[ -z "$TASK_ARN" || "$TASK_ARN" == "None" ]]; then
+            echo "❌ Failed to start ECS task"
             exit 1
           fi
           
-          echo "Using database secret: $DB_SECRET_ARN"
-          echo "Using database endpoint: $DB_ENDPOINT"
+          echo "Started ECS task: $TASK_ARN"
           
-          # Install Python dependencies
-          pip install boto3 psycopg2-binary
+          # Wait for task to complete
+          echo "⏳ Waiting for task to complete..."
+          aws ecs wait tasks-stopped \
+            --cluster "$CLUSTER_ARN" \
+            --tasks "$TASK_ARN" \
+            --cli-read-timeout 3600 \
+            --cli-connect-timeout 60
           
-          # Set environment variables for the script
-          export DB_SECRET_ARN="$DB_SECRET_ARN"
-          export DB_ENDPOINT="$DB_ENDPOINT"
-          export AWS_REGION="${{ env.AWS_REGION }}"
+          # Check exit code
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster "$CLUSTER_ARN" \
+            --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
           
-          # Run the database initialization script
-          echo "🎯 Running database initialization script..."
-          
-          python init_database.py
-          
-          if [ $? -eq 0 ]; then
+          if [ "$EXIT_CODE" -eq 0 ]; then
             echo "✅ Database initialization completed successfully"
           else
-            echo "❌ Database initialization failed"
+            echo "❌ Database initialization failed with exit code: $EXIT_CODE"
             exit 1
           fi
 ################################################################################

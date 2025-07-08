@@ -11,7 +11,7 @@ COPY webapp/lambda/package*.json ./
 RUN npm ci --only=production
 
 # Copy initialization script
-COPY webapp-db-init-ecs.js ./
+COPY webapp-db-init.js ./
 
 # Run the initialization script
-CMD ["node", "webapp-db-init-ecs.js"]
+CMD ["node", "webapp-db-init.js"]
