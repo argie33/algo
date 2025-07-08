@@ -32,6 +32,7 @@ const scoringRoutes = require('./routes/scoring');
 const priceRoutes = require('./routes/price');
 const settingsRoutes = require('./routes/settings');
 const patternsRoutes = require('./routes/patterns');
+const sectorsRoutes = require('./routes/sectors');
 const watchlistRoutes = require('./routes/watchlist');
 const aiAssistantRoutes = require('./routes/ai-assistant');
 
@@ -266,6 +267,7 @@ app.use('/scoring', scoringRoutes);
 app.use('/price', priceRoutes);
 app.use('/settings', settingsRoutes);
 app.use('/watchlist', watchlistRoutes);
+app.use('/sectors', sectorsRoutes);
 
 // Also mount routes with /api prefix for frontend compatibility
 app.use('/api/health', healthRoutes);
@@ -288,6 +290,7 @@ app.use('/api/price', priceRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/patterns', patternsRoutes);
 app.use('/api/watchlist', watchlistRoutes);
+app.use('/api/sectors', sectorsRoutes);
 app.use('/api/ai', aiAssistantRoutes);
 
 // Default route

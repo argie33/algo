@@ -16,11 +16,19 @@ import {
   TableHead,
   TableRow,
   Paper,
-  LinearProgress,
   IconButton,
   Tooltip,
   Switch,
-  FormControlLabel
+  FormControlLabel,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Button,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Badge
 } from '@mui/material';
 import {
   TrendingUp as TrendingUpIcon,
@@ -29,199 +37,303 @@ import {
   BusinessCenter as BusinessIcon,
   Assessment as AssessmentIcon,
   Refresh as RefreshIcon,
-  Info as InfoIcon
+  Info as InfoIcon,
+  ExpandMore as ExpandMoreIcon,
+  Speed as SpeedIcon,
+  Visibility as VisibilityIcon
 } from '@mui/icons-material';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
-import { getMarketSectorPerformance } from '../services/api';
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip as RechartsTooltip, 
+  ResponsiveContainer, 
+  Cell, 
+  PieChart, 
+  Pie, 
+  Legend,
+  LineChart,
+  Line,
+  Area,
+  AreaChart
+} from 'recharts';
 
 function SectorAnalysis() {
   const [sectorData, setSectorData] = useState([]);
+  const [selectedSector, setSelectedSector] = useState(null);
+  const [sectorDetails, setSectorDetails] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [detailsLoading, setDetailsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
-  const [sortBy, setSortBy] = useState('performance');
-  const [showRelative, setShowRelative] = useState(false);
+  const [timeframe, setTimeframe] = useState('daily');
+  const [sortBy, setSortBy] = useState('monthly_change');
+  const [showMomentum, setShowMomentum] = useState(true);
+
+  // Base API URL from config
+  const API_BASE_URL = window.APP_CONFIG?.API_URL || 'https://ye9syrnj8c.execute-api.us-east-1.amazonaws.com/dev';
 
   const fetchSectorData = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      const response = await getMarketSectorPerformance();
+      console.log('📊 Fetching sector analysis data...');
+      const response = await fetch(`${API_BASE_URL}/api/sectors/analysis?timeframe=${timeframe}`);
       
-      if (response.error) {
-        throw new Error(response.error);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
-      if (response.data && Array.isArray(response.data)) {
-        // Process and enhance the sector data
-        const processedData = response.data.map(sector => ({
-          ...sector,
-          performance: sector.avg_change || 0,
-          volume: sector.total_volume || 0,
-          marketCap: sector.avg_market_cap || 0,
-          stockCount: sector.stock_count || 0
-        }));
-        
-        setSectorData(processedData);
+      const data = await response.json();
+      
+      if (data.success) {
+        setSectorData(data.data.sectors || []);
         setLastUpdated(new Date());
+        console.log(`✅ Loaded ${data.data.sectors?.length || 0} sectors`);
       } else {
-        throw new Error('Invalid data format received');
+        throw new Error(data.error || 'Failed to fetch sector data');
       }
     } catch (err) {
-      console.error('Error fetching sector data:', err);
-      setError(err.message || 'Failed to fetch sector data');
+      console.error('❌ Error fetching sector data:', err);
+      setError(err.message);
       
-      // Fallback data for demonstration
-      const fallbackData = [
-        { sector: 'Technology', performance: 2.5, volume: 5000000000, marketCap: 50000000000, stockCount: 150 },
-        { sector: 'Healthcare', performance: 1.8, volume: 3000000000, marketCap: 40000000000, stockCount: 120 },
-        { sector: 'Financial Services', performance: 0.9, volume: 2500000000, marketCap: 35000000000, stockCount: 100 },
-        { sector: 'Consumer Discretionary', performance: 1.2, volume: 2000000000, marketCap: 30000000000, stockCount: 80 },
-        { sector: 'Industrials', performance: 0.7, volume: 1800000000, marketCap: 25000000000, stockCount: 90 },
-        { sector: 'Consumer Staples', performance: 0.4, volume: 1200000000, marketCap: 35000000000, stockCount: 60 },
-        { sector: 'Energy', performance: -0.5, volume: 1500000000, marketCap: 20000000000, stockCount: 40 },
-        { sector: 'Utilities', performance: 0.1, volume: 800000000, marketCap: 25000000000, stockCount: 30 }
-      ];
-      setSectorData(fallbackData);
+      // Fallback to mock data for development
+      const mockData = generateMockSectorData();
+      setSectorData(mockData);
       setLastUpdated(new Date());
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchSectorDetails = async (sector) => {
+    try {
+      setDetailsLoading(true);
+      
+      console.log(`📊 Fetching details for sector: ${sector}`);
+      const response = await fetch(`${API_BASE_URL}/api/sectors/${encodeURIComponent(sector)}/details`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setSectorDetails(data.data);
+        console.log(`✅ Loaded details for ${sector}: ${data.data.stocks?.length || 0} stocks`);
+      } else {
+        throw new Error(data.error || 'Failed to fetch sector details');
+      }
+    } catch (err) {
+      console.error(`❌ Error fetching ${sector} details:`, err);
+      // Generate mock details for development
+      setSectorDetails(generateMockSectorDetails(sector));
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchSectorData();
-  }, []);
+  }, [timeframe]);
 
-  const formatNumber = (num, type = 'default') => {
-    if (!num) return 'N/A';
+  const handleSectorClick = (sector) => {
+    setSelectedSector(sector);
+    fetchSectorDetails(sector);
+  };
+
+  const getSortedSectorData = () => {
+    if (!sectorData.length) return [];
     
-    switch (type) {
-      case 'currency':
-        return `$${(num / 1000000000).toFixed(1)}B`;
-      case 'volume':
-        return `${(num / 1000000).toFixed(0)}M`;
-      case 'percentage':
-        return `${num.toFixed(2)}%`;
-      default:
-        return num.toLocaleString();
+    return [...sectorData].sort((a, b) => {
+      switch (sortBy) {
+        case 'monthly_change':
+          return parseFloat(b.metrics.performance.monthly_change) - parseFloat(a.metrics.performance.monthly_change);
+        case 'momentum':
+          return parseFloat(b.metrics.momentum.jt_momentum_12_1) - parseFloat(a.metrics.momentum.jt_momentum_12_1);
+        case 'volume':
+          return parseInt(b.metrics.volume.avg_volume) - parseInt(a.metrics.volume.avg_volume);
+        case 'name':
+          return a.sector.localeCompare(b.sector);
+        default:
+          return 0;
+      }
+    });
+  };
+
+  const getChangeColor = (value) => {
+    const num = parseFloat(value);
+    if (num > 0) return 'success.main';
+    if (num < 0) return 'error.main';
+    return 'text.secondary';
+  };
+
+  const getPerformanceIcon = (value) => {
+    const num = parseFloat(value);
+    if (num > 0) return <TrendingUpIcon color="success" />;
+    if (num < 0) return <TrendingDownIcon color="error" />;
+    return <TimelineIcon color="action" />;
+  };
+
+  const getMomentumSignal = (momentum) => {
+    const value = parseFloat(momentum);
+    if (value > 0.02) return { label: 'Strong', color: 'success' };
+    if (value > 0) return { label: 'Positive', color: 'info' };
+    if (value < -0.02) return { label: 'Weak', color: 'error' };
+    return { label: 'Neutral', color: 'default' };
+  };
+
+  const generateMockSectorData = () => [
+    {
+      sector: 'Technology',
+      industry: 'Software',
+      metrics: {
+        stock_count: 45,
+        priced_stocks: 42,
+        performance: { monthly_change: '8.5', weekly_change: '2.1', daily_change: '0.8' },
+        momentum: { jt_momentum_12_1: '0.0850', momentum_3m: '0.0420' },
+        technicals: { avg_rsi: '65.2', trend_distribution: { bullish: 28, neutral: 10, bearish: 4 } },
+        volume: { avg_volume: 2500000 }
+      }
+    },
+    {
+      sector: 'Healthcare',
+      industry: 'Pharmaceuticals',
+      metrics: {
+        stock_count: 32,
+        priced_stocks: 30,
+        performance: { monthly_change: '3.2', weekly_change: '1.5', daily_change: '0.3' },
+        momentum: { jt_momentum_12_1: '0.0320', momentum_3m: '0.0180' },
+        technicals: { avg_rsi: '58.7', trend_distribution: { bullish: 18, neutral: 8, bearish: 4 } },
+        volume: { avg_volume: 1800000 }
+      }
     }
-  };
+  ];
 
-  const getPerformanceColor = (performance) => {
-    if (performance > 1.5) return '#4caf50';
-    if (performance > 0.5) return '#8bc34a';
-    if (performance > -0.5) return '#ff9800';
-    if (performance > -1.5) return '#f44336';
-    return '#d32f2f';
-  };
-
-  const getPerformanceIcon = (performance) => {
-    return performance >= 0 ? <TrendingUpIcon /> : <TrendingDownIcon />;
-  };
-
-  const getTrendLabel = (performance) => {
-    if (performance > 2) return 'Strong';
-    if (performance > 1) return 'Moderate';
-    if (performance > 0) return 'Weak';
-    if (performance > -1) return 'Declining';
-    return 'Weak';
-  };
-
-  const sortedSectorData = [...sectorData].sort((a, b) => {
-    switch (sortBy) {
-      case 'performance':
-        return b.performance - a.performance;
-      case 'volume':
-        return b.volume - a.volume;
-      case 'marketCap':
-        return b.marketCap - a.marketCap;
-      case 'stockCount':
-        return b.stockCount - a.stockCount;
-      case 'alphabetical':
-        return a.sector.localeCompare(b.sector);
-      default:
-        return b.performance - a.performance;
-    }
+  const generateMockSectorDetails = (sector) => ({
+    sector,
+    summary: {
+      stock_count: 25,
+      avg_monthly_return: '5.2',
+      industry_count: 3
+    },
+    industries: [
+      { industry: 'Software', count: 15, avg_return: 8.5 },
+      { industry: 'Hardware', count: 8, avg_return: 3.2 },
+      { industry: 'Semiconductors', count: 2, avg_return: 12.1 }
+    ],
+    stocks: [
+      {
+        symbol: 'AAPL',
+        name: 'Apple Inc.',
+        industry: 'Hardware',
+        current_price: '195.50',
+        performance: { monthly_change: '12.5' },
+        momentum: { jt_momentum_12_1: '0.1250' },
+        technicals: { rsi: '68.5', trend: 'bullish' }
+      }
+    ]
   });
-
-  const chartData = sortedSectorData.map(sector => ({
-    name: sector.sector.length > 15 ? sector.sector.substring(0, 15) + '...' : sector.sector,
-    fullName: sector.sector,
-    performance: sector.performance,
-    volume: sector.volume / 1000000000,
-    marketCap: sector.marketCap / 1000000000
-  }));
-
-  const pieData = sortedSectorData.map(sector => ({
-    name: sector.sector,
-    value: Math.abs(sector.performance),
-    performance: sector.performance
-  }));
-
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#8DD1E1'];
 
   if (loading) {
     return (
       <Container maxWidth="xl" sx={{ py: 4 }}>
         <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-          <CircularProgress size={60} />
+          <Box textAlign="center">
+            <CircularProgress size={60} />
+            <Typography variant="h6" sx={{ mt: 2 }}>
+              Loading Sector Analysis...
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Analyzing {timeframe} data from live tables
+            </Typography>
+          </Box>
         </Box>
       </Container>
     );
   }
 
+  const sortedData = getSortedSectorData();
+
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
-      <Box mb={4}>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-          <Box display="flex" alignItems="center" gap={2}>
-            <BusinessIcon sx={{ fontSize: 40, color: 'primary.main' }} />
-            <Box>
-              <Typography variant="h4" component="h1" fontWeight="bold">
-                Sector Analysis
-              </Typography>
-              <Typography variant="subtitle1" color="text.secondary">
-                Comprehensive sector performance analysis and rotation insights
-              </Typography>
-            </Box>
-          </Box>
-          <Box display="flex" alignItems="center" gap={2}>
-            <Tooltip title="Refresh Data">
-              <IconButton onClick={fetchSectorData} disabled={loading}>
-                <RefreshIcon />
-              </IconButton>
-            </Tooltip>
-            {lastUpdated && (
-              <Typography variant="body2" color="text.secondary">
-                Last updated: {lastUpdated.toLocaleTimeString()}
-              </Typography>
-            )}
-          </Box>
+      <Box display="flex" alignItems="center" justifyContent="space-between" mb={4}>
+        <Box>
+          <Typography variant="h4" component="h1" fontWeight="bold" gutterBottom>
+            Sector Analysis
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            Comprehensive sector performance analysis with live momentum data
+          </Typography>
         </Box>
-
-        {error && (
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            {error} - Showing sample data for demonstration
-          </Alert>
-        )}
+        <Box display="flex" gap={2} alignItems="center">
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <InputLabel>Timeframe</InputLabel>
+            <Select
+              value={timeframe}
+              label="Timeframe"
+              onChange={(e) => setTimeframe(e.target.value)}
+            >
+              <MenuItem value="daily">Daily</MenuItem>
+              <MenuItem value="weekly">Weekly</MenuItem>
+              <MenuItem value="monthly">Monthly</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <InputLabel>Sort By</InputLabel>
+            <Select
+              value={sortBy}
+              label="Sort By"
+              onChange={(e) => setSortBy(e.target.value)}
+            >
+              <MenuItem value="monthly_change">Performance</MenuItem>
+              <MenuItem value="momentum">Momentum</MenuItem>
+              <MenuItem value="volume">Volume</MenuItem>
+              <MenuItem value="name">Name</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={showMomentum}
+                onChange={(e) => setShowMomentum(e.target.checked)}
+              />
+            }
+            label="Momentum"
+          />
+          <IconButton onClick={fetchSectorData} color="primary">
+            <RefreshIcon />
+          </IconButton>
+        </Box>
       </Box>
 
+      {error && (
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          <Typography variant="body2">
+            {error}
+          </Typography>
+          <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+            Showing mock data for development. Deploy the backend to see live data.
+          </Typography>
+        </Alert>
+      )}
+
       {/* Summary Cards */}
-      <Grid container spacing={3} mb={4}>
+      <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" gap={2}>
-                <TrendingUpIcon color="success" />
+                <BusinessIcon color="primary" />
                 <Box>
-                  <Typography variant="h6">
-                    {sortedSectorData.filter(s => s.performance > 0).length}
-                  </Typography>
+                  <Typography variant="h6">{sortedData.length}</Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Advancing Sectors
+                    Sectors Analyzed
                   </Typography>
                 </Box>
               </Box>
@@ -232,13 +344,13 @@ function SectorAnalysis() {
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" gap={2}>
-                <TrendingDownIcon color="error" />
+                <AssessmentIcon color="success" />
                 <Box>
                   <Typography variant="h6">
-                    {sortedSectorData.filter(s => s.performance < 0).length}
+                    {sortedData.filter(s => parseFloat(s.metrics.performance.monthly_change) > 0).length}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Declining Sectors
+                    Positive Sectors
                   </Typography>
                 </Box>
               </Box>
@@ -249,13 +361,13 @@ function SectorAnalysis() {
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" gap={2}>
-                <AssessmentIcon color="primary" />
+                <SpeedIcon color="info" />
                 <Box>
                   <Typography variant="h6">
-                    {formatNumber(sortedSectorData.reduce((sum, s) => sum + s.performance, 0) / sortedSectorData.length, 'percentage')}
+                    {sortedData.filter(s => parseFloat(s.metrics.momentum?.jt_momentum_12_1 || 0) > 0).length}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Average Performance
+                    Positive Momentum
                   </Typography>
                 </Box>
               </Box>
@@ -266,13 +378,13 @@ function SectorAnalysis() {
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" gap={2}>
-                <TimelineIcon color="info" />
+                <TimelineIcon color="warning" />
                 <Box>
                   <Typography variant="h6">
-                    {sortedSectorData[0]?.sector || 'N/A'}
+                    {lastUpdated ? lastUpdated.toLocaleTimeString() : 'N/A'}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Top Performer
+                    Last Updated
                   </Typography>
                 </Box>
               </Box>
@@ -281,186 +393,221 @@ function SectorAnalysis() {
         </Grid>
       </Grid>
 
-      {/* Charts Section */}
-      <Grid container spacing={3} mb={4}>
-        <Grid item xs={12} lg={8}>
-          <Card>
-            <CardContent>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Typography variant="h6">Sector Performance</Typography>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={showRelative}
-                      onChange={(e) => setShowRelative(e.target.checked)}
-                    />
-                  }
-                  label="Relative View"
+      {/* Sector Performance Chart */}
+      <Card sx={{ mb: 4 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            Sector Performance ({timeframe})
+          </Typography>
+          <Box sx={{ height: 400 }}>
+            <ResponsiveContainer>
+              <BarChart data={sortedData.slice(0, 15)}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="sector" 
+                  angle={-45}
+                  textAnchor="end"
+                  height={80}
                 />
-              </Box>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="name" 
-                    angle={-45}
-                    textAnchor="end"
-                    height={100}
-                    interval={0}
-                  />
-                  <YAxis label={{ value: 'Performance (%)', angle: -90, position: 'insideLeft' }} />
-                  <RechartsTooltip 
-                    formatter={(value, name) => [`${value.toFixed(2)}%`, 'Performance']}
-                    labelFormatter={(label) => {
-                      const item = chartData.find(d => d.name === label);
-                      return item ? item.fullName : label;
-                    }}
-                  />
-                  <Bar dataKey="performance" name="Performance">
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={getPerformanceColor(entry.performance)} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} lg={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" mb={3}>Performance Distribution</Typography>
-              <ResponsiveContainer width="100%" height={400}>
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={120}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({ name, value }) => `${name}: ${value.toFixed(1)}%`}
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip formatter={(value) => [`${value.toFixed(2)}%`, 'Performance']} />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+                <YAxis />
+                <RechartsTooltip 
+                  formatter={(value, name) => [`${value}%`, 'Monthly Return']}
+                  labelFormatter={(label) => `Sector: ${label}`}
+                />
+                <Bar dataKey="metrics.performance.monthly_change" name="Monthly Return">
+                  {sortedData.slice(0, 15).map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={parseFloat(entry.metrics.performance.monthly_change) >= 0 ? '#4caf50' : '#f44336'} 
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </Box>
+        </CardContent>
+      </Card>
 
-      {/* Detailed Table */}
+      {/* Sector Details Table */}
       <Card>
         <CardContent>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-            <Typography variant="h6">Detailed Sector Analysis</Typography>
-            <Box display="flex" gap={1}>
-              {['performance', 'volume', 'marketCap', 'stockCount', 'alphabetical'].map((sort) => (
-                <Chip
-                  key={sort}
-                  label={sort.charAt(0).toUpperCase() + sort.slice(1)}
-                  variant={sortBy === sort ? 'filled' : 'outlined'}
-                  onClick={() => setSortBy(sort)}
-                  size="small"
-                />
-              ))}
-            </Box>
-          </Box>
-          
+          <Typography variant="h6" gutterBottom>
+            Detailed Sector Analysis
+          </Typography>
           <TableContainer>
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell><strong>Sector</strong></TableCell>
-                  <TableCell align="right"><strong>Performance</strong></TableCell>
-                  <TableCell align="right"><strong>Trend</strong></TableCell>
-                  <TableCell align="right"><strong>Volume</strong></TableCell>
-                  <TableCell align="right"><strong>Avg Market Cap</strong></TableCell>
-                  <TableCell align="right"><strong>Stock Count</strong></TableCell>
-                  <TableCell align="center"><strong>Momentum</strong></TableCell>
+                  <TableCell>Sector</TableCell>
+                  <TableCell align="right">Stocks</TableCell>
+                  <TableCell align="right">Monthly Return</TableCell>
+                  <TableCell align="right">Weekly Return</TableCell>
+                  <TableCell align="right">Daily Return</TableCell>
+                  {showMomentum && (
+                    <>
+                      <TableCell align="right">JT Momentum</TableCell>
+                      <TableCell align="right">Momentum Signal</TableCell>
+                    </>
+                  )}
+                  <TableCell align="right">Avg RSI</TableCell>
+                  <TableCell align="right">Trend</TableCell>
+                  <TableCell align="center">Action</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {sortedSectorData.map((sector, index) => (
-                  <TableRow key={sector.sector} hover>
-                    <TableCell>
-                      <Box display="flex" alignItems="center" gap={1}>
-                        {getPerformanceIcon(sector.performance)}
-                        <Typography variant="body2" fontWeight="medium">
-                          {sector.sector}
+                {sortedData.map((sector) => {
+                  const momentumSignal = getMomentumSignal(sector.metrics.momentum?.jt_momentum_12_1 || 0);
+                  
+                  return (
+                    <TableRow 
+                      key={sector.sector} 
+                      hover
+                      sx={{ cursor: 'pointer' }}
+                      onClick={() => handleSectorClick(sector.sector)}
+                    >
+                      <TableCell>
+                        <Box>
+                          <Typography variant="subtitle2" fontWeight="bold">
+                            {sector.sector}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {sector.industry}
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell align="right">
+                        {sector.metrics.priced_stocks}/{sector.metrics.stock_count}
+                      </TableCell>
+                      <TableCell align="right">
+                        <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
+                          {getPerformanceIcon(sector.metrics.performance.monthly_change)}
+                          <Typography
+                            variant="body2"
+                            sx={{ color: getChangeColor(sector.metrics.performance.monthly_change) }}
+                          >
+                            {sector.metrics.performance.monthly_change}%
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography
+                          variant="body2"
+                          sx={{ color: getChangeColor(sector.metrics.performance.weekly_change) }}
+                        >
+                          {sector.metrics.performance.weekly_change}%
                         </Typography>
-                      </Box>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Typography 
-                        variant="body2" 
-                        color={sector.performance >= 0 ? 'success.main' : 'error.main'}
-                        fontWeight="bold"
-                      >
-                        {formatNumber(sector.performance, 'percentage')}
-                      </Typography>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Chip
-                        label={getTrendLabel(sector.performance)}
-                        size="small"
-                        color={sector.performance >= 0 ? 'success' : 'error'}
-                        variant="outlined"
-                      />
-                    </TableCell>
-                    <TableCell align="right">
-                      <Typography variant="body2">
-                        {formatNumber(sector.volume, 'volume')}
-                      </Typography>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Typography variant="body2">
-                        {formatNumber(sector.marketCap, 'currency')}
-                      </Typography>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Typography variant="body2">
-                        {sector.stockCount}
-                      </Typography>
-                    </TableCell>
-                    <TableCell align="center">
-                      <Box width="100%" display="flex" alignItems="center" gap={1}>
-                        <LinearProgress
-                          variant="determinate"
-                          value={Math.min(Math.abs(sector.performance) * 20, 100)}
-                          sx={{ 
-                            flexGrow: 1, 
-                            height: 8, 
-                            borderRadius: 4,
-                            '& .MuiLinearProgress-bar': {
-                              backgroundColor: getPerformanceColor(sector.performance)
-                            }
-                          }}
-                        />
-                        <Tooltip title={`${formatNumber(sector.performance, 'percentage')} performance`}>
-                          <InfoIcon fontSize="small" color="action" />
-                        </Tooltip>
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography
+                          variant="body2"
+                          sx={{ color: getChangeColor(sector.metrics.performance.daily_change) }}
+                        >
+                          {sector.metrics.performance.daily_change}%
+                        </Typography>
+                      </TableCell>
+                      {showMomentum && (
+                        <>
+                          <TableCell align="right">
+                            <Typography variant="body2">
+                              {(parseFloat(sector.metrics.momentum?.jt_momentum_12_1 || 0) * 100).toFixed(2)}%
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Chip
+                              label={momentumSignal.label}
+                              color={momentumSignal.color}
+                              size="small"
+                            />
+                          </TableCell>
+                        </>
+                      )}
+                      <TableCell align="right">
+                        <Typography variant="body2">
+                          {parseFloat(sector.metrics.technicals?.avg_rsi || 0).toFixed(1)}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Box display="flex" justifyContent="flex-end" gap={1}>
+                          <Chip
+                            label={`${sector.metrics.technicals?.trend_distribution?.bullish || 0}B`}
+                            color="success"
+                            size="small"
+                            variant="outlined"
+                          />
+                          <Chip
+                            label={`${sector.metrics.technicals?.trend_distribution?.bearish || 0}B`}
+                            color="error"
+                            size="small"
+                            variant="outlined"
+                          />
+                        </Box>
+                      </TableCell>
+                      <TableCell align="center">
+                        <IconButton size="small" color="primary">
+                          <VisibilityIcon />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </TableContainer>
         </CardContent>
       </Card>
 
-      {/* Footer Note */}
-      <Box mt={4}>
-        <Typography variant="body2" color="text.secondary" align="center">
-          Sector analysis based on current market performance, volume, and market capitalization data.
-          Performance metrics are calculated as average percentage change for stocks within each sector.
-        </Typography>
-      </Box>
+      {/* Sector Details Modal/Drawer could be added here */}
+      {selectedSector && sectorDetails && (
+        <Card sx={{ mt: 4 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              {selectedSector} Sector Details
+            </Typography>
+            {detailsLoading ? (
+              <Box display="flex" justifyContent="center" py={4}>
+                <CircularProgress />
+              </Box>
+            ) : (
+              <Box>
+                <Typography variant="body2" sx={{ mb: 2 }}>
+                  {sectorDetails.summary.stock_count} stocks analyzed across {sectorDetails.summary.industry_count} industries
+                </Typography>
+                
+                {/* Industry breakdown */}
+                <Typography variant="subtitle2" gutterBottom>
+                  Industry Performance:
+                </Typography>
+                <Box display="flex" gap={1} flexWrap="wrap" sx={{ mb: 2 }}>
+                  {sectorDetails.industries?.map((industry) => (
+                    <Chip
+                      key={industry.industry}
+                      label={`${industry.industry}: ${industry.avg_return.toFixed(1)}%`}
+                      color={industry.avg_return > 0 ? 'success' : 'error'}
+                      variant="outlined"
+                      size="small"
+                    />
+                  ))}
+                </Box>
+
+                {/* Top stocks */}
+                <Typography variant="subtitle2" gutterBottom>
+                  Top Performers:
+                </Typography>
+                <Box display="flex" gap={1} flexWrap="wrap">
+                  {sectorDetails.stocks?.slice(0, 5).map((stock) => (
+                    <Chip
+                      key={stock.symbol}
+                      label={`${stock.symbol}: ${stock.performance.monthly_change}%`}
+                      color="success"
+                      size="small"
+                    />
+                  ))}
+                </Box>
+              </Box>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </Container>
   );
 }
