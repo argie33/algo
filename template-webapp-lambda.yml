@@ -150,8 +150,8 @@ Resources:
       RuntimePlatform:
         CpuArchitecture: ARM64
         OperatingSystemFamily: LINUX
-      ExecutionRoleArn: !ImportValue StocksApp-TaskExecutionRoleArn
-      TaskRoleArn: !ImportValue StocksApp-TaskExecutionRoleArn
+      ExecutionRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: webapp-db-init
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "webapp-db-init-latest"]]
