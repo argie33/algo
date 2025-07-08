@@ -324,6 +324,52 @@ const Watchlist = () => {
     return theme.palette.text.secondary;
   };
 
+  const getVolumeDisplay = (volume, avgVolume) => {
+    if (!volume) return 'N/A';
+    if (!avgVolume) return formatNumber(volume);
+    
+    const ratio = volume / avgVolume;
+    const color = ratio > 1.5 ? 'error.main' : ratio > 1.2 ? 'warning.main' : 'text.secondary';
+    
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <Typography variant="body2" color={color}>
+          {formatNumber(volume)}
+        </Typography>
+        {ratio > 1.2 && (
+          <Chip 
+            label={`${ratio.toFixed(1)}x`} 
+            size="small" 
+            color={ratio > 1.5 ? 'error' : 'warning'}
+            sx={{ fontSize: '0.65rem', height: 16 }}
+          />
+        )}
+      </Box>
+    );
+  };
+
+  const formatNumber = (num) => {
+    if (num >= 1e9) return (num / 1e9).toFixed(1) + 'B';
+    if (num >= 1e6) return (num / 1e6).toFixed(1) + 'M';
+    if (num >= 1e3) return (num / 1e3).toFixed(1) + 'K';
+    return num.toLocaleString();
+  };
+
+  const getMarketCapColor = (marketCap) => {
+    if (!marketCap) return 'text.secondary';
+    if (marketCap >= 200e9) return 'success.main'; // Large cap
+    if (marketCap >= 10e9) return 'info.main'; // Mid cap
+    if (marketCap >= 2e9) return 'warning.main'; // Small cap
+    return 'error.main'; // Micro cap
+  };
+
+  const getPERating = (pe) => {
+    if (!pe || pe <= 0) return { label: 'N/A', color: 'text.secondary' };
+    if (pe < 15) return { label: 'Low', color: 'success.main' };
+    if (pe < 25) return { label: 'Fair', color: 'warning.main' };
+    return { label: 'High', color: 'error.main' };
+  };
+
   const renderWatchlistTable = () => {
     if (!isAuthenticated) {
       return (
@@ -346,74 +392,214 @@ const Watchlist = () => {
         <Droppable droppableId="watchlist">
           {(provided) => (
             <TableContainer component={Paper} sx={{ mt: 2 }}>
-              <Table>
+              <Table size="small">
                 <TableHead>
-                  <TableRow>
+                  <TableRow sx={{ backgroundColor: alpha(theme.palette.primary.main, 0.08) }}>
                     <TableCell width="30px"></TableCell>
-                    <TableCell>Symbol</TableCell>
-                    <TableCell align="right">Price</TableCell>
-                    <TableCell align="right">Change</TableCell>
-                    <TableCell align="right">Change %</TableCell>
-                    <TableCell align="right">Added</TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <Business fontSize="small" />
+                        Stock
+                      </Box>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end' }}>
+                        <AttachMoney fontSize="small" />
+                        Price
+                      </Box>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end' }}>
+                        <TrendingUp fontSize="small" />
+                        Change
+                      </Box>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end' }}>
+                        <BarChart fontSize="small" />
+                        Volume
+                      </Box>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end' }}>
+                        <AccountBalance fontSize="small" />
+                        Market Cap
+                      </Box>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end' }}>
+                        <Assessment fontSize="small" />
+                        P/E
+                      </Box>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end' }}>
+                        <ShowChart fontSize="small" />
+                        52W Range
+                      </Box>
+                    </TableCell>
                     <TableCell align="center">Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody ref={provided.innerRef} {...provided.droppableProps}>
-                  {watchlistItems.map((item, index) => (
-                    <Draggable key={item.id} draggableId={item.id.toString()} index={index}>
-                      {(provided) => (
-                        <TableRow
-                          ref={provided.innerRef}
-                          {...provided.draggableProps}
-                          sx={{ '&:hover': { backgroundColor: alpha(theme.palette.primary.main, 0.04) } }}
-                        >
-                          <TableCell {...provided.dragHandleProps}>
-                            <DragIndicator sx={{ color: 'text.disabled' }} />
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2" fontWeight="bold">
-                              {item.symbol}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography variant="body2">
-                              {item.current_price ? formatCurrency(item.current_price) : 'N/A'}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography 
-                              variant="body2" 
-                              color={getPriceColor(item.day_change_percent)}
-                            >
-                              {item.day_change_amount ? formatCurrency(item.day_change_amount) : 'N/A'}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography 
-                              variant="body2" 
-                              color={getPriceColor(item.day_change_percent)}
-                            >
-                              {item.day_change_percent ? formatPercentage(item.day_change_percent) : 'N/A'}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography variant="body2" color="text.secondary">
-                              {new Date(item.added_at).toLocaleDateString()}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="center">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleRemoveStock(item.id)}
-                              color="error"
-                            >
-                              <Delete />
-                            </IconButton>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </Draggable>
-                  ))}
+                  {watchlistItems.map((item, index) => {
+                    const peRating = getPERating(item.trailing_pe);
+                    const priceRange = item.fifty_two_week_low && item.fifty_two_week_high ? 
+                      ((item.current_price - item.fifty_two_week_low) / (item.fifty_two_week_high - item.fifty_two_week_low)) * 100 : 0;
+                    
+                    return (
+                      <Draggable key={item.id} draggableId={item.id.toString()} index={index}>
+                        {(provided) => (
+                          <TableRow
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            sx={{ 
+                              '&:hover': { backgroundColor: alpha(theme.palette.primary.main, 0.04) },
+                              borderLeft: `3px solid ${getPriceColor(item.day_change_percent)}`,
+                            }}
+                          >
+                            <TableCell {...provided.dragHandleProps}>
+                              <DragIndicator sx={{ color: 'text.disabled' }} />
+                            </TableCell>
+                            <TableCell>
+                              <Box>
+                                <Typography variant="body2" fontWeight="bold">
+                                  {item.symbol}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                  {item.short_name || item.security_name || 'N/A'}
+                                </Typography>
+                                {item.sector && (
+                                  <Chip 
+                                    label={item.sector} 
+                                    size="small" 
+                                    variant="outlined"
+                                    sx={{ 
+                                      fontSize: '0.65rem', 
+                                      height: 18,
+                                      mt: 0.5,
+                                      backgroundColor: alpha(theme.palette.info.main, 0.1)
+                                    }}
+                                  />
+                                )}
+                              </Box>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Box>
+                                <Typography variant="body2" fontWeight="bold">
+                                  {item.current_price ? formatCurrency(item.current_price) : 'N/A'}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {item.previous_close ? `Prev: ${formatCurrency(item.previous_close)}` : ''}
+                                </Typography>
+                              </Box>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Box>
+                                <Typography 
+                                  variant="body2" 
+                                  color={getPriceColor(item.day_change_percent)}
+                                  fontWeight="bold"
+                                >
+                                  {item.day_change_amount ? formatCurrency(item.day_change_amount) : 'N/A'}
+                                </Typography>
+                                <Typography 
+                                  variant="caption" 
+                                  color={getPriceColor(item.day_change_percent)}
+                                >
+                                  {item.day_change_percent ? formatPercentage(item.day_change_percent) : 'N/A'}
+                                </Typography>
+                              </Box>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Box>
+                                {getVolumeDisplay(item.volume, item.average_volume)}
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                  Avg: {item.average_volume ? formatNumber(item.average_volume) : 'N/A'}
+                                </Typography>
+                              </Box>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography 
+                                variant="body2" 
+                                color={getMarketCapColor(item.market_cap)}
+                                fontWeight="bold"
+                              >
+                                {item.market_cap ? formatNumber(item.market_cap) : 'N/A'}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Box>
+                                <Typography variant="body2" fontWeight="bold">
+                                  {item.trailing_pe ? item.trailing_pe.toFixed(1) : 'N/A'}
+                                </Typography>
+                                <Chip 
+                                  label={peRating.label} 
+                                  size="small" 
+                                  sx={{ 
+                                    fontSize: '0.65rem', 
+                                    height: 16,
+                                    backgroundColor: alpha(peRating.color, 0.1),
+                                    color: peRating.color,
+                                    border: `1px solid ${alpha(peRating.color, 0.3)}`
+                                  }}
+                                />
+                              </Box>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Box>
+                                <Typography variant="body2">
+                                  {item.fifty_two_week_low && item.fifty_two_week_high ? 
+                                    `${formatCurrency(item.fifty_two_week_low)} - ${formatCurrency(item.fifty_two_week_high)}` : 
+                                    'N/A'
+                                  }
+                                </Typography>
+                                {item.fifty_two_week_low && item.fifty_two_week_high && (
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                                    <Box 
+                                      sx={{ 
+                                        width: 40, 
+                                        height: 4, 
+                                        backgroundColor: alpha(theme.palette.grey[400], 0.3),
+                                        borderRadius: 2,
+                                        position: 'relative'
+                                      }}
+                                    >
+                                      <Box 
+                                        sx={{ 
+                                          width: 2, 
+                                          height: 8, 
+                                          backgroundColor: theme.palette.primary.main,
+                                          position: 'absolute',
+                                          left: `${priceRange}%`,
+                                          top: -2,
+                                          borderRadius: 1
+                                        }}
+                                      />
+                                    </Box>
+                                    <Typography variant="caption" color="text.secondary">
+                                      {priceRange.toFixed(0)}%
+                                    </Typography>
+                                  </Box>
+                                )}
+                              </Box>
+                            </TableCell>
+                            <TableCell align="center">
+                              <Tooltip title="Remove from watchlist">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleRemoveStock(item.id)}
+                                  color="error"
+                                >
+                                  <Delete />
+                                </IconButton>
+                              </Tooltip>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </Draggable>
+                    );
+                  })}
                   {provided.placeholder}
                 </TableBody>
               </Table>

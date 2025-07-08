@@ -45,9 +45,22 @@ router.get('/:id/items', authenticateToken, async (req, res) => {
       SELECT wi.*, 
              pd.price as current_price,
              pd.change_percent as day_change_percent,
-             pd.change_amount as day_change_amount
+             pd.change_amount as day_change_amount,
+             pd.previous_close,
+             pd.volume,
+             cp.short_name,
+             cp.security_name,
+             cp.sector,
+             md.market_cap,
+             md.average_volume,
+             md.fifty_two_week_low,
+             md.fifty_two_week_high,
+             km.trailing_pe
       FROM watchlist_items wi
       LEFT JOIN price_daily pd ON wi.symbol = pd.symbol
+      LEFT JOIN company_profile cp ON wi.symbol = cp.symbol
+      LEFT JOIN market_data md ON wi.symbol = md.symbol
+      LEFT JOIN key_metrics km ON wi.symbol = km.symbol
       WHERE wi.watchlist_id = $1
       ORDER BY wi.position_order ASC, wi.added_at DESC
     `, [id]);
