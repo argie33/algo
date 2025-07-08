@@ -33,6 +33,7 @@ const priceRoutes = require('./routes/price');
 const settingsRoutes = require('./routes/settings');
 const patternsRoutes = require('./routes/patterns');
 const watchlistRoutes = require('./routes/watchlist');
+const aiAssistantRoutes = require('./routes/ai-assistant');
 
 const app = express();
 
@@ -287,6 +288,7 @@ app.use('/api/price', priceRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/patterns', patternsRoutes);
 app.use('/api/watchlist', watchlistRoutes);
+app.use('/api/ai', aiAssistantRoutes);
 
 // Default route
 app.get('/', (req, res) => {

@@ -188,10 +188,91 @@ export const getRiskAnalysis = async () => {
   }
 };
 
+// AI Assistant API functions
+export const sendChatMessage = async (message, context = {}) => {
+  try {
+    const response = await api.post('/api/ai/chat', { message, context });
+    return response.data;
+  } catch (error) {
+    console.error('Error sending chat message:', error);
+    throw error;
+  }
+};
+
+export const getChatHistory = async (limit = 20) => {
+  try {
+    const response = await api.get(`/api/ai/history?limit=${limit}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching chat history:', error);
+    throw error;
+  }
+};
+
+export const clearChatHistory = async () => {
+  try {
+    const response = await api.delete('/api/ai/history');
+    return response.data;
+  } catch (error) {
+    console.error('Error clearing chat history:', error);
+    throw error;
+  }
+};
+
+export const getAIConfig = async () => {
+  try {
+    const response = await api.get('/api/ai/config');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching AI config:', error);
+    throw error;
+  }
+};
+
+export const updateAIPreferences = async (preferences) => {
+  try {
+    const response = await api.put('/api/ai/preferences', preferences);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating AI preferences:', error);
+    throw error;
+  }
+};
+
+export const getMarketContext = async () => {
+  try {
+    const response = await api.get('/api/ai/market-context');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching market context:', error);
+    throw error;
+  }
+};
+
+export const sendVoiceMessage = async (audioData, format = 'webm') => {
+  try {
+    const response = await api.post('/api/ai/voice', { audioData, format });
+    return response.data;
+  } catch (error) {
+    console.error('Error sending voice message:', error);
+    throw error;
+  }
+};
+
+export const requestDigitalHuman = async (message, avatar = 'default') => {
+  try {
+    const response = await api.post('/api/ai/digital-human', { message, avatar });
+    return response.data;
+  } catch (error) {
+    console.error('Error requesting digital human:', error);
+    throw error;
+  }
+};
+
 // API Keys management
 export const getApiKeys = async () => {
   try {
-    const response = await api.get('/api/user/api-keys');
+    const response = await api.get('/api/settings/api-keys');
     return response.data;
   } catch (error) {
     console.error('Error fetching API keys:', error);
@@ -201,7 +282,7 @@ export const getApiKeys = async () => {
 
 export const addApiKey = async (apiKeyData) => {
   try {
-    const response = await api.post('/api/user/api-keys', apiKeyData);
+    const response = await api.post('/api/settings/api-keys', apiKeyData);
     return response.data;
   } catch (error) {
     console.error('Error adding API key:', error);
@@ -211,7 +292,7 @@ export const addApiKey = async (apiKeyData) => {
 
 export const updateApiKey = async (keyId, apiKeyData) => {
   try {
-    const response = await api.put(`/api/user/api-keys/${keyId}`, apiKeyData);
+    const response = await api.put(`/api/settings/api-keys/${keyId}`, apiKeyData);
     return response.data;
   } catch (error) {
     console.error('Error updating API key:', error);
@@ -221,7 +302,7 @@ export const updateApiKey = async (keyId, apiKeyData) => {
 
 export const deleteApiKey = async (keyId) => {
   try {
-    const response = await api.delete(`/api/user/api-keys/${keyId}`);
+    const response = await api.delete(`/api/settings/api-keys/${keyId}`);
     return response.data;
   } catch (error) {
     console.error('Error deleting API key:', error);
@@ -231,7 +312,7 @@ export const deleteApiKey = async (keyId) => {
 
 export const testApiKeyConnection = async (keyId) => {
   try {
-    const response = await api.post(`/api/user/test-connection/${keyId}`);
+    const response = await api.post(`/api/settings/test-connection/${keyId}`);
     return response.data;
   } catch (error) {
     console.error('Error testing API key connection:', error);

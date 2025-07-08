@@ -89,6 +89,7 @@ import Watchlist from './pages/Watchlist'
 import MarketCommentary from './pages/MarketCommentary'
 import EducationalContent from './pages/EducationalContent'
 import PatternRecognition from './pages/PatternRecognition'
+import AIAssistant from './pages/AIAssistant'
 
 const drawerWidth = 240
 
@@ -474,7 +475,7 @@ function App() {
             <Route path="/research/education" element={<ComingSoon pageName="Educational Content" description="Learn about investing and market analysis." />} />
             <Route path="/research/reports" element={<ComingSoon pageName="Research Reports" description="In-depth research reports and market insights." />} />
             <Route path="/stocks/patterns" element={<PatternRecognition />} />
-            <Route path="/tools/ai" element={<ComingSoon pageName="AI Assistant" description="Your personal AI-powered investment assistant." />} />
+            <Route path="/tools/ai" element={<AIAssistant />} />
           </Routes>
         </Container>
       </Box>
