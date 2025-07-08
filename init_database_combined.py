@@ -272,6 +272,64 @@ def create_tables_manually(cursor, conn):
         )
     """)
     
+    # Create health_status table
+    logger.info("Creating health_status table...")
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS health_status (
+            table_name VARCHAR(255) PRIMARY KEY,
+            status VARCHAR(50) NOT NULL DEFAULT 'unknown',
+            record_count BIGINT DEFAULT 0,
+            missing_data_count BIGINT DEFAULT 0,
+            last_updated TIMESTAMP WITH TIME ZONE,
+            last_checked TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            is_stale BOOLEAN DEFAULT FALSE,
+            error TEXT,
+            table_category VARCHAR(100),
+            critical_table BOOLEAN DEFAULT FALSE,
+            expected_update_frequency INTERVAL DEFAULT '1 day',
+            size_bytes BIGINT DEFAULT 0,
+            last_vacuum TIMESTAMP WITH TIME ZONE,
+            last_analyze TIMESTAMP WITH TIME ZONE,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Create trigger function for health_status
+    cursor.execute("""
+        CREATE OR REPLACE FUNCTION update_health_status_updated_at()
+        RETURNS TRIGGER AS $$
+        BEGIN
+            NEW.updated_at = CURRENT_TIMESTAMP;
+            RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+    """)
+    
+    # Create trigger
+    cursor.execute("""
+        CREATE TRIGGER IF NOT EXISTS trigger_health_status_updated_at
+            BEFORE UPDATE ON health_status
+            FOR EACH ROW
+            EXECUTE FUNCTION update_health_status_updated_at();
+    """)
+    
+    # Initialize health_status table with core tables
+    logger.info("Initializing health_status table data...")
+    cursor.execute("""
+        INSERT INTO health_status (table_name, table_category, critical_table, expected_update_frequency) VALUES
+        ('user_api_keys', 'system', true, '1 hour'),
+        ('portfolio_holdings', 'trading', true, '1 hour'),
+        ('portfolio_metadata', 'trading', true, '1 hour'),
+        ('trading_alerts', 'trading', false, '1 hour'),
+        ('watchlists', 'trading', false, '1 hour'),
+        ('watchlist_items', 'trading', false, '1 hour'),
+        ('stocks', 'symbols', true, '1 week'),
+        ('last_updated', 'system', true, '1 hour'),
+        ('health_status', 'system', true, '1 hour')
+        ON CONFLICT (table_name) DO NOTHING
+    """)
+    
     # Create indexes
     logger.info("Creating indexes...")
     indexes = [
@@ -287,7 +345,12 @@ def create_tables_manually(cursor, conn):
         "CREATE INDEX IF NOT EXISTS idx_trading_alerts_active ON trading_alerts(is_active)",
         "CREATE INDEX IF NOT EXISTS idx_watchlists_user_id ON watchlists(user_id)",
         "CREATE INDEX IF NOT EXISTS idx_watchlist_items_watchlist_id ON watchlist_items(watchlist_id)",
-        "CREATE INDEX IF NOT EXISTS idx_watchlist_items_symbol ON watchlist_items(symbol)"
+        "CREATE INDEX IF NOT EXISTS idx_watchlist_items_symbol ON watchlist_items(symbol)",
+        "CREATE INDEX IF NOT EXISTS idx_health_status_status ON health_status(status)",
+        "CREATE INDEX IF NOT EXISTS idx_health_status_last_updated ON health_status(last_updated)",
+        "CREATE INDEX IF NOT EXISTS idx_health_status_category ON health_status(table_category)",
+        "CREATE INDEX IF NOT EXISTS idx_health_status_critical ON health_status(critical_table)",
+        "CREATE INDEX IF NOT EXISTS idx_health_status_stale ON health_status(is_stale)"
     ]
     
     for index_sql in indexes:
@@ -305,7 +368,8 @@ def verify_tables(cursor):
         'portfolio_metadata',
         'last_updated',
         'watchlists',
-        'watchlist_items'
+        'watchlist_items',
+        'health_status'
     ]
     
     cursor.execute("""
@@ -325,6 +389,95 @@ def verify_tables(cursor):
         logger.info("All critical tables verified successfully")
     
     logger.info(f"Existing tables: {existing_tables}")
+
+def update_health_status(conn):
+    """Update health status for all tables after creation"""
+    cursor = conn.cursor()
+    
+    try:
+        # Create function to update health status for a specific table
+        cursor.execute("""
+            CREATE OR REPLACE FUNCTION update_table_health_status(
+                p_table_name VARCHAR(255),
+                p_status VARCHAR(50) DEFAULT NULL,
+                p_record_count BIGINT DEFAULT NULL,
+                p_missing_data_count BIGINT DEFAULT NULL,
+                p_last_updated TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+                p_error TEXT DEFAULT NULL
+            )
+            RETURNS VOID AS $$
+            BEGIN
+                INSERT INTO health_status (
+                    table_name, 
+                    status, 
+                    record_count, 
+                    missing_data_count, 
+                    last_updated, 
+                    last_checked, 
+                    is_stale, 
+                    error
+                ) VALUES (
+                    p_table_name,
+                    COALESCE(p_status, 'unknown'),
+                    COALESCE(p_record_count, 0),
+                    COALESCE(p_missing_data_count, 0),
+                    p_last_updated,
+                    CURRENT_TIMESTAMP,
+                    CASE 
+                        WHEN p_last_updated IS NULL THEN false
+                        WHEN p_last_updated < (CURRENT_TIMESTAMP - INTERVAL '7 days') THEN true
+                        ELSE false
+                    END,
+                    p_error
+                )
+                ON CONFLICT (table_name) 
+                DO UPDATE SET
+                    status = COALESCE(EXCLUDED.status, health_status.status),
+                    record_count = COALESCE(EXCLUDED.record_count, health_status.record_count),
+                    missing_data_count = COALESCE(EXCLUDED.missing_data_count, health_status.missing_data_count),
+                    last_updated = COALESCE(EXCLUDED.last_updated, health_status.last_updated),
+                    last_checked = EXCLUDED.last_checked,
+                    is_stale = EXCLUDED.is_stale,
+                    error = EXCLUDED.error,
+                    updated_at = CURRENT_TIMESTAMP;
+            END;
+            $$ LANGUAGE plpgsql;
+        """)
+        
+        # Update health status for all tables that exist
+        cursor.execute("""
+            SELECT table_name FROM information_schema.tables 
+            WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+        """)
+        
+        existing_tables = [row[0] for row in cursor.fetchall()]
+        
+        for table_name in existing_tables:
+            try:
+                # Get record count
+                cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+                record_count = cursor.fetchone()[0]
+                
+                # Update health status
+                cursor.execute("""
+                    SELECT update_table_health_status(%s, %s, %s, %s, %s, %s)
+                """, (table_name, 'healthy' if record_count >= 0 else 'empty', record_count, 0, datetime.now(), None))
+                
+            except Exception as e:
+                logger.warning(f"Error updating health status for {table_name}: {e}")
+                # Mark as error
+                cursor.execute("""
+                    SELECT update_table_health_status(%s, %s, %s, %s, %s, %s)
+                """, (table_name, 'error', 0, 0, None, str(e)))
+        
+        conn.commit()
+        logger.info("Updated health status for all tables")
+        
+    except Exception as e:
+        logger.error(f"Error updating health status: {e}")
+        conn.rollback()
+    finally:
+        cursor.close()
 
 def update_last_run_tracking(conn):
     """Update the last_updated table to track script execution"""
@@ -371,6 +524,9 @@ def main():
         
         # Create all database tables
         create_all_tables(conn)
+        
+        # Update health status for all tables
+        update_health_status(conn)
         
         # Update tracking
         update_last_run_tracking(conn)
