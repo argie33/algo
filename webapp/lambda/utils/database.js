@@ -28,11 +28,15 @@ async function getDbConfig() {
     try {
         const secretArn = process.env.DB_SECRET_ARN;
         
-        console.log('Environment check:', {
-            DB_SECRET_ARN: secretArn ? 'SET' : 'MISSING',
-            DB_ENDPOINT: process.env.DB_ENDPOINT ? 'SET' : 'MISSING',
+        console.log('🔍 Environment check:', {
+            DB_SECRET_ARN: secretArn ? `SET (${secretArn.substring(0, 20)}...)` : 'MISSING',
+            DB_ENDPOINT: process.env.DB_ENDPOINT ? `SET (${process.env.DB_ENDPOINT})` : 'MISSING',
             AWS_REGION: process.env.AWS_REGION || 'MISSING',
-            NODE_ENV: process.env.NODE_ENV || 'MISSING'
+            NODE_ENV: process.env.NODE_ENV || 'MISSING',
+            VPC_INFO: {
+                LAMBDA_RUNTIME_API: process.env.AWS_LAMBDA_RUNTIME_API ? 'IN_LAMBDA' : 'LOCAL',
+                ENI_INFO: process.env._LAMBDA_SERVER_PORT ? 'VPC_ENABLED' : 'NO_VPC'
+            }
         });
         
         // If we have a secret ARN, use Secrets Manager
@@ -58,7 +62,13 @@ async function getDbConfig() {
                     }
                 };
                 
-                console.log(`Database config loaded from Secrets Manager: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`);
+                console.log(`✅ Database config loaded from Secrets Manager:`);
+                console.log(`   🏠 Host: ${dbConfig.host}`);
+                console.log(`   🔌 Port: ${dbConfig.port}`);
+                console.log(`   🗄️  Database: ${dbConfig.database}`);
+                console.log(`   👤 User: ${dbConfig.user}`);
+                console.log(`   🔒 SSL: ${dbConfig.ssl ? 'enabled' : 'disabled'}`);
+                console.log(`   🏊 Pool Max: ${dbConfig.max}`);
                 return dbConfig;
             } catch (secretError) {
                 console.warn('Failed to get secrets from Secrets Manager, falling back to environment variables:', secretError.message);
@@ -83,7 +93,13 @@ async function getDbConfig() {
                 }
             };
             
-            console.log(`Database config loaded from environment: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`);
+            console.log(`✅ Database config loaded from environment:`);
+            console.log(`   🏠 Host: ${dbConfig.host}`);
+            console.log(`   🔌 Port: ${dbConfig.port}`);
+            console.log(`   🗄️  Database: ${dbConfig.database}`);
+            console.log(`   👤 User: ${dbConfig.user}`);
+            console.log(`   🔒 SSL: ${dbConfig.ssl ? 'enabled' : 'disabled'}`);
+            console.log(`   🏊 Pool Max: ${dbConfig.max}`);
             return dbConfig;
         }
         
@@ -139,20 +155,39 @@ async function initializeDatabase() {
                 return null; // Return null instead of throwing error
             }
             
-            console.log('🔗 Database config loaded:', {
+            console.log('🔗 Database config summary:', {
                 host: config.host,
                 port: config.port,
                 database: config.database,
                 user: config.user,
-                ssl: config.ssl ? 'enabled' : 'disabled'
+                ssl: config.ssl ? 'enabled' : 'disabled',
+                max_connections: config.max,
+                connect_timeout: config.connectionTimeoutMillis + 'ms',
+                idle_timeout: config.idleTimeoutMillis + 'ms'
             });
             
             pool = new Pool(config);
             console.log('🧪 Testing database connection...');
+            
+            // Add detailed connection logging
+            const connectionStart = Date.now();
+            console.log(`🔌 Attempting to connect to ${config.host}:${config.port}...`);
+            
             const client = await pool.connect();
-            const result = await client.query('SELECT NOW() as current_time');
+            const connectionTime = Date.now() - connectionStart;
+            console.log(`⚡ Connection established in ${connectionTime}ms`);
+            
+            const queryStart = Date.now();
+            const result = await client.query('SELECT NOW() as current_time, version() as db_version, current_database() as db_name, current_user as db_user');
+            const queryTime = Date.now() - queryStart;
+            
             console.log('✅ Database connection test successful');
-            console.log('⏰ Database time:', result.rows[0].current_time);
+            console.log(`   ⏰ Database time: ${result.rows[0].current_time}`);
+            console.log(`   🗄️  Database name: ${result.rows[0].db_name}`);
+            console.log(`   👤 Connected as: ${result.rows[0].db_user}`);
+            console.log(`   📊 Version: ${result.rows[0].db_version.split(' ')[0]}`);
+            console.log(`   ⚡ Query time: ${queryTime}ms`);
+            
             client.release();
             
             // Verify database connection
@@ -171,13 +206,38 @@ async function initializeDatabase() {
             dbInitialized = false;
             pool = null;
             console.error('❌ Database initialization failed:', error);
-            console.error('🔍 Error details:', {
+            console.error('🔍 Detailed error analysis:', {
                 message: error.message,
                 code: error.code,
                 syscall: error.syscall,
                 hostname: error.hostname,
-                port: error.port
+                port: error.port,
+                errno: error.errno,
+                stack: error.stack?.split('\n')[0]
             });
+            
+            // Network connectivity debugging
+            if (error.code === 'ECONNREFUSED') {
+                console.error('❌ Connection refused - database server may be down or unreachable');
+                console.error('🔍 Troubleshooting steps:');
+                console.error('   1. Check if database server is running');
+                console.error('   2. Verify host and port are correct');
+                console.error('   3. Check security group allows inbound on port 5432');
+                console.error('   4. Verify Lambda is in correct VPC/subnets');
+            } else if (error.code === 'ETIMEDOUT') {
+                console.error('⏱️  Connection timeout - network or firewall issue');
+                console.error('🔍 Troubleshooting steps:');
+                console.error('   1. Check VPC route tables');
+                console.error('   2. Verify Lambda and DB are in compatible subnets');
+                console.error('   3. Check security group rules');
+                console.error('   4. Verify NAT Gateway/Internet Gateway if needed');
+            } else if (error.code === 'ENOTFOUND') {
+                console.error('🌐 DNS resolution failed - hostname not found');
+                console.error('🔍 Troubleshooting steps:');
+                console.error('   1. Verify DB_ENDPOINT/host is correct');
+                console.error('   2. Check VPC DNS settings');
+                console.error('   3. Ensure RDS endpoint is accessible from Lambda VPC');
+            }
             // Attach config and env info to the error for debugging
             if (typeof config === 'undefined') config = null;
             error.config = config;
@@ -264,13 +324,17 @@ async function query(text, params = []) {
             params: params ? params.slice(0, 5) : []
         });
         
-        // Handle specific database errors
+        // Handle specific database errors with detailed troubleshooting
         if (error.code === 'ECONNREFUSED') {
-            throw new Error('Database connection refused - check if database is running');
+            throw new Error(`Database connection refused to ${dbConfig?.host || 'unknown'}:${dbConfig?.port || 'unknown'} - check if database is running and security groups allow access`);
         } else if (error.code === '28000') {
-            throw new Error('Database authentication failed - check credentials');
+            throw new Error('Database authentication failed - check username/password in Secrets Manager');
         } else if (error.code === '3D000') {
-            throw new Error('Database does not exist');
+            throw new Error(`Database '${dbConfig?.database || 'unknown'}' does not exist`);
+        } else if (error.code === 'ETIMEDOUT') {
+            throw new Error(`Connection timeout to ${dbConfig?.host || 'unknown'} - check VPC routing and security groups`);
+        } else if (error.code === 'ENOTFOUND') {
+            throw new Error(`DNS lookup failed for ${dbConfig?.host || 'unknown'} - check hostname and VPC DNS settings`);
         } else if (error.message.includes('timeout')) {
             throw new Error('Database query timeout - query took too long to execute');
         }
@@ -279,15 +343,32 @@ async function query(text, params = []) {
     }
 }
 
-// Add connection health monitoring
+// Add connection health monitoring with detailed logging
+let healthCheckCount = 0;
 setInterval(async () => {
     if (pool && dbInitialized) {
+        healthCheckCount++;
         try {
+            const start = Date.now();
             const client = await pool.connect();
             await client.query('SELECT 1');
             client.release();
+            const duration = Date.now() - start;
+            
+            // Only log every 10th health check to reduce noise
+            if (healthCheckCount % 10 === 0) {
+                console.log(`✅ Database health check #${healthCheckCount} passed (${duration}ms) - Pool: ${pool.totalCount} total, ${pool.idleCount} idle`);
+            }
         } catch (error) {
-            console.error('❌ Database connection health check failed:', error);
+            console.error(`❌ Database connection health check #${healthCheckCount} failed:`, {
+                error: error.message,
+                code: error.code,
+                pool_stats: pool ? {
+                    total: pool.totalCount,
+                    idle: pool.idleCount,
+                    waiting: pool.waitingCount
+                } : 'pool_unavailable'
+            });
             dbInitialized = false;
         }
     }
@@ -327,19 +408,85 @@ async function closeDatabase() {
 }
 
 /**
+ * Test network connectivity to database host
+ */
+async function testNetworkConnectivity() {
+    try {
+        const config = await getDbConfig();
+        if (!config) {
+            return { status: 'no_config', message: 'No database configuration available' };
+        }
+        
+        console.log(`🌐 Testing network connectivity to ${config.host}:${config.port}...`);
+        
+        // Use a simple TCP connection test with timeout
+        const net = require('net');
+        
+        return new Promise((resolve) => {
+            const socket = new net.Socket();
+            const timeout = 10000; // 10 seconds
+            
+            const timer = setTimeout(() => {
+                socket.destroy();
+                resolve({
+                    status: 'timeout',
+                    message: `Connection timeout after ${timeout}ms`,
+                    host: config.host,
+                    port: config.port
+                });
+            }, timeout);
+            
+            socket.connect(config.port, config.host, () => {
+                clearTimeout(timer);
+                socket.destroy();
+                resolve({
+                    status: 'success',
+                    message: 'TCP connection successful',
+                    host: config.host,
+                    port: config.port
+                });
+            });
+            
+            socket.on('error', (error) => {
+                clearTimeout(timer);
+                socket.destroy();
+                resolve({
+                    status: 'error',
+                    message: error.message,
+                    code: error.code,
+                    host: config.host,
+                    port: config.port
+                });
+            });
+        });
+    } catch (error) {
+        return {
+            status: 'error',
+            message: error.message,
+            error: error
+        };
+    }
+}
+
+/**
  * Health check for database
  */
 async function healthCheck() {
     try {
-        console.log('🔄 Starting database health check...');
+        console.log('🔄 Starting comprehensive database health check...');
+        
+        // First test network connectivity
+        console.log('🌐 Step 1: Testing network connectivity...');
+        const networkTest = await testNetworkConnectivity();
+        console.log(`🌐 Network test result: ${networkTest.status} - ${networkTest.message}`);
         
         if (!dbInitialized || !pool) {
-            console.log('🔄 Database not initialized, initializing...');
+            console.log('🔄 Step 2: Database not initialized, initializing...');
             await initializeDatabase();
         }
         
         if (!pool) {
-            throw new Error('Database connection pool not available');
+            throw new Error('Database connection pool not available after initialization');
         }
         
         console.log('🧪 Testing basic database connection...');
@@ -533,5 +680,6 @@ module.exports = {
     query,
     transaction,
     closeDatabase,
-    healthCheck
+    healthCheck,
+    testNetworkConnectivity
 };

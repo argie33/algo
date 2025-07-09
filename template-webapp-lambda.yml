@@ -178,8 +178,8 @@ Resources:
       Role: !GetAtt LambdaExecutionRole.Arn
       VpcConfig:
         SubnetIds:
-          - !ImportValue StocksCore-PrivateSubnet1Id
-          - !ImportValue StocksCore-PrivateSubnet2Id
+          - !ImportValue StocksCore-PublicSubnet1Id
+          - !ImportValue StocksCore-PublicSubnet2Id
         SecurityGroupIds:
           - !Ref LambdaSecurityGroup
       Timeout: 45
@@ -224,12 +224,34 @@ Resources:
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Security group for Lambda functions
+      GroupDescription: Security group for Lambda functions in public subnets
       VpcId: !ImportValue StocksCore-VpcId
       SecurityGroupEgress:
-        - IpProtocol: -1
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: 10.0.0.0/8
+          Description: "Allow PostgreSQL access to VPC subnets"
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
           CidrIp: 0.0.0.0/0
-          Description: "Allow all outbound traffic"
+          Description: "Allow HTTPS for AWS services (Secrets Manager, etc.)"
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: "Allow HTTP for external APIs"
+        - IpProtocol: tcp
+          FromPort: 53
+          ToPort: 53
+          CidrIp: 0.0.0.0/0
+          Description: "Allow DNS TCP"
+        - IpProtocol: udp
+          FromPort: 53
+          ToPort: 53
+          CidrIp: 0.0.0.0/0
+          Description: "Allow DNS UDP"
 
   # IAM Role for Lambda execution
   LambdaExecutionRole:

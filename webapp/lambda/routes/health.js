@@ -1,5 +1,5 @@
 const express = require('express');
-const { query, initializeDatabase, getPool } = require('../utils/database');
+const { query, initializeDatabase, getPool, healthCheck, testNetworkConnectivity } = require('../utils/database');
 
 const router = express.Router();
 
@@ -1183,6 +1183,88 @@ router.post('/create-tables', async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: 'Failed to create tables',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Detailed debug endpoint for troubleshooting Lambda to DB connectivity
+router.get('/debug', async (req, res) => {
+  try {
+    console.log('🔍 Starting detailed debug analysis...');
+    
+    const debugInfo = {
+      timestamp: new Date().toISOString(),
+      environment: {
+        NODE_ENV: process.env.NODE_ENV,
+        AWS_REGION: process.env.AWS_REGION,
+        AWS_LAMBDA_FUNCTION_NAME: process.env.AWS_LAMBDA_FUNCTION_NAME,
+        AWS_LAMBDA_FUNCTION_VERSION: process.env.AWS_LAMBDA_FUNCTION_VERSION,
+        AWS_EXECUTION_ENV: process.env.AWS_EXECUTION_ENV
+      },
+      lambda: {
+        inLambda: !!process.env.AWS_LAMBDA_RUNTIME_API,
+        vpcEnabled: !!process.env._LAMBDA_SERVER_PORT,
+        memory: process.memoryUsage(),
+        uptime: process.uptime()
+      },
+      database: {
+        config: {
+          hasSecretArn: !!process.env.DB_SECRET_ARN,
+          hasEndpoint: !!process.env.DB_ENDPOINT,
+          secretArn: process.env.DB_SECRET_ARN ? `${process.env.DB_SECRET_ARN.substring(0, 50)}...` : null,
+          endpoint: process.env.DB_ENDPOINT || null
+        }
+      }
+    };
+    
+    // Test network connectivity
+    console.log('🌐 Testing network connectivity...');
+    try {
+      const networkTest = await testNetworkConnectivity();
+      debugInfo.networkTest = networkTest;
+    } catch (error) {
+      debugInfo.networkTest = { status: 'error', message: error.message };
+    }
+    
+    // Test database connection
+    console.log('💾 Testing database connection...');
+    try {
+      const dbHealth = await healthCheck();
+      debugInfo.databaseHealth = dbHealth;
+    } catch (error) {
+      debugInfo.databaseHealth = { status: 'error', message: error.message };
+    }
+    
+    // Add VPC/networking information if available
+    if (process.env.AWS_LAMBDA_RUNTIME_API) {
+      debugInfo.networking = {
+        lambdaRuntimeApi: !!process.env.AWS_LAMBDA_RUNTIME_API,
+        vpcConfig: !!process.env._LAMBDA_SERVER_PORT,
+        executionEnv: process.env.AWS_EXECUTION_ENV
+      };
+    }
+    
+    console.log('✅ Debug analysis complete');
+    
+    res.json({
+      status: 'success',
+      debug: debugInfo,
+      recommendations: [
+        "Check that Lambda is in private subnets with route to database",
+        "Verify security groups allow Lambda → Database on port 5432",
+        "Ensure database security group allows inbound from Lambda security group",
+        "Check VPC route tables for proper routing",
+        "Verify Secrets Manager permissions are granted to Lambda role"
+      ]
+    });
+    
+  } catch (error) {
+    console.error('❌ Debug endpoint failed:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Debug analysis failed',
       error: error.message,
       timestamp: new Date().toISOString()
     });

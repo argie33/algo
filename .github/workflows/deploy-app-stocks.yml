@@ -95,7 +95,6 @@ jobs:
             tasks:
               - 'template-app-ecs-tasks.yml'
               - 'requirements.txt'
-              - 'scripts/**'
             qualitymetrics:
               - 'scripts/quality-metrics/**'
             valuemetrics:
@@ -205,11 +204,12 @@ jobs:
             valuescores:
               - 'scripts/value-scores/**'
             growthmetrics:
-              - 'scripts/growth-metrics/**'
+              - 'calculate_growth_metrics.py'
+              - 'Dockerfile.growth-metrics'
+              - 'requirements-growth-metrics.txt'
             calendar:
               - 'scripts/calendar/**'
             any:
-              - 'scripts/**'
               - 'template-*.yml'
               - '.github/workflows/**'
               - 'requirements.txt'
@@ -686,6 +686,7 @@ jobs:
           EarningsMetricsImageTag=latest
           QualityMetricsImageTag=latest
           ValueMetricsImageTag=latest
+          GrowthMetricsImageTag=latest
           ScoresImageTag=latest
           EOF
           fi
