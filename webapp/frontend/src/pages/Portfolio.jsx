@@ -130,7 +130,7 @@ import {
   GetApp,
   NotificationsNone
 } from '@mui/icons-material';
-import { getApiConfig, testApiConnection, importPortfolioFromBroker, getApiKeys, getAvailableAccounts, getAccountInfo } from '../services/api';
+import { getApiConfig, testApiConnection, getApiKeys, getAvailableAccounts, getAccountInfo } from '../services/api';
 import { formatCurrency, formatPercentage, formatNumber } from '../utils/formatters';
 
 // ⚠️ MOCK DATA - Replace with real API when available
