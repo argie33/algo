@@ -102,7 +102,9 @@ jobs:
             stepfunctions:
               - 'template-step-functions-orchestration.yml'
             symbols:
-              - 'scripts/stock-symbols/**'
+              - 'loadstocksymbols.py'
+              - 'Dockerfile.stocksymbols'
+              - 'requirements-loadstocksymbols.txt'
             symbolsalt:
               - 'scripts/symbols-alt/**'
             econ:
