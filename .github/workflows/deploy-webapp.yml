@@ -45,9 +45,13 @@ jobs:
             ENV="dev"
           fi
           
+          # Add timestamp to stack name to avoid stuck stacks
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          STACK_NAME="stocks-webapp-$ENV-$TIMESTAMP"
+          
           echo "environment=$ENV" >> $GITHUB_OUTPUT
-          echo "stack_name=stocks-webapp-$ENV" >> $GITHUB_OUTPUT
-          echo "Deploying to environment: $ENV"
+          echo "stack_name=$STACK_NAME" >> $GITHUB_OUTPUT
+          echo "Deploying to environment: $ENV with stack: $STACK_NAME"
 ################################################################################
 # 2) Detect changed components                                                 #
 ################################################################################
