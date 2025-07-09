@@ -297,6 +297,32 @@ jobs:
               exit 1
               ;;
           esac
+      
+      - name: Build and push webapp-db-init container image
+        run: |
+          echo "🔨 Building webapp-db-init container image..."
+          
+          # Get ECR repository URI
+          ECR_URI=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-ContainerRepositoryUri'].Value" \
+            --output text)
+          
+          if [[ -z "$ECR_URI" || "$ECR_URI" == "None" ]]; then
+            echo "❌ Failed to get ECR repository URI from core stack"
+            exit 1
+          fi
+          
+          # Login to ECR
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $ECR_URI
+          
+          # Build and tag the image
+          docker build -f Dockerfile.webapp-db-init -t $ECR_URI:webapp-db-init-latest .
+          
+          # Push to ECR
+          docker push $ECR_URI:webapp-db-init-latest
+          
+          echo "✅ webapp-db-init image built and pushed to ECR"
+
       - name: Deploy webapp CloudFormation stack
         run: |
           echo "Using stack name: $STACK_NAME"
