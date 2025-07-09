@@ -110,7 +110,7 @@ import {
   Info,
   Cancel,
   Save,
-  More
+  More,
   Info,
   Upload,
   Download,
