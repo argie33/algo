@@ -1104,8 +1104,8 @@ jobs:
 
   run_pricedaily:
     name: Run pricedaily loader
-    needs: [deploy-tasks, filter]
-    if: ${{ needs.filter.outputs.pricedaily == 'true' }}
+    needs: [deploy-tasks, filter, run_symbols]
+    if: ${{ needs.filter.outputs.pricedaily == 'true' || needs.filter.outputs.symbols == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -1192,8 +1192,8 @@ jobs:
 
   run_priceweekly:
     name: Run priceweekly loader
-    needs: [deploy-tasks, filter]
-    if: ${{ needs.filter.outputs.priceweekly == 'true' }}
+    needs: [deploy-tasks, filter, run_symbols]
+    if: ${{ needs.filter.outputs.priceweekly == 'true' || needs.filter.outputs.symbols == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -1280,8 +1280,8 @@ jobs:
 
   run_pricemonthly:
     name: Run pricemonthly loader
-    needs: [deploy-tasks, filter]
-    if: ${{ needs.filter.outputs.pricemonthly == 'true' }}
+    needs: [deploy-tasks, filter, run_symbols]
+    if: ${{ needs.filter.outputs.pricemonthly == 'true' || needs.filter.outputs.symbols == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -1368,8 +1368,8 @@ jobs:
 
   run_technicalsdaily:
     name: Run technicals-daily loader
-    needs: [deploy-tasks, filter]
-    if: ${{ needs.filter.outputs.technicalsdaily == 'true' }}
+    needs: [deploy-tasks, filter, run_symbols]
+    if: ${{ needs.filter.outputs.technicalsdaily == 'true' || needs.filter.outputs.symbols == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
