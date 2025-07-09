@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Analyst upgrade/downgrade data loader for enhanced market intelligence
 # Updated for deployment verification test
 import sys
 import time

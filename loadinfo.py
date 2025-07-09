@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Stock info loader - fetches company information and metadata
+# Enhanced data collection for comprehensive stock information analysis
 # Trigger deploy-app-stocks workflow test - loadinfo update v2 - deployment trigger test
 import sys
 import time
