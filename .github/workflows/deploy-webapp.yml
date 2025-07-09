@@ -221,43 +221,46 @@ jobs:
               echo "ℹ️ Stack is still functional but last update failed. Proceeding with new deployment."
               ;;
             "UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS")
-              echo "⏳ Stack is cleaning up after rollback. Waiting for cleanup to complete..."
-              echo "⏰ Will wait up to 10 minutes for cleanup to complete..."
+              echo "⏳ Stack is cleaning up after rollback. This state usually resolves automatically."
+              echo "⏰ Will wait up to 15 minutes for cleanup to complete..."
               
-              # Wait with timeout (10 minutes max)
-              timeout 600 aws cloudformation wait stack-update-rollback-complete --stack-name ${{ env.STACK_NAME }} || {
-                echo "⚠️ Stack cleanup is taking too long or stuck. Checking current status..."
-                CURRENT_STATUS=$(aws cloudformation describe-stacks --stack-name ${{ env.STACK_NAME }} --query "Stacks[0].StackStatus" --output text)
-                echo "Current status: $CURRENT_STATUS"
+              # Poll the stack status until it changes or timeout
+              WAIT_TIME=0
+              MAX_WAIT=900  # 15 minutes
+              
+              while [[ $WAIT_TIME -lt $MAX_WAIT ]]; do
+                sleep 30
+                WAIT_TIME=$((WAIT_TIME + 30))
                 
-                if [[ "$CURRENT_STATUS" == "UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS" ]]; then
-                  echo "🔧 Stack is still stuck in cleanup. Attempting to cancel stack update..."
-                  aws cloudformation cancel-update-stack --stack-name ${{ env.STACK_NAME }} || {
-                    echo "❌ Could not cancel stack update. Stack appears to be permanently stuck."
-                    echo "🧹 Attempting to delete the stuck stack and start fresh..."
-                    
-                    # Force delete the stack
-                    aws cloudformation delete-stack --stack-name ${{ env.STACK_NAME }} || {
-                      echo "❌ Could not delete stuck stack. Manual intervention required."
-                      echo "💡 Please manually delete the stack in AWS Console or run:"
-                      echo "   aws cloudformation delete-stack --stack-name ${{ env.STACK_NAME }}"
-                      exit 1
-                    }
-                    
-                    echo "⏳ Waiting for stack deletion to complete..."
-                    timeout 300 aws cloudformation wait stack-delete-complete --stack-name ${{ env.STACK_NAME }} || {
-                      echo "⚠️ Stack deletion is taking too long. Continuing anyway..."
-                    }
-                    echo "✅ Stuck stack has been deleted. Will create fresh stack."
-                    exit 0  # Exit successfully to continue with fresh deployment
-                  }
-                  echo "⏳ Waiting for cancellation to complete..."
-                  timeout 300 aws cloudformation wait stack-update-rollback-complete --stack-name ${{ env.STACK_NAME }} || {
-                    echo "⚠️ Cancellation timeout. Stack state may be unstable."
-                  }
+                CURRENT_STATUS=$(aws cloudformation describe-stacks --stack-name ${{ env.STACK_NAME }} --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo "STACK_NOT_FOUND")
+                echo "Status after ${WAIT_TIME}s: $CURRENT_STATUS"
+                
+                if [[ "$CURRENT_STATUS" != "UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS" ]]; then
+                  echo "✅ Stack cleanup completed. New status: $CURRENT_STATUS"
+                  break
                 fi
-              }
-              echo "✅ Stack rollback cleanup completed. Stack is now ready for new deployment."
+                
+                if [[ $WAIT_TIME -ge $MAX_WAIT ]]; then
+                  echo "❌ Stack cleanup has been stuck for 15 minutes."
+                  echo "💡 CloudFormation stacks in UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS can sometimes"
+                  echo "   get stuck due to temporary AWS service issues or resource dependencies."
+                  echo ""
+                  echo "🔧 Try these solutions in order:"
+                  echo "   1. Wait longer - this usually resolves within 30 minutes"
+                  echo "   2. Check CloudFormation console for stuck resources"
+                  echo "   3. If still stuck after 1 hour, contact AWS Support"
+                  echo ""
+                  echo "   As a last resort, you can manually delete the stack once it reaches"
+                  echo "   UPDATE_ROLLBACK_COMPLETE state (not the current CLEANUP_IN_PROGRESS state)"
+                  echo ""
+                  echo "   For now, canceling this workflow. Please re-run once the stack"
+                  echo "   transitions to UPDATE_ROLLBACK_COMPLETE or gets manually resolved."
+                  exit 1
+                fi
+              done
+              
+              # If we get here, the stack should be in UPDATE_ROLLBACK_COMPLETE
+              echo "✅ Stack cleanup completed. Ready for new deployment."
               ;;
             "DELETE_FAILED")
               echo "❌ Stack is in DELETE_FAILED state. Manual intervention required."
