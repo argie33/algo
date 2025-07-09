@@ -270,8 +270,35 @@ Resources:
             - stocks-bastion
       Parameters:
         commands:
-          - yum update -y
-          - yum install -y postgresql15 jq awscli || amazon-linux-extras install -y postgresql10 || yum install -y postgresql
+          - |
+            #!/bin/bash
+            set -e
+            yum update -y
+            
+            # Try multiple methods to install PostgreSQL
+            if amazon-linux-extras list | grep -q postgresql; then
+              echo "Installing PostgreSQL via amazon-linux-extras..."
+              amazon-linux-extras install -y postgresql14
+            elif yum list available | grep -q postgresql15; then
+              echo "Installing PostgreSQL 15..."
+              yum install -y postgresql15
+            elif yum list available | grep -q postgresql; then
+              echo "Installing default PostgreSQL..."
+              yum install -y postgresql
+            else
+              echo "Installing PostgreSQL from source repository..."
+              yum install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+              yum install -y postgresql14
+            fi
+            
+            # Verify installation
+            if command -v psql >/dev/null 2>&1; then
+              echo "PostgreSQL installed successfully"
+              psql --version
+            else
+              echo "PostgreSQL installation failed"
+              exit 1
+            fi
 
   ### 5) Auto-scaling group ###
   BastionAutoScalingGroup:
