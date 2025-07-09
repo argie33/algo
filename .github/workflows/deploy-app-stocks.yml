@@ -88,10 +88,10 @@ jobs:
         with:
           filters: |
             app:
-              - 'cloudformation/template-app-stocks.yml'
+              - 'template-app-stocks.yml'
               - '.github/workflows/deploy-app-stocks.yml'
             tasks:
-              - 'cloudformation/template-app-ecs-tasks.yml'
+              - 'template-app-ecs-tasks.yml'
               - 'requirements.txt'
               - 'scripts/**'
             qualitymetrics:
@@ -99,7 +99,7 @@ jobs:
             valuemetrics:
               - 'scripts/value-metrics/**'
             stepfunctions:
-              - 'cloudformation/template-step-functions-orchestration.yml'
+              - 'template-step-functions-orchestration.yml'
             symbols:
               - 'scripts/stock-symbols/**'
             symbolsalt:
@@ -202,7 +202,7 @@ jobs:
               - 'scripts/calendar/**'
             any:
               - 'scripts/**'
-              - 'cloudformation/**'
+              - 'template-*.yml'
               - '.github/workflows/**'
               - 'requirements.txt'
               - 'load*.py'
