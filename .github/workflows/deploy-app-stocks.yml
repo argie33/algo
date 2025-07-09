@@ -422,15 +422,41 @@ jobs:
 
       - name: Deploy application stack
         run: |
-          aws cloudformation deploy \
-            --stack-name stocks-app-stack \
-            --template-file template-app-stocks.yml \
-            --parameter-overrides \
-              RDSUsername=${{ secrets.RDS_USERNAME }} \
-              RDSPassword=${{ secrets.RDS_PASSWORD }} \
-              FREDApiKey=${{ secrets.FRED_API_KEY }} \
-            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-            --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}
+          # Check if template file exists
+          if [ ! -f template-app-stocks.yml ]; then
+            echo "❌ template-app-stocks.yml not found in current directory"
+            ls -la
+            exit 1
+          fi
+          
+          # Check template size
+          TEMPLATE_SIZE=$(wc -c < template-app-stocks.yml)
+          echo "Template size: $TEMPLATE_SIZE bytes"
+          
+          if [ $TEMPLATE_SIZE -lt 51200 ]; then
+            echo "Template is small enough, deploying directly without S3..."
+            aws cloudformation deploy \
+              --stack-name stocks-app-stack \
+              --template-file template-app-stocks.yml \
+              --parameter-overrides \
+                RDSUsername=${{ secrets.RDS_USERNAME }} \
+                RDSPassword=${{ secrets.RDS_PASSWORD }} \
+                FREDApiKey=${{ secrets.FRED_API_KEY }} \
+              --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+              --no-fail-on-empty-changeset
+          else
+            echo "Template is too large, using S3 bucket..."
+            aws cloudformation deploy \
+              --stack-name stocks-app-stack \
+              --template-file template-app-stocks.yml \
+              --parameter-overrides \
+                RDSUsername=${{ secrets.RDS_USERNAME }} \
+                RDSPassword=${{ secrets.RDS_PASSWORD }} \
+                FREDApiKey=${{ secrets.FRED_API_KEY }} \
+              --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+              --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }} \
+              --no-fail-on-empty-changeset
+          fi
 
 ################################################################################
 # 2) Detect changed components                                                 #
