@@ -23,13 +23,6 @@ Globals:
   Function:
     Timeout: 30
     Runtime: nodejs18.x
-    Environment:
-      Variables:
-        DB_SECRET_ARN: !Ref DatabaseSecretArn
-        DB_ENDPOINT: !Ref DatabaseEndpoint
-        ENVIRONMENT: !Ref EnvironmentName
-        NODE_ENV: production
-        WEBAPP_AWS_REGION: !Ref AWS::Region
 
 Resources:
   # Cognito User Pool for authentication
@@ -178,31 +171,24 @@ Resources:
       FunctionName: !Sub 'financial-dashboard-api-dev'
       CodeUri: webapp/lambda/
       Handler: index.handler
-      Policies:
-        - Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action:
-                - secretsmanager:GetSecretValue
-              Resource: !Ref DatabaseSecretArn
-            - Effect: Allow
-              Action:
-                - rds:DescribeDBInstances
-                - rds:DescribeDBClusters
-              Resource: '*'
-            - Effect: Allow
-              Action:
-                - logs:CreateLogGroup
-                - logs:CreateLogStream
-                - logs:PutLogEvents
-              Resource: '*'
-            - Effect: Allow
-              Action:
-                - cognito-idp:AdminGetUser
-                - cognito-idp:AdminCreateUser
-                - cognito-idp:AdminUpdateUserAttributes
-                - cognito-idp:AdminDeleteUser
-              Resource: !GetAtt UserPool.Arn
+      Role: !GetAtt LambdaExecutionRole.Arn
+      VpcConfig:
+        SubnetIds:
+          - !ImportValue StocksCore-PublicSubnet1Id
+          - !ImportValue StocksCore-PublicSubnet2Id
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+      Timeout: 45
+      Environment:
+        Variables:
+          DB_SECRET_ARN: !Ref DatabaseSecretArn
+          DB_ENDPOINT: !Ref DatabaseEndpoint
+          ENVIRONMENT: !Ref EnvironmentName
+          NODE_ENV: production
+          AWS_REGION: !Ref AWS::Region
+          WEBAPP_AWS_REGION: !Ref AWS::Region
+          COGNITO_USER_POOL_ID: !Ref UserPool
+          COGNITO_CLIENT_ID: !Ref UserPoolClient
       Events:
         ApiProxy:
           Type: Api
@@ -263,6 +249,17 @@ Resources:
 
 
 
+  # Lambda Security Group
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Lambda functions
+      VpcId: !ImportValue StocksCore-VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: "Allow all outbound traffic"
+
   # IAM Role for Lambda execution
   LambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -276,6 +273,7 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
       Policies:
         - PolicyName: DatabaseAccess
           PolicyDocument:
@@ -284,12 +282,20 @@ Resources:
               - Effect: Allow
                 Action:
                   - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
                 Resource: !Ref DatabaseSecretArn
               - Effect: Allow
                 Action:
                   - rds:DescribeDBInstances
                   - rds:DescribeDBClusters
                 Resource: '*'
+              - Effect: Allow
+                Action:
+                  - cognito-idp:AdminGetUser
+                  - cognito-idp:AdminCreateUser
+                  - cognito-idp:AdminUpdateUserAttributes
+                  - cognito-idp:AdminDeleteUser
+                Resource: !GetAtt UserPool.Arn
 
   # CloudWatch Alarm for Lambda performance
   LambdaPerformanceAlarm:
