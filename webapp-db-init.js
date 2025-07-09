@@ -2,6 +2,7 @@
 /**
  * ECS-based Webapp Database Initialization Script
  * Runs as an ECS task during deployment to initialize webapp database tables
+ * Updated to use AWS SDK v3 for compatibility
  */
 
 const { Client } = require('pg');
