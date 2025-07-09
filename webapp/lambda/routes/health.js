@@ -77,14 +77,111 @@ router.get('/', async (req, res) => {
     // Test database connection with timeout and detailed error reporting
     const dbStart = Date.now();
     let result;
+    
+    // Enhanced logging for network debugging
+    console.log('🔍 HEALTH CHECK - Lambda Network Diagnostics:');
+    console.log('  Lambda Function:', process.env.AWS_LAMBDA_FUNCTION_NAME || 'unknown');
+    console.log('  Lambda Region:', process.env.AWS_REGION || 'unknown');
+    console.log('  VPC Subnets:', process.env.AWS_LAMBDA_VPC_SUBNET_IDS || 'not configured');
+    console.log('  Security Groups:', process.env.AWS_LAMBDA_VPC_SECURITY_GROUP_IDS || 'not configured');
+    console.log('  DB Endpoint:', process.env.DB_ENDPOINT || 'not set');
+    console.log('  DB Secret ARN:', process.env.DB_SECRET_ARN ? '[CONFIGURED]' : 'not set');
+    
     try {
+      // Get database credentials for connectivity logging
+      const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
+      const secretsManager = new SecretsManagerClient({ region: process.env.AWS_REGION || 'us-east-1' });
+      
+      if (process.env.DB_SECRET_ARN) {
+        try {
+          const secretResult = await secretsManager.send(new GetSecretValueCommand({ 
+            SecretId: process.env.DB_SECRET_ARN 
+          }));
+          const dbConfig = JSON.parse(secretResult.SecretString);
+          console.log('🔍 DATABASE CONNECTION TARGET:');
+          console.log('  DB Host:', dbConfig.host || 'unknown');
+          console.log('  DB Port:', dbConfig.port || 'unknown');
+          console.log('  DB Name:', dbConfig.dbname || 'unknown');
+          console.log('  DB User:', dbConfig.username || 'unknown');
+          
+          // Test DNS resolution for network debugging
+          const dns = require('dns');
+          const { promisify } = require('util');
+          const lookup = promisify(dns.lookup);
+          
+          try {
+            const dnsResult = await lookup(dbConfig.host);
+            console.log('🔍 DNS RESOLUTION:');
+            console.log('  Resolved IP:', dnsResult.address);
+            console.log('  IP Family:', dnsResult.family === 4 ? 'IPv4' : 'IPv6');
+          } catch (dnsError) {
+            console.log('❌ DNS RESOLUTION FAILED:', dnsError.message);
+          }
+          
+          // Test basic network connectivity
+          const net = require('net');
+          const testNetworkConnectivity = () => {
+            return new Promise((resolve, reject) => {
+              const socket = new net.Socket();
+              const timeout = setTimeout(() => {
+                socket.destroy();
+                reject(new Error('Network connectivity test timeout (3s)'));
+              }, 3000);
+              
+              socket.connect(dbConfig.port, dbConfig.host, () => {
+                clearTimeout(timeout);
+                socket.destroy();
+                resolve(true);
+              });
+              
+              socket.on('error', (err) => {
+                clearTimeout(timeout);
+                reject(err);
+              });
+            });
+          };
+          
+          try {
+            await testNetworkConnectivity();
+            console.log('✅ NETWORK CONNECTIVITY: Lambda can reach database host:port');
+          } catch (netError) {
+            console.log('❌ NETWORK CONNECTIVITY FAILED:', netError.message);
+            console.log('   This indicates Lambda subnet cannot reach database subnet');
+            console.log('   Check: VPC routing, security groups, NACLs');
+          }
+          
+        } catch (secretError) {
+          console.log('❌ SECRETS MANAGER ACCESS FAILED:', secretError.message);
+        }
+      }
+      
       result = await Promise.race([
         query('SELECT 1 as ok'),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Database health check timeout')), 5000))
       ]);
+      console.log('✅ DATABASE QUERY: Basic query successful');
+      
     } catch (dbError) {
-      // Enhanced error logging
-      console.error('Database health check query failed:', dbError);
+      // Enhanced error logging for network debugging
+      console.error('❌ DATABASE HEALTH CHECK FAILED:', dbError.message);
+      console.log('🔍 ERROR ANALYSIS:');
+      
+      if (dbError.message.includes('timeout')) {
+        console.log('  → Database connection timeout - likely network/VPC issue');
+        console.log('  → Check: Lambda VPC config, security groups, routing tables');
+      } else if (dbError.message.includes('ECONNREFUSED')) {
+        console.log('  → Connection refused - database not listening or network blocked');
+        console.log('  → Check: Database status, security group rules, port configuration');
+      } else if (dbError.message.includes('ENOTFOUND') || dbError.message.includes('EHOSTUNREACH')) {
+        console.log('  → Host unreachable - DNS or routing issue');
+        console.log('  → Check: VPC DNS settings, route tables, subnet configuration');
+      } else if (dbError.message.includes('authentication')) {
+        console.log('  → Authentication failed - credential issue');
+        console.log('  → Check: Database user permissions, password correctness');
+      } else {
+        console.log('  → Unexpected error type:', dbError.code || 'unknown');
+      }
+      
       return res.status(503).json({
         status: 'unhealthy',
         healthy: false,
@@ -94,9 +191,15 @@ router.get('/', async (req, res) => {
         database: {
           status: 'disconnected',
           error: dbError.message,
-          stack: dbError.stack,
+          errorCode: dbError.code,
           lastAttempt: new Date().toISOString(),
-          tables: {}
+          tables: {},
+          networkDiagnostics: {
+            lambdaVpcSubnets: process.env.AWS_LAMBDA_VPC_SUBNET_IDS || 'not configured',
+            lambdaSecurityGroups: process.env.AWS_LAMBDA_VPC_SECURITY_GROUP_IDS || 'not configured',
+            dbEndpoint: process.env.DB_ENDPOINT || 'not set',
+            hasDbSecret: !!process.env.DB_SECRET_ARN
+          }
         },
         api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' },
         memory: process.memoryUsage(),
@@ -252,7 +355,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Fast database health check endpoint - lightweight production pattern
+// Simple database test endpoint 
 router.get('/database', async (req, res) => {
   console.log('Received request for /health/database');
   try {

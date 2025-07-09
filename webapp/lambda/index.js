@@ -36,7 +36,6 @@ const sectorsRoutes = require('./routes/sectors');
 const watchlistRoutes = require('./routes/watchlist');
 const aiAssistantRoutes = require('./routes/ai-assistant');
 const tradesRoutes = require('./routes/trades');
-const diagnosticsRoutes = require('./routes/diagnostics');
 
 const app = express();
 
@@ -296,7 +295,6 @@ app.use('/api/watchlist', watchlistRoutes);
 app.use('/api/sectors', sectorsRoutes);
 app.use('/api/ai', aiAssistantRoutes);
 app.use('/api/trades', tradesRoutes);
-app.use('/api/diagnostics', diagnosticsRoutes);
 
 // Debug route for troubleshooting API Gateway issues
 app.get('/debug', (req, res) => {
