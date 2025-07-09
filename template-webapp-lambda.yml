@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
   Financial Dashboard Webapp - Serverless backend with Lambda functions and frontend deployment
-  Uses SAM for API Gateway + Lambda deployment with RDS connectivity
+  Uses SAM for API Gateway + Lambda deployment with RDS connectivity. Updated for verified deployment.
 
 Parameters:
   EnvironmentName:
