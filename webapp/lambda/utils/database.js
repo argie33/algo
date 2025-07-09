@@ -292,21 +292,6 @@ setInterval(async () => {
         }
     }
 }, 60000); // Check every minute
-            //     rows: result.rowCount,
-            //     query: text.slice(0, 100) + (text.length > 100 ? '...' : '')
-            // });
-        }
-        
-        return result;
-    } catch (error) {
-        console.error('Database query error:', {
-            error: error.message,
-            query: text.slice(0, 100) + (text.length > 100 ? '...' : ''),
-            params: params
-        });
-        throw error;
-    }
-}
 
 /**
  * Execute a transaction

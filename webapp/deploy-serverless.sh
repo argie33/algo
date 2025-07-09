@@ -183,15 +183,38 @@ deploy_infrastructure() {
     
     log_info "Using database secret: $DB_SECRET_ARN"
     
+    # Get database endpoint
+    log_info "Looking up database endpoint..."
+    DB_ENDPOINT=$(aws cloudformation list-exports \
+        --query "Exports[?Name=='StocksApp-DatabaseEndpoint'].Value | [0]" \
+        --output text \
+        --region $AWS_REGION 2>/dev/null || echo "None")
+    
+    if [ "$DB_ENDPOINT" = "None" ] || [ -z "$DB_ENDPOINT" ]; then
+        # Try to find RDS instance endpoint
+        DB_ENDPOINT=$(aws rds describe-db-instances \
+            --query "DBInstances[?DBInstanceStatus=='available'].Endpoint.Address | [0]" \
+            --output text \
+            --region $AWS_REGION 2>/dev/null || echo "None")
+    fi
+    
+    if [ "$DB_ENDPOINT" = "None" ] || [ -z "$DB_ENDPOINT" ]; then
+        log_error "Database endpoint not found. Please ensure the database is running."
+        exit 1
+    fi
+    
+    log_info "Using database endpoint: $DB_ENDPOINT"
+    
     # Deploy with SAM
     log_info "Deploying CloudFormation stack..."
     sam deploy \
-        --template-file webapp/template-webapp-lambda.yml \
+        --template-file template-webapp-lambda.yml \
         --stack-name $STACK_NAME \
         --capabilities CAPABILITY_IAM \
         --parameter-overrides \
             EnvironmentName=$ENVIRONMENT \
             DatabaseSecretArn=$DB_SECRET_ARN \
+            DatabaseEndpoint=$DB_ENDPOINT \
         --no-fail-on-empty-changeset \
         --region $AWS_REGION
     

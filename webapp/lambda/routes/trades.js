@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { authenticateUser } = require('../middleware/auth');
-const { getDbConnection } = require('../utils/database');
+const { authenticateToken } = require('../middleware/auth');
+const { query } = require('../utils/database');
 const TradeAnalyticsService = require('../services/tradeAnalyticsService');
 const { decrypt } = require('../utils/secrets');
 
@@ -17,10 +17,10 @@ let tradeAnalyticsService;
  * @route GET /api/trades/import/status
  * @desc Get trade import status for user
  */
-router.get('/import/status', authenticateUser, async (req, res) => {
+router.get('/import/status', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    const db = await getDbConnection();
+    // Database queries will use the query function directly
     
     // Get broker configurations
     const result = await db.query(`
@@ -63,12 +63,12 @@ router.get('/import/status', authenticateUser, async (req, res) => {
  * @route POST /api/trades/import/alpaca
  * @desc Import trades from Alpaca using stored API keys
  */
-router.post('/import/alpaca', authenticateUser, async (req, res) => {
+router.post('/import/alpaca', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     const { startDate, endDate, forceRefresh = false } = req.body;
     
-    const db = await getDbConnection();
+    // Database queries will use the query function directly
     
     // Get user's Alpaca API keys
     const apiKeyResult = await db.query(`
@@ -147,10 +147,10 @@ router.post('/import/alpaca', authenticateUser, async (req, res) => {
  * @route GET /api/trades/summary
  * @desc Get comprehensive trade analysis summary
  */
-router.get('/summary', authenticateUser, async (req, res) => {
+router.get('/summary', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    const db = await getDbConnection();
+    // Database queries will use the query function directly
     
     if (!tradeAnalyticsService) {
       tradeAnalyticsService = new TradeAnalyticsService();
@@ -176,11 +176,11 @@ router.get('/summary', authenticateUser, async (req, res) => {
  * @route GET /api/trades/positions
  * @desc Get position history with analytics
  */
-router.get('/positions', authenticateUser, async (req, res) => {
+router.get('/positions', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     const { status = 'all', limit = 50, offset = 0 } = req.query;
-    const db = await getDbConnection();
+    // Database queries will use the query function directly
     
     let statusFilter = '';
     let params = [userId, parseInt(limit), parseInt(offset)];
@@ -242,11 +242,11 @@ router.get('/positions', authenticateUser, async (req, res) => {
  * @route GET /api/trades/analytics/:positionId
  * @desc Get detailed analytics for a specific position
  */
-router.get('/analytics/:positionId', authenticateUser, async (req, res) => {
+router.get('/analytics/:positionId', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     const positionId = parseInt(req.params.positionId);
-    const db = await getDbConnection();
+    // Database queries will use the query function directly
     
     // Get position with full analytics
     const result = await db.query(`
@@ -311,11 +311,11 @@ router.get('/analytics/:positionId', authenticateUser, async (req, res) => {
  * @route GET /api/trades/insights
  * @desc Get AI-generated trade insights and recommendations
  */
-router.get('/insights', authenticateUser, async (req, res) => {
+router.get('/insights', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     const { limit = 10 } = req.query;
-    const db = await getDbConnection();
+    // Database queries will use the query function directly
     
     if (!tradeAnalyticsService) {
       tradeAnalyticsService = new TradeAnalyticsService();
@@ -344,11 +344,11 @@ router.get('/insights', authenticateUser, async (req, res) => {
  * @route GET /api/trades/performance
  * @desc Get performance metrics and benchmarks
  */
-router.get('/performance', authenticateUser, async (req, res) => {
+router.get('/performance', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     const { timeframe = '3M' } = req.query;
-    const db = await getDbConnection();
+    // Database queries will use the query function directly
     
     // Get performance benchmarks
     const benchmarkResult = await db.query(`
@@ -395,7 +395,7 @@ router.get('/performance', authenticateUser, async (req, res) => {
  * @route GET /api/trades/history
  * @desc Get paginated trade history with filtering options
  */
-router.get('/history', authenticateUser, async (req, res) => {
+router.get('/history', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     const { 
@@ -410,7 +410,7 @@ router.get('/history', authenticateUser, async (req, res) => {
       offset = 0 
     } = req.query;
     
-    const db = await getDbConnection();
+    // Database queries will use the query function directly
     
     // Build dynamic query
     let whereClause = 'WHERE te.user_id = $1';
@@ -499,11 +499,11 @@ router.get('/history', authenticateUser, async (req, res) => {
  * @route GET /api/trades/analytics/overview
  * @desc Get trade analytics overview with key metrics
  */
-router.get('/analytics/overview', authenticateUser, async (req, res) => {
+router.get('/analytics/overview', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     const { timeframe = '3M' } = req.query;
-    const db = await getDbConnection();
+    // Database queries will use the query function directly
     
     // Calculate date range
     const endDate = new Date();
@@ -599,11 +599,11 @@ router.get('/analytics/overview', authenticateUser, async (req, res) => {
  * @route GET /api/trades/export
  * @desc Export trade data in various formats
  */
-router.get('/export', authenticateUser, async (req, res) => {
+router.get('/export', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     const { format = 'csv', startDate, endDate } = req.query;
-    const db = await getDbConnection();
+    // Database queries will use the query function directly
     
     let whereClause = 'WHERE te.user_id = $1';
     let params = [userId];
@@ -699,7 +699,7 @@ router.get('/export', authenticateUser, async (req, res) => {
  * @route DELETE /api/trades/data
  * @desc Delete all trade data for user (for testing/reset)
  */
-router.delete('/data', authenticateUser, async (req, res) => {
+router.delete('/data', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     const { confirm } = req.body;
@@ -711,7 +711,7 @@ router.delete('/data', authenticateUser, async (req, res) => {
       });
     }
 
-    const db = await getDbConnection();
+    // Database queries will use the query function directly
     
     // Delete all trade-related data for user
     await db.query('BEGIN');

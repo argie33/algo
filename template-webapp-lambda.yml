@@ -29,6 +29,8 @@ Globals:
         DB_ENDPOINT: !Ref DatabaseEndpoint
         ENVIRONMENT: !Ref EnvironmentName
         NODE_ENV: production
+        AWS_REGION: !Ref AWS::Region
+        WEBAPP_AWS_REGION: !Ref AWS::Region
 
 Resources:
   # Cognito User Pool for authentication

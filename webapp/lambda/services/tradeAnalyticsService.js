@@ -1,5 +1,5 @@
 const AlpacaService = require('../utils/alpacaService');
-const { getDbConnection } = require('../utils/database');
+const { query } = require('../utils/database');
 
 /**
  * Professional Trade Analytics Service
@@ -78,7 +78,7 @@ class TradeAnalyticsService {
    * Import trade executions into database
    */
   async importTradeExecutions(userId, activities, broker, isPaper) {
-    const db = await getDbConnection();
+    // Database queries will use the query function directly
     let imported = 0;
     let updated = 0;
     let errors = 0;
@@ -173,7 +173,7 @@ class TradeAnalyticsService {
    * Reconstruct positions from trade executions
    */
   async reconstructPositions(userId) {
-    const db = await getDbConnection();
+    // Database queries will use the query function directly
     
     try {
       await db.query('BEGIN');
@@ -311,7 +311,7 @@ class TradeAnalyticsService {
    * Calculate trade analytics for positions
    */
   async calculateTradeAnalytics(userId) {
-    const db = await getDbConnection();
+    // Database queries will use the query function directly
     
     try {
       // Get closed positions that need analytics
@@ -421,7 +421,7 @@ class TradeAnalyticsService {
    * Update broker API configuration
    */
   async updateBrokerConfig(userId, broker, isPaper, isActive, error = null) {
-    const db = await getDbConnection();
+    // Database queries will use the query function directly
     
     try {
       await db.query(`
@@ -451,7 +451,7 @@ class TradeAnalyticsService {
    * Get trade analysis summary for user
    */
   async getTradeAnalysisSummary(userId) {
-    const db = await getDbConnection();
+    // Database queries will use the query function directly
     
     try {
       // Get portfolio summary
@@ -492,7 +492,7 @@ class TradeAnalyticsService {
    * Get trade insights for user
    */
   async getTradeInsights(userId, limit = 10) {
-    const db = await getDbConnection();
+    // Database queries will use the query function directly
     
     try {
       const result = await db.query(`
