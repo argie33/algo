@@ -212,8 +212,8 @@ jobs:
 # 6) Run value-metrics loader
   run_valuemetrics:
     name: Run value-metrics calculator
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.valuemetrics == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.valuemetrics == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -301,8 +301,8 @@ jobs:
 # 6) Run quality-metrics loader
   run_qualitymetrics:
     name: Run quality-metrics calculator
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.qualitymetrics == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.qualitymetrics == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -461,408 +461,15 @@ jobs:
 ################################################################################
 # 2) Detect changed components                                                 #
 ################################################################################
-  detect-changes:
-    name: Detect changed components
-    runs-on: ubuntu-latest
-    outputs:
-      app:               ${{ steps.paths.outputs.app }}
-      symbols:           ${{ steps.paths.outputs.symbols }}
-      econ:              ${{ steps.paths.outputs.econ }}
-      pricedaily:        ${{ steps.paths.outputs.pricedaily }}
-      priceweekly:       ${{ steps.paths.outputs.priceweekly }}
-      pricemonthly:      ${{ steps.paths.outputs.pricemonthly }}
-      latestpricedaily: ${{ steps.paths.outputs.latestpricedaily }}
-      latestpriceweekly: ${{ steps.paths.outputs.latestpriceweekly }}
-      latestpricemonthly: ${{ steps.paths.outputs.latestpricemonthly }}
-      latesttechnicalsdaily: ${{ steps.paths.outputs.latesttechnicalsdaily }}
-      latesttechnicalsweekly: ${{ steps.paths.outputs.latesttechnicalsweekly }}
-      latesttechnicalsmonthly: ${{ steps.paths.outputs.latesttechnicalsmonthly }}
-      technicalsdaily:   ${{ steps.paths.outputs.technicalsdaily }}
-      loadinfo:          ${{ steps.paths.outputs.loadinfo }}
-      earningsestimate:  ${{ steps.paths.outputs.earningsestimate }}
-      earningsmetrics:   ${{ steps.paths.outputs.earningsmetrics }}
-      earningshistory:   ${{ steps.paths.outputs.earningshistory }}
-      revenueestimate:   ${{ steps.paths.outputs.revenueestimate }}
-      technicalsweekly:  ${{ steps.paths.outputs.technicalsweekly }}
-      technicalsmonthly: ${{ steps.paths.outputs.technicalsmonthly }}
-      swingtrader:       ${{ steps.paths.outputs.swingtrader }}
-      calendar:          ${{ steps.paths.outputs.calendar }}
-      buyselldaily:      ${{ steps.paths.outputs.buyselldaily }}
-      buysellweekly:     ${{ steps.paths.outputs.buysellweekly }}
-      buysellmonthly:    ${{ steps.paths.outputs.buysellmonthly }}
-      naaim:             ${{ steps.paths.outputs.naaim }}
-      aaii:              ${{ steps.paths.outputs.aaii }}
-      feargreed:         ${{ steps.paths.outputs.feargreed }}
-      quarterlybalancesheet: ${{ steps.paths.outputs.quarterlybalancesheet }}
-      annualbalancesheet: ${{ steps.paths.outputs.annualbalancesheet }}
-      quarterlyincomestatement: ${{ steps.paths.outputs.quarterlyincomestatement }}
-      annualincomestatement: ${{ steps.paths.outputs.annualincomestatement }}
-      quarterlycashflow: ${{ steps.paths.outputs.quarterlycashflow }}
-      annualcashflow: ${{ steps.paths.outputs.annualcashflow }}
-      ttmincomestatement: ${{ steps.paths.outputs.ttmincomestatement }}
-      ttmcashflow: ${{ steps.paths.outputs.ttmcashflow }}
-      fundamentalmetrics: ${{ steps.paths.outputs.fundamentalmetrics }}
-      analystupgradedowngrade: ${{ steps.paths.outputs.analystupgradedowngrade }}
-      financials: ${{ steps.paths.outputs.financials }}
-      symbolsalt: ${{ steps.paths.outputs.symbolsalt }}
-      sentiment: ${{ steps.paths.outputs.sentiment }}
-      technicals: ${{ steps.paths.outputs.technicals }}
-      market: ${{ steps.paths.outputs.market }}
-      momentum: ${{ steps.paths.outputs.momentum }}
-      sentiment_realtime: ${{ steps.paths.outputs.sentiment_realtime }}
-      positioning: ${{ steps.paths.outputs.positioning }}
-      qualitymetrics: ${{ steps.paths.outputs.qualitymetrics }}
-      valuemetrics: ${{ steps.paths.outputs.valuemetrics }}
-      valuescores: ${{ steps.paths.outputs.valuescores }}
-      growthmetrics: ${{ steps.paths.outputs.growthmetrics }}
-      loadnews: ${{ steps.paths.outputs.loadnews }}
-      qualityscores: ${{ steps.paths.outputs.qualityscores }}
-      any:               ${{ steps.any.outputs.any }}
-      matrix:            ${{ steps.matrix.outputs.matrix }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-
-      - id: paths
-        name: Which files changed?
-        uses: dorny/paths-filter@v2
-        with:
-          base: ${{ github.event.before != '0000000000000000000000000000000000000000' && github.event.before || github.sha }}
-          filters: |
-            app:
-              - 'template-app-stocks.yml'
-            symbols:
-              - 'loadstocksymbols.py'
-              - 'Dockerfile.stocksymbols'
-              - 'requirements-loadstocksymbols.txt'
-            econ:
-              - 'loadecondata.py'
-              - 'Dockerfile.econdata'
-              - 'requirements-loadecondata.txt'
-            pricedaily:
-              - 'loadpricedaily.py'
-              - 'Dockerfile.pricedaily'
-              - 'requirements-loadpricedaily.txt'
-            priceweekly:
-              - 'loadpriceweekly.py'
-              - 'Dockerfile.priceweekly'
-              - 'requirements-loadpriceweekly.txt'
-            pricemonthly:
-              - 'loadpricemonthly.py'
-              - 'Dockerfile.pricemonthly'
-              - 'requirements-loadpricemonthly.txt'
-            latestpricedaily:
-              - 'loadlatestpricedaily.py'
-              - 'Dockerfile.latestpricedaily'
-              - 'requirements-loadlatestpricedaily.txt'
-            latestpriceweekly:
-              - 'loadlatestpriceweekly.py'
-              - 'Dockerfile.latestpriceweekly'
-              - 'requirements-loadlatestpriceweekly.txt'
-            latestpricemonthly:
-              - 'loadlatestpricemonthly.py'
-              - 'Dockerfile.latestpricemonthly'
-              - 'requirements-loadlatestpricemonthly.txt'
-            latesttechnicalsdaily:
-              - 'loadlatesttechnicalsdaily.py'
-              - 'Dockerfile.latesttechnicalsdaily'
-              - 'requirements-loadlatesttechnicalsdaily.txt'
-            latesttechnicalsweekly:
-              - 'loadlatesttechnicalsweekly.py'
-              - 'Dockerfile.latesttechnicalsweekly'
-              - 'requirements-loadlatesttechnicalsweekly.txt'
-            latesttechnicalsmonthly:
-              - 'loadlatesttechnicalsmonthly.py'
-              - 'Dockerfile.latesttechnicalsmonthly'
-              - 'requirements-loadlatesttechnicalsmonthly.txt'
-            technicalsdaily:
-              - 'loadtechnicalsdaily.py'
-              - 'Dockerfile.technicalsdaily'
-              - 'requirements-loadtechnicalsdaily.txt'
-            loadinfo:
-              - 'loadinfo.py'
-              - 'Dockerfile.loadinfo'
-              - 'requirements-loadinfo.txt'
-            loadnews:
-              - 'loadnews.py'
-              - 'Dockerfile.loadnews'
-              - 'requirements-loadnews.txt'
-            earningsestimate:
-              - 'loadearningsestimate.py'
-              - 'Dockerfile.loadearningsestimate'
-              - 'requirements-loadearningsestimate.txt'
-            earningsmetrics:
-              - 'loadearningsmetrics.py'
-              - 'Dockerfile.earningsmetrics'
-              - 'requirements-earningsmetrics.txt'
-            earningshistory:
-              - 'loadearningshistory.py'
-              - 'Dockerfile.loadearningshistory'
-              - 'requirements-loadearningshistory.txt'
-            revenueestimate:
-              - 'loadrevenueestimate.py'
-              - 'Dockerfile.loadrevenueestimate'
-              - 'requirements-loadrevenueestimate.txt'
-            technicalsweekly:
-              - 'loadtechnicalsweekly.py'
-              - 'Dockerfile.technicalsweekly'
-              - 'requirements-loadtechnicalsweekly.txt'
-            technicalsmonthly:
-              - 'loadtechnicalsmonthly.py'
-              - 'Dockerfile.technicalsmonthly'
-              - 'requirements-loadtechnicalsmonthly.txt'
-            swingtrader:
-              - 'swingtrader.py'
-              - 'Dockerfile.swingtrader'
-              - 'requirements-swingtrader.txt'
-            calendar:
-              - 'loadcalendar.py'
-              - 'Dockerfile.loadcalendar'
-              - 'requirements-loadcalendar.txt'
-            buyselldaily:
-              - 'loadbuyselldaily.py'
-              - 'Dockerfile.buyselldaily'
-              - 'requirements-loadbuysell.txt'
-            buysellweekly:
-              - 'loadbuysellweekly.py'
-              - 'Dockerfile.buysell'
-              - 'requirements-loadbuysell.txt'
-            buysellmonthly:
-              - 'loadbuysellmonthly.py'
-              - 'Dockerfile.buysell'
-              - 'requirements-loadbuysell.txt'
-            naaim:
-              - 'loadnaaim.py'
-              - 'Dockerfile.loadnaaim'
-              - 'requirements-loadnaaim.txt'
-            aaii:
-              - 'loadaaiidata.py'
-              - 'Dockerfile.loadaaiidata'
-              - 'requirements-loadaaiidata.txt'
-            feargreed:
-              - 'loadfeargreed.py'
-              - 'Dockerfile.loadfeargreed'
-              - 'requirements-loadfeargreed.txt'
-            quarterlybalancesheet:
-              - 'loadquarterlybalancesheet.py'
-              - 'Dockerfile.quarterlybalancesheet'
-              - 'requirements-loadquarterlybalancesheet.txt'
-            annualbalancesheet:
-              - 'loadannualbalancesheet.py'
-              - 'Dockerfile.annualbalancesheet'
-              - 'requirements-loadannualbalancesheet.txt'
-            quarterlyincomestatement:
-              - 'loadquarterlyincomestatement.py'
-              - 'Dockerfile.quarterlyincomestatement'
-              - 'requirements-loadquarterlyincomestatement.txt'
-            annualincomestatement:
-              - 'loadannualincomestatement.py'
-              - 'Dockerfile.annualincomestatement'
-              - 'requirements-loadannualincomestatement.txt'
-            quarterlycashflow:
-              - 'loadquarterlycashflow.py'
-              - 'Dockerfile.quarterlycashflow'
-              - 'requirements-loadquarterlycashflow.txt'
-            annualcashflow:
-              - 'loadannualcashflow.py'
-              - 'Dockerfile.annualcashflow'
-              - 'requirements-loadannualcashflow.txt'
-            ttmincomestatement:
-              - 'loadttmincomestatement.py'
-              - 'Dockerfile.ttmincomestatement'
-              - 'requirements-loadttmincomestatement.txt'
-            ttmcashflow:
-              - 'loadttmcashflow.py'
-              - 'Dockerfile.ttmcashflow'
-              - 'requirements-loadttmcashflow.txt'
-            fundamentalmetrics:
-              - 'loadfundamentalmetrics.py'
-              - 'Dockerfile.loadfundamentalmetrics'
-              - 'requirements-loadfundamentalmetrics.txt'
-            analystupgradedowngrade:
-              - 'loadanalystupgradedowngrade.py'
-              - 'Dockerfile.loadanalystupgradedowngrade'
-              - 'requirements-loadanalystupgradedowngrade.txt'
-            symbolsalt:
-              - 'loadsymbols.py'
-              - 'Dockerfile.loadsymbols'
-              - 'requirements-loadsymbols.txt'
-            financials:
-              - 'loadfinancials.py'
-              - 'Dockerfile.loadfinancials'
-              - 'requirements-loadfinancials.txt'
-            sentiment:
-              - 'loadsentiment.py'
-              - 'Dockerfile.loadsentiment'
-              - 'requirements-loadsentiment.txt'
-            technicals:
-              - 'loadtechnicals.py'
-              - 'Dockerfile.loadtechnicals'
-              - 'requirements-loadtechnicals.txt'
-            market:
-              - 'loadmarket.py'
-              - 'Dockerfile.loadmarket'
-              - 'requirements-loadmarket.txt'
-            momentum:
-              - 'loadmomentum.py'
-              - 'Dockerfile.loadmomentum'
-              - 'requirements-loadmomentum.txt'
-            sentiment_realtime:
-              - 'loadsentiment_realtime.py'
-              - 'Dockerfile.loadsentiment_realtime'
-              - 'requirements-loadsentiment_realtime.txt'
-            positioning:
-              - 'loadpositioning.py'
-              - 'Dockerfile.loadpositioning'
-              - 'requirements-loadpositioning.txt'
-            qualitymetrics:
-              - 'calculate_quality_metrics.py'
-              - 'Dockerfile.quality-metrics'
-              - 'requirements.txt'
-            valuemetrics:
-              - 'calculate_value_metrics.py'
-              - 'Dockerfile.value-metrics'
-              - 'requirements.txt'
-            valuescores:
-              - 'calculate_value_scores.py'
-              - 'Dockerfile.calculate_value_scores'
-              - 'requirements-value-scores.txt'
-            growthmetrics:
-              - 'calculate_growth_metrics.py'
-              - 'Dockerfile.growth-metrics'
-              - 'requirements.txt'
-
-      - id: any
-        name: Any changes?
-        run: |
-          if [ "${{ steps.paths.outputs.symbols }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.econ }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.pricedaily }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.priceweekly }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.pricemonthly }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.technicalsdaily }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.loadinfo }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.loadnews }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.earningsestimate }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.earningsmetrics }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.earningshistory }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.revenueestimate }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.technicalsweekly }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.technicalsmonthly }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.swingtrader }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.calendar }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.buyselldaily }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.buysellweekly }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.buysellmonthly }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.latestpricedaily }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.latestpriceweekly }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.latestpricemonthly }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.latesttechnicalsdaily }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.latesttechnicalsweekly }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.latesttechnicalsmonthly }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.naaim }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.aaii }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.feargreed }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.quarterlybalancesheet }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.annualbalancesheet }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.quarterlyincomestatement }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.annualincomestatement }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.quarterlycashflow }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.annualcashflow }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.ttmincomestatement }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.ttmcashflow }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.fundamentalmetrics }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.analystupgradedowngrade }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.symbols }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.financials }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.sentiment }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.technicals }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.market }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.momentum }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.sentiment_realtime }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.positioning }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.qualitymetrics }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.valuemetrics }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.valuescores }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.growthmetrics }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.app }}" = "true" ]; then
-            echo "any=true" >> $GITHUB_OUTPUT
-          else
-            echo "any=false" >> $GITHUB_OUTPUT
-          fi
-
-      - id: matrix
-        name: Build matrix
-        run: |
-          arr=""
-          [ "${{ steps.paths.outputs.symbols }}" = "true" ]         && arr="$arr,\"symbols\""
-          [ "${{ steps.paths.outputs.econ }}"    = "true" ]         && arr="$arr,\"econ\""
-          [ "${{ steps.paths.outputs.pricedaily }}" = "true" ]      && arr="$arr,\"pricedaily\""
-          [ "${{ steps.paths.outputs.priceweekly }}" = "true" ]     && arr="$arr,\"priceweekly\""
-          [ "${{ steps.paths.outputs.pricemonthly }}" = "true" ]    && arr="$arr,\"pricemonthly\""
-          [ "${{ steps.paths.outputs.technicalsdaily }}" = "true" ] && arr="$arr,\"technicalsdaily\""
-          [ "${{ steps.paths.outputs.loadinfo }}" = "true" ]        && arr="$arr,\"loadinfo\""
-          [ "${{ steps.paths.outputs.loadnews }}" = "true" ]        && arr="$arr,\"loadnews\""
-          [ "${{ steps.paths.outputs.earningsestimate }}" = "true" ] && arr="$arr,\"earningsestimate\""
-          [ "${{ steps.paths.outputs.earningsmetrics }}" = "true" ] && arr="$arr,\"earningsmetrics\""
-          [ "${{ steps.paths.outputs.earningshistory }}" = "true" ] && arr="$arr,\"earningshistory\""
-          [ "${{ steps.paths.outputs.revenueestimate }}" = "true" ] && arr="$arr,\"revenueestimate\""
-          [ "${{ steps.paths.outputs.technicalsweekly }}" = "true" ] && arr="$arr,\"technicalsweekly\""
-          [ "${{ steps.paths.outputs.technicalsmonthly }}" = "true" ] && arr="$arr,\"technicalsmonthly\""
-          [ "${{ steps.paths.outputs.swingtrader }}" = "true" ]     && arr="$arr,\"swingtrader\""
-          [ "${{ steps.paths.outputs.calendar }}" = "true" ]        && arr="$arr,\"calendar\""
-          [ "${{ steps.paths.outputs.buyselldaily }}" = "true" ]    && arr="$arr,\"buyselldaily\""
-          [ "${{ steps.paths.outputs.buysellweekly }}" = "true" ]   && arr="$arr,\"buysellweekly\""
-          [ "${{ steps.paths.outputs.buysellmonthly }}" = "true" ]  && arr="$arr,\"buysellmonthly\""
-          [ "${{ steps.paths.outputs.latestpricedaily }}" = "true" ]  && arr="$arr,\"latestpricedaily\""
-          [ "${{ steps.paths.outputs.latestpriceweekly }}" = "true" ] && arr="$arr,\"latestpriceweekly\""
-          [ "${{ steps.paths.outputs.latestpricemonthly }}" = "true" ] && arr="$arr,\"latestpricemonthly\""
-          [ "${{ steps.paths.outputs.latesttechnicalsdaily }}" = "true" ]  && arr="$arr,\"latesttechnicalsdaily\""
-          [ "${{ steps.paths.outputs.latesttechnicalsweekly }}" = "true" ] && arr="$arr,\"latesttechnicalsweekly\""
-          [ "${{ steps.paths.outputs.latesttechnicalsmonthly }}" = "true" ] && arr="$arr,\"latesttechnicalsmonthly\""
-          [ "${{ steps.paths.outputs.naaim }}" = "true" ]           && arr="$arr,\"naaim\""
-          [ "${{ steps.paths.outputs.aaii }}" = "true" ]            && arr="$arr,\"aaii\""
-          [ "${{ steps.paths.outputs.feargreed }}" = "true" ]       && arr="$arr,\"feargreed\""
-          [ "${{ steps.paths.outputs.quarterlybalancesheet }}" = "true" ] && arr="$arr,\"quarterlybalancesheet\""
-          [ "${{ steps.paths.outputs.annualbalancesheet }}" = "true" ] && arr="$arr,\"annualbalancesheet\""
-          [ "${{ steps.paths.outputs.quarterlyincomestatement }}" = "true" ] && arr="$arr,\"quarterlyincomestatement\""
-          [ "${{ steps.paths.outputs.annualincomestatement }}" = "true" ] && arr="$arr,\"annualincomestatement\""
-          [ "${{ steps.paths.outputs.quarterlycashflow }}" = "true" ] && arr="$arr,\"quarterlycashflow\""
-          [ "${{ steps.paths.outputs.annualcashflow }}" = "true" ] && arr="$arr,\"annualcashflow\""
-          [ "${{ steps.paths.outputs.ttmincomestatement }}" = "true" ] && arr="$arr,\"ttmincomestatement\""
-          [ "${{ steps.paths.outputs.ttmcashflow }}" = "true" ] && arr="$arr,\"ttmcashflow\""
-          [ "${{ steps.paths.outputs.fundamentalmetrics }}" = "true" ] && arr="$arr,\"fundamentalmetrics\""
-          [ "${{ steps.paths.outputs.analystupgradedowngrade }}" = "true" ] && arr="$arr,\"analystupgradedowngrade\""
-          [ "${{ steps.paths.outputs.symbolsalt }}" = "true" ] && arr="$arr,\"symbolsalt\""
-          [ "${{ steps.paths.outputs.financials }}" = "true" ] && arr="$arr,\"financials\""
-          [ "${{ steps.paths.outputs.sentiment }}" = "true" ] && arr="$arr,\"sentiment\""
-          [ "${{ steps.paths.outputs.technicals }}" = "true" ] && arr="$arr,\"technicals\""
-          [ "${{ steps.paths.outputs.market }}" = "true" ] && arr="$arr,\"market\""
-          [ "${{ steps.paths.outputs.momentum }}" = "true" ] && arr="$arr,\"momentum\""
-          [ "${{ steps.paths.outputs.sentiment_realtime }}" = "true" ] && arr="$arr,\"sentiment_realtime\""
-          [ "${{ steps.paths.outputs.positioning }}" = "true" ] && arr="$arr,\"positioning\""
-          [ "${{ steps.paths.outputs.qualitymetrics }}" = "true" ] && arr="$arr,\"qualitymetrics\""
-          [ "${{ steps.paths.outputs.valuemetrics }}" = "true" ] && arr="$arr,\"valuemetrics\""
-          [ "${{ steps.paths.outputs.valuescores }}" = "true" ] && arr="$arr,\"valuescores\""
-          [ "${{ steps.paths.outputs.growthmetrics }}" = "true" ] && arr="$arr,\"growthmetrics\""
-          
-          echo "matrix=[${arr#,}]" >> $GITHUB_OUTPUT
-
-################################################################################
-# 4) Build only the changed Docker images                                      #
-################################################################################
   build:
     name: Build changed images
-    needs: detect-changes
-    if: ${{ needs.detect-changes.outputs.any == 'true' }}
+    needs: filter
+    if: ${{ needs.filter.outputs.any == 'true' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        loader: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+        loader: ${{ fromJson(needs.filter.outputs.matrix) }}
 
     steps:
       - uses: actions/checkout@v3
@@ -958,8 +565,8 @@ jobs:
 ################################################################################
   deploy-tasks:
     name: Deploy ECS-tasks stack
-    needs: [build, detect-changes]
-    if: ${{ needs.detect-changes.outputs.any == 'true' }}
+    needs: [build, filter]
+    if: ${{ needs.filter.outputs.any == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -1112,57 +719,57 @@ jobs:
           
           # Define components that have changed
           CHANGED_COMPONENTS=()
-          [[ "${{ needs.detect-changes.outputs.symbols }}" == "true" ]] && CHANGED_COMPONENTS+=("symbols")
-          [[ "${{ needs.detect-changes.outputs.econ }}" == "true" ]] && CHANGED_COMPONENTS+=("econ")
-          [[ "${{ needs.detect-changes.outputs.pricedaily }}" == "true" ]] && CHANGED_COMPONENTS+=("pricedaily")
-          [[ "${{ needs.detect-changes.outputs.priceweekly }}" == "true" ]] && CHANGED_COMPONENTS+=("priceweekly")
-          [[ "${{ needs.detect-changes.outputs.pricemonthly }}" == "true" ]] && CHANGED_COMPONENTS+=("pricemonthly")
-          [[ "${{ needs.detect-changes.outputs.latestpricedaily }}" == "true" ]] && CHANGED_COMPONENTS+=("latestpricedaily")
-          [[ "${{ needs.detect-changes.outputs.latestpriceweekly }}" == "true" ]] && CHANGED_COMPONENTS+=("latestpriceweekly")
-          [[ "${{ needs.detect-changes.outputs.latestpricemonthly }}" == "true" ]] && CHANGED_COMPONENTS+=("latestpricemonthly")
-          [[ "${{ needs.detect-changes.outputs.technicalsdaily }}" == "true" ]] && CHANGED_COMPONENTS+=("technicalsdaily")
-          [[ "${{ needs.detect-changes.outputs.loadinfo }}" == "true" ]] && CHANGED_COMPONENTS+=("loadinfo")
-          [[ "${{ needs.detect-changes.outputs.loadnews }}" == "true" ]] && CHANGED_COMPONENTS+=("loadnews")
-          [[ "${{ needs.detect-changes.outputs.earningsestimate }}" == "true" ]] && CHANGED_COMPONENTS+=("earningsestimate")
-          [[ "${{ needs.detect-changes.outputs.earningsmetrics }}" == "true" ]] && CHANGED_COMPONENTS+=("earningsmetrics")
-          [[ "${{ needs.detect-changes.outputs.earningshistory }}" == "true" ]] && CHANGED_COMPONENTS+=("earningshistory")
-          [[ "${{ needs.detect-changes.outputs.revenueestimate }}" == "true" ]] && CHANGED_COMPONENTS+=("revenueestimate")
-          [[ "${{ needs.detect-changes.outputs.technicalsweekly }}" == "true" ]] && CHANGED_COMPONENTS+=("technicalsweekly")
-          [[ "${{ needs.detect-changes.outputs.technicalsmonthly }}" == "true" ]] && CHANGED_COMPONENTS+=("technicalsmonthly")
-          [[ "${{ needs.detect-changes.outputs.buyselldaily }}" == "true" ]] && CHANGED_COMPONENTS+=("buyselldaily")
-          [[ "${{ needs.detect-changes.outputs.buysellweekly }}" == "true" ]] && CHANGED_COMPONENTS+=("buysellweekly")
-          [[ "${{ needs.detect-changes.outputs.buysellmonthly }}" == "true" ]] && CHANGED_COMPONENTS+=("buysellmonthly")
-          [[ "${{ needs.detect-changes.outputs.swingtrader }}" == "true" ]] && CHANGED_COMPONENTS+=("swingtrader")
-          [[ "${{ needs.detect-changes.outputs.calendar }}" == "true" ]] && CHANGED_COMPONENTS+=("calendar")
-          [[ "${{ needs.detect-changes.outputs.latesttechnicalsdaily }}" == "true" ]] && CHANGED_COMPONENTS+=("latesttechnicalsdaily")
-          [[ "${{ needs.detect-changes.outputs.latesttechnicalsweekly }}" == "true" ]] && CHANGED_COMPONENTS+=("latesttechnicalsweekly")
-          [[ "${{ needs.detect-changes.outputs.latesttechnicalsmonthly }}" == "true" ]] && CHANGED_COMPONENTS+=("latesttechnicalsmonthly")
-          [[ "${{ needs.detect-changes.outputs.naaim }}" == "true" ]] && CHANGED_COMPONENTS+=("naaim")
-          [[ "${{ needs.detect-changes.outputs.aaii }}" == "true" ]] && CHANGED_COMPONENTS+=("aaii")
-          [[ "${{ needs.detect-changes.outputs.feargreed }}" == "true" ]] && CHANGED_COMPONENTS+=("feargreed")
-          [[ "${{ needs.detect-changes.outputs.quarterlybalancesheet }}" == "true" ]] && CHANGED_COMPONENTS+=("quarterlybalancesheet")
-          [[ "${{ needs.detect-changes.outputs.annualbalancesheet }}" == "true" ]] && CHANGED_COMPONENTS+=("annualbalancesheet")
-          [[ "${{ needs.detect-changes.outputs.quarterlyincomestatement }}" == "true" ]] && CHANGED_COMPONENTS+=("quarterlyincomestatement")
-          [[ "${{ needs.detect-changes.outputs.annualincomestatement }}" == "true" ]] && CHANGED_COMPONENTS+=("annualincomestatement")
-          [[ "${{ needs.detect-changes.outputs.quarterlycashflow }}" == "true" ]] && CHANGED_COMPONENTS+=("quarterlycashflow")
-          [[ "${{ needs.detect-changes.outputs.annualcashflow }}" == "true" ]] && CHANGED_COMPONENTS+=("annualcashflow")
-          [[ "${{ needs.detect-changes.outputs.ttmincomestatement }}" == "true" ]] && CHANGED_COMPONENTS+=("ttmincomestatement")
-          [[ "${{ needs.detect-changes.outputs.ttmcashflow }}" == "true" ]] && CHANGED_COMPONENTS+=("ttmcashflow")
-          [[ "${{ needs.detect-changes.outputs.qualitymetrics }}" == "true" ]] && CHANGED_COMPONENTS+=("qualitymetrics")
-          [[ "${{ needs.detect-changes.outputs.valuemetrics }}" == "true" ]] && CHANGED_COMPONENTS+=("valuemetrics")
-          [[ "${{ needs.detect-changes.outputs.fundamentalmetrics }}" == "true" ]] && CHANGED_COMPONENTS+=("fundamentalmetrics")
-          [[ "${{ needs.detect-changes.outputs.analystupgradedowngrade }}" == "true" ]] && CHANGED_COMPONENTS+=("analystupgradedowngrade")
-          [[ "${{ needs.detect-changes.outputs.financials }}" == "true" ]] && CHANGED_COMPONENTS+=("financials")
-          [[ "${{ needs.detect-changes.outputs.symbolsalt }}" == "true" ]] && CHANGED_COMPONENTS+=("symbolsalt")
-          [[ "${{ needs.detect-changes.outputs.sentiment }}" == "true" ]] && CHANGED_COMPONENTS+=("sentiment")
-          [[ "${{ needs.detect-changes.outputs.technicals }}" == "true" ]] && CHANGED_COMPONENTS+=("technicals")
-          [[ "${{ needs.detect-changes.outputs.market }}" == "true" ]] && CHANGED_COMPONENTS+=("market")
-          [[ "${{ needs.detect-changes.outputs.momentum }}" == "true" ]] && CHANGED_COMPONENTS+=("momentum")
-          [[ "${{ needs.detect-changes.outputs.sentiment_realtime }}" == "true" ]] && CHANGED_COMPONENTS+=("sentiment_realtime")
-          [[ "${{ needs.detect-changes.outputs.positioning }}" == "true" ]] && CHANGED_COMPONENTS+=("positioning")
-          [[ "${{ needs.detect-changes.outputs.valuescores }}" == "true" ]] && CHANGED_COMPONENTS+=("valuescores")
-          [[ "${{ needs.detect-changes.outputs.growthmetrics }}" == "true" ]] && CHANGED_COMPONENTS+=("growthmetrics")
-          [[ "${{ needs.detect-changes.outputs.qualityscores }}" == "true" ]] && CHANGED_COMPONENTS+=("qualityscores")
+          [[ "${{ needs.filter.outputs.symbols }}" == "true" ]] && CHANGED_COMPONENTS+=("symbols")
+          [[ "${{ needs.filter.outputs.econ }}" == "true" ]] && CHANGED_COMPONENTS+=("econ")
+          [[ "${{ needs.filter.outputs.pricedaily }}" == "true" ]] && CHANGED_COMPONENTS+=("pricedaily")
+          [[ "${{ needs.filter.outputs.priceweekly }}" == "true" ]] && CHANGED_COMPONENTS+=("priceweekly")
+          [[ "${{ needs.filter.outputs.pricemonthly }}" == "true" ]] && CHANGED_COMPONENTS+=("pricemonthly")
+          [[ "${{ needs.filter.outputs.latestpricedaily }}" == "true" ]] && CHANGED_COMPONENTS+=("latestpricedaily")
+          [[ "${{ needs.filter.outputs.latestpriceweekly }}" == "true" ]] && CHANGED_COMPONENTS+=("latestpriceweekly")
+          [[ "${{ needs.filter.outputs.latestpricemonthly }}" == "true" ]] && CHANGED_COMPONENTS+=("latestpricemonthly")
+          [[ "${{ needs.filter.outputs.technicalsdaily }}" == "true" ]] && CHANGED_COMPONENTS+=("technicalsdaily")
+          [[ "${{ needs.filter.outputs.loadinfo }}" == "true" ]] && CHANGED_COMPONENTS+=("loadinfo")
+          [[ "${{ needs.filter.outputs.loadnews }}" == "true" ]] && CHANGED_COMPONENTS+=("loadnews")
+          [[ "${{ needs.filter.outputs.earningsestimate }}" == "true" ]] && CHANGED_COMPONENTS+=("earningsestimate")
+          [[ "${{ needs.filter.outputs.earningsmetrics }}" == "true" ]] && CHANGED_COMPONENTS+=("earningsmetrics")
+          [[ "${{ needs.filter.outputs.earningshistory }}" == "true" ]] && CHANGED_COMPONENTS+=("earningshistory")
+          [[ "${{ needs.filter.outputs.revenueestimate }}" == "true" ]] && CHANGED_COMPONENTS+=("revenueestimate")
+          [[ "${{ needs.filter.outputs.technicalsweekly }}" == "true" ]] && CHANGED_COMPONENTS+=("technicalsweekly")
+          [[ "${{ needs.filter.outputs.technicalsmonthly }}" == "true" ]] && CHANGED_COMPONENTS+=("technicalsmonthly")
+          [[ "${{ needs.filter.outputs.buyselldaily }}" == "true" ]] && CHANGED_COMPONENTS+=("buyselldaily")
+          [[ "${{ needs.filter.outputs.buysellweekly }}" == "true" ]] && CHANGED_COMPONENTS+=("buysellweekly")
+          [[ "${{ needs.filter.outputs.buysellmonthly }}" == "true" ]] && CHANGED_COMPONENTS+=("buysellmonthly")
+          [[ "${{ needs.filter.outputs.swingtrader }}" == "true" ]] && CHANGED_COMPONENTS+=("swingtrader")
+          [[ "${{ needs.filter.outputs.calendar }}" == "true" ]] && CHANGED_COMPONENTS+=("calendar")
+          [[ "${{ needs.filter.outputs.latesttechnicalsdaily }}" == "true" ]] && CHANGED_COMPONENTS+=("latesttechnicalsdaily")
+          [[ "${{ needs.filter.outputs.latesttechnicalsweekly }}" == "true" ]] && CHANGED_COMPONENTS+=("latesttechnicalsweekly")
+          [[ "${{ needs.filter.outputs.latesttechnicalsmonthly }}" == "true" ]] && CHANGED_COMPONENTS+=("latesttechnicalsmonthly")
+          [[ "${{ needs.filter.outputs.naaim }}" == "true" ]] && CHANGED_COMPONENTS+=("naaim")
+          [[ "${{ needs.filter.outputs.aaii }}" == "true" ]] && CHANGED_COMPONENTS+=("aaii")
+          [[ "${{ needs.filter.outputs.feargreed }}" == "true" ]] && CHANGED_COMPONENTS+=("feargreed")
+          [[ "${{ needs.filter.outputs.quarterlybalancesheet }}" == "true" ]] && CHANGED_COMPONENTS+=("quarterlybalancesheet")
+          [[ "${{ needs.filter.outputs.annualbalancesheet }}" == "true" ]] && CHANGED_COMPONENTS+=("annualbalancesheet")
+          [[ "${{ needs.filter.outputs.quarterlyincomestatement }}" == "true" ]] && CHANGED_COMPONENTS+=("quarterlyincomestatement")
+          [[ "${{ needs.filter.outputs.annualincomestatement }}" == "true" ]] && CHANGED_COMPONENTS+=("annualincomestatement")
+          [[ "${{ needs.filter.outputs.quarterlycashflow }}" == "true" ]] && CHANGED_COMPONENTS+=("quarterlycashflow")
+          [[ "${{ needs.filter.outputs.annualcashflow }}" == "true" ]] && CHANGED_COMPONENTS+=("annualcashflow")
+          [[ "${{ needs.filter.outputs.ttmincomestatement }}" == "true" ]] && CHANGED_COMPONENTS+=("ttmincomestatement")
+          [[ "${{ needs.filter.outputs.ttmcashflow }}" == "true" ]] && CHANGED_COMPONENTS+=("ttmcashflow")
+          [[ "${{ needs.filter.outputs.qualitymetrics }}" == "true" ]] && CHANGED_COMPONENTS+=("qualitymetrics")
+          [[ "${{ needs.filter.outputs.valuemetrics }}" == "true" ]] && CHANGED_COMPONENTS+=("valuemetrics")
+          [[ "${{ needs.filter.outputs.fundamentalmetrics }}" == "true" ]] && CHANGED_COMPONENTS+=("fundamentalmetrics")
+          [[ "${{ needs.filter.outputs.analystupgradedowngrade }}" == "true" ]] && CHANGED_COMPONENTS+=("analystupgradedowngrade")
+          [[ "${{ needs.filter.outputs.financials }}" == "true" ]] && CHANGED_COMPONENTS+=("financials")
+          [[ "${{ needs.filter.outputs.symbolsalt }}" == "true" ]] && CHANGED_COMPONENTS+=("symbolsalt")
+          [[ "${{ needs.filter.outputs.sentiment }}" == "true" ]] && CHANGED_COMPONENTS+=("sentiment")
+          [[ "${{ needs.filter.outputs.technicals }}" == "true" ]] && CHANGED_COMPONENTS+=("technicals")
+          [[ "${{ needs.filter.outputs.market }}" == "true" ]] && CHANGED_COMPONENTS+=("market")
+          [[ "${{ needs.filter.outputs.momentum }}" == "true" ]] && CHANGED_COMPONENTS+=("momentum")
+          [[ "${{ needs.filter.outputs.sentiment_realtime }}" == "true" ]] && CHANGED_COMPONENTS+=("sentiment_realtime")
+          [[ "${{ needs.filter.outputs.positioning }}" == "true" ]] && CHANGED_COMPONENTS+=("positioning")
+          [[ "${{ needs.filter.outputs.valuescores }}" == "true" ]] && CHANGED_COMPONENTS+=("valuescores")
+          [[ "${{ needs.filter.outputs.growthmetrics }}" == "true" ]] && CHANGED_COMPONENTS+=("growthmetrics")
+          [[ "${{ needs.filter.outputs.qualityscores }}" == "true" ]] && CHANGED_COMPONENTS+=("qualityscores")
           
           echo "Changed components: ${CHANGED_COMPONENTS[@]}"
           
@@ -1206,8 +813,8 @@ jobs:
 ################################################################################
   run_symbols:
     name: Run stock-symbols loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.symbols == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.symbols == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -1294,8 +901,8 @@ jobs:
 
   run_symbolsalt:
     name: Run symbols-alt loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.symbolsalt == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.symbolsalt == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -1382,8 +989,8 @@ jobs:
 
   run_econ:
     name: Run econ-data loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.econ == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.econ == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -1466,8 +1073,8 @@ jobs:
 
   run_pricedaily:
     name: Run pricedaily loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.pricedaily == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.pricedaily == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -1554,8 +1161,8 @@ jobs:
 
   run_priceweekly:
     name: Run priceweekly loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.priceweekly == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.priceweekly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -1642,8 +1249,8 @@ jobs:
 
   run_pricemonthly:
     name: Run pricemonthly loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.pricemonthly == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.pricemonthly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -1730,8 +1337,8 @@ jobs:
 
   run_technicalsdaily:
     name: Run technicals-daily loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.technicalsdaily == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.technicalsdaily == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -1818,8 +1425,8 @@ jobs:
 
   run_loadinfo:
     name: Run load-info loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.loadinfo == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.loadinfo == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -1906,8 +1513,8 @@ jobs:
 
   run_earningshistory:
     name: Run earnings history loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.earningshistory == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.earningshistory == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -1994,8 +1601,8 @@ jobs:
 
   run_earningsestimate:
     name: Run earnings estimate loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.earningsestimate == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.earningsestimate == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -2082,8 +1689,8 @@ jobs:
 
   run_earningsmetrics:
     name: Run earnings metrics loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.earningsmetrics == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.earningsmetrics == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -2170,8 +1777,8 @@ jobs:
 
   run_revenueestimate:
     name: Run revenue estimate loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.revenueestimate == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.revenueestimate == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -2258,8 +1865,8 @@ jobs:
 
   run_technicalsmonthly:
     name: Run technicals-monthly loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.technicalsmonthly == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.technicalsmonthly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -2346,8 +1953,8 @@ jobs:
 
   run_swingtrader:
     name: Run swing-trader loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.swingtrader == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.swingtrader == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -2434,8 +2041,8 @@ jobs:
 
   run_buyselldaily:
     name: Run buysell daily loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.buyselldaily == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.buyselldaily == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -2522,8 +2129,8 @@ jobs:
 
   run_buysellweekly:
     name: Run buysell weekly loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.buysellweekly == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.buysellweekly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -2610,8 +2217,8 @@ jobs:
 
   run_buysellmonthly:
     name: Run buysell monthly loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.buysellmonthly == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.buysellmonthly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -2698,8 +2305,8 @@ jobs:
 
   run_latestpricedaily:
     name: Run load-latest-price-daily loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.latestpricedaily == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.latestpricedaily == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -2786,8 +2393,8 @@ jobs:
 
   run_latestpriceweekly:
     name: Run load-latest-price-weekly loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.latestpriceweekly == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.latestpriceweekly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -2874,8 +2481,8 @@ jobs:
 
   run_latestpricemonthly:
     name: Run load-latest-price-monthly loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.latestpricemonthly == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.latestpricemonthly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -2962,8 +2569,8 @@ jobs:
 
   run_naaim:
     name: Run NAAIM loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.naaim == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.naaim == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -3050,8 +2657,8 @@ jobs:
 
   run_aaii:
     name: Run AAII loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.aaii == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.aaii == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -3138,8 +2745,8 @@ jobs:
 
   run_feargreed:
     name: Run Fear & Greed loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.feargreed == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.feargreed == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -3226,8 +2833,8 @@ jobs:
 
   run_quarterlybalancesheet:
     name: Run Quarterly Balance Sheet loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.quarterlybalancesheet == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.quarterlybalancesheet == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -3314,8 +2921,8 @@ jobs:
 
   run_annualbalancesheet:
     name: Run Annual Balance Sheet loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.annualbalancesheet == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.annualbalancesheet == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -3402,8 +3009,8 @@ jobs:
 
   run_quarterlyincomestatement:
     name: Run Quarterly Income Statement loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.quarterlyincomestatement == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.quarterlyincomestatement == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -3490,8 +3097,8 @@ jobs:
 
   run_annualincomestatement:
     name: Run Annual Income Statement loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.annualincomestatement == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.annualincomestatement == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -3578,8 +3185,8 @@ jobs:
 
   run_quarterlycashflow:
     name: Run Quarterly Cash Flow loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.quarterlycashflow == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.quarterlycashflow == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -3666,8 +3273,8 @@ jobs:
 
   run_annualcashflow:
     name: Run Annual Cash Flow loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.annualcashflow == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.annualcashflow == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -3754,8 +3361,8 @@ jobs:
 
   run_ttmincomestatement:
     name: Run TTM Income Statement loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.ttmincomestatement == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.ttmincomestatement == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -3842,8 +3449,8 @@ jobs:
 
   run_ttmcashflow:
     name: Run TTM Cash Flow loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.ttmcashflow == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.ttmcashflow == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -3931,8 +3538,8 @@ jobs:
 # 6) Run loadnews loader
   run_loadnews:
     name: Run load-news loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.loadnews == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.loadnews == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -4013,8 +3620,8 @@ jobs:
 ################################################################################
   run_fundamentalmetrics:
     name: Run fundamental-metrics loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.fundamentalmetrics == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.fundamentalmetrics == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -4101,8 +3708,8 @@ jobs:
 
   run_analystupgradedowngrade:
     name: Run analyst-upgrade-downgrade loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.analystupgradedowngrade == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.analystupgradedowngrade == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -4189,8 +3796,8 @@ jobs:
 
   run_financials:
     name: Run financials loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.financials == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.financials == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -4277,8 +3884,8 @@ jobs:
 
   run_sentiment:
     name: Run sentiment loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.sentiment == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.sentiment == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -4365,8 +3972,8 @@ jobs:
 
   run_technicals:
     name: Run technicals loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.technicals == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.technicals == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -4453,8 +4060,8 @@ jobs:
 
   run_market:
     name: Run market loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.market == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.market == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -4541,8 +4148,8 @@ jobs:
 
   run_momentum:
     name: Run momentum loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.momentum == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.momentum == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -4629,8 +4236,8 @@ jobs:
 
   run_sentiment_realtime:
     name: Run sentiment-realtime loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.sentiment_realtime == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.sentiment_realtime == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -4717,8 +4324,8 @@ jobs:
 
   run_positioning:
     name: Run positioning loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.positioning == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.positioning == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -4805,8 +4412,8 @@ jobs:
 
   run_qualityscores:
     name: Run quality-scores calculator
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.qualityscores == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.qualityscores == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -4893,8 +4500,8 @@ jobs:
 
   run_valuescores:
     name: Run value-scores calculator
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.valuescores == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.valuescores == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -4981,8 +4588,8 @@ jobs:
 
   run_growthmetrics:
     name: Run growth-metrics calculator
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.growthmetrics == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.growthmetrics == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -5069,8 +4676,8 @@ jobs:
 
   run_technicalsweekly:
     name: Run technicals-weekly loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.technicalsweekly == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.technicalsweekly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -5157,8 +4764,8 @@ jobs:
 
   run_latesttechnicalsdaily:
     name: Run latest-technicals-daily loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.latesttechnicalsdaily == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.latesttechnicalsdaily == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -5245,8 +4852,8 @@ jobs:
 
   run_latesttechnicalsweekly:
     name: Run latest-technicals-weekly loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.latesttechnicalsweekly == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.latesttechnicalsweekly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -5333,8 +4940,8 @@ jobs:
 
   run_latesttechnicalsmonthly:
     name: Run latest-technicals-monthly loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.latesttechnicalsmonthly == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.latesttechnicalsmonthly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -5421,8 +5028,8 @@ jobs:
 
   run_calendar:
     name: Run calendar loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.calendar == 'true' }}
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.calendar == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
