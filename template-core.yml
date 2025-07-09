@@ -355,7 +355,7 @@ Resources:
     Type: AWS::ECR::Repository
     DeletionPolicy: Delete
     Properties:
-      RepositoryName: stocks-app-registry
+      RepositoryName: !Sub 'stocks-app-registry-${AWS::AccountId}'
       LifecyclePolicy:
         LifecyclePolicyText: |
           {
@@ -372,7 +372,7 @@ Resources:
   CodeBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: stocks-algo-app-code
+      BucketName: !Sub 'stocks-algo-app-code-${AWS::AccountId}'
       VersioningConfiguration:
         Status: Enabled
     DeletionPolicy: Delete
@@ -382,7 +382,7 @@ Resources:
   SiteCodeBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: stocks-webapp-frontend-code
+      BucketName: !Sub 'stocks-webapp-frontend-code-${AWS::AccountId}'
       VersioningConfiguration:
         Status: Enabled
       PublicAccessBlockConfiguration:
@@ -397,7 +397,7 @@ Resources:
   CfTemplatesBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: stocks-cf-templates
+      BucketName: !Sub 'stocks-cf-templates-${AWS::AccountId}'
       VersioningConfiguration:
         Status: Enabled
     DeletionPolicy: Delete
