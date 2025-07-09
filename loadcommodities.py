@@ -13,6 +13,8 @@ import logging
 import time
 import requests
 from typing import Dict, List, Any
+import xml.etree.ElementTree as ET
+from io import StringIO
 
 # Script metadata & logging setup
 SCRIPT_NAME = "loadcommodities.py"
@@ -142,6 +144,73 @@ def create_tables():
                 exchange VARCHAR(50),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(symbol)
+            )
+        """)
+        
+        # Create COT (Commitment of Traders) table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS cot_data (
+                id SERIAL PRIMARY KEY,
+                symbol VARCHAR(20) NOT NULL,
+                report_date DATE NOT NULL,
+                commercial_long BIGINT,
+                commercial_short BIGINT,
+                commercial_net BIGINT,
+                non_commercial_long BIGINT,
+                non_commercial_short BIGINT,
+                non_commercial_net BIGINT,
+                non_reportable_long BIGINT,
+                non_reportable_short BIGINT,
+                non_reportable_net BIGINT,
+                open_interest BIGINT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(symbol, report_date)
+            )
+        """)
+        
+        # Create commodity seasonality table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS commodity_seasonality (
+                id SERIAL PRIMARY KEY,
+                symbol VARCHAR(20) NOT NULL,
+                month INTEGER NOT NULL,
+                avg_return DECIMAL(8,4),
+                win_rate DECIMAL(5,2),
+                volatility DECIMAL(8,4),
+                years_data INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(symbol, month)
+            )
+        """)
+        
+        # Create commodity correlations table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS commodity_correlations (
+                id SERIAL PRIMARY KEY,
+                symbol1 VARCHAR(20) NOT NULL,
+                symbol2 VARCHAR(20) NOT NULL,
+                correlation_30d DECIMAL(8,4),
+                correlation_90d DECIMAL(8,4),
+                correlation_1y DECIMAL(8,4),
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(symbol1, symbol2)
+            )
+        """)
+        
+        # Create commodity supply demand table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS commodity_supply_demand (
+                id SERIAL PRIMARY KEY,
+                symbol VARCHAR(20) NOT NULL,
+                report_date DATE NOT NULL,
+                supply_level DECIMAL(15,2),
+                demand_level DECIMAL(15,2),
+                inventory_level DECIMAL(15,2),
+                supply_change_weekly DECIMAL(8,4),
+                demand_change_weekly DECIMAL(8,4),
+                inventory_change_weekly DECIMAL(8,4),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(symbol, report_date)
             )
         """)
         
@@ -376,6 +445,214 @@ def populate_categories():
         cursor.close()
         conn.close()
 
+def fetch_cot_data(symbol: str) -> List[Dict[str, Any]]:
+    """Fetch COT data from CFTC for a specific commodity"""
+    try:
+        # Map commodity symbols to CFTC commodity codes
+        cftc_codes = {
+            'CL=F': '067651',  # Crude Oil
+            'NG=F': '023651',  # Natural Gas
+            'GC=F': '088691',  # Gold
+            'SI=F': '084691',  # Silver
+            'HG=F': '085692',  # Copper
+            'ZC=F': '002602',  # Corn
+            'ZS=F': '005602',  # Soybeans
+            'ZW=F': '001602',  # Wheat
+            'LE=F': '057642',  # Live Cattle
+            'HE=F': '054642',  # Lean Hogs
+        }
+        
+        if symbol not in cftc_codes:
+            logging.warning(f"No CFTC code found for {symbol}")
+            return []
+            
+        cftc_code = cftc_codes[symbol]
+        
+        # CFTC API URL for COT data
+        url = f"https://publicreporting.cftc.gov/resource/jun7-fc8e.json?commodity_code={cftc_code}&$limit=52"
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        
+        response = requests.get(url, headers=headers, timeout=30)
+        response.raise_for_status()
+        
+        data = response.json()
+        if not data:
+            logging.warning(f"No COT data returned for {symbol}")
+            return []
+            
+        cot_records = []
+        for record in data:
+            try:
+                # Parse the record
+                report_date = datetime.strptime(record['report_date_as_yyyy_mm_dd'], '%Y-%m-%d').date()
+                
+                cot_records.append({
+                    'symbol': symbol,
+                    'report_date': report_date,
+                    'commercial_long': int(record.get('comm_positions_long_all', 0)),
+                    'commercial_short': int(record.get('comm_positions_short_all', 0)),
+                    'commercial_net': int(record.get('comm_positions_long_all', 0)) - int(record.get('comm_positions_short_all', 0)),
+                    'non_commercial_long': int(record.get('noncomm_positions_long_all', 0)),
+                    'non_commercial_short': int(record.get('noncomm_positions_short_all', 0)),
+                    'non_commercial_net': int(record.get('noncomm_positions_long_all', 0)) - int(record.get('noncomm_positions_short_all', 0)),
+                    'non_reportable_long': int(record.get('nonrept_positions_long_all', 0)),
+                    'non_reportable_short': int(record.get('nonrept_positions_short_all', 0)),
+                    'non_reportable_net': int(record.get('nonrept_positions_long_all', 0)) - int(record.get('nonrept_positions_short_all', 0)),
+                    'open_interest': int(record.get('open_interest_all', 0))
+                })
+                
+            except (ValueError, KeyError) as e:
+                logging.error(f"Error parsing COT record for {symbol}: {e}")
+                continue
+                
+        logging.info(f"✅ Fetched {len(cot_records)} COT records for {symbol}")
+        return cot_records
+        
+    except requests.RequestException as e:
+        logging.error(f"Error fetching COT data for {symbol}: {e}")
+        return []
+    except Exception as e:
+        logging.error(f"Unexpected error fetching COT data for {symbol}: {e}")
+        return []
+
+def save_cot_data(cot_records: List[Dict[str, Any]]):
+    """Save COT data to database"""
+    if not cot_records:
+        return
+        
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        for record in cot_records:
+            cursor.execute("""
+                INSERT INTO cot_data 
+                (symbol, report_date, commercial_long, commercial_short, commercial_net,
+                 non_commercial_long, non_commercial_short, non_commercial_net,
+                 non_reportable_long, non_reportable_short, non_reportable_net, open_interest)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (symbol, report_date) 
+                DO UPDATE SET
+                    commercial_long = EXCLUDED.commercial_long,
+                    commercial_short = EXCLUDED.commercial_short,
+                    commercial_net = EXCLUDED.commercial_net,
+                    non_commercial_long = EXCLUDED.non_commercial_long,
+                    non_commercial_short = EXCLUDED.non_commercial_short,
+                    non_commercial_net = EXCLUDED.non_commercial_net,
+                    non_reportable_long = EXCLUDED.non_reportable_long,
+                    non_reportable_short = EXCLUDED.non_reportable_short,
+                    non_reportable_net = EXCLUDED.non_reportable_net,
+                    open_interest = EXCLUDED.open_interest
+            """, (
+                record['symbol'],
+                record['report_date'],
+                record['commercial_long'],
+                record['commercial_short'],
+                record['commercial_net'],
+                record['non_commercial_long'],
+                record['non_commercial_short'],
+                record['non_commercial_net'],
+                record['non_reportable_long'],
+                record['non_reportable_short'],
+                record['non_reportable_net'],
+                record['open_interest']
+            ))
+            
+        conn.commit()
+        logging.info(f"✅ Saved {len(cot_records)} COT records")
+        
+    except Exception as e:
+        conn.rollback()
+        logging.error(f"❌ Error saving COT data: {e}")
+        raise
+    finally:
+        cursor.close()
+        conn.close()
+
+def calculate_seasonality(symbol: str, historical_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Calculate seasonal patterns for a commodity"""
+    if not historical_data:
+        return []
+        
+    try:
+        # Group data by month
+        monthly_data = {}
+        for record in historical_data:
+            month = record['date'].month
+            if month not in monthly_data:
+                monthly_data[month] = []
+            
+            # Calculate daily return
+            if record['open'] > 0:
+                daily_return = (record['close'] - record['open']) / record['open']
+                monthly_data[month].append(daily_return)
+        
+        seasonality_data = []
+        for month in range(1, 13):
+            if month in monthly_data and len(monthly_data[month]) >= 5:  # Need at least 5 data points
+                returns = monthly_data[month]
+                avg_return = sum(returns) / len(returns)
+                win_rate = len([r for r in returns if r > 0]) / len(returns) * 100
+                volatility = np.std(returns) if len(returns) > 1 else 0
+                
+                seasonality_data.append({
+                    'symbol': symbol,
+                    'month': month,
+                    'avg_return': avg_return,
+                    'win_rate': win_rate,
+                    'volatility': volatility,
+                    'years_data': len(returns)
+                })
+        
+        return seasonality_data
+        
+    except Exception as e:
+        logging.error(f"Error calculating seasonality for {symbol}: {e}")
+        return []
+
+def save_seasonality_data(seasonality_data: List[Dict[str, Any]]):
+    """Save seasonality data to database"""
+    if not seasonality_data:
+        return
+        
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        for record in seasonality_data:
+            cursor.execute("""
+                INSERT INTO commodity_seasonality 
+                (symbol, month, avg_return, win_rate, volatility, years_data)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (symbol, month) 
+                DO UPDATE SET
+                    avg_return = EXCLUDED.avg_return,
+                    win_rate = EXCLUDED.win_rate,
+                    volatility = EXCLUDED.volatility,
+                    years_data = EXCLUDED.years_data
+            """, (
+                record['symbol'],
+                record['month'],
+                record['avg_return'],
+                record['win_rate'],
+                record['volatility'],
+                record['years_data']
+            ))
+            
+        conn.commit()
+        logging.info(f"✅ Saved seasonality data for {len(seasonality_data)} months")
+        
+    except Exception as e:
+        conn.rollback()
+        logging.error(f"❌ Error saving seasonality data: {e}")
+        raise
+    finally:
+        cursor.close()
+        conn.close()
+
 def main():
     """Main execution function"""
     try:
@@ -404,15 +681,32 @@ def main():
             save_current_prices(current_data)
             
         # Fetch and save historical data for key commodities
-        key_commodities = ['GC=F', 'SI=F', 'CL=F', 'NG=F', 'ZC=F', 'ZS=F']
+        key_commodities = ['GC=F', 'SI=F', 'CL=F', 'NG=F', 'ZC=F', 'ZS=F', 'HG=F', 'LE=F', 'HE=F']
         logging.info("📈 Fetching historical data for key commodities...")
         
         for symbol in key_commodities:
             logging.info(f"Fetching historical data for {symbol}...")
-            historical_data = fetch_historical_data(symbol, period="6mo")
+            historical_data = fetch_historical_data(symbol, period="2y")  # Need more data for seasonality
             if historical_data:
                 save_historical_data(historical_data)
+                
+                # Calculate and save seasonality data
+                seasonality_data = calculate_seasonality(symbol, historical_data)
+                if seasonality_data:
+                    save_seasonality_data(seasonality_data)
+                    
             time.sleep(0.5)  # Rate limiting
+            
+        # Fetch COT data for supported commodities
+        cot_commodities = ['CL=F', 'NG=F', 'GC=F', 'SI=F', 'HG=F', 'ZC=F', 'ZS=F', 'ZW=F', 'LE=F', 'HE=F']
+        logging.info("📊 Fetching COT data for supported commodities...")
+        
+        for symbol in cot_commodities:
+            logging.info(f"Fetching COT data for {symbol}...")
+            cot_data = fetch_cot_data(symbol)
+            if cot_data:
+                save_cot_data(cot_data)
+            time.sleep(1.0)  # Rate limiting for CFTC API
             
         elapsed_time = time.time() - start_time
         logging.info(f"✅ {SCRIPT_NAME} completed successfully in {elapsed_time:.2f} seconds")
