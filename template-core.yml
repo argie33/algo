@@ -22,10 +22,12 @@ Parameters:
     Default: "10.0.102.0/24"
   DBStackName:
     Type: String
-    Default: "stocks-db-lambda-stack"
+    Default: ""
+    Description: "Database stack name (leave empty for initial deployment)"
   DBSecretName:
     Type: String
-    Default: "stocks-db-secrets"
+    Default: ""
+    Description: "Database secret name (leave empty for initial deployment)"
   BastionInstanceType:
     Type: String
     Default: "t3.micro"
@@ -46,7 +48,7 @@ Resources:
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: lambda-execution-admin-role
+      RoleName: !Sub 'stocks-lambda-execution-role-${AWS::StackName}'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -223,26 +225,39 @@ Resources:
             # configure AWS region
             aws configure set region ${AWS::Region}
 
-            # fetch DB creds & .pgpass
-            CREDS=$(aws secretsmanager get-secret-value \
-              --secret-id "${DBSecretName}" \
-              --query SecretString --output text)
-            DB_USER=$(echo "$CREDS" | jq -r .username)
-            DB_PASSWORD=$(echo "$CREDS" | jq -r .password)
-            DB_NAME=$(echo "$CREDS" | jq -r .dbname)
-            DB_HOST=$(aws cloudformation describe-stacks \
-              --stack-name "${DBStackName}" \
-              --query "Stacks[0].Outputs[?OutputKey=='DBEndpoint'].OutputValue" \
-              --output text)
-            DB_PORT=$(aws cloudformation describe-stacks \
-              --stack-name "${DBStackName}" \
-              --query "Stacks[0].Outputs[?OutputKey=='DBPort'].OutputValue" \
-              --output text)
-            cat <<EOF > /home/ec2-user/.pgpass
+            # setup DB connection only if database stack exists
+            if [[ -n "${DBStackName}" && -n "${DBSecretName}" ]]; then
+              echo "Setting up database connection..."
+              # fetch DB creds & .pgpass
+              CREDS=$(aws secretsmanager get-secret-value \
+                --secret-id "${DBSecretName}" \
+                --query SecretString --output text 2>/dev/null || echo "")
+              
+              if [[ -n "$CREDS" ]]; then
+                DB_USER=$(echo "$CREDS" | jq -r .username)
+                DB_PASSWORD=$(echo "$CREDS" | jq -r .password)
+                DB_NAME=$(echo "$CREDS" | jq -r .dbname)
+                DB_HOST=$(aws cloudformation describe-stacks \
+                  --stack-name "${DBStackName}" \
+                  --query "Stacks[0].Outputs[?OutputKey=='DBEndpoint'].OutputValue" \
+                  --output text 2>/dev/null || echo "")
+                DB_PORT=$(aws cloudformation describe-stacks \
+                  --stack-name "${DBStackName}" \
+                  --query "Stacks[0].Outputs[?OutputKey=='DBPort'].OutputValue" \
+                  --output text 2>/dev/null || echo "5432")
+                
+                if [[ -n "$DB_HOST" ]]; then
+                  cat <<EOF > /home/ec2-user/.pgpass
             $DB_HOST:$DB_PORT:$DB_NAME:$DB_USER:$DB_PASSWORD
             EOF
-            chmod 600 /home/ec2-user/.pgpass
-            chown ec2-user:ec2-user /home/ec2-user/.pgpass
+                  chmod 600 /home/ec2-user/.pgpass
+                  chown ec2-user:ec2-user /home/ec2-user/.pgpass
+                  echo "Database connection configured"
+                fi
+              fi
+            else
+              echo "No database stack specified, skipping database setup"
+            fi
 
   ### 4) SSM Association to install psql ###
   BastionInstallPsql:
@@ -255,8 +270,8 @@ Resources:
             - stocks-bastion
       Parameters:
         commands:
-          - amazon-linux-extras install -y postgresql10
-          - yum install -y postgresql jq awscli
+          - yum update -y
+          - yum install -y postgresql15 jq awscli || amazon-linux-extras install -y postgresql10 || yum install -y postgresql
 
   ### 5) Auto-scaling group ###
   BastionAutoScalingGroup:
