@@ -391,8 +391,8 @@ jobs:
 ################################################################################
   infra:
     name: Deploy application stack
-    needs: detect-changes
-    if: ${{ needs.detect-changes.outputs.app == 'true' }}
+    needs: filter
+    if: ${{ needs.filter.outputs.app == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
