@@ -1,7 +1,36 @@
 const express = require('express');
 const router = express.Router();
 
-// Diagnostic endpoint to help troubleshoot configuration issues
+// Comprehensive diagnostic endpoint to help troubleshoot configuration issues
+router.get('/comprehensive', async (req, res) => {
+  try {
+    console.log('=== Comprehensive Lambda Diagnostics Endpoint Called ===');
+    
+    const { DatabaseConnectivityTest } = require('../utils/dbConnectivityTest');
+    const dbTest = new DatabaseConnectivityTest();
+    
+    const testResults = await dbTest.runComprehensiveTests();
+    const summary = dbTest.generateSummaryReport();
+    
+    res.json({
+      success: true,
+      message: 'Comprehensive Lambda Database Diagnostics',
+      summary,
+      detailedResults: testResults
+    });
+    
+  } catch (error) {
+    console.error('Comprehensive diagnostics endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Comprehensive diagnostics failed',
+      message: error.message,
+      stack: error.stack
+    });
+  }
+});
+
+// Original diagnostic endpoint to help troubleshoot configuration issues
 router.get('/', async (req, res) => {
   try {
     console.log('=== Lambda Diagnostics Endpoint Called ===');

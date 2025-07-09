@@ -298,6 +298,40 @@ app.use('/api/ai', aiAssistantRoutes);
 app.use('/api/trades', tradesRoutes);
 app.use('/api/diagnostics', diagnosticsRoutes);
 
+// Debug route for troubleshooting API Gateway issues
+app.get('/debug', (req, res) => {
+  res.json({
+    message: 'Debug endpoint - API Gateway routing test',
+    timestamp: new Date().toISOString(),
+    request: {
+      method: req.method,
+      path: req.path,
+      originalUrl: req.originalUrl,
+      headers: req.headers,
+      query: req.query,
+      params: req.params
+    },
+    environment: {
+      NODE_ENV: process.env.NODE_ENV,
+      ENVIRONMENT: process.env.ENVIRONMENT,
+      WEBAPP_AWS_REGION: process.env.WEBAPP_AWS_REGION,
+      hasDbSecret: !!process.env.DB_SECRET_ARN,
+      hasDbEndpoint: !!process.env.DB_ENDPOINT
+    },
+    lambda: {
+      functionName: process.env.AWS_LAMBDA_FUNCTION_NAME,
+      functionVersion: process.env.AWS_LAMBDA_FUNCTION_VERSION,
+      awsRegion: process.env.AWS_REGION,
+      requestId: req.context?.awsRequestId
+    },
+    database: {
+      available: dbAvailable,
+      initPromise: !!dbInitPromise
+    },
+    success: true
+  });
+});
+
 // Default route
 app.get('/', (req, res) => {
   res.json({
@@ -310,7 +344,9 @@ app.get('/', (req, res) => {
       health: {
         quick: '/health?quick=true',
         full: '/health'
-      },      api: {
+      },
+      debug: '/debug',
+      api: {
         stocks: '/stocks',
         screen: '/stocks/screen',
         metrics: '/metrics',
