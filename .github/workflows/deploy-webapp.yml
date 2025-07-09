@@ -474,14 +474,46 @@ jobs:
             --cli-read-timeout 3600 \
             --cli-connect-timeout 60
           
-          # Check exit code
-          EXIT_CODE=$(aws ecs describe-tasks \
+          # Get task details for debugging
+          echo "📋 Getting task details..."
+          TASK_DETAILS=$(aws ecs describe-tasks \
             --cluster "$CLUSTER_ARN" \
             --tasks "$TASK_ARN" \
-            --query 'tasks[0].containers[0].exitCode' \
-            --output text)
+            --output json)
           
-          if [ "$EXIT_CODE" -eq 0 ]; then
+          # Log task status for debugging
+          TASK_STATUS=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].lastStatus // "unknown"')
+          STOP_REASON=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].stopCode // "N/A"')
+          CONTAINER_STATUS=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].containers[0].lastStatus // "unknown"')
+          echo "Task status: $TASK_STATUS"
+          echo "Container status: $CONTAINER_STATUS"
+          echo "Stop reason: $STOP_REASON"
+          
+          # Try to get logs from CloudWatch if task failed
+          TASK_DEF_FAMILY=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].taskDefinitionArn' | awk -F'/' '{print $2}' | awk -F':' '{print $1}')
+          TASK_ID=$(echo "$TASK_ARN" | awk -F'/' '{print $NF}')
+          LOG_GROUP="/ecs/$TASK_DEF_FAMILY"
+          LOG_STREAM="ecs/$TASK_DEF_FAMILY/$TASK_ID"
+          
+          echo "📄 Attempting to retrieve CloudWatch logs..."
+          aws logs get-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --log-stream-name "$LOG_STREAM" \
+            --limit 50 \
+            --output text \
+            --query 'events[*].message' 2>/dev/null || echo "Could not retrieve logs"
+          
+          # Check exit code
+          EXIT_CODE=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].containers[0].exitCode // "None"')
+          
+          # Handle cases where exit code might be None or empty
+          if [[ -z "$EXIT_CODE" || "$EXIT_CODE" == "None" ]]; then
+            echo "❌ Database initialization failed - task did not complete properly (no exit code)"
+            exit 1
+          elif [[ ! "$EXIT_CODE" =~ ^[0-9]+$ ]]; then
+            echo "❌ Database initialization failed - invalid exit code: $EXIT_CODE"
+            exit 1
+          elif [ "$EXIT_CODE" -eq 0 ]; then
             echo "✅ Database initialization completed successfully"
           else
             echo "❌ Database initialization failed with exit code: $EXIT_CODE"
