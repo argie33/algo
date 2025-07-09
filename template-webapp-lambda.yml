@@ -65,11 +65,11 @@ Resources:
       SupportedIdentityProviders:
         - COGNITO
       CallbackURLs:
-        - !Sub 'https://${CloudFrontDistribution.DomainName}'
+        - 'https://example.com'  # Will be updated after CloudFront deployment
         - 'http://localhost:5173'
         - 'http://localhost:3000'
       LogoutURLs:
-        - !Sub 'https://${CloudFrontDistribution.DomainName}'
+        - 'https://example.com'  # Will be updated after CloudFront deployment
         - 'http://localhost:5173'
         - 'http://localhost:3000'
       AllowedOAuthFlows:
@@ -122,7 +122,7 @@ Resources:
             Resource: !Sub '${FrontendBucket.Arn}/*'
             Condition:
               StringEquals:
-                'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
+                'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/*'
 
   # Log Group for Database Initialization
   DatabaseInitLogGroup:
@@ -298,26 +298,12 @@ Resources:
             DomainName: !GetAtt FrontendBucket.RegionalDomainName
             S3OriginConfig: {}
             OriginAccessControlId: !Ref OriginAccessControl
-          - Id: ApiOrigin
-            DomainName: !Sub '${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com'
-            CustomOriginConfig:
-              HTTPPort: 443
-              OriginProtocolPolicy: https-only
-              OriginSSLProtocols:
-                - TLSv1.2
         DefaultCacheBehavior:
           TargetOriginId: S3Origin
           ViewerProtocolPolicy: redirect-to-https
           CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # Managed-CachingOptimized
           OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf  # Managed-CORS-S3Origin
           ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b31e9d03  # Managed-SecurityHeadersPolicy
-        CacheBehaviors:
-          - PathPattern: /dev/*
-            TargetOriginId: ApiOrigin
-            ViewerProtocolPolicy: https-only
-            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad  # Managed-CachingDisabled
-            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac  # Managed-AllViewerExceptHostHeader
-            ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b31e9d03  # Managed-SecurityHeadersPolicy
         CustomErrorResponses:
           - ErrorCode: 404
             ResponseCode: 200
