@@ -3,7 +3,7 @@
 echo "🔍 Checking Lambda CloudWatch logs for errors..."
 
 # Your Lambda function name (from the workflow)
-FUNCTION_NAME="stocks-webapp-dev"
+FUNCTION_NAME="financial-dashboard-api-${ENVIRONMENT:-dev}"
 
 # Get the latest log group
 LOG_GROUP="/aws/lambda/$FUNCTION_NAME"

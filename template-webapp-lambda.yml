@@ -65,11 +65,9 @@ Resources:
       SupportedIdentityProviders:
         - COGNITO
       CallbackURLs:
-        - 'https://example.com'  # Will be updated after CloudFront deployment
         - 'http://localhost:5173'
         - 'http://localhost:3000'
       LogoutURLs:
-        - 'https://example.com'  # Will be updated after CloudFront deployment
         - 'http://localhost:5173'
         - 'http://localhost:3000'
       AllowedOAuthFlows:
@@ -90,7 +88,7 @@ Resources:
   FrontendBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub 'financial-dashboard-frontend-dev-${AWS::AccountId}'
+      BucketName: !Sub 'financial-dashboard-frontend-${EnvironmentName}-${AWS::AccountId}'
       WebsiteConfiguration:
         IndexDocument: index.html
         ErrorDocument: error.html
@@ -104,7 +102,7 @@ Resources:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
       OriginAccessControlConfig:
-        Name: !Sub 'dev-frontend-oac'
+        Name: !Sub '${EnvironmentName}-frontend-oac'
         OriginAccessControlOriginType: s3
         SigningBehavior: always
         SigningProtocol: sigv4  # Bucket Policy to allow CloudFront access via OAC
@@ -122,7 +120,7 @@ Resources:
             Resource: !Sub '${FrontendBucket.Arn}/*'
             Condition:
               StringEquals:
-                'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/*'
+                'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
 
   # Log Group for Database Initialization
   DatabaseInitLogGroup:
@@ -168,7 +166,7 @@ Resources:
   ApiFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub 'financial-dashboard-api-dev'
+      FunctionName: !Sub 'financial-dashboard-api-${EnvironmentName}'
       CodeUri: webapp/lambda/
       Handler: index.handler
       Role: !GetAtt LambdaExecutionRole.Arn
@@ -185,7 +183,6 @@ Resources:
           DB_ENDPOINT: !Ref DatabaseEndpoint
           ENVIRONMENT: !Ref EnvironmentName
           NODE_ENV: production
-          AWS_REGION: !Ref AWS::Region
           WEBAPP_AWS_REGION: !Ref AWS::Region
           COGNITO_USER_POOL_ID: !Ref UserPool
           COGNITO_CLIENT_ID: !Ref UserPoolClient
@@ -205,14 +202,14 @@ Resources:
   ApiGatewayLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub '/aws/apigateway/financial-dashboard-dev'
+      LogGroupName: !Sub '/aws/apigateway/financial-dashboard-${EnvironmentName}'
       RetentionInDays: 14
 
   # CloudWatch Log Group for Lambda
   LambdaLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub '/aws/lambda/financial-dashboard-api-dev'
+      LogGroupName: !Sub '/aws/lambda/financial-dashboard-api-${EnvironmentName}'
       RetentionInDays: 14
 
 
@@ -314,6 +311,143 @@ Resources:
         ViewerCertificate:
           CloudFrontDefaultCertificate: true
 
+  # Custom Resource Lambda to update Cognito User Pool Client with CloudFront URL
+  CognitoUpdateFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-cognito-update'
+      Runtime: python3.9
+      Handler: index.handler
+      Role: !GetAtt CognitoUpdateRole.Arn
+      Timeout: 60
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import urllib3
+          
+          def handler(event, context):
+              try:
+                  print(f"Event: {json.dumps(event)}")
+                  
+                  if event['RequestType'] == 'Delete':
+                      return send_response(event, context, 'SUCCESS', {})
+                  
+                  cognito = boto3.client('cognito-idp')
+                  
+                  user_pool_id = event['ResourceProperties']['UserPoolId']
+                  client_id = event['ResourceProperties']['ClientId']
+                  cloudfront_domain = event['ResourceProperties']['CloudFrontDomain']
+                  
+                  # Get current client configuration
+                  response = cognito.describe_user_pool_client(
+                      UserPoolId=user_pool_id,
+                      ClientId=client_id
+                  )
+                  
+                  client_config = response['UserPoolClient']
+                  
+                  # Update callback and logout URLs
+                  callback_urls = [
+                      f'https://{cloudfront_domain}',
+                      f'https://{cloudfront_domain}/callback',
+                      'http://localhost:5173',
+                      'http://localhost:3000'
+                  ]
+                  
+                  logout_urls = [
+                      f'https://{cloudfront_domain}',
+                      f'https://{cloudfront_domain}/logout',
+                      'http://localhost:5173',
+                      'http://localhost:3000'
+                  ]
+                  
+                  # Update the client
+                  cognito.update_user_pool_client(
+                      UserPoolId=user_pool_id,
+                      ClientId=client_id,
+                      ClientName=client_config['ClientName'],
+                      ExplicitAuthFlows=client_config['ExplicitAuthFlows'],
+                      SupportedIdentityProviders=client_config['SupportedIdentityProviders'],
+                      CallbackURLs=callback_urls,
+                      LogoutURLs=logout_urls,
+                      AllowedOAuthFlows=client_config['AllowedOAuthFlows'],
+                      AllowedOAuthScopes=client_config['AllowedOAuthScopes'],
+                      AllowedOAuthFlowsUserPoolClient=client_config['AllowedOAuthFlowsUserPoolClient']
+                  )
+                  
+                  print(f"Updated Cognito client with CloudFront domain: {cloudfront_domain}")
+                  
+                  return send_response(event, context, 'SUCCESS', {
+                      'CloudFrontDomain': cloudfront_domain,
+                      'CallbackURLs': callback_urls,
+                      'LogoutURLs': logout_urls
+                  })
+                  
+              except Exception as e:
+                  print(f"Error: {str(e)}")
+                  return send_response(event, context, 'FAILED', {'Error': str(e)})
+          
+          def send_response(event, context, status, data):
+              response_body = {
+                  'Status': status,
+                  'Reason': f'See CloudWatch Log Stream: {context.log_stream_name}',
+                  'PhysicalResourceId': context.log_stream_name,
+                  'StackId': event['StackId'],
+                  'RequestId': event['RequestId'],
+                  'LogicalResourceId': event['LogicalResourceId'],
+                  'Data': data
+              }
+              
+              json_response = json.dumps(response_body)
+              print(f"Response: {json_response}")
+              
+              http = urllib3.PoolManager()
+              response = http.request(
+                  'PUT',
+                  event['ResponseURL'],
+                  body=json_response,
+                  headers={'Content-Type': 'application/json'}
+              )
+              
+              return response.status
+
+  # IAM Role for Cognito Update Lambda
+  CognitoUpdateRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CognitoUpdatePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cognito-idp:DescribeUserPoolClient
+                  - cognito-idp:UpdateUserPoolClient
+                Resource: !GetAtt UserPool.Arn
+
+  # Custom Resource to trigger the update
+  CognitoUpdate:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !GetAtt CognitoUpdateFunction.Arn
+      UserPoolId: !Ref UserPool
+      ClientId: !Ref UserPoolClient
+      CloudFrontDomain: !GetAtt CloudFrontDistribution.DomainName
+    DependsOn:
+      - CloudFrontDistribution
+      - UserPoolClient
+
 Outputs:
   # Required outputs for the workflow
   FrontendBucketName:
@@ -342,7 +476,7 @@ Outputs:
       
   EnvironmentName:
     Description: Environment name
-    Value: dev
+    Value: !Ref EnvironmentName
     Export:
       Name: !Sub '${AWS::StackName}-Environment'
 

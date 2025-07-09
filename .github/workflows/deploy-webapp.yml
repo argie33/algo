@@ -36,10 +36,18 @@ jobs:
       - name: Determine environment
         id: env
         run: |
-          # Force everything to dev environment for now
-          echo "environment=dev" >> $GITHUB_OUTPUT
-          echo "stack_name=stocks-webapp-dev" >> $GITHUB_OUTPUT
-          echo "Deploying to environment: dev"
+          # Determine environment based on branch
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            ENV="prod"
+          elif [[ "${{ github.ref }}" == "refs/heads/staging" ]]; then
+            ENV="staging"
+          else
+            ENV="dev"
+          fi
+          
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+          echo "stack_name=stocks-webapp-$ENV" >> $GITHUB_OUTPUT
+          echo "Deploying to environment: $ENV"
 ################################################################################
 # 2) Detect changed components                                                 #
 ################################################################################
@@ -211,6 +219,45 @@ jobs:
             "UPDATE_ROLLBACK_COMPLETE")
               echo "⚠️ Stack is in UPDATE_ROLLBACK_COMPLETE state. This indicates a failed update that was rolled back."
               echo "ℹ️ Stack is still functional but last update failed. Proceeding with new deployment."
+              ;;
+            "UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS")
+              echo "⏳ Stack is cleaning up after rollback. Waiting for cleanup to complete..."
+              echo "⏰ Will wait up to 10 minutes for cleanup to complete..."
+              
+              # Wait with timeout (10 minutes max)
+              timeout 600 aws cloudformation wait stack-update-rollback-complete --stack-name ${{ env.STACK_NAME }} || {
+                echo "⚠️ Stack cleanup is taking too long or stuck. Checking current status..."
+                CURRENT_STATUS=$(aws cloudformation describe-stacks --stack-name ${{ env.STACK_NAME }} --query "Stacks[0].StackStatus" --output text)
+                echo "Current status: $CURRENT_STATUS"
+                
+                if [[ "$CURRENT_STATUS" == "UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS" ]]; then
+                  echo "🔧 Stack is still stuck in cleanup. Attempting to cancel stack update..."
+                  aws cloudformation cancel-update-stack --stack-name ${{ env.STACK_NAME }} || {
+                    echo "❌ Could not cancel stack update. Stack appears to be permanently stuck."
+                    echo "🧹 Attempting to delete the stuck stack and start fresh..."
+                    
+                    # Force delete the stack
+                    aws cloudformation delete-stack --stack-name ${{ env.STACK_NAME }} || {
+                      echo "❌ Could not delete stuck stack. Manual intervention required."
+                      echo "💡 Please manually delete the stack in AWS Console or run:"
+                      echo "   aws cloudformation delete-stack --stack-name ${{ env.STACK_NAME }}"
+                      exit 1
+                    }
+                    
+                    echo "⏳ Waiting for stack deletion to complete..."
+                    timeout 300 aws cloudformation wait stack-delete-complete --stack-name ${{ env.STACK_NAME }} || {
+                      echo "⚠️ Stack deletion is taking too long. Continuing anyway..."
+                    }
+                    echo "✅ Stuck stack has been deleted. Will create fresh stack."
+                    exit 0  # Exit successfully to continue with fresh deployment
+                  }
+                  echo "⏳ Waiting for cancellation to complete..."
+                  timeout 300 aws cloudformation wait stack-update-rollback-complete --stack-name ${{ env.STACK_NAME }} || {
+                    echo "⚠️ Cancellation timeout. Stack state may be unstable."
+                  }
+                fi
+              }
+              echo "✅ Stack rollback cleanup completed. Stack is now ready for new deployment."
               ;;
             "DELETE_FAILED")
               echo "❌ Stack is in DELETE_FAILED state. Manual intervention required."
@@ -769,7 +816,7 @@ jobs:
           
           # First, let's get some basic info about the Lambda function
           echo "📋 Lambda Function Information:"
-          LAMBDA_FUNCTION_NAME="financial-dashboard-api-dev"
+          LAMBDA_FUNCTION_NAME="financial-dashboard-api-${{ needs.setup.outputs.environment }}"
           
           # Get Lambda function configuration
           echo "Getting Lambda function configuration..."
