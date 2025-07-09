@@ -1,0 +1,176 @@
+name: 🔥 NUKE STUCK STACK
+
+on:
+  workflow_dispatch:
+    inputs:
+      stack_name:
+        description: 'Stack name to nuke'
+        required: true
+        default: 'stocks-webapp-dev'
+      confirm_nuke:
+        description: 'Type NUKE to confirm destruction'
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+  AWS_ROLE_SESSION: github-nuke-stack
+
+jobs:
+  nuke_stack:
+    name: 🔥 Nuclear Stack Destruction
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Validate confirmation
+        run: |
+          if [[ "${{ github.event.inputs.confirm_nuke }}" != "NUKE" ]]; then
+            echo "❌ You must type NUKE to confirm destruction"
+            exit 1
+          fi
+          echo "✅ Confirmation received. Proceeding with nuclear option..."
+
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Install SAM CLI
+        uses: aws-actions/setup-sam@v2
+        with:
+          version: 1.141.0
+          use-installer: true
+
+      - name: 🔥 NUCLEAR DESTRUCTION SEQUENCE
+        run: |
+          STACK_NAME="${{ github.event.inputs.stack_name }}"
+          
+          echo "🔥🔥🔥 INITIATING NUCLEAR DESTRUCTION 🔥🔥🔥"
+          echo "Target: $STACK_NAME"
+          echo "=================================================="
+          
+          # Check if stack exists
+          if ! aws cloudformation describe-stacks --stack-name "$STACK_NAME" >/dev/null 2>&1; then
+            echo "✅ Stack $STACK_NAME does not exist. Nothing to nuke."
+            exit 0
+          fi
+          
+          # Get current status
+          CURRENT_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query 'Stacks[0].StackStatus' --output text)
+          echo "📊 Current stack status: $CURRENT_STATUS"
+          
+          # Nuclear option 1: Try continue-update-rollback
+          echo ""
+          echo "🔧 NUKE ATTEMPT 1: Continue update rollback"
+          aws cloudformation continue-update-rollback --stack-name "$STACK_NAME" || {
+            echo "❌ Continue-update-rollback failed. Proceeding to next nuke attempt..."
+          }
+          
+          # Wait a bit for status to change
+          sleep 30
+          CURRENT_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "STACK_NOT_FOUND")
+          echo "Status after continue-update-rollback: $CURRENT_STATUS"
+          
+          # Nuclear option 2: Deploy minimal template to force completion
+          if [[ "$CURRENT_STATUS" == *"PROGRESS"* || "$CURRENT_STATUS" == *"FAILED"* ]]; then
+            echo ""
+            echo "🔧 NUKE ATTEMPT 2: Deploy minimal template to force completion"
+            
+            # Create minimal template
+            cat > minimal-nuke.yml << 'EOF'
+          AWSTemplateFormatVersion: '2010-09-09'
+          Transform: AWS::Serverless-2016-10-31
+          Description: Minimal template to force stack completion for deletion
+          
+          Resources:
+            # Minimal Lambda function without ANY problematic settings
+            ApiFunction:
+              Type: AWS::Serverless::Function
+              Properties:
+                FunctionName: financial-dashboard-api-dev
+                Runtime: nodejs18.x
+                Handler: index.handler
+                CodeUri: webapp/lambda/
+                Timeout: 30
+                Environment:
+                  Variables:
+                    NODE_ENV: production
+                Events:
+                  ApiProxy:
+                    Type: Api
+                    Properties:
+                      Path: /{proxy+}
+                      Method: ANY
+          
+          Outputs:
+            ApiGatewayUrl:
+              Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod'
+          EOF
+            
+            # Build and deploy minimal template
+            sam build --template minimal-nuke.yml || {
+              echo "❌ SAM build failed, continuing to next nuke attempt..."
+            }
+            
+            sam deploy \
+              --template-file minimal-nuke.yml \
+              --stack-name "$STACK_NAME" \
+              --capabilities CAPABILITY_IAM \
+              --no-confirm-changeset \
+              --no-fail-on-empty-changeset || {
+              echo "❌ Minimal template deployment failed, continuing to next nuke attempt..."
+            }
+            
+            # Wait for deployment to complete or fail
+            echo "⏰ Waiting for minimal template deployment..."
+            sleep 60
+            CURRENT_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "STACK_NOT_FOUND")
+            echo "Status after minimal deployment: $CURRENT_STATUS"
+          fi
+          
+          # Nuclear option 3: Force delete regardless of state
+          echo ""
+          echo "🔧 NUKE ATTEMPT 3: Force delete stack"
+          aws cloudformation delete-stack --stack-name "$STACK_NAME" || {
+            echo "❌ Standard delete failed. Stack may be in undeletable state."
+          }
+          
+          # Wait for deletion with timeout
+          echo "⏰ Waiting for stack deletion (up to 10 minutes)..."
+          timeout 600 aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME" || {
+            echo "❌ Stack deletion timed out or failed"
+            
+            # Check final status
+            FINAL_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "STACK_NOT_FOUND")
+            echo "Final stack status: $FINAL_STATUS"
+            
+            if [[ "$FINAL_STATUS" == "STACK_NOT_FOUND" ]]; then
+              echo "✅ Stack was successfully nuked!"
+              exit 0
+            else
+              echo "💥 NUCLEAR OPTION FAILED"
+              echo "Stack $STACK_NAME is still stuck in state: $FINAL_STATUS"
+              echo ""
+              echo "🆘 MANUAL INTERVENTION REQUIRED:"
+              echo "1. Open AWS Support case with stack ARN"
+              echo "2. Or manually delete stuck resources in AWS Console"
+              echo "3. Or wait 24-48 hours for AWS to auto-resolve"
+              echo ""
+              echo "Stack ARN: $(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query 'Stacks[0].StackId' --output text)"
+              exit 1
+            fi
+          }
+          
+          echo ""
+          echo "🎉 NUCLEAR DESTRUCTION SUCCESSFUL! 🎉"
+          echo "Stack $STACK_NAME has been completely obliterated."
+          echo "You can now deploy a fresh stack without issues."
