@@ -9,93 +9,123 @@ Parameters:
   StockSymbolsImageTag:
     Type: String
     Description: "Tag for stock-symbols loader image"
+    Default: "latest"
   EconDataImageTag:
     Type: String
     Description: "Tag for econ-data loader image"
+    Default: "latest"
   FindataImageTag:
     Type: String
     Description: "Tag for findata loader image"
+    Default: "latest"
   PriceImageTag:  
     Type: String
     Description: "Tag for pricedaily loader image"
+    Default: "latest"
   PriceWeeklyImageTag:
     Type: String
     Description: "Tag for priceweekly loader image"
+    Default: "latest"
   PriceMonthlyImageTag:
     Type: String
     Description: "Tag for pricemonthly loader image"
+    Default: "latest"
   TechnicalsDailyImageTag:
     Type: String
     Description: "Tag for TechnicalsDaily loader image"
+    Default: "latest"
   LoadInfoImageTag:
     Type: String
     Description: "Tag for loadinfo loader image"
+    Default: "latest"
   EarningsEstimateImageTag:
     Type: String
     Description: "Tag for earnings estimate loader image"
+    Default: "latest"
   TechnicalsWeeklyImageTag:
     Type: String
     Description: "Tag for technicalsweekly loader image"
+    Default: "latest"
   TechnicalsMonthlyImageTag:
     Type: String
     Description: "Tag for technicalsmonthly loader image"
+    Default: "latest"
   BuySellImageTag:
     Type: String
     Description: "Tag for buysell loader image"
+    Default: "latest"
   BuySellDailyImageTag:
     Type: String
     Description: "Tag for buysell daily loader image"
+    Default: "latest"
   BuySellWeeklyImageTag:
     Type: String
     Description: "Tag for buysell weekly loader image"
+    Default: "latest"
   BuySellMonthlyImageTag:
     Type: String
     Description: "Tag for buysell monthly loader image"
+    Default: "latest"
   SwingTraderImageTag:
     Type: String
     Description: "Tag for swingtrader loader image"
+    Default: "latest"
   CalendarImageTag:
     Type: String
     Description: "Tag for calendar loader image"
+    Default: "latest"
   LatestPriceDailyImageTag:
     Type: String
     Description: "Tag for latestpricedaily loader image"
+    Default: "latest"
   LatestPriceWeeklyImageTag:
     Type: String
     Description: "Tag for latestpriceweekly loader image"
+    Default: "latest"
   LatestPriceMonthlyImageTag:
     Type: String
     Description: "Tag for latestpricemonthly loader image"
+    Default: "latest"
   LatestTechnicalsDailyImageTag:
     Type: String
     Description: "Tag for latesttechnicalsdaily loader image"
+    Default: "latest"
   LatestTechnicalsWeeklyImageTag:
     Type: String
     Description: "Tag for latesttechnicalsweekly loader image"
+    Default: "latest"
   LatestTechnicalsMonthlyImageTag:
     Type: String
-    Description: "Tag for latesttechnicalsmonthly loader image"  
+    Description: "Tag for latesttechnicalsmonthly loader image"
+    Default: "latest"  
   RevenueEstimateImageTag:
     Type: String
     Description: "Tag for revenue estimate loader image"
+    Default: "latest"
   EarningsHistoryImageTag:
     Type: String
     Description: "Tag for earnings history loader image"
+    Default: "latest"
   AaiiImageTag:
     Type: String
     Description: "Tag for AAII sentiment data loader image"
+    Default: "latest"
   FearGreedImageTag:
     Type: String
     Description: "Tag for Fear & Greed data loader image"
+    Default: "latest"
   NaaimImageTag:
     Type: String
     Description: "Tag for NAAIM data loader image"
+    Default: "latest"
   EarningsMetricsImageTag:
     Type: String
     Description: "Tag for earnings metrics loader image"
+    Default: "latest"
   ScoresImageTag:
     Type: String
     Description: "Tag for unified scores loader image"
+    Default: "latest"
   PatternRecognitionImageTag:
     Type: String
     Description: "Tag for pattern recognition loader image"
@@ -117,33 +147,43 @@ Parameters:
   QuarterlyBalanceSheetImageTag:
     Type: String
     Description: "Tag for quarterly balance sheet loader image"
+    Default: "latest"
   AnnualBalanceSheetImageTag:
     Type: String
     Description: "Tag for annual balance sheet loader image"
+    Default: "latest"
   QuarterlyIncomeStatementImageTag:
     Type: String
     Description: "Tag for quarterly income statement loader image"
+    Default: "latest"
   AnnualIncomeStatementImageTag:
     Type: String
     Description: "Tag for annual income statement loader image"
+    Default: "latest"
   QuarterlyCashFlowImageTag:
     Type: String
     Description: "Tag for quarterly cash flow loader image"
+    Default: "latest"
   AnnualCashFlowImageTag:
     Type: String
     Description: "Tag for annual cash flow loader image"
+    Default: "latest"
   TTMIncomeStatementImageTag:
     Type: String
     Description: "Tag for TTM income statement loader image"
+    Default: "latest"
   TTMCashFlowImageTag:
     Type: String
     Description: "Tag for TTM cash flow loader image"
+    Default: "latest"
   QualityMetricsImageTag:
     Type: String
     Description: "Tag for quality metrics calculator image"
+    Default: "latest"
   ValueMetricsImageTag:
     Type: String
     Description: "Tag for value metrics calculator image"
+    Default: "latest"
 
 Resources:
 

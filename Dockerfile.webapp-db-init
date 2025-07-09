@@ -13,5 +13,8 @@ RUN npm ci --only=production
 # Copy initialization script
 COPY webapp-db-init.js ./
 
+# Ensure proper permissions and verify script exists
+RUN ls -la webapp-db-init.js && chmod +x webapp-db-init.js
+
 # Run the initialization script
 CMD ["node", "webapp-db-init.js"]
