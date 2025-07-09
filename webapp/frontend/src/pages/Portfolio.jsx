@@ -111,13 +111,8 @@ import {
   Cancel,
   Save,
   More,
-  Info,
-  Upload,
-  Download,
-  Security,
   NotificationsActive,
   Notifications,
-  Settings,
   ExpandMore,
   Report,
   Speed,
@@ -133,12 +128,9 @@ import {
   FileDownload,
   PictureAsPdf,
   GetApp,
-  NotificationsNone,
-  Refresh,
-  Visibility,
-  VisibilityOff
+  NotificationsNone
 } from '@mui/icons-material';
-import { getApiConfig, testApiConnection, importPortfolioFromBroker, getApiKeys, getPortfolioData, getAvailableAccounts, getAccountInfo } from '../services/api';
+import { getApiConfig, testApiConnection, importPortfolioFromBroker, getApiKeys, getAvailableAccounts, getAccountInfo } from '../services/api';
 import { formatCurrency, formatPercentage, formatNumber } from '../utils/formatters';
 
 // ⚠️ MOCK DATA - Replace with real API when available
