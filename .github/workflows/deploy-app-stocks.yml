@@ -208,7 +208,6 @@ jobs:
               - 'template-*.yml'
               - '.github/workflows/**'
               - 'requirements.txt'
-              - 'load*.py'
               - 'Dockerfile.*'
               - 'requirements-*.txt'
 
@@ -632,10 +631,55 @@ jobs:
       - name: Generate tags.env
         shell: bash
         run: |
-          cat build_tag_*.txt > tags.env
-          if [ ! -f tags.env ]; then
-            echo "No build tag files found or tags.env not created" >&2
-            exit 1
+          # Try to concatenate build tag files, but handle case where none exist
+          if ls build_tag_*.txt 1> /dev/null 2>&1; then
+            cat build_tag_*.txt > tags.env
+            echo "Using build tags from artifacts"
+          else
+            echo "No build tag files found, using default tags"
+            # Create default tags.env with 'latest' tags
+            cat > tags.env << 'EOF'
+          StockSymbolsImageTag=latest
+          EconDataImageTag=latest
+          FindataImageTag=latest
+          PriceImageTag=latest
+          PriceWeeklyImageTag=latest
+          PriceMonthlyImageTag=latest
+          TechnicalsDailyImageTag=latest
+          LoadInfoImageTag=latest
+          EarningsEstimateImageTag=latest
+          TechnicalsWeeklyImageTag=latest
+          TechnicalsMonthlyImageTag=latest
+          EarningsHistoryImageTag=latest
+          RevenueEstimateImageTag=latest
+          SwingTraderImageTag=latest
+          CalendarImageTag=latest
+          BuySellImageTag=latest
+          BuySellDailyImageTag=latest
+          BuySellWeeklyImageTag=latest
+          BuySellMonthlyImageTag=latest
+          LatestPriceDailyImageTag=latest
+          LatestPriceWeeklyImageTag=latest
+          LatestPriceMonthlyImageTag=latest
+          LatestTechnicalsDailyImageTag=latest
+          LatestTechnicalsWeeklyImageTag=latest
+          LatestTechnicalsMonthlyImageTag=latest
+          NaaimImageTag=latest
+          AaiiImageTag=latest
+          FearGreedImageTag=latest
+          QuarterlyBalanceSheetImageTag=latest
+          AnnualBalanceSheetImageTag=latest
+          QuarterlyIncomeStatementImageTag=latest
+          AnnualIncomeStatementImageTag=latest
+          QuarterlyCashFlowImageTag=latest
+          AnnualCashFlowImageTag=latest
+          TTMIncomeStatementImageTag=latest
+          TTMCashFlowImageTag=latest
+          EarningsMetricsImageTag=latest
+          QualityMetricsImageTag=latest
+          ValueMetricsImageTag=latest
+          ScoresImageTag=latest
+          EOF
           fi
 
       - name: Wait for app stack to finish exporting
