@@ -113,7 +113,7 @@ jobs:
           
           Outputs:
             ApiGatewayUrl:
-              Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod'
+              Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/dev'
           EOF
             
             # Build and deploy minimal template
