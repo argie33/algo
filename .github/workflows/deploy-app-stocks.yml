@@ -81,6 +81,7 @@ jobs:
       growthmetrics: ${{ steps.filter.outputs.growthmetrics }}
       calendar: ${{ steps.filter.outputs.calendar }}
       any: ${{ steps.filter.outputs.any }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v3
       - uses: dorny/paths-filter@v2
@@ -208,6 +209,36 @@ jobs:
               - 'load*.py'
               - 'Dockerfile.*'
               - 'requirements-*.txt'
+
+      - name: Generate matrix for changed components
+        id: matrix
+        run: |
+          arr=""
+          [ "${{ steps.filter.outputs.symbols }}" = "true" ] && arr="$arr,\"symbols\""
+          [ "${{ steps.filter.outputs.econ }}" = "true" ] && arr="$arr,\"econ\""
+          [ "${{ steps.filter.outputs.pricedaily }}" = "true" ] && arr="$arr,\"pricedaily\""
+          [ "${{ steps.filter.outputs.priceweekly }}" = "true" ] && arr="$arr,\"priceweekly\""
+          [ "${{ steps.filter.outputs.pricemonthly }}" = "true" ] && arr="$arr,\"pricemonthly\""
+          [ "${{ steps.filter.outputs.technicalsdaily }}" = "true" ] && arr="$arr,\"technicalsdaily\""
+          [ "${{ steps.filter.outputs.loadinfo }}" = "true" ] && arr="$arr,\"loadinfo\""
+          [ "${{ steps.filter.outputs.earningshistory }}" = "true" ] && arr="$arr,\"earningshistory\""
+          [ "${{ steps.filter.outputs.earningsestimate }}" = "true" ] && arr="$arr,\"earningsestimate\""
+          [ "${{ steps.filter.outputs.earningsmetrics }}" = "true" ] && arr="$arr,\"earningsmetrics\""
+          [ "${{ steps.filter.outputs.revenueestimate }}" = "true" ] && arr="$arr,\"revenueestimate\""
+          [ "${{ steps.filter.outputs.technicalsweekly }}" = "true" ] && arr="$arr,\"technicalsweekly\""
+          [ "${{ steps.filter.outputs.technicalsmonthly }}" = "true" ] && arr="$arr,\"technicalsmonthly\""
+          [ "${{ steps.filter.outputs.swingtrader }}" = "true" ] && arr="$arr,\"swingtrader\""
+          [ "${{ steps.filter.outputs.calendar }}" = "true" ] && arr="$arr,\"calendar\""
+          [ "${{ steps.filter.outputs.qualitymetrics }}" = "true" ] && arr="$arr,\"qualitymetrics\""
+          [ "${{ steps.filter.outputs.valuemetrics }}" = "true" ] && arr="$arr,\"valuemetrics\""
+          [ "${{ steps.filter.outputs.growthmetrics }}" = "true" ] && arr="$arr,\"growthmetrics\""
+          
+          # If no changes, create empty matrix
+          if [ -z "$arr" ]; then
+            echo "matrix=[]" >> $GITHUB_OUTPUT
+          else
+            echo "matrix=[${arr#,}]" >> $GITHUB_OUTPUT
+          fi
 
 # 6) Run value-metrics loader
   run_valuemetrics:
@@ -464,7 +495,7 @@ jobs:
   build:
     name: Build changed images
     needs: filter
-    if: ${{ needs.filter.outputs.any == 'true' }}
+    if: ${{ needs.filter.outputs.any == 'true' && needs.filter.outputs.matrix != '[]' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
