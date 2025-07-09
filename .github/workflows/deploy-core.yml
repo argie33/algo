@@ -39,14 +39,35 @@
               aws cloudformation wait stack-delete-complete --stack-name stocks-core-stack
             fi
 
-        - name: Deploy core CloudFormation stack
+        - name: Check template size and deploy core CloudFormation stack
           run: |
-            aws cloudformation deploy \
-              --stack-name stocks-core-stack \
-              --template-file template-core.yml \
-              --s3-bucket stocks-cf-templates \
-              --capabilities CAPABILITY_NAMED_IAM \
-              --no-fail-on-empty-changeset
+            # Check if template is small enough to deploy directly
+            TEMPLATE_SIZE=$(wc -c < template-core.yml)
+            echo "Template size: $TEMPLATE_SIZE bytes"
+            
+            if [ $TEMPLATE_SIZE -lt 51200 ]; then
+              echo "Template is small enough, deploying directly without S3..."
+              aws cloudformation deploy \
+                --stack-name stocks-core-stack \
+                --template-file template-core.yml \
+                --capabilities CAPABILITY_NAMED_IAM \
+                --no-fail-on-empty-changeset
+            else
+              echo "Template is too large, creating temporary S3 bucket..."
+              # Create a temporary bucket for large templates
+              TEMP_BUCKET="stocks-cf-temp-$(date +%s)"
+              aws s3 mb s3://$TEMP_BUCKET --region us-east-1
+              
+              aws cloudformation deploy \
+                --stack-name stocks-core-stack \
+                --template-file template-core.yml \
+                --s3-bucket $TEMP_BUCKET \
+                --capabilities CAPABILITY_NAMED_IAM \
+                --no-fail-on-empty-changeset
+              
+              # Clean up temp bucket
+              aws s3 rb s3://$TEMP_BUCKET --force
+            fi
 
         - name: Wait for Bastion to be running
           id: wait_bastion
