@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { query } = require('../utils/database');
-const { execFile } = require('child_process');
-const backtestStore = require('../utils/backtestStore');
+const { authenticateToken } = require('../middleware/auth');
+const BacktestEngine = require('../utils/backtestEngine');
 const path = require('path');
 const fs = require('fs');
 

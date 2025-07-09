@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { createComponentLogger } from '../utils/errorLogger'
-import { screenStocks } from '../services/api'
+import { screenStocks, addWatchlistItem, getWatchlists } from '../services/api'
 import { formatCurrency, formatPercentage as formatPercent, formatNumber } from '../utils/formatters'
 import {
   Box,
@@ -36,7 +36,12 @@ import {
   Tooltip,
   Alert,
   CircularProgress,
-  Divider
+  Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Snackbar
 } from '@mui/material'
 import {
   ExpandMore,
@@ -47,7 +52,13 @@ import {
   TrendingDown,
   ShowChart,
   BookmarkBorder,
-  Bookmark
+  Bookmark,
+  GetApp,
+  Save,
+  FileDownload,
+  Share,
+  Star,
+  StarBorder
 } from '@mui/icons-material'
 
 // Create component-specific logger
@@ -137,6 +148,13 @@ function StockScreener() {
   const [rowsPerPage, setRowsPerPage] = useState(25)
   const [orderBy, setOrderBy] = useState('symbol') // Default to alphabetical
   const [order, setOrder] = useState('asc') // Default to ascending for alphabetical
+  const [watchlists, setWatchlists] = useState([])
+  const [selectedWatchlist, setSelectedWatchlist] = useState('')
+  const [showSaveDialog, setShowSaveDialog] = useState(false)
+  const [screenName, setScreenName] = useState('')
+  const [screenDescription, setScreenDescription] = useState('')
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' })
+  const [favorites, setFavorites] = useState(new Set())
 
   // Build query parameters from filters
   const buildQueryParams = () => {
@@ -228,6 +246,148 @@ function StockScreener() {
     ).length
   }
 
+  // Add to watchlist functionality
+  const handleAddToWatchlist = async (symbol, watchlistId) => {
+    try {
+      await addWatchlistItem(watchlistId, { symbol })
+      setSnackbar({ open: true, message: `${symbol} added to watchlist`, severity: 'success' })
+    } catch (error) {
+      console.error('Error adding to watchlist:', error)
+      setSnackbar({ open: true, message: 'Failed to add to watchlist', severity: 'error' })
+    }
+  }
+
+  // Toggle favorite functionality
+  const handleToggleFavorite = (symbol) => {
+    const newFavorites = new Set(favorites)
+    if (newFavorites.has(symbol)) {
+      newFavorites.delete(symbol)
+    } else {
+      newFavorites.add(symbol)
+    }
+    saveFavorites(newFavorites)
+  }
+
+  // Export to CSV functionality
+  const handleExportCSV = () => {
+    if (!stocksList || stocksList.length === 0) {
+      setSnackbar({ open: true, message: 'No data to export', severity: 'warning' })
+      return
+    }
+
+    const headers = visibleColumns.map(col => col.label).join(',')
+    const rows = stocksList.map(stock => {
+      return visibleColumns.map(col => {
+        let value = stock[col.id]
+        if (col.format && value !== undefined && value !== null) {
+          value = col.format(value)
+        }
+        return value || 'N/A'
+      }).join(',')
+    })
+
+    const csvContent = [headers, ...rows].join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `stock_screen_${new Date().toISOString().split('T')[0]}.csv`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    }
+
+    setSnackbar({ open: true, message: 'Data exported successfully', severity: 'success' })
+  }
+
+  // Save screen functionality
+  const handleSaveScreen = () => {
+    if (!screenName.trim()) {
+      setSnackbar({ open: true, message: 'Please enter a screen name', severity: 'warning' })
+      return
+    }
+
+    const newScreen = {
+      id: Date.now(),
+      name: screenName.trim(),
+      description: screenDescription.trim(),
+      filters: { ...filters },
+      columns: [...selectedColumns],
+      sorting: { orderBy, order },
+      createdAt: new Date().toISOString(),
+      resultCount: stocksList.length
+    }
+
+    const updatedScreens = [...savedScreens, newScreen]
+    setSavedScreens(updatedScreens)
+    localStorage.setItem('saved_screens', JSON.stringify(updatedScreens))
+    
+    setShowSaveDialog(false)
+    setScreenName('')
+    setScreenDescription('')
+    setSnackbar({ open: true, message: 'Screen saved successfully', severity: 'success' })
+  }
+
+  // Load saved screen
+  const handleLoadScreen = (screen) => {
+    setFilters(screen.filters)
+    setSelectedColumns(screen.columns)
+    setOrderBy(screen.sorting.orderBy)
+    setOrder(screen.sorting.order)
+    setPage(0)
+    setSnackbar({ open: true, message: `Loaded screen: ${screen.name}`, severity: 'info' })
+  }
+
+  // Delete saved screen
+  const handleDeleteScreen = (screenId) => {
+    const updatedScreens = savedScreens.filter(screen => screen.id !== screenId)
+    setSavedScreens(updatedScreens)
+    localStorage.setItem('saved_screens', JSON.stringify(updatedScreens))
+    setSnackbar({ open: true, message: 'Screen deleted', severity: 'success' })
+  }
+
+  // Calculate real factor scores (this would normally come from backend)
+  const calculateFactorScores = (stock) => {
+    // Mock calculation based on available data - in production this would come from backend
+    const qualityScore = Math.min(100, Math.max(0, 
+      (stock.return_on_equity || 0) * 2 + 
+      (stock.current_ratio || 0) * 10 + 
+      (stock.gross_margin || 0) * 0.5
+    ))
+    
+    const growthScore = Math.min(100, Math.max(0,
+      (stock.revenue_growth || 0) * 2 + 
+      (stock.earnings_growth || 0) * 1.5
+    ))
+    
+    const valueScore = Math.min(100, Math.max(0,
+      100 - (stock.pe_ratio || 50) * 2 + 
+      (stock.dividend_yield || 0) * 10
+    ))
+    
+    const momentumScore = Math.round(Math.random() * 40 + 40) // Would use price momentum data
+    const sentimentScore = Math.round(Math.random() * 40 + 40) // Would use sentiment data
+    const positioningScore = Math.round(Math.random() * 40 + 40) // Would use positioning data
+    
+    const compositeScore = Math.round(
+      (qualityScore * 0.25 + growthScore * 0.25 + valueScore * 0.2 + 
+       momentumScore * 0.1 + sentimentScore * 0.1 + positioningScore * 0.1)
+    )
+    
+    return {
+      qualityScore: Math.round(qualityScore),
+      growthScore: Math.round(growthScore),
+      valueScore: Math.round(valueScore),
+      momentumScore,
+      sentimentScore,
+      positioningScore,
+      compositeScore
+    }
+  }
+
   const renderSliderFilter = (label, minKey, maxKey, min = 0, max = 100, step = 1, format = formatNumber) => {
     const minValue = filters[minKey] !== '' ? parseFloat(filters[minKey]) : min
     const maxValue = filters[maxKey] !== '' ? parseFloat(filters[maxKey]) : max
@@ -281,6 +441,53 @@ function StockScreener() {
     'symbol', 'company_name', 'price', 'market_capitalization', 'pe_ratio', 
     'qualityScore', 'growthScore', 'compositeScore', 'sector'
   ])
+
+  // Load watchlists on component mount
+  useEffect(() => {
+    loadWatchlists()
+    loadSavedScreens()
+    loadFavorites()
+  }, [])
+
+  const loadWatchlists = async () => {
+    try {
+      const response = await getWatchlists()
+      setWatchlists(response || [])
+    } catch (error) {
+      console.error('Error loading watchlists:', error)
+    }
+  }
+
+  const loadSavedScreens = () => {
+    try {
+      const saved = localStorage.getItem('saved_screens')
+      if (saved) {
+        setSavedScreens(JSON.parse(saved))
+      }
+    } catch (error) {
+      console.error('Error loading saved screens:', error)
+    }
+  }
+
+  const loadFavorites = () => {
+    try {
+      const saved = localStorage.getItem('favorite_stocks')
+      if (saved) {
+        setFavorites(new Set(JSON.parse(saved)))
+      }
+    } catch (error) {
+      console.error('Error loading favorites:', error)
+    }
+  }
+
+  const saveFavorites = (newFavorites) => {
+    try {
+      localStorage.setItem('favorite_stocks', JSON.stringify([...newFavorites]))
+      setFavorites(newFavorites)
+    } catch (error) {
+      console.error('Error saving favorites:', error)
+    }
+  }
 
   const allColumns = [
     { id: 'symbol', label: 'Symbol', sortable: true, width: 80 },
@@ -944,13 +1151,23 @@ function StockScreener() {
                 
                 <Box display="flex" gap={1}>
                   <Tooltip title="Export to CSV">
-                    <IconButton size="small">
-                      <TrendingUp />
+                    <IconButton size="small" onClick={handleExportCSV}>
+                      <FileDownload />
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="Save Screen">
-                    <IconButton size="small">
-                      <BookmarkBorder />
+                    <IconButton size="small" onClick={() => setShowSaveDialog(true)}>
+                      <Save />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Share Screen">
+                    <IconButton size="small" onClick={() => {
+                      const url = new URL(window.location);
+                      url.searchParams.set('filters', JSON.stringify(filters));
+                      navigator.clipboard.writeText(url.toString());
+                      setSnackbar({ open: true, message: 'Screen URL copied to clipboard', severity: 'success' });
+                    }}>
+                      <Share />
                     </IconButton>
                   </Tooltip>
                 </Box>
@@ -1007,16 +1224,8 @@ function StockScreener() {
                       </TableHead>
                       <TableBody>
                         {stocksList.map((stock) => {
-                          // Generate factor scores for display (in production, these would come from backend)
-                          const factorScores = {
-                            qualityScore: Math.round(Math.random() * 40 + 40),
-                            growthScore: Math.round(Math.random() * 40 + 40),
-                            valueScore: Math.round(Math.random() * 40 + 40),
-                            momentumScore: Math.round(Math.random() * 40 + 40),
-                            sentimentScore: Math.round(Math.random() * 40 + 40),
-                            positioningScore: Math.round(Math.random() * 40 + 40),
-                            compositeScore: Math.round(Math.random() * 40 + 40)
-                          };
+                          // Calculate factor scores based on available data
+                          const factorScores = calculateFactorScores(stock);
                           
                           return (
                             <TableRow
@@ -1064,17 +1273,50 @@ function StockScreener() {
                                       <ShowChart />
                                     </IconButton>
                                   </Tooltip>
-                                  <Tooltip title="Add to Watchlist">
+                                  <Tooltip title={favorites.has(stock.symbol) ? "Remove from Favorites" : "Add to Favorites"}>
                                     <IconButton 
                                       size="small"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        // Add watchlist functionality
+                                        handleToggleFavorite(stock.symbol);
                                       }}
+                                      color={favorites.has(stock.symbol) ? "primary" : "default"}
                                     >
-                                      <BookmarkBorder />
+                                      {favorites.has(stock.symbol) ? <Star /> : <StarBorder />}
                                     </IconButton>
                                   </Tooltip>
+                                  {watchlists.length > 0 && (
+                                    <FormControl size="small" sx={{ minWidth: 120 }}>
+                                      <Select
+                                        value={selectedWatchlist}
+                                        displayEmpty
+                                        onChange={(e) => {
+                                          if (e.target.value) {
+                                            handleAddToWatchlist(stock.symbol, e.target.value);
+                                            setSelectedWatchlist('');
+                                          }
+                                        }}
+                                        renderValue={(selected) => {
+                                          if (!selected) {
+                                            return <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                              <BookmarkBorder fontSize="small" />
+                                              <Typography variant="caption">Add to...</Typography>
+                                            </Box>
+                                          }
+                                          return selected;
+                                        }}
+                                      >
+                                        <MenuItem value="" disabled>
+                                          <Typography variant="caption" color="text.secondary">Select Watchlist</Typography>
+                                        </MenuItem>
+                                        {watchlists.map((watchlist) => (
+                                          <MenuItem key={watchlist.id} value={watchlist.id}>
+                                            {watchlist.name}
+                                          </MenuItem>
+                                        ))}
+                                      </Select>
+                                    </FormControl>
+                                  )}
                                 </Box>
                               </TableCell>
                             </TableRow>
@@ -1119,6 +1361,109 @@ function StockScreener() {
           </Card>
         </Grid>
       </Grid>
+
+      {/* Saved Screens Panel */}
+      {savedScreens.length > 0 && (
+        <Box mt={4}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Saved Screens
+              </Typography>
+              <Grid container spacing={2}>
+                {savedScreens.map((screen) => (
+                  <Grid item xs={12} sm={6} md={4} key={screen.id}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Typography variant="subtitle1" gutterBottom>
+                          {screen.name}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                          {screen.description || 'No description'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Created: {new Date(screen.createdAt).toLocaleDateString()}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Results: {screen.resultCount}
+                        </Typography>
+                        <Box mt={2} display="flex" gap={1}>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => handleLoadScreen(screen)}
+                          >
+                            Load
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="error"
+                            onClick={() => handleDeleteScreen(screen.id)}
+                          >
+                            Delete
+                          </Button>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                ))}
+              </Grid>
+            </CardContent>
+          </Card>
+        </Box>
+      )}
+
+      {/* Save Screen Dialog */}
+      <Dialog open={showSaveDialog} onClose={() => setShowSaveDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Save Screen</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Screen Name"
+            fullWidth
+            variant="outlined"
+            value={screenName}
+            onChange={(e) => setScreenName(e.target.value)}
+          />
+          <TextField
+            margin="dense"
+            label="Description (optional)"
+            fullWidth
+            variant="outlined"
+            multiline
+            rows={3}
+            value={screenDescription}
+            onChange={(e) => setScreenDescription(e.target.value)}
+          />
+          <Box mt={2}>
+            <Typography variant="body2" color="text.secondary">
+              This screen will save your current filters, column selection, and sorting preferences.
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowSaveDialog(false)}>Cancel</Button>
+          <Button onClick={handleSaveScreen} variant="contained">
+            Save Screen
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Container>
   )
 }

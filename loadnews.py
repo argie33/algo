@@ -7,13 +7,19 @@ import os
 import gc
 import resource
 import math
+import hashlib
+import re
 from datetime import datetime, timedelta
+from typing import Dict, List, Any, Optional
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
 
 import boto3
 import yfinance as yf
+import requests
+import feedparser
+from textblob import TextBlob
 
 # -------------------------------
 # Script metadata & logging setup 
@@ -48,12 +54,12 @@ RETRY_DELAY = 0.2  # seconds between download retries
 # -------------------------------
 def get_db_config():
     secret_str = boto3.client("secretsmanager") \
-                     .get_secret_value(SecretId="loadfundamentals-secrets")["SecretString"]
+                     .get_secret_value(SecretId=DB_SECRET_ARN)["SecretString"]
     secret_json = json.loads(secret_str)
     return {
         "host": secret_json["host"],
         "port": secret_json["port"],
-        "user": secret_json["user"],
+        "user": secret_json.get("user", secret_json.get("username")),
         "password": secret_json["password"],
         "dbname": secret_json["dbname"]
     }
@@ -63,6 +69,245 @@ def get_db_config():
 # -------------------------------
 BATCH_SIZE = int(os.environ.get("BATCH_SIZE", "30"))
 PAUSE = float(os.environ.get("PAUSE", "0.5"))
+DB_SECRET_ARN = os.environ.get("DB_SECRET_ARN", "loadfundamentals-secrets")
+
+# -------------------------------
+# News Analysis Classes
+# -------------------------------
+class NewsCollector:
+    def __init__(self):
+        self.sources = {
+            'Reuters': 'https://feeds.reuters.com/reuters/businessNews',
+            'MarketWatch': 'https://feeds.marketwatch.com/marketwatch/realtimeheadlines/',
+            'Yahoo Finance': 'https://feeds.finance.yahoo.com/rss/2.0/headline',
+            'Seeking Alpha': 'https://seekingalpha.com/market_currents.xml',
+            'Benzinga': 'https://www.benzinga.com/feed'
+        }
+        
+        self.categories = {
+            'earnings': ['earnings', 'quarterly', 'revenue', 'profit', 'eps', 'guidance'],
+            'merger': ['merger', 'acquisition', 'takeover', 'buyout', 'deal', 'purchase'],
+            'regulatory': ['regulatory', 'sec', 'fda', 'government', 'policy', 'regulation'],
+            'analyst': ['analyst', 'rating', 'upgrade', 'downgrade', 'target', 'recommendation'],
+            'economic': ['economic', 'gdp', 'inflation', 'fed', 'interest', 'employment'],
+            'technology': ['technology', 'tech', 'software', 'hardware', 'ai', 'innovation'],
+            'healthcare': ['healthcare', 'pharma', 'drug', 'medical', 'biotech', 'clinical'],
+            'energy': ['energy', 'oil', 'gas', 'renewable', 'solar', 'petroleum'],
+            'finance': ['bank', 'financial', 'credit', 'loan', 'mortgage', 'banking'],
+            'retail': ['retail', 'consumer', 'sales', 'store', 'shopping', 'ecommerce']
+        }
+
+    def collect_news_from_rss(self) -> List[Dict[str, Any]]:
+        """Collect news from RSS feeds."""
+        all_news = []
+        
+        for source, url in self.sources.items():
+            try:
+                logging.info(f"Fetching news from {source}")
+                feed = feedparser.parse(url)
+                
+                if feed.bozo:
+                    logging.warning(f"Feed parsing issues for {source}: {feed.bozo_exception}")
+                    continue
+                
+                for entry in feed.entries:
+                    try:
+                        news_item = self.process_rss_entry(entry, source)
+                        if news_item:
+                            all_news.append(news_item)
+                    except Exception as e:
+                        logging.error(f"Error processing entry from {source}: {e}")
+                        continue
+                
+                logging.info(f"Collected {len(feed.entries)} articles from {source}")
+                
+            except Exception as e:
+                logging.error(f"Error fetching from {source}: {e}")
+                continue
+        
+        return all_news
+
+    def process_rss_entry(self, entry, source: str) -> Optional[Dict[str, Any]]:
+        """Process a single RSS entry."""
+        try:
+            title = entry.title if hasattr(entry, 'title') else ''
+            description = entry.description if hasattr(entry, 'description') else ''
+            
+            # Clean HTML tags
+            description = re.sub(r'<[^>]+>', '', description)
+            
+            # Get publication date
+            published = entry.published if hasattr(entry, 'published') else ''
+            if published:
+                try:
+                    published_dt = datetime.strptime(published, '%a, %d %b %Y %H:%M:%S %z')
+                except:
+                    try:
+                        published_dt = datetime.strptime(published, '%a, %d %b %Y %H:%M:%S %Z')
+                    except:
+                        published_dt = datetime.now()
+            else:
+                published_dt = datetime.now()
+            
+            url = entry.link if hasattr(entry, 'link') else ''
+            author = entry.author if hasattr(entry, 'author') else source
+            
+            full_text = f"{title} {description}"
+            
+            # Create unique ID
+            content_hash = hashlib.md5(f"{title}{url}".encode()).hexdigest()[:16]
+            
+            return {
+                'id': content_hash,
+                'title': title,
+                'content': description,
+                'source': source,
+                'author': author,
+                'published_at': published_dt.isoformat(),
+                'url': url,
+                'category': self.categorize_news(full_text),
+                'symbol': self.extract_stock_symbol(full_text),
+                'keywords': self.extract_keywords(full_text),
+                'summary': description[:200] + '...' if len(description) > 200 else description,
+                'full_text': full_text
+            }
+            
+        except Exception as e:
+            logging.error(f"Error processing RSS entry: {e}")
+            return None
+
+    def categorize_news(self, text: str) -> str:
+        """Categorize news based on content."""
+        text_lower = text.lower()
+        
+        category_scores = {}
+        for category, keywords in self.categories.items():
+            score = sum(1 for keyword in keywords if keyword in text_lower)
+            if score > 0:
+                category_scores[category] = score
+        
+        if category_scores:
+            return max(category_scores, key=category_scores.get)
+        
+        return 'general'
+
+    def extract_stock_symbol(self, text: str) -> Optional[str]:
+        """Extract stock symbol from text."""
+        patterns = [
+            r'\(([A-Z]{1,5})\)',  # (AAPL)
+            r'\$([A-Z]{1,5})\b',  # $AAPL
+            r'\b([A-Z]{2,5})\b'   # AAPL (standalone)
+        ]
+        
+        for pattern in patterns:
+            matches = re.findall(pattern, text)
+            if matches:
+                common_words = {'THE', 'AND', 'FOR', 'ARE', 'BUT', 'NOT', 'YOU', 'ALL', 'CAN', 'HER', 'WAS', 'ONE', 'OUR', 'OUT', 'DAY', 'GET', 'HAS', 'HIM', 'HIS', 'HOW', 'ITS', 'NEW', 'NOW', 'OLD', 'SEE', 'TWO', 'WHO', 'BOY', 'DID', 'LET', 'PUT', 'SAY', 'SHE', 'TOO', 'USE', 'CEO', 'CFO', 'IPO', 'SEC', 'FDA', 'API', 'CTO', 'NYSE', 'NASDAQ'}
+                for match in matches:
+                    if match not in common_words and len(match) <= 5:
+                        return match
+        
+        return None
+
+    def extract_keywords(self, text: str) -> List[str]:
+        """Extract keywords from text."""
+        words = re.findall(r'\b\w+\b', text.lower())
+        
+        stop_words = {'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'its', 'new', 'now', 'old', 'see', 'two', 'who', 'boy', 'did', 'let', 'put', 'say', 'she', 'too', 'use', 'this', 'that', 'with', 'have', 'will', 'been', 'from', 'they', 'know', 'want', 'good', 'much', 'some', 'time', 'very', 'when', 'come', 'here', 'just', 'like', 'long', 'make', 'many', 'over', 'such', 'take', 'than', 'them', 'well', 'were'}
+        
+        filtered_words = [word for word in words if len(word) > 3 and word not in stop_words]
+        
+        word_freq = {}
+        for word in filtered_words:
+            word_freq[word] = word_freq.get(word, 0) + 1
+        
+        return sorted(word_freq.keys(), key=word_freq.get, reverse=True)[:10]
+
+class SentimentAnalyzer:
+    def __init__(self):
+        self.positive_words = [
+            'growth', 'profit', 'gain', 'rise', 'surge', 'boost', 'strong', 'beat',
+            'exceed', 'outperform', 'upgrade', 'buy', 'bullish', 'positive', 'good',
+            'excellent', 'success', 'recovery', 'momentum', 'breakthrough'
+        ]
+        
+        self.negative_words = [
+            'loss', 'decline', 'fall', 'drop', 'plunge', 'crash', 'weak', 'miss',
+            'underperform', 'downgrade', 'sell', 'bearish', 'negative', 'bad',
+            'terrible', 'concern', 'warning', 'risk', 'problem', 'struggle'
+        ]
+
+    def analyze_sentiment(self, text: str) -> Dict[str, Any]:
+        """Analyze sentiment using TextBlob."""
+        try:
+            blob = TextBlob(text)
+            polarity = blob.sentiment.polarity  # -1 to 1
+            subjectivity = blob.sentiment.subjectivity  # 0 to 1
+            
+            # Determine label
+            if polarity > 0.1:
+                label = 'positive'
+            elif polarity < -0.1:
+                label = 'negative'
+            else:
+                label = 'neutral'
+            
+            confidence = 1 - subjectivity
+            
+            return {
+                'score': polarity,
+                'label': label,
+                'confidence': confidence
+            }
+            
+        except Exception as e:
+            logging.error(f"Error in sentiment analysis: {e}")
+            return {
+                'score': 0.0,
+                'label': 'neutral',
+                'confidence': 0.5
+            }
+
+    def calculate_impact_score(self, title: str, content: str, category: str, symbol: Optional[str]) -> float:
+        """Calculate impact score for news."""
+        score = 0.5
+        
+        category_weights = {
+            'earnings': 0.9, 'merger': 0.8, 'regulatory': 0.7, 'analyst': 0.6,
+            'economic': 0.8, 'technology': 0.6, 'healthcare': 0.7, 'energy': 0.6,
+            'finance': 0.7, 'retail': 0.5
+        }
+        
+        score += category_weights.get(category, 0.5) * 0.3
+        
+        if symbol:
+            score += 0.2
+        
+        title_lower = title.lower()
+        impact_keywords = ['earnings', 'merger', 'acquisition', 'bankruptcy', 'lawsuit', 'fda', 'approval', 'breakthrough', 'crisis']
+        keyword_count = sum(1 for keyword in impact_keywords if keyword in title_lower)
+        score += min(keyword_count * 0.1, 0.2)
+        
+        return min(score, 1.0)
+
+    def calculate_relevance_score(self, title: str, content: str, category: str) -> float:
+        """Calculate relevance score for news."""
+        score = 0.5
+        
+        category_relevance = {
+            'earnings': 0.9, 'analyst': 0.8, 'merger': 0.7, 'regulatory': 0.6,
+            'economic': 0.7, 'technology': 0.6, 'healthcare': 0.6, 'energy': 0.5,
+            'finance': 0.6, 'retail': 0.5
+        }
+        
+        score += category_relevance.get(category, 0.5) * 0.3
+        
+        title_lower = title.lower()
+        relevant_keywords = ['stock', 'market', 'trading', 'investor', 'price', 'shares', 'financial']
+        keyword_count = sum(1 for keyword in relevant_keywords if keyword in title_lower)
+        score += min(keyword_count * 0.1, 0.2)
+        
+        return min(score, 1.0)
 
 # -------------------------------
 # News loading
@@ -201,8 +446,10 @@ if __name__ == "__main__":
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
     
-    # Create news table if it doesn't exist
-    logging.info("Creating stock_news table...")
+    # Create news tables
+    logging.info("Creating news tables...")
+    
+    # Original stock_news table for yfinance data
     cur.execute("""
         CREATE TABLE IF NOT EXISTS stock_news (
             id SERIAL PRIMARY KEY,
@@ -215,8 +462,31 @@ if __name__ == "__main__":
             news_type VARCHAR(100),
             thumbnail TEXT,
             related_tickers JSONB,
-            created_at TIMESTAMP DEFAULT NOW(),
-            FOREIGN KEY (ticker) REFERENCES company_profile(ticker) ON DELETE CASCADE
+            created_at TIMESTAMP DEFAULT NOW()
+        );
+    """)
+    
+    # Enhanced news_articles table for RSS feeds and sentiment analysis
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS news_articles (
+            id VARCHAR(50) PRIMARY KEY,
+            title TEXT NOT NULL,
+            content TEXT,
+            source VARCHAR(100) NOT NULL,
+            author VARCHAR(100),
+            published_at TIMESTAMP WITH TIME ZONE NOT NULL,
+            url TEXT,
+            category VARCHAR(50),
+            symbol VARCHAR(10),
+            keywords TEXT[],
+            summary TEXT,
+            sentiment_score DECIMAL(3,2),
+            sentiment_label VARCHAR(20),
+            sentiment_confidence DECIMAL(3,2),
+            impact_score DECIMAL(3,2),
+            relevance_score DECIMAL(3,2),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)
     
@@ -226,6 +496,12 @@ if __name__ == "__main__":
         CREATE INDEX IF NOT EXISTS idx_stock_news_publish_time ON stock_news(publish_time DESC);
         CREATE INDEX IF NOT EXISTS idx_stock_news_uuid ON stock_news(uuid);
         CREATE INDEX IF NOT EXISTS idx_stock_news_publisher ON stock_news(publisher);
+        
+        CREATE INDEX IF NOT EXISTS idx_news_published_at ON news_articles(published_at);
+        CREATE INDEX IF NOT EXISTS idx_news_symbol ON news_articles(symbol);
+        CREATE INDEX IF NOT EXISTS idx_news_category ON news_articles(category);
+        CREATE INDEX IF NOT EXISTS idx_news_sentiment ON news_articles(sentiment_label);
+        CREATE INDEX IF NOT EXISTS idx_news_source ON news_articles(source);
     """)
     
     conn.commit()
@@ -240,16 +516,105 @@ if __name__ == "__main__":
     etf_syms = [r["symbol"] for r in cur.fetchall()]
     t_e, p_e, f_e = load_news_data(etf_syms, cur, conn)
     
+    # Load RSS news feeds with sentiment analysis
+    logging.info("Loading RSS news feeds...")
+    news_collector = NewsCollector()
+    sentiment_analyzer = SentimentAnalyzer()
+    
+    try:
+        # Collect news from RSS feeds
+        rss_news = news_collector.collect_news_from_rss()
+        
+        # Process each news item
+        for news_item in rss_news:
+            try:
+                # Analyze sentiment
+                sentiment = sentiment_analyzer.analyze_sentiment(news_item['full_text'])
+                
+                # Calculate scores
+                impact_score = sentiment_analyzer.calculate_impact_score(
+                    news_item['title'], 
+                    news_item['content'], 
+                    news_item['category'], 
+                    news_item['symbol']
+                )
+                
+                relevance_score = sentiment_analyzer.calculate_relevance_score(
+                    news_item['title'], 
+                    news_item['content'], 
+                    news_item['category']
+                )
+                
+                # Insert into news_articles table
+                cur.execute("""
+                    INSERT INTO news_articles (
+                        id, title, content, source, author, published_at, url,
+                        category, symbol, keywords, summary, sentiment_score,
+                        sentiment_label, sentiment_confidence, impact_score,
+                        relevance_score, updated_at
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
+                    )
+                    ON CONFLICT (id) DO UPDATE SET
+                        title = EXCLUDED.title,
+                        content = EXCLUDED.content,
+                        sentiment_score = EXCLUDED.sentiment_score,
+                        sentiment_label = EXCLUDED.sentiment_label,
+                        sentiment_confidence = EXCLUDED.sentiment_confidence,
+                        impact_score = EXCLUDED.impact_score,
+                        relevance_score = EXCLUDED.relevance_score,
+                        updated_at = CURRENT_TIMESTAMP
+                """, (
+                    news_item['id'],
+                    news_item['title'],
+                    news_item['content'],
+                    news_item['source'],
+                    news_item['author'],
+                    news_item['published_at'],
+                    news_item['url'],
+                    news_item['category'],
+                    news_item['symbol'],
+                    news_item['keywords'],
+                    news_item['summary'],
+                    sentiment['score'],
+                    sentiment['label'],
+                    sentiment['confidence'],
+                    impact_score,
+                    relevance_score
+                ))
+                
+            except Exception as e:
+                logging.error(f"Error processing RSS news item {news_item['id']}: {e}")
+                continue
+        
+        conn.commit()
+        logging.info(f"Processed {len(rss_news)} RSS news articles")
+        
+    except Exception as e:
+        logging.error(f"Error loading RSS news: {e}")
+        conn.rollback()
+    
     # Clean up old news (keep only last 30 days)
     logging.info("Cleaning up old news data...")
     cleanup_date = datetime.now() - timedelta(days=30)
+    
+    # Clean stock_news table
     cur.execute("""
         DELETE FROM stock_news 
         WHERE publish_time < %s OR publish_time IS NULL
     """, (cleanup_date,))
     
-    deleted_count = cur.rowcount
-    logging.info(f"Deleted {deleted_count} old news items")
+    deleted_stock_news = cur.rowcount
+    logging.info(f"Deleted {deleted_stock_news} old stock news items")
+    
+    # Clean news_articles table
+    cur.execute("""
+        DELETE FROM news_articles 
+        WHERE published_at < %s
+    """, (cleanup_date,))
+    
+    deleted_rss_news = cur.rowcount
+    logging.info(f"Deleted {deleted_rss_news} old RSS news items")
     
     # Record last run
     cur.execute("""

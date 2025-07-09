@@ -1,0 +1,756 @@
+const express = require('express');
+const { authenticateToken } = require('../middleware/auth');
+const { query } = require('../utils/database');
+const FactorScoringEngine = require('../utils/factorScoring');
+
+const router = express.Router();
+
+// Apply authentication to all routes
+router.use(authenticateToken);
+
+// Initialize factor scoring engine
+const factorEngine = new FactorScoringEngine();
+
+// Main stock screening endpoint
+router.get('/screen', async (req, res) => {
+  try {
+    const filters = req.query;
+    const page = parseInt(filters.page) || 1;
+    const limit = Math.min(parseInt(filters.limit) || 50, 500);
+    const offset = (page - 1) * limit;
+
+    console.log('Stock screening with filters:', filters);
+
+    // Build WHERE clause dynamically
+    const whereConditions = [];
+    const params = [];
+    let paramIndex = 1;
+
+    // Price filters
+    if (filters.priceMin) {
+      whereConditions.push(`sd.close >= $${paramIndex}`);
+      params.push(parseFloat(filters.priceMin));
+      paramIndex++;
+    }
+    if (filters.priceMax) {
+      whereConditions.push(`sd.close <= $${paramIndex}`);
+      params.push(parseFloat(filters.priceMax));
+      paramIndex++;
+    }
+
+    // Market cap filters
+    if (filters.marketCapMin) {
+      whereConditions.push(`sf.market_cap >= $${paramIndex}`);
+      params.push(parseFloat(filters.marketCapMin));
+      paramIndex++;
+    }
+    if (filters.marketCapMax) {
+      whereConditions.push(`sf.market_cap <= $${paramIndex}`);
+      params.push(parseFloat(filters.marketCapMax));
+      paramIndex++;
+    }
+
+    // Valuation filters
+    if (filters.peRatioMin) {
+      whereConditions.push(`sf.pe_ratio >= $${paramIndex}`);
+      params.push(parseFloat(filters.peRatioMin));
+      paramIndex++;
+    }
+    if (filters.peRatioMax) {
+      whereConditions.push(`sf.pe_ratio <= $${paramIndex}`);
+      params.push(parseFloat(filters.peRatioMax));
+      paramIndex++;
+    }
+
+    if (filters.pegRatioMin) {
+      whereConditions.push(`sf.peg_ratio >= $${paramIndex}`);
+      params.push(parseFloat(filters.pegRatioMin));
+      paramIndex++;
+    }
+    if (filters.pegRatioMax) {
+      whereConditions.push(`sf.peg_ratio <= $${paramIndex}`);
+      params.push(parseFloat(filters.pegRatioMax));
+      paramIndex++;
+    }
+
+    if (filters.pbRatioMin) {
+      whereConditions.push(`sf.pb_ratio >= $${paramIndex}`);
+      params.push(parseFloat(filters.pbRatioMin));
+      paramIndex++;
+    }
+    if (filters.pbRatioMax) {
+      whereConditions.push(`sf.pb_ratio <= $${paramIndex}`);
+      params.push(parseFloat(filters.pbRatioMax));
+      paramIndex++;
+    }
+
+    // Profitability filters
+    if (filters.roeMin) {
+      whereConditions.push(`sf.roe >= $${paramIndex}`);
+      params.push(parseFloat(filters.roeMin) / 100);
+      paramIndex++;
+    }
+    if (filters.roeMax) {
+      whereConditions.push(`sf.roe <= $${paramIndex}`);
+      params.push(parseFloat(filters.roeMax) / 100);
+      paramIndex++;
+    }
+
+    if (filters.roaMin) {
+      whereConditions.push(`sf.roa >= $${paramIndex}`);
+      params.push(parseFloat(filters.roaMin) / 100);
+      paramIndex++;
+    }
+    if (filters.roaMax) {
+      whereConditions.push(`sf.roa <= $${paramIndex}`);
+      params.push(parseFloat(filters.roaMax) / 100);
+      paramIndex++;
+    }
+
+    if (filters.netMarginMin) {
+      whereConditions.push(`sf.net_margin >= $${paramIndex}`);
+      params.push(parseFloat(filters.netMarginMin) / 100);
+      paramIndex++;
+    }
+    if (filters.netMarginMax) {
+      whereConditions.push(`sf.net_margin <= $${paramIndex}`);
+      params.push(parseFloat(filters.netMarginMax) / 100);
+      paramIndex++;
+    }
+
+    // Growth filters
+    if (filters.revenueGrowthMin) {
+      whereConditions.push(`sf.revenue_growth >= $${paramIndex}`);
+      params.push(parseFloat(filters.revenueGrowthMin) / 100);
+      paramIndex++;
+    }
+    if (filters.revenueGrowthMax) {
+      whereConditions.push(`sf.revenue_growth <= $${paramIndex}`);
+      params.push(parseFloat(filters.revenueGrowthMax) / 100);
+      paramIndex++;
+    }
+
+    if (filters.earningsGrowthMin) {
+      whereConditions.push(`sf.earnings_growth >= $${paramIndex}`);
+      params.push(parseFloat(filters.earningsGrowthMin) / 100);
+      paramIndex++;
+    }
+    if (filters.earningsGrowthMax) {
+      whereConditions.push(`sf.earnings_growth <= $${paramIndex}`);
+      params.push(parseFloat(filters.earningsGrowthMax) / 100);
+      paramIndex++;
+    }
+
+    // Dividend filters
+    if (filters.dividendYieldMin) {
+      whereConditions.push(`sf.dividend_yield >= $${paramIndex}`);
+      params.push(parseFloat(filters.dividendYieldMin) / 100);
+      paramIndex++;
+    }
+    if (filters.dividendYieldMax) {
+      whereConditions.push(`sf.dividend_yield <= $${paramIndex}`);
+      params.push(parseFloat(filters.dividendYieldMax) / 100);
+      paramIndex++;
+    }
+
+    // Sector filter
+    if (filters.sector) {
+      whereConditions.push(`sse.sector = $${paramIndex}`);
+      params.push(filters.sector);
+      paramIndex++;
+    }
+
+    // Exchange filter
+    if (filters.exchange) {
+      whereConditions.push(`sse.exchange = $${paramIndex}`);
+      params.push(filters.exchange);
+      paramIndex++;
+    }
+
+    // Technical filters
+    if (filters.rsiMin) {
+      whereConditions.push(`td.rsi >= $${paramIndex}`);
+      params.push(parseFloat(filters.rsiMin));
+      paramIndex++;
+    }
+    if (filters.rsiMax) {
+      whereConditions.push(`td.rsi <= $${paramIndex}`);
+      params.push(parseFloat(filters.rsiMax));
+      paramIndex++;
+    }
+
+    if (filters.volumeMin) {
+      whereConditions.push(`sd.volume >= $${paramIndex}`);
+      params.push(parseFloat(filters.volumeMin));
+      paramIndex++;
+    }
+
+    // Beta filter
+    if (filters.betaMin) {
+      whereConditions.push(`sf.beta >= $${paramIndex}`);
+      params.push(parseFloat(filters.betaMin));
+      paramIndex++;
+    }
+    if (filters.betaMax) {
+      whereConditions.push(`sf.beta <= $${paramIndex}`);
+      params.push(parseFloat(filters.betaMax));
+      paramIndex++;
+    }
+
+    // Factor score filter
+    if (filters.factorScoreMin) {
+      whereConditions.push(`sf.factor_score >= $${paramIndex}`);
+      params.push(parseFloat(filters.factorScoreMin));
+      paramIndex++;
+    }
+
+    // Build WHERE clause
+    let whereClause = '';
+    if (whereConditions.length > 0) {
+      whereClause = 'WHERE ' + whereConditions.join(' AND ');
+    }
+
+    // Build ORDER BY clause
+    let orderBy = 'ORDER BY sf.market_cap DESC';
+    if (filters.sortBy) {
+      const sortField = filters.sortBy;
+      const sortOrder = filters.sortOrder === 'desc' ? 'DESC' : 'ASC';
+      
+      // Map frontend sort fields to database fields
+      const fieldMap = {
+        'symbol': 'sf.symbol',
+        'companyName': 'sse.company_name',
+        'price': 'sd.close',
+        'marketCap': 'sf.market_cap',
+        'peRatio': 'sf.pe_ratio',
+        'pegRatio': 'sf.peg_ratio',
+        'pbRatio': 'sf.pb_ratio',
+        'roe': 'sf.roe',
+        'roa': 'sf.roa',
+        'netMargin': 'sf.net_margin',
+        'revenueGrowth': 'sf.revenue_growth',
+        'earningsGrowth': 'sf.earnings_growth',
+        'dividendYield': 'sf.dividend_yield',
+        'factorScore': 'sf.factor_score',
+        'volume': 'sd.volume',
+        'rsi': 'td.rsi',
+        'beta': 'sf.beta'
+      };
+
+      const dbField = fieldMap[sortField] || 'sf.market_cap';
+      orderBy = `ORDER BY ${dbField} ${sortOrder}`;
+    }
+
+    // Main query
+    const mainQuery = `
+      SELECT 
+        sf.symbol,
+        sse.company_name,
+        sse.sector,
+        sse.exchange,
+        sd.close as price,
+        sd.volume,
+        sd.date as price_date,
+        sf.market_cap,
+        sf.pe_ratio,
+        sf.peg_ratio,
+        sf.pb_ratio,
+        sf.ps_ratio,
+        sf.roe,
+        sf.roa,
+        sf.gross_margin,
+        sf.operating_margin,
+        sf.net_margin,
+        sf.revenue_growth,
+        sf.earnings_growth,
+        sf.eps_growth,
+        sf.dividend_yield,
+        sf.payout_ratio,
+        sf.debt_to_equity,
+        sf.current_ratio,
+        sf.quick_ratio,
+        sf.interest_coverage,
+        sf.asset_turnover,
+        sf.inventory_turnover,
+        sf.beta,
+        sf.factor_score,
+        td.rsi,
+        td.macd,
+        td.macd_signal,
+        td.sma_20,
+        td.sma_50,
+        td.sma_200,
+        td.price_momentum_3m,
+        td.price_momentum_12m,
+        (sd.close - LAG(sd.close, 1) OVER (PARTITION BY sf.symbol ORDER BY sd.date)) / LAG(sd.close, 1) OVER (PARTITION BY sf.symbol ORDER BY sd.date) * 100 as price_change_percent
+      FROM stock_fundamentals sf
+      JOIN stock_symbols_enhanced sse ON sf.symbol = sse.symbol
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol) *
+        FROM stock_data
+        ORDER BY symbol, date DESC
+      ) sd ON sf.symbol = sd.symbol
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol) *
+        FROM technical_data_daily
+        ORDER BY symbol, date DESC
+      ) td ON sf.symbol = td.symbol
+      ${whereClause}
+      ${orderBy}
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+
+    params.push(limit, offset);
+
+    // Count query
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM stock_fundamentals sf
+      JOIN stock_symbols_enhanced sse ON sf.symbol = sse.symbol
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol) *
+        FROM stock_data
+        ORDER BY symbol, date DESC
+      ) sd ON sf.symbol = sd.symbol
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol) *
+        FROM technical_data_daily
+        ORDER BY symbol, date DESC
+      ) td ON sf.symbol = td.symbol
+      ${whereClause}
+    `;
+
+    // Execute queries
+    const [results, countResult] = await Promise.all([
+      query(mainQuery, params),
+      query(countQuery, params.slice(0, -2)) // Remove limit and offset from count query
+    ]);
+
+    const stocks = results.rows;
+    const totalCount = parseInt(countResult.rows[0].total);
+
+    // Calculate factor scores for stocks that don't have them
+    const stocksWithScores = await Promise.all(
+      stocks.map(async (stock) => {
+        if (!stock.factor_score) {
+          try {
+            const scoreData = await factorEngine.calculateCompositeScore(stock);
+            stock.factor_score = scoreData.compositeScore;
+            stock.factor_grade = scoreData.grade;
+            stock.risk_level = scoreData.riskLevel;
+            stock.recommendation = scoreData.recommendation;
+          } catch (error) {
+            console.error(`Error calculating factor score for ${stock.symbol}:`, error);
+            stock.factor_score = 50;
+            stock.factor_grade = 'C';
+            stock.risk_level = 'Medium';
+            stock.recommendation = 'Hold';
+          }
+        } else {
+          stock.factor_grade = factorEngine.getGrade(stock.factor_score);
+          stock.risk_level = factorEngine.getRiskLevel(stock);
+          stock.recommendation = factorEngine.getRecommendation(stock.factor_score);
+        }
+
+        return stock;
+      })
+    );
+
+    res.json({
+      success: true,
+      data: {
+        stocks: stocksWithScores,
+        pagination: {
+          page,
+          limit,
+          totalCount,
+          totalPages: Math.ceil(totalCount / limit),
+          hasMore: offset + limit < totalCount
+        },
+        filters: {
+          applied: whereConditions.length,
+          total: Object.keys(filters).length
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Stock screening error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Stock screening failed',
+      message: error.message
+    });
+  }
+});
+
+// Get available filter options
+router.get('/filters', async (req, res) => {
+  try {
+    // Get sectors
+    const sectorsResult = await query(`
+      SELECT DISTINCT sector
+      FROM stock_symbols_enhanced
+      WHERE sector IS NOT NULL
+      ORDER BY sector
+    `);
+
+    // Get exchanges
+    const exchangesResult = await query(`
+      SELECT DISTINCT exchange
+      FROM stock_symbols_enhanced
+      WHERE exchange IS NOT NULL
+      ORDER BY exchange
+    `);
+
+    // Get market cap ranges
+    const marketCapResult = await query(`
+      SELECT 
+        MIN(market_cap) as min_market_cap,
+        MAX(market_cap) as max_market_cap,
+        PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY market_cap) as q1_market_cap,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY market_cap) as median_market_cap,
+        PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY market_cap) as q3_market_cap
+      FROM stock_fundamentals
+      WHERE market_cap > 0
+    `);
+
+    // Get price ranges
+    const priceResult = await query(`
+      SELECT 
+        MIN(close) as min_price,
+        MAX(close) as max_price,
+        PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY close) as q1_price,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY close) as median_price,
+        PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY close) as q3_price
+      FROM stock_data sd
+      WHERE EXISTS (
+        SELECT 1 FROM stock_data sd2 
+        WHERE sd2.symbol = sd.symbol 
+        AND sd2.date >= sd.date 
+        ORDER BY sd2.date DESC 
+        LIMIT 1
+      )
+    `);
+
+    res.json({
+      success: true,
+      data: {
+        sectors: sectorsResult.rows.map(row => row.sector),
+        exchanges: exchangesResult.rows.map(row => row.exchange),
+        ranges: {
+          marketCap: marketCapResult.rows[0],
+          price: priceResult.rows[0]
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching filter options:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch filter options',
+      message: error.message
+    });
+  }
+});
+
+// Get preset screens
+router.get('/presets', (req, res) => {
+  const presets = [
+    {
+      id: 'value_stocks',
+      name: 'Value Stocks',
+      description: 'Low P/E, P/B ratios with decent profitability',
+      filters: {
+        peRatioMax: 15,
+        pbRatioMax: 1.5,
+        roeMin: 10,
+        debtToEquityMax: 0.5,
+        marketCapMin: 1000000000
+      }
+    },
+    {
+      id: 'growth_stocks',
+      name: 'Growth Stocks',
+      description: 'High revenue and earnings growth',
+      filters: {
+        revenueGrowthMin: 15,
+        earningsGrowthMin: 20,
+        pegRatioMax: 2,
+        marketCapMin: 2000000000
+      }
+    },
+    {
+      id: 'dividend_stocks',
+      name: 'Dividend Stocks',
+      description: 'High dividend yield with sustainable payout',
+      filters: {
+        dividendYieldMin: 3,
+        payoutRatioMax: 60,
+        debtToEquityMax: 0.8,
+        marketCapMin: 5000000000
+      }
+    },
+    {
+      id: 'momentum_stocks',
+      name: 'Momentum Stocks',
+      description: 'Strong price momentum and technical indicators',
+      filters: {
+        priceMomentum3mMin: 5,
+        priceMomentum12mMin: 10,
+        rsiMin: 50,
+        rsiMax: 80,
+        volumeMin: 500000
+      }
+    },
+    {
+      id: 'quality_stocks',
+      name: 'Quality Stocks',
+      description: 'High-quality companies with strong fundamentals',
+      filters: {
+        roeMin: 15,
+        roaMin: 8,
+        netMarginMin: 10,
+        debtToEquityMax: 0.3,
+        currentRatioMin: 1.5,
+        factorScoreMin: 70
+      }
+    },
+    {
+      id: 'small_cap_growth',
+      name: 'Small Cap Growth',
+      description: 'Small cap stocks with high growth potential',
+      filters: {
+        marketCapMin: 300000000,
+        marketCapMax: 2000000000,
+        revenueGrowthMin: 20,
+        earningsGrowthMin: 25,
+        pegRatioMax: 1.5
+      }
+    }
+  ];
+
+  res.json({
+    success: true,
+    data: presets
+  });
+});
+
+// Apply preset screen
+router.post('/presets/:presetId/apply', (req, res) => {
+  const { presetId } = req.params;
+  
+  const presets = {
+    value_stocks: {
+      peRatioMax: 15,
+      pbRatioMax: 1.5,
+      roeMin: 10,
+      debtToEquityMax: 0.5,
+      marketCapMin: 1000000000
+    },
+    growth_stocks: {
+      revenueGrowthMin: 15,
+      earningsGrowthMin: 20,
+      pegRatioMax: 2,
+      marketCapMin: 2000000000
+    },
+    dividend_stocks: {
+      dividendYieldMin: 3,
+      payoutRatioMax: 60,
+      debtToEquityMax: 0.8,
+      marketCapMin: 5000000000
+    },
+    momentum_stocks: {
+      priceMomentum3mMin: 5,
+      priceMomentum12mMin: 10,
+      rsiMin: 50,
+      rsiMax: 80,
+      volumeMin: 500000
+    },
+    quality_stocks: {
+      roeMin: 15,
+      roaMin: 8,
+      netMarginMin: 10,
+      debtToEquityMax: 0.3,
+      currentRatioMin: 1.5,
+      factorScoreMin: 70
+    },
+    small_cap_growth: {
+      marketCapMin: 300000000,
+      marketCapMax: 2000000000,
+      revenueGrowthMin: 20,
+      earningsGrowthMin: 25,
+      pegRatioMax: 1.5
+    }
+  };
+
+  const preset = presets[presetId];
+  if (!preset) {
+    return res.status(404).json({
+      success: false,
+      error: 'Preset not found'
+    });
+  }
+
+  res.json({
+    success: true,
+    data: {
+      presetId,
+      filters: preset
+    }
+  });
+});
+
+// Save custom screen
+router.post('/screens/save', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { name, description, filters } = req.body;
+
+    if (!name || !filters) {
+      return res.status(400).json({
+        success: false,
+        error: 'Name and filters are required'
+      });
+    }
+
+    const result = await query(`
+      INSERT INTO saved_screens (user_id, name, description, filters, created_at)
+      VALUES ($1, $2, $3, $4, NOW())
+      RETURNING *
+    `, [userId, name, description, JSON.stringify(filters)]);
+
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error('Error saving screen:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to save screen',
+      message: error.message
+    });
+  }
+});
+
+// Get saved screens
+router.get('/screens', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+
+    const result = await query(`
+      SELECT *
+      FROM saved_screens
+      WHERE user_id = $1
+      ORDER BY created_at DESC
+    `, [userId]);
+
+    const screens = result.rows.map(screen => ({
+      ...screen,
+      filters: JSON.parse(screen.filters)
+    }));
+
+    res.json({
+      success: true,
+      data: screens
+    });
+
+  } catch (error) {
+    console.error('Error fetching saved screens:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch saved screens',
+      message: error.message
+    });
+  }
+});
+
+// Export screen results
+router.post('/export', async (req, res) => {
+  try {
+    const { symbols, format = 'csv' } = req.body;
+
+    if (!symbols || symbols.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No symbols provided for export'
+      });
+    }
+
+    // Get detailed data for symbols
+    const symbolsStr = symbols.map(s => `'${s}'`).join(',');
+    const result = await query(`
+      SELECT 
+        sf.symbol,
+        sse.company_name,
+        sse.sector,
+        sd.close as price,
+        sf.market_cap,
+        sf.pe_ratio,
+        sf.pb_ratio,
+        sf.roe,
+        sf.roa,
+        sf.revenue_growth,
+        sf.earnings_growth,
+        sf.dividend_yield,
+        sf.factor_score
+      FROM stock_fundamentals sf
+      JOIN stock_symbols_enhanced sse ON sf.symbol = sse.symbol
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol) *
+        FROM stock_data
+        ORDER BY symbol, date DESC
+      ) sd ON sf.symbol = sd.symbol
+      WHERE sf.symbol IN (${symbolsStr})
+      ORDER BY sf.market_cap DESC
+    `);
+
+    if (format === 'csv') {
+      // Generate CSV
+      const headers = ['Symbol', 'Company', 'Sector', 'Price', 'Market Cap', 'P/E', 'P/B', 'ROE', 'ROA', 'Revenue Growth', 'Earnings Growth', 'Dividend Yield', 'Factor Score'];
+      const rows = result.rows.map(row => [
+        row.symbol,
+        row.company_name,
+        row.sector,
+        row.price,
+        row.market_cap,
+        row.pe_ratio,
+        row.pb_ratio,
+        row.roe,
+        row.roa,
+        row.revenue_growth,
+        row.earnings_growth,
+        row.dividend_yield,
+        row.factor_score
+      ]);
+
+      const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
+
+      res.set({
+        'Content-Type': 'text/csv',
+        'Content-Disposition': `attachment; filename=stock_screen_${new Date().toISOString().split('T')[0]}.csv`
+      });
+      res.send(csvContent);
+    } else {
+      // JSON format
+      res.json({
+        success: true,
+        data: result.rows,
+        exportedAt: new Date().toISOString()
+      });
+    }
+
+  } catch (error) {
+    console.error('Error exporting screen results:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to export screen results',
+      message: error.message
+    });
+  }
+});
+
+module.exports = router;

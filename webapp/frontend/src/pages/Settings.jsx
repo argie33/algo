@@ -179,7 +179,7 @@ const Settings = () => {
 
       // Load notification preferences
       try {
-        const notifResponse = await fetch(`${apiUrl}/api/user/notifications`, {
+        const notifResponse = await fetch(`${apiUrl}/api/settings/notifications`, {
           headers: {
             'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
           }
@@ -194,7 +194,7 @@ const Settings = () => {
 
       // Load theme preferences
       try {
-        const themeResponse = await fetch(`${apiUrl}/api/user/theme`, {
+        const themeResponse = await fetch(`${apiUrl}/api/settings/theme`, {
           headers: {
             'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
           }
@@ -259,7 +259,7 @@ const Settings = () => {
     try {
       setLoading(true);
       
-      const response = await fetch(`${apiUrl}/api/user/profile`, {
+      const response = await fetch(`${apiUrl}/api/settings/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -418,7 +418,7 @@ const Settings = () => {
     try {
       setLoading(true);
       
-      const response = await fetch(`${apiUrl}/api/user/notifications`, {
+      const response = await fetch(`${apiUrl}/api/settings/notifications`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -445,7 +445,7 @@ const Settings = () => {
     try {
       setLoading(true);
       
-      const response = await fetch(`${apiUrl}/api/user/theme`, {
+      const response = await fetch(`${apiUrl}/api/settings/theme`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -491,7 +491,7 @@ const Settings = () => {
       
       if (user?.twoFactorEnabled) {
         // Disable 2FA
-        const response = await fetch(`${apiUrl}/api/user/two-factor/disable`, {
+        const response = await fetch(`${apiUrl}/api/settings/two-factor/disable`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
@@ -507,7 +507,7 @@ const Settings = () => {
         }
       } else {
         // Enable 2FA - start setup process
-        const response = await fetch(`${apiUrl}/api/user/two-factor/enable`, {
+        const response = await fetch(`${apiUrl}/api/settings/two-factor/enable`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
@@ -539,7 +539,7 @@ const Settings = () => {
     try {
       setLoading(true);
       
-      const response = await fetch(`${apiUrl}/api/user/two-factor/verify`, {
+      const response = await fetch(`${apiUrl}/api/settings/two-factor/verify`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -583,7 +583,7 @@ const Settings = () => {
     try {
       setLoading(true);
       
-      const response = await fetch(`${apiUrl}/api/user/recovery-codes`, {
+      const response = await fetch(`${apiUrl}/api/settings/recovery-codes`, {
         headers: {
           'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
         }

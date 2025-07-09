@@ -1,6 +1,8 @@
 const express = require('express');
 const { query, healthCheck, initializeDatabase } = require('../utils/database');
 const { authenticateToken } = require('../middleware/auth');
+const apiKeyService = require('../utils/apiKeyService');
+const AlpacaService = require('../utils/alpacaService');
 const crypto = require('crypto');
 
 const router = express.Router();
@@ -183,7 +185,7 @@ async function storePortfolioData(userId, apiKeyId, portfolioData, accountType) 
   }
 }
 
-// Portfolio holdings endpoint - uses real data, structured like mock data
+// Portfolio holdings endpoint - uses real data from broker APIs
 router.get('/holdings', async (req, res) => {
   try {
     const { accountType = 'paper' } = req.query;
@@ -193,7 +195,61 @@ router.get('/holdings', async (req, res) => {
     console.log(`👤 User ID: ${userId}`);
     console.log(`📊 Account type: ${accountType}`);
     
-    // User is authenticated via middleware, get their portfolio data
+    // Try to get real data from broker API first
+    try {
+      const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+      
+      if (credentials) {
+        const alpaca = new AlpacaService(
+          credentials.apiKey,
+          credentials.apiSecret,
+          credentials.isSandbox
+        );
+
+        const positions = await alpaca.getPositions();
+        
+        if (positions.length > 0) {
+          const totalValue = positions.reduce((sum, p) => sum + p.marketValue, 0);
+          const totalGainLoss = positions.reduce((sum, p) => sum + p.unrealizedPL, 0);
+
+          const formattedHoldings = positions.map(p => ({
+            symbol: p.symbol,
+            company: p.symbol + ' Inc.', // Would need company lookup
+            shares: p.quantity,
+            avgCost: p.averageEntryPrice,
+            currentPrice: p.currentPrice,
+            marketValue: p.marketValue,
+            gainLoss: p.unrealizedPL,
+            gainLossPercent: p.unrealizedPLPercent,
+            sector: 'Technology', // Would need sector lookup
+            allocation: totalValue > 0 ? (p.marketValue / totalValue) * 100 : 0
+          }));
+
+          return res.json({
+            success: true,
+            data: {
+              holdings: formattedHoldings,
+              summary: {
+                totalValue: totalValue,
+                totalGainLoss: totalGainLoss,
+                totalGainLossPercent: totalValue > totalGainLoss ? (totalGainLoss / (totalValue - totalGainLoss)) * 100 : 0,
+                numPositions: positions.length,
+                accountType: credentials.isSandbox ? 'paper' : 'live'
+              }
+            },
+            timestamp: new Date().toISOString(),
+            dataSource: 'alpaca_api',
+            provider: 'alpaca',
+            environment: credentials.isSandbox ? 'sandbox' : 'live'
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Alpaca API error:', error);
+      // Fall through to database or mock data
+    }
+
+    // Fallback to database query
     if (userId) {
       try {
         // Check if database is available (don't fail on health check)
@@ -260,7 +316,7 @@ router.get('/holdings', async (req, res) => {
         }
       } catch (error) {
         console.error('Database query failed:', error);
-        // Fall through to error response
+        // Fall through to mock data
       }
     }
 
@@ -842,9 +898,9 @@ router.post('/import/:broker', async (req, res) => {
     console.log(`🔄 Portfolio import requested for broker: ${broker}, account: ${accountType}, user: ${userId}`);
     
     // Step 1: Get the user's API key for this broker
-    const userApiKey = await getUserApiKey(userId, broker);
+    const credentials = await apiKeyService.getDecryptedApiKey(userId, broker);
     
-    if (!userApiKey) {
+    if (!credentials) {
       console.log(`❌ No API key found for broker ${broker}`);
       return res.status(400).json({
         success: false,
@@ -855,31 +911,21 @@ router.post('/import/:broker', async (req, res) => {
     
     console.log(`✅ Found API key for ${broker}`);
     
-    // Step 2: Decrypt the API key
-    let decryptedApiKey;
-    try {
-      decryptedApiKey = decryptApiKey(userApiKey.encryptedData, userApiKey.encryptedData.userSalt);
-      console.log(`🔓 API key decrypted successfully`);
-    } catch (error) {
-      console.error('❌ Failed to decrypt API key:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Decryption failed',
-        message: 'Failed to decrypt API key. Please try re-adding your API key.'
-      });
-    }
-    
-    // Step 3: Connect to the broker's API and fetch portfolio data
+    // Step 2: Connect to the broker's API and fetch portfolio data
     console.log(`📡 Connecting to ${broker} API...`);
     
     let portfolioData;
     try {
-      // This is where you'd integrate with the actual broker API
-      // For now, simulate the API call
       if (broker.toLowerCase() === 'alpaca') {
-        portfolioData = await fetchAlpacaPortfolio(decryptedApiKey, userApiKey.isSandbox);
+        const alpaca = new AlpacaService(
+          credentials.apiKey,
+          credentials.apiSecret,
+          credentials.isSandbox
+        );
+        portfolioData = await alpaca.getPortfolioSummary();
       } else if (broker.toLowerCase() === 'td_ameritrade') {
-        portfolioData = await fetchTDAmeritradePortfolio(decryptedApiKey, userApiKey.isSandbox);
+        // TD Ameritrade integration would go here
+        throw new Error(`TD Ameritrade integration not yet implemented`);
       } else {
         throw new Error(`Unsupported broker: ${broker}`);
       }
@@ -892,11 +938,11 @@ router.post('/import/:broker', async (req, res) => {
       });
     }
     
-    // Step 4: Store the portfolio data in the database
+    // Step 3: Store the portfolio data in the database
     console.log(`💾 Storing portfolio data in database...`);
     
     try {
-      await storePortfolioData(userId, userApiKey.id, portfolioData, accountType);
+      await storePortfolioData(userId, credentials.id, portfolioData, accountType);
       console.log(`✅ Portfolio data stored successfully`);
     } catch (error) {
       console.error('❌ Failed to store portfolio data:', error);
@@ -916,47 +962,23 @@ router.post('/import/:broker', async (req, res) => {
         accountType: accountType,
         summary: {
           positions: portfolioData.positions.length,
-          totalValue: portfolioData.totalValue,
-          totalPnL: portfolioData.totalPnL,
-          totalPnLPercent: portfolioData.totalPnLPercent
+          totalValue: portfolioData.summary.totalValue,
+          totalPnL: portfolioData.summary.totalPnL,
+          totalPnLPercent: portfolioData.summary.totalPnLPercent
         },
-        holdings: [
-          {
-            symbol: 'AAPL',
-            quantity: 100,
-            marketValue: 17550,
-            unrealizedPL: 2525,
-            unrealizedPLPC: 16.8
-          },
-          {
-            symbol: 'GOOGL',
-            quantity: 50,
-            marketValue: 132500,
-            unrealizedPL: 12500,
-            unrealizedPLPC: 10.4
-          },
-          {
-            symbol: 'MSFT',
-            quantity: 75,
-            marketValue: 23681.25,
-            unrealizedPL: 2681.25,
-            unrealizedPLPC: 12.8
-          },
-          {
-            symbol: 'TSLA',
-            quantity: 25,
-            marketValue: 18012.50,
-            unrealizedPL: 1762.50,
-            unrealizedPLPC: 10.8
-          }
-        ]
-      }
+        holdings: portfolioData.positions.map(pos => ({
+          symbol: pos.symbol,
+          quantity: pos.quantity,
+          marketValue: pos.marketValue,
+          unrealizedPL: pos.unrealizedPL,
+          unrealizedPLPC: pos.unrealizedPLPercent
+        }))
+      },
+      provider: broker,
+      environment: credentials.isSandbox ? 'sandbox' : 'live'
     };
     
-    // Simulate processing time
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    res.json(mockImportData);
+    res.json(successResponse);
     
   } catch (error) {
     console.error('Error importing portfolio:', error);

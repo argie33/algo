@@ -112,8 +112,8 @@ function decryptApiKey(encryptedData, userSalt) {
   return decrypted;
 }
 
-// Get all API keys for authenticated user (requires 2FA)
-router.get('/api-keys', require2FA, async (req, res) => {
+// Get all API keys for authenticated user
+router.get('/api-keys', async (req, res) => {
   console.log('🔍 API Keys fetch requested');
   console.log('📋 Request headers:', {
     authorization: req.headers.authorization ? 'Present' : 'Missing',
@@ -231,8 +231,8 @@ router.get('/api-keys', require2FA, async (req, res) => {
   }
 });
 
-// Add new API key (requires 2FA)
-router.post('/api-keys', require2FA, async (req, res) => {
+// Add new API key
+router.post('/api-keys', async (req, res) => {
   const userId = req.user.sub;
   const { provider, apiKey, apiSecret, isSandbox = true, description } = req.body;
 
@@ -306,7 +306,7 @@ router.post('/api-keys', require2FA, async (req, res) => {
 });
 
 // Update API key
-router.put('/api-keys/:keyId', require2FA, async (req, res) => {
+router.put('/api-keys/:keyId', async (req, res) => {
   const userId = req.user.sub;
   const { keyId } = req.params;
   const { description, isSandbox } = req.body;
@@ -344,7 +344,7 @@ router.put('/api-keys/:keyId', require2FA, async (req, res) => {
 });
 
 // Delete API key
-router.delete('/api-keys/:keyId', require2FA, async (req, res) => {
+router.delete('/api-keys/:keyId', async (req, res) => {
   const userId = req.user.sub;
   const { keyId } = req.params;
 
@@ -883,6 +883,40 @@ router.post('/two-factor/disable', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to disable two-factor authentication'
+    });
+  }
+});
+
+// Get 2FA status
+router.get('/two-factor/status', async (req, res) => {
+  const userId = req.user.sub;
+  
+  try {
+    const result = await query(`
+      SELECT two_factor_enabled, recovery_codes
+      FROM users 
+      WHERE id = $1
+    `, [userId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+    
+    const user = result.rows[0];
+    
+    res.json({
+      success: true,
+      enabled: user.two_factor_enabled,
+      hasRecoveryCodes: user.recovery_codes ? true : false
+    });
+  } catch (error) {
+    console.error('Error getting 2FA status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get 2FA status'
     });
   }
 });

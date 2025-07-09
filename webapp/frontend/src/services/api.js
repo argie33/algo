@@ -1348,12 +1348,11 @@ export const getFinancialStrengthMetrics = async (params = {}) => {
 // Stock screening with consistent response format
 export const screenStocks = async (params) => {
   try {
-    // Use the main stocks endpoint since /screen endpoint has routing issues
-    // The main endpoint supports filtering and pagination just like screening
-    const endpoint = '/api/stocks';
+    // Use the dedicated screener endpoint
+    const endpoint = '/api/screener/screen';
     
     console.log('🔍 [API] Screening stocks with params:', params.toString());
-    console.log(`🔍 [API] Using main stocks endpoint: ${endpoint}?${params.toString()}`);
+    console.log(`🔍 [API] Using screener endpoint: ${endpoint}?${params.toString()}`);
     
     const response = await api.get(`${endpoint}?${params.toString()}`, {
       baseURL: currentConfig.baseURL
@@ -1401,6 +1400,157 @@ export const screenStocks = async (params) => {
         hasPrev: false
       }
     };
+  }
+};
+
+// Stock screener additional functions
+export const getScreenerFilters = async () => {
+  try {
+    const response = await api.get('/api/screener/filters');
+    return response.data;
+  } catch (error) {
+    console.error('❌ [API] Error fetching screener filters:', error);
+    const errorMessage = handleApiError(error, 'get screener filters');
+    return { success: false, error: errorMessage };
+  }
+};
+
+export const getScreenerPresets = async () => {
+  try {
+    const response = await api.get('/api/screener/presets');
+    return response.data;
+  } catch (error) {
+    console.error('❌ [API] Error fetching screener presets:', error);
+    const errorMessage = handleApiError(error, 'get screener presets');
+    return { success: false, error: errorMessage };
+  }
+};
+
+export const applyScreenerPreset = async (presetId) => {
+  try {
+    const response = await api.post(`/api/screener/presets/${presetId}/apply`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ [API] Error applying screener preset:', error);
+    const errorMessage = handleApiError(error, 'apply screener preset');
+    return { success: false, error: errorMessage };
+  }
+};
+
+export const saveScreenerSettings = async (settings) => {
+  try {
+    const response = await api.post('/api/screener/screens/save', settings);
+    return response.data;
+  } catch (error) {
+    console.error('❌ [API] Error saving screener settings:', error);
+    const errorMessage = handleApiError(error, 'save screener settings');
+    return { success: false, error: errorMessage };
+  }
+};
+
+export const getSavedScreens = async () => {
+  try {
+    const response = await api.get('/api/screener/screens');
+    return response.data;
+  } catch (error) {
+    console.error('❌ [API] Error fetching saved screens:', error);
+    const errorMessage = handleApiError(error, 'get saved screens');
+    return { success: false, error: errorMessage };
+  }
+};
+
+export const exportScreenerResults = async (symbols, format = 'csv') => {
+  try {
+    const response = await api.post('/api/screener/export', { symbols, format });
+    return response.data;
+  } catch (error) {
+    console.error('❌ [API] Error exporting screener results:', error);
+    const errorMessage = handleApiError(error, 'export screener results');
+    return { success: false, error: errorMessage };
+  }
+};
+
+// Alert management functions
+export const getAlerts = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value);
+      }
+    });
+    const response = await api.get(`/api/alerts?${queryParams.toString()}`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ [API] Error fetching alerts:', error);
+    const errorMessage = handleApiError(error, 'get alerts');
+    return { success: false, error: errorMessage };
+  }
+};
+
+export const createAlert = async (alertData) => {
+  try {
+    const response = await api.post('/api/alerts', alertData);
+    return response.data;
+  } catch (error) {
+    console.error('❌ [API] Error creating alert:', error);
+    const errorMessage = handleApiError(error, 'create alert');
+    return { success: false, error: errorMessage };
+  }
+};
+
+export const updateAlert = async (alertId, updates) => {
+  try {
+    const response = await api.put(`/api/alerts/${alertId}`, updates);
+    return response.data;
+  } catch (error) {
+    console.error('❌ [API] Error updating alert:', error);
+    const errorMessage = handleApiError(error, 'update alert');
+    return { success: false, error: errorMessage };
+  }
+};
+
+export const deleteAlert = async (alertId) => {
+  try {
+    const response = await api.delete(`/api/alerts/${alertId}`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ [API] Error deleting alert:', error);
+    const errorMessage = handleApiError(error, 'delete alert');
+    return { success: false, error: errorMessage };
+  }
+};
+
+export const getAlertNotifications = async (limit = 50) => {
+  try {
+    const response = await api.get(`/api/alerts/notifications?limit=${limit}`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ [API] Error fetching alert notifications:', error);
+    const errorMessage = handleApiError(error, 'get alert notifications');
+    return { success: false, error: errorMessage };
+  }
+};
+
+export const markNotificationAsRead = async (notificationId) => {
+  try {
+    const response = await api.put(`/api/alerts/notifications/${notificationId}/read`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ [API] Error marking notification as read:', error);
+    const errorMessage = handleApiError(error, 'mark notification as read');
+    return { success: false, error: errorMessage };
+  }
+};
+
+export const getAlertTypes = async () => {
+  try {
+    const response = await api.get('/api/alerts/types');
+    return response.data;
+  } catch (error) {
+    console.error('❌ [API] Error fetching alert types:', error);
+    const errorMessage = handleApiError(error, 'get alert types');
+    return { success: false, error: errorMessage };
   }
 };
 
@@ -3081,6 +3231,19 @@ export default {
   getDividendMetrics,
   getFinancialStrengthMetrics,
   screenStocks,
+  getScreenerFilters,
+  getScreenerPresets,
+  applyScreenerPreset,
+  saveScreenerSettings,
+  getSavedScreens,
+  exportScreenerResults,
+  getAlerts,
+  createAlert,
+  updateAlert,
+  deleteAlert,
+  getAlertNotifications,
+  markNotificationAsRead,
+  getAlertTypes,
   getBuySignals,
   getSellSignals,
   getEarningsEstimates,

@@ -1,11 +1,20 @@
 const express = require('express');
 const { query } = require('../utils/database');
 const { authenticateToken } = require('../middleware/auth');
+const PatternDetector = require('../utils/patternDetector');
+const WatchlistAlerts = require('../utils/watchlistAlerts');
 
 const router = express.Router();
 
 // Apply authentication middleware to all pattern routes
 router.use(authenticateToken);
+
+// Initialize pattern detector and alerts system
+const patternDetector = new PatternDetector();
+const watchlistAlerts = new WatchlistAlerts();
+
+// Start real-time pattern monitoring
+patternDetector.startRealTimeMonitoring();
 
 /**
  * GET /api/patterns/scan
@@ -48,6 +57,12 @@ router.get('/scan', async (req, res) => {
 
     // Add confidence filter
     whereClause += ` AND dp.confidence_score >= $${paramIndex}`;
+    params.push(parseFloat(min_confidence));
+    paramIndex++;
+
+    // Add limit
+    whereClause += ` ORDER BY dp.detected_at DESC LIMIT $${paramIndex}`;
+    params.push(parseInt(limit));
     params.push(parseFloat(min_confidence));
     paramIndex++;
 
@@ -731,6 +746,408 @@ function calculateOverallSentiment(patterns) {
   if (bullishRatio > 0.6) return 'bullish';
   if (bullishRatio < 0.4) return 'bearish';
   return 'neutral';
+}
+
+// Real-time pattern detection endpoint
+router.post('/detect-realtime', async (req, res) => {
+  try {
+    const { symbols, timeframes = ['1d'], patterns } = req.body;
+    const userId = req.user.sub;
+
+    if (!symbols || symbols.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Symbols array is required'
+      });
+    }
+
+    // Detect patterns for specified symbols
+    const detections = [];
+    for (const symbol of symbols) {
+      for (const timeframe of timeframes) {
+        const results = await patternDetector.detectPatterns(symbol, timeframe, patterns);
+        detections.push(...results);
+      }
+    }
+
+    // Store pattern detections
+    await storePatternDetections(detections, userId);
+
+    // Create alerts for significant patterns
+    const alerts = await createPatternAlerts(detections, userId);
+
+    res.json({
+      success: true,
+      data: {
+        patterns_detected: detections.length,
+        alerts_created: alerts.length,
+        detections: detections.slice(0, 20), // Return top 20
+        alerts: alerts
+      }
+    });
+  } catch (error) {
+    console.error('Error in real-time pattern detection:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Pattern detection failed',
+      message: error.message
+    });
+  }
+});
+
+// Get pattern statistics
+router.get('/statistics', async (req, res) => {
+  try {
+    const { period = '30d', category } = req.query;
+    
+    // Get pattern statistics
+    const stats = await getPatternStatistics(period, category);
+    
+    res.json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    console.error('Error fetching pattern statistics:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch pattern statistics',
+      message: error.message
+    });
+  }
+});
+
+// Get pattern performance
+router.get('/performance', async (req, res) => {
+  try {
+    const { pattern_type, timeframe = '1d', days = 30 } = req.query;
+    
+    const performance = await getPatternPerformance(pattern_type, timeframe, days);
+    
+    res.json({
+      success: true,
+      data: performance
+    });
+  } catch (error) {
+    console.error('Error fetching pattern performance:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch pattern performance',
+      message: error.message
+    });
+  }
+});
+
+// Create pattern alert
+router.post('/alerts', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { symbol, pattern_types, min_confidence = 0.7, notify_email = true } = req.body;
+    
+    if (!symbol || !pattern_types || pattern_types.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Symbol and pattern_types are required'
+      });
+    }
+    
+    // Create pattern-based alerts
+    const alerts = [];
+    for (const patternType of pattern_types) {
+      const alertConfig = {
+        symbol: symbol.toUpperCase(),
+        alertType: 'pattern_detected',
+        condition: 'equals',
+        targetValue: patternType,
+        metadata: {
+          pattern_type: patternType,
+          min_confidence: min_confidence,
+          notify_email: notify_email
+        },
+        message: `Pattern alert: ${patternType} detected for ${symbol}`
+      };
+      
+      const alert = await watchlistAlerts.createAlert(userId, alertConfig);
+      alerts.push(alert);
+    }
+    
+    res.json({
+      success: true,
+      data: alerts,
+      message: `Created ${alerts.length} pattern alerts`
+    });
+  } catch (error) {
+    console.error('Error creating pattern alert:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create pattern alert',
+      message: error.message
+    });
+  }
+});
+
+// Get available pattern types
+router.get('/types', (req, res) => {
+  try {
+    const patternTypes = [
+      {
+        id: 'head_and_shoulders',
+        name: 'Head and Shoulders',
+        category: 'reversal',
+        description: 'Bearish reversal pattern with three peaks',
+        reliability: 'high',
+        timeframe_suitability: ['1d', '1w']
+      },
+      {
+        id: 'inverse_head_and_shoulders',
+        name: 'Inverse Head and Shoulders',
+        category: 'reversal',
+        description: 'Bullish reversal pattern with three troughs',
+        reliability: 'high',
+        timeframe_suitability: ['1d', '1w']
+      },
+      {
+        id: 'double_top',
+        name: 'Double Top',
+        category: 'reversal',
+        description: 'Bearish reversal with two peaks at similar levels',
+        reliability: 'medium',
+        timeframe_suitability: ['1d', '1w']
+      },
+      {
+        id: 'double_bottom',
+        name: 'Double Bottom',
+        category: 'reversal',
+        description: 'Bullish reversal with two troughs at similar levels',
+        reliability: 'medium',
+        timeframe_suitability: ['1d', '1w']
+      },
+      {
+        id: 'triangle_ascending',
+        name: 'Ascending Triangle',
+        category: 'continuation',
+        description: 'Bullish continuation pattern with horizontal resistance',
+        reliability: 'medium',
+        timeframe_suitability: ['1d', '1w']
+      },
+      {
+        id: 'triangle_descending',
+        name: 'Descending Triangle',
+        category: 'continuation',
+        description: 'Bearish continuation pattern with horizontal support',
+        reliability: 'medium',
+        timeframe_suitability: ['1d', '1w']
+      },
+      {
+        id: 'triangle_symmetrical',
+        name: 'Symmetrical Triangle',
+        category: 'continuation',
+        description: 'Neutral pattern with converging support and resistance',
+        reliability: 'low',
+        timeframe_suitability: ['1d', '1w']
+      },
+      {
+        id: 'flag_bull',
+        name: 'Bull Flag',
+        category: 'continuation',
+        description: 'Bullish continuation after strong upward move',
+        reliability: 'high',
+        timeframe_suitability: ['1h', '1d']
+      },
+      {
+        id: 'flag_bear',
+        name: 'Bear Flag',
+        category: 'continuation',
+        description: 'Bearish continuation after strong downward move',
+        reliability: 'high',
+        timeframe_suitability: ['1h', '1d']
+      },
+      {
+        id: 'cup_and_handle',
+        name: 'Cup and Handle',
+        category: 'continuation',
+        description: 'Bullish continuation pattern with rounded bottom',
+        reliability: 'high',
+        timeframe_suitability: ['1d', '1w']
+      },
+      {
+        id: 'wedge_rising',
+        name: 'Rising Wedge',
+        category: 'reversal',
+        description: 'Bearish pattern with upward sloping support and resistance',
+        reliability: 'medium',
+        timeframe_suitability: ['1d', '1w']
+      },
+      {
+        id: 'wedge_falling',
+        name: 'Falling Wedge',
+        category: 'reversal',
+        description: 'Bullish pattern with downward sloping support and resistance',
+        reliability: 'medium',
+        timeframe_suitability: ['1d', '1w']
+      }
+    ];
+    
+    res.json({
+      success: true,
+      data: patternTypes
+    });
+  } catch (error) {
+    console.error('Error fetching pattern types:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch pattern types'
+    });
+  }
+});
+
+// Helper functions
+async function storePatternDetections(detections, userId) {
+  if (!detections || detections.length === 0) return;
+  
+  try {
+    for (const detection of detections) {
+      await query(`
+        INSERT INTO pattern_detections (
+          user_id, symbol, pattern_type, timeframe, confidence_score,
+          detection_data, start_date, end_date, status, detected_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+        ON CONFLICT (symbol, pattern_type, timeframe, start_date)
+        DO UPDATE SET
+          confidence_score = EXCLUDED.confidence_score,
+          detection_data = EXCLUDED.detection_data,
+          status = EXCLUDED.status,
+          detected_at = EXCLUDED.detected_at
+      `, [
+        userId,
+        detection.symbol,
+        detection.pattern_type,
+        detection.timeframe,
+        detection.confidence,
+        JSON.stringify(detection.data),
+        detection.start_date,
+        detection.end_date,
+        'active'
+      ]);
+    }
+  } catch (error) {
+    console.error('Error storing pattern detections:', error);
+  }
+}
+
+async function createPatternAlerts(detections, userId) {
+  const alerts = [];
+  
+  try {
+    for (const detection of detections) {
+      if (detection.confidence >= 0.75) { // High confidence patterns
+        const alertConfig = {
+          symbol: detection.symbol,
+          alertType: 'pattern_detected',
+          condition: 'equals',
+          targetValue: detection.pattern_type,
+          metadata: {
+            pattern_type: detection.pattern_type,
+            confidence: detection.confidence,
+            timeframe: detection.timeframe
+          },
+          message: `High confidence ${detection.pattern_type} pattern detected for ${detection.symbol} (${(detection.confidence * 100).toFixed(1)}% confidence)`
+        };
+        
+        const alert = await watchlistAlerts.createAlert(userId, alertConfig);
+        alerts.push(alert);
+      }
+    }
+  } catch (error) {
+    console.error('Error creating pattern alerts:', error);
+  }
+  
+  return alerts;
+}
+
+async function getPatternStatistics(period, category) {
+  try {
+    const periodClause = {
+      '7d': "detected_at >= NOW() - INTERVAL '7 days'",
+      '30d': "detected_at >= NOW() - INTERVAL '30 days'",
+      '90d': "detected_at >= NOW() - INTERVAL '90 days'",
+      '1y': "detected_at >= NOW() - INTERVAL '1 year'"
+    }[period] || "detected_at >= NOW() - INTERVAL '30 days'";
+    
+    let categoryFilter = '';
+    if (category) {
+      categoryFilter = `AND pt.category = '${category}'`;
+    }
+    
+    const result = await query(`
+      SELECT 
+        pd.pattern_type,
+        pt.category,
+        pt.name,
+        COUNT(*) as detection_count,
+        AVG(pd.confidence_score) as avg_confidence,
+        COUNT(DISTINCT pd.symbol) as unique_symbols,
+        MAX(pd.detected_at) as latest_detection
+      FROM pattern_detections pd
+      LEFT JOIN pattern_types pt ON pd.pattern_type = pt.id
+      WHERE ${periodClause} ${categoryFilter}
+      GROUP BY pd.pattern_type, pt.category, pt.name
+      ORDER BY detection_count DESC
+    `);
+    
+    return {
+      period,
+      category,
+      statistics: result.rows,
+      total_detections: result.rows.reduce((sum, row) => sum + parseInt(row.detection_count), 0)
+    };
+  } catch (error) {
+    console.error('Error getting pattern statistics:', error);
+    return { period, category, statistics: [], total_detections: 0 };
+  }
+}
+
+async function getPatternPerformance(patternType, timeframe, days) {
+  try {
+    const result = await query(`
+      SELECT 
+        pd.symbol,
+        pd.pattern_type,
+        pd.confidence_score,
+        pd.detected_at,
+        pd.detection_data,
+        -- Calculate performance metrics
+        CASE 
+          WHEN pd.pattern_type LIKE '%bull%' OR pd.pattern_type LIKE '%ascending%' OR pd.pattern_type = 'cup_and_handle'
+          THEN 'bullish'
+          WHEN pd.pattern_type LIKE '%bear%' OR pd.pattern_type LIKE '%descending%' OR pd.pattern_type = 'head_and_shoulders'
+          THEN 'bearish'
+          ELSE 'neutral'
+        END as expected_direction
+      FROM pattern_detections pd
+      WHERE pd.pattern_type = $1
+      AND pd.timeframe = $2
+      AND pd.detected_at >= NOW() - INTERVAL '$3 days'
+      ORDER BY pd.detected_at DESC
+    `, [patternType, timeframe, days]);
+    
+    return {
+      pattern_type: patternType,
+      timeframe,
+      period_days: days,
+      total_detections: result.rows.length,
+      performance_data: result.rows
+    };
+  } catch (error) {
+    console.error('Error getting pattern performance:', error);
+    return {
+      pattern_type: patternType,
+      timeframe,
+      period_days: days,
+      total_detections: 0,
+      performance_data: []
+    };
+  }
 }
 
 module.exports = router;

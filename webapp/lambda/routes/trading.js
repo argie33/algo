@@ -2,6 +2,47 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../utils/database');
 const { getEnhancedSignals, getActivePositions, getMarketTiming } = require('./trading_enhanced');
+const { authenticateToken } = require('../middleware/auth');
+const apiKeyService = require('../utils/apiKeyService');
+const AlpacaService = require('../utils/alpacaService');
+const RiskCalculator = require('../utils/riskCalculator');
+const SignalEngine = require('../utils/signalEngine');
+
+// Apply authentication to all routes
+router.use(authenticateToken);
+
+// Order types
+const ORDER_TYPES = {
+  MARKET: 'market',
+  LIMIT: 'limit',
+  STOP: 'stop',
+  STOP_LIMIT: 'stop_limit',
+  BRACKET: 'bracket',
+  OCO: 'oco',
+  OTO: 'oto'
+};
+
+// Order sides
+const ORDER_SIDES = {
+  BUY: 'buy',
+  SELL: 'sell'
+};
+
+// Order time in force
+const TIME_IN_FORCE = {
+  DAY: 'day',
+  GTC: 'gtc',
+  IOC: 'ioc',
+  FOK: 'fok'
+};
+
+// Position management
+const POSITION_ACTIONS = {
+  OPEN: 'open',
+  CLOSE: 'close',
+  REDUCE: 'reduce',
+  INCREASE: 'increase'
+};
 
 // Helper function to check if required tables exist
 async function checkRequiredTables(tableNames) {
@@ -1204,5 +1245,893 @@ router.get('/market-timing', async (req, res) => {
     });
   }
 });
+
+// Place order
+router.post('/orders', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const {
+      symbol,
+      quantity,
+      side,
+      orderType = ORDER_TYPES.MARKET,
+      timeInForce = TIME_IN_FORCE.DAY,
+      limitPrice,
+      stopPrice,
+      stopLossPrice,
+      takeProfitPrice,
+      trailAmount,
+      trailPercent,
+      extendedHours = false,
+      clientOrderId
+    } = req.body;
+
+    // Validate required fields
+    if (!symbol || !quantity || !side) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: symbol, quantity, side'
+      });
+    }
+
+    // Validate side
+    if (!Object.values(ORDER_SIDES).includes(side)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid order side. Must be buy or sell'
+      });
+    }
+
+    // Validate order type
+    if (!Object.values(ORDER_TYPES).includes(orderType)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid order type'
+      });
+    }
+
+    // Validate price requirements
+    if (orderType === ORDER_TYPES.LIMIT && !limitPrice) {
+      return res.status(400).json({
+        success: false,
+        error: 'Limit price required for limit orders'
+      });
+    }
+
+    if (orderType === ORDER_TYPES.STOP && !stopPrice) {
+      return res.status(400).json({
+        success: false,
+        error: 'Stop price required for stop orders'
+      });
+    }
+
+    // Get user's API credentials
+    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    if (!credentials) {
+      return res.status(400).json({
+        success: false,
+        error: 'Alpaca API credentials not found. Please configure them in settings.'
+      });
+    }
+
+    const alpaca = new AlpacaService(
+      credentials.apiKey,
+      credentials.apiSecret,
+      credentials.isSandbox
+    );
+
+    // Check account status and buying power
+    const account = await alpaca.getAccount();
+    if (account.trading_blocked) {
+      return res.status(400).json({
+        success: false,
+        error: 'Trading is blocked on this account'
+      });
+    }
+
+    // Get current quote for validation
+    const quote = await alpaca.getQuote(symbol);
+    if (!quote) {
+      return res.status(400).json({
+        success: false,
+        error: 'Unable to get quote for symbol'
+      });
+    }
+
+    // Validate buying power for buy orders
+    if (side === ORDER_SIDES.BUY) {
+      const estimatedCost = calculateOrderCost(quantity, limitPrice || quote.ask, orderType);
+      if (estimatedCost > parseFloat(account.buying_power)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Insufficient buying power',
+          required: estimatedCost,
+          available: parseFloat(account.buying_power)
+        });
+      }
+    }
+
+    // Build order object
+    const orderData = {
+      symbol: symbol.toUpperCase(),
+      qty: quantity,
+      side,
+      type: orderType,
+      time_in_force: timeInForce,
+      extended_hours: extendedHours
+    };
+
+    // Add conditional fields
+    if (limitPrice) orderData.limit_price = limitPrice;
+    if (stopPrice) orderData.stop_price = stopPrice;
+    if (trailAmount) orderData.trail_amount = trailAmount;
+    if (trailPercent) orderData.trail_percent = trailPercent;
+    if (clientOrderId) orderData.client_order_id = clientOrderId;
+
+    // Handle bracket orders
+    if (orderType === ORDER_TYPES.BRACKET) {
+      if (!stopLossPrice && !takeProfitPrice) {
+        return res.status(400).json({
+          success: false,
+          error: 'Stop loss or take profit price required for bracket orders'
+        });
+      }
+      
+      if (stopLossPrice) orderData.stop_loss = { stop_price: stopLossPrice };
+      if (takeProfitPrice) orderData.take_profit = { limit_price: takeProfitPrice };
+    }
+
+    // Calculate risk metrics
+    const riskCalculator = new RiskCalculator();
+    const riskMetrics = await riskCalculator.calculateOrderRisk({
+      symbol,
+      quantity,
+      side,
+      price: limitPrice || quote.ask,
+      stopLossPrice
+    });
+
+    // Place order
+    const order = await alpaca.placeOrder(orderData);
+    
+    // Store order in database
+    const orderRecord = await query(`
+      INSERT INTO trading_orders (
+        user_id, alpaca_order_id, symbol, quantity, side, order_type,
+        limit_price, stop_price, time_in_force, extended_hours,
+        order_status, risk_amount, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+      RETURNING *
+    `, [
+      userId,
+      order.id,
+      symbol.toUpperCase(),
+      quantity,
+      side,
+      orderType,
+      limitPrice || null,
+      stopPrice || null,
+      timeInForce,
+      extendedHours,
+      order.status,
+      riskMetrics.potentialLoss || 0
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        order: order,
+        orderRecord: orderRecord.rows[0],
+        riskMetrics: riskMetrics,
+        quote: quote
+      },
+      message: 'Order placed successfully'
+    });
+
+  } catch (error) {
+    console.error('Error placing order:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to place order',
+      message: error.message
+    });
+  }
+});
+
+// Get user's orders
+router.get('/orders', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const {
+      status,
+      symbol,
+      limit = 50,
+      offset = 0,
+      from,
+      to
+    } = req.query;
+
+    // Get from database
+    let whereClause = 'WHERE user_id = $1';
+    const params = [userId];
+    let paramIndex = 2;
+
+    if (status) {
+      whereClause += ` AND order_status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
+    }
+
+    if (symbol) {
+      whereClause += ` AND symbol = $${paramIndex}`;
+      params.push(symbol.toUpperCase());
+      paramIndex++;
+    }
+
+    if (from) {
+      whereClause += ` AND created_at >= $${paramIndex}`;
+      params.push(from);
+      paramIndex++;
+    }
+
+    if (to) {
+      whereClause += ` AND created_at <= $${paramIndex}`;
+      params.push(to);
+      paramIndex++;
+    }
+
+    const ordersQuery = `
+      SELECT 
+        to.*,
+        sse.company_name,
+        sse.sector
+      FROM trading_orders to
+      LEFT JOIN stock_symbols_enhanced sse ON to.symbol = sse.symbol
+      ${whereClause}
+      ORDER BY to.created_at DESC
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+
+    params.push(limit, offset);
+
+    const [ordersResult, countResult] = await Promise.all([
+      query(ordersQuery, params),
+      query(`
+        SELECT COUNT(*) as total
+        FROM trading_orders
+        ${whereClause}
+      `, params.slice(0, -2))
+    ]);
+
+    const orders = ordersResult.rows;
+    const total = parseInt(countResult.rows[0].total);
+
+    // Get live status from Alpaca for recent orders
+    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    if (credentials) {
+      const alpaca = new AlpacaService(
+        credentials.apiKey,
+        credentials.apiSecret,
+        credentials.isSandbox
+      );
+
+      // Update status for recent orders
+      const recentOrders = orders.filter(order => 
+        new Date(order.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000)
+      );
+
+      for (const order of recentOrders) {
+        try {
+          const liveOrder = await alpaca.getOrder(order.alpaca_order_id);
+          if (liveOrder && liveOrder.status !== order.order_status) {
+            // Update database
+            await query(`
+              UPDATE trading_orders 
+              SET order_status = $1, filled_quantity = $2, filled_price = $3, updated_at = NOW()
+              WHERE alpaca_order_id = $4
+            `, [liveOrder.status, liveOrder.filled_qty, liveOrder.filled_avg_price, order.alpaca_order_id]);
+            
+            // Update local object
+            order.order_status = liveOrder.status;
+            order.filled_quantity = liveOrder.filled_qty;
+            order.filled_price = liveOrder.filled_avg_price;
+          }
+        } catch (error) {
+          console.warn(`Could not update order ${order.alpaca_order_id}:`, error.message);
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        orders,
+        pagination: {
+          limit: parseInt(limit),
+          offset: parseInt(offset),
+          total,
+          hasMore: parseInt(offset) + parseInt(limit) < total
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching orders:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch orders',
+      message: error.message
+    });
+  }
+});
+
+// Get specific order
+router.get('/orders/:orderId', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { orderId } = req.params;
+
+    // Get from database
+    const orderResult = await query(`
+      SELECT 
+        to.*,
+        sse.company_name,
+        sse.sector
+      FROM trading_orders to
+      LEFT JOIN stock_symbols_enhanced sse ON to.symbol = sse.symbol
+      WHERE to.alpaca_order_id = $1 AND to.user_id = $2
+    `, [orderId, userId]);
+
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Order not found'
+      });
+    }
+
+    const order = orderResult.rows[0];
+
+    // Get live status from Alpaca
+    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    if (credentials) {
+      const alpaca = new AlpacaService(
+        credentials.apiKey,
+        credentials.apiSecret,
+        credentials.isSandbox
+      );
+
+      try {
+        const liveOrder = await alpaca.getOrder(orderId);
+        if (liveOrder) {
+          order.live_status = liveOrder.status;
+          order.live_filled_qty = liveOrder.filled_qty;
+          order.live_filled_avg_price = liveOrder.filled_avg_price;
+          order.live_updated_at = liveOrder.updated_at;
+        }
+      } catch (error) {
+        console.warn(`Could not get live order status:`, error.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      data: order
+    });
+
+  } catch (error) {
+    console.error('Error fetching order:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch order',
+      message: error.message
+    });
+  }
+});
+
+// Cancel order
+router.delete('/orders/:orderId', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { orderId } = req.params;
+
+    // Verify order belongs to user
+    const orderResult = await query(`
+      SELECT * FROM trading_orders
+      WHERE alpaca_order_id = $1 AND user_id = $2
+    `, [orderId, userId]);
+
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Order not found'
+      });
+    }
+
+    const order = orderResult.rows[0];
+
+    // Check if order can be cancelled
+    if (['filled', 'canceled', 'rejected'].includes(order.order_status)) {
+      return res.status(400).json({
+        success: false,
+        error: `Cannot cancel order with status: ${order.order_status}`
+      });
+    }
+
+    // Get user's API credentials
+    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    if (!credentials) {
+      return res.status(400).json({
+        success: false,
+        error: 'Alpaca API credentials not found'
+      });
+    }
+
+    const alpaca = new AlpacaService(
+      credentials.apiKey,
+      credentials.apiSecret,
+      credentials.isSandbox
+    );
+
+    // Cancel order
+    await alpaca.cancelOrder(orderId);
+
+    // Update database
+    await query(`
+      UPDATE trading_orders
+      SET order_status = 'canceled', updated_at = NOW()
+      WHERE alpaca_order_id = $1
+    `, [orderId]);
+
+    res.json({
+      success: true,
+      message: 'Order cancelled successfully'
+    });
+
+  } catch (error) {
+    console.error('Error cancelling order:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to cancel order',
+      message: error.message
+    });
+  }
+});
+
+// Get positions
+router.get('/positions', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { symbol } = req.query;
+
+    // Get user's API credentials
+    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    if (!credentials) {
+      return res.status(400).json({
+        success: false,
+        error: 'Alpaca API credentials not found'
+      });
+    }
+
+    const alpaca = new AlpacaService(
+      credentials.apiKey,
+      credentials.apiSecret,
+      credentials.isSandbox
+    );
+
+    // Get positions from Alpaca
+    const positions = await alpaca.getPositions();
+    
+    // Filter by symbol if provided
+    let filteredPositions = positions;
+    if (symbol) {
+      filteredPositions = positions.filter(pos => pos.symbol === symbol.toUpperCase());
+    }
+
+    // Enrich with additional data
+    const enrichedPositions = await Promise.all(
+      filteredPositions.map(async (position) => {
+        try {
+          // Get company info
+          const companyResult = await query(`
+            SELECT company_name, sector
+            FROM stock_symbols_enhanced
+            WHERE symbol = $1
+          `, [position.symbol]);
+
+          // Get current quote
+          const quote = await alpaca.getQuote(position.symbol);
+
+          // Calculate metrics
+          const currentValue = parseFloat(position.qty) * parseFloat(quote.bid);
+          const unrealizedPL = currentValue - parseFloat(position.cost_basis);
+          const unrealizedPLPercent = (unrealizedPL / parseFloat(position.cost_basis)) * 100;
+
+          return {
+            ...position,
+            company_name: companyResult.rows[0]?.company_name,
+            sector: companyResult.rows[0]?.sector,
+            current_price: parseFloat(quote.bid),
+            current_value: currentValue,
+            unrealized_pl: unrealizedPL,
+            unrealized_pl_percent: unrealizedPLPercent,
+            quote: quote
+          };
+        } catch (error) {
+          console.warn(`Error enriching position for ${position.symbol}:`, error.message);
+          return position;
+        }
+      })
+    );
+
+    res.json({
+      success: true,
+      data: enrichedPositions
+    });
+
+  } catch (error) {
+    console.error('Error fetching positions:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch positions',
+      message: error.message
+    });
+  }
+});
+
+// Close position
+router.delete('/positions/:symbol', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { symbol } = req.params;
+    const { percentage = 100 } = req.body;
+
+    // Get user's API credentials
+    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    if (!credentials) {
+      return res.status(400).json({
+        success: false,
+        error: 'Alpaca API credentials not found'
+      });
+    }
+
+    const alpaca = new AlpacaService(
+      credentials.apiKey,
+      credentials.apiSecret,
+      credentials.isSandbox
+    );
+
+    // Close position
+    const result = await alpaca.closePosition(symbol.toUpperCase(), percentage);
+
+    // Log the trade
+    await query(`
+      INSERT INTO trading_orders (
+        user_id, alpaca_order_id, symbol, quantity, side, order_type,
+        order_status, created_at
+      ) VALUES ($1, $2, $3, $4, 'sell', 'market', 'submitted', NOW())
+    `, [userId, result.id, symbol.toUpperCase(), result.qty]);
+
+    res.json({
+      success: true,
+      data: result,
+      message: 'Position closed successfully'
+    });
+
+  } catch (error) {
+    console.error('Error closing position:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to close position',
+      message: error.message
+    });
+  }
+});
+
+// Get account info
+router.get('/account', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+
+    // Get user's API credentials
+    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    if (!credentials) {
+      return res.status(400).json({
+        success: false,
+        error: 'Alpaca API credentials not found'
+      });
+    }
+
+    const alpaca = new AlpacaService(
+      credentials.apiKey,
+      credentials.apiSecret,
+      credentials.isSandbox
+    );
+
+    // Get account info
+    const account = await alpaca.getAccount();
+    
+    // Get portfolio history
+    const portfolioHistory = await alpaca.getPortfolioHistory({ period: '1M' });
+    
+    // Calculate additional metrics
+    const totalValue = parseFloat(account.equity);
+    const dayChange = parseFloat(account.equity) - parseFloat(account.last_equity);
+    const dayChangePercent = (dayChange / parseFloat(account.last_equity)) * 100;
+
+    res.json({
+      success: true,
+      data: {
+        account: {
+          ...account,
+          total_value: totalValue,
+          day_change: dayChange,
+          day_change_percent: dayChangePercent
+        },
+        portfolio_history: portfolioHistory
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching account:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch account info',
+      message: error.message
+    });
+  }
+});
+
+// Get market hours
+router.get('/market/hours', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { date } = req.query;
+
+    // Get user's API credentials
+    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    if (!credentials) {
+      return res.status(400).json({
+        success: false,
+        error: 'Alpaca API credentials not found'
+      });
+    }
+
+    const alpaca = new AlpacaService(
+      credentials.apiKey,
+      credentials.apiSecret,
+      credentials.isSandbox
+    );
+
+    // Get market hours
+    const marketHours = await alpaca.getMarketHours(date);
+
+    res.json({
+      success: true,
+      data: marketHours
+    });
+
+  } catch (error) {
+    console.error('Error fetching market hours:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch market hours',
+      message: error.message
+    });
+  }
+});
+
+// Get real-time quotes
+router.get('/quotes/:symbol', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { symbol } = req.params;
+
+    // Get user's API credentials
+    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    if (!credentials) {
+      return res.status(400).json({
+        success: false,
+        error: 'Alpaca API credentials not found'
+      });
+    }
+
+    const alpaca = new AlpacaService(
+      credentials.apiKey,
+      credentials.apiSecret,
+      credentials.isSandbox
+    );
+
+    // Get quote
+    const quote = await alpaca.getQuote(symbol.toUpperCase());
+    
+    // Get additional data
+    const [companyResult, signalResult] = await Promise.all([
+      query(`
+        SELECT company_name, sector
+        FROM stock_symbols_enhanced
+        WHERE symbol = $1
+      `, [symbol.toUpperCase()]),
+      
+      // Get latest signal
+      query(`
+        SELECT signal, date, buylevel, stoplevel
+        FROM buy_sell_daily
+        WHERE symbol = $1
+        ORDER BY date DESC
+        LIMIT 1
+      `, [symbol.toUpperCase()])
+    ]);
+
+    const company = companyResult.rows[0];
+    const signal = signalResult.rows[0];
+
+    res.json({
+      success: true,
+      data: {
+        symbol: symbol.toUpperCase(),
+        quote,
+        company,
+        signal,
+        timestamp: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching quote:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch quote',
+      message: error.message
+    });
+  }
+});
+
+// Generate trading signals
+router.post('/signals/generate', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { symbols, signalTypes = ['technical', 'fundamental'] } = req.body;
+
+    if (!symbols || symbols.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Symbols array is required'
+      });
+    }
+
+    const signalEngine = new SignalEngine();
+    const signals = [];
+
+    // Generate signals for each symbol
+    for (const symbol of symbols) {
+      try {
+        const symbolSignals = await signalEngine.generateSignalsForStock(symbol);
+        signals.push({
+          symbol,
+          signals: symbolSignals,
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        console.warn(`Error generating signals for ${symbol}:`, error.message);
+        signals.push({
+          symbol,
+          error: error.message,
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      data: signals
+    });
+
+  } catch (error) {
+    console.error('Error generating signals:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate signals',
+      message: error.message
+    });
+  }
+});
+
+// Calculate position sizing
+router.post('/position-sizing', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const {
+      symbol,
+      entryPrice,
+      stopLossPrice,
+      riskPercentage = 2,
+      accountValue
+    } = req.body;
+
+    if (!symbol || !entryPrice) {
+      return res.status(400).json({
+        success: false,
+        error: 'Symbol and entry price are required'
+      });
+    }
+
+    // Get account value if not provided
+    let totalAccountValue = accountValue;
+    if (!totalAccountValue) {
+      const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+      if (credentials) {
+        const alpaca = new AlpacaService(
+          credentials.apiKey,
+          credentials.apiSecret,
+          credentials.isSandbox
+        );
+        const account = await alpaca.getAccount();
+        totalAccountValue = parseFloat(account.equity);
+      }
+    }
+
+    if (!totalAccountValue) {
+      return res.status(400).json({
+        success: false,
+        error: 'Account value is required'
+      });
+    }
+
+    // Calculate position size
+    const riskAmount = totalAccountValue * (riskPercentage / 100);
+    let positionSize = 0;
+    let positionValue = 0;
+
+    if (stopLossPrice) {
+      const riskPerShare = Math.abs(entryPrice - stopLossPrice);
+      positionSize = Math.floor(riskAmount / riskPerShare);
+      positionValue = positionSize * entryPrice;
+    } else {
+      // No stop loss - use fixed percentage of account
+      positionValue = totalAccountValue * 0.1; // 10% of account
+      positionSize = Math.floor(positionValue / entryPrice);
+    }
+
+    // Calculate metrics
+    const portfolioPercentage = (positionValue / totalAccountValue) * 100;
+    const potentialLoss = stopLossPrice ? 
+      positionSize * Math.abs(entryPrice - stopLossPrice) : 0;
+
+    res.json({
+      success: true,
+      data: {
+        symbol,
+        entry_price: entryPrice,
+        stop_loss_price: stopLossPrice,
+        position_size: positionSize,
+        position_value: positionValue,
+        portfolio_percentage: portfolioPercentage,
+        risk_amount: riskAmount,
+        potential_loss: potentialLoss,
+        account_value: totalAccountValue
+      }
+    });
+
+  } catch (error) {
+    console.error('Error calculating position sizing:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to calculate position sizing',
+      message: error.message
+    });
+  }
+});
+
+// Helper function to calculate order cost
+function calculateOrderCost(quantity, price, orderType) {
+  let cost = quantity * price;
+  
+  // Add buffer for market orders
+  if (orderType === ORDER_TYPES.MARKET) {
+    cost *= 1.02; // 2% buffer
+  }
+  
+  return cost;
+}
 
 module.exports = router;

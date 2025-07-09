@@ -1,4 +1,4 @@
-const Alpaca = require('@alpacahq/alpaca-trade-api');
+const axios = require('axios');
 
 /**
  * Alpaca Integration Service
@@ -19,14 +19,31 @@ class AlpacaService {
       throw new Error('Alpaca API key and secret are required');
     }
 
-    this.client = new Alpaca({
-      key: apiKey,
-      secret: apiSecret,
-      paper: isPaper,
-      usePolygon: false // Use Alpaca data instead of Polygon
+    this.apiKey = apiKey;
+    this.apiSecret = apiSecret;
+    this.isPaper = isPaper;
+    this.baseURL = isPaper 
+      ? 'https://paper-api.alpaca.markets'
+      : 'https://api.alpaca.markets';
+    this.dataURL = 'https://data.alpaca.markets';
+    
+    // Set up axios instance with auth headers
+    this.api = axios.create({
+      baseURL: this.baseURL,
+      headers: {
+        'APCA-API-KEY-ID': this.apiKey,
+        'APCA-API-SECRET-KEY': this.apiSecret
+      }
     });
 
-    this.isPaper = isPaper;
+    this.dataApi = axios.create({
+      baseURL: this.dataURL,
+      headers: {
+        'APCA-API-KEY-ID': this.apiKey,
+        'APCA-API-SECRET-KEY': this.apiSecret
+      }
+    });
+
     this.rateLimitWindow = 60000; // 1 minute
     this.maxRequestsPerWindow = 200;
     this.requestTimes = [];
@@ -56,9 +73,11 @@ class AlpacaService {
     try {
       this.checkRateLimit();
       
-      const account = await this.client.getAccount();
+      const response = await this.api.get('/v2/account');
+      const account = response.data;
       
       return {
+        id: account.id,
         accountId: account.id,
         status: account.status,
         currency: account.currency,
@@ -83,8 +102,8 @@ class AlpacaService {
         environment: this.isPaper ? 'paper' : 'live'
       };
     } catch (error) {
-      console.error('Alpaca account fetch error:', error.message);
-      throw new Error(`Failed to fetch account information: ${error.message}`);
+      console.error('Alpaca account fetch error:', error.response?.data || error.message);
+      throw new Error(`Failed to fetch account information: ${error.response?.data?.message || error.message}`);
     }
   }
 
@@ -95,7 +114,8 @@ class AlpacaService {
     try {
       this.checkRateLimit();
       
-      const positions = await this.client.getPositions();
+      const response = await this.api.get('/v2/positions');
+      const positions = response.data;
       
       return positions.map(position => ({
         symbol: position.symbol,
@@ -118,8 +138,8 @@ class AlpacaService {
         lastUpdated: new Date().toISOString()
       }));
     } catch (error) {
-      console.error('Alpaca positions fetch error:', error.message);
-      throw new Error(`Failed to fetch positions: ${error.message}`);
+      console.error('Alpaca positions fetch error:', error.response?.data || error.message);
+      throw new Error(`Failed to fetch positions: ${error.response?.data?.message || error.message}`);
     }
   }
 

@@ -141,47 +141,44 @@ router.get('/:timeframe', async (req, res) => {
     const countResult = await query(countQuery, params);
     const total = parseInt(countResult.rows[0].total);
 
-    // Get technical data
+    // Get technical data - updated to match actual table structure
     const dataQuery = `
       SELECT 
         symbol,
         date,
-        open,
-        high,
-        low,
-        close,
-        volume,
         rsi,
         macd,
         macd_signal,
-        macd_histogram,
-        sma_20,
-        sma_50,
-        ema_12,
-        ema_26,
-        bollinger_upper,
-        bollinger_lower,
-        bollinger_middle,
-        stochastic_k,
-        stochastic_d,
-        williams_r,
-        cci,
-        adx,
-        atr,
-        obv,
-        mfi,
+        macd_hist,
+        mom,
         roc,
-        momentum,
+        adx,
+        plus_di,
+        minus_di,
+        atr,
         ad,
         cmf,
+        mfi,
         td_sequential,
         td_combo,
         marketwatch,
         dm,
+        sma_10,
+        sma_20,
+        sma_50,
+        sma_150,
+        sma_200,
+        ema_4,
+        ema_9,
+        ema_21,
+        bbands_lower,
+        bbands_middle,
+        bbands_upper,
         pivot_high,
         pivot_low,
         pivot_high_triggered,
-        pivot_low_triggered
+        pivot_low_triggered,
+        fetched_at
       FROM ${tableName}
       ${whereClause}
       ORDER BY date DESC, symbol
