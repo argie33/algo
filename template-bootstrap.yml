@@ -28,7 +28,7 @@ Resources:
               StringEquals:
                 "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
               StringLike:
-                "token.actions.githubusercontent.com:sub": "repo:*/*:ref:refs/heads/*"
+                "token.actions.githubusercontent.com:sub": "repo:argie33/algo:ref:refs/heads/*"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
 
