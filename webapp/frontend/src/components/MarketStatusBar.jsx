@@ -92,8 +92,8 @@ const MarketStatusBar = () => {
   useEffect(() => {
     fetchMarketStatus();
     
-    // Update every hour
-    const interval = setInterval(fetchMarketStatus, 3600000);
+    // Update every 30 minutes
+    const interval = setInterval(fetchMarketStatus, 1800000);
     
     return () => clearInterval(interval);
   }, []);
