@@ -363,7 +363,22 @@ Resources:
     DeletionPolicy: Delete
     UpdateReplacePolicy: Retain
 
-  ### 9) CloudFormation Templates Bucket ###
+  ### 9) S3 Site/Frontend Bucket ###
+  SiteCodeBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: stocks-webapp-frontend-code
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+
+  ### 10) CloudFormation Templates Bucket ###
   CfTemplatesBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -372,6 +387,17 @@ Resources:
         Status: Enabled
     DeletionPolicy: Delete
     UpdateReplacePolicy: Retain
+
+  ### 11) Lambda Security Group ###
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Lambda functions
+      VpcId: !Ref StocksVPC
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: "Allow all outbound traffic"
 
 Outputs:
   VpcId:
@@ -414,3 +440,11 @@ Outputs:
     Value: !Ref BastionSecurityGroup
     Export:
       Name: StocksCore-BastionSecurityGroupId
+  SiteCodeBucketName:
+    Value: !Ref SiteCodeBucket
+    Export:
+      Name: StocksCore-SiteCodeBucketName
+  LambdaSecurityGroupId:
+    Value: !Ref LambdaSecurityGroup
+    Export:
+      Name: StocksCore-LambdaSecurityGroupId
