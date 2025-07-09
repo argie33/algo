@@ -92,7 +92,7 @@
             COMMAND_ID=$(aws ssm send-command \
               --instance-ids "$INSTANCE_ID" \
               --document-name AWS-RunShellScript \
-              --parameters commands=["psql --version || echo 'PostgreSQL not yet installed'"] \
+              --parameters 'commands=["psql --version || echo \"PostgreSQL not yet installed\""]' \
               --query "Command.CommandId" --output text)
             sleep 15
             OUTPUT=$(aws ssm get-command-invocation \
