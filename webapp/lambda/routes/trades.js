@@ -392,6 +392,310 @@ router.get('/performance', authenticateUser, async (req, res) => {
 });
 
 /**
+ * @route GET /api/trades/history
+ * @desc Get paginated trade history with filtering options
+ */
+router.get('/history', authenticateUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { 
+      symbol, 
+      startDate, 
+      endDate, 
+      tradeType, 
+      status = 'all',
+      sortBy = 'execution_time',
+      sortOrder = 'desc',
+      limit = 50, 
+      offset = 0 
+    } = req.query;
+    
+    const db = await getDbConnection();
+    
+    // Build dynamic query
+    let whereClause = 'WHERE te.user_id = $1';
+    let params = [userId];
+    let paramCount = 1;
+    
+    if (symbol) {
+      whereClause += ` AND te.symbol = $${++paramCount}`;
+      params.push(symbol);
+    }
+    
+    if (startDate) {
+      whereClause += ` AND te.execution_time >= $${++paramCount}`;
+      params.push(startDate);
+    }
+    
+    if (endDate) {
+      whereClause += ` AND te.execution_time <= $${++paramCount}`;
+      params.push(endDate);
+    }
+    
+    if (tradeType && tradeType !== 'all') {
+      whereClause += ` AND te.side = $${++paramCount}`;
+      params.push(tradeType.toUpperCase());
+    }
+    
+    const orderClause = `ORDER BY te.${sortBy} ${sortOrder.toUpperCase()}`;
+    const limitClause = `LIMIT $${++paramCount} OFFSET $${++paramCount}`;
+    params.push(parseInt(limit), parseInt(offset));
+    
+    const result = await db.query(`
+      SELECT 
+        te.*,
+        ph.gross_pnl,
+        ph.net_pnl,
+        ph.return_percentage,
+        ph.holding_period_days,
+        ta.trade_pattern_type,
+        ta.pattern_confidence,
+        ta.risk_reward_ratio,
+        ta.alpha_generated,
+        cp.sector,
+        cp.industry,
+        cp.market_cap
+      FROM trade_executions te
+      LEFT JOIN position_history ph ON te.symbol = ph.symbol 
+        AND te.user_id = ph.user_id
+        AND te.execution_time BETWEEN ph.opened_at AND COALESCE(ph.closed_at, NOW())
+      LEFT JOIN trade_analytics ta ON ph.id = ta.position_id
+      LEFT JOIN company_profile cp ON te.symbol = cp.ticker
+      ${whereClause}
+      ${orderClause}
+      ${limitClause}
+    `, params);
+    
+    // Get total count for pagination
+    const countResult = await db.query(`
+      SELECT COUNT(*) as total 
+      FROM trade_executions te
+      ${whereClause}
+    `, params.slice(0, paramCount - 2));
+    
+    res.json({
+      success: true,
+      data: {
+        trades: result.rows,
+        pagination: {
+          total: parseInt(countResult.rows[0].total),
+          limit: parseInt(limit),
+          offset: parseInt(offset),
+          hasMore: parseInt(offset) + parseInt(limit) < parseInt(countResult.rows[0].total)
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error fetching trade history:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch trade history'
+    });
+  }
+});
+
+/**
+ * @route GET /api/trades/analytics/overview
+ * @desc Get trade analytics overview with key metrics
+ */
+router.get('/analytics/overview', authenticateUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { timeframe = '3M' } = req.query;
+    const db = await getDbConnection();
+    
+    // Calculate date range
+    const endDate = new Date();
+    const startDate = new Date();
+    switch(timeframe) {
+      case '1M': startDate.setMonth(endDate.getMonth() - 1); break;
+      case '3M': startDate.setMonth(endDate.getMonth() - 3); break;
+      case '6M': startDate.setMonth(endDate.getMonth() - 6); break;
+      case '1Y': startDate.setFullYear(endDate.getFullYear() - 1); break;
+      case 'YTD': startDate.setMonth(0, 1); break;
+      default: startDate.setMonth(endDate.getMonth() - 3);
+    }
+    
+    // Get key metrics
+    const metricsResult = await db.query(`
+      SELECT 
+        COUNT(*) as total_trades,
+        COUNT(CASE WHEN ph.net_pnl > 0 THEN 1 END) as winning_trades,
+        COUNT(CASE WHEN ph.net_pnl < 0 THEN 1 END) as losing_trades,
+        SUM(ph.net_pnl) as total_pnl,
+        AVG(ph.net_pnl) as avg_pnl,
+        AVG(ph.return_percentage) as avg_roi,
+        MAX(ph.net_pnl) as best_trade,
+        MIN(ph.net_pnl) as worst_trade,
+        AVG(ph.holding_period_days) as avg_holding_period,
+        SUM(te.quantity * te.price) as total_volume
+      FROM trade_executions te
+      LEFT JOIN position_history ph ON te.symbol = ph.symbol 
+        AND te.user_id = ph.user_id
+        AND te.execution_time BETWEEN ph.opened_at AND COALESCE(ph.closed_at, NOW())
+      WHERE te.user_id = $1 
+        AND te.execution_time >= $2 
+        AND te.execution_time <= $3
+    `, [userId, startDate, endDate]);
+    
+    const metrics = metricsResult.rows[0];
+    
+    // Calculate additional metrics
+    const winRate = metrics.total_trades > 0 ? 
+      (metrics.winning_trades / metrics.total_trades * 100) : 0;
+    const profitFactor = metrics.losing_trades > 0 ? 
+      Math.abs(metrics.total_pnl / metrics.losing_trades) : null;
+    
+    // Get sector breakdown
+    const sectorResult = await db.query(`
+      SELECT 
+        cp.sector,
+        COUNT(*) as trade_count,
+        SUM(ph.net_pnl) as sector_pnl,
+        AVG(ph.return_percentage) as avg_roi
+      FROM trade_executions te
+      JOIN position_history ph ON te.symbol = ph.symbol AND te.user_id = ph.user_id
+      JOIN company_profile cp ON te.symbol = cp.ticker
+      WHERE te.user_id = $1 
+        AND te.execution_time >= $2 
+        AND te.execution_time <= $3
+      GROUP BY cp.sector
+      ORDER BY sector_pnl DESC
+    `, [userId, startDate, endDate]);
+    
+    res.json({
+      success: true,
+      data: {
+        overview: {
+          totalTrades: parseInt(metrics.total_trades),
+          winningTrades: parseInt(metrics.winning_trades),
+          losingTrades: parseInt(metrics.losing_trades),
+          winRate: parseFloat(winRate.toFixed(2)),
+          totalPnl: parseFloat(metrics.total_pnl || 0),
+          avgPnl: parseFloat(metrics.avg_pnl || 0),
+          avgRoi: parseFloat(metrics.avg_roi || 0),
+          bestTrade: parseFloat(metrics.best_trade || 0),
+          worstTrade: parseFloat(metrics.worst_trade || 0),
+          avgHoldingPeriod: parseFloat(metrics.avg_holding_period || 0),
+          totalVolume: parseFloat(metrics.total_volume || 0),
+          profitFactor
+        },
+        sectorBreakdown: sectorResult.rows,
+        timeframe
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error fetching analytics overview:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch analytics overview'
+    });
+  }
+});
+
+/**
+ * @route GET /api/trades/export
+ * @desc Export trade data in various formats
+ */
+router.get('/export', authenticateUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { format = 'csv', startDate, endDate } = req.query;
+    const db = await getDbConnection();
+    
+    let whereClause = 'WHERE te.user_id = $1';
+    let params = [userId];
+    let paramCount = 1;
+    
+    if (startDate) {
+      whereClause += ` AND te.execution_time >= $${++paramCount}`;
+      params.push(startDate);
+    }
+    
+    if (endDate) {
+      whereClause += ` AND te.execution_time <= $${++paramCount}`;
+      params.push(endDate);
+    }
+    
+    const result = await db.query(`
+      SELECT 
+        te.execution_time,
+        te.symbol,
+        te.side,
+        te.quantity,
+        te.price,
+        te.commission,
+        ph.gross_pnl,
+        ph.net_pnl,
+        ph.return_percentage,
+        ph.holding_period_days,
+        ta.trade_pattern_type,
+        ta.pattern_confidence,
+        ta.risk_reward_ratio,
+        cp.sector,
+        cp.industry
+      FROM trade_executions te
+      LEFT JOIN position_history ph ON te.symbol = ph.symbol 
+        AND te.user_id = ph.user_id
+        AND te.execution_time BETWEEN ph.opened_at AND COALESCE(ph.closed_at, NOW())
+      LEFT JOIN trade_analytics ta ON ph.id = ta.position_id
+      LEFT JOIN company_profile cp ON te.symbol = cp.ticker
+      ${whereClause}
+      ORDER BY te.execution_time DESC
+    `, params);
+    
+    if (format === 'csv') {
+      // Convert to CSV
+      const csvHeaders = [
+        'Date', 'Symbol', 'Side', 'Quantity', 'Price', 'Commission',
+        'Gross PnL', 'Net PnL', 'Return %',
+        'Holding Period (Days)', 'Pattern Type', 'Pattern Confidence',
+        'Risk/Reward Ratio', 'Sector', 'Industry'
+      ];
+      
+      const csvData = result.rows.map(row => [
+        row.execution_time,
+        row.symbol,
+        row.side,
+        row.quantity,
+        row.price,
+        row.commission,
+        row.gross_pnl,
+        row.net_pnl,
+        row.return_percentage,
+        row.holding_period_days,
+        row.trade_pattern_type,
+        row.pattern_confidence,
+        row.risk_reward_ratio,
+        row.sector,
+        row.industry
+      ]);
+      
+      const csv = [csvHeaders, ...csvData].map(row => row.join(',')).join('\n');
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename=trade_history_${new Date().toISOString().split('T')[0]}.csv`);
+      res.send(csv);
+    } else {
+      // Return JSON
+      res.json({
+        success: true,
+        data: result.rows
+      });
+    }
+    
+  } catch (error) {
+    console.error('Error exporting trade data:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to export trade data'
+    });
+  }
+});
+
+/**
  * @route DELETE /api/trades/data
  * @desc Delete all trade data for user (for testing/reset)
  */

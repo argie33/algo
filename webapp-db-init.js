@@ -223,6 +223,292 @@ CREATE TABLE IF NOT EXISTS watchlist_items (
 );
 
 -- ================================
+-- INSTITUTIONAL TRADING SYSTEM
+-- ================================
+
+-- Trade Executions (from broker APIs)
+CREATE TABLE IF NOT EXISTS trade_executions (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    api_key_id INTEGER REFERENCES user_api_keys(id),
+    broker VARCHAR(50) NOT NULL, -- 'alpaca', 'td_ameritrade', 'interactive_brokers'
+    
+    -- Trade Identification
+    trade_id VARCHAR(100) NOT NULL, -- Broker's trade ID
+    order_id VARCHAR(100), -- Original order ID
+    
+    -- Security Information
+    symbol VARCHAR(20) NOT NULL,
+    asset_class VARCHAR(20) NOT NULL DEFAULT 'equity', -- 'equity', 'option', 'crypto', 'forex'
+    security_type VARCHAR(50) DEFAULT 'stock', -- 'stock', 'etf', 'call', 'put', etc.
+    
+    -- Execution Details
+    side VARCHAR(10) NOT NULL, -- 'buy', 'sell', 'short', 'cover'
+    quantity DECIMAL(15,6) NOT NULL,
+    price DECIMAL(15,8) NOT NULL,
+    commission DECIMAL(10,4) DEFAULT 0,
+    fees DECIMAL(10,4) DEFAULT 0,
+    
+    -- Timing
+    execution_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    settlement_date DATE,
+    
+    -- Market Data at Execution
+    bid_price DECIMAL(15,8),
+    ask_price DECIMAL(15,8),
+    market_price DECIMAL(15,8),
+    volume_at_execution BIGINT,
+    
+    -- Metadata
+    venue VARCHAR(50), -- Exchange/venue
+    order_type VARCHAR(20), -- 'market', 'limit', 'stop', etc.
+    time_in_force VARCHAR(20), -- 'day', 'gtc', etc.
+    
+    -- Import tracking
+    imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    UNIQUE(broker, trade_id)
+);
+
+-- Create indexes for trade_executions
+CREATE INDEX IF NOT EXISTS idx_trade_executions_user_id ON trade_executions(user_id);
+CREATE INDEX IF NOT EXISTS idx_trade_executions_symbol ON trade_executions(symbol);
+CREATE INDEX IF NOT EXISTS idx_trade_executions_execution_time ON trade_executions(execution_time);
+CREATE INDEX IF NOT EXISTS idx_trade_executions_broker ON trade_executions(broker);
+
+-- Reconstructed Positions from Executions
+CREATE TABLE IF NOT EXISTS position_history (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    symbol VARCHAR(20) NOT NULL,
+    asset_class VARCHAR(20) NOT NULL DEFAULT 'equity',
+    
+    -- Position Timeline
+    opened_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    closed_at TIMESTAMP WITH TIME ZONE,
+    
+    -- Position Details
+    side VARCHAR(10) NOT NULL, -- 'long', 'short'
+    total_quantity DECIMAL(15,6) NOT NULL,
+    avg_entry_price DECIMAL(15,8) NOT NULL,
+    avg_exit_price DECIMAL(15,8),
+    
+    -- Financial Results
+    gross_pnl DECIMAL(15,4),
+    net_pnl DECIMAL(15,4), -- After commissions/fees
+    total_commissions DECIMAL(10,4),
+    total_fees DECIMAL(10,4),
+    
+    -- Performance Metrics
+    return_percentage DECIMAL(8,4),
+    holding_period_days DECIMAL(8,2),
+    max_adverse_excursion DECIMAL(8,4), -- MAE
+    max_favorable_excursion DECIMAL(8,4), -- MFE
+    
+    -- Market Context
+    entry_market_cap DECIMAL(20,2),
+    sector VARCHAR(100),
+    industry VARCHAR(150),
+    
+    -- Risk Metrics
+    position_size_percentage DECIMAL(6,4), -- % of portfolio
+    portfolio_beta DECIMAL(6,4),
+    position_volatility DECIMAL(6,4),
+    
+    -- Status
+    status VARCHAR(20) DEFAULT 'open', -- 'open', 'closed', 'partially_closed'
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create indexes for position_history
+CREATE INDEX IF NOT EXISTS idx_position_history_user_id ON position_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_position_history_symbol ON position_history(symbol);
+CREATE INDEX IF NOT EXISTS idx_position_history_opened_at ON position_history(opened_at);
+CREATE INDEX IF NOT EXISTS idx_position_history_status ON position_history(status);
+
+-- Advanced Trade Analytics
+CREATE TABLE IF NOT EXISTS trade_analytics (
+    id SERIAL PRIMARY KEY,
+    position_id INTEGER REFERENCES position_history(id),
+    user_id VARCHAR(255) NOT NULL,
+    
+    -- Entry Analysis
+    entry_signal_quality DECIMAL(4,2), -- 0-100 score
+    entry_timing_score DECIMAL(4,2), -- Relative to optimal entry
+    entry_market_regime VARCHAR(50), -- 'trending', 'ranging', 'volatile', etc.
+    entry_rsi DECIMAL(6,2),
+    entry_relative_strength DECIMAL(8,4), -- vs sector/market
+    
+    -- Exit Analysis
+    exit_signal_quality DECIMAL(4,2),
+    exit_timing_score DECIMAL(4,2),
+    exit_reason VARCHAR(100), -- 'stop_loss', 'take_profit', 'time_decay', etc.
+    
+    -- Risk Management
+    initial_risk_amount DECIMAL(15,4),
+    risk_reward_ratio DECIMAL(6,2),
+    position_sizing_score DECIMAL(4,2), -- Kelly criterion based
+    
+    -- Performance Attribution
+    market_return_during_trade DECIMAL(8,4), -- SPY return during trade
+    sector_return_during_trade DECIMAL(8,4),
+    alpha_generated DECIMAL(8,4), -- Return vs benchmark
+    
+    -- Behavioral Analysis
+    emotional_state_score DECIMAL(4,2), -- Derived from trading patterns
+    discipline_score DECIMAL(4,2), -- Adherence to rules
+    cognitive_bias_flags JSONB, -- Array of detected biases
+    
+    -- Pattern Recognition
+    trade_pattern_type VARCHAR(100), -- 'breakout', 'mean_reversion', etc.
+    pattern_confidence DECIMAL(4,2), -- 0-100 confidence in pattern
+    pattern_success_rate DECIMAL(4,2), -- Historical success rate
+    
+    -- Market Analysis
+    market_volatility_regime VARCHAR(50),
+    sector_momentum DECIMAL(8,4),
+    correlation_to_market DECIMAL(6,4),
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create indexes for trade_analytics
+CREATE INDEX IF NOT EXISTS idx_trade_analytics_position_id ON trade_analytics(position_id);
+CREATE INDEX IF NOT EXISTS idx_trade_analytics_user_id ON trade_analytics(user_id);
+
+-- Performance Benchmarks (time-series data)
+CREATE TABLE IF NOT EXISTS performance_benchmarks (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    benchmark_date DATE NOT NULL,
+    
+    -- Portfolio Performance
+    portfolio_value DECIMAL(15,4),
+    daily_return DECIMAL(8,4),
+    cumulative_return DECIMAL(8,4),
+    volatility DECIMAL(6,4),
+    
+    -- Risk Metrics
+    sharpe_ratio DECIMAL(6,4),
+    sortino_ratio DECIMAL(6,4),
+    max_drawdown DECIMAL(6,4),
+    beta DECIMAL(6,4),
+    
+    -- Benchmark Comparisons
+    spy_return DECIMAL(8,4),
+    sector_return DECIMAL(8,4),
+    alpha DECIMAL(8,4),
+    
+    -- Trading Activity
+    trades_count INTEGER DEFAULT 0,
+    win_rate DECIMAL(4,2),
+    avg_hold_days DECIMAL(6,2),
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    UNIQUE(user_id, benchmark_date)
+);
+
+-- Create indexes for performance_benchmarks
+CREATE INDEX IF NOT EXISTS idx_performance_benchmarks_user_id ON performance_benchmarks(user_id);
+CREATE INDEX IF NOT EXISTS idx_performance_benchmarks_date ON performance_benchmarks(benchmark_date);
+
+-- Trade Import Tracking
+CREATE TABLE IF NOT EXISTS trade_import_logs (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    broker VARCHAR(20) NOT NULL,
+    import_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    trades_imported INTEGER DEFAULT 0,
+    positions_processed INTEGER DEFAULT 0,
+    date_range_start DATE,
+    date_range_end DATE,
+    status VARCHAR(20) DEFAULT 'completed', -- 'in_progress', 'completed', 'failed'
+    error_message TEXT,
+    
+    -- Performance tracking
+    execution_time_seconds DECIMAL(8,2),
+    api_calls_made INTEGER DEFAULT 0,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create indexes for trade_import_logs
+CREATE INDEX IF NOT EXISTS idx_trade_import_logs_user_id ON trade_import_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_trade_import_logs_broker ON trade_import_logs(broker);
+CREATE INDEX IF NOT EXISTS idx_trade_import_logs_date ON trade_import_logs(import_date);
+
+-- Broker API Configuration
+CREATE TABLE IF NOT EXISTS broker_api_configs (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    broker VARCHAR(20) NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    is_paper_trading BOOLEAN DEFAULT TRUE,
+    
+    -- Sync Configuration
+    auto_sync_enabled BOOLEAN DEFAULT FALSE,
+    sync_frequency_hours INTEGER DEFAULT 24,
+    last_sync_date TIMESTAMP,
+    last_sync_status VARCHAR(20), -- 'success', 'failed', 'in_progress'
+    last_sync_error TEXT,
+    
+    -- Import Statistics
+    total_trades_imported INTEGER DEFAULT 0,
+    last_import_date TIMESTAMP,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    UNIQUE(user_id, broker)
+);
+
+-- Create indexes for broker_api_configs
+CREATE INDEX IF NOT EXISTS idx_broker_api_configs_user_id ON broker_api_configs(user_id);
+CREATE INDEX IF NOT EXISTS idx_broker_api_configs_broker ON broker_api_configs(broker);
+
+-- Trade Insights (AI-generated recommendations)
+CREATE TABLE IF NOT EXISTS trade_insights (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    insight_type VARCHAR(50) NOT NULL, -- 'pattern', 'risk', 'timing', 'behavioral'
+    
+    -- Insight Details
+    title VARCHAR(255) NOT NULL,
+    description TEXT NOT NULL,
+    severity VARCHAR(20) DEFAULT 'medium', -- 'low', 'medium', 'high', 'critical'
+    confidence_score DECIMAL(4,2), -- 0-100 confidence
+    
+    -- Related Data
+    related_positions INTEGER[], -- Array of position IDs
+    related_symbols VARCHAR(10)[],
+    time_period_start DATE,
+    time_period_end DATE,
+    
+    -- Recommendations
+    recommended_action VARCHAR(100),
+    potential_impact_description TEXT,
+    quantified_impact DECIMAL(8,4), -- Expected P&L impact
+    
+    -- Metadata
+    is_read BOOLEAN DEFAULT FALSE,
+    is_dismissed BOOLEAN DEFAULT FALSE,
+    generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create indexes for trade_insights
+CREATE INDEX IF NOT EXISTS idx_trade_insights_user_id ON trade_insights(user_id);
+CREATE INDEX IF NOT EXISTS idx_trade_insights_type ON trade_insights(insight_type);
+CREATE INDEX IF NOT EXISTS idx_trade_insights_severity ON trade_insights(severity);
+
+-- ================================
 -- HEALTH AND MONITORING
 -- ================================
 
@@ -332,6 +618,13 @@ INSERT INTO health_status (table_name, table_category, critical_table, expected_
 ('trading_alerts', 'webapp', false, '1 hour'),
 ('watchlists', 'webapp', false, '1 hour'),
 ('watchlist_items', 'webapp', false, '1 hour'),
+('trade_executions', 'trading', true, '1 hour'),
+('position_history', 'trading', true, '1 hour'),
+('trade_analytics', 'trading', false, '1 hour'),
+('performance_benchmarks', 'trading', false, '1 day'),
+('trade_import_logs', 'trading', false, '1 day'),
+('broker_api_configs', 'trading', false, '1 day'),
+('trade_insights', 'trading', false, '1 hour'),
 ('stocks', 'symbols', true, '1 week'),
 ('prices', 'market_data', true, '1 day'),
 ('price_weekly', 'market_data', true, '1 week'),

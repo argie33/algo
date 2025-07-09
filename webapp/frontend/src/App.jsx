@@ -48,7 +48,8 @@ import {
   Lock as LockIcon,
   ExpandLess,
   ExpandMore,
-  Stars
+  Stars,
+  History as HistoryIcon
 } from '@mui/icons-material'
 
 // All real page imports
@@ -69,6 +70,7 @@ import Portfolio from './pages/Portfolio'
 import PortfolioHoldings from './pages/PortfolioHoldings'
 import PortfolioPerformance from './pages/PortfolioPerformance'
 import PortfolioOptimization from './pages/PortfolioOptimization'
+import TradeHistory from './pages/TradeHistory'
 import SentimentAnalysis from './pages/SentimentAnalysis'
 import AdvancedScreener from './pages/AdvancedScreener'
 import EconomicModeling from './pages/EconomicModeling'
@@ -122,6 +124,7 @@ const menuItems = [
   
   // Portfolio Section
   { text: 'Portfolio Overview', icon: <AccountBalanceIcon />, path: '/portfolio', category: 'portfolio' },
+  { text: 'Trade History', icon: <HistoryIcon />, path: '/portfolio/trade-history', category: 'portfolio' },
   { text: 'Performance Analysis', icon: <AssessmentIcon />, path: '/portfolio/performance', category: 'portfolio', premium: true },
   { text: 'Optimization Tools', icon: <AnalyticsIcon />, path: '/portfolio/optimize', category: 'portfolio', premium: true },
   
@@ -441,6 +444,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/portfolio" element={<Portfolio />} />
+            <Route path="/portfolio/trade-history" element={<TradeHistory />} />
             <Route path="/portfolio/performance" element={<PortfolioPerformance />} />
             <Route path="/portfolio/optimize" element={<PortfolioOptimization />} />
             <Route path="/market" element={<MarketOverview />} />
