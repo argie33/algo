@@ -34,6 +34,7 @@ jobs:
       symbols: ${{ steps.filter.outputs.symbols }}
       symbolsalt: ${{ steps.filter.outputs.symbolsalt }}
       econ: ${{ steps.filter.outputs.econ }}
+      commodities: ${{ steps.filter.outputs.commodities }}
       pricedaily: ${{ steps.filter.outputs.pricedaily }}
       priceweekly: ${{ steps.filter.outputs.priceweekly }}
       pricemonthly: ${{ steps.filter.outputs.pricemonthly }}
@@ -109,6 +110,10 @@ jobs:
               - 'scripts/symbols-alt/**'
             econ:
               - 'scripts/econ-data/**'
+            commodities:
+              - 'loadcommodities.py'
+              - 'Dockerfile.loadcommodities'
+              - 'requirements-loadcommodities.txt'
             pricedaily:
               - 'loadpricedaily.py'
               - 'Dockerfile.pricedaily'
@@ -217,6 +222,7 @@ jobs:
           arr=""
           [ "${{ steps.filter.outputs.symbols }}" = "true" ] && arr="$arr,\"symbols\""
           [ "${{ steps.filter.outputs.econ }}" = "true" ] && arr="$arr,\"econ\""
+          [ "${{ steps.filter.outputs.commodities }}" = "true" ] && arr="$arr,\"commodities\""
           [ "${{ steps.filter.outputs.pricedaily }}" = "true" ] && arr="$arr,\"pricedaily\""
           [ "${{ steps.filter.outputs.priceweekly }}" = "true" ] && arr="$arr,\"priceweekly\""
           [ "${{ steps.filter.outputs.pricemonthly }}" = "true" ] && arr="$arr,\"pricemonthly\""
@@ -529,6 +535,7 @@ jobs:
           case "${{ matrix.loader }}" in
             symbols)          DOCKERFILE=Dockerfile.stocksymbols;   PARAM=StockSymbolsImageTag;;\
             econ)             DOCKERFILE=Dockerfile.econdata;       PARAM=EconDataImageTag;;\
+            commodities)      DOCKERFILE=Dockerfile.loadcommodities; PARAM=CommoditiesImageTag;;\
             pricedaily)       DOCKERFILE=Dockerfile.pricedaily;     PARAM=PriceImageTag;;\
             priceweekly)      DOCKERFILE=Dockerfile.priceweekly;    PARAM=PriceWeeklyImageTag;;\
             pricemonthly)     DOCKERFILE=Dockerfile.pricemonthly;   PARAM=PriceMonthlyImageTag;;\
@@ -641,6 +648,7 @@ jobs:
             cat > tags.env << 'EOF'
           StockSymbolsImageTag=latest
           EconDataImageTag=latest
+          CommoditiesImageTag=latest
           FindataImageTag=latest
           PriceImageTag=latest
           PriceWeeklyImageTag=latest
@@ -744,6 +752,7 @@ jobs:
           declare -A COMPONENT_PARAMS
           COMPONENT_PARAMS["symbols"]="StockSymbolsImageTag"
           COMPONENT_PARAMS["econ"]="EconDataImageTag"
+          COMPONENT_PARAMS["commodities"]="CommoditiesImageTag"
           COMPONENT_PARAMS["pricedaily"]="PriceImageTag"
           COMPONENT_PARAMS["priceweekly"]="PriceWeeklyImageTag"
           COMPONENT_PARAMS["pricemonthly"]="PriceMonthlyImageTag"
@@ -798,6 +807,7 @@ jobs:
           CHANGED_COMPONENTS=()
           [[ "${{ needs.filter.outputs.symbols }}" == "true" ]] && CHANGED_COMPONENTS+=("symbols")
           [[ "${{ needs.filter.outputs.econ }}" == "true" ]] && CHANGED_COMPONENTS+=("econ")
+          [[ "${{ needs.filter.outputs.commodities }}" == "true" ]] && CHANGED_COMPONENTS+=("commodities")
           [[ "${{ needs.filter.outputs.pricedaily }}" == "true" ]] && CHANGED_COMPONENTS+=("pricedaily")
           [[ "${{ needs.filter.outputs.priceweekly }}" == "true" ]] && CHANGED_COMPONENTS+=("priceweekly")
           [[ "${{ needs.filter.outputs.pricemonthly }}" == "true" ]] && CHANGED_COMPONENTS+=("pricemonthly")
@@ -1145,6 +1155,93 @@ jobs:
           echo "→ Exit code: $EXIT"
           if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
             echo "❌ econ-data failed with exit code $EXIT"
+            exit $EXIT
+          fi
+
+  run_commodities:
+    name: Run commodities loader
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.commodities == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Fetch Task Definition ARN
+        id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='CommoditiesTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch cluster ARN & subnets
+        id: infra
+        run: |
+          CLUSTER=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+          SUB1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUB2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+          echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
+          echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
+          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
+
+      - name: Run commodities Fargate task
+        id: run
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --launch-type FARGATE \
+            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
+            --count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
+
+      - name: Wait for task completion
+        run: |
+          for i in $(seq 1 180); do
+            STATUS=$(aws ecs describe-tasks \
+              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+              --query 'tasks[0].lastStatus' \
+              --output text)
+            echo "Attempt $i – status=$STATUS"
+            [ "$STATUS" = "STOPPED" ] && break
+            sleep 20
+          done
+          if [ "$STATUS" != "STOPPED" ]; then
+            echo "❌ commodities task did not stop within 60m"
+            exit 1
+          fi
+
+      - name: Check container exit code
+        run: |
+          EXIT=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          echo "→ Exit code: $EXIT"
+          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+            echo "❌ commodities failed with exit code $EXIT"
             exit $EXIT
           fi
 
