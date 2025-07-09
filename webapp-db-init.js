@@ -5,10 +5,10 @@
  */
 
 const { Client } = require('pg');
-const AWS = require('aws-sdk');
+const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
 
 // Configure AWS SDK
-const secretsManager = new AWS.SecretsManager({
+const secretsManager = new SecretsManagerClient({
     region: process.env.AWS_REGION || 'us-east-1'
 });
 
@@ -27,7 +27,8 @@ async function getDbCredentials() {
             throw new Error('DB_SECRET_ARN environment variable not set');
         }
         
-        const response = await secretsManager.getSecretValue({ SecretId: secretArn }).promise();
+        const command = new GetSecretValueCommand({ SecretId: secretArn });
+        const response = await secretsManager.send(command);
         const secret = JSON.parse(response.SecretString);
         
         return {
