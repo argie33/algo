@@ -34,9 +34,7 @@ import {
   Refresh,
   Storage,
   Api,
-  Cloud,
-  ToggleOff,
-  ToggleOn
+  Cloud
 } from '@mui/icons-material';
 
 // Import API functions
@@ -67,7 +65,6 @@ function ServiceHealth() {
   const [testingInProgress, setTestingInProgress] = useState(false);
   const [componentError, setComponentError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [comprehensiveMode, setComprehensiveMode] = useState(false);
 
   // Memoize diagnosticInfo to prevent infinite re-renders
   const diagnosticInfo = useMemo(() => {
@@ -201,7 +198,7 @@ function ServiceHealth() {
   }
 
   // Simplified endpoint tests - only test essential endpoints
-  const quickEndpoints = useMemo(() => [
+  const endpoints = useMemo(() => [
     { name: 'Health Check', fn: () => healthCheck(), critical: true },
     { name: 'API Connection', fn: () => testApiConnection(), critical: true },
     { name: 'Stocks', fn: () => getStocks({ limit: 5 }), critical: true },
@@ -214,195 +211,42 @@ function ServiceHealth() {
     { name: 'Fear & Greed', fn: () => getFearGreedData({ limit: 5 }), critical: false }
   ], []);
 
-  // Comprehensive endpoint tests - organized by category
-  const comprehensiveEndpoints = useMemo(() => [
-    {
-      category: 'System Health',
-      tests: [
-        { name: 'Health Check (Quick)', fn: () => healthCheck(true), critical: true },
-        { name: 'Health Check (Full)', fn: () => healthCheck(), critical: true },
-        { name: 'Database Health', fn: () => api.get('/health/database'), critical: true },
-        { name: 'Database Diagnostics', fn: () => api.get('/health/database/diagnostics'), critical: false },
-        { name: 'Health Status Summary', fn: () => api.get('/health/status-summary'), critical: false }
-      ]
-    },
-    {
-      category: 'Stock Data',
-      tests: [
-        { name: 'Stock List', fn: () => getStocks({ limit: 10 }), critical: true },
-        { name: 'Stock Detail (AAPL)', fn: () => api.get('/stocks/AAPL'), critical: true },
-        { name: 'Stock Screen', fn: () => screenStocks({ limit: 10 }), critical: true },
-        { name: 'Stock Search', fn: () => api.get('/stocks/search?q=AAPL'), critical: false },
-        { name: 'Stock Prices (AAPL)', fn: () => api.get('/stocks/AAPL/prices'), critical: false }
-      ]
-    },
-    {
-      category: 'Technical Analysis',
-      tests: [
-        { name: 'Technical Daily', fn: () => getTechnicalData('daily', { limit: 10 }), critical: true },
-        { name: 'Technical Weekly', fn: () => getTechnicalData('weekly', { limit: 10 }), critical: false },
-        { name: 'Technical Monthly', fn: () => getTechnicalData('monthly', { limit: 10 }), critical: false },
-        { name: 'Technical Detail (AAPL)', fn: () => api.get('/technical/AAPL'), critical: false }
-      ]
-    },
-    {
-      category: 'Market Data',
-      tests: [
-        { name: 'Market Overview', fn: () => getMarketOverview(), critical: true },
-        { name: 'Market Summary', fn: () => api.get('/market/summary'), critical: true },
-        { name: 'Market Indices', fn: () => api.get('/market/indices'), critical: false },
-        { name: 'Market Breadth', fn: () => api.get('/market/breadth'), critical: false },
-        { name: 'Sector Performance', fn: () => api.get('/market/sectors'), critical: false }
-      ]
-    },
-    {
-      category: 'Trading & Signals',
-      tests: [
-        { name: 'Buy Signals Daily', fn: () => getBuySignals(), critical: true },
-        { name: 'Sell Signals Daily', fn: () => getSellSignals(), critical: true },
-        { name: 'Buy Signals Weekly', fn: () => api.get('/trading/signals/weekly'), critical: false },
-        { name: 'Buy Signals Monthly', fn: () => api.get('/trading/signals/monthly'), critical: false },
-        { name: 'Signals Summary', fn: () => api.get('/signals/summary'), critical: false }
-      ]
-    },
-    {
-      category: 'Financial Data',
-      tests: [
-        { name: 'Financials (AAPL)', fn: () => api.get('/financials/AAPL'), critical: false },
-        { name: 'Income Statement (AAPL)', fn: () => api.get('/financials/AAPL/income'), critical: false },
-        { name: 'Balance Sheet (AAPL)', fn: () => api.get('/financials/AAPL/balance'), critical: false },
-        { name: 'Cash Flow (AAPL)', fn: () => api.get('/financials/AAPL/cashflow'), critical: false },
-        { name: 'Key Metrics (AAPL)', fn: () => api.get('/financials/AAPL/metrics'), critical: false }
-      ]
-    },
-    {
-      category: 'Metrics & Scoring',
-      tests: [
-        { name: 'Metrics List', fn: () => api.get('/metrics'), critical: false },
-        { name: 'Metrics Detail (AAPL)', fn: () => api.get('/metrics/AAPL'), critical: false },
-        { name: 'Top Quality Stocks', fn: () => api.get('/metrics/top/quality'), critical: false },
-        { name: 'Top Value Stocks', fn: () => api.get('/metrics/top/value'), critical: false },
-        { name: 'Top Composite Stocks', fn: () => api.get('/metrics/top/composite'), critical: false }
-      ]
-    },
-    {
-      category: 'Calendar & Events',
-      tests: [
-        { name: 'Earnings Calendar', fn: () => api.get('/calendar/earnings'), critical: false },
-        { name: 'Economic Calendar', fn: () => api.get('/calendar/economic'), critical: false },
-        { name: 'Calendar Events', fn: () => api.get('/calendar'), critical: false }
-      ]
-    },
-    {
-      category: 'Portfolio',
-      tests: [
-        { name: 'Portfolio Overview', fn: () => api.get('/portfolio'), critical: false },
-        { name: 'Portfolio Holdings', fn: () => api.get('/portfolio/holdings'), critical: false },
-        { name: 'Portfolio Performance', fn: () => api.get('/portfolio/performance'), critical: false },
-        { name: 'Portfolio Analytics', fn: () => api.get('/portfolio/analytics'), critical: false }
-      ]
-    },
-    {
-      category: 'Dashboard APIs',
-      tests: [
-        { name: 'Dashboard Summary', fn: () => api.get('/dashboard/summary'), critical: true },
-        { name: 'Market Summary', fn: () => api.get('/dashboard/market-summary'), critical: false },
-        { name: 'Watchlist', fn: () => api.get('/dashboard/watchlist'), critical: false },
-        { name: 'Dashboard Signals', fn: () => api.get('/dashboard/signals'), critical: false },
-        { name: 'Dashboard Symbols', fn: () => api.get('/dashboard/symbols'), critical: false }
-      ]
-    },
-    {
-      category: 'Data Management',
-      tests: [
-        { name: 'Data Status', fn: () => api.get('/data'), critical: false },
-        { name: 'Data Sources', fn: () => api.get('/data/sources'), critical: false },
-        { name: 'Data Quality', fn: () => api.get('/data/quality'), critical: false }
-      ]
-    },
-    {
-      category: 'External Data',
-      tests: [
-        { name: 'NAAIM Data', fn: () => getNaaimData({ limit: 5 }), critical: false },
-        { name: 'Fear & Greed', fn: () => getFearGreedData({ limit: 5 }), critical: false }
-      ]
-    }
-  ], []);
-
-  const endpoints = comprehensiveMode ? comprehensiveEndpoints : quickEndpoints;
-
   // Test all endpoints
   const testAllEndpoints = useCallback(async () => {
     setTestingInProgress(true);
     const results = {};
     
-    if (comprehensiveMode) {
-      // Test comprehensive endpoints by category
-      for (const category of endpoints) {
-        results[category.category] = {};
-        for (const endpoint of category.tests) {
-          const startTime = Date.now();
-          try {
-            console.log(`Testing endpoint: ${category.category} - ${endpoint.name}`);
-            const response = await endpoint.fn();
-            const responseTime = Date.now() - startTime;
-            
-            results[category.category][endpoint.name] = {
-              status: 'success',
-              responseTime: responseTime,
-              critical: endpoint.critical,
-              data: response?.data || response,
-              error: null
-            };
-          } catch (error) {
-            const responseTime = Date.now() - startTime;
-            console.error(`Endpoint ${endpoint.name} failed:`, error);
-            
-            results[category.category][endpoint.name] = {
-              status: 'error',
-              responseTime: responseTime,
-              critical: endpoint.critical,
-              data: null,
-              error: error.message || 'Unknown error',
-              details: error.response?.data || error.response?.status || 'No additional details'
-            };
-          }
-        }
-      }
-    } else {
-      // Test quick endpoints
-      for (const endpoint of endpoints) {
-        const startTime = Date.now();
-        try {
-          console.log(`Testing endpoint: ${endpoint.name}`);
-          const response = await endpoint.fn();
-          const responseTime = Date.now() - startTime;
-          
-          results[endpoint.name] = {
-            status: 'success',
-            responseTime: responseTime,
-            critical: endpoint.critical,
-            data: response?.data || response,
-            error: null
-          };
-        } catch (error) {
-          const responseTime = Date.now() - startTime;
-          console.error(`Endpoint ${endpoint.name} failed:`, error);
-          
-          results[endpoint.name] = {
-            status: 'error',
-            responseTime: responseTime,
-            critical: endpoint.critical,
-            data: null,
-            error: error.message || 'Unknown error',
-            details: error.response?.data || error.response?.status || 'No additional details'
-          };
-        }
+    for (const endpoint of endpoints) {
+      const startTime = Date.now();
+      try {
+        console.log(`Testing endpoint: ${endpoint.name}`);
+        const response = await endpoint.fn();
+        const responseTime = Date.now() - startTime;
+        
+        results[endpoint.name] = {
+          status: 'success',
+          responseTime: responseTime,
+          critical: endpoint.critical,
+          data: response?.data || response,
+          error: null
+        };
+      } catch (error) {
+        const responseTime = Date.now() - startTime;
+        console.error(`Endpoint ${endpoint.name} failed:`, error);
+        
+        results[endpoint.name] = {
+          status: 'error',
+          responseTime: responseTime,
+          critical: endpoint.critical,
+          data: null,
+          error: error.message || 'Unknown error',
+          details: error.response?.data || error.response?.status || 'No additional details'
+        };
       }
     }
     setTestResults(results);
     setTestingInProgress(false);
-  }, [endpoints, comprehensiveMode]);
+  }, [endpoints]);
 
   // Health check query - simplified
   const { data: healthData, isLoading: healthLoading, error: healthError, refetch: refetchHealth } = useQuery({
@@ -696,7 +540,7 @@ function ServiceHealth() {
                 </Box>
               )}
               
-              <Box sx={{ mt: 2, display: 'flex', gap: 2, alignItems: 'center' }}>
+              <Box sx={{ mt: 2 }}>
                 <Button
                   variant="outlined" 
                   size="small" 
@@ -706,140 +550,42 @@ function ServiceHealth() {
                 >
                   {testingInProgress ? 'Testing...' : 'Test All Endpoints'}
                 </Button>
-                <Tooltip title={comprehensiveMode ? 'Switch to quick mode for faster testing' : 'Switch to comprehensive mode for thorough testing'}>
-                  <Button
-                    variant="text"
-                    size="small"
-                    startIcon={comprehensiveMode ? <ToggleOn /> : <ToggleOff />}
-                    onClick={() => setComprehensiveMode(!comprehensiveMode)}
-                    disabled={testingInProgress}
-                  >
-                    {comprehensiveMode ? 'Comprehensive Mode' : 'Quick Mode'}
-                  </Button>
-                </Tooltip>
               </Box>
 
               {Object.keys(safeTestResults).length > 0 && (
-                <Box sx={{ mt: 2 }}>
-                  {comprehensiveMode ? (
-                    // Comprehensive mode: Display by category
-                    Object.entries(safeTestResults).map(([category, tests]) => (
-                      <Accordion key={category} defaultExpanded>
-                        <AccordionSummary expandIcon={<ExpandMore />}>
-                          <Typography variant="subtitle1">{category}</Typography>
-                          <Box sx={{ ml: 'auto', mr: 2 }}>
-                            {(() => {
-                              const testArray = Object.values(tests || {});
-                              const successCount = testArray.filter(t => t.status === 'success').length;
-                              const totalCount = testArray.length;
-                              const allSuccess = successCount === totalCount;
-                              return (
-                                <Chip
-                                  label={`${successCount}/${totalCount}`}
-                                  color={allSuccess ? 'success' : 'warning'}
-                                  size="small"
-                                />
-                              );
-                            })()}
-                          </Box>
-                        </AccordionSummary>
-                        <AccordionDetails>
-                          <TableContainer component={Paper}>
-                            <Table size="small">
-                              <TableHead>
-                                <TableRow>
-                                  <TableCell>Endpoint</TableCell>
-                                  <TableCell>Status</TableCell>
-                                  <TableCell>Response Time</TableCell>
-                                  <TableCell>Critical</TableCell>
-                                  <TableCell>Error</TableCell>
-                                </TableRow>
-                              </TableHead>
-                              <TableBody>
-                                {Object.entries(tests || {}).map(([name, result]) => (
-                                  <TableRow key={name}>
-                                    <TableCell>{name}</TableCell>
-                                    <TableCell>
-                                      <Chip
-                                        icon={getStatusIcon(result?.status)}
-                                        label={result?.status || 'Unknown'}
-                                        color={getStatusColor(result?.status)}
-                                        size="small"
-                                      />
-                                    </TableCell>
-                                    <TableCell>
-                                      {result?.responseTime ? `${result.responseTime}ms` : '-'}
-                                    </TableCell>
-                                    <TableCell>
-                                      {result?.critical && (
-                                        <Chip label="Critical" size="small" variant="outlined" />
-                                      )}
-                                    </TableCell>
-                                    <TableCell>
-                                      {result?.error ? (
-                                        <Tooltip title={result.details || result.error}>
-                                          <Typography variant="body2" sx={{ 
-                                            maxWidth: 300, 
-                                            overflow: 'hidden', 
-                                            textOverflow: 'ellipsis',
-                                            cursor: 'help'
-                                          }}>
-                                            {result.error}
-                                          </Typography>
-                                        </Tooltip>
-                                      ) : '-'}
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          </TableContainer>
-                        </AccordionDetails>
-                      </Accordion>
-                    ))
-                  ) : (
-                    // Quick mode: Simple table
-                    <TableContainer component={Paper}>
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>Endpoint</TableCell>
-                            <TableCell>Status</TableCell>
-                            <TableCell>Response Time</TableCell>
-                            <TableCell>Critical</TableCell>
-                            <TableCell>Error</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {Object.entries(safeTestResults).map(([name, result]) => (
-                            <TableRow key={name}>
-                              <TableCell>{name}</TableCell>
-                              <TableCell>
-                                <Chip
-                                  icon={getStatusIcon(result?.status)}
-                                  label={result?.status || 'Unknown'}
-                                  color={getStatusColor(result?.status)}
-                                  size="small"
-                                />
-                              </TableCell>
-                              <TableCell>
-                                {result?.responseTime ? `${result.responseTime}ms` : '-'}
-                              </TableCell>
-                              <TableCell>
-                                {result?.critical && (
-                                  <Chip label="Critical" size="small" variant="outlined" />
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                {result?.error || '-'}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  )}
-                </Box>
+                <TableContainer component={Paper} sx={{ mt: 2 }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Endpoint</TableCell>
+                        <TableCell>Status</TableCell>
+                        <TableCell>Response Time</TableCell>
+                        <TableCell>Error</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {Object.entries(safeTestResults).map(([name, result]) => (
+                        <TableRow key={name}>
+                          <TableCell>{name}</TableCell>
+                          <TableCell>
+                            <Chip
+                              icon={getStatusIcon(result?.status)}
+                              label={result?.status || 'Unknown'}
+                              color={getStatusColor(result?.status)}
+                              size="small"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            {result.responseTime ? `${result.responseTime}ms` : '-'}
+                          </TableCell>
+                          <TableCell>
+                            {result.error || '-'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               )}
             </AccordionDetails>
           </Accordion>
