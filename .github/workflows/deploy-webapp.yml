@@ -767,6 +767,60 @@ jobs:
           echo "Full API URL: $API_URL"
           echo ""
           
+          # First, let's get some basic info about the Lambda function
+          echo "📋 Lambda Function Information:"
+          LAMBDA_FUNCTION_NAME="financial-dashboard-api-dev"
+          
+          # Get Lambda function configuration
+          echo "Getting Lambda function configuration..."
+          aws lambda get-function --function-name "$LAMBDA_FUNCTION_NAME" --query '{
+            FunctionName: Configuration.FunctionName,
+            Runtime: Configuration.Runtime,
+            Timeout: Configuration.Timeout,
+            MemorySize: Configuration.MemorySize,
+            LastModified: Configuration.LastModified,
+            State: Configuration.State,
+            VpcConfig: Configuration.VpcConfig,
+            Role: Configuration.Role
+          }' --output json || echo "Could not get Lambda function info"
+          
+          # Get recent Lambda logs
+          echo ""
+          echo "🔍 Recent Lambda Logs (last 5 minutes):"
+          LOG_GROUP="/aws/lambda/$LAMBDA_FUNCTION_NAME"
+          
+          # Get the most recent log events
+          aws logs filter-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --start-time $(date -d '5 minutes ago' +%s)000 \
+            --limit 20 \
+            --query 'events[*].message' \
+            --output text 2>/dev/null || echo "No recent logs found"
+          
+          echo ""
+          echo "🔬 Database Secret Information:"
+          SECRET_ARN="${{ steps.db_info.outputs.DB_SECRET_ARN }}"
+          if [ -n "$SECRET_ARN" ]; then
+            echo "Secret ARN: $SECRET_ARN"
+            
+            # Test if we can describe the secret (without getting the value)
+            if aws secretsmanager describe-secret --secret-id "$SECRET_ARN" --query '{
+              Name: Name,
+              Description: Description,
+              LastAccessedDate: LastAccessedDate,
+              LastChangedDate: LastChangedDate
+            }' --output json 2>/dev/null; then
+              echo "✅ Secret exists and is accessible"
+            else
+              echo "❌ Secret is not accessible or does not exist"
+            fi
+          else
+            echo "❌ No secret ARN found"
+          fi
+          
+          echo ""
+          echo "🔍 Testing API endpoints..."
+          
           # Test root endpoint first
           echo "1. Testing root endpoint..."
           ROOT_RESPONSE=$(curl -s "$API_URL/" 2>&1 || echo "CURL_FAILED")
@@ -841,6 +895,39 @@ jobs:
           echo "If you see 'Internal server error' responses, the Lambda likely has configuration issues."
           echo "Common causes: Missing environment variables, IAM permissions, or VPC networking."
           echo "Check the diagnostics response above for specific configuration details and recommendations."
+          
+          # Additional troubleshooting info
+          echo ""
+          echo "🔧 Additional Troubleshooting Information:"
+          
+          # Check if Lambda is in VPC
+          VPC_CONFIG=$(aws lambda get-function --function-name "$LAMBDA_FUNCTION_NAME" --query 'Configuration.VpcConfig' --output json 2>/dev/null || echo '{}')
+          if echo "$VPC_CONFIG" | grep -q '"VpcId"'; then
+            echo "✅ Lambda is configured with VPC"
+            echo "VPC Config: $VPC_CONFIG"
+          else
+            echo "❌ Lambda is NOT configured with VPC (this may cause database connectivity issues)"
+          fi
+          
+          # Check database connectivity from workflow runner (should work since it's external)
+          echo ""
+          echo "🔍 Testing database connectivity from workflow runner:"
+          DB_ENDPOINT="${{ steps.db_info.outputs.DB_ENDPOINT }}"
+          if [ -n "$DB_ENDPOINT" ]; then
+            echo "Database endpoint: $DB_ENDPOINT"
+            if nc -z "$DB_ENDPOINT" 5432 2>/dev/null; then
+              echo "✅ Database port 5432 is reachable from external network"
+            else
+              echo "❌ Database port 5432 is NOT reachable (may be network issue)"
+            fi
+          else
+            echo "❌ No database endpoint found"
+          fi
+          
+          # Show environment variables that were passed to Lambda
+          echo ""
+          echo "🔍 Environment Variables Passed to Lambda:"
+          aws lambda get-function --function-name "$LAMBDA_FUNCTION_NAME" --query 'Configuration.Environment.Variables' --output json 2>/dev/null || echo "Could not get environment variables"
       - name: Test website
         run: |
           WEBSITE_URL="${{ needs.deploy_infrastructure.outputs.website_url }}"
