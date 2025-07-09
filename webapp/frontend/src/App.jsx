@@ -49,7 +49,8 @@ import {
   ExpandLess,
   ExpandMore,
   Stars,
-  History as HistoryIcon
+  History as HistoryIcon,
+  Grain as GrainIcon
 } from '@mui/icons-material'
 
 // All real page imports
@@ -103,6 +104,7 @@ const menuItems = [
   // Markets Section
   { text: 'Market Overview', icon: <TrendingUpIcon />, path: '/market', category: 'markets' },
   { text: 'Sector Analysis', icon: <BusinessIcon />, path: '/sectors', category: 'markets' },
+  { text: 'Commodities', icon: <GrainIcon />, path: '/commodities', category: 'markets' },
   { text: 'Economic Indicators', icon: <PublicIcon />, path: '/economic', category: 'markets' },
   
   // Stocks Section
@@ -472,6 +474,7 @@ function App() {
             
             {/* Sector Analysis */}
             <Route path="/sectors" element={<SectorAnalysis />} />
+            <Route path="/commodities" element={<Commodities />} />
             <Route path="/watchlist" element={<Watchlist />} />
             <Route path="/sentiment/social" element={<SocialMediaSentiment />} />
             <Route path="/sentiment/news" element={<NewsSentiment />} />
