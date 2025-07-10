@@ -207,7 +207,7 @@ const ensureDatabase = async () => {
         throw err;
       }),
       new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Database initialization timeout after 15 seconds')), 15000)
+        setTimeout(() => reject(new Error('Database initialization timeout after 30 seconds')), 30000)
       )
     ]).then(pool => {
       dbAvailable = true;

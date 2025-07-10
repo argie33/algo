@@ -148,7 +148,7 @@ Resources:
               SslSupportMethod: sni-only
             - CloudFrontDefaultCertificate: true
 
-  ## 4) API Lambda backed by RDS (via Secret) - Fixed for Node.js
+  ## 4) API Lambda backed by RDS (via Secret) - Enhanced configuration
   ApiLambda:
     Type: AWS::Lambda::Function
     Properties:
@@ -159,22 +159,25 @@ Resources:
       Code:
         S3Bucket: !ImportValue StocksCore-CodeBucketName
         S3Key: !Ref LambdaCodeKey
-      Timeout: 45
-      MemorySize: 512
-      VpcConfig:
-        SubnetIds:
-          - !ImportValue StocksCore-PublicSubnet1Id
-          - !ImportValue StocksCore-PublicSubnet2Id
-        SecurityGroupIds:
-          - !ImportValue StocksCore-LambdaSecurityGroupId
+      Timeout: 60
+      MemorySize: 256
+      # NO VpcConfig - Lambda runs in AWS managed VPC with internet access
       Environment:
         Variables:
           DB_SECRET_ARN: !ImportValue StocksApp-SecretArn
+          DB_ENDPOINT: !ImportValue StocksApp-DBEndpoint
           COGNITO_SECRET_ARN: !Ref CognitoConfigSecret
           NODE_ENV: production
-          AWS_DEFAULT_REGION: !Ref AWS::Region
+          ENVIRONMENT: dev
+          WEBAPP_AWS_REGION: !Ref AWS::Region
           COGNITO_USER_POOL_ID: !Ref UserPool
           COGNITO_CLIENT_ID: !Ref UserPoolClient
+          DB_CONNECT_TIMEOUT: '30000'
+          DB_POOL_MAX: '3'
+          DB_POOL_IDLE_TIMEOUT: '30000'
+      Tags:
+        - Key: Name
+          Value: stocks-webapp-api-lambda
 
   ## 5) HTTP API (API Gateway v2)
   StocksApi:

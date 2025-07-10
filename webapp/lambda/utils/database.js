@@ -55,10 +55,10 @@ async function getDbConfig() {
                     database: secret.dbname,
                     max: parseInt(process.env.DB_POOL_MAX) || 5,
                     idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 30000,
-                    connectionTimeoutMillis: parseInt(process.env.DB_CONNECT_TIMEOUT) || 10000,
+                    connectionTimeoutMillis: parseInt(process.env.DB_CONNECT_TIMEOUT) || 20000,
                     ssl: {
                         require: true,
-                        rejectUnauthorized: true
+                        rejectUnauthorized: false
                     }
                 };
                 
@@ -86,10 +86,10 @@ async function getDbConfig() {
                 database: process.env.DB_NAME || process.env.DB_DATABASE,
                 max: parseInt(process.env.DB_POOL_MAX) || 5,
                 idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 30000,
-                connectionTimeoutMillis: parseInt(process.env.DB_CONNECT_TIMEOUT) || 10000,
+                connectionTimeoutMillis: parseInt(process.env.DB_CONNECT_TIMEOUT) || 20000,
                 ssl: {
                     require: true,
-                    rejectUnauthorized: true
+                    rejectUnauthorized: false
                 }
             };
             
@@ -173,7 +173,21 @@ async function initializeDatabase() {
             const connectionStart = Date.now();
             console.log(`🔌 Attempting to connect to ${config.host}:${config.port}...`);
             
-            const client = await pool.connect();
+            // Test network connectivity first
+            const netTest = await testNetworkConnectivity();
+            console.log(`🌐 Network test result: ${netTest.status} - ${netTest.message}`);
+            
+            if (netTest.status === 'timeout' || netTest.status === 'error') {
+                console.warn('⚠️  Network connectivity test failed, but attempting database connection anyway...');
+            }
+            
+            // Add timeout to pool.connect() to prevent hanging
+            const client = await Promise.race([
+                pool.connect(),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Database connection timeout after 25 seconds')), 25000)
+                )
+            ]);
             const connectionTime = Date.now() - connectionStart;
             console.log(`⚡ Connection established in ${connectionTime}ms`);
             

@@ -45,6 +45,14 @@ Resources:
           ToPort: 5432
           CidrIp: "10.0.0.0/8"
           Description: "Allow Postgres traffic from all private IP ranges"
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: "0.0.0.0/0"
+          Description: "Allow public access for Lambda outside VPC"
+      Tags:
+        - Key: Name
+          Value: stocks-db-security-group
 
   ### 3) RDS Instance ###
   StocksDBInstance:
@@ -174,3 +182,9 @@ Outputs:
     Value: !GetAtt EcsTasksSecurityGroup.GroupId
     Export:
       Name: StocksApp-EcsTasksSecurityGroupId
+
+  RDSSecurityGroupId:
+    Description: ID of RDS Security Group
+    Value: !Ref StocksDBSecurityGroup
+    Export:
+      Name: StocksApp-RDSSecurityGroupId

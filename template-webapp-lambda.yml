@@ -170,13 +170,10 @@ Resources:
       CodeUri: webapp/lambda/
       Handler: index.handler
       Role: !GetAtt LambdaExecutionRole.Arn
-      VpcConfig:
-        SubnetIds:
-          - !ImportValue StocksCore-PublicSubnet1Id
-          - !ImportValue StocksCore-PublicSubnet2Id
-        SecurityGroupIds:
-          - !Ref LambdaSecurityGroup
-      Timeout: 45
+      # REMOVED VpcConfig - Lambda runs in AWS managed VPC for better performance and cost
+      # and can directly access public RDS endpoint
+      Timeout: 60
+      MemorySize: 256
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DatabaseSecretArn
@@ -186,6 +183,10 @@ Resources:
           WEBAPP_AWS_REGION: !Ref AWS::Region
           COGNITO_USER_POOL_ID: !Ref UserPool
           COGNITO_CLIENT_ID: !Ref UserPoolClient
+          # Enhanced database connection settings
+          DB_CONNECT_TIMEOUT: '30000'
+          DB_POOL_MAX: '3'
+          DB_POOL_IDLE_TIMEOUT: '30000'
       Events:
         ApiProxy:
           Type: Api
@@ -226,39 +227,6 @@ Resources:
 
 
 
-  # Lambda Security Group
-  LambdaSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Security group for Lambda functions in public subnets
-      VpcId: !ImportValue StocksCore-VpcId
-      SecurityGroupEgress:
-        - IpProtocol: tcp
-          FromPort: 5432
-          ToPort: 5432
-          CidrIp: 10.0.0.0/8
-          Description: "Allow PostgreSQL access to VPC subnets"
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          CidrIp: 0.0.0.0/0
-          Description: "Allow HTTPS for AWS services (Secrets Manager, etc.)"
-        - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-          CidrIp: 0.0.0.0/0
-          Description: "Allow HTTP for external APIs"
-        - IpProtocol: tcp
-          FromPort: 53
-          ToPort: 53
-          CidrIp: 0.0.0.0/0
-          Description: "Allow DNS TCP"
-        - IpProtocol: udp
-          FromPort: 53
-          ToPort: 53
-          CidrIp: 0.0.0.0/0
-          Description: "Allow DNS UDP"
-
   # IAM Role for Lambda execution
   LambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -272,7 +240,6 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
       Policies:
         - PolicyName: DatabaseAccess
           PolicyDocument:
