@@ -40,7 +40,7 @@ async function getDbCredentials() {
             password: secret.password,
             ssl: {
                 require: true,
-                rejectUnauthorized: true
+                rejectUnauthorized: false
             },
             connectionTimeoutMillis: 30000
         };
@@ -639,6 +639,9 @@ ON CONFLICT (table_name) DO NOTHING;
 
 async function initializeWebappDatabase() {
     log('info', '🚀 Starting webapp database initialization');
+    log('info', `Environment: ${process.env.ENVIRONMENT || 'unknown'}`);
+    log('info', `AWS Region: ${process.env.AWS_REGION || 'unknown'}`);
+    log('info', `DB Secret ARN: ${process.env.DB_SECRET_ARN ? 'set' : 'NOT SET'}`);
     
     let client;
     
@@ -647,7 +650,7 @@ async function initializeWebappDatabase() {
         const dbConfig = await getDbCredentials();
         
         // Connect to database
-        log('info', `Connecting to database at ${dbConfig.host}:${dbConfig.port}`);
+        log('info', `Connecting to database at ${dbConfig.host}:${dbConfig.port} (database: ${dbConfig.database})`);
         client = new Client(dbConfig);
         await client.connect();
         log('info', '✅ Database connection successful');
@@ -679,11 +682,22 @@ async function initializeWebappDatabase() {
         
     } catch (error) {
         log('error', '❌ Webapp database initialization failed:', error.message);
+        log('error', 'Full error details:', error);
+        if (error.code) {
+            log('error', `Error code: ${error.code}`);
+        }
+        if (error.stack) {
+            log('error', 'Stack trace:', error.stack);
+        }
         return 1;
     } finally {
         if (client) {
-            await client.end();
-            log('info', 'Database connection closed');
+            try {
+                await client.end();
+                log('info', 'Database connection closed');
+            } catch (closeError) {
+                log('error', 'Error closing database connection:', closeError.message);
+            }
         }
     }
 }
