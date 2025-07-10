@@ -4519,7 +4519,7 @@ jobs:
             exit $EXIT
           fi
 
-  run_qualitymetrics:
+run_qualitymetrics:
     name: Run quality-metrics calculator
     needs: [deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.qualitymetrics == 'true' }}
