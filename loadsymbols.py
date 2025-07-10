@@ -9,6 +9,9 @@ This script loads stock symbols with enhanced metadata including:
 - Exchange and currency information
 - Market status and listing details
 
+Trigger deploy-app-stocks workflow - fix ECS task None exit code v8
+"""
+
 Data Sources:
 - Primary: yfinance for comprehensive stock data
 - Secondary: SEC EDGAR for additional company details
