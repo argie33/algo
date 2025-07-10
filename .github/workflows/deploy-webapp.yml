@@ -482,6 +482,41 @@ jobs:
             echo "⏭️  No database changes detected - skipping initialization"
           fi
 
+      - name: Build and push webapp-db-init Docker image
+        if: steps.check_db_changes.outputs.db_init_needed == 'true'
+        run: |
+          echo "🐳 Building and pushing webapp-db-init Docker image..."
+          
+          # Get ECR repository URI from core stack
+          ECR_REPO=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-ContainerRepositoryUri'].Value" \
+            --output text)
+          
+          if [[ -z "$ECR_REPO" || "$ECR_REPO" == "None" ]]; then
+            echo "❌ Failed to get ECR repository URI from core stack exports"
+            exit 1
+          fi
+          
+          echo "Using ECR repository: $ECR_REPO"
+          
+          # Login to ECR
+          echo "🔐 Logging in to ECR..."
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $ECR_REPO
+          
+          # Build the Docker image
+          echo "🔨 Building webapp-db-init Docker image..."
+          docker build -f Dockerfile.webapp-db-init -t webapp-db-init:latest .
+          
+          # Tag for ECR
+          echo "🏷️ Tagging image for ECR..."
+          docker tag webapp-db-init:latest $ECR_REPO:webapp-db-init-latest
+          
+          # Push to ECR
+          echo "⬆️ Pushing image to ECR..."
+          docker push $ECR_REPO:webapp-db-init-latest
+          
+          echo "✅ Successfully pushed updated webapp-db-init image to ECR"
+
       - name: Initialize Database Tables via ECS Task
         if: steps.check_db_changes.outputs.db_init_needed == 'true'
         run: |
