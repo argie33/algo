@@ -149,7 +149,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Value-metrics task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ Value-metrics failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -238,7 +241,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Quality-metrics task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ Quality-metrics failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -994,7 +1000,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ stock-symbols task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ stock-symbols failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -1079,7 +1088,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ econ-data task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ econ-data failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -1167,7 +1179,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ pricedaily task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ pricedaily failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -1255,7 +1270,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ priceweekly task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ priceweekly failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -1343,7 +1361,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ pricemonthly task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ pricemonthly failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -1431,7 +1452,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ technicals-daily task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ technicals-daily failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -1519,7 +1543,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ load-info task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ load-info failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -1607,7 +1634,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ earnings task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ earnings failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -1695,7 +1725,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ earnings estimate task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ earnings estimate failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -1783,7 +1816,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ earnings metrics failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -1871,7 +1907,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ revenue estimate failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -1959,7 +1998,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ technicals-monthly failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -2041,13 +2083,16 @@ jobs:
 
       - name: Check container exit code
         run: |
-          EXIT=$(aws ecs.describe-tasks \
+          EXIT=$(aws ecs describe-tasks \
             --cluster "${{ steps.infra.outputs.CLUSTER }}" \
             --tasks "${{ steps.run.outputs.TASK_ARN }}" \
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ swing-trader failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -2135,7 +2180,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ buysell daily failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -2223,7 +2271,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ buysell weekly failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -2311,7 +2362,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ buysell monthly failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -2399,7 +2453,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ load-latest-price-daily failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -2487,7 +2544,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ load-latest-price-weekly failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -2575,7 +2635,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ load-latest-price-monthly failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -2663,7 +2726,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ NAAIM failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -2751,7 +2817,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ AAII failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -2839,7 +2908,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ Fear & Greed failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -2927,7 +2999,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ Quarterly Balance Sheet failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -3015,7 +3090,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ Annual Balance Sheet failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -3103,7 +3181,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ Quarterly Income Statement failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -3191,7 +3272,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ Annual Income Statement failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -3279,7 +3363,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ Quarterly Cash Flow failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -3367,7 +3454,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ Annual Cash Flow failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -3455,7 +3545,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ TTM Income Statement failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -3543,7 +3636,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ TTM Cash Flow failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -3623,7 +3719,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ Load News failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -3714,7 +3813,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ Fundamental-metrics failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -3802,7 +3904,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ Analyst-upgrade-downgrade failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -3890,7 +3995,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ Financials failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -3978,7 +4086,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ Sentiment failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -4066,7 +4177,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ Technicals failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -4154,7 +4268,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ Market failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -4242,7 +4359,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ Momentum failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -4330,7 +4450,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ Sentiment-realtime failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -4418,7 +4541,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ Positioning failed with exit code $EXIT"
             exit $EXIT
           fi
