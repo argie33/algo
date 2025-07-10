@@ -161,6 +161,7 @@ Resources:
               awslogs-group: !Ref DatabaseInitLogGroup
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
 
   # Main API Lambda function (handles all routes)
   ApiFunction:

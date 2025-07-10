@@ -42,6 +42,7 @@ Resources:
               awslogs-group: /ecs/db-init
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
 
   # Lambda role for triggering ECS task
   DBInitTriggerRole:
