@@ -47,7 +47,7 @@ import {
   Search,
   Reddit,
   Timeline,
-  Sentiment,
+  SentimentSatisfied as Sentiment,
   TrendingFlat,
   ExpandMore,
   FilterList,

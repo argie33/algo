@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../utils/database');
 const { authenticateToken } = require('../middleware/auth');
-const BacktestEngine = require('../utils/backtestEngine');
 const path = require('path');
 const fs = require('fs');
 

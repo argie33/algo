@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
-const BacktestEngine = require('../utils/backtestEngine');
+const { query } = require('../utils/database');
 
 // Apply authentication to all routes
 router.use(authenticateToken);
@@ -70,10 +70,17 @@ router.post('/run', async (req, res) => {
       benchmark
     };
 
-    const engine = new BacktestEngine(config);
+    // BacktestEngine temporarily disabled - functionality moved to backtest.js
+    // const engine = new BacktestEngine(config);
     
     // Run backtest
-    const result = await engine.runBacktest(strategyCode);
+    // const result = await engine.runBacktest(strategyCode);
+    
+    // Temporary response until backtest engine is fixed
+    const result = {
+      success: false,
+      error: 'Backtest engine temporarily disabled - use /backtest/run instead'
+    };
     
     // Update backtest status
     activeBacktests.set(backtestId, {

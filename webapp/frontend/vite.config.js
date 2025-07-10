@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => {
   const isProduction = mode === 'production'
   
   // API URL configuration
-  const apiUrl = process.env.VITE_API_URL || (isDevelopment ? 'http://localhost:3001' : '')
+  const apiUrl = process.env.VITE_API_URL || (isDevelopment ? 'http://localhost:3001' : 'https://q570hqc8i9.execute-api.us-east-1.amazonaws.com/dev')
   
   console.log('Vite Config:', {
     mode,
@@ -33,9 +33,16 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks: {
-            vendor: ['react', 'react-dom'],
-            mui: ['@mui/material', '@mui/icons-material'],
-            charts: ['recharts']
+            vendor: ['react', 'react-dom', 'react-router-dom'],
+            mui: ['@mui/material', '@mui/icons-material', '@mui/lab', '@mui/x-data-grid', '@mui/x-date-pickers'],
+            charts: ['recharts', 'chart.js', 'react-chartjs-2'],
+            aws: ['aws-amplify', '@aws-amplify/auth', '@aws-amplify/core', '@aws-amplify/ui-react'],
+            utils: ['axios', 'lodash', 'numeral', 'date-fns'],
+            codemirror: ['@codemirror/lang-javascript', '@codemirror/lang-python', '@uiw/react-codemirror'],
+            'react-query': ['@tanstack/react-query'],
+            emotion: ['@emotion/react', '@emotion/styled'],
+            animations: ['framer-motion'],
+            dnd: ['react-beautiful-dnd']
           }
         },
         // Limit concurrent operations to prevent EMFILE

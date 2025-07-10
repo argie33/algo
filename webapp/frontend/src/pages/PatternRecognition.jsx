@@ -37,7 +37,7 @@ import {
   Search,
   TrendingUp,
   TrendingDown,
-  Target,
+  GpsFixed as Target,
   FlashOn as Zap,
   BarChart as BarChart3,
   Warning as AlertCircle,
