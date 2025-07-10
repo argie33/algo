@@ -146,4 +146,160 @@ router.post('/create-table', async (req, res) => {
   }
 });
 
+// Debug endpoint for raw database queries
+router.get('/debug/db-test', async (req, res) => {
+  try {
+    const { query } = require('../utils/database');
+    
+    const result = await query(`
+      SELECT 
+        NOW() as current_time,
+        current_database() as db_name,
+        current_user as db_user,
+        version() as db_version,
+        inet_server_addr() as server_ip,
+        inet_server_port() as server_port
+    `);
+    
+    res.json({
+      status: 'success',
+      database_info: result.rows[0],
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('DB test failed:', error);
+    res.status(500).json({
+      status: 'error',
+      error: error.message,
+      code: error.code,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Debug endpoint to list all tables in database
+router.get('/debug/tables', async (req, res) => {
+  try {
+    const { query } = require('../utils/database');
+    
+    const result = await query(`
+      SELECT 
+        table_name,
+        table_type,
+        is_insertable_into
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+      ORDER BY table_name
+    `);
+    
+    res.json({
+      status: 'success',
+      table_count: result.rows.length,
+      tables: result.rows,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Tables list failed:', error);
+    res.status(500).json({
+      status: 'error',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Debug endpoint to test specific table queries
+router.get('/debug/test-query', async (req, res) => {
+  try {
+    const { query } = require('../utils/database');
+    const tableName = req.query.table || 'stock_symbols';
+    
+    // First check if table exists
+    const tableCheck = await query(`
+      SELECT COUNT(*) as exists 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' AND table_name = $1
+    `, [tableName]);
+    
+    const tableExists = parseInt(tableCheck.rows[0].exists) > 0;
+    
+    let tableData = null;
+    if (tableExists) {
+      const data = await query(`SELECT COUNT(*) as record_count FROM "${tableName}"`);
+      tableData = { record_count: parseInt(data.rows[0].record_count) };
+    }
+    
+    res.json({
+      status: 'success',
+      table: tableName,
+      exists: tableExists,
+      data: tableData,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Test query failed:', error);
+    res.status(500).json({
+      status: 'error',
+      table: req.query.table || 'stock_symbols',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Debug endpoint for environment and configuration
+router.get('/debug/env', async (req, res) => {
+  try {
+    res.json({
+      status: 'success',
+      environment: {
+        NODE_ENV: process.env.NODE_ENV,
+        ENVIRONMENT: process.env.ENVIRONMENT,
+        AWS_REGION: process.env.AWS_REGION,
+        WEBAPP_AWS_REGION: process.env.WEBAPP_AWS_REGION,
+        AWS_LAMBDA_FUNCTION_NAME: process.env.AWS_LAMBDA_FUNCTION_NAME,
+        AWS_LAMBDA_FUNCTION_VERSION: process.env.AWS_LAMBDA_FUNCTION_VERSION
+      },
+      database_config: {
+        DB_ENDPOINT: process.env.DB_ENDPOINT,
+        DB_SECRET_ARN: process.env.DB_SECRET_ARN ? 'SET' : 'NOT_SET',
+        DB_CONNECT_TIMEOUT: process.env.DB_CONNECT_TIMEOUT,
+        DB_POOL_MAX: process.env.DB_POOL_MAX
+      },
+      lambda_info: {
+        memory: process.memoryUsage(),
+        uptime: process.uptime(),
+        platform: process.platform,
+        node_version: process.version
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Debug endpoint to test CORS
+router.get('/debug/cors-test', async (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  
+  res.json({
+    status: 'success',
+    message: 'CORS test successful',
+    headers: req.headers,
+    origin: req.get('origin'),
+    timestamp: new Date().toISOString()
+  });
+});
+
 module.exports = router;

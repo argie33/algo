@@ -10,13 +10,16 @@
   </style>
 </head>
 <body>
-  <h1>Stocks Data</h1>
+  <h1>Stocks Data - Debug Version</h1>
   <button id="load">Load Data</button>
+  <button id="debug">Debug API</button>
+  <button id="create-table">Create Table</button>
   <div id="status">Loading...</div>
   <div id="table"></div>
 
   <script>
     const API = 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev/api/stocks';  // Fixed path with /api/ prefix
+    const API_BASE = 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev';  // Base URL for debug endpoints
 
     // Show initial status
     document.getElementById('status').innerHTML = 'Page loaded. Click "Load Data" to test API.';
@@ -26,6 +29,56 @@
       console.error('Global error:', msg, 'at', url, ':', line);
       document.getElementById('status').innerHTML = `<span style="color: red;">JavaScript Error: ${msg}</span>`;
       return false;
+    };
+
+    // Debug button to test various API endpoints
+    document.getElementById('debug').onclick = async () => {
+      try {
+        document.getElementById('status').innerHTML = 'Running debug tests...';
+        
+        const tests = [
+          { name: 'Root API', url: `${API_BASE}/` },
+          { name: 'Health Check', url: `${API_BASE}/health` },
+          { name: 'DB Test', url: `${API_BASE}/health/debug/db-test` },
+          { name: 'Tables List', url: `${API_BASE}/health/debug/tables` },
+          { name: 'Environment', url: `${API_BASE}/health/debug/env` }
+        ];
+        
+        let results = '<h3>Debug Results:</h3>';
+        for (const test of tests) {
+          try {
+            const res = await fetch(test.url, { mode: 'cors' });
+            const data = await res.json();
+            results += `<div><strong>${test.name}:</strong> ✅ ${res.status} - ${JSON.stringify(data).substring(0, 100)}...</div>`;
+          } catch (error) {
+            results += `<div><strong>${test.name}:</strong> ❌ ${error.message}</div>`;
+          }
+        }
+        
+        document.getElementById('table').innerHTML = results;
+        document.getElementById('status').innerHTML = 'Debug tests completed!';
+      } catch (error) {
+        document.getElementById('status').innerHTML = `Debug failed: ${error.message}`;
+      }
+    };
+
+    // Create table button
+    document.getElementById('create-table').onclick = async () => {
+      try {
+        document.getElementById('status').innerHTML = 'Creating database table...';
+        const res = await fetch(`${API_BASE}/health/create-table`, { method: 'POST', mode: 'cors' });
+        const data = await res.json();
+        
+        if (res.ok) {
+          document.getElementById('status').innerHTML = '<span style="color: green;">Table created successfully!</span>';
+          document.getElementById('table').innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+        } else {
+          document.getElementById('status').innerHTML = '<span style="color: red;">Table creation failed</span>';
+          document.getElementById('table').innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+        }
+      } catch (error) {
+        document.getElementById('status').innerHTML = `Create table failed: ${error.message}`;
+      }
     };
 
     document.getElementById('load').onclick = async () => {

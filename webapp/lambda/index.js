@@ -356,9 +356,18 @@ app.get('/', (req, res) => {
     endpoints: {
       health: {
         quick: '/health?quick=true',
-        full: '/health'
+        full: '/health',
+        ready: '/health/ready',
+        create_table: '/health/create-table'
       },
-      debug: '/debug',
+      debug: {
+        main: '/debug',
+        env: '/health/debug/env',
+        db_test: '/health/debug/db-test',
+        tables: '/health/debug/tables',
+        test_query: '/health/debug/test-query',
+        cors: '/health/debug/cors-test'
+      },
       api: {
         stocks: '/stocks',
         screen: '/stocks/screen',
