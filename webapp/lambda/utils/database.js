@@ -198,8 +198,10 @@ async function initializeDatabase() {
             
             client.release();
             
-            // Skip additional verification to reduce initialization time
-            console.log('✅ Database connection verified via test query');
+            // Verify database connection
+            console.log('🔍 Verifying database connection...');
+            await verifyConnection();
+            console.log('✅ Database connection verified');
             
             dbInitialized = true;
             console.log('🎉 Database connection pool initialized successfully');
@@ -687,5 +689,6 @@ module.exports = {
     transaction,
     closeDatabase,
     healthCheck,
-    testNetworkConnectivity
+    testNetworkConnectivity,
+    verifyConnection
 };
