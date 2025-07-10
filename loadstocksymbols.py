@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Trigger deployment to create stock_symbols table - fix white page issue
+# Fixed YAML syntax - deploy stock_symbols table to fix white page issue
 import os
 import re
 import csv
