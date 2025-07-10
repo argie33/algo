@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated for deployment verification and workflow trigger test - symbols only
+# Updated for deployment verification and workflow trigger - create stock_symbols table
 import os
 import re
 import csv

@@ -531,7 +531,9 @@ jobs:
       - name: Initialize Database Tables via ECS Task
         if: steps.check_db_changes.outputs.db_init_needed == 'true'
         run: |
-          echo "🗄️ Initializing database tables via ECS task..."
+          echo "🗄️ Initializing webapp database tables via ECS task..."
+          echo "📝 NOTE: This creates WEBAPP tables only (user_api_keys, portfolio_holdings, etc.)"
+          echo "📝 NOTE: stock_symbols table is created by deploy-app-stocks workflow"
           
           # Get the task definition ARN from the stack
           TASK_DEF_ARN=$(aws cloudformation describe-stacks \
@@ -579,7 +581,8 @@ jobs:
           echo "Started ECS task: $TASK_ARN"
           
           # Wait for task to complete
-          echo "⏳ Waiting for task to complete..."
+          echo "⏳ Waiting for webapp database initialization task to complete..."
+          echo "🔍 This may take 2-3 minutes to create webapp tables"
           aws ecs wait tasks-stopped \
             --cluster "$CLUSTER_ARN" \
             --tasks "$TASK_ARN" \
@@ -587,7 +590,7 @@ jobs:
             --cli-connect-timeout 60
           
           # Get task details for debugging
-          echo "📋 Getting task details..."
+          echo "📋 Getting webapp database initialization task details..."
           TASK_DETAILS=$(aws ecs describe-tasks \
             --cluster "$CLUSTER_ARN" \
             --tasks "$TASK_ARN" \
@@ -626,9 +629,11 @@ jobs:
             echo "❌ Database initialization failed - invalid exit code: $EXIT_CODE"
             exit 1
           elif [ "$EXIT_CODE" -eq 0 ]; then
-            echo "✅ Database initialization completed successfully"
+            echo "✅ Webapp database initialization completed successfully"
+            echo "📝 Created webapp tables: user_api_keys, portfolio_holdings, watchlists, etc."
+            echo "📝 NOTE: stock_symbols table must be created by deploy-app-stocks workflow"
           else
-            echo "❌ Database initialization failed with exit code: $EXIT_CODE"
+            echo "❌ Webapp database initialization failed with exit code: $EXIT_CODE"
             exit 1
           fi
 ################################################################################
@@ -1203,7 +1208,8 @@ jobs:
           echo ""
           
           # Test stocks endpoint (requires DB)
-          echo "4. Testing stocks endpoint (requires database)..."
+          echo "4. Testing stocks endpoint (requires stock_symbols table)..."
+          echo "   📝 NOTE: This will fail with 'stock_symbols does not exist' until deploy-app-stocks runs"
           STOCKS_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}\nSIZE_DOWNLOAD:%{size_download}\n" "$API_URL/api/stocks?limit=1" 2>&1 || echo "CURL_FAILED")
           echo "Stocks response (first 500 chars): ${STOCKS_RESPONSE:0:500}"
           echo ""
