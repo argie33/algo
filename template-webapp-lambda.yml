@@ -24,11 +24,24 @@ Globals:
     Timeout: 30
     Runtime: nodejs18.x
   Api:
+    # Explicitly name the stage to match URL structure
+    Name: !Sub 'financial-dashboard-api-${EnvironmentName}'
+    StageName: !Ref EnvironmentName
     Cors:
       AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
       AllowHeaders: "'Content-Type,Authorization,X-Requested-With'"
       AllowOrigin: "'*'"
       AllowCredentials: false
+    # Enable access logging and add stage configuration
+    AccessLogSetting:
+      DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
+      Format: '$requestId $requestTime $identity.sourceIp $identity.userAgent $httpMethod $resourcePath $status $error.message $error.messageString'
+    MethodSettings:
+      - ResourcePath: '/*'
+        HttpMethod: '*'
+        LoggingLevel: INFO
+        DataTraceEnabled: true
+        MetricsEnabled: true
 
 Resources:
   # Cognito User Pool for authentication
@@ -217,6 +230,19 @@ Resources:
     Properties:
       LogGroupName: !Sub '/aws/lambda/financial-dashboard-api-${EnvironmentName}'
       RetentionInDays: 14
+
+  # API Gateway Resource Policy to allow all access (remove restrictions)
+  ApiGatewayResourcePolicy:
+    Type: AWS::ApiGateway::RestApiPolicy
+    Properties:
+      RestApiId: !Ref ServerlessRestApi
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action: 'execute-api:Invoke'
+            Resource: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ServerlessRestApi}/*'
 
 
 
@@ -495,6 +521,25 @@ Outputs:
     Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}'
     Export:
       Name: !Sub '${AWS::StackName}-ApiGatewayUrl'
+      
+  # Additional debugging outputs
+  ApiGatewayId:
+    Description: API Gateway REST API ID
+    Value: !Ref ServerlessRestApi
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiGatewayId'
+      
+  LambdaFunctionName:
+    Description: Lambda function name
+    Value: !Ref FinancialDashboardFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaFunctionName'
+      
+  LambdaFunctionArn:
+    Description: Lambda function ARN
+    Value: !GetAtt FinancialDashboardFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaFunctionArn'
 
   WebsiteURL:
     Description: CloudFront URL for the website

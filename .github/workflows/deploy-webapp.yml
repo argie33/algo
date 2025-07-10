@@ -868,7 +868,32 @@ jobs:
           echo "Full API URL: $API_URL"
           echo ""
           
+          # Get API Gateway information first
+          echo "🔍 API Gateway Information:"
+          API_ID=$(echo "$API_URL" | sed 's|https://||' | cut -d'.' -f1)
+          echo "API Gateway ID: $API_ID"
+          
+          # Check API Gateway status
+          echo "Getting API Gateway details..."
+          aws apigateway get-rest-api --rest-api-id "$API_ID" --query '{
+            id: id,
+            name: name,
+            createdDate: createdDate,
+            apiKeySource: apiKeySource,
+            policy: policy
+          }' --output json 2>/dev/null || echo "Could not get API Gateway details"
+          
+          # Check API Gateway stages
+          echo "Checking API Gateway stages..."
+          aws apigateway get-stages --rest-api-id "$API_ID" --query 'item[*].{
+            stageName: stageName,
+            deploymentId: deploymentId,
+            lastUpdatedDate: lastUpdatedDate,
+            accessLogSettings: accessLogSettings
+          }' --output json 2>/dev/null || echo "Could not get API Gateway stages"
+          
           # First, let's get some basic info about the Lambda function
+          echo ""
           echo "📋 Lambda Function Information:"
           LAMBDA_FUNCTION_NAME="financial-dashboard-api-${{ needs.setup.outputs.environment }}"
           
