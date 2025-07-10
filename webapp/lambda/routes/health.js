@@ -64,7 +64,7 @@ router.get('/ready', async (req, res) => {
     const { query } = require('../utils/database');
     
     // Check if critical application tables exist
-    const tables = ['stock_symbols'];
+    const tables = ['stock_symbols', 'stocks', 'last_updated'];
     const results = {};
     
     for (const table of tables) {

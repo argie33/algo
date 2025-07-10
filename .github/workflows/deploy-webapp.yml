@@ -468,6 +468,12 @@ jobs:
             DB_FILES_CHANGED="true"
           fi
           
+          # Force database initialization when loaddata branch deploys (temporary)
+          if [[ "${{ github.ref }}" == "refs/heads/loaddata" ]]; then
+            echo "🔧 loaddata branch - forcing database initialization"
+            DB_FILES_CHANGED="true"
+          fi
+          
           # Check if template changed (indicates stack recreation)
           if git diff --name-only HEAD~1 HEAD | grep -q "template-webapp-lambda.yml"; then
             echo "🔄 Webapp template changed - database initialization may be needed"

@@ -90,7 +90,24 @@ function getWebappDatabaseSchema() {
 -- WEBAPP CORE TABLES
 -- ================================
 
--- Create stocks table
+-- Create stock_symbols table (matches Lambda expectations)
+CREATE TABLE IF NOT EXISTS stock_symbols (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(10) NOT NULL UNIQUE,
+    security_name VARCHAR(255) NOT NULL,
+    exchange VARCHAR(50),
+    market_category VARCHAR(50),
+    cqs_symbol VARCHAR(20),
+    financial_status VARCHAR(10),
+    round_lot_size INTEGER DEFAULT 100,
+    etf BOOLEAN DEFAULT FALSE,
+    secondary_symbol VARCHAR(20),
+    test_issue BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create stocks table (backward compatibility)
 CREATE TABLE IF NOT EXISTS stocks (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(10) NOT NULL UNIQUE,
@@ -607,6 +624,9 @@ CREATE INDEX IF NOT EXISTS idx_prices_symbol ON prices(symbol);
 CREATE INDEX IF NOT EXISTS idx_prices_date ON prices(date);
 CREATE INDEX IF NOT EXISTS idx_price_weekly_symbol ON price_weekly(symbol);
 CREATE INDEX IF NOT EXISTS idx_price_weekly_date ON price_weekly(date);
+CREATE INDEX IF NOT EXISTS idx_stock_symbols_symbol ON stock_symbols(symbol);
+CREATE INDEX IF NOT EXISTS idx_stock_symbols_exchange ON stock_symbols(exchange);
+CREATE INDEX IF NOT EXISTS idx_stock_symbols_security_name ON stock_symbols(security_name);
 CREATE INDEX IF NOT EXISTS idx_stocks_symbol ON stocks(symbol);
 
 -- ================================
@@ -628,6 +648,7 @@ INSERT INTO health_status (table_name, table_category, critical_table, expected_
 ('trade_import_logs', 'trading', false, '1 day'),
 ('broker_api_configs', 'trading', false, '1 day'),
 ('trade_insights', 'trading', false, '1 hour'),
+('stock_symbols', 'symbols', true, '1 week'),
 ('stocks', 'symbols', true, '1 week'),
 ('prices', 'market_data', true, '1 day'),
 ('price_weekly', 'market_data', true, '1 week'),
@@ -663,6 +684,22 @@ async function initializeWebappDatabase() {
         // Initialize webapp database schema
         log('info', '🔧 Creating webapp database schema...');
         await executeSQL(client, getWebappDatabaseSchema(), 'Webapp database schema initialization');
+        
+        // Insert sample stock symbols data for testing
+        await executeSQL(client, `
+            INSERT INTO stock_symbols (symbol, security_name, exchange, market_category, financial_status, etf) VALUES
+            ('AAPL', 'Apple Inc.', 'NASDAQ', 'Q', 'N', false),
+            ('MSFT', 'Microsoft Corporation', 'NASDAQ', 'Q', 'N', false),
+            ('GOOGL', 'Alphabet Inc.', 'NASDAQ', 'Q', 'N', false),
+            ('AMZN', 'Amazon.com Inc.', 'NASDAQ', 'Q', 'N', false),
+            ('TSLA', 'Tesla Inc.', 'NASDAQ', 'Q', 'N', false),
+            ('NVDA', 'NVIDIA Corporation', 'NASDAQ', 'Q', 'N', false),
+            ('META', 'Meta Platforms Inc.', 'NASDAQ', 'Q', 'N', false),
+            ('SPY', 'SPDR S&P 500 ETF Trust', 'NYSE Arca', 'P', 'N', true),
+            ('QQQ', 'Invesco QQQ Trust', 'NASDAQ', 'Q', 'N', true),
+            ('VTI', 'Vanguard Total Stock Market ETF', 'NYSE Arca', 'P', 'N', true)
+            ON CONFLICT (symbol) DO NOTHING;
+        `, 'Insert sample stock symbols data');
         
         // Update last_updated tracking
         await executeSQL(client, `
