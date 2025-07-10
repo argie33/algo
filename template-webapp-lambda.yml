@@ -200,13 +200,6 @@ Resources:
             Method: ANY
             RestApiId: !Ref EnvironmentSpecificApi
 
-  # CloudWatch Log Group for API Gateway
-  ApiGatewayLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub '/aws/apigateway/financial-dashboard-${EnvironmentName}'
-      RetentionInDays: 14
-
   # CloudWatch Log Group for Lambda
   LambdaLogGroup:
     Type: AWS::Logs::LogGroup
@@ -227,15 +220,6 @@ Resources:
         AllowCredentials: false
       Variables:
         ENVIRONMENT: !Ref EnvironmentName
-      AccessLogSetting:
-        DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
-        Format: '$requestId $requestTime $identity.sourceIp $identity.userAgent $httpMethod $resourcePath $status $error.message $error.messageString'
-      MethodSettings:
-        - ResourcePath: '/*'
-          HttpMethod: '*'
-          LoggingLevel: INFO
-          DataTraceEnabled: true
-          MetricsEnabled: true
 
 
 
