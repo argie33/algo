@@ -1,0 +1,704 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Box,
+  Container,
+  Typography,
+  Grid,
+  Card,
+  CardContent,
+  CardHeader,
+  Button,
+  CircularProgress,
+  Alert,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  TextField,
+  Slider,
+  Chip,
+  Tabs,
+  Tab,
+  Switch,
+  FormControlLabel,
+  Tooltip,
+  IconButton,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Autocomplete,
+  Divider
+} from '@mui/material';
+import {
+  ScatterChart,
+  Scatter,
+  XAxis,
+  YAxis,
+  ZAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  Cell
+} from 'recharts';
+import {
+  ShowChart,
+  TrendingUp,
+  TrendingDown,
+  Analytics,
+  Assessment,
+  Timeline,
+  Speed,
+  Refresh as RefreshIcon,
+  Download as DownloadIcon,
+  Save as SaveIcon,
+  ViewInAr,
+  Grain,
+  Whatshot,
+  FlashOn,
+  Psychology,
+  Warning,
+  Science
+} from '@mui/icons-material';
+
+// Generate realistic volatility surface data
+const generateVolatilitySurface = (symbol, spotPrice) => {
+  const surfaceData = [];
+  const strikes = [];
+  const expiries = [7, 14, 30, 60, 90, 180, 365]; // Days to expiration
+  
+  // Generate strikes around current price
+  for (let i = -20; i <= 20; i += 2.5) {
+    const strike = spotPrice * (1 + i / 100);
+    if (strike > 0) strikes.push(strike);
+  }
+  
+  strikes.forEach(strike => {
+    expiries.forEach(dte => {
+      const moneyness = strike / spotPrice;
+      const timeToExpiry = dte / 365;
+      
+      // Realistic IV surface modeling
+      // Higher IV for OTM options and shorter expiries
+      const atmVol = 0.20 + Math.random() * 0.1; // Base ATM volatility
+      const skewEffect = Math.abs(moneyness - 1) * 0.3; // Volatility skew
+      const termStructure = Math.max(0.05, 0.8 - Math.sqrt(timeToExpiry) * 0.2); // Term structure
+      const smileEffect = Math.pow(Math.abs(moneyness - 1), 2) * 0.15; // Volatility smile
+      
+      const impliedVol = Math.max(0.05, 
+        atmVol + skewEffect + smileEffect + 
+        (Math.random() - 0.5) * 0.05 + // Random noise
+        (moneyness < 1 ? 0.05 : -0.02) // Put skew
+      ) * termStructure;
+      
+      surfaceData.push({
+        strike,
+        dte,
+        moneyness: ((moneyness - 1) * 100),
+        impliedVol: impliedVol,
+        atmVol: atmVol,
+        skew: skewEffect,
+        termStructure: termStructure,
+        type: moneyness < 1 ? 'ITM' : moneyness > 1 ? 'OTM' : 'ATM',
+        volume: Math.floor(Math.random() * 1000) + 50,
+        openInterest: Math.floor(Math.random() * 5000) + 100
+      });
+    });
+  });
+  
+  return surfaceData;
+};
+
+// Calculate volatility term structure
+const calculateTermStructure = (surfaceData) => {
+  const expiries = [...new Set(surfaceData.map(d => d.dte))].sort((a, b) => a - b);
+  
+  return expiries.map(dte => {
+    const atmOptions = surfaceData.filter(d => 
+      d.dte === dte && Math.abs(d.moneyness) < 2.5
+    );
+    
+    const avgIV = atmOptions.length > 0 ? 
+      atmOptions.reduce((sum, opt) => sum + opt.impliedVol, 0) / atmOptions.length : 0;
+    
+    return {
+      dte,
+      atmIV: avgIV,
+      ivRank: Math.random() * 100, // IV Rank vs historical
+      ivPercentile: Math.random() * 100 // IV Percentile
+    };
+  });
+};
+
+// Calculate volatility skew
+const calculateVolatilitySkew = (surfaceData, selectedExpiry = 30) => {
+  const expiryData = surfaceData.filter(d => d.dte === selectedExpiry);
+  
+  return expiryData
+    .sort((a, b) => a.strike - b.strike)
+    .map(d => ({
+      strike: d.strike,
+      moneyness: d.moneyness,
+      impliedVol: d.impliedVol * 100,
+      type: d.type,
+      volume: d.volume
+    }));
+};
+
+// Surface analysis metrics
+const analyzeSurface = (surfaceData, spotPrice) => {
+  const atmData = surfaceData.filter(d => Math.abs(d.moneyness) < 2.5);
+  const shortTermData = surfaceData.filter(d => d.dte <= 30);
+  const longTermData = surfaceData.filter(d => d.dte >= 60);
+  
+  const avgATMVol = atmData.reduce((sum, d) => sum + d.impliedVol, 0) / atmData.length;
+  const avgShortVol = shortTermData.reduce((sum, d) => sum + d.impliedVol, 0) / shortTermData.length;
+  const avgLongVol = longTermData.reduce((sum, d) => sum + d.impliedVol, 0) / longTermData.length;
+  
+  // Calculate put-call skew
+  const putsData = surfaceData.filter(d => d.moneyness < -5);
+  const callsData = surfaceData.filter(d => d.moneyness > 5);
+  const avgPutVol = putsData.reduce((sum, d) => sum + d.impliedVol, 0) / putsData.length;
+  const avgCallVol = callsData.reduce((sum, d) => sum + d.impliedVol, 0) / callsData.length;
+  
+  return {
+    avgATMVol: (avgATMVol * 100).toFixed(1),
+    termStructure: avgShortVol > avgLongVol ? 'Backwardation' : 'Contango',
+    putCallSkew: ((avgPutVol - avgCallVol) * 100).toFixed(1),
+    ivRank: Math.floor(Math.random() * 100),
+    volatilityRegime: avgATMVol > 0.3 ? 'High Vol' : avgATMVol > 0.2 ? 'Medium Vol' : 'Low Vol',
+    trend: Math.random() > 0.5 ? 'Increasing' : 'Decreasing'
+  };
+};
+
+const VolatilitySurface = () => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState(0);
+  const [selectedSymbol, setSelectedSymbol] = useState('AAPL');
+  const [selectedExpiry, setSelectedExpiry] = useState(30);
+  const [viewMode, setViewMode] = useState('surface'); // surface, skew, term
+  const [show3D, setShow3D] = useState(false);
+  
+  // Data states
+  const [surfaceData, setSurfaceData] = useState([]);
+  const [termStructure, setTermStructure] = useState([]);
+  const [volatilitySkew, setVolatilitySkew] = useState([]);
+  const [surfaceAnalysis, setSurfaceAnalysis] = useState(null);
+  const [currentPrice, setCurrentPrice] = useState(150.25);
+  
+  // Controls
+  const [moneynessBounds, setMoneynessBounds] = useState([-20, 20]);
+  const [expiryBounds, setExpiryBounds] = useState([7, 365]);
+  
+  const symbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'AMZN', 'META', 'SPY', 'QQQ', 'IWM'];
+  const expiries = [7, 14, 21, 30, 45, 60, 90, 120, 180, 365];
+  
+  useEffect(() => {
+    loadVolatilityData();
+  }, [selectedSymbol, selectedExpiry]);
+  
+  const loadVolatilityData = () => {
+    setLoading(true);
+    
+    try {
+      // Simulate realistic market data
+      const price = 150.25 + (Math.random() - 0.5) * 10;
+      setCurrentPrice(price);
+      
+      const surface = generateVolatilitySurface(selectedSymbol, price);
+      const term = calculateTermStructure(surface);
+      const skew = calculateVolatilitySkew(surface, selectedExpiry);
+      const analysis = analyzeSurface(surface, price);
+      
+      setSurfaceData(surface);
+      setTermStructure(term);
+      setVolatilitySkew(skew);
+      setSurfaceAnalysis(analysis);
+      
+    } catch (err) {
+      setError('Failed to load volatility surface data');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Filter surface data based on bounds
+  const filteredSurfaceData = useMemo(() => {
+    return surfaceData.filter(d => 
+      d.moneyness >= moneynessBounds[0] && 
+      d.moneyness <= moneynessBounds[1] &&
+      d.dte >= expiryBounds[0] && 
+      d.dte <= expiryBounds[1]
+    );
+  }, [surfaceData, moneynessBounds, expiryBounds]);
+  
+  const getVolatilityColor = (vol) => {
+    if (vol < 0.15) return '#00C49F'; // Low vol - green
+    if (vol < 0.25) return '#FFBB28'; // Medium vol - yellow
+    if (vol < 0.35) return '#FF8042'; // High vol - orange
+    return '#FF4444'; // Very high vol - red
+  };
+  
+  const getSkewColor = (moneyness) => {
+    if (Math.abs(moneyness) < 2.5) return '#8884d8'; // ATM
+    if (moneyness < 0) return '#82ca9d'; // ITM/Puts
+    return '#ffc658'; // OTM/Calls
+  };
+  
+  return (
+    <Container maxWidth="xl" sx={{ py: 4 }}>
+      {/* Header */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" fontWeight={700} gutterBottom>
+          Volatility Surface Analysis
+        </Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+          Advanced 3D volatility surface modeling, skew analysis, and term structure visualization
+        </Typography>
+        <Box display="flex" gap={1} flexWrap="wrap">
+          <Chip label="3D Surface" color="primary" size="small" variant="outlined" />
+          <Chip label="Volatility Skew" color="success" size="small" variant="outlined" />
+          <Chip label="Term Structure" color="info" size="small" variant="outlined" />
+          <Chip label="IV Rank & Percentile" color="warning" size="small" variant="outlined" />
+        </Box>
+      </Box>
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+
+      {/* Controls */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} sm={2}>
+              <Autocomplete
+                options={symbols}
+                value={selectedSymbol}
+                onChange={(_, value) => value && setSelectedSymbol(value)}
+                renderInput={(params) => (
+                  <TextField {...params} label="Symbol" size="small" />
+                )}
+              />
+            </Grid>
+            <Grid item xs={12} sm={2}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Expiry (Days)</InputLabel>
+                <Select
+                  value={selectedExpiry}
+                  label="Expiry (Days)"
+                  onChange={(e) => setSelectedExpiry(e.target.value)}
+                >
+                  {expiries.map(exp => (
+                    <MenuItem key={exp} value={exp}>{exp}d</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={2}>
+              <FormControl fullWidth size="small">
+                <InputLabel>View Mode</InputLabel>
+                <Select
+                  value={viewMode}
+                  label="View Mode"
+                  onChange={(e) => setViewMode(e.target.value)}
+                >
+                  <MenuItem value="surface">3D Surface</MenuItem>
+                  <MenuItem value="skew">Volatility Skew</MenuItem>
+                  <MenuItem value="term">Term Structure</MenuItem>
+                  <MenuItem value="heatmap">IV Heatmap</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={2}>
+              <Button
+                variant="contained"
+                startIcon={loading ? <CircularProgress size={16} /> : <RefreshIcon />}
+                onClick={loadVolatilityData}
+                disabled={loading}
+                fullWidth
+              >
+                Refresh
+              </Button>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              {surfaceAnalysis && (
+                <Box display="flex" gap={2}>
+                  <Box textAlign="center">
+                    <Typography variant="caption" color="text.secondary">ATM IV</Typography>
+                    <Typography variant="h6" fontWeight="bold">
+                      {surfaceAnalysis.avgATMVol}%
+                    </Typography>
+                  </Box>
+                  <Box textAlign="center">
+                    <Typography variant="caption" color="text.secondary">IV Rank</Typography>
+                    <Typography variant="h6" fontWeight="bold" color="warning.main">
+                      {surfaceAnalysis.ivRank}
+                    </Typography>
+                  </Box>
+                  <Box textAlign="center">
+                    <Typography variant="caption" color="text.secondary">Regime</Typography>
+                    <Typography variant="h6" fontWeight="bold">
+                      {surfaceAnalysis.volatilityRegime}
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+
+      <Grid container spacing={3}>
+        {/* Main Visualization */}
+        <Grid item xs={12} lg={8}>
+          <Card>
+            <CardHeader 
+              title={`Volatility ${viewMode.charAt(0).toUpperCase() + viewMode.slice(1)} - ${selectedSymbol}`}
+              subheader={`Current Price: $${currentPrice.toFixed(2)}`}
+              action={
+                <Box display="flex" gap={1}>
+                  <FormControlLabel
+                    control={
+                      <Switch 
+                        checked={show3D} 
+                        onChange={(e) => setShow3D(e.target.checked)}
+                        size="small"
+                      />
+                    }
+                    label="3D View"
+                  />
+                  <Button variant="outlined" startIcon={<SaveIcon />} size="small">
+                    Save
+                  </Button>
+                  <Button variant="outlined" startIcon={<DownloadIcon />} size="small">
+                    Export
+                  </Button>
+                </Box>
+              }
+            />
+            <CardContent>
+              <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ mb: 3 }}>
+                <Tab label="Surface View" />
+                <Tab label="Skew Analysis" />
+                <Tab label="Term Structure" />
+                <Tab label="Data Table" />
+              </Tabs>
+              
+              {loading ? (
+                <Box display="flex" justifyContent="center" py={4}>
+                  <CircularProgress />
+                </Box>
+              ) : (
+                <>
+                  {activeTab === 0 && (
+                    <Box>
+                      <ResponsiveContainer width="100%" height={500}>
+                        <ScatterChart data={filteredSurfaceData}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis 
+                            dataKey="moneyness" 
+                            type="number" 
+                            domain={moneynessBounds}
+                            label={{ value: 'Moneyness (%)', position: 'insideBottom', offset: -10 }}
+                          />
+                          <YAxis 
+                            dataKey="dte" 
+                            type="number" 
+                            domain={expiryBounds}
+                            label={{ value: 'Days to Expiry', angle: -90, position: 'insideLeft' }}
+                          />
+                          <ZAxis 
+                            dataKey="impliedVol" 
+                            range={[20, 200]}
+                          />
+                          <RechartsTooltip 
+                            formatter={(value, name) => {
+                              if (name === 'impliedVol') return [`${(value * 100).toFixed(1)}%`, 'IV'];
+                              return [value, name];
+                            }}
+                            labelFormatter={(value) => `Moneyness: ${value}%`}
+                          />
+                          <Scatter 
+                            data={filteredSurfaceData} 
+                            fill={(entry) => getVolatilityColor(entry.impliedVol)}
+                          />
+                        </ScatterChart>
+                      </ResponsiveContainer>
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+                        Bubble size represents implied volatility level. Color indicates vol regime.
+                      </Typography>
+                    </Box>
+                  )}
+                  
+                  {activeTab === 1 && (
+                    <Box>
+                      <ResponsiveContainer width="100%" height={400}>
+                        <LineChart data={volatilitySkew}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis 
+                            dataKey="strike" 
+                            label={{ value: 'Strike Price ($)', position: 'insideBottom', offset: -10 }}
+                          />
+                          <YAxis 
+                            label={{ value: 'Implied Volatility (%)', angle: -90, position: 'insideLeft' }}
+                          />
+                          <RechartsTooltip 
+                            formatter={(value) => [`${value.toFixed(1)}%`, 'IV']}
+                            labelFormatter={(strike) => `Strike: $${strike}`}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="impliedVol" 
+                            stroke="#8884d8" 
+                            strokeWidth={3}
+                            dot={{ fill: '#8884d8', strokeWidth: 2, r: 4 }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                      <Box mt={2}>
+                        <Typography variant="h6" gutterBottom>Skew Analysis</Typography>
+                        <Grid container spacing={2}>
+                          <Grid item xs={4}>
+                            <Paper sx={{ p: 2, textAlign: 'center' }}>
+                              <Typography variant="h5" color="primary">
+                                {surfaceAnalysis?.putCallSkew}%
+                              </Typography>
+                              <Typography variant="caption">Put-Call Skew</Typography>
+                            </Paper>
+                          </Grid>
+                          <Grid item xs={4}>
+                            <Paper sx={{ p: 2, textAlign: 'center' }}>
+                              <Typography variant="h5" color="secondary">
+                                {selectedExpiry}d
+                              </Typography>
+                              <Typography variant="caption">Expiry</Typography>
+                            </Paper>
+                          </Grid>
+                          <Grid item xs={4}>
+                            <Paper sx={{ p: 2, textAlign: 'center' }}>
+                              <Typography variant="h5" color="success.main">
+                                {Math.max(...volatilitySkew.map(d => d.impliedVol)).toFixed(1)}%
+                              </Typography>
+                              <Typography variant="caption">Peak IV</Typography>
+                            </Paper>
+                          </Grid>
+                        </Grid>
+                      </Box>
+                    </Box>
+                  )}
+                  
+                  {activeTab === 2 && (
+                    <Box>
+                      <ResponsiveContainer width="100%" height={400}>
+                        <AreaChart data={termStructure}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis 
+                            dataKey="dte" 
+                            label={{ value: 'Days to Expiry', position: 'insideBottom', offset: -10 }}
+                          />
+                          <YAxis 
+                            label={{ value: 'ATM Implied Volatility', angle: -90, position: 'insideLeft' }}
+                            tickFormatter={(value) => `${(value * 100).toFixed(0)}%`}
+                          />
+                          <RechartsTooltip 
+                            formatter={(value) => [`${(value * 100).toFixed(1)}%`, 'ATM IV']}
+                            labelFormatter={(dte) => `${dte} days to expiry`}
+                          />
+                          <Area 
+                            type="monotone" 
+                            dataKey="atmIV" 
+                            stroke="#82ca9d" 
+                            fill="#82ca9d"
+                            fillOpacity={0.3}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                      <Box mt={2}>
+                        <Typography variant="h6" gutterBottom>Term Structure Analysis</Typography>
+                        <Grid container spacing={2}>
+                          <Grid item xs={6}>
+                            <Paper sx={{ p: 2, textAlign: 'center' }}>
+                              <Typography variant="h5" color="primary">
+                                {surfaceAnalysis?.termStructure}
+                              </Typography>
+                              <Typography variant="caption">Structure Type</Typography>
+                            </Paper>
+                          </Grid>
+                          <Grid item xs={6}>
+                            <Paper sx={{ p: 2, textAlign: 'center' }}>
+                              <Typography variant="h5" color="warning.main">
+                                {surfaceAnalysis?.trend}
+                              </Typography>
+                              <Typography variant="caption">IV Trend</Typography>
+                            </Paper>
+                          </Grid>
+                        </Grid>
+                      </Box>
+                    </Box>
+                  )}
+                  
+                  {activeTab === 3 && (
+                    <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 500 }}>
+                      <Table stickyHeader size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Strike</TableCell>
+                            <TableCell>Expiry</TableCell>
+                            <TableCell align="right">Moneyness</TableCell>
+                            <TableCell align="right">IV</TableCell>
+                            <TableCell align="right">Volume</TableCell>
+                            <TableCell align="right">OI</TableCell>
+                            <TableCell>Type</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {filteredSurfaceData.slice(0, 50).map((row, index) => (
+                            <TableRow key={index} hover>
+                              <TableCell>${row.strike.toFixed(2)}</TableCell>
+                              <TableCell>{row.dte}d</TableCell>
+                              <TableCell align="right">
+                                <Typography 
+                                  variant="body2" 
+                                  color={Math.abs(row.moneyness) < 2.5 ? 'primary.main' : 'text.secondary'}
+                                >
+                                  {row.moneyness.toFixed(1)}%
+                                </Typography>
+                              </TableCell>
+                              <TableCell align="right">
+                                <Typography sx={{ color: getVolatilityColor(row.impliedVol) }}>
+                                  {(row.impliedVol * 100).toFixed(1)}%
+                                </Typography>
+                              </TableCell>
+                              <TableCell align="right">{row.volume.toLocaleString()}</TableCell>
+                              <TableCell align="right">{row.openInterest.toLocaleString()}</TableCell>
+                              <TableCell>
+                                <Chip 
+                                  label={row.type} 
+                                  color={row.type === 'ATM' ? 'primary' : row.type === 'ITM' ? 'success' : 'warning'}
+                                  size="small"
+                                  variant="outlined"
+                                />
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Sidebar Analysis */}
+        <Grid item xs={12} lg={4}>
+          {/* Surface Metrics */}
+          {surfaceAnalysis && (
+            <Card sx={{ mb: 3 }}>
+              <CardHeader title="Surface Metrics" />
+              <CardContent>
+                <Grid container spacing={2}>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">ATM Volatility</Typography>
+                    <Typography variant="h6" fontWeight="bold">
+                      {surfaceAnalysis.avgATMVol}%
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">IV Rank</Typography>
+                    <Typography variant="h6" fontWeight="bold" color="warning.main">
+                      {surfaceAnalysis.ivRank}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Put-Call Skew</Typography>
+                    <Typography variant="h6" fontWeight="bold">
+                      {surfaceAnalysis.putCallSkew}%
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Vol Regime</Typography>
+                    <Typography variant="h6" fontWeight="bold">
+                      {surfaceAnalysis.volatilityRegime}
+                    </Typography>
+                  </Grid>
+                </Grid>
+                <Divider sx={{ my: 2 }} />
+                <Box>
+                  <Typography variant="caption" color="text.secondary">Term Structure</Typography>
+                  <Typography variant="body1" fontWeight="bold">
+                    {surfaceAnalysis.termStructure}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                    {surfaceAnalysis.termStructure === 'Contango' ? 
+                      'Front month IV < back month IV' : 
+                      'Front month IV > back month IV'}
+                  </Typography>
+                </Box>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Controls */}
+          <Card>
+            <CardHeader title="Display Controls" />
+            <CardContent>
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Moneyness Range (%)
+                </Typography>
+                <Slider
+                  value={moneynessBounds}
+                  onChange={(_, newValue) => setMoneynessBounds(newValue)}
+                  valueLabelDisplay="auto"
+                  min={-50}
+                  max={50}
+                  step={5}
+                />
+              </Box>
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Days to Expiry Range
+                </Typography>
+                <Slider
+                  value={expiryBounds}
+                  onChange={(_, newValue) => setExpiryBounds(newValue)}
+                  valueLabelDisplay="auto"
+                  min={1}
+                  max={365}
+                  step={7}
+                />
+              </Box>
+              <Box>
+                <Typography variant="subtitle2" gutterBottom>
+                  Analysis Notes
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  • Higher IV for OTM options indicates volatility skew
+                  • Term structure shows volatility expectations over time
+                  • IV rank compares current levels to historical range
+                </Typography>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </Container>
+  );
+};
+
+export default VolatilitySurface;

@@ -80,7 +80,6 @@ import ScoresDashboard from './pages/ScoresDashboard'
 import { useAuth } from './contexts/AuthContext'
 import AuthModal from './components/auth/AuthModal'
 import ProtectedRoute from './components/auth/ProtectedRoute'
-import ComingSoon from './pages/ComingSoon'
 import SectorAnalysis from './pages/SectorAnalysis'
 import TestApiPage from './pages/TestApiPage'
 import PortfolioPerformanceSimple from './pages/PortfolioPerformanceSimple'
@@ -94,6 +93,13 @@ import EducationalContent from './pages/EducationalContent'
 import PatternRecognition from './pages/PatternRecognition'
 import AIAssistant from './pages/AIAssistant'
 import Commodities from './pages/Commodities'
+import OptionsAnalytics from './pages/options/OptionsAnalytics'
+import OptionsStrategies from './pages/options/OptionsStrategies'
+import OptionsFlow from './pages/options/OptionsFlow'
+import VolatilitySurface from './pages/options/VolatilitySurface'
+import GreeksMonitor from './pages/options/GreeksMonitor'
+import RiskManagement from './pages/RiskManagement'
+import LiveDataMonitor from './components/LiveDataMonitor'
 
 const drawerWidth = 240
 
@@ -118,6 +124,13 @@ const menuItems = [
   { text: 'Earnings Calendar', icon: <EventIcon />, path: '/earnings', category: 'stocks' },
   { text: 'Watchlist', icon: <TimelineIcon />, path: '/watchlist', category: 'stocks' },
   
+  // Options Trading Section (Premium)
+  { text: 'Options Analytics', icon: <AssessmentIcon />, path: '/options', category: 'options', premium: true },
+  { text: 'Options Strategies', icon: <AnalyticsIcon />, path: '/options/strategies', category: 'options', premium: true },
+  { text: 'Options Flow', icon: <TimelineIcon />, path: '/options/flow', category: 'options', premium: true },
+  { text: 'Volatility Surface', icon: <ShowChartIcon />, path: '/options/volatility', category: 'options', premium: true },
+  { text: 'Greeks Monitor', icon: <AnalyticsIcon />, path: '/options/greeks', category: 'options', premium: true },
+  
   // Sentiment Analysis Section (Premium)
   { text: 'Market Sentiment', icon: <PsychologyIcon />, path: '/sentiment', category: 'sentiment', premium: true },
   { text: 'Social Media Sentiment', icon: <PsychologyIcon />, path: '/sentiment/social', category: 'sentiment', premium: true },
@@ -137,6 +150,8 @@ const menuItems = [
   
   // Tools Section
   { text: 'Backtester', icon: <PlayArrow />, path: '/backtest', category: 'tools', premium: true },
+  { text: 'Risk Management', icon: <HealthAndSafetyIcon />, path: '/risk', category: 'tools', premium: true },
+  { text: 'Live Data Monitor', icon: <TimelineIcon />, path: '/data/live', category: 'tools', premium: true },
   { text: 'AI Assistant', icon: <PsychologyIcon />, path: '/tools/ai', category: 'tools', premium: true },
   { text: 'Service Health', icon: <HealthAndSafetyIcon />, path: '/service-health', category: 'tools' },
   { text: 'Settings', icon: <SettingsIcon />, path: '/settings', category: 'tools' },
@@ -150,6 +165,7 @@ function App() {
   const [expandedSections, setExpandedSections] = useState({
     markets: true,
     stocks: true,
+    options: true,
     sentiment: false,
     portfolio: true,
     research: false,
@@ -208,6 +224,7 @@ function App() {
     main: 'Dashboard',
     markets: 'Markets',
     stocks: 'Stocks',
+    options: 'Options Trading',
     sentiment: 'Sentiment Analysis',
     portfolio: 'Portfolio',
     research: 'Research & Education',
@@ -479,11 +496,22 @@ function App() {
             <Route path="/sentiment/social" element={<SocialMediaSentiment />} />
             <Route path="/sentiment/news" element={<NewsSentiment />} />
             <Route path="/sentiment/analysts" element={<AnalystInsights />} />
-            <Route path="/research/commentary" element={<ComingSoon pageName="Market Commentary" description="Expert market commentary and analysis." />} />
-            <Route path="/research/education" element={<ComingSoon pageName="Educational Content" description="Learn about investing and market analysis." />} />
-            <Route path="/research/reports" element={<ComingSoon pageName="Research Reports" description="In-depth research reports and market insights." />} />
+            <Route path="/research/commentary" element={<MarketCommentary />} />
+            <Route path="/research/education" element={<EducationalContent />} />
+            <Route path="/research/reports" element={<AnalystInsights />} />
             <Route path="/stocks/patterns" element={<PatternRecognition />} />
             <Route path="/tools/ai" element={<AIAssistant />} />
+            
+            {/* Options Trading Routes */}
+            <Route path="/options" element={<OptionsAnalytics />} />
+            <Route path="/options/strategies" element={<OptionsStrategies />} />
+            <Route path="/options/flow" element={<OptionsFlow />} />
+            <Route path="/options/volatility" element={<VolatilitySurface />} />
+            <Route path="/options/greeks" element={<GreeksMonitor />} />
+            
+            {/* Risk & Data Routes */}
+            <Route path="/risk" element={<RiskManagement />} />
+            <Route path="/data/live" element={<LiveDataMonitor />} />
           </Routes>
         </Container>
       </Box>
