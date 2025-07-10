@@ -529,6 +529,207 @@ CREATE TABLE IF NOT EXISTS health_status (
 );
 
 -- ================================
+-- STOCK SYMBOL AND COMPANY DATA TABLES
+-- ================================
+
+-- Create stock_symbols table (if not exists)
+CREATE TABLE IF NOT EXISTS stock_symbols (
+    symbol VARCHAR(10) PRIMARY KEY,
+    security_name VARCHAR(200),
+    market_category VARCHAR(10),
+    test_issue BOOLEAN DEFAULT FALSE,
+    financial_status VARCHAR(10),
+    round_lot_size INTEGER,
+    exchange VARCHAR(10),
+    nasdaq_symbol BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create company_profile table (from loadinfo.py schema)
+CREATE TABLE IF NOT EXISTS company_profile (
+    ticker VARCHAR(10) PRIMARY KEY,
+    short_name VARCHAR(100),
+    long_name VARCHAR(200),
+    display_name VARCHAR(200),
+    quote_type VARCHAR(50),
+    symbol_type VARCHAR(50),
+    triggerable BOOLEAN,
+    has_pre_post_market_data BOOLEAN,
+    price_hint INT,
+    max_age_sec INT,
+    language VARCHAR(20),
+    region VARCHAR(20),
+    financial_currency VARCHAR(10),
+    currency VARCHAR(10),
+    market VARCHAR(50),
+    quote_source_name VARCHAR(100),
+    custom_price_alert_confidence VARCHAR(20),
+    address1 VARCHAR(200),
+    city VARCHAR(100),
+    state VARCHAR(50),
+    postal_code VARCHAR(20),
+    country VARCHAR(100),
+    phone_number VARCHAR(50),
+    website_url VARCHAR(200),
+    ir_website_url VARCHAR(200),
+    message_board_id VARCHAR(100),
+    corporate_actions JSONB,
+    sector VARCHAR(100),
+    sector_key VARCHAR(100),
+    sector_disp VARCHAR(100),
+    industry VARCHAR(100),
+    industry_key VARCHAR(100),
+    industry_disp VARCHAR(100),
+    business_summary TEXT,
+    employee_count INT,
+    first_trade_date_ms BIGINT,
+    gmt_offset_ms BIGINT,
+    exchange VARCHAR(20),
+    full_exchange_name VARCHAR(100),
+    exchange_timezone_name VARCHAR(100),
+    exchange_timezone_short_name VARCHAR(20),
+    exchange_data_delayed_by_sec INT,
+    post_market_time_ms BIGINT,
+    regular_market_time_ms BIGINT
+);
+
+-- Create leadership_team table
+CREATE TABLE IF NOT EXISTS leadership_team (
+    ticker VARCHAR(10) NOT NULL REFERENCES company_profile(ticker),
+    person_name VARCHAR(200) NOT NULL,
+    age INT,
+    title VARCHAR(200),
+    birth_year INT,
+    fiscal_year INT,
+    total_pay NUMERIC,
+    exercised_value NUMERIC,
+    unexercised_value NUMERIC,
+    role_source VARCHAR(50),
+    PRIMARY KEY(ticker, person_name, role_source)
+);
+
+-- Create governance_scores table
+CREATE TABLE IF NOT EXISTS governance_scores (
+    ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
+    audit_risk INT,
+    board_risk INT,
+    compensation_risk INT,
+    shareholder_rights_risk INT,
+    overall_risk INT,
+    governance_epoch_ms BIGINT,
+    comp_data_as_of_ms BIGINT
+);
+
+-- Create market_data table
+CREATE TABLE IF NOT EXISTS market_data (
+    ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
+    previous_close NUMERIC,
+    regular_market_previous_close NUMERIC,
+    open_price NUMERIC,
+    regular_market_open NUMERIC,
+    day_low NUMERIC,
+    regular_market_day_low NUMERIC,
+    day_high NUMERIC,
+    regular_market_day_high NUMERIC,
+    regular_market_price NUMERIC,
+    regular_market_time_ms BIGINT,
+    post_market_change_percent NUMERIC,
+    post_market_change NUMERIC,
+    post_market_price NUMERIC,
+    post_market_time_ms BIGINT,
+    pre_market_change_percent NUMERIC,
+    pre_market_change NUMERIC,
+    pre_market_price NUMERIC,
+    pre_market_time_ms BIGINT,
+    bid NUMERIC,
+    ask NUMERIC,
+    bid_size INT,
+    ask_size INT,
+    fifty_two_week_low NUMERIC,
+    fifty_two_week_high NUMERIC,
+    fifty_two_week_change NUMERIC,
+    fifty_two_week_change_pct NUMERIC,
+    fifty_day_avg NUMERIC,
+    fifty_day_avg_change NUMERIC,
+    fifty_day_avg_change_pct NUMERIC,
+    two_hundred_day_avg NUMERIC,
+    two_hundred_day_avg_change NUMERIC,
+    two_hundred_day_avg_change_pct NUMERIC,
+    source_interval_sec INT,
+    market_cap BIGINT
+);
+
+-- Create key_metrics table
+CREATE TABLE IF NOT EXISTS key_metrics (
+    ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
+    trailing_pe NUMERIC,
+    forward_pe NUMERIC,
+    price_to_sales_ttm NUMERIC,
+    price_to_book NUMERIC,
+    book_value NUMERIC,
+    peg_ratio NUMERIC,
+    enterprise_value BIGINT,
+    ev_to_revenue NUMERIC,
+    ev_to_ebitda NUMERIC,
+    profit_margins NUMERIC,
+    gross_margins NUMERIC,
+    operating_margins NUMERIC,
+    return_on_assets NUMERIC,
+    return_on_equity NUMERIC,
+    revenue_ttm BIGINT,
+    revenue_per_share NUMERIC,
+    quarterly_revenue_growth NUMERIC,
+    gross_profit_ttm BIGINT,
+    ebitda BIGINT,
+    net_income_to_common_ttm BIGINT,
+    diluted_eps NUMERIC,
+    quarterly_earnings_growth NUMERIC,
+    total_cash BIGINT,
+    total_cash_per_share NUMERIC,
+    total_debt BIGINT,
+    debt_to_equity NUMERIC,
+    current_ratio NUMERIC,
+    book_value_per_share NUMERIC,
+    operating_cash_flow_ttm BIGINT,
+    levered_free_cash_flow_ttm BIGINT,
+    shares_outstanding BIGINT,
+    float_shares BIGINT,
+    shares_short BIGINT,
+    shares_short_prior_month BIGINT,
+    short_ratio NUMERIC,
+    short_percent_of_float NUMERIC,
+    shares_short_prior_month_date_ms BIGINT,
+    date_short_interest_ms BIGINT,
+    shares_percent_held_by_insiders NUMERIC,
+    shares_percent_held_by_institutions NUMERIC,
+    forward_annual_dividend_rate NUMERIC,
+    forward_annual_dividend_yield NUMERIC,
+    trailing_annual_dividend_rate NUMERIC,
+    trailing_annual_dividend_yield NUMERIC,
+    five_year_avg_dividend_yield NUMERIC,
+    last_annual_dividend_amt NUMERIC,
+    last_annual_dividend_yield NUMERIC,
+    last_dividend_amt NUMERIC,
+    last_dividend_date_ms BIGINT,
+    dividend_date_ms BIGINT,
+    payout_ratio NUMERIC
+);
+
+-- Create analyst_estimates table
+CREATE TABLE IF NOT EXISTS analyst_estimates (
+    ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
+    target_high_price NUMERIC,
+    target_low_price NUMERIC,
+    target_mean_price NUMERIC,
+    target_median_price NUMERIC,
+    recommendation_key VARCHAR(50),
+    recommendation_mean NUMERIC,
+    analyst_opinion_count INT,
+    average_analyst_rating NUMERIC
+);
+
+-- ================================
 -- BASIC PRICE DATA TABLES
 -- ================================
 
@@ -600,7 +801,34 @@ CREATE INDEX IF NOT EXISTS idx_prices_symbol ON prices(symbol);
 CREATE INDEX IF NOT EXISTS idx_prices_date ON prices(date);
 CREATE INDEX IF NOT EXISTS idx_price_weekly_symbol ON price_weekly(symbol);
 CREATE INDEX IF NOT EXISTS idx_price_weekly_date ON price_weekly(date);
--- Stock symbol indexes will be created by the main data loading scripts
+
+-- Stock symbol and company data indexes
+CREATE INDEX IF NOT EXISTS idx_stock_symbols_symbol ON stock_symbols(symbol);
+CREATE INDEX IF NOT EXISTS idx_stock_symbols_exchange ON stock_symbols(exchange);
+CREATE INDEX IF NOT EXISTS idx_stock_symbols_market_category ON stock_symbols(market_category);
+
+-- Company profile indexes
+CREATE INDEX IF NOT EXISTS idx_company_profile_ticker ON company_profile(ticker);
+CREATE INDEX IF NOT EXISTS idx_company_profile_sector ON company_profile(sector);
+CREATE INDEX IF NOT EXISTS idx_company_profile_industry ON company_profile(industry);
+CREATE INDEX IF NOT EXISTS idx_company_profile_exchange ON company_profile(exchange);
+
+-- Leadership team indexes
+CREATE INDEX IF NOT EXISTS idx_leadership_team_ticker ON leadership_team(ticker);
+CREATE INDEX IF NOT EXISTS idx_leadership_team_title ON leadership_team(title);
+
+-- Market data indexes
+CREATE INDEX IF NOT EXISTS idx_market_data_ticker ON market_data(ticker);
+CREATE INDEX IF NOT EXISTS idx_market_data_market_cap ON market_data(market_cap);
+
+-- Key metrics indexes
+CREATE INDEX IF NOT EXISTS idx_key_metrics_ticker ON key_metrics(ticker);
+CREATE INDEX IF NOT EXISTS idx_key_metrics_pe ON key_metrics(trailing_pe);
+CREATE INDEX IF NOT EXISTS idx_key_metrics_market_cap ON key_metrics(enterprise_value);
+
+-- Analyst estimates indexes
+CREATE INDEX IF NOT EXISTS idx_analyst_estimates_ticker ON analyst_estimates(ticker);
+CREATE INDEX IF NOT EXISTS idx_analyst_estimates_recommendation ON analyst_estimates(recommendation_key);
 
 -- ================================
 -- INITIALIZE HEALTH STATUS
@@ -621,6 +849,13 @@ INSERT INTO health_status (table_name, table_category, critical_table, expected_
 ('trade_import_logs', 'trading', false, '1 day'),
 ('broker_api_configs', 'trading', false, '1 day'),
 ('trade_insights', 'trading', false, '1 hour'),
+('stock_symbols', 'market_data', true, '1 day'),
+('company_profile', 'market_data', true, '1 week'),
+('leadership_team', 'market_data', false, '1 week'),
+('governance_scores', 'market_data', false, '1 week'),
+('market_data', 'market_data', true, '1 day'),
+('key_metrics', 'market_data', true, '1 day'),
+('analyst_estimates', 'market_data', false, '1 day'),
 ('prices', 'market_data', true, '1 day'),
 ('price_weekly', 'market_data', true, '1 week'),
 ('last_updated', 'system', true, '1 hour'),
