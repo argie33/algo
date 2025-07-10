@@ -843,7 +843,7 @@ jobs:
           
           # Also upload the spa/index.html for debugging (overwrite the built version)
           echo "🔧 Deploying spa/index.html for debugging..."
-          aws s3 cp ../../spa/index.html s3://"$BUCKET_NAME"/index.html \
+          aws s3 cp ../spa/index.html s3://"$BUCKET_NAME"/index.html \
             --cache-control "public, max-age=0, must-revalidate" \
             --content-type "text/html"
           
