@@ -159,7 +159,8 @@ app.use('/auth', rateLimitConfigs.auth);
 
 // Logging (simplified for Lambda)
 const nodeEnv = process.env.NODE_ENV || 'production';
-const isProduction = nodeEnv === 'production' || nodeEnv === 'prod';
+const deploymentEnv = process.env.ENVIRONMENT || 'dev';
+const isProduction = deploymentEnv === 'production' || deploymentEnv === 'prod';
 
 if (!isProduction) {
   app.use(morgan('combined'));
@@ -351,7 +352,7 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     status: 'operational',
     timestamp: new Date().toISOString(),
-    environment: nodeEnv,
+    environment: deploymentEnv,
     endpoints: {
       health: {
         quick: '/health?quick=true',

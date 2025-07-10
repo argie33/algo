@@ -7,8 +7,11 @@ class ApiKeyService {
   constructor() {
     this.secretKey = process.env.API_KEY_ENCRYPTION_SECRET;
     if (!this.secretKey) {
-      throw new Error('API_KEY_ENCRYPTION_SECRET environment variable not set. Use keyGenerator.js to generate secure keys.');
+      console.warn('API_KEY_ENCRYPTION_SECRET environment variable not set. API key encryption features will be disabled.');
+      this.isEnabled = false;
+      return;
     }
+    this.isEnabled = true;
     // Validate key has sufficient entropy (minimum 32 bytes when base64 decoded)
     try {
       const keyBuffer = Buffer.from(this.secretKey, 'base64');
@@ -22,6 +25,9 @@ class ApiKeyService {
 
   // Decrypt API key using stored encryption data
   decryptApiKey(encryptedData, userSalt) {
+    if (!this.isEnabled) {
+      throw new Error('API key encryption service is not available');
+    }
     try {
       const key = crypto.scryptSync(this.secretKey, userSalt, 32);
       const iv = Buffer.from(encryptedData.iv, 'hex');
@@ -41,6 +47,10 @@ class ApiKeyService {
 
   // Get decrypted API credentials for a user and provider
   async getDecryptedApiKey(userId, provider) {
+    if (!this.isEnabled) {
+      console.warn('API key service disabled - returning null');
+      return null;
+    }
     try {
       const result = await query(`
         SELECT 

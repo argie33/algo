@@ -13,12 +13,12 @@ router.get('/', async (req, res) => {
         healthy: true,
         service: 'Financial Dashboard API',
         timestamp: new Date().toISOString(),
-        environment: process.env.NODE_ENV || 'development',
+        environment: process.env.ENVIRONMENT || 'dev',
         memory: process.memoryUsage(),
         uptime: process.uptime(),
         note: 'Quick health check - database not tested',
         database: { status: 'not_tested' },
-        api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' },
+        api: { version: '1.0.0', environment: process.env.ENVIRONMENT || 'dev' },
         config: {
           hasDbSecret: !!process.env.DB_SECRET_ARN,
           hasDbEndpoint: !!process.env.DB_ENDPOINT,
@@ -42,14 +42,14 @@ router.get('/', async (req, res) => {
           healthy: false,
           service: 'Financial Dashboard API',
           timestamp: new Date().toISOString(),
-          environment: process.env.NODE_ENV || 'development',
+          environment: process.env.ENVIRONMENT || 'dev',
           database: {
             status: 'initialization_failed',
             error: dbInitError.message,
             lastAttempt: new Date().toISOString(),
             tables: {}
           },
-          api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' },
+          api: { version: '1.0.0', environment: process.env.ENVIRONMENT || 'dev' },
           memory: process.memoryUsage(),
           uptime: process.uptime()
         });
@@ -62,14 +62,14 @@ router.get('/', async (req, res) => {
         healthy: false,
         service: 'Financial Dashboard API',
         timestamp: new Date().toISOString(),
-        environment: process.env.NODE_ENV || 'development',
+        environment: process.env.ENVIRONMENT || 'dev',
         database: {
           status: 'unavailable',
           error: req.dbError.message,
           lastAttempt: new Date().toISOString(),
           tables: {}
         },
-        api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' },
+        api: { version: '1.0.0', environment: process.env.ENVIRONMENT || 'dev' },
         memory: process.memoryUsage(),
         uptime: process.uptime()
       });
@@ -187,7 +187,7 @@ router.get('/', async (req, res) => {
         healthy: false,
         service: 'Financial Dashboard API',
         timestamp: new Date().toISOString(),
-        environment: process.env.NODE_ENV || 'development',
+        environment: process.env.ENVIRONMENT || 'dev',
         database: {
           status: 'disconnected',
           error: dbError.message,
@@ -201,7 +201,7 @@ router.get('/', async (req, res) => {
             hasDbSecret: !!process.env.DB_SECRET_ARN
           }
         },
-        api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' },
+        api: { version: '1.0.0', environment: process.env.ENVIRONMENT || 'dev' },
         memory: process.memoryUsage(),
         uptime: process.uptime()
       });
@@ -216,7 +216,7 @@ router.get('/', async (req, res) => {
         healthy: false,
         service: 'Financial Dashboard API',
         timestamp: new Date().toISOString(),
-        environment: process.env.NODE_ENV || 'development',
+        environment: process.env.ENVIRONMENT || 'dev',
         database: {
           status: 'connected_but_table_error',
           error: tableError.message,
@@ -224,7 +224,7 @@ router.get('/', async (req, res) => {
           lastAttempt: new Date().toISOString(),
           tables: {}
         },
-        api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' },
+        api: { version: '1.0.0', environment: process.env.ENVIRONMENT || 'dev' },
         memory: process.memoryUsage(),
         uptime: process.uptime()
       });
@@ -348,7 +348,7 @@ router.get('/', async (req, res) => {
         status: 'disconnected',
         tables: {}
       },
-      api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' },
+      api: { version: '1.0.0', environment: process.env.ENVIRONMENT || 'dev' },
       memory: process.memoryUsage(),
       uptime: process.uptime()
     });
@@ -395,7 +395,7 @@ router.get('/database', async (req, res) => {
           level: 'basic',
           response_time_ms: 2000
         },
-        api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' }
+        api: { version: '1.0.0', environment: process.env.ENVIRONMENT || 'dev' }
       });
     }
     
@@ -407,7 +407,7 @@ router.get('/database', async (req, res) => {
         timestamp: new Date().toISOString(),
         level: 'basic',
         database: basicHealth,
-        api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' }
+        api: { version: '1.0.0', environment: process.env.ENVIRONMENT || 'dev' }
       });
     }
     
@@ -466,7 +466,7 @@ router.get('/database', async (req, res) => {
           ...basicHealth,
           critical_tables: criticalHealth
         },
-        api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' }
+        api: { version: '1.0.0', environment: process.env.ENVIRONMENT || 'dev' }
       });
     }
     
@@ -502,7 +502,7 @@ router.get('/database', async (req, res) => {
         critical_tables: criticalHealth,
         full_analysis: fullHealth
       },
-      api: { version: '1.0.0', environment: process.env.NODE_ENV || 'development' }
+      api: { version: '1.0.0', environment: process.env.ENVIRONMENT || 'dev' }
     });
     
   } catch (error) {
