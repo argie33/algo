@@ -16,7 +16,7 @@ router.get('/ping', (req, res) => {
 router.get('/', async (req, res) => {
   try {
     console.log('OPTIMIZED Stocks main endpoint called with params:', req.query);
-    console.log('Fixed ALL table names and JOIN columns - graceful error handling!');
+    console.log('Triggering workflow deploy');
     
     const page = parseInt(req.query.page) || 1;
     const limit = Math.min(parseInt(req.query.limit) || 50, 200); // Increased limit
@@ -66,42 +66,21 @@ router.get('/', async (req, res) => {
 
     console.log('OPTIMIZED query params:', { whereClause, params, limit, offset });
 
-    // RESILIENT QUERY: Check table existence and build dynamic query
-    console.log('Checking table existence...');
-    
-    // Check which tables exist to avoid JOIN errors
-    const tableExistsQuery = `
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public' 
-      AND table_name IN ('stock_symbols', 'company_profile', 'market_data', 'key_metrics', 'analyst_estimates', 'governance_scores', 'leadership_team')
-    `;
-    
-    const existingTablesResult = await query(tableExistsQuery);
-    const existingTables = new Set(existingTablesResult.rows.map(row => row.table_name));
-    
-    console.log('Existing tables:', [...existingTables]);
-    
-    // Build dynamic SELECT clause based on existing tables
-    let selectFields = `
-      -- Stock symbols data (always available)
-      ss.symbol,
-      ss.security_name,
-      ss.exchange,
-      ss.market_category,
-      ss.cqs_symbol,
-      ss.financial_status,
-      ss.round_lot_size,
-      ss.etf,
-      ss.secondary_symbol,
-      ss.test_issue
-    `;
-    
-    let fromClause = 'FROM stock_symbols ss';
-    
-    // Add company profile fields if table exists
-    if (existingTables.has('company_profile')) {
-      selectFields += `,
+    // COMPREHENSIVE QUERY: Include ALL data from loadinfo script
+    const stocksQuery = `
+      SELECT 
+        -- Stock symbols data
+        ss.symbol,
+        ss.security_name,
+        ss.exchange,
+        ss.market_category,
+        ss.cqs_symbol,
+        ss.financial_status,
+        ss.round_lot_size,
+        ss.etf,
+        ss.secondary_symbol,
+        ss.test_issue,
+        
         -- Company profile data from loadinfo
         cp.short_name,
         cp.long_name,
@@ -123,37 +102,8 @@ router.get('/', async (req, res) => {
         cp.phone_number,
         cp.currency,
         cp.market,
-        cp.full_exchange_name`;
-      fromClause += '\n      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker';
-    } else {
-      selectFields += `,
-        -- Company profile data (table missing - null values)
-        NULL as short_name,
-        NULL as long_name,
-        NULL as display_name,
-        NULL as quote_type,
-        NULL as sector,
-        NULL as sector_disp,
-        NULL as industry,
-        NULL as industry_disp,
-        NULL as business_summary,
-        NULL as employee_count,
-        NULL as website_url,
-        NULL as ir_website_url,
-        NULL as address1,
-        NULL as city,
-        NULL as state,
-        NULL as postal_code,
-        NULL as country,
-        NULL as phone_number,
-        NULL as currency,
-        NULL as market,
-        NULL as full_exchange_name`;
-    }
-    
-    // Add market data fields if table exists
-    if (existingTables.has('market_data')) {
-      selectFields += `,
+        cp.full_exchange_name,
+        
         -- Market data from loadinfo
         md.current_price,
         md.previous_close,
@@ -169,31 +119,8 @@ router.get('/', async (req, res) => {
         md.two_hundred_day_avg,
         md.bid_price,
         md.ask_price,
-        md.market_state`;
-      fromClause += '\n      LEFT JOIN market_data md ON ss.symbol = md.ticker';
-    } else {
-      selectFields += `,
-        -- Market data (table missing - null values)
-        NULL as current_price,
-        NULL as previous_close,
-        NULL as open_price,
-        NULL as day_low,
-        NULL as day_high,
-        NULL as volume,
-        NULL as average_volume,
-        NULL as market_cap,
-        NULL as fifty_two_week_low,
-        NULL as fifty_two_week_high,
-        NULL as fifty_day_avg,
-        NULL as two_hundred_day_avg,
-        NULL as bid_price,
-        NULL as ask_price,
-        NULL as market_state`;
-    }
-    
-    // Add key metrics fields if table exists
-    if (existingTables.has('key_metrics')) {
-      selectFields += `,
+        md.market_state,
+        
         -- Key financial metrics from loadinfo
         km.trailing_pe,
         km.forward_pe,
@@ -232,54 +159,8 @@ router.get('/', async (req, res) => {
         km.dividend_rate,
         km.dividend_yield,
         km.five_year_avg_dividend_yield,
-        km.payout_ratio`;
-      fromClause += '\n      LEFT JOIN key_metrics km ON ss.symbol = km.ticker';
-    } else {
-      selectFields += `,
-        -- Key financial metrics (table missing - null values)
-        NULL as trailing_pe,
-        NULL as forward_pe,
-        NULL as price_to_sales_ttm,
-        NULL as price_to_book,
-        NULL as book_value,
-        NULL as peg_ratio,
-        NULL as enterprise_value,
-        NULL as ev_to_revenue,
-        NULL as ev_to_ebitda,
-        NULL as total_revenue,
-        NULL as net_income,
-        NULL as ebitda,
-        NULL as gross_profit,
-        NULL as eps_trailing,
-        NULL as eps_forward,
-        NULL as eps_current_year,
-        NULL as price_eps_current_year,
-        NULL as earnings_q_growth_pct,
-        NULL as total_cash,
-        NULL as cash_per_share,
-        NULL as operating_cashflow,
-        NULL as free_cashflow,
-        NULL as total_debt,
-        NULL as debt_to_equity,
-        NULL as quick_ratio,
-        NULL as current_ratio,
-        NULL as profit_margin_pct,
-        NULL as gross_margin_pct,
-        NULL as ebitda_margin_pct,
-        NULL as operating_margin_pct,
-        NULL as return_on_assets_pct,
-        NULL as return_on_equity_pct,
-        NULL as revenue_growth_pct,
-        NULL as earnings_growth_pct,
-        NULL as dividend_rate,
-        NULL as dividend_yield,
-        NULL as five_year_avg_dividend_yield,
-        NULL as payout_ratio`;
-    }
-    
-    // Add analyst estimates fields if table exists
-    if (existingTables.has('analyst_estimates')) {
-      selectFields += `,
+        km.payout_ratio,
+        
         -- Analyst estimates from loadinfo
         ae.target_high_price,
         ae.target_low_price,
@@ -288,61 +169,29 @@ router.get('/', async (req, res) => {
         ae.recommendation_key,
         ae.recommendation_mean,
         ae.analyst_opinion_count,
-        ae.average_analyst_rating`;
-      fromClause += '\n      LEFT JOIN analyst_estimates ae ON ss.symbol = ae.ticker';
-    } else {
-      selectFields += `,
-        -- Analyst estimates (table missing - null values)
-        NULL as target_high_price,
-        NULL as target_low_price,
-        NULL as target_mean_price,
-        NULL as target_median_price,
-        NULL as recommendation_key,
-        NULL as recommendation_mean,
-        NULL as analyst_opinion_count,
-        NULL as average_analyst_rating`;
-    }
-    
-    // Add governance scores fields if table exists
-    if (existingTables.has('governance_scores')) {
-      selectFields += `,
+        ae.average_analyst_rating,
+        
         -- Governance scores from loadinfo
         gs.audit_risk,
         gs.board_risk,
         gs.compensation_risk,
         gs.shareholder_rights_risk,
-        gs.overall_risk`;
-      fromClause += '\n      LEFT JOIN governance_scores gs ON ss.symbol = gs.ticker';
-    } else {
-      selectFields += `,
-        -- Governance scores (table missing - null values)
-        NULL as audit_risk,
-        NULL as board_risk,
-        NULL as compensation_risk,
-        NULL as shareholder_rights_risk,
-        NULL as overall_risk`;
-    }
-    
-    // Add leadership team count if table exists
-    if (existingTables.has('leadership_team')) {
-      selectFields += `,
+        gs.overall_risk,
+        
         -- Leadership team count (subquery)
-        COALESCE(lt_count.executive_count, 0) as leadership_count`;
-      fromClause += `\n      LEFT JOIN (
+        COALESCE(lt_count.executive_count, 0) as leadership_count
+        
+      FROM stock_symbols ss
+      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN market_data md ON ss.symbol = md.ticker
+      LEFT JOIN key_metrics km ON ss.symbol = km.ticker
+      LEFT JOIN analyst_estimates ae ON ss.symbol = ae.ticker
+      LEFT JOIN governance_scores gs ON ss.symbol = gs.ticker
+      LEFT JOIN (
         SELECT ticker, COUNT(*) as executive_count 
         FROM leadership_team 
         GROUP BY ticker
-      ) lt_count ON ss.symbol = lt_count.ticker`;
-    } else {
-      selectFields += `,
-        -- Leadership team (table missing - zero count)
-        0 as leadership_count`;
-    }
-    
-    // Build final query
-    const stocksQuery = `
-      SELECT ${selectFields}
-      ${fromClause}
+      ) lt_count ON ss.symbol = lt_count.ticker
       ${whereClause}
       ORDER BY ${sortColumn} ${sortDirection}
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
@@ -350,14 +199,14 @@ router.get('/', async (req, res) => {
 
     params.push(limit, offset);
 
-    // Count query - always safe with stock_symbols
+    // Count query - also fast
     const countQuery = `
       SELECT COUNT(*) as total
       FROM stock_symbols ss
       ${whereClause}
     `;
 
-    console.log('Executing RESILIENT queries with existing tables:', [...existingTables]);
+    console.log('Executing FAST queries...');
 
     const [stocksResult, countResult] = await Promise.all([
       query(stocksQuery, params),
@@ -576,8 +425,7 @@ router.get('/', async (req, res) => {
 
     res.json({
       success: true,
-      performance: 'RESILIENT QUERY - Dynamically adapts to available tables, never fails when tables are missing',
-      availableTables: [...existingTables],
+      performance: 'COMPREHENSIVE LOADINFO DATA - All company profiles, market data, financial metrics, analyst estimates, and governance scores from loadinfo tables',
       data: formattedStocks,
       pagination: {
         page,
@@ -637,15 +485,17 @@ router.get('/', async (req, res) => {
           'audit_risk', 'board_risk', 'compensation_risk', 'shareholder_rights_risk',
           'overall_risk'
         ],
-        dataSources: [...existingTables],
-        missingTables: ['stock_symbols', 'company_profile', 'market_data', 'key_metrics', 'analyst_estimates', 'governance_scores', 'leadership_team'].filter(t => !existingTables.has(t)),
+        dataSources: [
+          'stock_symbols', 'company_profile', 'market_data', 'key_metrics',
+          'analyst_estimates', 'governance_scores', 'leadership_team'
+        ],
         comprehensiveData: {
-          includesCompanyProfiles: existingTables.has('company_profile'),
-          includesMarketData: existingTables.has('market_data'),
-          includesFinancialMetrics: existingTables.has('key_metrics'),
-          includesAnalystEstimates: existingTables.has('analyst_estimates'),
-          includesGovernanceScores: existingTables.has('governance_scores'),
-          includesLeadershipTeam: existingTables.has('leadership_team') // Count included, details via /leadership/:ticker
+          includesCompanyProfiles: true,
+          includesMarketData: true,
+          includesFinancialMetrics: true,
+          includesAnalystEstimates: true,
+          includesGovernanceScores: true,
+          includesLeadershipTeam: true // Count included, details via /leadership/:ticker
         },
         endpoints: {
           leadershipDetails: '/api/stocks/leadership/:ticker',
@@ -657,19 +507,6 @@ router.get('/', async (req, res) => {
 
   } catch (error) {
     console.error('OPTIMIZED endpoint error:', error);
-    
-    // If tables are missing, return empty data instead of 500 error
-    if (error.code === '42P01') { // relation does not exist
-      console.log('Missing table detected, returning empty results gracefully');
-      return res.json({
-        success: true,
-        data: [],
-        pagination: { page: 1, totalPages: 0, total: 0, limit: 50 },
-        message: 'Data tables are being initialized. Please check back shortly.',
-        timestamp: new Date().toISOString()
-      });
-    }
-    
     res.status(500).json({ 
       error: 'Optimized query failed',
       details: error.message,
@@ -776,31 +613,17 @@ router.get('/:ticker', async (req, res) => {
   }
 });
 
-// Get stock price history with timeframe support
+// Get stock price history 
 router.get('/:ticker/prices', async (req, res) => {
   try {
     const { ticker } = req.params;
-    const { timeframe = 'daily' } = req.query;
-    const limit = Math.min(parseInt(req.query.limit) || 30, 90); // Max 90 for performance
+    const limit = Math.min(parseInt(req.query.limit) || 30, 90); // Max 90 days for performance
     
-    // Validate timeframe
-    const validTimeframes = ['daily', 'weekly', 'monthly'];
-    if (!validTimeframes.includes(timeframe)) {
-      return res.status(400).json({
-        error: 'Invalid timeframe',
-        validTimeframes,
-        timestamp: new Date().toISOString()
-      });
-    }
-    
-    console.log(`ENHANCED prices endpoint called for ticker: ${ticker}, timeframe: ${timeframe}, limit: ${limit}`);
-    
-    // Determine table name based on timeframe
-    const tableName = `price_${timeframe}`;
+    console.log(`SIMPLIFIED prices endpoint called for ticker: ${ticker}, limit: ${limit}`);
     
     const pricesQuery = `
-      SELECT date, open, high, low, close, adj_close, volume, dividends, stock_splits
-      FROM ${tableName}
+      SELECT date, open, high, low, close, adj_close, volume
+      FROM price_daily
       WHERE UPPER(symbol) = UPPER($1)
       ORDER BY date DESC
       LIMIT $2
@@ -841,8 +664,6 @@ router.get('/:ticker/prices', async (req, res) => {
         close: parseFloat(price.close),
         adjClose: parseFloat(price.adj_close),
         volume: parseInt(price.volume) || 0,
-        dividends: price.dividends ? parseFloat(price.dividends) : 0,
-        stockSplits: price.stock_splits ? parseFloat(price.stock_splits) : 0,
         priceChange,
         priceChangePct
       };
@@ -851,7 +672,6 @@ router.get('/:ticker/prices', async (req, res) => {
     res.json({
       success: true,
       ticker: ticker.toUpperCase(),
-      timeframe: timeframe,
       dataPoints: result.rows.length,
       data: pricesWithChange,
       summary: {
@@ -859,10 +679,6 @@ router.get('/:ticker/prices', async (req, res) => {
         latestDate: latest.date,
         periodReturn: parseFloat(periodReturn.toFixed(2)),
         latestVolume: parseInt(latest.volume) || 0
-      },
-      metadata: {
-        tableName: tableName,
-        availableTimeframes: validTimeframes
       },
       timestamp: new Date().toISOString()
     });
@@ -1173,15 +989,15 @@ router.get('/screen', async (req, res) => {
         
       FROM stock_symbols ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-      LEFT JOIN market_data md ON ss.symbol = md.symbol
-      LEFT JOIN key_metrics km ON ss.symbol = km.symbol
-      LEFT JOIN analyst_estimates ae ON ss.symbol = ae.symbol
-      LEFT JOIN governance_scores gs ON ss.symbol = gs.symbol
+      LEFT JOIN market_data md ON ss.symbol = md.ticker
+      LEFT JOIN key_metrics km ON ss.symbol = km.ticker
+      LEFT JOIN analyst_estimates ae ON ss.symbol = ae.ticker
+      LEFT JOIN governance_scores gs ON ss.symbol = gs.ticker
       LEFT JOIN (
         SELECT ticker, COUNT(*) as executive_count 
         FROM leadership_team 
-        GROUP BY symbol
-      ) lt_count ON ss.symbol = lt_count.symbol
+        GROUP BY ticker
+      ) lt_count ON ss.symbol = lt_count.ticker
       ${whereClause}
       ORDER BY ${sortColumn} ${sortDirection}
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
