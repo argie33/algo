@@ -109,7 +109,7 @@ router.get('/analysis', async (req, res) => {
                 FROM company_profile cp
                 LEFT JOIN latest_prices lp ON cp.ticker = lp.symbol
                 LEFT JOIN latest_technicals lt ON cp.ticker = lt.symbol  
-                LEFT JOIN momentum_data md ON cp.ticker = md.symbol
+                LEFT JOIN momentum_data md ON cp.ticker = md.ticker
                 WHERE cp.sector IS NOT NULL 
                     AND cp.sector != ''
                     AND cp.industry IS NOT NULL
@@ -130,7 +130,7 @@ router.get('/analysis', async (req, res) => {
                 FROM company_profile cp
                 INNER JOIN latest_prices lp ON cp.ticker = lp.symbol
                 LEFT JOIN latest_technicals lt ON cp.ticker = lt.symbol
-                LEFT JOIN momentum_data md ON cp.ticker = md.symbol
+                LEFT JOIN momentum_data md ON cp.ticker = md.ticker
                 WHERE cp.sector IS NOT NULL AND lp.monthly_change_pct IS NOT NULL
             ),
             bottom_performers AS (
@@ -146,7 +146,7 @@ router.get('/analysis', async (req, res) => {
                 FROM company_profile cp
                 INNER JOIN latest_prices lp ON cp.ticker = lp.symbol
                 LEFT JOIN latest_technicals lt ON cp.ticker = lt.symbol
-                LEFT JOIN momentum_data md ON cp.ticker = md.symbol
+                LEFT JOIN momentum_data md ON cp.ticker = md.ticker
                 WHERE cp.sector IS NOT NULL AND lp.monthly_change_pct IS NOT NULL
             )
             

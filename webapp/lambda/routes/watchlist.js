@@ -59,8 +59,8 @@ router.get('/:id/items', authenticateToken, async (req, res) => {
       FROM watchlist_items wi
       LEFT JOIN price_daily pd ON wi.symbol = pd.symbol
       LEFT JOIN company_profile cp ON wi.symbol = cp.symbol
-      LEFT JOIN market_data md ON wi.symbol = md.symbol
-      LEFT JOIN key_metrics km ON wi.symbol = km.symbol
+      LEFT JOIN market_data md ON wi.symbol = md.ticker
+      LEFT JOIN key_metrics km ON wi.symbol = km.ticker
       WHERE wi.watchlist_id = $1
       ORDER BY wi.position_order ASC, wi.added_at DESC
     `, [id]);
