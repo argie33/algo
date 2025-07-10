@@ -74,7 +74,7 @@ router.get('/', async (req, res) => {
       SELECT table_name 
       FROM information_schema.tables 
       WHERE table_schema = 'public' 
-      AND table_name IN ('stock_symbols', 'company_profiles', 'market_data', 'key_metrics', 'analyst_estimates', 'governance_scores', 'leadership_team')
+      AND table_name IN ('stock_symbols', 'company_profile', 'market_data', 'key_metrics', 'analyst_estimates', 'governance_scores', 'leadership_team')
     `;
     
     const existingTablesResult = await query(tableExistsQuery);
@@ -100,7 +100,7 @@ router.get('/', async (req, res) => {
     let fromClause = 'FROM stock_symbols ss';
     
     // Add company profile fields if table exists
-    if (existingTables.has('company_profiles')) {
+    if (existingTables.has('company_profile')) {
       selectFields += `,
         -- Company profile data from loadinfo
         cp.short_name,
@@ -124,7 +124,7 @@ router.get('/', async (req, res) => {
         cp.currency,
         cp.market,
         cp.full_exchange_name`;
-      fromClause += '\n      LEFT JOIN company_profiles cp ON ss.symbol = cp.symbol';
+      fromClause += '\n      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker';
     } else {
       selectFields += `,
         -- Company profile data (table missing - null values)
@@ -638,9 +638,9 @@ router.get('/', async (req, res) => {
           'overall_risk'
         ],
         dataSources: [...existingTables],
-        missingTables: ['stock_symbols', 'company_profiles', 'market_data', 'key_metrics', 'analyst_estimates', 'governance_scores', 'leadership_team'].filter(t => !existingTables.has(t)),
+        missingTables: ['stock_symbols', 'company_profile', 'market_data', 'key_metrics', 'analyst_estimates', 'governance_scores', 'leadership_team'].filter(t => !existingTables.has(t)),
         comprehensiveData: {
-          includesCompanyProfiles: existingTables.has('company_profiles'),
+          includesCompanyProfiles: existingTables.has('company_profile'),
           includesMarketData: existingTables.has('market_data'),
           includesFinancialMetrics: existingTables.has('key_metrics'),
           includesAnalystEstimates: existingTables.has('analyst_estimates'),
@@ -1172,7 +1172,7 @@ router.get('/screen', async (req, res) => {
         COALESCE(lt_count.executive_count, 0) as leadership_count
         
       FROM stock_symbols ss
-      LEFT JOIN company_profiles cp ON ss.symbol = cp.symbol
+      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
       LEFT JOIN market_data md ON ss.symbol = md.symbol
       LEFT JOIN key_metrics km ON ss.symbol = km.symbol
       LEFT JOIN analyst_estimates ae ON ss.symbol = ae.symbol
@@ -1193,7 +1193,7 @@ router.get('/screen', async (req, res) => {
     const countQuery = `
       SELECT COUNT(*) as total
       FROM stock_symbols ss
-      LEFT JOIN company_profiles cp ON ss.symbol = cp.symbol
+      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
       ${whereClause}
     `;
 
