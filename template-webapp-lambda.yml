@@ -156,7 +156,7 @@ Resources:
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
-              Value: !Ref DatabaseSecretArn
+              Value: !ImportValue StocksApp-SecretArn
             - Name: ENVIRONMENT
               Value: !Ref EnvironmentName
             - Name: AWS_REGION
