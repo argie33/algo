@@ -4519,7 +4519,7 @@ jobs:
             exit $EXIT
           fi
 
-run_qualitymetrics:
+  run_qualitymetrics:
     name: Run quality-metrics calculator
     needs: [deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.qualitymetrics == 'true' }}
@@ -4689,7 +4689,7 @@ run_qualitymetrics:
             exit $EXIT
           fi
 
-run_valuemetrics:
+  run_valuemetrics:
     name: Run value-metrics calculator
     needs: [deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.valuemetrics == 'true' }}
