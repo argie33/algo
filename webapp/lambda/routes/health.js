@@ -179,9 +179,9 @@ router.post('/create-table', async (req, res) => {
       ON CONFLICT (symbol) DO NOTHING
     `);
     
-    // Also create company_profiles table that stocks.js query expects
+    // Also create company_profile table that stocks.js query expects
     await query(`
-      CREATE TABLE IF NOT EXISTS company_profiles (
+      CREATE TABLE IF NOT EXISTS company_profile (
         symbol VARCHAR(10) PRIMARY KEY,
         short_name VARCHAR(255),
         long_name VARCHAR(255),
@@ -210,7 +210,7 @@ router.post('/create-table', async (req, res) => {
     res.json({
       status: 'success',
       message: 'Emergency tables created - run your data loading scripts for full data',
-      tables_created: ['stock_symbols', 'company_profiles'],
+      tables_created: ['stock_symbols', 'company_profile'],
       records_inserted: 5,
       timestamp: new Date().toISOString(),
       note: 'Auto-triggered via deployment'
