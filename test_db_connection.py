@@ -22,7 +22,8 @@ def get_db_credentials():
                 'port': secret.get('port', 5432),
                 'database': secret.get('dbname'),
                 'user': secret.get('username'),
-                'password': secret.get('password')
+                'password': secret.get('password'),
+                'sslmode': 'require'
             }
         except ClientError as e:
             print(f"✗ Failed to retrieve from Secrets Manager: {e}")
@@ -39,7 +40,8 @@ def get_db_credentials():
         'port': int(os.environ.get('DB_PORT', 5432)),
         'database': os.environ.get('DB_NAME') or os.environ.get('DB_DATABASE'),
         'user': os.environ.get('DB_USER') or os.environ.get('DB_USERNAME'),
-        'password': os.environ.get('DB_PASSWORD')
+        'password': os.environ.get('DB_PASSWORD'),
+        'sslmode': 'require'
     }
 
 def test_connection():

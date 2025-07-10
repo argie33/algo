@@ -20,7 +20,8 @@ async def get_database_config():
             'port': int(os.environ['DB_PORT']),
             'database': os.environ['DB_NAME'],
             'user': os.environ['DB_USER'],
-            'password': os.environ['DB_PASSWORD']
+            'password': os.environ['DB_PASSWORD'],
+            'sslmode': 'require'
         }
     
     # Try AWS Secrets Manager
@@ -37,7 +38,8 @@ async def get_database_config():
                 'port': secret.get('port', 5432),
                 'database': secret['dbname'],
                 'user': secret['username'],
-                'password': secret['password']
+                'password': secret['password'],
+                'sslmode': 'require'
             }
         except Exception as e:
             logger.error(f"Failed to get database credentials from Secrets Manager: {e}")
@@ -53,7 +55,8 @@ async def get_database_config():
             'port': int(os.environ.get('DB_PORT', 5432)),
             'database': os.environ.get('DB_NAME', 'postgres'),
             'user': os.environ.get('DB_USER', 'postgres'),
-            'password': os.environ.get('DB_PASSWORD')
+            'password': os.environ.get('DB_PASSWORD'),
+            'sslmode': 'require'
         }
     
     logger.error("No database configuration found")
