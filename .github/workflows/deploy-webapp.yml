@@ -875,11 +875,10 @@ jobs:
           echo "Database secret for verification: $DB_SECRET_ARN"
           echo "Database endpoint for verification: $DB_ENDPOINT"
 
-      - name: Test API endpoint with diagnostics
+      - name: Check API Gateway and Lambda
         run: |
           API_URL="${{ needs.deploy_infrastructure.outputs.api_url }}"
-          
-          echo "🔍 Testing API endpoints with detailed diagnostics..."
+          echo "🔍 Testing API Gateway and Lambda function with detailed diagnostics..."
           echo "Full API URL: $API_URL"
           echo ""
           
@@ -907,10 +906,11 @@ jobs:
             accessLogSettings: accessLogSettings
           }' --output json 2>/dev/null || echo "Could not get API Gateway stages"
           
-          # First, let's get some basic info about the Lambda function
+          # Get Lambda function information
           echo ""
           echo "📋 Lambda Function Information:"
           LAMBDA_FUNCTION_NAME="financial-dashboard-api-${{ needs.setup.outputs.environment }}"
+          echo "Lambda Function Name: $LAMBDA_FUNCTION_NAME"
           
           # Get Lambda function configuration
           echo "Getting Lambda function configuration..."
@@ -924,11 +924,13 @@ jobs:
             VpcConfig: Configuration.VpcConfig,
             Role: Configuration.Role
           }' --output json || echo "Could not get Lambda function info"
-          
-          # Get recent Lambda logs (extended with more details)
-          echo ""
-          echo "🔍 Recent Lambda Logs (last 5 minutes):"
+
+      - name: Check Lambda logs in detail
+        run: |
+          LAMBDA_FUNCTION_NAME="financial-dashboard-api-${{ needs.setup.outputs.environment }}"
           LOG_GROUP="/aws/lambda/$LAMBDA_FUNCTION_NAME"
+          
+          echo "🔍 Recent Lambda Logs (last 5 minutes):"
           
           # First check if log group exists
           echo "Checking if log group exists..."
@@ -978,55 +980,6 @@ jobs:
             else
               echo "No log streams found - Lambda may not have been invoked yet"
             fi
-            
-            # Check for cold start patterns
-            echo ""
-            echo "🔍 Checking for Lambda cold start and initialization issues:"
-            aws logs filter-log-events \
-              --log-group-name "$LOG_GROUP" \
-              --start-time $(date -d '30 minutes ago' +%s)000 \
-              --filter-pattern "{ ($.message = \"*START*\") || ($.message = \"*INIT*\") || ($.message = \"*REPORT*\") || ($.message = \"*ERROR*\") || ($.message = \"*Task timed out*\") }" \
-              --query 'events[*].message' \
-              --output text 2>/dev/null || echo "No initialization logs found"
-              
-            # Look for specific error patterns
-            echo ""
-            echo "🔍 Searching for specific error patterns:"
-            echo "--- Database connection errors ---"
-            aws logs filter-log-events \
-              --log-group-name "$LOG_GROUP" \
-              --start-time $(date -d '30 minutes ago' +%s)000 \
-              --filter-pattern "{ ($.message = \"*database*\") || ($.message = \"*connection*\") || ($.message = \"*timeout*\") || ($.message = \"*ECONNREFUSED*\") || ($.message = \"*ETIMEDOUT*\") }" \
-              --query 'events[*].message' \
-              --output text 2>/dev/null || echo "No database connection errors found"
-            
-            echo ""
-            echo "--- Module loading errors ---"
-            aws logs filter-log-events \
-              --log-group-name "$LOG_GROUP" \
-              --start-time $(date -d '30 minutes ago' +%s)000 \
-              --filter-pattern "{ ($.message = \"*Cannot find module*\") || ($.message = \"*MODULE_NOT_FOUND*\") || ($.message = \"*require*\") || ($.message = \"*import*\") }" \
-              --query 'events[*].message' \
-              --output text 2>/dev/null || echo "No module loading errors found"
-            
-            echo ""
-            echo "--- Environment variable errors ---"
-            aws logs filter-log-events \
-              --log-group-name "$LOG_GROUP" \
-              --start-time $(date -d '30 minutes ago' +%s)000 \
-              --filter-pattern "{ ($.message = \"*undefined*\") || ($.message = \"*not set*\") || ($.message = \"*environment*\") || ($.message = \"*config*\") }" \
-              --query 'events[*].message' \
-              --output text 2>/dev/null || echo "No environment variable errors found"
-            
-            echo ""
-            echo "--- VPC/Network errors ---"
-            aws logs filter-log-events \
-              --log-group-name "$LOG_GROUP" \
-              --start-time $(date -d '30 minutes ago' +%s)000 \
-              --filter-pattern "{ ($.message = \"*VPC*\") || ($.message = \"*network*\") || ($.message = \"*ENI*\") || ($.message = \"*subnet*\") || ($.message = \"*security group*\") }" \
-              --query 'events[*].message' \
-              --output text 2>/dev/null || echo "No VPC/network errors found"
-            
           else
             echo "❌ Log group does not exist: $LOG_GROUP"
             echo "This indicates Lambda has NEVER been invoked successfully"
@@ -1037,6 +990,58 @@ jobs:
               --query 'logGroups[*].[logGroupName,creationTime,storedBytes]' \
               --output table 2>/dev/null || echo "Could not list log groups"
           fi
+
+      - name: Check error patterns and CloudWatch metrics
+        run: |
+          LAMBDA_FUNCTION_NAME="financial-dashboard-api-${{ needs.setup.outputs.environment }}"
+          LOG_GROUP="/aws/lambda/$LAMBDA_FUNCTION_NAME"
+          
+          # Check for cold start patterns
+          echo "🔍 Checking for Lambda cold start and initialization issues:"
+          aws logs filter-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --start-time $(date -d '30 minutes ago' +%s)000 \
+            --filter-pattern "{ ($.message = \"*START*\") || ($.message = \"*INIT*\") || ($.message = \"*REPORT*\") || ($.message = \"*ERROR*\") || ($.message = \"*Task timed out*\") }" \
+            --query 'events[*].message' \
+            --output text 2>/dev/null || echo "No initialization logs found"
+            
+          # Look for specific error patterns
+          echo ""
+          echo "🔍 Searching for specific error patterns:"
+          echo "--- Database connection errors ---"
+          aws logs filter-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --start-time $(date -d '30 minutes ago' +%s)000 \
+            --filter-pattern "{ ($.message = \"*database*\") || ($.message = \"*connection*\") || ($.message = \"*timeout*\") || ($.message = \"*ECONNREFUSED*\") || ($.message = \"*ETIMEDOUT*\") }" \
+            --query 'events[*].message' \
+            --output text 2>/dev/null || echo "No database connection errors found"
+          
+          echo ""
+          echo "--- Module loading errors ---"
+          aws logs filter-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --start-time $(date -d '30 minutes ago' +%s)000 \
+            --filter-pattern "{ ($.message = \"*Cannot find module*\") || ($.message = \"*MODULE_NOT_FOUND*\") || ($.message = \"*require*\") || ($.message = \"*import*\") }" \
+            --query 'events[*].message' \
+            --output text 2>/dev/null || echo "No module loading errors found"
+          
+          echo ""
+          echo "--- Environment variable errors ---"
+          aws logs filter-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --start-time $(date -d '30 minutes ago' +%s)000 \
+            --filter-pattern "{ ($.message = \"*undefined*\") || ($.message = \"*not set*\") || ($.message = \"*environment*\") || ($.message = \"*config*\") }" \
+            --query 'events[*].message' \
+            --output text 2>/dev/null || echo "No environment variable errors found"
+          
+          echo ""
+          echo "--- VPC/Network errors ---"
+          aws logs filter-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --start-time $(date -d '30 minutes ago' +%s)000 \
+            --filter-pattern "{ ($.message = \"*VPC*\") || ($.message = \"*network*\") || ($.message = \"*ENI*\") || ($.message = \"*subnet*\") || ($.message = \"*security group*\") }" \
+            --query 'events[*].message' \
+            --output text 2>/dev/null || echo "No VPC/network errors found"
           
           # Get CloudWatch metrics for the function
           echo ""
@@ -1076,8 +1081,9 @@ jobs:
             --period 300 \
             --statistics Average,Maximum \
             --output table 2>/dev/null || echo "Could not get duration metrics"
-          
-          echo ""
+
+      - name: Verify database access and secrets
+        run: |
           echo "🔬 Database Secret Information:"
           echo "🔍 Debugging secret ARN retrieval..."
           echo "Verify db_info step output: '${{ steps.verify_db_info.outputs.DB_SECRET_ARN }}'"
@@ -1137,6 +1143,197 @@ jobs:
           
           echo ""
           echo "Final SECRET_ARN value: '$SECRET_ARN'"
+          
+          # Check database endpoint
+          DB_ENDPOINT="${{ steps.verify_db_info.outputs.DB_ENDPOINT }}"
+          if [ -n "$DB_ENDPOINT" ]; then
+            echo "Database endpoint: $DB_ENDPOINT"
+            if nc -z "$DB_ENDPOINT" 5432 2>/dev/null; then
+              echo "✅ Database port 5432 is reachable from external network"
+            else
+              echo "❌ Database port 5432 is NOT reachable (may be network issue)"
+            fi
+            
+            # Try to resolve the DNS
+            echo ""
+            echo "🔍 DNS Resolution for database endpoint:"
+            nslookup "$DB_ENDPOINT" 2>/dev/null || echo "Could not resolve DNS"
+          else
+            echo "❌ No database endpoint found"
+          fi
+
+      - name: Test API endpoints with detailed responses
+        run: |
+          API_URL="${{ needs.deploy_infrastructure.outputs.api_url }}"
+          echo "🔍 Testing API endpoints..."
+          
+          # Test root endpoint first with more details
+          echo "1. Testing root endpoint..."
+          ROOT_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}\nSIZE_DOWNLOAD:%{size_download}\n" "$API_URL/" 2>&1 || echo "CURL_FAILED")
+          echo "Root response: $ROOT_RESPONSE"
+          echo ""
+          
+          # Test health endpoint
+          echo "2. Testing health endpoint..."
+          HEALTH_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}\nSIZE_DOWNLOAD:%{size_download}\n" "$API_URL/health" 2>&1 || echo "CURL_FAILED")
+          echo "Health response: $HEALTH_RESPONSE"
+          echo ""
+          
+          # Test quick health endpoint (no DB required)
+          echo "3. Testing quick health endpoint (no DB required)..."
+          QUICK_HEALTH_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}\nSIZE_DOWNLOAD:%{size_download}\n" "$API_URL/health?quick=true" 2>&1 || echo "CURL_FAILED")
+          echo "Quick health response: $QUICK_HEALTH_RESPONSE"
+          echo ""
+          
+          # Test stocks endpoint (requires DB)
+          echo "4. Testing stocks endpoint (requires database)..."
+          STOCKS_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}\nSIZE_DOWNLOAD:%{size_download}\n" "$API_URL/api/stocks?limit=1" 2>&1 || echo "CURL_FAILED")
+          echo "Stocks response (first 500 chars): ${STOCKS_RESPONSE:0:500}"
+          echo ""
+          
+          # Test diagnostics endpoint for detailed configuration info
+          echo "5. Testing diagnostics endpoint (detailed configuration)..."
+          DIAGNOSTICS_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}\nSIZE_DOWNLOAD:%{size_download}\n" "$API_URL/api/diagnostics" 2>&1 || echo "CURL_FAILED")
+          echo "Diagnostics response: $DIAGNOSTICS_RESPONSE"
+          echo ""
+          
+          # Test with verbose curl to see exact HTTP response
+          echo "6. Testing with verbose curl for HTTP details..."
+          echo "Verbose curl output for root endpoint:"
+          curl -v -s "$API_URL/" 2>&1 | head -20
+          echo ""
+          
+          # Analyze responses
+          echo "🔬 Response Analysis:"
+          
+          if echo "$ROOT_RESPONSE" | grep -q "Financial Dashboard API"; then
+            echo "✅ Root endpoint: Lambda is running and responding"
+          elif echo "$ROOT_RESPONSE" | grep -q "Internal server error"; then
+            echo "❌ Root endpoint: Lambda has internal error (likely config issue)"
+          else
+            echo "⚠️  Root endpoint: Unexpected response - Lambda may not be deployed correctly"
+          fi
+          
+          if echo "$QUICK_HEALTH_RESPONSE" | grep -q "status"; then
+            echo "✅ Quick health: Basic Lambda functionality working"
+          elif echo "$QUICK_HEALTH_RESPONSE" | grep -q "Internal server error"; then
+            echo "❌ Quick health: Lambda configuration issue (not database-related)"
+          else
+            echo "⚠️  Quick health: Unexpected response"
+          fi
+          
+          if echo "$STOCKS_RESPONSE" | grep -q "success.*true"; then
+            echo "✅ Database connectivity: Working correctly"
+          elif echo "$STOCKS_RESPONSE" | grep -q "Internal server error"; then
+            echo "❌ Database connectivity: Lambda cannot connect to database"
+          elif echo "$STOCKS_RESPONSE" | grep -q "Database not available"; then
+            echo "❌ Database connectivity: Database connection failed"
+          else
+            echo "⚠️  Database connectivity: Unexpected response"
+          fi
+          
+          if echo "$DIAGNOSTICS_RESPONSE" | grep -q "HEALTHY"; then
+            echo "✅ Configuration: All diagnostics passed"
+          elif echo "$DIAGNOSTICS_RESPONSE" | grep -q "ISSUES_FOUND"; then
+            echo "❌ Configuration: Issues detected - check diagnostics for details"
+          elif echo "$DIAGNOSTICS_RESPONSE" | grep -q "Internal server error"; then
+            echo "❌ Configuration: Lambda has fundamental configuration issues"
+          else
+            echo "⚠️  Configuration: Diagnostics endpoint not responding correctly"
+          fi
+          
+          echo ""
+          echo "📋 Summary:"
+          echo "If you see 'Internal server error' responses, the Lambda likely has configuration issues."
+          echo "Common causes: Missing environment variables, IAM permissions, or VPC networking."
+          echo "Check the diagnostics response above for specific configuration details and recommendations."
+
+      - name: Check Lambda configuration and permissions
+        run: |
+          LAMBDA_FUNCTION_NAME="financial-dashboard-api-${{ needs.setup.outputs.environment }}"
+          echo "🔧 Additional Troubleshooting Information:"
+          
+          # Check if Lambda is in VPC with detailed information
+          VPC_CONFIG=$(aws lambda get-function --function-name "$LAMBDA_FUNCTION_NAME" --query 'Configuration.VpcConfig' --output json 2>/dev/null || echo '{}')
+          if echo "$VPC_CONFIG" | grep -q '"VpcId"'; then
+            echo "✅ Lambda is configured with VPC"
+            echo "VPC Config: $VPC_CONFIG"
+            
+            # Get VPC details
+            VPC_ID=$(echo "$VPC_CONFIG" | jq -r '.VpcId // empty')
+            if [ -n "$VPC_ID" ]; then
+              echo ""
+              echo "🔍 VPC Details:"
+              aws ec2 describe-vpcs --vpc-ids "$VPC_ID" --query 'Vpcs[0].{VpcId:VpcId,CidrBlock:CidrBlock,State:State,DnsHostnames:DnsHostnames,DnsResolution:DnsResolution}' --output table 2>/dev/null || echo "Could not get VPC details"
+            fi
+            
+            # Get subnet details
+            SUBNET_IDS=$(echo "$VPC_CONFIG" | jq -r '.SubnetIds[]? // empty' | tr '\n' ' ')
+            if [ -n "$SUBNET_IDS" ]; then
+              echo ""
+              echo "🔍 Subnet Details:"
+              aws ec2 describe-subnets --subnet-ids $SUBNET_IDS --query 'Subnets[*].{SubnetId:SubnetId,AvailabilityZone:AvailabilityZone,CidrBlock:CidrBlock,State:State,MapPublicIpOnLaunch:MapPublicIpOnLaunch}' --output table 2>/dev/null || echo "Could not get subnet details"
+            fi
+            
+            # Get security group details
+            SECURITY_GROUP_IDS=$(echo "$VPC_CONFIG" | jq -r '.SecurityGroupIds[]? // empty' | tr '\n' ' ')
+            if [ -n "$SECURITY_GROUP_IDS" ]; then
+              echo ""
+              echo "🔍 Security Group Details:"
+              aws ec2 describe-security-groups --group-ids $SECURITY_GROUP_IDS --query 'SecurityGroups[*].{GroupId:GroupId,GroupName:GroupName,Description:Description,VpcId:VpcId}' --output table 2>/dev/null || echo "Could not get security group details"
+              
+              echo ""
+              echo "🔍 Security Group Rules (Outbound):"
+              aws ec2 describe-security-groups --group-ids $SECURITY_GROUP_IDS --query 'SecurityGroups[*].IpPermissionsEgress[*].{Protocol:IpProtocol,FromPort:FromPort,ToPort:ToPort,Target:IpRanges[0].CidrIp}' --output table 2>/dev/null || echo "Could not get security group rules"
+            fi
+          else
+            echo "❌ Lambda is NOT configured with VPC (this may cause database connectivity issues)"
+          fi
+          
+          # Show environment variables that were passed to Lambda
+          echo ""
+          echo "🔍 Environment Variables Passed to Lambda:"
+          aws lambda get-function --function-name "$LAMBDA_FUNCTION_NAME" --query 'Configuration.Environment.Variables' --output json 2>/dev/null || echo "Could not get environment variables"
+          
+          # Check Lambda execution role permissions
+          echo ""
+          echo "🔍 Lambda Execution Role Information:"
+          ROLE_ARN=$(aws lambda get-function --function-name "$LAMBDA_FUNCTION_NAME" --query 'Configuration.Role' --output text 2>/dev/null)
+          if [ -n "$ROLE_ARN" ]; then
+            echo "Role ARN: $ROLE_ARN"
+            ROLE_NAME=$(echo "$ROLE_ARN" | awk -F'/' '{print $NF}')
+            echo "Role Name: $ROLE_NAME"
+            
+            # Get attached policies
+            echo ""
+            echo "🔍 Attached Policies:"
+            aws iam list-attached-role-policies --role-name "$ROLE_NAME" --query 'AttachedPolicies[*].{PolicyName:PolicyName,PolicyArn:PolicyArn}' --output table 2>/dev/null || echo "Could not get attached policies"
+            
+            # Get inline policies
+            echo ""
+            echo "🔍 Inline Policies:"
+            aws iam list-role-policies --role-name "$ROLE_NAME" --query 'PolicyNames' --output table 2>/dev/null || echo "Could not get inline policies"
+          fi
+          
+          # Check if there are any recent CloudWatch alarms
+          echo ""
+          echo "🚨 Recent CloudWatch Alarms:"
+          aws cloudwatch describe-alarms --alarm-names --query 'MetricAlarms[?MetricName==`Errors` && starts_with(Dimensions[0].Value, `'$LAMBDA_FUNCTION_NAME'`)].{AlarmName:AlarmName,StateValue:StateValue,StateReason:StateReason}' --output table 2>/dev/null || echo "No CloudWatch alarms found"
+          
+          # Get X-Ray traces if available
+          echo ""
+          echo "🔍 X-Ray Traces (if enabled):"
+          aws xray get-trace-summaries --time-range-type TimeRangeByStartTime --start-time $(date -d '10 minutes ago' +%s) --end-time $(date +%s) --query 'TraceSummaries[*].{Id:Id,Duration:Duration,ResponseTime:ResponseTime,HasError:HasError,HasFault:HasFault}' --output table 2>/dev/null || echo "No X-Ray traces found or X-Ray not enabled"
+
+      - name: Deep dive secrets and permissions analysis
+        run: |
+          LAMBDA_FUNCTION_NAME="financial-dashboard-api-${{ needs.setup.outputs.environment }}"
+          echo "🔬 Deep dive into secrets and permissions..."
+          
+          # Get secret ARN from exports
+          SECRET_ARN=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-SecretArn'].Value" \
+            --output text 2>/dev/null)
           
           if [ -n "$SECRET_ARN" ] && [ "$SECRET_ARN" != "None" ]; then
             echo "Secret ARN: $SECRET_ARN"
@@ -1232,186 +1429,6 @@ jobs:
             echo "This means the database secret was not passed to the deployment"
             echo "Check the deploy_infrastructure step output: DB_SECRET_ARN"
           fi
-          
-          echo ""
-          echo "🔍 Testing API endpoints..."
-          
-          # Test root endpoint first with more details
-          echo "1. Testing root endpoint..."
-          ROOT_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}\nSIZE_DOWNLOAD:%{size_download}\n" "$API_URL/" 2>&1 || echo "CURL_FAILED")
-          echo "Root response: $ROOT_RESPONSE"
-          echo ""
-          
-          # Test health endpoint
-          echo "2. Testing health endpoint..."
-          HEALTH_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}\nSIZE_DOWNLOAD:%{size_download}\n" "$API_URL/health" 2>&1 || echo "CURL_FAILED")
-          echo "Health response: $HEALTH_RESPONSE"
-          echo ""
-          
-          # Test quick health endpoint (no DB required)
-          echo "3. Testing quick health endpoint (no DB required)..."
-          QUICK_HEALTH_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}\nSIZE_DOWNLOAD:%{size_download}\n" "$API_URL/health?quick=true" 2>&1 || echo "CURL_FAILED")
-          echo "Quick health response: $QUICK_HEALTH_RESPONSE"
-          echo ""
-          
-          # Test stocks endpoint (requires DB)
-          echo "4. Testing stocks endpoint (requires database)..."
-          STOCKS_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}\nSIZE_DOWNLOAD:%{size_download}\n" "$API_URL/api/stocks?limit=1" 2>&1 || echo "CURL_FAILED")
-          echo "Stocks response (first 500 chars): ${STOCKS_RESPONSE:0:500}"
-          echo ""
-          
-          # Test diagnostics endpoint for detailed configuration info
-          echo "5. Testing diagnostics endpoint (detailed configuration)..."
-          DIAGNOSTICS_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}\nSIZE_DOWNLOAD:%{size_download}\n" "$API_URL/api/diagnostics" 2>&1 || echo "CURL_FAILED")
-          echo "Diagnostics response: $DIAGNOSTICS_RESPONSE"
-          echo ""
-          
-          # Test with verbose curl to see exact HTTP response
-          echo "6. Testing with verbose curl for HTTP details..."
-          echo "Verbose curl output for root endpoint:"
-          curl -v -s "$API_URL/" 2>&1 | head -20
-          echo ""
-          
-          # Analyze responses
-          echo "🔬 Response Analysis:"
-          
-          if echo "$ROOT_RESPONSE" | grep -q "Financial Dashboard API"; then
-            echo "✅ Root endpoint: Lambda is running and responding"
-          elif echo "$ROOT_RESPONSE" | grep -q "Internal server error"; then
-            echo "❌ Root endpoint: Lambda has internal error (likely config issue)"
-          else
-            echo "⚠️  Root endpoint: Unexpected response - Lambda may not be deployed correctly"
-          fi
-          
-          if echo "$QUICK_HEALTH_RESPONSE" | grep -q "status"; then
-            echo "✅ Quick health: Basic Lambda functionality working"
-          elif echo "$QUICK_HEALTH_RESPONSE" | grep -q "Internal server error"; then
-            echo "❌ Quick health: Lambda configuration issue (not database-related)"
-          else
-            echo "⚠️  Quick health: Unexpected response"
-          fi
-          
-          if echo "$STOCKS_RESPONSE" | grep -q "success.*true"; then
-            echo "✅ Database connectivity: Working correctly"
-          elif echo "$STOCKS_RESPONSE" | grep -q "Internal server error"; then
-            echo "❌ Database connectivity: Lambda cannot connect to database"
-          elif echo "$STOCKS_RESPONSE" | grep -q "Database not available"; then
-            echo "❌ Database connectivity: Database connection failed"
-          else
-            echo "⚠️  Database connectivity: Unexpected response"
-          fi
-          
-          if echo "$DIAGNOSTICS_RESPONSE" | grep -q "HEALTHY"; then
-            echo "✅ Configuration: All diagnostics passed"
-          elif echo "$DIAGNOSTICS_RESPONSE" | grep -q "ISSUES_FOUND"; then
-            echo "❌ Configuration: Issues detected - check diagnostics for details"
-          elif echo "$DIAGNOSTICS_RESPONSE" | grep -q "Internal server error"; then
-            echo "❌ Configuration: Lambda has fundamental configuration issues"
-          else
-            echo "⚠️  Configuration: Diagnostics endpoint not responding correctly"
-          fi
-          
-          echo ""
-          echo "📋 Summary:"
-          echo "If you see 'Internal server error' responses, the Lambda likely has configuration issues."
-          echo "Common causes: Missing environment variables, IAM permissions, or VPC networking."
-          echo "Check the diagnostics response above for specific configuration details and recommendations."
-          
-          # Additional troubleshooting info
-          echo ""
-          echo "🔧 Additional Troubleshooting Information:"
-          
-          # Check if Lambda is in VPC with detailed information
-          VPC_CONFIG=$(aws lambda get-function --function-name "$LAMBDA_FUNCTION_NAME" --query 'Configuration.VpcConfig' --output json 2>/dev/null || echo '{}')
-          if echo "$VPC_CONFIG" | grep -q '"VpcId"'; then
-            echo "✅ Lambda is configured with VPC"
-            echo "VPC Config: $VPC_CONFIG"
-            
-            # Get VPC details
-            VPC_ID=$(echo "$VPC_CONFIG" | jq -r '.VpcId // empty')
-            if [ -n "$VPC_ID" ]; then
-              echo ""
-              echo "🔍 VPC Details:"
-              aws ec2 describe-vpcs --vpc-ids "$VPC_ID" --query 'Vpcs[0].{VpcId:VpcId,CidrBlock:CidrBlock,State:State,DnsHostnames:DnsHostnames,DnsResolution:DnsResolution}' --output table 2>/dev/null || echo "Could not get VPC details"
-            fi
-            
-            # Get subnet details
-            SUBNET_IDS=$(echo "$VPC_CONFIG" | jq -r '.SubnetIds[]? // empty' | tr '\n' ' ')
-            if [ -n "$SUBNET_IDS" ]; then
-              echo ""
-              echo "🔍 Subnet Details:"
-              aws ec2 describe-subnets --subnet-ids $SUBNET_IDS --query 'Subnets[*].{SubnetId:SubnetId,AvailabilityZone:AvailabilityZone,CidrBlock:CidrBlock,State:State,MapPublicIpOnLaunch:MapPublicIpOnLaunch}' --output table 2>/dev/null || echo "Could not get subnet details"
-            fi
-            
-            # Get security group details
-            SECURITY_GROUP_IDS=$(echo "$VPC_CONFIG" | jq -r '.SecurityGroupIds[]? // empty' | tr '\n' ' ')
-            if [ -n "$SECURITY_GROUP_IDS" ]; then
-              echo ""
-              echo "🔍 Security Group Details:"
-              aws ec2 describe-security-groups --group-ids $SECURITY_GROUP_IDS --query 'SecurityGroups[*].{GroupId:GroupId,GroupName:GroupName,Description:Description,VpcId:VpcId}' --output table 2>/dev/null || echo "Could not get security group details"
-              
-              echo ""
-              echo "🔍 Security Group Rules (Outbound):"
-              aws ec2 describe-security-groups --group-ids $SECURITY_GROUP_IDS --query 'SecurityGroups[*].IpPermissionsEgress[*].{Protocol:IpProtocol,FromPort:FromPort,ToPort:ToPort,Target:IpRanges[0].CidrIp}' --output table 2>/dev/null || echo "Could not get security group rules"
-            fi
-          else
-            echo "❌ Lambda is NOT configured with VPC (this may cause database connectivity issues)"
-          fi
-          
-          # Check database connectivity from workflow runner (should work since it's external)
-          echo ""
-          echo "🔍 Testing database connectivity from workflow runner:"
-          DB_ENDPOINT="${{ steps.verify_db_info.outputs.DB_ENDPOINT }}"
-          if [ -n "$DB_ENDPOINT" ]; then
-            echo "Database endpoint: $DB_ENDPOINT"
-            if nc -z "$DB_ENDPOINT" 5432 2>/dev/null; then
-              echo "✅ Database port 5432 is reachable from external network"
-            else
-              echo "❌ Database port 5432 is NOT reachable (may be network issue)"
-            fi
-            
-            # Try to resolve the DNS
-            echo ""
-            echo "🔍 DNS Resolution for database endpoint:"
-            nslookup "$DB_ENDPOINT" 2>/dev/null || echo "Could not resolve DNS"
-          else
-            echo "❌ No database endpoint found"
-          fi
-          
-          # Show environment variables that were passed to Lambda
-          echo ""
-          echo "🔍 Environment Variables Passed to Lambda:"
-          aws lambda get-function --function-name "$LAMBDA_FUNCTION_NAME" --query 'Configuration.Environment.Variables' --output json 2>/dev/null || echo "Could not get environment variables"
-          
-          # Check Lambda execution role permissions
-          echo ""
-          echo "🔍 Lambda Execution Role Information:"
-          ROLE_ARN=$(aws lambda get-function --function-name "$LAMBDA_FUNCTION_NAME" --query 'Configuration.Role' --output text 2>/dev/null)
-          if [ -n "$ROLE_ARN" ]; then
-            echo "Role ARN: $ROLE_ARN"
-            ROLE_NAME=$(echo "$ROLE_ARN" | awk -F'/' '{print $NF}')
-            echo "Role Name: $ROLE_NAME"
-            
-            # Get attached policies
-            echo ""
-            echo "🔍 Attached Policies:"
-            aws iam list-attached-role-policies --role-name "$ROLE_NAME" --query 'AttachedPolicies[*].{PolicyName:PolicyName,PolicyArn:PolicyArn}' --output table 2>/dev/null || echo "Could not get attached policies"
-            
-            # Get inline policies
-            echo ""
-            echo "🔍 Inline Policies:"
-            aws iam list-role-policies --role-name "$ROLE_NAME" --query 'PolicyNames' --output table 2>/dev/null || echo "Could not get inline policies"
-          fi
-          
-          # Check if there are any recent CloudWatch alarms
-          echo ""
-          echo "🚨 Recent CloudWatch Alarms:"
-          aws cloudwatch describe-alarms --alarm-names --query 'MetricAlarms[?MetricName==`Errors` && starts_with(Dimensions[0].Value, `'$LAMBDA_FUNCTION_NAME'`)].{AlarmName:AlarmName,StateValue:StateValue,StateReason:StateReason}' --output table 2>/dev/null || echo "No CloudWatch alarms found"
-          
-          # Get X-Ray traces if available
-          echo ""
-          echo "🔍 X-Ray Traces (if enabled):"
-          aws xray get-trace-summaries --time-range-type TimeRangeByStartTime --start-time $(date -d '10 minutes ago' +%s) --end-time $(date +%s) --query 'TraceSummaries[*].{Id:Id,Duration:Duration,ResponseTime:ResponseTime,HasError:HasError,HasFault:HasFault}' --output table 2>/dev/null || echo "No X-Ray traces found or X-Ray not enabled"
       - name: Test website
         run: |
           WEBSITE_URL="${{ needs.deploy_infrastructure.outputs.website_url }}"
