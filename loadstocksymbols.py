@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Fixed YAML syntax - deploy stock_symbols table to fix white page issue
+# Fixed artifact naming conflict - deploy stock_symbols table to fix white page
 import os
 import re
 import csv
