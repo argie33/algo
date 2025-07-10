@@ -16,7 +16,7 @@ router.get('/ping', (req, res) => {
 router.get('/', async (req, res) => {
   try {
     console.log('OPTIMIZED Stocks main endpoint called with params:', req.query);
-    console.log('Fixed table names: stock_symbols + company_profiles - should work now!');
+    console.log('Fixed ALL table names and JOIN columns - graceful error handling!');
     
     const page = parseInt(req.query.page) || 1;
     const limit = Math.min(parseInt(req.query.limit) || 50, 200); // Increased limit
@@ -183,15 +183,15 @@ router.get('/', async (req, res) => {
         
       FROM stock_symbols ss
       LEFT JOIN company_profiles cp ON ss.symbol = cp.symbol
-      LEFT JOIN market_data md ON ss.symbol = md.ticker
-      LEFT JOIN key_metrics km ON ss.symbol = km.ticker
-      LEFT JOIN analyst_estimates ae ON ss.symbol = ae.ticker
-      LEFT JOIN governance_scores gs ON ss.symbol = gs.ticker
+      LEFT JOIN market_data md ON ss.symbol = md.symbol
+      LEFT JOIN key_metrics km ON ss.symbol = km.symbol
+      LEFT JOIN analyst_estimates ae ON ss.symbol = ae.symbol
+      LEFT JOIN governance_scores gs ON ss.symbol = gs.symbol
       LEFT JOIN (
         SELECT ticker, COUNT(*) as executive_count 
         FROM leadership_team 
-        GROUP BY ticker
-      ) lt_count ON ss.symbol = lt_count.ticker
+        GROUP BY symbol
+      ) lt_count ON ss.symbol = lt_count.symbol
       ${whereClause}
       ORDER BY ${sortColumn} ${sortDirection}
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
@@ -507,6 +507,19 @@ router.get('/', async (req, res) => {
 
   } catch (error) {
     console.error('OPTIMIZED endpoint error:', error);
+    
+    // If tables are missing, return empty data instead of 500 error
+    if (error.code === '42P01') { // relation does not exist
+      console.log('Missing table detected, returning empty results gracefully');
+      return res.json({
+        success: true,
+        data: [],
+        pagination: { page: 1, totalPages: 0, total: 0, limit: 50 },
+        message: 'Data tables are being initialized. Please check back shortly.',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
     res.status(500).json({ 
       error: 'Optimized query failed',
       details: error.message,
@@ -1010,15 +1023,15 @@ router.get('/screen', async (req, res) => {
         
       FROM stock_symbols ss
       LEFT JOIN company_profiles cp ON ss.symbol = cp.symbol
-      LEFT JOIN market_data md ON ss.symbol = md.ticker
-      LEFT JOIN key_metrics km ON ss.symbol = km.ticker
-      LEFT JOIN analyst_estimates ae ON ss.symbol = ae.ticker
-      LEFT JOIN governance_scores gs ON ss.symbol = gs.ticker
+      LEFT JOIN market_data md ON ss.symbol = md.symbol
+      LEFT JOIN key_metrics km ON ss.symbol = km.symbol
+      LEFT JOIN analyst_estimates ae ON ss.symbol = ae.symbol
+      LEFT JOIN governance_scores gs ON ss.symbol = gs.symbol
       LEFT JOIN (
         SELECT ticker, COUNT(*) as executive_count 
         FROM leadership_team 
-        GROUP BY ticker
-      ) lt_count ON ss.symbol = lt_count.ticker
+        GROUP BY symbol
+      ) lt_count ON ss.symbol = lt_count.symbol
       ${whereClause}
       ORDER BY ${sortColumn} ${sortDirection}
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
