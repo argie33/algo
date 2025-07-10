@@ -5391,4 +5391,6 @@ jobs:
           if [ "$EXIT" -ne 0 ]; then
             echo "❌ Calendar failed with exit code $EXIT"
             exit $EXIT
-          fi# Trigger workflow Wed Jul  9 20:24:55 CDT 2025
+          fi
+
+# Trigger workflow Wed Jul  9 20:24:55 CDT 2025
