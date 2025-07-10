@@ -492,7 +492,7 @@ function MarketOverview() {
         <Alert severity="error" sx={{ mb: 3 }}>
           Failed to load market data. Please check your data sources and try again.
           <br /><small>Technical details: {marketError?.message || 'Unknown error'}</small>
-          <br /><small>Debug endpoint: <code>https://ye9syrnj8c.execute-api.us-east-1.amazonaws.com/dev/market/debug</code></small>
+          <br /><small>Debug endpoint: <code>PLACEHOLDER_API_URL/market/debug</code></small>
         </Alert>
       </Box>
     )
