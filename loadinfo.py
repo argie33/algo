@@ -384,18 +384,31 @@ def load_company_info(symbols, cur, conn):
 # Entrypoint
 # -------------------------------
 if __name__ == "__main__":
-    logging.info("🎯 LOADINFO DEPLOYMENT TEST - Starting script execution")
-    logging.info(f"📅 Deployment timestamp: {datetime.now().isoformat()}")
-    logging.info("🔄 This is loadinfo update v2 - deployment trigger test")
-    log_mem("startup")
+    try:
+        logging.info("🎯 LOADINFO DEPLOYMENT TEST - Starting script execution")
+        logging.info(f"📅 Deployment timestamp: {datetime.now().isoformat()}")
+        logging.info("🔄 This is loadinfo update v4 - deployment trigger test")
+        logging.info(f"✅ Python version: {sys.version}")
+        logging.info(f"✅ Current working directory: {os.getcwd()}")
+        
+        # Check environment variables
+        db_secret_arn = os.environ.get("DB_SECRET_ARN")
+        if not db_secret_arn:
+            logging.error("❌ CRITICAL: DB_SECRET_ARN environment variable is not set!")
+            sys.exit(1)
+        else:
+            logging.info(f"✅ DB_SECRET_ARN is set: {db_secret_arn[:50]}...")
+            
+        log_mem("startup")
 
-    # Connect to DB
-    cfg = get_db_config()
-    conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
-        dbname=cfg["dbname"]
-    )
+        # Connect to DB
+        logging.info("🔗 Connecting to database...")
+        cfg = get_db_config()
+        conn = psycopg2.connect(
+            host=cfg["host"], port=cfg["port"],
+            user=cfg["user"], password=cfg["password"],
+            dbname=cfg["dbname"]
+        )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
@@ -635,6 +648,14 @@ if __name__ == "__main__":
 
     cur.close()
     conn.close()
-    logging.info("✅ LOADINFO DEPLOYMENT TEST - All done! This confirms the deployment system is working.")
-    logging.info(f"🚀 Deployment successful - Script version: loadinfo update v2")
-    logging.info("📊 Company information processing completed successfully.")
+        logging.info("✅ LOADINFO DEPLOYMENT TEST - All done! This confirms the deployment system is working.")
+        logging.info(f"🚀 Deployment successful - Script version: loadinfo update v4")
+        logging.info("📊 Company information processing completed successfully.")
+        
+    except Exception as e:
+        logging.error(f"❌ CRITICAL ERROR in loadinfo script: {e}")
+        logging.error(f"❌ Error type: {type(e).__name__}")
+        logging.error(f"❌ Error details: {str(e)}")
+        import traceback
+        logging.error(f"❌ Full traceback: {traceback.format_exc()}")
+        sys.exit(1)

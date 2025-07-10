@@ -1,6 +1,6 @@
 FROM python:3.10-slim
 
-# Deployment trigger test - loadinfo update v2
+# Deployment trigger test - loadinfo update v5 - fix ECS startup
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       build-essential \
