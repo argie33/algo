@@ -15,12 +15,19 @@
   <div id="table"></div>
 
   <script>
-    const API = 'https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/';  // ← replace
+    const API = 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev/stocks';  // Updated from logs
 
     document.getElementById('load').onclick = async () => {
-      const res = await fetch(API, { mode: 'cors' });
-      const data = await res.json();
-      if (!data.length) return;
+      try {
+        console.log('Fetching from:', API);
+        const res = await fetch(API, { mode: 'cors' });
+        console.log('Response status:', res.status);
+        const data = await res.json();
+        console.log('Response data:', data);
+        if (!data.length) {
+          document.getElementById('table').innerHTML = '<p>No data available. Check API and database.</p>';
+          return;
+        }
       const cols = Object.keys(data[0]);
       let html = '<table><thead><tr>' +
         cols.map(c => `<th>${c}</th>`).join('') +
@@ -30,6 +37,10 @@
       });
       html += '</tbody></table>';
       document.getElementById('table').innerHTML = html;
+    } catch (error) {
+      console.error('API Error:', error);
+      document.getElementById('table').innerHTML = `<p style="color: red;">Error: ${error.message}<br/>Check console for details.</p>`;
+    }
     };
   </script>
 </body>
