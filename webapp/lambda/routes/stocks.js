@@ -16,7 +16,7 @@ router.get('/ping', (req, res) => {
 router.get('/', async (req, res) => {
   try {
     console.log('OPTIMIZED Stocks main endpoint called with params:', req.query);
-    console.log('Triggering deployment workflow from loaddata branch - fix white page issue');
+    console.log('Testing after stock_symbols table creation - verify white page fix');
     
     const page = parseInt(req.query.page) || 1;
     const limit = Math.min(parseInt(req.query.limit) || 50, 200); // Increased limit
