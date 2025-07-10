@@ -58,4 +58,42 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Quick fix endpoint to create missing stock_symbols table
+router.post('/create-table', async (req, res) => {
+  try {
+    const { query } = require('../utils/database');
+    
+    await query(`
+      CREATE TABLE IF NOT EXISTS stock_symbols (
+        symbol VARCHAR(10) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        type VARCHAR(50) DEFAULT 'stock',
+        exchange VARCHAR(10),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Insert a test record
+    await query(`
+      INSERT INTO stock_symbols (symbol, name, exchange) 
+      VALUES ('AAPL', 'Apple Inc.', 'NASDAQ') 
+      ON CONFLICT (symbol) DO NOTHING
+    `);
+    
+    res.json({
+      status: 'success',
+      message: 'stock_symbols table created and test data inserted',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Table creation failed:', error);
+    res.status(500).json({
+      status: 'error',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 module.exports = router;
