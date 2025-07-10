@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Removed symbolsalt confusion - symbols should run ONCE to create stock_symbols table
+# Retry after dual run failure - symbols should run cleanly now
 import os
 import re
 import csv
