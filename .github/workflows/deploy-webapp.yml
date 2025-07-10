@@ -860,6 +860,21 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
+      - name: Get database connection info for verification
+        id: verify_db_info
+        run: |
+          DB_SECRET_ARN=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-SecretArn'].Value" \
+            --output text)
+          DB_ENDPOINT=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-DBEndpoint'].Value" \
+            --output text)
+          
+          echo "DB_SECRET_ARN=$DB_SECRET_ARN" >> $GITHUB_OUTPUT
+          echo "DB_ENDPOINT=$DB_ENDPOINT" >> $GITHUB_OUTPUT
+          echo "Database secret for verification: $DB_SECRET_ARN"
+          echo "Database endpoint for verification: $DB_ENDPOINT"
+
       - name: Test API endpoint with diagnostics
         run: |
           API_URL="${{ needs.deploy_infrastructure.outputs.api_url }}"
@@ -910,71 +925,351 @@ jobs:
             Role: Configuration.Role
           }' --output json || echo "Could not get Lambda function info"
           
-          # Get recent Lambda logs
+          # Get recent Lambda logs (extended with more details)
           echo ""
           echo "🔍 Recent Lambda Logs (last 5 minutes):"
           LOG_GROUP="/aws/lambda/$LAMBDA_FUNCTION_NAME"
           
-          # Get the most recent log events
-          aws logs filter-log-events \
-            --log-group-name "$LOG_GROUP" \
-            --start-time $(date -d '5 minutes ago' +%s)000 \
-            --limit 20 \
-            --query 'events[*].message' \
-            --output text 2>/dev/null || echo "No recent logs found"
+          # First check if log group exists
+          echo "Checking if log group exists..."
+          if aws logs describe-log-groups --log-group-name-prefix "$LOG_GROUP" --query 'logGroups[?logGroupName==`'$LOG_GROUP'`]' --output text 2>/dev/null | grep -q "$LOG_GROUP"; then
+            echo "✅ Log group exists: $LOG_GROUP"
+            
+            # Get all log streams to see if there are multiple
+            echo ""
+            echo "📋 Available Log Streams:"
+            aws logs describe-log-streams \
+              --log-group-name "$LOG_GROUP" \
+              --order-by LastEventTime \
+              --descending \
+              --limit 10 \
+              --query 'logStreams[*].[logStreamName,lastEventTime,lastIngestionTime,storedBytes]' \
+              --output table 2>/dev/null || echo "Could not get log streams"
+            
+            # Get the most recent log events with more details
+            echo ""
+            echo "📝 Lambda Log Events (Time-based filter - last 10 minutes):"
+            aws logs filter-log-events \
+              --log-group-name "$LOG_GROUP" \
+              --start-time $(date -d '10 minutes ago' +%s)000 \
+              --limit 100 \
+              --query 'events[*].[timestamp,message]' \
+              --output text 2>/dev/null || echo "No recent logs found"
+            
+            # Also get events from the latest log stream specifically
+            echo ""
+            echo "📝 Latest Log Stream Events:"
+            LATEST_STREAM=$(aws logs describe-log-streams \
+              --log-group-name "$LOG_GROUP" \
+              --order-by LastEventTime \
+              --descending \
+              --limit 1 \
+              --query 'logStreams[0].logStreamName' \
+              --output text 2>/dev/null)
+            
+            if [ -n "$LATEST_STREAM" ] && [ "$LATEST_STREAM" != "None" ]; then
+              echo "Getting events from latest stream: $LATEST_STREAM"
+              aws logs get-log-events \
+                --log-group-name "$LOG_GROUP" \
+                --log-stream-name "$LATEST_STREAM" \
+                --limit 50 \
+                --query 'events[*].[timestamp,message]' \
+                --output text 2>/dev/null || echo "Could not get events from latest stream"
+            else
+              echo "No log streams found - Lambda may not have been invoked yet"
+            fi
+            
+            # Check for cold start patterns
+            echo ""
+            echo "🔍 Checking for Lambda cold start and initialization issues:"
+            aws logs filter-log-events \
+              --log-group-name "$LOG_GROUP" \
+              --start-time $(date -d '30 minutes ago' +%s)000 \
+              --filter-pattern "{ ($.message = \"*START*\") || ($.message = \"*INIT*\") || ($.message = \"*REPORT*\") || ($.message = \"*ERROR*\") || ($.message = \"*Task timed out*\") }" \
+              --query 'events[*].message' \
+              --output text 2>/dev/null || echo "No initialization logs found"
+              
+            # Look for specific error patterns
+            echo ""
+            echo "🔍 Searching for specific error patterns:"
+            echo "--- Database connection errors ---"
+            aws logs filter-log-events \
+              --log-group-name "$LOG_GROUP" \
+              --start-time $(date -d '30 minutes ago' +%s)000 \
+              --filter-pattern "{ ($.message = \"*database*\") || ($.message = \"*connection*\") || ($.message = \"*timeout*\") || ($.message = \"*ECONNREFUSED*\") || ($.message = \"*ETIMEDOUT*\") }" \
+              --query 'events[*].message' \
+              --output text 2>/dev/null || echo "No database connection errors found"
+            
+            echo ""
+            echo "--- Module loading errors ---"
+            aws logs filter-log-events \
+              --log-group-name "$LOG_GROUP" \
+              --start-time $(date -d '30 minutes ago' +%s)000 \
+              --filter-pattern "{ ($.message = \"*Cannot find module*\") || ($.message = \"*MODULE_NOT_FOUND*\") || ($.message = \"*require*\") || ($.message = \"*import*\") }" \
+              --query 'events[*].message' \
+              --output text 2>/dev/null || echo "No module loading errors found"
+            
+            echo ""
+            echo "--- Environment variable errors ---"
+            aws logs filter-log-events \
+              --log-group-name "$LOG_GROUP" \
+              --start-time $(date -d '30 minutes ago' +%s)000 \
+              --filter-pattern "{ ($.message = \"*undefined*\") || ($.message = \"*not set*\") || ($.message = \"*environment*\") || ($.message = \"*config*\") }" \
+              --query 'events[*].message' \
+              --output text 2>/dev/null || echo "No environment variable errors found"
+            
+            echo ""
+            echo "--- VPC/Network errors ---"
+            aws logs filter-log-events \
+              --log-group-name "$LOG_GROUP" \
+              --start-time $(date -d '30 minutes ago' +%s)000 \
+              --filter-pattern "{ ($.message = \"*VPC*\") || ($.message = \"*network*\") || ($.message = \"*ENI*\") || ($.message = \"*subnet*\") || ($.message = \"*security group*\") }" \
+              --query 'events[*].message' \
+              --output text 2>/dev/null || echo "No VPC/network errors found"
+            
+          else
+            echo "❌ Log group does not exist: $LOG_GROUP"
+            echo "This indicates Lambda has NEVER been invoked successfully"
+            echo ""
+            echo "🔍 Checking all Lambda log groups to see what exists:"
+            aws logs describe-log-groups \
+              --log-group-name-prefix "/aws/lambda/" \
+              --query 'logGroups[*].[logGroupName,creationTime,storedBytes]' \
+              --output table 2>/dev/null || echo "Could not list log groups"
+          fi
+          
+          # Get CloudWatch metrics for the function
+          echo ""
+          echo "📊 Lambda CloudWatch Metrics (last 30 minutes):"
+          aws cloudwatch get-metric-statistics \
+            --namespace AWS/Lambda \
+            --metric-name Invocations \
+            --dimensions Name=FunctionName,Value=$LAMBDA_FUNCTION_NAME \
+            --start-time $(date -d '30 minutes ago' -u +%Y-%m-%dT%H:%M:%S) \
+            --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
+            --period 300 \
+            --statistics Sum \
+            --output table 2>/dev/null || echo "Could not get metrics"
+            
+          # Get error metrics
+          echo ""
+          echo "❌ Lambda Error Metrics (last 30 minutes):"
+          aws cloudwatch get-metric-statistics \
+            --namespace AWS/Lambda \
+            --metric-name Errors \
+            --dimensions Name=FunctionName,Value=$LAMBDA_FUNCTION_NAME \
+            --start-time $(date -d '30 minutes ago' -u +%Y-%m-%dT%H:%M:%S) \
+            --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
+            --period 300 \
+            --statistics Sum \
+            --output table 2>/dev/null || echo "Could not get error metrics"
+          
+          # Get duration metrics
+          echo ""
+          echo "⏱️  Lambda Duration Metrics (last 30 minutes):"
+          aws cloudwatch get-metric-statistics \
+            --namespace AWS/Lambda \
+            --metric-name Duration \
+            --dimensions Name=FunctionName,Value=$LAMBDA_FUNCTION_NAME \
+            --start-time $(date -d '30 minutes ago' -u +%Y-%m-%dT%H:%M:%S) \
+            --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
+            --period 300 \
+            --statistics Average,Maximum \
+            --output table 2>/dev/null || echo "Could not get duration metrics"
           
           echo ""
           echo "🔬 Database Secret Information:"
-          SECRET_ARN="${{ steps.db_info.outputs.DB_SECRET_ARN }}"
-          if [ -n "$SECRET_ARN" ]; then
+          echo "🔍 Debugging secret ARN retrieval..."
+          echo "Verify db_info step output: '${{ steps.verify_db_info.outputs.DB_SECRET_ARN }}'"
+          
+          # Get the secret ARN from our verification step
+          SECRET_ARN="${{ steps.verify_db_info.outputs.DB_SECRET_ARN }}"
+          
+          # The issue might be that db_info step is in deploy_infrastructure job, not this job
+          # Let's check if we need to reference it differently
+          echo "Checking if secret is available via deploy_infrastructure outputs..."
+          
+          # Try to get it from CloudFormation stack parameters directly
+          STACK_NAME="${{ needs.deploy_infrastructure.outputs.stack_name }}"
+          if [ -n "$STACK_NAME" ]; then
+            echo "Stack name: $STACK_NAME"
+            echo "Getting secret ARN from CloudFormation stack parameters..."
+            
+            CF_SECRET_ARN=$(aws cloudformation describe-stacks \
+              --stack-name "$STACK_NAME" \
+              --query "Stacks[0].Parameters[?ParameterKey=='DatabaseSecretArn'].ParameterValue" \
+              --output text 2>/dev/null)
+            
+            if [ -n "$CF_SECRET_ARN" ] && [ "$CF_SECRET_ARN" != "None" ]; then
+              echo "✅ Found secret ARN in CloudFormation parameters: $CF_SECRET_ARN"
+              SECRET_ARN="$CF_SECRET_ARN"
+            else
+              echo "❌ Secret ARN not found in CloudFormation parameters"
+              
+              # Show all parameters to debug
+              echo "All CloudFormation parameters:"
+              aws cloudformation describe-stacks \
+                --stack-name "$STACK_NAME" \
+                --query "Stacks[0].Parameters[*].{Key:ParameterKey,Value:ParameterValue}" \
+                --output table 2>/dev/null || echo "Could not get parameters"
+            fi
+          else
+            echo "❌ No stack name available"
+          fi
+          
+          # Try to get it from exports like the deploy step does
+          echo ""
+          echo "🔍 Trying to get secret ARN from CloudFormation exports (like deploy step):"
+          EXPORT_SECRET_ARN=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-SecretArn'].Value" \
+            --output text 2>/dev/null)
+          
+          if [ -n "$EXPORT_SECRET_ARN" ] && [ "$EXPORT_SECRET_ARN" != "None" ]; then
+            echo "✅ Found secret ARN in exports: $EXPORT_SECRET_ARN"
+            SECRET_ARN="$EXPORT_SECRET_ARN"
+          else
+            echo "❌ Secret ARN not found in exports"
+            echo "Available exports:"
+            aws cloudformation list-exports \
+              --query "Exports[*].{Name:Name,Value:Value}" \
+              --output table 2>/dev/null || echo "Could not list exports"
+          fi
+          
+          echo ""
+          echo "Final SECRET_ARN value: '$SECRET_ARN'"
+          
+          if [ -n "$SECRET_ARN" ] && [ "$SECRET_ARN" != "None" ]; then
             echo "Secret ARN: $SECRET_ARN"
             
             # Test if we can describe the secret (without getting the value)
+            echo "🔍 Testing secret accessibility from workflow runner (should work):"
             if aws secretsmanager describe-secret --secret-id "$SECRET_ARN" --query '{
               Name: Name,
               Description: Description,
               LastAccessedDate: LastAccessedDate,
-              LastChangedDate: LastChangedDate
+              LastChangedDate: LastChangedDate,
+              KmsKeyId: KmsKeyId
             }' --output json 2>/dev/null; then
-              echo "✅ Secret exists and is accessible"
+              echo "✅ Secret exists and is accessible from workflow runner"
+              
+              # Get the secret's resource policy
+              echo ""
+              echo "🔍 Secret Resource Policy:"
+              aws secretsmanager describe-secret --secret-id "$SECRET_ARN" --query 'ResourcePolicy' --output text 2>/dev/null || echo "No resource policy found"
+              
+              # Check if the secret is encrypted with a custom KMS key
+              KMS_KEY=$(aws secretsmanager describe-secret --secret-id "$SECRET_ARN" --query 'KmsKeyId' --output text 2>/dev/null)
+              if [ -n "$KMS_KEY" ] && [ "$KMS_KEY" != "None" ] && [ "$KMS_KEY" != "alias/aws/secretsmanager" ]; then
+                echo ""
+                echo "🔍 Custom KMS Key Details:"
+                echo "KMS Key: $KMS_KEY"
+                
+                # Check KMS key policy
+                aws kms describe-key --key-id "$KMS_KEY" --query '{KeyId:KeyMetadata.KeyId,KeyUsage:KeyMetadata.KeyUsage,KeyState:KeyMetadata.KeyState}' --output json 2>/dev/null || echo "Could not get KMS key details"
+                
+                echo ""
+                echo "🔍 KMS Key Policy (checking if Lambda role has access):"
+                aws kms get-key-policy --key-id "$KMS_KEY" --policy-name default --output text 2>/dev/null || echo "Could not get KMS key policy"
+              fi
+              
             else
-              echo "❌ Secret is not accessible or does not exist"
+              echo "❌ Secret is not accessible or does not exist from workflow runner"
+              echo "This is a critical issue - if workflow can't access it, Lambda definitely can't"
             fi
+            
+            # Test secret access specifically as Lambda would
+            echo ""
+            echo "🔍 Testing secret access from Lambda's perspective:"
+            LAMBDA_ROLE_ARN=$(aws lambda get-function --function-name "$LAMBDA_FUNCTION_NAME" --query 'Configuration.Role' --output text 2>/dev/null)
+            if [ -n "$LAMBDA_ROLE_ARN" ]; then
+              LAMBDA_ROLE_NAME=$(echo "$LAMBDA_ROLE_ARN" | awk -F'/' '{print $NF}')
+              echo "Lambda Role: $LAMBDA_ROLE_NAME"
+              
+              # Check if the Lambda role has SecretsManager permissions
+              echo ""
+              echo "🔍 Lambda Role Secrets Manager Permissions:"
+              echo "--- Attached Policies with Secrets Manager access ---"
+              
+              # Get all attached policies
+              ATTACHED_POLICIES=$(aws iam list-attached-role-policies --role-name "$LAMBDA_ROLE_NAME" --query 'AttachedPolicies[*].PolicyArn' --output text 2>/dev/null)
+              
+              for policy in $ATTACHED_POLICIES; do
+                echo "Checking policy: $policy"
+                # Get policy version
+                POLICY_VERSION=$(aws iam get-policy --policy-arn "$policy" --query 'Policy.DefaultVersionId' --output text 2>/dev/null)
+                if [ -n "$POLICY_VERSION" ]; then
+                  # Check if policy contains secretsmanager permissions
+                  aws iam get-policy-version --policy-arn "$policy" --version-id "$POLICY_VERSION" --query 'PolicyVersion.Document' --output json 2>/dev/null | jq -r '.Statement[]? | select(.Effect == "Allow") | select(.Action[]? | test("secretsmanager|kms")) | {Action: .Action, Resource: .Resource}' 2>/dev/null || echo "No secrets manager permissions in this policy"
+                fi
+              done
+              
+              # Check inline policies
+              echo ""
+              echo "--- Inline Policies with Secrets Manager access ---"
+              INLINE_POLICIES=$(aws iam list-role-policies --role-name "$LAMBDA_ROLE_NAME" --query 'PolicyNames' --output text 2>/dev/null)
+              
+              for policy in $INLINE_POLICIES; do
+                echo "Checking inline policy: $policy"
+                aws iam get-role-policy --role-name "$LAMBDA_ROLE_NAME" --policy-name "$policy" --query 'PolicyDocument' --output json 2>/dev/null | jq -r '.Statement[]? | select(.Effect == "Allow") | select(.Action[]? | test("secretsmanager|kms")) | {Action: .Action, Resource: .Resource}' 2>/dev/null || echo "No secrets manager permissions in this inline policy"
+              done
+              
+              # Try to simulate the assume role (if we have permission)
+              echo ""
+              echo "🔍 Testing if workflow can assume Lambda role (permission test):"
+              aws sts assume-role \
+                --role-arn "$LAMBDA_ROLE_ARN" \
+                --role-session-name "test-lambda-permissions" \
+                --duration-seconds 900 \
+                --query 'Credentials.AccessKeyId' \
+                --output text 2>/dev/null && echo "✅ Can assume Lambda role" || echo "❌ Cannot assume Lambda role (expected - different trust policy)"
+              
+            else
+              echo "❌ Could not get Lambda role information"
+            fi
+            
           else
             echo "❌ No secret ARN found"
+            echo "This means the database secret was not passed to the deployment"
+            echo "Check the deploy_infrastructure step output: DB_SECRET_ARN"
           fi
           
           echo ""
           echo "🔍 Testing API endpoints..."
           
-          # Test root endpoint first
+          # Test root endpoint first with more details
           echo "1. Testing root endpoint..."
-          ROOT_RESPONSE=$(curl -s "$API_URL/" 2>&1 || echo "CURL_FAILED")
+          ROOT_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}\nSIZE_DOWNLOAD:%{size_download}\n" "$API_URL/" 2>&1 || echo "CURL_FAILED")
           echo "Root response: $ROOT_RESPONSE"
           echo ""
           
           # Test health endpoint
           echo "2. Testing health endpoint..."
-          HEALTH_RESPONSE=$(curl -s "$API_URL/health" 2>&1 || echo "CURL_FAILED")
+          HEALTH_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}\nSIZE_DOWNLOAD:%{size_download}\n" "$API_URL/health" 2>&1 || echo "CURL_FAILED")
           echo "Health response: $HEALTH_RESPONSE"
           echo ""
           
           # Test quick health endpoint (no DB required)
           echo "3. Testing quick health endpoint (no DB required)..."
-          QUICK_HEALTH_RESPONSE=$(curl -s "$API_URL/health?quick=true" 2>&1 || echo "CURL_FAILED")
+          QUICK_HEALTH_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}\nSIZE_DOWNLOAD:%{size_download}\n" "$API_URL/health?quick=true" 2>&1 || echo "CURL_FAILED")
           echo "Quick health response: $QUICK_HEALTH_RESPONSE"
           echo ""
           
           # Test stocks endpoint (requires DB)
           echo "4. Testing stocks endpoint (requires database)..."
-          STOCKS_RESPONSE=$(curl -s "$API_URL/api/stocks?limit=1" 2>&1 || echo "CURL_FAILED")
+          STOCKS_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}\nSIZE_DOWNLOAD:%{size_download}\n" "$API_URL/api/stocks?limit=1" 2>&1 || echo "CURL_FAILED")
           echo "Stocks response (first 500 chars): ${STOCKS_RESPONSE:0:500}"
           echo ""
           
           # Test diagnostics endpoint for detailed configuration info
           echo "5. Testing diagnostics endpoint (detailed configuration)..."
-          DIAGNOSTICS_RESPONSE=$(curl -s "$API_URL/api/diagnostics" 2>&1 || echo "CURL_FAILED")
+          DIAGNOSTICS_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}\nSIZE_DOWNLOAD:%{size_download}\n" "$API_URL/api/diagnostics" 2>&1 || echo "CURL_FAILED")
           echo "Diagnostics response: $DIAGNOSTICS_RESPONSE"
+          echo ""
+          
+          # Test with verbose curl to see exact HTTP response
+          echo "6. Testing with verbose curl for HTTP details..."
+          echo "Verbose curl output for root endpoint:"
+          curl -v -s "$API_URL/" 2>&1 | head -20
           echo ""
           
           # Analyze responses
@@ -1026,11 +1321,39 @@ jobs:
           echo ""
           echo "🔧 Additional Troubleshooting Information:"
           
-          # Check if Lambda is in VPC
+          # Check if Lambda is in VPC with detailed information
           VPC_CONFIG=$(aws lambda get-function --function-name "$LAMBDA_FUNCTION_NAME" --query 'Configuration.VpcConfig' --output json 2>/dev/null || echo '{}')
           if echo "$VPC_CONFIG" | grep -q '"VpcId"'; then
             echo "✅ Lambda is configured with VPC"
             echo "VPC Config: $VPC_CONFIG"
+            
+            # Get VPC details
+            VPC_ID=$(echo "$VPC_CONFIG" | jq -r '.VpcId // empty')
+            if [ -n "$VPC_ID" ]; then
+              echo ""
+              echo "🔍 VPC Details:"
+              aws ec2 describe-vpcs --vpc-ids "$VPC_ID" --query 'Vpcs[0].{VpcId:VpcId,CidrBlock:CidrBlock,State:State,DnsHostnames:DnsHostnames,DnsResolution:DnsResolution}' --output table 2>/dev/null || echo "Could not get VPC details"
+            fi
+            
+            # Get subnet details
+            SUBNET_IDS=$(echo "$VPC_CONFIG" | jq -r '.SubnetIds[]? // empty' | tr '\n' ' ')
+            if [ -n "$SUBNET_IDS" ]; then
+              echo ""
+              echo "🔍 Subnet Details:"
+              aws ec2 describe-subnets --subnet-ids $SUBNET_IDS --query 'Subnets[*].{SubnetId:SubnetId,AvailabilityZone:AvailabilityZone,CidrBlock:CidrBlock,State:State,MapPublicIpOnLaunch:MapPublicIpOnLaunch}' --output table 2>/dev/null || echo "Could not get subnet details"
+            fi
+            
+            # Get security group details
+            SECURITY_GROUP_IDS=$(echo "$VPC_CONFIG" | jq -r '.SecurityGroupIds[]? // empty' | tr '\n' ' ')
+            if [ -n "$SECURITY_GROUP_IDS" ]; then
+              echo ""
+              echo "🔍 Security Group Details:"
+              aws ec2 describe-security-groups --group-ids $SECURITY_GROUP_IDS --query 'SecurityGroups[*].{GroupId:GroupId,GroupName:GroupName,Description:Description,VpcId:VpcId}' --output table 2>/dev/null || echo "Could not get security group details"
+              
+              echo ""
+              echo "🔍 Security Group Rules (Outbound):"
+              aws ec2 describe-security-groups --group-ids $SECURITY_GROUP_IDS --query 'SecurityGroups[*].IpPermissionsEgress[*].{Protocol:IpProtocol,FromPort:FromPort,ToPort:ToPort,Target:IpRanges[0].CidrIp}' --output table 2>/dev/null || echo "Could not get security group rules"
+            fi
           else
             echo "❌ Lambda is NOT configured with VPC (this may cause database connectivity issues)"
           fi
@@ -1038,7 +1361,7 @@ jobs:
           # Check database connectivity from workflow runner (should work since it's external)
           echo ""
           echo "🔍 Testing database connectivity from workflow runner:"
-          DB_ENDPOINT="${{ steps.db_info.outputs.DB_ENDPOINT }}"
+          DB_ENDPOINT="${{ steps.verify_db_info.outputs.DB_ENDPOINT }}"
           if [ -n "$DB_ENDPOINT" ]; then
             echo "Database endpoint: $DB_ENDPOINT"
             if nc -z "$DB_ENDPOINT" 5432 2>/dev/null; then
@@ -1046,6 +1369,11 @@ jobs:
             else
               echo "❌ Database port 5432 is NOT reachable (may be network issue)"
             fi
+            
+            # Try to resolve the DNS
+            echo ""
+            echo "🔍 DNS Resolution for database endpoint:"
+            nslookup "$DB_ENDPOINT" 2>/dev/null || echo "Could not resolve DNS"
           else
             echo "❌ No database endpoint found"
           fi
@@ -1054,6 +1382,36 @@ jobs:
           echo ""
           echo "🔍 Environment Variables Passed to Lambda:"
           aws lambda get-function --function-name "$LAMBDA_FUNCTION_NAME" --query 'Configuration.Environment.Variables' --output json 2>/dev/null || echo "Could not get environment variables"
+          
+          # Check Lambda execution role permissions
+          echo ""
+          echo "🔍 Lambda Execution Role Information:"
+          ROLE_ARN=$(aws lambda get-function --function-name "$LAMBDA_FUNCTION_NAME" --query 'Configuration.Role' --output text 2>/dev/null)
+          if [ -n "$ROLE_ARN" ]; then
+            echo "Role ARN: $ROLE_ARN"
+            ROLE_NAME=$(echo "$ROLE_ARN" | awk -F'/' '{print $NF}')
+            echo "Role Name: $ROLE_NAME"
+            
+            # Get attached policies
+            echo ""
+            echo "🔍 Attached Policies:"
+            aws iam list-attached-role-policies --role-name "$ROLE_NAME" --query 'AttachedPolicies[*].{PolicyName:PolicyName,PolicyArn:PolicyArn}' --output table 2>/dev/null || echo "Could not get attached policies"
+            
+            # Get inline policies
+            echo ""
+            echo "🔍 Inline Policies:"
+            aws iam list-role-policies --role-name "$ROLE_NAME" --query 'PolicyNames' --output table 2>/dev/null || echo "Could not get inline policies"
+          fi
+          
+          # Check if there are any recent CloudWatch alarms
+          echo ""
+          echo "🚨 Recent CloudWatch Alarms:"
+          aws cloudwatch describe-alarms --alarm-names --query 'MetricAlarms[?MetricName==`Errors` && starts_with(Dimensions[0].Value, `'$LAMBDA_FUNCTION_NAME'`)].{AlarmName:AlarmName,StateValue:StateValue,StateReason:StateReason}' --output table 2>/dev/null || echo "No CloudWatch alarms found"
+          
+          # Get X-Ray traces if available
+          echo ""
+          echo "🔍 X-Ray Traces (if enabled):"
+          aws xray get-trace-summaries --time-range-type TimeRangeByStartTime --start-time $(date -d '10 minutes ago' +%s) --end-time $(date +%s) --query 'TraceSummaries[*].{Id:Id,Duration:Duration,ResponseTime:ResponseTime,HasError:HasError,HasFault:HasFault}' --output table 2>/dev/null || echo "No X-Ray traces found or X-Ray not enabled"
       - name: Test website
         run: |
           WEBSITE_URL="${{ needs.deploy_infrastructure.outputs.website_url }}"
