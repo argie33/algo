@@ -799,6 +799,25 @@ jobs:
           echo "📝 Created runtime config:"
           cat public/config.js
           
+          # Update all hardcoded API URLs throughout the project with current API Gateway URL
+          echo "🔄 Replacing hardcoded API URLs with dynamic value: $VITE_API_URL"
+          
+          # Update .env files
+          find . -name "*.env*" -type f -exec sed -i "s|https://[a-z0-9]*.execute-api.[a-z0-9-]*.amazonaws.com/[a-z]*|$VITE_API_URL|g" {} \;
+          
+          # Update vite.config.js fallback
+          sed -i "s|'https://[a-z0-9]*.execute-api.[a-z0-9-]*.amazonaws.com/[a-z]*'|'$VITE_API_URL'|g" vite.config.js
+          
+          # Update any test files
+          find . -name "*.html" -type f -exec sed -i "s|https://[a-z0-9]*.execute-api.[a-z0-9-]*.amazonaws.com/[a-z]*|$VITE_API_URL|g" {} \;
+          
+          # Update any remaining hardcoded URLs in JS files (but not in node_modules or dist)
+          find . -name "*.js" -not -path "./node_modules/*" -not -path "./dist/*" -type f -exec sed -i "s|https://[a-z0-9]*.execute-api.[a-z0-9-]*.amazonaws.com/[a-z]*|$VITE_API_URL|g" {} \;
+          
+          echo "✅ Dynamic URL replacement completed"
+          echo "📝 Verification - checking for any remaining hardcoded URLs:"
+          grep -r "execute-api" . --exclude-dir=node_modules --exclude-dir=dist || echo "No hardcoded API URLs found"
+          
           npm run build
           echo "✅ Frontend build completed"
       - name: Deploy Frontend to S3
