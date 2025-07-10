@@ -31,10 +31,9 @@ Globals:
       AllowHeaders: "'Content-Type,Authorization,X-Requested-With'"
       AllowOrigin: "'*'"
       AllowCredentials: false
+    # Use SAM's implicit stage configuration
     Variables:
-      # Pass environment info to API Gateway for dynamic configuration
       ENVIRONMENT: !Ref EnvironmentName
-      STAGE_NAME: !Ref EnvironmentName
 
 Resources:
   # Cognito User Pool for authentication
@@ -237,28 +236,6 @@ Resources:
             Action: 'execute-api:Invoke'
             Resource: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ServerlessRestApi}/*'
 
-  # Custom Stage with environment-specific name
-  ApiGatewayCustomStage:
-    Type: AWS::ApiGateway::Stage
-    Properties:
-      RestApiId: !Ref ServerlessRestApi
-      DeploymentId: !Ref ServerlessRestApiDeployment
-      StageName: !Ref EnvironmentName
-      Description: !Sub 'API Gateway stage for ${EnvironmentName} environment'
-      Variables:
-        ENVIRONMENT: !Ref EnvironmentName
-        DEPLOYMENT_TIME: !Sub '${AWS::StackName}-${AWS::Region}'
-      AccessLogSetting:
-        DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
-        Format: '$requestId $requestTime $identity.sourceIp $identity.userAgent $httpMethod $resourcePath $status $error.message $error.messageString'
-      MethodSettings:
-        - ResourcePath: '/*'
-          HttpMethod: '*'
-          LoggingLevel: INFO
-          DataTraceEnabled: true
-          MetricsEnabled: true
-          ThrottlingRateLimit: 1000
-          ThrottlingBurstLimit: 2000
 
 
 
@@ -535,7 +512,7 @@ Outputs:
 
   ApiGatewayUrl:
     Description: API Gateway endpoint URL
-    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}'
+    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod'
     Export:
       Name: !Sub '${AWS::StackName}-ApiGatewayUrl'
       
@@ -560,7 +537,7 @@ Outputs:
       
   ApiGatewayStageName:
     Description: API Gateway stage name
-    Value: !Ref EnvironmentName
+    Value: Prod
     Export:
       Name: !Sub '${AWS::StackName}-ApiGatewayStageName'
 
