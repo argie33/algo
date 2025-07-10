@@ -211,7 +211,9 @@ router.post('/create-table', async (req, res) => {
       status: 'success',
       message: 'Emergency tables created - run your data loading scripts for full data',
       tables_created: ['stock_symbols', 'company_profiles'],
-      timestamp: new Date().toISOString()
+      records_inserted: 5,
+      timestamp: new Date().toISOString(),
+      note: 'Auto-triggered via deployment'
     });
     
   } catch (error) {
