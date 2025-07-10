@@ -4,7 +4,7 @@ import axios from 'axios'
 export const getApiConfig = () => {
   // Dynamic API URL resolution: runtime > build-time > fallback
   let runtimeApiUrl = (typeof window !== 'undefined' && window.__CONFIG__ && window.__CONFIG__.API_URL) ? window.__CONFIG__.API_URL : null;
-  const apiUrl = runtimeApiUrl || import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  const apiUrl = runtimeApiUrl || import.meta.env.VITE_API_URL || 'PLACEHOLDER_API_URL';
   
   console.log('🔧 [API CONFIG] URL Resolution:', {
     runtimeApiUrl,

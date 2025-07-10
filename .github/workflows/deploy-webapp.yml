@@ -800,23 +800,37 @@ jobs:
           cat public/config.js
           
           # Update all hardcoded API URLs throughout the project with current API Gateway URL
-          echo "🔄 Replacing hardcoded API URLs with dynamic value: $VITE_API_URL"
+          echo "🔄 Replacing placeholder and hardcoded API URLs with dynamic value: $VITE_API_URL"
+          
+          # Replace PLACEHOLDER_API_URL in source files
+          echo "🎯 Replacing PLACEHOLDER_API_URL in source files..."
+          find ./src -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" | xargs -r sed -i "s|PLACEHOLDER_API_URL|$VITE_API_URL|g"
+          
+          # Update any existing hardcoded API URLs
+          echo "🎯 Replacing any existing hardcoded API URLs..."
+          find ./src -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" | xargs -r sed -i "s|https://[a-z0-9]*.execute-api.[a-z0-9-]*.amazonaws.com/[a-z]*|$VITE_API_URL|g"
           
           # Update .env files
           find . -name "*.env*" -type f -exec sed -i "s|https://[a-z0-9]*.execute-api.[a-z0-9-]*.amazonaws.com/[a-z]*|$VITE_API_URL|g" {} \;
           
-          # Update vite.config.js fallback
-          sed -i "s|'https://[a-z0-9]*.execute-api.[a-z0-9-]*.amazonaws.com/[a-z]*'|'$VITE_API_URL'|g" vite.config.js
+          # Update vite.config.js fallback if it exists
+          if [ -f "vite.config.js" ]; then
+            sed -i "s|'https://[a-z0-9]*.execute-api.[a-z0-9-]*.amazonaws.com/[a-z]*'|'$VITE_API_URL'|g" vite.config.js
+            sed -i "s|'PLACEHOLDER_API_URL'|'$VITE_API_URL'|g" vite.config.js
+          fi
           
           # Update any test files
           find . -name "*.html" -type f -exec sed -i "s|https://[a-z0-9]*.execute-api.[a-z0-9-]*.amazonaws.com/[a-z]*|$VITE_API_URL|g" {} \;
-          
-          # Update any remaining hardcoded URLs in JS files (but not in node_modules or dist)
-          find . -name "*.js" -not -path "./node_modules/*" -not -path "./dist/*" -type f -exec sed -i "s|https://[a-z0-9]*.execute-api.[a-z0-9-]*.amazonaws.com/[a-z]*|$VITE_API_URL|g" {} \;
+          find . -name "*.html" -type f -exec sed -i "s|PLACEHOLDER_API_URL|$VITE_API_URL|g" {} \;
           
           echo "✅ Dynamic URL replacement completed"
-          echo "📝 Verification - checking for any remaining hardcoded URLs:"
-          grep -r "execute-api" . --exclude-dir=node_modules --exclude-dir=dist || echo "No hardcoded API URLs found"
+          echo "📝 Verification - checking files that were updated:"
+          echo "--- Checking for PLACEHOLDER_API_URL (should be 0) ---"
+          grep -r "PLACEHOLDER_API_URL" ./src || echo "✅ No placeholders found"
+          echo "--- Checking for hardcoded execute-api URLs (should be 0) ---"
+          grep -r "execute-api" ./src || echo "✅ No hardcoded URLs found"
+          echo "--- Showing actual API URL used in source files ---"
+          grep -r "$VITE_API_URL" ./src | head -5 || echo "❌ API URL not found in source files"
           
           npm run build
           echo "✅ Frontend build completed"
