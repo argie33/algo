@@ -160,13 +160,15 @@ async function healthCheck() {
             )
         ]);
         
-        const result = await client.query('SELECT NOW() as timestamp, current_database() as db');
+        const result = await client.query('SELECT NOW() as timestamp, current_database() as db, version() as version');
         client.release();
         
         return {
             status: 'healthy',
             database: result.rows[0].db,
-            timestamp: result.rows[0].timestamp
+            timestamp: result.rows[0].timestamp,
+            version: result.rows[0].version.split(' ')[0],
+            note: 'Database connection verified - does not test application tables'
         };
     } catch (error) {
         return {

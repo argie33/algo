@@ -167,8 +167,8 @@ Resources:
           DB_SECRET_ARN: !ImportValue StocksApp-SecretArn
           DB_ENDPOINT: !ImportValue StocksApp-DBEndpoint
           COGNITO_SECRET_ARN: !Ref CognitoConfigSecret
-          NODE_ENV: production
-          ENVIRONMENT: dev
+          NODE_ENV: !Ref EnvironmentName
+          ENVIRONMENT: !Ref EnvironmentName
           WEBAPP_AWS_REGION: !Ref AWS::Region
           COGNITO_USER_POOL_ID: !Ref UserPool
           COGNITO_CLIENT_ID: !Ref UserPoolClient
