@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Retry after dual run failure - symbols should run cleanly now
-# Trigger deploy-app-stocks workflow - fix ECS task None exit code v10
+# FORCE WORKFLOW RUN - Updated v11 - MUST WORK NOW
+# Trigger deploy-app-stocks workflow - fix ECS task None exit code v11
 
 print("🚀 STOCK SYMBOLS LOADER STARTING...")
 print("🔍 Python version:", sys.version)
