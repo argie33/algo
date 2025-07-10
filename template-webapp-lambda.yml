@@ -539,13 +539,13 @@ Outputs:
       
   LambdaFunctionName:
     Description: Lambda function name
-    Value: !Ref FinancialDashboardFunction
+    Value: !Ref ApiFunction
     Export:
       Name: !Sub '${AWS::StackName}-LambdaFunctionName'
       
   LambdaFunctionArn:
     Description: Lambda function ARN
-    Value: !GetAtt FinancialDashboardFunction.Arn
+    Value: !GetAtt ApiFunction.Arn
     Export:
       Name: !Sub '${AWS::StackName}-LambdaFunctionArn'
       
