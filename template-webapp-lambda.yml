@@ -171,10 +171,9 @@ Resources:
       CodeUri: webapp/lambda/
       Handler: index.handler
       Role: !GetAtt LambdaExecutionRole.Arn
-      # REMOVED VpcConfig - Lambda runs in AWS managed VPC for better performance and cost
-      # and can directly access public RDS endpoint
+      # No VPC config needed - RDS is publicly accessible
       Timeout: 60
-      MemorySize: 256
+      MemorySize: 512
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DatabaseSecretArn
