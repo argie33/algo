@@ -4689,7 +4689,7 @@ jobs:
             exit $EXIT
           fi
 
-  run_valuemetrics:
+run_valuemetrics:
     name: Run value-metrics calculator
     needs: [deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.valuemetrics == 'true' }}
