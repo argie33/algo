@@ -58,42 +58,74 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Application readiness check - tests if app tables exist and have data
+// Application readiness check - tests if database has tables
 router.get('/ready', async (req, res) => {
   try {
     const { query } = require('../utils/database');
     
-    // Check if critical application tables exist
-    const tables = ['stock_symbols', 'stocks', 'last_updated'];
+    // First check what tables actually exist
+    const tablesResult = await query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      AND table_type = 'BASE TABLE'
+      ORDER BY table_name;
+    `);
+    
+    const existingTables = tablesResult.rows.map(r => r.table_name);
+    
+    // Check critical webapp tables (not stock_symbols - that comes from data loading)
+    const criticalWebappTables = ['last_updated', 'health_status'];
     const results = {};
     
-    for (const table of tables) {
-      try {
-        const result = await query(`SELECT COUNT(*) as count FROM ${table} LIMIT 1`);
+    for (const table of criticalWebappTables) {
+      if (existingTables.includes(table)) {
+        try {
+          const result = await query(`SELECT COUNT(*) as count FROM ${table} LIMIT 1`);
+          results[table] = { 
+            exists: true, 
+            count: parseInt(result.rows[0].count),
+            status: 'ready'
+          };
+        } catch (error) {
+          results[table] = { 
+            exists: true,
+            error: error.message,
+            status: 'error'
+          };
+        }
+      } else {
         results[table] = { 
-          exists: true, 
-          count: parseInt(result.rows[0].count),
-          status: 'ready'
-        };
-      } catch (error) {
-        results[table] = { 
-          exists: false, 
-          error: error.message,
+          exists: false,
           status: 'not_ready'
         };
       }
     }
     
-    const allReady = Object.values(results).every(r => r.status === 'ready');
+    // Check if data loading tables exist (but don't fail if they don't)
+    const dataLoadingTables = ['stock_symbols', 'company_profiles', 'prices'];
+    const dataTablesInfo = {};
     
-    return res.status(allReady ? 200 : 503).json({
-      status: allReady ? 'ready' : 'not_ready',
-      ready: allReady,
+    for (const table of dataLoadingTables) {
+      dataTablesInfo[table] = {
+        exists: existingTables.includes(table),
+        note: 'Created by data loading scripts'
+      };
+    }
+    
+    const webappTablesReady = Object.values(results).every(r => r.status === 'ready');
+    
+    return res.status(webappTablesReady ? 200 : 503).json({
+      status: webappTablesReady ? 'ready' : 'not_ready',
+      ready: webappTablesReady,
       service: 'Financial Dashboard API',
       timestamp: new Date().toISOString(),
       environment: process.env.ENVIRONMENT || 'dev',
-      application_tables: results,
-      note: 'Application readiness check - tests if app tables exist with data'
+      webapp_tables: results,
+      data_loading_tables: dataTablesInfo,
+      total_tables_found: existingTables.length,
+      all_tables: existingTables,
+      note: 'Webapp tables must be ready; data tables are optional'
     });
     
   } catch (error) {
