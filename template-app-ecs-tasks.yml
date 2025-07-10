@@ -4,6 +4,8 @@ Description: >
   for stock-symbols, econ-data, monthly-price, findata, pricedaily,
   priceweekly, pricemonthly, TechnicalsDaily, loadinfo, earningsestimate,
   technicalsweekly & technicalsmonthly.
+  
+  Trigger deploy-app-stocks workflow - fix ECS task None exit code v8
 
 Parameters:
   StockSymbolsImageTag:
