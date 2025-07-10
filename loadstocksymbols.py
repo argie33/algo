@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated for deployment verification and workflow trigger - create stock_symbols table
+# Trigger deployment to create stock_symbols table - fix white page issue
 import os
 import re
 import csv
