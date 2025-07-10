@@ -5,9 +5,23 @@ on:
   push:
     branches:
       - '*'
+    paths:
+      - 'cloudformation/**'
+      - 'scripts/**'
+      - '*.py'
+      - 'Dockerfile.*'
+      - 'requirements*.txt'
+      - '.github/workflows/deploy-app-stocks.yml'
   pull_request:
     branches:
       - '*'
+    paths:
+      - 'cloudformation/**'
+      - 'scripts/**'
+      - '*.py'
+      - 'Dockerfile.*'
+      - 'requirements*.txt'
+      - '.github/workflows/deploy-app-stocks.yml'
 
 permissions:
   id-token: write
@@ -31,58 +45,6 @@ jobs:
       qualitymetrics: ${{ steps.filter.outputs.qualitymetrics }}
       valuemetrics: ${{ steps.filter.outputs.valuemetrics }}
       stepfunctions: ${{ steps.filter.outputs.stepfunctions }}
-      symbols: ${{ steps.filter.outputs.symbols }}
-      symbolsalt: ${{ steps.filter.outputs.symbolsalt }}
-      econ: ${{ steps.filter.outputs.econ }}
-      commodities: ${{ steps.filter.outputs.commodities }}
-      pricedaily: ${{ steps.filter.outputs.pricedaily }}
-      priceweekly: ${{ steps.filter.outputs.priceweekly }}
-      pricemonthly: ${{ steps.filter.outputs.pricemonthly }}
-      technicalsdaily: ${{ steps.filter.outputs.technicalsdaily }}
-      technicalsweekly: ${{ steps.filter.outputs.technicalsweekly }}
-      technicalsmonthly: ${{ steps.filter.outputs.technicalsmonthly }}
-      loadinfo: ${{ steps.filter.outputs.loadinfo }}
-      earningshistory: ${{ steps.filter.outputs.earningshistory }}
-      earningsestimate: ${{ steps.filter.outputs.earningsestimate }}
-      earningsmetrics: ${{ steps.filter.outputs.earningsmetrics }}
-      revenueestimate: ${{ steps.filter.outputs.revenueestimate }}
-      swingtrader: ${{ steps.filter.outputs.swingtrader }}
-      buyselldaily: ${{ steps.filter.outputs.buyselldaily }}
-      buysellweekly: ${{ steps.filter.outputs.buysellweekly }}
-      buysellmonthly: ${{ steps.filter.outputs.buysellmonthly }}
-      latestpricedaily: ${{ steps.filter.outputs.latestpricedaily }}
-      latestpriceweekly: ${{ steps.filter.outputs.latestpriceweekly }}
-      latestpricemonthly: ${{ steps.filter.outputs.latestpricemonthly }}
-      latesttechnicalsdaily: ${{ steps.filter.outputs.latesttechnicalsdaily }}
-      latesttechnicalsweekly: ${{ steps.filter.outputs.latesttechnicalsweekly }}
-      latesttechnicalsmonthly: ${{ steps.filter.outputs.latesttechnicalsmonthly }}
-      naaim: ${{ steps.filter.outputs.naaim }}
-      aaii: ${{ steps.filter.outputs.aaii }}
-      feargreed: ${{ steps.filter.outputs.feargreed }}
-      quarterlybalancesheet: ${{ steps.filter.outputs.quarterlybalancesheet }}
-      annualbalancesheet: ${{ steps.filter.outputs.annualbalancesheet }}
-      quarterlyincomestatement: ${{ steps.filter.outputs.quarterlyincomestatement }}
-      annualincomestatement: ${{ steps.filter.outputs.annualincomestatement }}
-      quarterlycashflow: ${{ steps.filter.outputs.quarterlycashflow }}
-      annualcashflow: ${{ steps.filter.outputs.annualcashflow }}
-      ttmincomestatement: ${{ steps.filter.outputs.ttmincomestatement }}
-      ttmcashflow: ${{ steps.filter.outputs.ttmcashflow }}
-      loadnews: ${{ steps.filter.outputs.loadnews }}
-      fundamentalmetrics: ${{ steps.filter.outputs.fundamentalmetrics }}
-      analystupgradedowngrade: ${{ steps.filter.outputs.analystupgradedowngrade }}
-      financials: ${{ steps.filter.outputs.financials }}
-      sentiment: ${{ steps.filter.outputs.sentiment }}
-      technicals: ${{ steps.filter.outputs.technicals }}
-      market: ${{ steps.filter.outputs.market }}
-      momentum: ${{ steps.filter.outputs.momentum }}
-      sentiment_realtime: ${{ steps.filter.outputs.sentiment_realtime }}
-      positioning: ${{ steps.filter.outputs.positioning }}
-      qualityscores: ${{ steps.filter.outputs.qualityscores }}
-      valuescores: ${{ steps.filter.outputs.valuescores }}
-      growthmetrics: ${{ steps.filter.outputs.growthmetrics }}
-      calendar: ${{ steps.filter.outputs.calendar }}
-      any: ${{ steps.filter.outputs.any }}
-      matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v3
       - uses: dorny/paths-filter@v2
@@ -90,162 +52,18 @@ jobs:
         with:
           filters: |
             app:
-              - 'template-app-stocks.yml'
+              - 'cloudformation/template-app-stocks.yml'
               - '.github/workflows/deploy-app-stocks.yml'
             tasks:
-              - 'template-app-ecs-tasks.yml'
+              - 'cloudformation/template-app-ecs-tasks.yml'
               - 'requirements.txt'
+              - 'scripts/**'
             qualitymetrics:
               - 'scripts/quality-metrics/**'
             valuemetrics:
               - 'scripts/value-metrics/**'
             stepfunctions:
-              - 'template-step-functions-orchestration.yml'
-            symbols:
-              - 'loadstocksymbols.py'
-              - 'Dockerfile.stocksymbols'
-              - 'requirements-loadstocksymbols.txt'
-            symbolsalt:
-              - 'scripts/symbols-alt/**'
-            econ:
-              - 'scripts/econ-data/**'
-            commodities:
-              - 'loadcommodities.py'
-              - 'Dockerfile.loadcommodities'
-              - 'requirements-loadcommodities.txt'
-            pricedaily:
-              - 'loadpricedaily.py'
-              - 'Dockerfile.pricedaily'
-              - 'requirements-loadpricedaily.txt'
-            priceweekly:
-              - 'scripts/priceweekly/**'
-            pricemonthly:
-              - 'scripts/pricemonthly/**'
-            technicalsdaily:
-              - 'scripts/technicals-daily/**'
-            technicalsweekly:
-              - 'scripts/technicals-weekly/**'
-            technicalsmonthly:
-              - 'scripts/technicals-monthly/**'
-            loadinfo:
-              - 'scripts/load-info/**'
-            earningshistory:
-              - 'scripts/earnings-history/**'
-            earningsestimate:
-              - 'scripts/earnings-estimate/**'
-            earningsmetrics:
-              - 'scripts/earnings-metrics/**'
-            revenueestimate:
-              - 'scripts/revenue-estimate/**'
-            swingtrader:
-              - 'scripts/swing-trader/**'
-            buyselldaily:
-              - 'scripts/buysell-daily/**'
-            buysellweekly:
-              - 'scripts/buysell-weekly/**'
-            buysellmonthly:
-              - 'scripts/buysell-monthly/**'
-            latestpricedaily:
-              - 'scripts/load-latest-price-daily/**'
-            latestpriceweekly:
-              - 'scripts/load-latest-price-weekly/**'
-            latestpricemonthly:
-              - 'scripts/load-latest-price-monthly/**'
-            latesttechnicalsdaily:
-              - 'scripts/latest-technicals-daily/**'
-            latesttechnicalsweekly:
-              - 'scripts/latest-technicals-weekly/**'
-            latesttechnicalsmonthly:
-              - 'scripts/latest-technicals-monthly/**'
-            naaim:
-              - 'scripts/naaim/**'
-            aaii:
-              - 'scripts/aaii/**'
-            feargreed:
-              - 'scripts/fear-greed/**'
-            quarterlybalancesheet:
-              - 'scripts/quarterly-balance-sheet/**'
-            annualbalancesheet:
-              - 'scripts/annual-balance-sheet/**'
-            quarterlyincomestatement:
-              - 'scripts/quarterly-income-statement/**'
-            annualincomestatement:
-              - 'scripts/annual-income-statement/**'
-            quarterlycashflow:
-              - 'scripts/quarterly-cash-flow/**'
-            annualcashflow:
-              - 'scripts/annual-cash-flow/**'
-            ttmincomestatement:
-              - 'scripts/ttm-income-statement/**'
-            ttmcashflow:
-              - 'scripts/ttm-cash-flow/**'
-            loadnews:
-              - 'scripts/load-news/**'
-            fundamentalmetrics:
-              - 'scripts/fundamental-metrics/**'
-            analystupgradedowngrade:
-              - 'scripts/analyst-upgrade-downgrade/**'
-            financials:
-              - 'scripts/financials/**'
-            sentiment:
-              - 'scripts/sentiment/**'
-            technicals:
-              - 'scripts/technicals/**'
-            market:
-              - 'scripts/market/**'
-            momentum:
-              - 'scripts/momentum/**'
-            sentiment_realtime:
-              - 'scripts/sentiment-realtime/**'
-            positioning:
-              - 'scripts/positioning/**'
-            qualityscores:
-              - 'scripts/quality-scores/**'
-            valuescores:
-              - 'scripts/value-scores/**'
-            growthmetrics:
-              - 'calculate_growth_metrics.py'
-              - 'Dockerfile.growth-metrics'
-              - 'requirements-growth-metrics.txt'
-            calendar:
-              - 'scripts/calendar/**'
-            any:
-              - 'template-*.yml'
-              - '.github/workflows/**'
-              - 'requirements.txt'
-              - 'Dockerfile.*'
-              - 'requirements-*.txt'
-
-      - name: Generate matrix for changed components
-        id: matrix
-        run: |
-          arr=""
-          [ "${{ steps.filter.outputs.symbols }}" = "true" ] && arr="$arr,\"symbols\""
-          [ "${{ steps.filter.outputs.econ }}" = "true" ] && arr="$arr,\"econ\""
-          [ "${{ steps.filter.outputs.commodities }}" = "true" ] && arr="$arr,\"commodities\""
-          [ "${{ steps.filter.outputs.pricedaily }}" = "true" ] && arr="$arr,\"pricedaily\""
-          [ "${{ steps.filter.outputs.priceweekly }}" = "true" ] && arr="$arr,\"priceweekly\""
-          [ "${{ steps.filter.outputs.pricemonthly }}" = "true" ] && arr="$arr,\"pricemonthly\""
-          [ "${{ steps.filter.outputs.technicalsdaily }}" = "true" ] && arr="$arr,\"technicalsdaily\""
-          [ "${{ steps.filter.outputs.loadinfo }}" = "true" ] && arr="$arr,\"loadinfo\""
-          [ "${{ steps.filter.outputs.earningshistory }}" = "true" ] && arr="$arr,\"earningshistory\""
-          [ "${{ steps.filter.outputs.earningsestimate }}" = "true" ] && arr="$arr,\"earningsestimate\""
-          [ "${{ steps.filter.outputs.earningsmetrics }}" = "true" ] && arr="$arr,\"earningsmetrics\""
-          [ "${{ steps.filter.outputs.revenueestimate }}" = "true" ] && arr="$arr,\"revenueestimate\""
-          [ "${{ steps.filter.outputs.technicalsweekly }}" = "true" ] && arr="$arr,\"technicalsweekly\""
-          [ "${{ steps.filter.outputs.technicalsmonthly }}" = "true" ] && arr="$arr,\"technicalsmonthly\""
-          [ "${{ steps.filter.outputs.swingtrader }}" = "true" ] && arr="$arr,\"swingtrader\""
-          [ "${{ steps.filter.outputs.calendar }}" = "true" ] && arr="$arr,\"calendar\""
-          [ "${{ steps.filter.outputs.qualitymetrics }}" = "true" ] && arr="$arr,\"qualitymetrics\""
-          [ "${{ steps.filter.outputs.valuemetrics }}" = "true" ] && arr="$arr,\"valuemetrics\""
-          [ "${{ steps.filter.outputs.growthmetrics }}" = "true" ] && arr="$arr,\"growthmetrics\""
-          
-          # If no changes, create empty matrix
-          if [ -z "$arr" ]; then
-            echo "matrix=[]" >> $GITHUB_OUTPUT
-          else
-            echo "matrix=[${arr#,}]" >> $GITHUB_OUTPUT
-          fi
+              - 'cloudformation/template-step-functions-orchestration.yml'
 
 # 6) Run value-metrics loader
   run_valuemetrics:
@@ -331,7 +149,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Value-metrics failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -420,7 +238,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Quality-metrics failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -460,49 +278,419 @@ jobs:
 
       - name: Deploy application stack
         run: |
-          # Check if template file exists
-          if [ ! -f template-app-stocks.yml ]; then
-            echo "❌ template-app-stocks.yml not found in current directory"
-            ls -la
-            exit 1
-          fi
-          
-          # Check template size
-          TEMPLATE_SIZE=$(wc -c < template-app-stocks.yml)
-          echo "Template size: $TEMPLATE_SIZE bytes"
-          
-          if [ $TEMPLATE_SIZE -lt 51200 ]; then
-            echo "Template is small enough, deploying directly without S3..."
-            aws cloudformation deploy \
-              --stack-name stocks-app-stack \
-              --template-file template-app-stocks.yml \
-              --parameter-overrides \
-                RDSUsername=${{ secrets.RDS_USERNAME }} \
-                RDSPassword=${{ secrets.RDS_PASSWORD }} \
-                FREDApiKey=${{ secrets.FRED_API_KEY }} \
-              --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-              --no-fail-on-empty-changeset
-          else
-            echo "Template is too large, using S3 bucket..."
-            aws cloudformation deploy \
-              --stack-name stocks-app-stack \
-              --template-file template-app-stocks.yml \
-              --parameter-overrides \
-                RDSUsername=${{ secrets.RDS_USERNAME }} \
-                RDSPassword=${{ secrets.RDS_PASSWORD }} \
-                FREDApiKey=${{ secrets.FRED_API_KEY }} \
-              --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-              --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }} \
-              --no-fail-on-empty-changeset
-          fi
+          aws cloudformation deploy \
+            --template-file your-template-file.yaml \
+            --stack-name your-stack-name \
+            --parameter-overrides ValueMetricsImageTag=${{ env.VALUE_METRICS_IMAGE_TAG }} QualityMetricsImageTag=${{ env.QUALITY_METRICS_IMAGE_TAG }}
+          aws cloudformation deploy \
+            --stack-name stocks-app-stack \
+            --template-file template-app-stocks.yml \
+            --parameter-overrides \
+              RDSUsername=${{ secrets.RDS_USERNAME }} \
+              RDSPassword=${{ secrets.RDS_PASSWORD }} \
+              FREDApiKey=${{ secrets.FRED_API_KEY }} \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+            --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}
 
 ################################################################################
 # 2) Detect changed components                                                 #
 ################################################################################
+  filter:
+    name: Detect changed components
+    runs-on: ubuntu-latest
+    outputs:
+      app:               ${{ steps.paths.outputs.app }}
+      symbols:           ${{ steps.paths.outputs.symbols }}
+      econ:              ${{ steps.paths.outputs.econ }}
+      pricedaily:        ${{ steps.paths.outputs.pricedaily }}
+      priceweekly:       ${{ steps.paths.outputs.priceweekly }}
+      pricemonthly:      ${{ steps.paths.outputs.pricemonthly }}
+      latestpricedaily: ${{ steps.paths.outputs.latestpricedaily }}
+      latestpriceweekly: ${{ steps.paths.outputs.latestpriceweekly }}
+      latestpricemonthly: ${{ steps.paths.outputs.latestpricemonthly }}
+      latesttechnicalsdaily: ${{ steps.paths.outputs.latesttechnicalsdaily }}
+      latesttechnicalsweekly: ${{ steps.paths.outputs.latesttechnicalsweekly }}
+      latesttechnicalsmonthly: ${{ steps.paths.outputs.latesttechnicalsmonthly }}
+      technicalsdaily:   ${{ steps.paths.outputs.technicalsdaily }}
+      loadinfo:          ${{ steps.paths.outputs.loadinfo }}
+      earningsestimate:  ${{ steps.paths.outputs.earningsestimate }}
+      earningsmetrics:   ${{ steps.paths.outputs.earningsmetrics }}
+      earningshistory:   ${{ steps.paths.outputs.earningshistory }}
+      revenueestimate:   ${{ steps.paths.outputs.revenueestimate }}
+      technicalsweekly:  ${{ steps.paths.outputs.technicalsweekly }}
+      technicalsmonthly: ${{ steps.paths.outputs.technicalsmonthly }}
+      swingtrader:       ${{ steps.paths.outputs.swingtrader }}
+      calendar:          ${{ steps.paths.outputs.calendar }}
+      buyselldaily:      ${{ steps.paths.outputs.buyselldaily }}
+      buysellweekly:     ${{ steps.paths.outputs.buysellweekly }}
+      buysellmonthly:    ${{ steps.paths.outputs.buysellmonthly }}
+      naaim:             ${{ steps.paths.outputs.naaim }}
+      aaii:              ${{ steps.paths.outputs.aaii }}
+      feargreed:         ${{ steps.paths.outputs.feargreed }}
+      quarterlybalancesheet: ${{ steps.paths.outputs.quarterlybalancesheet }}
+      annualbalancesheet: ${{ steps.paths.outputs.annualbalancesheet }}
+      quarterlyincomestatement: ${{ steps.paths.outputs.quarterlyincomestatement }}
+      annualincomestatement: ${{ steps.paths.outputs.annualincomestatement }}
+      quarterlycashflow: ${{ steps.paths.outputs.quarterlycashflow }}
+      annualcashflow: ${{ steps.paths.outputs.annualcashflow }}
+      ttmincomestatement: ${{ steps.paths.outputs.ttmincomestatement }}
+      ttmcashflow: ${{ steps.paths.outputs.ttmcashflow }}
+      fundamentalmetrics: ${{ steps.paths.outputs.fundamentalmetrics }}
+      analystupgradedowngrade: ${{ steps.paths.outputs.analystupgradedowngrade }}
+      financials: ${{ steps.paths.outputs.financials }}
+      symbolsalt: ${{ steps.paths.outputs.symbolsalt }}
+      sentiment: ${{ steps.paths.outputs.sentiment }}
+      technicals: ${{ steps.paths.outputs.technicals }}
+      market: ${{ steps.paths.outputs.market }}
+      momentum: ${{ steps.paths.outputs.momentum }}
+      sentiment_realtime: ${{ steps.paths.outputs.sentiment_realtime }}
+      positioning: ${{ steps.paths.outputs.positioning }}
+      qualitymetrics: ${{ steps.paths.outputs.qualitymetrics }}
+      valuemetrics: ${{ steps.paths.outputs.valuemetrics }}
+      valuescores: ${{ steps.paths.outputs.valuescores }}
+      growthmetrics: ${{ steps.paths.outputs.growthmetrics }}
+      any:               ${{ steps.any.outputs.any }}
+      matrix:            ${{ steps.matrix.outputs.matrix }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - id: paths
+        name: Which files changed?
+        uses: dorny/paths-filter@v2
+        with:
+          base: ${{ github.event.before != '0000000000000000000000000000000000000000' && github.event.before || github.sha }}
+          filters: |
+            app:
+              - 'template-app-stocks.yml'
+            symbols:
+              - 'loadstocksymbols.py'
+              - 'Dockerfile.stocksymbols'
+              - 'requirements-loadstocksymbols.txt'
+            econ:
+              - 'loadecondata.py'
+              - 'Dockerfile.econdata'
+              - 'requirements-loadecondata.txt'
+            pricedaily:
+              - 'loadpricedaily.py'
+              - 'Dockerfile.pricedaily'
+              - 'requirements-loadpricedaily.txt'
+            priceweekly:
+              - 'loadpriceweekly.py'
+              - 'Dockerfile.priceweekly'
+              - 'requirements-loadpriceweekly.txt'
+            pricemonthly:
+              - 'loadpricemonthly.py'
+              - 'Dockerfile.pricemonthly'
+              - 'requirements-loadpricemonthly.txt'
+            latestpricedaily:
+              - 'loadlatestpricedaily.py'
+              - 'Dockerfile.latestpricedaily'
+              - 'requirements-loadlatestpricedaily.txt'
+            latestpriceweekly:
+              - 'loadlatestpriceweekly.py'
+              - 'Dockerfile.latestpriceweekly'
+              - 'requirements-loadlatestpriceweekly.txt'
+            latestpricemonthly:
+              - 'loadlatestpricemonthly.py'
+              - 'Dockerfile.latestpricemonthly'
+              - 'requirements-loadlatestpricemonthly.txt'
+            latesttechnicalsdaily:
+              - 'loadlatesttechnicalsdaily.py'
+              - 'Dockerfile.latesttechnicalsdaily'
+              - 'requirements-loadlatesttechnicalsdaily.txt'
+            latesttechnicalsweekly:
+              - 'loadlatesttechnicalsweekly.py'
+              - 'Dockerfile.latesttechnicalsweekly'
+              - 'requirements-loadlatesttechnicalsweekly.txt'
+            latesttechnicalsmonthly:
+              - 'loadlatesttechnicalsmonthly.py'
+              - 'Dockerfile.latesttechnicalsmonthly'
+              - 'requirements-loadlatesttechnicalsmonthly.txt'
+            technicalsdaily:
+              - 'loadtechnicalsdaily.py'
+              - 'Dockerfile.technicalsdaily'
+              - 'requirements-loadtechnicalsdaily.txt'
+            loadinfo:
+              - 'loadinfo.py'
+              - 'Dockerfile.loadinfo'
+              - 'requirements-loadinfo.txt'
+            loadnews:
+              - 'loadnews.py'
+              - 'Dockerfile.loadnews'
+              - 'requirements-loadnews.txt'
+            earningsestimate:
+              - 'loadearningsestimate.py'
+              - 'Dockerfile.loadearningsestimate'
+              - 'requirements-loadearningsestimate.txt'
+            earningsmetrics:
+              - 'loadearningsmetrics.py'
+              - 'Dockerfile.earningsmetrics'
+              - 'requirements-earningsmetrics.txt'
+            earningshistory:
+              - 'loadearningshistory.py'
+              - 'Dockerfile.loadearningshistory'
+              - 'requirements-loadearningshistory.txt'
+            revenueestimate:
+              - 'loadrevenueestimate.py'
+              - 'Dockerfile.loadrevenueestimate'
+              - 'requirements-loadrevenueestimate.txt'
+            technicalsweekly:
+              - 'loadtechnicalsweekly.py'
+              - 'Dockerfile.technicalsweekly'
+              - 'requirements-loadtechnicalsweekly.txt'
+            technicalsmonthly:
+              - 'loadtechnicalsmonthly.py'
+              - 'Dockerfile.technicalsmonthly'
+              - 'requirements-loadtechnicalsmonthly.txt'
+            swingtrader:
+              - 'swingtrader.py'
+              - 'Dockerfile.swingtrader'
+              - 'requirements-swingtrader.txt'
+            calendar:
+              - 'loadcalendar.py'
+              - 'Dockerfile.loadcalendar'
+              - 'requirements-loadcalendar.txt'
+            buyselldaily:
+              - 'loadbuyselldaily.py'
+              - 'Dockerfile.buyselldaily'
+              - 'requirements-loadbuysell.txt'
+            buysellweekly:
+              - 'loadbuysellweekly.py'
+              - 'Dockerfile.buysell'
+              - 'requirements-loadbuysell.txt'
+            buysellmonthly:
+              - 'loadbuysellmonthly.py'
+              - 'Dockerfile.buysell'
+              - 'requirements-loadbuysell.txt'
+            naaim:
+              - 'loadnaaim.py'
+              - 'Dockerfile.loadnaaim'
+              - 'requirements-loadnaaim.txt'
+            aaii:
+              - 'loadaaiidata.py'
+              - 'Dockerfile.loadaaiidata'
+              - 'requirements-loadaaiidata.txt'
+            feargreed:
+              - 'loadfeargreed.py'
+              - 'Dockerfile.loadfeargreed'
+              - 'requirements-loadfeargreed.txt'
+            quarterlybalancesheet:
+              - 'loadquarterlybalancesheet.py'
+              - 'Dockerfile.quarterlybalancesheet'
+              - 'requirements-loadquarterlybalancesheet.txt'
+            annualbalancesheet:
+              - 'loadannualbalancesheet.py'
+              - 'Dockerfile.annualbalancesheet'
+              - 'requirements-loadannualbalancesheet.txt'
+            quarterlyincomestatement:
+              - 'loadquarterlyincomestatement.py'
+              - 'Dockerfile.quarterlyincomestatement'
+              - 'requirements-loadquarterlyincomestatement.txt'
+            annualincomestatement:
+              - 'loadannualincomestatement.py'
+              - 'Dockerfile.annualincomestatement'
+              - 'requirements-loadannualincomestatement.txt'
+            quarterlycashflow:
+              - 'loadquarterlycashflow.py'
+              - 'Dockerfile.quarterlycashflow'
+              - 'requirements-loadquarterlycashflow.txt'
+            annualcashflow:
+              - 'loadannualcashflow.py'
+              - 'Dockerfile.annualcashflow'
+              - 'requirements-loadannualcashflow.txt'
+            ttmincomestatement:
+              - 'loadttmincomestatement.py'
+              - 'Dockerfile.ttmincomestatement'
+              - 'requirements-loadttmincomestatement.txt'
+            ttmcashflow:
+              - 'loadttmcashflow.py'
+              - 'Dockerfile.ttmcashflow'
+              - 'requirements-loadttmcashflow.txt'
+            fundamentalmetrics:
+              - 'loadfundamentalmetrics.py'
+              - 'Dockerfile.loadfundamentalmetrics'
+              - 'requirements-loadfundamentalmetrics.txt'
+            analystupgradedowngrade:
+              - 'loadanalystupgradedowngrade.py'
+              - 'Dockerfile.loadanalystupgradedowngrade'
+              - 'requirements-loadanalystupgradedowngrade.txt'
+            symbolsalt:
+              - 'loadsymbols.py'
+              - 'Dockerfile.loadsymbols'
+              - 'requirements-loadsymbols.txt'
+            financials:
+              - 'loadfinancials.py'
+              - 'Dockerfile.loadfinancials'
+              - 'requirements-loadfinancials.txt'
+            sentiment:
+              - 'loadsentiment.py'
+              - 'Dockerfile.loadsentiment'
+              - 'requirements-loadsentiment.txt'
+            technicals:
+              - 'loadtechnicals.py'
+              - 'Dockerfile.loadtechnicals'
+              - 'requirements-loadtechnicals.txt'
+            market:
+              - 'loadmarket.py'
+              - 'Dockerfile.loadmarket'
+              - 'requirements-loadmarket.txt'
+            momentum:
+              - 'loadmomentum.py'
+              - 'Dockerfile.loadmomentum'
+              - 'requirements-loadmomentum.txt'
+            sentiment_realtime:
+              - 'loadsentiment_realtime.py'
+              - 'Dockerfile.loadsentiment_realtime'
+              - 'requirements-loadsentiment_realtime.txt'
+            positioning:
+              - 'loadpositioning.py'
+              - 'Dockerfile.loadpositioning'
+              - 'requirements-loadpositioning.txt'
+            qualitymetrics:
+              - 'calculate_quality_metrics.py'
+              - 'Dockerfile.quality-metrics'
+              - 'requirements.txt'
+            valuemetrics:
+              - 'calculate_value_metrics.py'
+              - 'Dockerfile.value-metrics'
+              - 'requirements.txt'
+            valuescores:
+              - 'calculate_value_scores.py'
+              - 'Dockerfile.calculate_value_scores'
+              - 'requirements-value-scores.txt'
+            growthmetrics:
+              - 'calculate_growth_metrics.py'
+              - 'Dockerfile.growth-metrics'
+              - 'requirements.txt'
+
+      - id: any
+        name: Any changes?
+        run: |
+          if [ "${{ steps.paths.outputs.symbols }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.econ }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.pricedaily }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.priceweekly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.pricemonthly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.technicalsdaily }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.loadinfo }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.loadnews }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.earningsestimate }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.earningsmetrics }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.earningshistory }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.revenueestimate }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.technicalsweekly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.technicalsmonthly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.swingtrader }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.calendar }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.buyselldaily }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.buysellweekly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.buysellmonthly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.latestpricedaily }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.latestpriceweekly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.latestpricemonthly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.latesttechnicalsdaily }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.latesttechnicalsweekly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.latesttechnicalsmonthly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.naaim }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.aaii }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.feargreed }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.quarterlybalancesheet }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.annualbalancesheet }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.quarterlyincomestatement }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.annualincomestatement }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.quarterlycashflow }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.annualcashflow }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.ttmincomestatement }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.ttmcashflow }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.fundamentalmetrics }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.analystupgradedowngrade }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.symbols }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.financials }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.sentiment }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.technicals }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.market }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.momentum }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.sentiment_realtime }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.positioning }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.qualitymetrics }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.valuemetrics }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.valuescores }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.growthmetrics }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.app }}" = "true" ]; then
+            echo "any=true" >> $GITHUB_OUTPUT
+          else
+            echo "any=false" >> $GITHUB_OUTPUT
+          fi
+
+      - id: matrix
+        name: Build matrix
+        run: |
+          arr=""
+          [ "${{ steps.paths.outputs.symbols }}" = "true" ]         && arr="$arr,\"symbols\""
+          [ "${{ steps.paths.outputs.econ }}"    = "true" ]         && arr="$arr,\"econ\""
+          [ "${{ steps.paths.outputs.pricedaily }}" = "true" ]      && arr="$arr,\"pricedaily\""
+          [ "${{ steps.paths.outputs.priceweekly }}" = "true" ]     && arr="$arr,\"priceweekly\""
+          [ "${{ steps.paths.outputs.pricemonthly }}" = "true" ]    && arr="$arr,\"pricemonthly\""
+          [ "${{ steps.paths.outputs.technicalsdaily }}" = "true" ] && arr="$arr,\"technicalsdaily\""
+          [ "${{ steps.paths.outputs.loadinfo }}" = "true" ]        && arr="$arr,\"loadinfo\""
+          [ "${{ steps.paths.outputs.loadnews }}" = "true" ]        && arr="$arr,\"loadnews\""
+          [ "${{ steps.paths.outputs.earningsestimate }}" = "true" ] && arr="$arr,\"earningsestimate\""
+          [ "${{ steps.paths.outputs.earningsmetrics }}" = "true" ] && arr="$arr,\"earningsmetrics\""
+          [ "${{ steps.paths.outputs.earningshistory }}" = "true" ] && arr="$arr,\"earningshistory\""
+          [ "${{ steps.paths.outputs.revenueestimate }}" = "true" ] && arr="$arr,\"revenueestimate\""
+          [ "${{ steps.paths.outputs.technicalsweekly }}" = "true" ] && arr="$arr,\"technicalsweekly\""
+          [ "${{ steps.paths.outputs.technicalsmonthly }}" = "true" ] && arr="$arr,\"technicalsmonthly\""
+          [ "${{ steps.paths.outputs.swingtrader }}" = "true" ]     && arr="$arr,\"swingtrader\""
+          [ "${{ steps.paths.outputs.calendar }}" = "true" ]        && arr="$arr,\"calendar\""
+          [ "${{ steps.paths.outputs.buyselldaily }}" = "true" ]    && arr="$arr,\"buyselldaily\""
+          [ "${{ steps.paths.outputs.buysellweekly }}" = "true" ]   && arr="$arr,\"buysellweekly\""
+          [ "${{ steps.paths.outputs.buysellmonthly }}" = "true" ]  && arr="$arr,\"buysellmonthly\""
+          [ "${{ steps.paths.outputs.latestpricedaily }}" = "true" ]  && arr="$arr,\"latestpricedaily\""
+          [ "${{ steps.paths.outputs.latestpriceweekly }}" = "true" ] && arr="$arr,\"latestpriceweekly\""
+          [ "${{ steps.paths.outputs.latestpricemonthly }}" = "true" ] && arr="$arr,\"latestpricemonthly\""
+          [ "${{ steps.paths.outputs.latesttechnicalsdaily }}" = "true" ]  && arr="$arr,\"latesttechnicalsdaily\""
+          [ "${{ steps.paths.outputs.latesttechnicalsweekly }}" = "true" ] && arr="$arr,\"latesttechnicalsweekly\""
+          [ "${{ steps.paths.outputs.latesttechnicalsmonthly }}" = "true" ] && arr="$arr,\"latesttechnicalsmonthly\""
+          [ "${{ steps.paths.outputs.naaim }}" = "true" ]           && arr="$arr,\"naaim\""
+          [ "${{ steps.paths.outputs.aaii }}" = "true" ]            && arr="$arr,\"aaii\""
+          [ "${{ steps.paths.outputs.feargreed }}" = "true" ]       && arr="$arr,\"feargreed\""
+          [ "${{ steps.paths.outputs.quarterlybalancesheet }}" = "true" ] && arr="$arr,\"quarterlybalancesheet\""
+          [ "${{ steps.paths.outputs.annualbalancesheet }}" = "true" ] && arr="$arr,\"annualbalancesheet\""
+          [ "${{ steps.paths.outputs.quarterlyincomestatement }}" = "true" ] && arr="$arr,\"quarterlyincomestatement\""
+          [ "${{ steps.paths.outputs.annualincomestatement }}" = "true" ] && arr="$arr,\"annualincomestatement\""
+          [ "${{ steps.paths.outputs.quarterlycashflow }}" = "true" ] && arr="$arr,\"quarterlycashflow\""
+          [ "${{ steps.paths.outputs.annualcashflow }}" = "true" ] && arr="$arr,\"annualcashflow\""
+          [ "${{ steps.paths.outputs.ttmincomestatement }}" = "true" ] && arr="$arr,\"ttmincomestatement\""
+          [ "${{ steps.paths.outputs.ttmcashflow }}" = "true" ] && arr="$arr,\"ttmcashflow\""
+          [ "${{ steps.paths.outputs.fundamentalmetrics }}" = "true" ] && arr="$arr,\"fundamentalmetrics\""
+          [ "${{ steps.paths.outputs.analystupgradedowngrade }}" = "true" ] && arr="$arr,\"analystupgradedowngrade\""
+          [ "${{ steps.paths.outputs.symbols }}" = "true" ] && arr="$arr,\"symbols\""
+          [ "${{ steps.paths.outputs.symbolsalt }}" = "true" ] && arr="$arr,\"symbolsalt\""
+          [ "${{ steps.paths.outputs.financials }}" = "true" ] && arr="$arr,\"financials\""
+          [ "${{ steps.paths.outputs.sentiment }}" = "true" ] && arr="$arr,\"sentiment\""
+          [ "${{ steps.paths.outputs.technicals }}" = "true" ] && arr="$arr,\"technicals\""
+          [ "${{ steps.paths.outputs.market }}" = "true" ] && arr="$arr,\"market\""
+          [ "${{ steps.paths.outputs.momentum }}" = "true" ] && arr="$arr,\"momentum\""
+          [ "${{ steps.paths.outputs.sentiment_realtime }}" = "true" ] && arr="$arr,\"sentiment_realtime\""
+          [ "${{ steps.paths.outputs.positioning }}" = "true" ] && arr="$arr,\"positioning\""
+          [ "${{ steps.paths.outputs.qualitymetrics }}" = "true" ] && arr="$arr,\"qualitymetrics\""
+          [ "${{ steps.paths.outputs.valuemetrics }}" = "true" ] && arr="$arr,\"valuemetrics\""
+          [ "${{ steps.paths.outputs.valuescores }}" = "true" ] && arr="$arr,\"valuescores\""
+          [ "${{ steps.paths.outputs.growthmetrics }}" = "true" ] && arr="$arr,\"growthmetrics\""
+          
+          echo "matrix=[${arr#,}]" >> $GITHUB_OUTPUT
+
+################################################################################
+# 4) Build only the changed Docker images                                      #
+################################################################################
   build:
     name: Build changed images
     needs: filter
-    if: ${{ needs.filter.outputs.any == 'true' && needs.filter.outputs.matrix != '[]' }}
+    if: ${{ needs.filter.outputs.any == 'true' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -535,7 +723,6 @@ jobs:
           case "${{ matrix.loader }}" in
             symbols)          DOCKERFILE=Dockerfile.stocksymbols;   PARAM=StockSymbolsImageTag;;\
             econ)             DOCKERFILE=Dockerfile.econdata;       PARAM=EconDataImageTag;;\
-            commodities)      DOCKERFILE=Dockerfile.loadcommodities; PARAM=CommoditiesImageTag;;\
             pricedaily)       DOCKERFILE=Dockerfile.pricedaily;     PARAM=PriceImageTag;;\
             priceweekly)      DOCKERFILE=Dockerfile.priceweekly;    PARAM=PriceWeeklyImageTag;;\
             pricemonthly)     DOCKERFILE=Dockerfile.pricemonthly;   PARAM=PriceMonthlyImageTag;;\
@@ -638,57 +825,10 @@ jobs:
       - name: Generate tags.env
         shell: bash
         run: |
-          # Try to concatenate build tag files, but handle case where none exist
-          if ls build_tag_*.txt 1> /dev/null 2>&1; then
-            cat build_tag_*.txt > tags.env
-            echo "Using build tags from artifacts"
-          else
-            echo "No build tag files found, using default tags"
-            # Create default tags.env with 'latest' tags
-            cat > tags.env << 'EOF'
-          StockSymbolsImageTag=latest
-          EconDataImageTag=latest
-          CommoditiesImageTag=latest
-          FindataImageTag=latest
-          PriceImageTag=latest
-          PriceWeeklyImageTag=latest
-          PriceMonthlyImageTag=latest
-          TechnicalsDailyImageTag=latest
-          LoadInfoImageTag=latest
-          EarningsEstimateImageTag=latest
-          TechnicalsWeeklyImageTag=latest
-          TechnicalsMonthlyImageTag=latest
-          EarningsHistoryImageTag=latest
-          RevenueEstimateImageTag=latest
-          SwingTraderImageTag=latest
-          CalendarImageTag=latest
-          BuySellImageTag=latest
-          BuySellDailyImageTag=latest
-          BuySellWeeklyImageTag=latest
-          BuySellMonthlyImageTag=latest
-          LatestPriceDailyImageTag=latest
-          LatestPriceWeeklyImageTag=latest
-          LatestPriceMonthlyImageTag=latest
-          LatestTechnicalsDailyImageTag=latest
-          LatestTechnicalsWeeklyImageTag=latest
-          LatestTechnicalsMonthlyImageTag=latest
-          NaaimImageTag=latest
-          AaiiImageTag=latest
-          FearGreedImageTag=latest
-          QuarterlyBalanceSheetImageTag=latest
-          AnnualBalanceSheetImageTag=latest
-          QuarterlyIncomeStatementImageTag=latest
-          AnnualIncomeStatementImageTag=latest
-          QuarterlyCashFlowImageTag=latest
-          AnnualCashFlowImageTag=latest
-          TTMIncomeStatementImageTag=latest
-          TTMCashFlowImageTag=latest
-          EarningsMetricsImageTag=latest
-          QualityMetricsImageTag=latest
-          ValueMetricsImageTag=latest
-          GrowthMetricsImageTag=latest
-          ScoresImageTag=latest
-          EOF
+          cat build_tag_*.txt > tags.env
+          if [ ! -f tags.env ]; then
+            echo "No build tag files found or tags.env not created" >&2
+            exit 1
           fi
 
       - name: Wait for app stack to finish exporting
@@ -718,170 +858,51 @@ jobs:
             echo "Stack status is $STATUS, not deleting."
           fi
 
-      - name: Get current stack parameters
-        id: current-params
-        run: |
-          # Get current parameter values from existing stack (if it exists)
-          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack >/dev/null 2>&1; then
-            aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack \
-              --query 'Stacks[0].Parameters' --output json > current_params.json
-            echo "Stack exists, using current parameters for unchanged components"
-          else
-            echo "[]" > current_params.json
-            echo "Stack does not exist, will create new stack"
-          fi
-
-      - name: Build selective parameter overrides
-        id: build-params
-        run: |
-          # Function to get current parameter value
-          get_current_param() {
-            local param_name="$1"
-            jq -r ".[] | select(.ParameterKey == \"$param_name\") | .ParameterValue" current_params.json
-          }
-          
-          # Function to get new tag value
-          get_new_tag() {
-            local tag_name="$1"
-            grep "^${tag_name}=" tags.env | cut -d= -f2- || echo ""
-          }
-          
-          # Start building parameter overrides
-          PARAMS="FREDApiKey=${{ secrets.FRED_API_KEY }} IBKRUsername=${{ secrets.IBKR_USERNAME }} IBKRPassword=${{ secrets.IBKR_PASSWORD }}"
-          
-          # Define component to parameter mapping
-          declare -A COMPONENT_PARAMS
-          COMPONENT_PARAMS["symbols"]="StockSymbolsImageTag"
-          COMPONENT_PARAMS["econ"]="EconDataImageTag"
-          COMPONENT_PARAMS["commodities"]="CommoditiesImageTag"
-          COMPONENT_PARAMS["pricedaily"]="PriceImageTag"
-          COMPONENT_PARAMS["priceweekly"]="PriceWeeklyImageTag"
-          COMPONENT_PARAMS["pricemonthly"]="PriceMonthlyImageTag"
-          COMPONENT_PARAMS["latestpricedaily"]="LatestPriceDailyImageTag"
-          COMPONENT_PARAMS["latestpriceweekly"]="LatestPriceWeeklyImageTag"
-          COMPONENT_PARAMS["latestpricemonthly"]="LatestPriceMonthlyImageTag"
-          COMPONENT_PARAMS["technicalsdaily"]="TechnicalsDailyImageTag"
-          COMPONENT_PARAMS["loadinfo"]="LoadInfoImageTag"
-          COMPONENT_PARAMS["loadnews"]="LoadNewsImageTag"
-          COMPONENT_PARAMS["earningsestimate"]="EarningsEstimateImageTag"
-          COMPONENT_PARAMS["earningsmetrics"]="EarningsMetricsImageTag"
-          COMPONENT_PARAMS["earningshistory"]="EarningsHistoryImageTag"
-          COMPONENT_PARAMS["revenueestimate"]="RevenueEstimateImageTag"
-          COMPONENT_PARAMS["technicalsweekly"]="TechnicalsWeeklyImageTag"
-          COMPONENT_PARAMS["technicalsmonthly"]="TechnicalsMonthlyImageTag"
-          COMPONENT_PARAMS["buyselldaily"]="BuySellDailyImageTag"
-          COMPONENT_PARAMS["buysellweekly"]="BuySellWeeklyImageTag"
-          COMPONENT_PARAMS["buysellmonthly"]="BuySellMonthlyImageTag"
-          COMPONENT_PARAMS["swingtrader"]="SwingTraderImageTag"
-          COMPONENT_PARAMS["calendar"]="CalendarImageTag"
-          COMPONENT_PARAMS["latesttechnicalsdaily"]="LatestTechnicalsDailyImageTag"
-          COMPONENT_PARAMS["latesttechnicalsweekly"]="LatestTechnicalsWeeklyImageTag"
-          COMPONENT_PARAMS["latesttechnicalsmonthly"]="LatestTechnicalsMonthlyImageTag"
-          COMPONENT_PARAMS["naaim"]="NaaimImageTag"
-          COMPONENT_PARAMS["aaii"]="AaiiImageTag"
-          COMPONENT_PARAMS["feargreed"]="FearGreedImageTag"
-          COMPONENT_PARAMS["quarterlybalancesheet"]="QuarterlyBalanceSheetImageTag"
-          COMPONENT_PARAMS["annualbalancesheet"]="AnnualBalanceSheetImageTag"
-          COMPONENT_PARAMS["quarterlyincomestatement"]="QuarterlyIncomeStatementImageTag"
-          COMPONENT_PARAMS["annualincomestatement"]="AnnualIncomeStatementImageTag"
-          COMPONENT_PARAMS["quarterlycashflow"]="QuarterlyCashFlowImageTag"
-          COMPONENT_PARAMS["annualcashflow"]="AnnualCashFlowImageTag"
-          COMPONENT_PARAMS["ttmincomestatement"]="TTMIncomeStatementImageTag"
-          COMPONENT_PARAMS["ttmcashflow"]="TTMCashFlowImageTag"
-          COMPONENT_PARAMS["qualitymetrics"]="QualityMetricsImageTag"
-          COMPONENT_PARAMS["valuemetrics"]="ValueMetricsImageTag"
-          COMPONENT_PARAMS["fundamentalmetrics"]="FundamentalMetricsImageTag"
-          COMPONENT_PARAMS["analystupgradedowngrade"]="AnalystUpgradeDowngradeImageTag"
-          COMPONENT_PARAMS["financials"]="FinancialsImageTag"
-          COMPONENT_PARAMS["symbolsalt"]="SymbolsAltImageTag"
-          COMPONENT_PARAMS["sentiment"]="SentimentImageTag"
-          COMPONENT_PARAMS["technicals"]="TechnicalsImageTag"
-          COMPONENT_PARAMS["market"]="MarketImageTag"
-          COMPONENT_PARAMS["momentum"]="MomentumImageTag"
-          COMPONENT_PARAMS["sentiment_realtime"]="SentimentRealtimeImageTag"
-          COMPONENT_PARAMS["positioning"]="PositioningImageTag"
-          COMPONENT_PARAMS["valuescores"]="ValueScoresImageTag"
-          COMPONENT_PARAMS["growthmetrics"]="GrowthMetricsImageTag"
-          COMPONENT_PARAMS["qualityscores"]="QualityScoresImageTag"
-          
-          # Define components that have changed
-          CHANGED_COMPONENTS=()
-          [[ "${{ needs.filter.outputs.symbols }}" == "true" ]] && CHANGED_COMPONENTS+=("symbols")
-          [[ "${{ needs.filter.outputs.econ }}" == "true" ]] && CHANGED_COMPONENTS+=("econ")
-          [[ "${{ needs.filter.outputs.commodities }}" == "true" ]] && CHANGED_COMPONENTS+=("commodities")
-          [[ "${{ needs.filter.outputs.pricedaily }}" == "true" ]] && CHANGED_COMPONENTS+=("pricedaily")
-          [[ "${{ needs.filter.outputs.priceweekly }}" == "true" ]] && CHANGED_COMPONENTS+=("priceweekly")
-          [[ "${{ needs.filter.outputs.pricemonthly }}" == "true" ]] && CHANGED_COMPONENTS+=("pricemonthly")
-          [[ "${{ needs.filter.outputs.latestpricedaily }}" == "true" ]] && CHANGED_COMPONENTS+=("latestpricedaily")
-          [[ "${{ needs.filter.outputs.latestpriceweekly }}" == "true" ]] && CHANGED_COMPONENTS+=("latestpriceweekly")
-          [[ "${{ needs.filter.outputs.latestpricemonthly }}" == "true" ]] && CHANGED_COMPONENTS+=("latestpricemonthly")
-          [[ "${{ needs.filter.outputs.technicalsdaily }}" == "true" ]] && CHANGED_COMPONENTS+=("technicalsdaily")
-          [[ "${{ needs.filter.outputs.loadinfo }}" == "true" ]] && CHANGED_COMPONENTS+=("loadinfo")
-          [[ "${{ needs.filter.outputs.loadnews }}" == "true" ]] && CHANGED_COMPONENTS+=("loadnews")
-          [[ "${{ needs.filter.outputs.earningsestimate }}" == "true" ]] && CHANGED_COMPONENTS+=("earningsestimate")
-          [[ "${{ needs.filter.outputs.earningsmetrics }}" == "true" ]] && CHANGED_COMPONENTS+=("earningsmetrics")
-          [[ "${{ needs.filter.outputs.earningshistory }}" == "true" ]] && CHANGED_COMPONENTS+=("earningshistory")
-          [[ "${{ needs.filter.outputs.revenueestimate }}" == "true" ]] && CHANGED_COMPONENTS+=("revenueestimate")
-          [[ "${{ needs.filter.outputs.technicalsweekly }}" == "true" ]] && CHANGED_COMPONENTS+=("technicalsweekly")
-          [[ "${{ needs.filter.outputs.technicalsmonthly }}" == "true" ]] && CHANGED_COMPONENTS+=("technicalsmonthly")
-          [[ "${{ needs.filter.outputs.buyselldaily }}" == "true" ]] && CHANGED_COMPONENTS+=("buyselldaily")
-          [[ "${{ needs.filter.outputs.buysellweekly }}" == "true" ]] && CHANGED_COMPONENTS+=("buysellweekly")
-          [[ "${{ needs.filter.outputs.buysellmonthly }}" == "true" ]] && CHANGED_COMPONENTS+=("buysellmonthly")
-          [[ "${{ needs.filter.outputs.swingtrader }}" == "true" ]] && CHANGED_COMPONENTS+=("swingtrader")
-          [[ "${{ needs.filter.outputs.calendar }}" == "true" ]] && CHANGED_COMPONENTS+=("calendar")
-          [[ "${{ needs.filter.outputs.latesttechnicalsdaily }}" == "true" ]] && CHANGED_COMPONENTS+=("latesttechnicalsdaily")
-          [[ "${{ needs.filter.outputs.latesttechnicalsweekly }}" == "true" ]] && CHANGED_COMPONENTS+=("latesttechnicalsweekly")
-          [[ "${{ needs.filter.outputs.latesttechnicalsmonthly }}" == "true" ]] && CHANGED_COMPONENTS+=("latesttechnicalsmonthly")
-          [[ "${{ needs.filter.outputs.naaim }}" == "true" ]] && CHANGED_COMPONENTS+=("naaim")
-          [[ "${{ needs.filter.outputs.aaii }}" == "true" ]] && CHANGED_COMPONENTS+=("aaii")
-          [[ "${{ needs.filter.outputs.feargreed }}" == "true" ]] && CHANGED_COMPONENTS+=("feargreed")
-          [[ "${{ needs.filter.outputs.quarterlybalancesheet }}" == "true" ]] && CHANGED_COMPONENTS+=("quarterlybalancesheet")
-          [[ "${{ needs.filter.outputs.annualbalancesheet }}" == "true" ]] && CHANGED_COMPONENTS+=("annualbalancesheet")
-          [[ "${{ needs.filter.outputs.quarterlyincomestatement }}" == "true" ]] && CHANGED_COMPONENTS+=("quarterlyincomestatement")
-          [[ "${{ needs.filter.outputs.annualincomestatement }}" == "true" ]] && CHANGED_COMPONENTS+=("annualincomestatement")
-          [[ "${{ needs.filter.outputs.quarterlycashflow }}" == "true" ]] && CHANGED_COMPONENTS+=("quarterlycashflow")
-          [[ "${{ needs.filter.outputs.annualcashflow }}" == "true" ]] && CHANGED_COMPONENTS+=("annualcashflow")
-          [[ "${{ needs.filter.outputs.ttmincomestatement }}" == "true" ]] && CHANGED_COMPONENTS+=("ttmincomestatement")
-          [[ "${{ needs.filter.outputs.ttmcashflow }}" == "true" ]] && CHANGED_COMPONENTS+=("ttmcashflow")
-          [[ "${{ needs.filter.outputs.qualitymetrics }}" == "true" ]] && CHANGED_COMPONENTS+=("qualitymetrics")
-          [[ "${{ needs.filter.outputs.valuemetrics }}" == "true" ]] && CHANGED_COMPONENTS+=("valuemetrics")
-          [[ "${{ needs.filter.outputs.fundamentalmetrics }}" == "true" ]] && CHANGED_COMPONENTS+=("fundamentalmetrics")
-          [[ "${{ needs.filter.outputs.analystupgradedowngrade }}" == "true" ]] && CHANGED_COMPONENTS+=("analystupgradedowngrade")
-          [[ "${{ needs.filter.outputs.financials }}" == "true" ]] && CHANGED_COMPONENTS+=("financials")
-          [[ "${{ needs.filter.outputs.symbolsalt }}" == "true" ]] && CHANGED_COMPONENTS+=("symbolsalt")
-          [[ "${{ needs.filter.outputs.sentiment }}" == "true" ]] && CHANGED_COMPONENTS+=("sentiment")
-          [[ "${{ needs.filter.outputs.technicals }}" == "true" ]] && CHANGED_COMPONENTS+=("technicals")
-          [[ "${{ needs.filter.outputs.market }}" == "true" ]] && CHANGED_COMPONENTS+=("market")
-          [[ "${{ needs.filter.outputs.momentum }}" == "true" ]] && CHANGED_COMPONENTS+=("momentum")
-          [[ "${{ needs.filter.outputs.sentiment_realtime }}" == "true" ]] && CHANGED_COMPONENTS+=("sentiment_realtime")
-          [[ "${{ needs.filter.outputs.positioning }}" == "true" ]] && CHANGED_COMPONENTS+=("positioning")
-          [[ "${{ needs.filter.outputs.valuescores }}" == "true" ]] && CHANGED_COMPONENTS+=("valuescores")
-          [[ "${{ needs.filter.outputs.growthmetrics }}" == "true" ]] && CHANGED_COMPONENTS+=("growthmetrics")
-          [[ "${{ needs.filter.outputs.qualityscores }}" == "true" ]] && CHANGED_COMPONENTS+=("qualityscores")
-          
-          echo "Changed components: ${CHANGED_COMPONENTS[@]}"
-          
-          # Add parameters for changed components only
-          for component in "${CHANGED_COMPONENTS[@]}"; do
-            if [[ -n "${COMPONENT_PARAMS[$component]}" ]]; then
-              param_name="${COMPONENT_PARAMS[$component]}"
-              new_value=$(get_new_tag "$param_name")
-              if [[ -n "$new_value" ]]; then
-                PARAMS+=" ${param_name}=${new_value}"
-                echo "Adding parameter: ${param_name}=${new_value}"
-              fi
-            fi
-          done
-          
-          echo "PARAMETER_OVERRIDES=$PARAMS" >> $GITHUB_OUTPUT
-          echo "Final parameter overrides: $PARAMS"
-
-      - name: Deploy ECS-tasks CloudFormation stack (selective)
+      - name: Deploy ECS-tasks CloudFormation stack
         run: |
           aws cloudformation deploy \
             --stack-name stocks-ecs-tasks-stack \
             --template-file template-app-ecs-tasks.yml \
-            --parameter-overrides ${{ steps.build-params.outputs.PARAMETER_OVERRIDES }} \
+            --parameter-overrides \
+              StockSymbolsImageTag=$(grep '^StockSymbolsImageTag=' tags.env | cut -d= -f2-) \
+              EconDataImageTag=$(grep '^EconDataImageTag=' tags.env | cut -d= -f2-) \
+              PriceImageTag=$(grep '^PriceImageTag=' tags.env | cut -d= -f2-) \
+              PriceWeeklyImageTag=$(grep '^PriceWeeklyImageTag=' tags.env | cut -d= -f2-) \
+              PriceMonthlyImageTag=$(grep '^PriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
+              LatestPriceDailyImageTag=$(grep '^LatestPriceDailyImageTag=' tags.env | cut -d= -f2-) \
+              LatestPriceWeeklyImageTag=$(grep '^LatestPriceWeeklyImageTag=' tags.env | cut -d= -f2-) \
+              LatestPriceMonthlyImageTag=$(grep '^LatestPriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
+              TechnicalsDailyImageTag=$(grep '^TechnicalsDailyImageTag=' tags.env | cut -d= -f2-) \
+              LoadInfoImageTag=$(grep '^LoadInfoImageTag=' tags.env | cut -d= -f2-) \
+              LoadNewsImageTag=$(grep '^LoadNewsImageTag=' tags.env | cut -d= -f2-) \
+              EarningsEstimateImageTag=$(grep '^EarningsEstimateImageTag=' tags.env | cut -d= -f2-) \
+              EarningsMetricsImageTag=$(grep '^EarningsMetricsImageTag=' tags.env | cut -d= -f2-) \
+              EarningsHistoryImageTag=$(grep '^EarningsHistoryImageTag=' tags.env | cut -d= -f2-) \
+              RevenueEstimateImageTag=$(grep '^RevenueEstimateImageTag=' tags.env | cut -d= -f2-) \
+              TechnicalsWeeklyImageTag=$(grep '^TechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-) \
+              TechnicalsMonthlyImageTag=$(grep '^TechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-) \
+              SwingTraderImageTag=$(grep '^SwingTraderImageTag=' tags.env | cut -d= -f2-) \
+              CalendarImageTag=$(grep '^CalendarImageTag=' tags.env | cut -d= -f2-) \
+              BuySellDailyImageTag=$(grep '^BuySellDailyImageTag=' tags.env | cut -d= -f2-) \
+              BuySellWeeklyImageTag=$(grep '^BuySellWeeklyImageTag=' tags.env | cut -d= -f2-) \
+              BuySellMonthlyImageTag=$(grep '^BuySellMonthlyImageTag=' tags.env | cut -d= -f2-) \
+              LatestTechnicalsDailyImageTag=$(grep '^LatestTechnicalsDailyImageTag=' tags.env | cut -d= -f2-) \
+              LatestTechnicalsWeeklyImageTag=$(grep '^LatestTechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-) \
+              LatestTechnicalsMonthlyImageTag=$(grep '^LatestTechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-) \
+              NaaimImageTag=$(grep '^NaaimImageTag=' tags.env | cut -d= -f2-) \
+              AaiiImageTag=$(grep '^AaiiImageTag=' tags.env | cut -d= -f2-) \
+              FearGreedImageTag=$(grep '^FearGreedImageTag=' tags.env | cut -d= -f2-) \
+              QuarterlyBalanceSheetImageTag=$(grep '^QuarterlyBalanceSheetImageTag=' tags.env | cut -d= -f2-) \
+              AnnualBalanceSheetImageTag=$(grep '^AnnualBalanceSheetImageTag=' tags.env | cut -d= -f2-) \
+              QuarterlyIncomeStatementImageTag=$(grep '^QuarterlyIncomeStatementImageTag=' tags.env | cut -d= -f2-) \
+              AnnualIncomeStatementImageTag=$(grep '^AnnualIncomeStatementImageTag=' tags.env | cut -d= -f2-) \
+              QuarterlyCashFlowImageTag=$(grep '^QuarterlyCashFlowImageTag=' tags.env | cut -d= -f2-) \
+              AnnualCashFlowImageTag=$(grep '^AnnualCashFlowImageTag=' tags.env | cut -d= -f2-) \
+              TTMIncomeStatementImageTag=$(grep '^TTMIncomeStatementImageTag=' tags.env | cut -d= -f2-) \
+              TTMCashFlowImageTag=$(grep '^TTMCashFlowImageTag=' tags.env | cut -d= -f2-) \
+              FREDApiKey=${{ secrets.FRED_API_KEY }} \
+              IBKRUsername=${{ secrets.IBKR_USERNAME }} \
+              IBKRPassword=${{ secrets.IBKR_PASSWORD }} \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset \
             --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}
@@ -894,7 +915,6 @@ jobs:
           aws ecs update-cluster-settings \
             --cluster "$CLUSTER" \
             --settings name=containerInsights,value=enabled
-
 
 ################################################################################
 # 6) Run each changed loader                                                    #
@@ -982,7 +1002,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ stock-symbols failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -1070,7 +1090,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ symbols-alt failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -1154,95 +1174,8 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ econ-data failed with exit code $EXIT"
-            exit $EXIT
-          fi
-
-  run_commodities:
-    name: Run commodities loader
-    needs: [deploy-tasks, filter]
-    if: ${{ needs.filter.outputs.commodities == 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-
-    steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - name: Fetch Task Definition ARN
-        id: td
-        run: |
-          ARN=$(aws cloudformation describe-stacks \
-            --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='CommoditiesTaskDefArn'].OutputValue" \
-            --output text)
-          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-
-      - name: Fetch cluster ARN & subnets
-        id: infra
-        run: |
-          CLUSTER=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
-            --output text)
-          SUB1=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
-            --output text)
-          SUB2=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
-            --output text)
-          SG=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
-            --output text)
-          echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
-          echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
-          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
-          echo "SG=$SG" >> $GITHUB_OUTPUT
-
-      - name: Run commodities Fargate task
-        id: run
-        run: |
-          TASK_ARN=$(aws ecs run-task \
-            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
-            --launch-type FARGATE \
-            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
-            --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
-            --query 'tasks[0].taskArn' \
-            --output text)
-          echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
-
-      - name: Wait for task completion
-        run: |
-          for i in $(seq 1 180); do
-            STATUS=$(aws ecs describe-tasks \
-              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
-              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
-              --query 'tasks[0].lastStatus' \
-              --output text)
-            echo "Attempt $i – status=$STATUS"
-            [ "$STATUS" = "STOPPED" ] && break
-            sleep 20
-          done
-          if [ "$STATUS" != "STOPPED" ]; then
-            echo "❌ commodities task did not stop within 60m"
-            exit 1
-          fi
-
-      - name: Check container exit code
-        run: |
-          EXIT=$(aws ecs describe-tasks \
-            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
-            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
-            --query 'tasks[0].containers[0].exitCode' \
-            --output text)
-          echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
-            echo "❌ commodities failed with exit code $EXIT"
             exit $EXIT
           fi
 
@@ -1329,7 +1262,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ pricedaily failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -1417,7 +1350,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ priceweekly failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -1505,7 +1438,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ pricemonthly failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -1593,7 +1526,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ technicals-daily failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -1681,7 +1614,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ load-info failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -1769,7 +1702,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ earnings failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -1857,7 +1790,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ earnings estimate failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -1945,7 +1878,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ earnings metrics failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -2033,7 +1966,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ revenue estimate failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -2121,7 +2054,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ technicals-monthly failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -2209,7 +2142,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ swing-trader failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -2297,7 +2230,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ buysell daily failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -2385,7 +2318,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ buysell weekly failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -2473,7 +2406,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ buysell monthly failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -2561,7 +2494,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ load-latest-price-daily failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -2649,7 +2582,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ load-latest-price-weekly failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -2737,7 +2670,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ load-latest-price-monthly failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -2825,7 +2758,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ NAAIM failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -2913,7 +2846,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ AAII failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -3001,7 +2934,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Fear & Greed failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -3089,7 +3022,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Quarterly Balance Sheet failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -3177,7 +3110,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Annual Balance Sheet failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -3265,7 +3198,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Quarterly Income Statement failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -3353,7 +3286,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Annual Income Statement failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -3441,7 +3374,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Quarterly Cash Flow failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -3529,7 +3462,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Annual Cash Flow failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -3617,7 +3550,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ TTM Income Statement failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -3705,7 +3638,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ TTM Cash Flow failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -3785,7 +3718,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Load News failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -3876,7 +3809,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Fundamental-metrics failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -3964,7 +3897,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Analyst-upgrade-downgrade failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -4052,7 +3985,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Financials failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -4140,7 +4073,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Sentiment failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -4228,7 +4161,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Technicals failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -4316,7 +4249,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Market failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -4404,7 +4337,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Momentum failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -4492,7 +4425,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Sentiment-realtime failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -4580,17 +4513,99 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Positioning failed with exit code $EXIT"
             exit $EXIT
           fi
 
-  run_qualityscores:
-    name: Run quality-scores calculator
+  run_qualitymetrics:
+    name: Run quality-metrics calculator
     needs: [deploy-tasks, filter]
-    if: ${{ needs.filter.outputs.qualityscores == 'true' }}
+    if: ${{ needs.filter.outputs.qualitymetrics == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Fetch Task Definition ARN
+        id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='QualityMetricsTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch cluster ARN & subnets
+        id: infra
+        run: |
+          CLUSTER=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+          SUB1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUB2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+          echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
+          echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
+          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
+
+      - name: Run quality-metrics Fargate task
+        id: run
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --launch-type FARGATE \
+            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
+            --count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "🟢 Started quality-metrics task $TASK_ARN"
+
+      - name: Wait up to 60m for task to stop
+        run: |
+          for i in $(seq 1 180); do
+            STATUS=$(aws ecs describe-tasks \
+              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+              --query 'tasks[0].lastStatus' \
+              --output text)
+            echo "Attempt $i – status=$STATUS"
+            [ "$STATUS" = "STOPPED" ] && break
+            sleep 20
+          done
+          if [ "$STATUS" != "STOPPED" ]; then
+            echo "❌ Quality-metrics task did not stop within 60m"
+            exit 1
+          fi
+
+      - name: Check container exit code
+        run: |
+          EXIT=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          echo "→ Exit code: $EXIT"
+          if [ "$EXIT" -ne 0 ]; then
+            echo "❌ Quality-metrics failed with exit code $EXIT"
+            exit $EXIT
+          fi
+
 
     steps:
       - name: Configure AWS credentials
@@ -4668,8 +4683,96 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Quality-scores failed with exit code $EXIT"
+            exit $EXIT
+          fi
+
+  run_valuemetrics:
+    name: Run value-metrics calculator
+    needs: [deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.valuemetrics == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Fetch Task Definition ARN
+        id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='ValueMetricsTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch cluster ARN & subnets
+        id: infra
+        run: |
+          CLUSTER=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+          SUB1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUB2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+          echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
+          echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
+          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
+
+      - name: Run value-metrics Fargate task
+        id: run
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --launch-type FARGATE \
+            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
+            --count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "🟢 Started value-metrics task $TASK_ARN"
+
+      - name: Wait up to 60m for task to stop
+        run: |
+          for i in $(seq 1 180); do
+            STATUS=$(aws ecs describe-tasks \
+              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+              --query 'tasks[0].lastStatus' \
+              --output text)
+            echo "Attempt $i – status=$STATUS"
+            [ "$STATUS" = "STOPPED" ] && break
+            sleep 20
+          done
+          if [ "$STATUS" != "STOPPED" ]; then
+            echo "❌ Value-metrics task did not stop within 60m"
+            exit 1
+          fi
+
+      - name: Check container exit code
+        run: |
+          EXIT=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          echo "→ Exit code: $EXIT"
+          if [ "$EXIT" -ne 0 ]; then
+            echo "❌ Value-metrics failed with exit code $EXIT"
             exit $EXIT
           fi
 
@@ -4756,7 +4859,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Value-scores failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -4844,7 +4947,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Growth-metrics failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -4932,7 +5035,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Technicals-weekly failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -5020,7 +5123,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Latest-technicals-daily failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -5108,7 +5211,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Latest-technicals-weekly failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -5196,7 +5299,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Latest-technicals-monthly failed with exit code $EXIT"
             exit $EXIT
           fi
@@ -5284,7 +5387,7 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" != "None" ] && [ "$EXIT" != "" ] && [[ "$EXIT" =~ ^[0-9]+$ ]] && [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" -ne 0 ]; then
             echo "❌ Calendar failed with exit code $EXIT"
             exit $EXIT
           fi
