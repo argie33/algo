@@ -1,0 +1,2 @@
+Trigger deploy-app-stocks workflow - fix ECS task None exit code v8
+Force trigger stock symbols loading
