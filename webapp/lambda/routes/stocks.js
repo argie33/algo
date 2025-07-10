@@ -182,7 +182,7 @@ router.get('/', async (req, res) => {
         COALESCE(lt_count.executive_count, 0) as leadership_count
         
       FROM stock_symbols ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN company_profiles cp ON ss.symbol = cp.symbol
       LEFT JOIN market_data md ON ss.symbol = md.ticker
       LEFT JOIN key_metrics km ON ss.symbol = km.ticker
       LEFT JOIN analyst_estimates ae ON ss.symbol = ae.ticker
@@ -486,7 +486,7 @@ router.get('/', async (req, res) => {
           'overall_risk'
         ],
         dataSources: [
-          'stock_symbols', 'company_profile', 'market_data', 'key_metrics',
+          'stock_symbols', 'company_profiles', 'market_data', 'key_metrics',
           'analyst_estimates', 'governance_scores', 'leadership_team'
         ],
         comprehensiveData: {
@@ -1009,7 +1009,7 @@ router.get('/screen', async (req, res) => {
         COALESCE(lt_count.executive_count, 0) as leadership_count
         
       FROM stock_symbols ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN company_profiles cp ON ss.symbol = cp.symbol
       LEFT JOIN market_data md ON ss.symbol = md.ticker
       LEFT JOIN key_metrics km ON ss.symbol = km.ticker
       LEFT JOIN analyst_estimates ae ON ss.symbol = ae.ticker
@@ -1030,7 +1030,7 @@ router.get('/screen', async (req, res) => {
     const countQuery = `
       SELECT COUNT(*) as total
       FROM stock_symbols ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN company_profiles cp ON ss.symbol = cp.symbol
       ${whereClause}
     `;
 
