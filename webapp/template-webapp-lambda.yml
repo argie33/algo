@@ -13,6 +13,10 @@ Parameters:
     Type: String
     Description: ARN of the Secrets Manager secret containing database credentials
     
+  DatabaseEndpoint:
+    Type: String
+    Description: RDS database endpoint
+    
   CognitoUserPoolId:
     Type: String
     Description: Cognito User Pool ID for authentication
@@ -30,6 +34,7 @@ Globals:
       Variables:
         NODE_ENV: !Ref EnvironmentName
         DB_SECRET_ARN: !Ref DatabaseSecretArn
+        DB_ENDPOINT: !Ref DatabaseEndpoint
         WEBAPP_AWS_REGION: !Ref AWS::Region
         COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
         COGNITO_CLIENT_ID: !Ref CognitoClientId
@@ -48,10 +53,10 @@ Resources:
         - VPCAccessPolicy: {}
       VpcConfig:
         SecurityGroupIds:
-          - !Ref LambdaSecurityGroup
+          - !ImportValue StocksCore-LambdaSecurityGroupId
         SubnetIds:
-          - !Ref PrivateSubnet1
-          - !Ref PrivateSubnet2
+          - !ImportValue StocksCore-PublicSubnet1Id
+          - !ImportValue StocksCore-PublicSubnet2Id
       Events:
         ApiGateway:
           Type: HttpApi
@@ -76,45 +81,6 @@ Resources:
         MaxAge: 600
         AllowCredentials: false
 
-  # VPC and Security Group (simplified for this deployment)
-  VPC:
-    Type: AWS::EC2::VPC
-    Properties:
-      CidrBlock: 10.0.0.0/16
-      EnableDnsHostnames: true
-      EnableDnsSupport: true
-      Tags:
-        - Key: Name
-          Value: !Sub '${EnvironmentName}-vpc'
-
-  PrivateSubnet1:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      AvailabilityZone: !Select [0, !GetAZs '']
-      CidrBlock: 10.0.1.0/24
-      Tags:
-        - Key: Name
-          Value: !Sub '${EnvironmentName}-private-subnet-1'
-
-  PrivateSubnet2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      AvailabilityZone: !Select [1, !GetAZs '']
-      CidrBlock: 10.0.2.0/24
-      Tags:
-        - Key: Name
-          Value: !Sub '${EnvironmentName}-private-subnet-2'
-
-  LambdaSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Security group for Lambda function
-      VpcId: !Ref VPC
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
 
 Outputs:
   ApiGatewayUrl:
