@@ -4777,7 +4777,7 @@ run_valuemetrics:
             exit $EXIT
           fi
 
-  run_valuescores:
+run_valuescores:
     name: Run value-scores calculator
     needs: [deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.valuescores == 'true' }}
@@ -4865,7 +4865,7 @@ run_valuemetrics:
             exit $EXIT
           fi
 
-  run_growthmetrics:
+run_growthmetrics:
     name: Run growth-metrics calculator
     needs: [deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.growthmetrics == 'true' }}
@@ -4953,7 +4953,7 @@ run_valuemetrics:
             exit $EXIT
           fi
 
-  run_technicalsweekly:
+run_technicalsweekly:
     name: Run technicals-weekly loader
     needs: [deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.technicalsweekly == 'true' }}
@@ -5041,7 +5041,7 @@ run_valuemetrics:
             exit $EXIT
           fi
 
-  run_latesttechnicalsdaily:
+run_latesttechnicalsdaily:
     name: Run latest-technicals-daily loader
     needs: [deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.latesttechnicalsdaily == 'true' }}
@@ -5129,7 +5129,7 @@ run_valuemetrics:
             exit $EXIT
           fi
 
-  run_latesttechnicalsweekly:
+run_latesttechnicalsweekly:
     name: Run latest-technicals-weekly loader
     needs: [deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.latesttechnicalsweekly == 'true' }}
@@ -5217,7 +5217,7 @@ run_valuemetrics:
             exit $EXIT
           fi
 
-  run_latesttechnicalsmonthly:
+run_latesttechnicalsmonthly:
     name: Run latest-technicals-monthly loader
     needs: [deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.latesttechnicalsmonthly == 'true' }}
@@ -5305,7 +5305,7 @@ run_valuemetrics:
             exit $EXIT
           fi
 
-  run_calendar:
+run_calendar:
     name: Run calendar loader
     needs: [deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.calendar == 'true' }}
