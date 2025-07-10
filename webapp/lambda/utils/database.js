@@ -173,19 +173,13 @@ async function initializeDatabase() {
             const connectionStart = Date.now();
             console.log(`🔌 Attempting to connect to ${config.host}:${config.port}...`);
             
-            // Test network connectivity first
-            const netTest = await testNetworkConnectivity();
-            console.log(`🌐 Network test result: ${netTest.status} - ${netTest.message}`);
-            
-            if (netTest.status === 'timeout' || netTest.status === 'error') {
-                console.warn('⚠️  Network connectivity test failed, but attempting database connection anyway...');
-            }
+            // Skip network test to reduce initialization time - Lambda should have network access
             
             // Add timeout to pool.connect() to prevent hanging
             const client = await Promise.race([
                 pool.connect(),
                 new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('Database connection timeout after 25 seconds')), 25000)
+                    setTimeout(() => reject(new Error('Database connection timeout after 15 seconds')), 15000)
                 )
             ]);
             const connectionTime = Date.now() - connectionStart;
@@ -204,10 +198,8 @@ async function initializeDatabase() {
             
             client.release();
             
-            // Verify database connection
-            console.log('🔍 Verifying database connection...');
-            await verifyConnection();
-            console.log('✅ Database connection verified');
+            // Skip additional verification to reduce initialization time
+            console.log('✅ Database connection verified via test query');
             
             dbInitialized = true;
             console.log('🎉 Database connection pool initialized successfully');
