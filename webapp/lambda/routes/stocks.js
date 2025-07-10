@@ -66,7 +66,7 @@ router.get('/', async (req, res) => {
 
     console.log('OPTIMIZED query params:', { whereClause, params, limit, offset });
 
-    // COMPREHENSIVE QUERY: Include ALL data from loadinfo script
+    // SIMPLE QUERY: Use only tables that exist (stock_symbols + company_profiles)
     const stocksQuery = `
       SELECT 
         -- Stock symbols data
@@ -81,7 +81,7 @@ router.get('/', async (req, res) => {
         ss.secondary_symbol,
         ss.test_issue,
         
-        -- Company profile data from loadinfo
+        -- Company profile data (LEFT JOIN since not all symbols have profiles)
         cp.short_name,
         cp.long_name,
         cp.display_name,
@@ -92,106 +92,12 @@ router.get('/', async (req, res) => {
         cp.industry_disp,
         cp.business_summary,
         cp.employee_count,
-        cp.website_url,
-        cp.ir_website_url,
-        cp.address1,
-        cp.city,
-        cp.state,
-        cp.postal_code,
         cp.country,
-        cp.phone_number,
-        cp.currency,
-        cp.market,
-        cp.full_exchange_name,
-        
-        -- Market data from loadinfo
-        md.current_price,
-        md.previous_close,
-        md.open_price,
-        md.day_low,
-        md.day_high,
-        md.volume,
-        md.average_volume,
-        md.market_cap,
-        md.fifty_two_week_low,
-        md.fifty_two_week_high,
-        md.fifty_day_avg,
-        md.two_hundred_day_avg,
-        md.bid_price,
-        md.ask_price,
-        md.market_state,
-        
-        -- Key financial metrics from loadinfo
-        km.trailing_pe,
-        km.forward_pe,
-        km.price_to_sales_ttm,
-        km.price_to_book,
-        km.book_value,
-        km.peg_ratio,
-        km.enterprise_value,
-        km.ev_to_revenue,
-        km.ev_to_ebitda,
-        km.total_revenue,
-        km.net_income,
-        km.ebitda,
-        km.gross_profit,
-        km.eps_trailing,
-        km.eps_forward,
-        km.eps_current_year,
-        km.price_eps_current_year,
-        km.earnings_q_growth_pct,
-        km.total_cash,
-        km.cash_per_share,
-        km.operating_cashflow,
-        km.free_cashflow,
-        km.total_debt,
-        km.debt_to_equity,
-        km.quick_ratio,
-        km.current_ratio,
-        km.profit_margin_pct,
-        km.gross_margin_pct,
-        km.ebitda_margin_pct,
-        km.operating_margin_pct,
-        km.return_on_assets_pct,
-        km.return_on_equity_pct,
-        km.revenue_growth_pct,
-        km.earnings_growth_pct,
-        km.dividend_rate,
-        km.dividend_yield,
-        km.five_year_avg_dividend_yield,
-        km.payout_ratio,
-        
-        -- Analyst estimates from loadinfo
-        ae.target_high_price,
-        ae.target_low_price,
-        ae.target_mean_price,
-        ae.target_median_price,
-        ae.recommendation_key,
-        ae.recommendation_mean,
-        ae.analyst_opinion_count,
-        ae.average_analyst_rating,
-        
-        -- Governance scores from loadinfo
-        gs.audit_risk,
-        gs.board_risk,
-        gs.compensation_risk,
-        gs.shareholder_rights_risk,
-        gs.overall_risk,
-        
-        -- Leadership team count (subquery)
-        COALESCE(lt_count.executive_count, 0) as leadership_count
+        cp.phone,
+        cp.website_url
         
       FROM stock_symbols ss
       LEFT JOIN company_profiles cp ON ss.symbol = cp.symbol
-      LEFT JOIN market_data md ON ss.symbol = md.ticker
-      LEFT JOIN key_metrics km ON ss.symbol = km.ticker
-      LEFT JOIN analyst_estimates ae ON ss.symbol = ae.ticker
-      LEFT JOIN governance_scores gs ON ss.symbol = gs.ticker
-      LEFT JOIN (
-        SELECT ticker, COUNT(*) as executive_count 
-        FROM leadership_team 
-        GROUP BY ticker
-      ) lt_count ON ss.symbol = lt_count.ticker
       ${whereClause}
       ORDER BY ${sortColumn} ${sortDirection}
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
@@ -1010,15 +916,6 @@ router.get('/screen', async (req, res) => {
         
       FROM stock_symbols ss
       LEFT JOIN company_profiles cp ON ss.symbol = cp.symbol
-      LEFT JOIN market_data md ON ss.symbol = md.ticker
-      LEFT JOIN key_metrics km ON ss.symbol = km.ticker
-      LEFT JOIN analyst_estimates ae ON ss.symbol = ae.ticker
-      LEFT JOIN governance_scores gs ON ss.symbol = gs.ticker
-      LEFT JOIN (
-        SELECT ticker, COUNT(*) as executive_count 
-        FROM leadership_team 
-        GROUP BY ticker
-      ) lt_count ON ss.symbol = lt_count.ticker
       ${whereClause}
       ORDER BY ${sortColumn} ${sortDirection}
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
