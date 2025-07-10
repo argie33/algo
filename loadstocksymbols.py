@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Deploy ONLY stock_symbols workflow - avoid webapp workflow conflict
+# Fixed duplicate symbols in matrix - should run only once now
 import os
 import re
 import csv

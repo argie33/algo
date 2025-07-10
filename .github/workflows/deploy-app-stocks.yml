@@ -609,7 +609,7 @@ jobs:
              [ "${{ steps.paths.outputs.ttmcashflow }}" = "true" ] || \
              [ "${{ steps.paths.outputs.fundamentalmetrics }}" = "true" ] || \
              [ "${{ steps.paths.outputs.analystupgradedowngrade }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.symbols }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.symbolsalt }}" = "true" ] || \
              [ "${{ steps.paths.outputs.financials }}" = "true" ] || \
              [ "${{ steps.paths.outputs.sentiment }}" = "true" ] || \
              [ "${{ steps.paths.outputs.technicals }}" = "true" ] || \
@@ -669,7 +669,6 @@ jobs:
           [ "${{ steps.paths.outputs.ttmcashflow }}" = "true" ] && arr="$arr,\"ttmcashflow\""
           [ "${{ steps.paths.outputs.fundamentalmetrics }}" = "true" ] && arr="$arr,\"fundamentalmetrics\""
           [ "${{ steps.paths.outputs.analystupgradedowngrade }}" = "true" ] && arr="$arr,\"analystupgradedowngrade\""
-          [ "${{ steps.paths.outputs.symbols }}" = "true" ] && arr="$arr,\"symbols\""
           [ "${{ steps.paths.outputs.symbolsalt }}" = "true" ] && arr="$arr,\"symbolsalt\""
           [ "${{ steps.paths.outputs.financials }}" = "true" ] && arr="$arr,\"financials\""
           [ "${{ steps.paths.outputs.sentiment }}" = "true" ] && arr="$arr,\"sentiment\""
