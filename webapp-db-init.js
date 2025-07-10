@@ -638,7 +638,7 @@ ON CONFLICT (table_name) DO NOTHING;
 }
 
 async function initializeWebappDatabase() {
-    log('info', '🚀 Starting webapp database initialization');
+    log('info', '🚀 Starting webapp database initialization v1.1');
     log('info', `Environment: ${process.env.ENVIRONMENT || 'unknown'}`);
     log('info', `AWS Region: ${process.env.AWS_REGION || 'unknown'}`);
     log('info', `DB Secret ARN: ${process.env.DB_SECRET_ARN ? 'set' : 'NOT SET'}`);

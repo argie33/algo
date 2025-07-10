@@ -505,7 +505,7 @@ jobs:
           
           # Build the Docker image
           echo "🔨 Building webapp-db-init Docker image..."
-          docker build -f Dockerfile.webapp-db-init -t webapp-db-init:latest .
+          docker build --platform linux/arm64 -f Dockerfile.webapp-db-init -t webapp-db-init:latest .
           
           # Tag for ECR
           echo "🏷️ Tagging image for ECR..."

@@ -173,7 +173,7 @@ Resources:
       Role: !GetAtt LambdaExecutionRole.Arn
       # No VPC config needed - RDS is publicly accessible
       Timeout: 60
-      MemorySize: 512
+      MemorySize: 256
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DatabaseSecretArn
