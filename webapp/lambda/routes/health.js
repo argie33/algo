@@ -140,31 +140,77 @@ router.get('/ready', async (req, res) => {
   }
 });
 
-// Quick fix endpoint to create missing stock_symbols table
+// Emergency fix endpoint to create missing stock_symbols table with proper schema
 router.post('/create-table', async (req, res) => {
   try {
     const { query } = require('../utils/database');
     
+    // Create stock_symbols table matching what Lambda expects
     await query(`
       CREATE TABLE IF NOT EXISTS stock_symbols (
-        symbol VARCHAR(10) PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        type VARCHAR(50) DEFAULT 'stock',
-        exchange VARCHAR(10),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(10) NOT NULL UNIQUE,
+        security_name VARCHAR(255) NOT NULL,
+        exchange VARCHAR(50),
+        market_category VARCHAR(50),
+        cqs_symbol VARCHAR(20),
+        financial_status VARCHAR(10),
+        round_lot_size INTEGER DEFAULT 100,
+        etf BOOLEAN DEFAULT FALSE,
+        secondary_symbol VARCHAR(20),
+        test_issue BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
     
-    // Insert a test record
+    // Create indexes
+    await query(`CREATE INDEX IF NOT EXISTS idx_stock_symbols_symbol ON stock_symbols(symbol)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_stock_symbols_exchange ON stock_symbols(exchange)`);
+    
+    // Insert minimal data to make the app work
     await query(`
-      INSERT INTO stock_symbols (symbol, name, exchange) 
-      VALUES ('AAPL', 'Apple Inc.', 'NASDAQ') 
+      INSERT INTO stock_symbols (symbol, security_name, exchange, market_category, financial_status, etf) VALUES
+      ('AAPL', 'Apple Inc.', 'NASDAQ', 'Q', 'N', false),
+      ('MSFT', 'Microsoft Corporation', 'NASDAQ', 'Q', 'N', false),
+      ('GOOGL', 'Alphabet Inc.', 'NASDAQ', 'Q', 'N', false),
+      ('AMZN', 'Amazon.com Inc.', 'NASDAQ', 'Q', 'N', false),
+      ('TSLA', 'Tesla Inc.', 'NASDAQ', 'Q', 'N', false)
       ON CONFLICT (symbol) DO NOTHING
+    `);
+    
+    // Also create company_profiles table that stocks.js query expects
+    await query(`
+      CREATE TABLE IF NOT EXISTS company_profiles (
+        symbol VARCHAR(10) PRIMARY KEY,
+        short_name VARCHAR(255),
+        long_name VARCHAR(255),
+        display_name VARCHAR(255),
+        quote_type VARCHAR(50),
+        sector VARCHAR(100),
+        sector_disp VARCHAR(100),
+        industry VARCHAR(150),
+        industry_disp VARCHAR(150),
+        business_summary TEXT,
+        employee_count INTEGER,
+        website_url VARCHAR(500),
+        ir_website_url VARCHAR(500),
+        address1 VARCHAR(255),
+        city VARCHAR(100),
+        state VARCHAR(50),
+        postal_code VARCHAR(20),
+        country VARCHAR(100),
+        phone VARCHAR(50),
+        logo_url VARCHAR(500),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
     `);
     
     res.json({
       status: 'success',
-      message: 'stock_symbols table created and test data inserted',
+      message: 'Emergency tables created - run your data loading scripts for full data',
+      tables_created: ['stock_symbols', 'company_profiles'],
       timestamp: new Date().toISOString()
     });
     
