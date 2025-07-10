@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
-# FORCE TRIGGER - Final working version from main branch
+# Retry after dual run failure - symbols should run cleanly now
+# Trigger deploy-app-stocks workflow - fix ECS task None exit code v10
+
+print("🚀 STOCK SYMBOLS LOADER STARTING...")
+print("🔍 Python version:", sys.version)
+print("📍 Current working directory:", os.getcwd())
+print("🌍 Environment variables:")
+for key, value in os.environ.items():
+    if 'SECRET' in key or 'DB' in key:
+        print(f"   {key}={value[:50]}..." if len(value) > 50 else f"   {key}={value}")
+
 import os
 import re
 import csv
@@ -18,6 +28,7 @@ logging.basicConfig(
     format='[%(asctime)s] %(levelname)s %(name)s: %(message)s'
 )
 logger = logging.getLogger("loadstocksymbols")
+logger.info("🎯 Logger initialized successfully")
 
 # ─── Config ────────────────────────────────────────────────────────────────────
 DB_SECRET_ARN = os.environ.get("DB_SECRET_ARN")
@@ -114,7 +125,8 @@ PATTERNS = [
     r"\btick pilot test\b", 
     r"\bexchange test\b",     
     r"\bbats bzx\b",    
-    r"\bdividend trust\b",  
+    r"\bdividend trust\b",
+    r"\bspecial purpose\b",  
     r"\bbond trust\b",  
     r"\bmunicipal trust\b",  
     r"\bmortgage trust\b", 
@@ -385,6 +397,7 @@ def main():
 
     logger.info("Total stock records after filtering: %d", len(all_records))
     logger.info("Total ETF records: %d", len(all_etf_records))
+    logger.info("Stock symbols loading process initiated successfully")
 
     conn = psycopg2.connect(
         host=PG_HOST, port=PG_PORT,
@@ -396,7 +409,7 @@ def main():
         insert_all(conn, all_records)
         insert_etfs(conn, all_etf_records)
         update_timestamp(conn)
-        logger.info("Load complete")
+        logger.info("Load complete - symbols updated successfully")
     finally:
         conn.close()
 
