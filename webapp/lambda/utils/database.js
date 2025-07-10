@@ -56,7 +56,10 @@ async function getDbConfig() {
                     max: parseInt(process.env.DB_POOL_MAX) || 5,
                     idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 30000,
                     connectionTimeoutMillis: parseInt(process.env.DB_CONNECT_TIMEOUT) || 10000,
-                    ssl: false
+                    ssl: {
+                        rejectUnauthorized: false
+                        // No "require: true" - allows SSL but doesn't force it
+                    }
                 };
                 
                 console.log(`✅ Database config loaded from Secrets Manager:`);
@@ -84,7 +87,10 @@ async function getDbConfig() {
                 max: parseInt(process.env.DB_POOL_MAX) || 5,
                 idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 30000,
                 connectionTimeoutMillis: parseInt(process.env.DB_CONNECT_TIMEOUT) || 10000,
-                ssl: false
+                ssl: {
+                    rejectUnauthorized: false
+                    // No "require: true" - allows SSL but doesn't force it
+                }
             };
             
             console.log(`✅ Database config loaded from environment:`);
