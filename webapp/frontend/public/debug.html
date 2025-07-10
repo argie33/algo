@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend Debug Page</title>
+    <style>
+        body { font-family: monospace; background: #f0f0f0; padding: 20px; }
+        .test { margin: 10px 0; padding: 10px; background: white; border-radius: 5px; }
+        .pass { border-left: 5px solid green; }
+        .fail { border-left: 5px solid red; }
+        .warn { border-left: 5px solid orange; }
+        pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+        #console-output { max-height: 300px; overflow-y: auto; background: #000; color: #0f0; padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>🐛 Frontend Debug Page</h1>
+    <p>This page tests various components that could cause blank white pages.</p>
+    
+    <div id="tests"></div>
+    
+    <h2>Console Output</h2>
+    <div id="console-output"></div>
+    
+    <script>
+        const testsDiv = document.getElementById('tests');
+        const consoleDiv = document.getElementById('console-output');
+        const results = [];
+        
+        // Capture console logs
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        
+        function addToConsole(type, message) {
+            const timestamp = new Date().toISOString();
+            consoleDiv.innerHTML += `[${timestamp}] ${type}: ${message}\n`;
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+        
+        console.log = (...args) => {
+            addToConsole('LOG', args.join(' '));
+            originalLog.apply(console, args);
+        };
+        
+        console.error = (...args) => {
+            addToConsole('ERROR', args.join(' '));
+            originalError.apply(console, args);
+        };
+        
+        console.warn = (...args) => {
+            addToConsole('WARN', args.join(' '));
+            originalWarn.apply(console, args);
+        };
+        
+        function addTest(name, status, details) {
+            results.push({ name, status, details });
+            const div = document.createElement('div');
+            div.className = `test ${status}`;
+            div.innerHTML = `
+                <h3>${status === 'pass' ? '✅' : status === 'fail' ? '❌' : '⚠️'} ${name}</h3>
+                <div>${details}</div>
+            `;
+            testsDiv.appendChild(div);
+        }
+        
+        // Test 1: Basic JavaScript execution
+        addTest('Basic JavaScript', 'pass', 'JavaScript is executing normally');
+        
+        // Test 2: Check if config.js loaded
+        try {
+            if (window.__CONFIG__) {
+                addTest('Runtime Config', 'pass', `Config loaded: ${JSON.stringify(window.__CONFIG__, null, 2)}`);
+            } else {
+                addTest('Runtime Config', 'fail', 'window.__CONFIG__ is not defined - config.js may not have loaded');
+            }
+        } catch (e) {
+            addTest('Runtime Config', 'fail', `Error checking config: ${e.message}`);
+        }
+        
+        // Test 3: Check network connectivity to API
+        const apiUrl = window.__CONFIG__?.API_URL || 'https://q570hqc8i9.execute-api.us-east-1.amazonaws.com/dev';
+        fetch(apiUrl + '/health?quick=true')
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+            })
+            .then(data => {
+                addTest('API Connectivity', 'pass', `API is responding: ${JSON.stringify(data, null, 2)}`);
+            })
+            .catch(error => {
+                addTest('API Connectivity', 'fail', `API request failed: ${error.message}`);
+            });
+        
+        // Test 4: Check if main app assets exist
+        const assetsToCheck = [
+            '/src/main.jsx',
+            '/src/App.jsx',
+            '/favicon.svg'
+        ];
+        
+        assetsToCheck.forEach(asset => {
+            fetch(asset)
+                .then(response => {
+                    if (response.ok) {
+                        addTest(`Asset: ${asset}`, 'pass', `Asset exists and is accessible`);
+                    } else {
+                        addTest(`Asset: ${asset}`, 'fail', `HTTP ${response.status}: ${response.statusText}`);
+                    }
+                })
+                .catch(error => {
+                    addTest(`Asset: ${asset}`, 'fail', `Failed to load: ${error.message}`);
+                });
+        });
+        
+        // Test 5: Check for obvious JavaScript errors
+        window.addEventListener('error', (event) => {
+            addTest('JavaScript Errors', 'fail', `Error: ${event.message} at ${event.filename}:${event.lineno}`);
+        });
+        
+        // Test 6: Try to import React (if modules work)
+        try {
+            import('/src/main.jsx')
+                .then(() => {
+                    addTest('Module Import', 'pass', 'ES6 modules are working');
+                })
+                .catch(error => {
+                    addTest('Module Import', 'fail', `Module import failed: ${error.message}`);
+                });
+        } catch (e) {
+            addTest('Module Import', 'fail', `Import syntax error: ${e.message}`);
+        }
+        
+        // Test 7: Browser environment checks
+        const checks = {
+            'Local Storage': () => localStorage.setItem('test', 'test') || localStorage.removeItem('test'),
+            'Session Storage': () => sessionStorage.setItem('test', 'test') || sessionStorage.removeItem('test'),
+            'ES6 Support': () => [1,2,3].map(x => x * 2),
+            'Fetch API': () => typeof fetch === 'function',
+            'Promise Support': () => typeof Promise === 'function'
+        };
+        
+        Object.entries(checks).forEach(([name, check]) => {
+            try {
+                const result = check();
+                addTest(`Browser: ${name}`, 'pass', `Supported`);
+            } catch (e) {
+                addTest(`Browser: ${name}`, 'fail', `Not supported: ${e.message}`);
+            }
+        });
+        
+        // Test 8: Environment variables (if any are exposed)
+        const envVars = Object.keys(window).filter(key => key.startsWith('VITE_') || key.includes('ENV'));
+        if (envVars.length > 0) {
+            addTest('Environment Variables', 'pass', `Found: ${envVars.join(', ')}`);
+        } else {
+            addTest('Environment Variables', 'warn', 'No environment variables found in window object');
+        }
+        
+        console.log('🐛 Debug page loaded successfully');
+        console.log('Current URL:', window.location.href);
+        console.log('User Agent:', navigator.userAgent);
+        console.log('Available window properties:', Object.keys(window).slice(0, 20).join(', ') + '...');
+        
+        // Summary after 3 seconds
+        setTimeout(() => {
+            const passed = results.filter(r => r.status === 'pass').length;
+            const failed = results.filter(r => r.status === 'fail').length;
+            const warned = results.filter(r => r.status === 'warn').length;
+            
+            addTest('Summary', passed > failed ? 'pass' : 'fail', 
+                `Tests: ${passed} passed, ${failed} failed, ${warned} warnings`);
+                
+            if (failed > 0) {
+                console.error(`🚨 ${failed} tests failed - this likely explains the blank white page`);
+            } else {
+                console.log(`✅ All tests passed - the issue might be elsewhere`);
+            }
+        }, 3000);
+    </script>
+</body>
+</html>

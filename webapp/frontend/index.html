@@ -10,10 +10,19 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <script src="/config.js"></script>
+    <script>
+      // Load config.js with error handling
+      var script = document.createElement('script');
+      script.src = '/config.js';
+      script.onerror = function() {
+        console.warn('⚠️ Failed to load config.js - using defaults');
+        window.__CONFIG__ = { API_URL: 'https://q570hqc8i9.execute-api.us-east-1.amazonaws.com/dev' };
+      };
+      document.head.appendChild(script);
+    </script>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <script type="module" src="/src/main.jsx" onerror="console.error('Failed to load main.jsx')"></script>
   </body>
 </html>
