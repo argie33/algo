@@ -339,7 +339,6 @@ jobs:
       fundamentalmetrics: ${{ steps.paths.outputs.fundamentalmetrics }}
       analystupgradedowngrade: ${{ steps.paths.outputs.analystupgradedowngrade }}
       financials: ${{ steps.paths.outputs.financials }}
-      symbolsalt: ${{ steps.paths.outputs.symbolsalt }}
       sentiment: ${{ steps.paths.outputs.sentiment }}
       technicals: ${{ steps.paths.outputs.technicals }}
       market: ${{ steps.paths.outputs.market }}
@@ -519,10 +518,6 @@ jobs:
               - 'loadanalystupgradedowngrade.py'
               - 'Dockerfile.loadanalystupgradedowngrade'
               - 'requirements-loadanalystupgradedowngrade.txt'
-            symbolsalt:
-              - 'loadsymbols.py'
-              - 'Dockerfile.loadsymbols'
-              - 'requirements-loadsymbols.txt'
             financials:
               - 'loadfinancials.py'
               - 'Dockerfile.loadfinancials'
@@ -609,7 +604,6 @@ jobs:
              [ "${{ steps.paths.outputs.ttmcashflow }}" = "true" ] || \
              [ "${{ steps.paths.outputs.fundamentalmetrics }}" = "true" ] || \
              [ "${{ steps.paths.outputs.analystupgradedowngrade }}" = "true" ] || \
-             [ "${{ steps.paths.outputs.symbolsalt }}" = "true" ] || \
              [ "${{ steps.paths.outputs.financials }}" = "true" ] || \
              [ "${{ steps.paths.outputs.sentiment }}" = "true" ] || \
              [ "${{ steps.paths.outputs.technicals }}" = "true" ] || \
@@ -669,7 +663,6 @@ jobs:
           [ "${{ steps.paths.outputs.ttmcashflow }}" = "true" ] && arr="$arr,\"ttmcashflow\""
           [ "${{ steps.paths.outputs.fundamentalmetrics }}" = "true" ] && arr="$arr,\"fundamentalmetrics\""
           [ "${{ steps.paths.outputs.analystupgradedowngrade }}" = "true" ] && arr="$arr,\"analystupgradedowngrade\""
-          [ "${{ steps.paths.outputs.symbolsalt }}" = "true" ] && arr="$arr,\"symbolsalt\""
           [ "${{ steps.paths.outputs.financials }}" = "true" ] && arr="$arr,\"financials\""
           [ "${{ steps.paths.outputs.sentiment }}" = "true" ] && arr="$arr,\"sentiment\""
           [ "${{ steps.paths.outputs.technicals }}" = "true" ] && arr="$arr,\"technicals\""
@@ -759,7 +752,6 @@ jobs:
             ttmcashflow) DOCKERFILE=Dockerfile.ttmcashflow; PARAM=TTMCashFlowImageTag;;\
             fundamentalmetrics) DOCKERFILE=Dockerfile.fundamentalmetrics; PARAM=FundamentalMetricsImageTag;;\
             analystupgradedowngrade) DOCKERFILE=Dockerfile.loadanalystupgradedowngrade; PARAM=AnalystUpgradeDowngradeImageTag;;\
-            symbolsalt) DOCKERFILE=Dockerfile.loadsymbols; PARAM=SymbolsAltImageTag;;\
             financials) DOCKERFILE=Dockerfile.loadfinancials; PARAM=FinancialsImageTag;;\
             sentiment) DOCKERFILE=Dockerfile.loadsentiment; PARAM=SentimentImageTag;;\
             technicals) DOCKERFILE=Dockerfile.loadtechnicals; PARAM=TechnicalsImageTag;;\
@@ -1007,93 +999,6 @@ jobs:
             exit $EXIT
           fi
 
-  run_symbolsalt:
-    name: Run symbols-alt loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.symbolsalt == 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-
-    steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - name: Fetch Task Definition ARN
-        id: td
-        run: |
-          ARN=$(aws cloudformation describe-stacks \
-            --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='SymbolsAltTaskDefArn'].OutputValue" \
-            --output text)
-          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-
-      - name: Fetch cluster ARN & subnets
-        id: infra
-        run: |
-          CLUSTER=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
-            --output text)
-          SUB1=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
-            --output text)
-          SUB2=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
-            --output text)
-          SG=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
-            --output text)
-          echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
-          echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
-          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
-          echo "SG=$SG" >> $GITHUB_OUTPUT
-
-      - name: Run symbols-alt Fargate task
-        id: run
-        run: |
-          TASK_ARN=$(aws ecs run-task \
-            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
-            --launch-type FARGATE \
-            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
-            --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
-            --query 'tasks[0].taskArn' \
-            --output text)
-          echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
-          echo "🟢 Started symbols-alt task $TASK_ARN"
-
-      - name: Wait up to 60m for task to stop
-        run: |
-          for i in $(seq 1 180); do
-            STATUS=$(aws ecs describe-tasks \
-              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
-              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
-              --query 'tasks[0].lastStatus' \
-              --output text)
-            echo "Attempt $i – status=$STATUS"
-            [ "$STATUS" = "STOPPED" ] && break
-            sleep 20
-          done
-          if [ "$STATUS" != "STOPPED" ]; then
-            echo "❌ symbols-alt task did not stop within 60m"
-            exit 1
-          fi
-
-      - name: Check container exit code
-        run: |
-          EXIT=$(aws ecs describe-tasks \
-            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
-            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
-            --query 'tasks[0].containers[0].exitCode' \
-            --output text)
-          echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
-            echo "❌ symbols-alt failed with exit code $EXIT"
-            exit $EXIT
-          fi
 
   run_econ:
     name: Run econ-data loader

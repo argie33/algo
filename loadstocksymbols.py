@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Fixed duplicate symbols in matrix - should run only once now
+# Removed symbolsalt confusion - symbols should run ONCE to create stock_symbols table
 import os
 import re
 import csv
