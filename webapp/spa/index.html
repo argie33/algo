@@ -12,22 +12,48 @@
 <body>
   <h1>Stocks Data</h1>
   <button id="load">Load Data</button>
+  <div id="status">Loading...</div>
   <div id="table"></div>
 
   <script>
     const API = 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev/api/stocks';  // Fixed path with /api/ prefix
 
+    // Show initial status
+    document.getElementById('status').innerHTML = 'Page loaded. Click "Load Data" to test API.';
+    
+    // Add global error handler
+    window.onerror = function(msg, url, line, col, error) {
+      console.error('Global error:', msg, 'at', url, ':', line);
+      document.getElementById('status').innerHTML = `<span style="color: red;">JavaScript Error: ${msg}</span>`;
+      return false;
+    };
+
     document.getElementById('load').onclick = async () => {
       try {
+        document.getElementById('status').innerHTML = 'Fetching data from API...';
         console.log('Fetching from:', API);
+        
         const res = await fetch(API, { mode: 'cors' });
         console.log('Response status:', res.status);
+        
+        document.getElementById('status').innerHTML = `API responded with status: ${res.status}`;
+        
         const data = await res.json();
         console.log('Response data:', data);
-        if (!data.length) {
-          document.getElementById('table').innerHTML = '<p>No data available. Check API and database.</p>';
+        
+        if (data.error) {
+          document.getElementById('status').innerHTML = `<span style="color: orange;">API Error: ${data.error}</span>`;
+          document.getElementById('table').innerHTML = `<p>Error: ${data.details || data.error}</p>`;
           return;
         }
+        
+        if (!data.length) {
+          document.getElementById('status').innerHTML = '<span style="color: blue;">API returned empty data</span>';
+          document.getElementById('table').innerHTML = '<p>No data available. Database tables may be missing.</p>';
+          return;
+        }
+        
+        document.getElementById('status').innerHTML = '<span style="color: green;">Data loaded successfully!</span>';
       const cols = Object.keys(data[0]);
       let html = '<table><thead><tr>' +
         cols.map(c => `<th>${c}</th>`).join('') +
@@ -39,6 +65,7 @@
       document.getElementById('table').innerHTML = html;
     } catch (error) {
       console.error('API Error:', error);
+      document.getElementById('status').innerHTML = `<span style="color: red;">Request failed: ${error.message}</span>`;
       document.getElementById('table').innerHTML = `<p style="color: red;">Error: ${error.message}<br/>Check console for details.</p>`;
     }
     };
