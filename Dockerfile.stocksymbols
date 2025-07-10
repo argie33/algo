@@ -1,8 +1,5 @@
 FROM python:3.10-slim
 
-# Debug container startup
-RUN echo "🚀 DOCKERFILE BUILDING - Stock symbols loader"
-
 WORKDIR /app
 
 COPY requirements-loadstocksymbols.txt ./
@@ -10,7 +7,4 @@ RUN pip install --no-cache-dir -r requirements-loadstocksymbols.txt
 
 COPY loadstocksymbols.py ./
 
-# Debug before starting
-RUN echo "✅ Container built successfully" && ls -la
-
-CMD echo "🎯 CONTAINER STARTING..." && python -u loadstocksymbols.py
+CMD ["python", "-u", "loadstocksymbols.py"]
