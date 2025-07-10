@@ -23,17 +23,6 @@ Globals:
   Function:
     Timeout: 30
     Runtime: nodejs18.x
-  Api:
-    # Use environment-specific naming and configuration
-    Name: !Sub 'financial-dashboard-api-${EnvironmentName}'
-    Cors:
-      AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
-      AllowHeaders: "'Content-Type,Authorization,X-Requested-With'"
-      AllowOrigin: "'*'"
-      AllowCredentials: false
-    # Use SAM's implicit stage configuration
-    Variables:
-      ENVIRONMENT: !Ref EnvironmentName
 
 Resources:
   # Cognito User Pool for authentication
@@ -203,11 +192,13 @@ Resources:
           Properties:
             Path: /{proxy+}
             Method: ANY
+            RestApiId: !Ref EnvironmentSpecificApi
         ApiRoot:
           Type: Api
           Properties:
             Path: /
             Method: ANY
+            RestApiId: !Ref EnvironmentSpecificApi
 
   # CloudWatch Log Group for API Gateway
   ApiGatewayLogGroup:
@@ -223,18 +214,41 @@ Resources:
       LogGroupName: !Sub '/aws/lambda/financial-dashboard-api-${EnvironmentName}'
       RetentionInDays: 14
 
+  # Explicit API Gateway with environment-specific stage
+  EnvironmentSpecificApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub 'financial-dashboard-api-${EnvironmentName}'
+      StageName: !Ref EnvironmentName
+      Cors:
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization,X-Requested-With'"
+        AllowOrigin: "'*'"
+        AllowCredentials: false
+      Variables:
+        ENVIRONMENT: !Ref EnvironmentName
+      AccessLogSetting:
+        DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
+        Format: '$requestId $requestTime $identity.sourceIp $identity.userAgent $httpMethod $resourcePath $status $error.message $error.messageString'
+      MethodSettings:
+        - ResourcePath: '/*'
+          HttpMethod: '*'
+          LoggingLevel: INFO
+          DataTraceEnabled: true
+          MetricsEnabled: true
+
   # API Gateway Resource Policy to allow all access (remove restrictions)
   ApiGatewayResourcePolicy:
     Type: AWS::ApiGateway::RestApiPolicy
     Properties:
-      RestApiId: !Ref ServerlessRestApi
+      RestApiId: !Ref EnvironmentSpecificApi
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
             Principal: '*'
             Action: 'execute-api:Invoke'
-            Resource: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ServerlessRestApi}/*'
+            Resource: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${EnvironmentSpecificApi}/*'
 
 
 
@@ -512,14 +526,14 @@ Outputs:
 
   ApiGatewayUrl:
     Description: API Gateway endpoint URL
-    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod'
+    Value: !Sub 'https://${EnvironmentSpecificApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}'
     Export:
       Name: !Sub '${AWS::StackName}-ApiGatewayUrl'
       
   # Additional debugging outputs
   ApiGatewayId:
     Description: API Gateway REST API ID
-    Value: !Ref ServerlessRestApi
+    Value: !Ref EnvironmentSpecificApi
     Export:
       Name: !Sub '${AWS::StackName}-ApiGatewayId'
       
@@ -537,7 +551,7 @@ Outputs:
       
   ApiGatewayStageName:
     Description: API Gateway stage name
-    Value: Prod
+    Value: !Ref EnvironmentName
     Export:
       Name: !Sub '${AWS::StackName}-ApiGatewayStageName'
 
