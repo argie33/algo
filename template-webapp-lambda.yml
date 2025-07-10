@@ -24,24 +24,17 @@ Globals:
     Timeout: 30
     Runtime: nodejs18.x
   Api:
-    # Explicitly name the stage to match URL structure
+    # Use environment-specific naming and configuration
     Name: !Sub 'financial-dashboard-api-${EnvironmentName}'
-    StageName: !Ref EnvironmentName
     Cors:
       AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
       AllowHeaders: "'Content-Type,Authorization,X-Requested-With'"
       AllowOrigin: "'*'"
       AllowCredentials: false
-    # Enable access logging and add stage configuration
-    AccessLogSetting:
-      DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
-      Format: '$requestId $requestTime $identity.sourceIp $identity.userAgent $httpMethod $resourcePath $status $error.message $error.messageString'
-    MethodSettings:
-      - ResourcePath: '/*'
-        HttpMethod: '*'
-        LoggingLevel: INFO
-        DataTraceEnabled: true
-        MetricsEnabled: true
+    Variables:
+      # Pass environment info to API Gateway for dynamic configuration
+      ENVIRONMENT: !Ref EnvironmentName
+      STAGE_NAME: !Ref EnvironmentName
 
 Resources:
   # Cognito User Pool for authentication
@@ -243,6 +236,30 @@ Resources:
             Principal: '*'
             Action: 'execute-api:Invoke'
             Resource: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ServerlessRestApi}/*'
+
+  # Custom Stage with environment-specific name
+  ApiGatewayCustomStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref ServerlessRestApi
+      DeploymentId: !Ref ServerlessRestApiDeployment
+      StageName: !Ref EnvironmentName
+      Description: !Sub 'API Gateway stage for ${EnvironmentName} environment'
+      Variables:
+        ENVIRONMENT: !Ref EnvironmentName
+        DEPLOYMENT_TIME: !Sub '${AWS::StackName}-${AWS::Region}'
+      AccessLogSetting:
+        DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
+        Format: '$requestId $requestTime $identity.sourceIp $identity.userAgent $httpMethod $resourcePath $status $error.message $error.messageString'
+      MethodSettings:
+        - ResourcePath: '/*'
+          HttpMethod: '*'
+          LoggingLevel: INFO
+          DataTraceEnabled: true
+          MetricsEnabled: true
+          ThrottlingRateLimit: 1000
+          ThrottlingBurstLimit: 2000
+
 
 
 
@@ -540,6 +557,12 @@ Outputs:
     Value: !GetAtt FinancialDashboardFunction.Arn
     Export:
       Name: !Sub '${AWS::StackName}-LambdaFunctionArn'
+      
+  ApiGatewayStageName:
+    Description: API Gateway stage name
+    Value: !Ref EnvironmentName
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiGatewayStageName'
 
   WebsiteURL:
     Description: CloudFront URL for the website
