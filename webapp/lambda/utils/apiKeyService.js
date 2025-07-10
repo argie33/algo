@@ -5,7 +5,19 @@ const ALGORITHM = 'aes-256-gcm';
 
 class ApiKeyService {
   constructor() {
-    this.secretKey = process.env.API_KEY_ENCRYPTION_SECRET || 'default-encryption-key-change-in-production';
+    this.secretKey = process.env.API_KEY_ENCRYPTION_SECRET;
+    if (!this.secretKey) {
+      throw new Error('API_KEY_ENCRYPTION_SECRET environment variable not set. Use keyGenerator.js to generate secure keys.');
+    }
+    // Validate key has sufficient entropy (minimum 32 bytes when base64 decoded)
+    try {
+      const keyBuffer = Buffer.from(this.secretKey, 'base64');
+      if (keyBuffer.length < 32) {
+        throw new Error('API_KEY_ENCRYPTION_SECRET must be at least 256 bits (32 bytes)');
+      }
+    } catch (error) {
+      throw new Error('API_KEY_ENCRYPTION_SECRET must be a valid base64 encoded key');
+    }
   }
 
   // Decrypt API key using stored encryption data

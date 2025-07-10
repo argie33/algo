@@ -114,11 +114,11 @@ class MonitoringConfig:
     risk_check_interval: int = 30  # seconds
     
     # Database
-    db_host: str = "localhost"
-    db_port: int = 5432
-    db_name: str = "trading_system"
-    db_user: str = "postgres"
-    db_password: str = "password"
+    db_host: str = os.getenv("DB_HOST", "localhost")
+    db_port: int = int(os.getenv("DB_PORT", "5432"))
+    db_name: str = os.getenv("DB_NAME", "trading_system")
+    db_user: str = os.getenv("DB_USER", "postgres")
+    db_password: str = os.getenv("DB_PASSWORD", "")
 
 # Global configuration instances
 ALPACA_CONFIG = AlpacaConfig.from_env()

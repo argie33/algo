@@ -11,6 +11,12 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const { initializeDatabase } = require('./utils/database');
 const errorHandler = require('./middleware/errorHandler');
+const { 
+  rateLimitConfigs, 
+  sqlInjectionPrevention, 
+  xssPrevention, 
+  requestSizeLimit 
+} = require('./middleware/validation');
 
 // Import routes
 const stockRoutes = require('./routes/stocks');
@@ -137,9 +143,17 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-// Request parsing
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Request parsing with size limits
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+
+// Security validation middleware
+app.use(requestSizeLimit('2mb'));
+app.use(sqlInjectionPrevention);
+app.use(xssPrevention);
+
+// Rate limiting for authentication endpoints
+app.use('/auth', rateLimitConfigs.auth);
 
 // Note: API Gateway strips the /api prefix before sending to Lambda
 

@@ -10,8 +10,11 @@ async function testDirectConnection() {
     console.log('🧪 Testing direct database connection...');
     
     try {
-        // Get the exact same secret the ECS/Lambda would use
-        const secretArn = 'arn:aws:secretsmanager:us-east-1:905418313413:secret:stocks-db-secrets-stocks-app-stack-us-east-1-001-fl3BxQ';
+        // Get the secret ARN from environment variable
+        const secretArn = process.env.DB_SECRET_ARN;
+        if (!secretArn) {
+            throw new Error('DB_SECRET_ARN environment variable not set');
+        }
         
         console.log('📋 Getting database credentials from Secrets Manager...');
         const secretResponse = await secretsManager.getSecretValue({ SecretId: secretArn }).promise();

@@ -38,7 +38,10 @@ async function getDbCredentials() {
             database: secret.dbname || 'postgres',
             user: secret.username,
             password: secret.password,
-            ssl: false,
+            ssl: {
+                require: true,
+                rejectUnauthorized: true
+            },
             connectionTimeoutMillis: 30000
         };
     } catch (error) {

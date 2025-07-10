@@ -47,13 +47,13 @@ async def get_database_config():
     if db_endpoint:
         # This is a fallback for Lambda environment
         # You'll need to set the actual credentials
-        logger.warning("Using fallback database configuration")
+        logger.warning("Using fallback database configuration from environment variables")
         return {
             'host': db_endpoint,
-            'port': 5432,
-            'database': 'postgres',  # Default database name
-            'user': 'postgres',      # You should set this properly
-            'password': 'password'   # You should set this properly
+            'port': int(os.environ.get('DB_PORT', 5432)),
+            'database': os.environ.get('DB_NAME', 'postgres'),
+            'user': os.environ.get('DB_USER', 'postgres'),
+            'password': os.environ.get('DB_PASSWORD')
         }
     
     logger.error("No database configuration found")

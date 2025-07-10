@@ -57,8 +57,8 @@ async function getDbConfig() {
                     idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 30000,
                     connectionTimeoutMillis: parseInt(process.env.DB_CONNECT_TIMEOUT) || 10000,
                     ssl: {
-                        rejectUnauthorized: false
-                        // No "require: true" - allows SSL but doesn't force it
+                        require: true,
+                        rejectUnauthorized: true
                     }
                 };
                 
@@ -88,8 +88,8 @@ async function getDbConfig() {
                 idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 30000,
                 connectionTimeoutMillis: parseInt(process.env.DB_CONNECT_TIMEOUT) || 10000,
                 ssl: {
-                    rejectUnauthorized: false
-                    // No "require: true" - allows SSL but doesn't force it
+                    require: true,
+                    rejectUnauthorized: true
                 }
             };
             
