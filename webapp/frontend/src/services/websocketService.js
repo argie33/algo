@@ -1,6 +1,47 @@
-import { EventTarget } from 'events';
+// Simple EventEmitter implementation for browser compatibility
+class EventEmitter {
+  constructor() {
+    this.events = {};
+  }
 
-class WebSocketService extends EventTarget {
+  on(event, listener) {
+    if (!this.events[event]) {
+      this.events[event] = [];
+    }
+    this.events[event].push(listener);
+    return this;
+  }
+
+  off(event, listener) {
+    if (!this.events[event]) return this;
+    
+    const index = this.events[event].indexOf(listener);
+    if (index > -1) {
+      this.events[event].splice(index, 1);
+    }
+    return this;
+  }
+
+  emit(event, ...args) {
+    if (!this.events[event]) return false;
+    
+    this.events[event].forEach(listener => {
+      listener.apply(this, args);
+    });
+    return true;
+  }
+
+  removeAllListeners(event) {
+    if (event) {
+      delete this.events[event];
+    } else {
+      this.events = {};
+    }
+    return this;
+  }
+}
+
+class WebSocketService extends EventEmitter {
   constructor() {
     super();
     this.ws = null;
@@ -15,7 +56,7 @@ class WebSocketService extends EventTarget {
     
     // Configuration
     this.config = {
-      url: process.env.REACT_APP_WS_URL || 'ws://localhost:8765',
+      url: import.meta.env.VITE_WS_URL || 'ws://localhost:8765',
       pingInterval: 30000, // 30 seconds
       connectionTimeout: 10000, // 10 seconds
       maxMessageSize: 1024 * 1024, // 1MB
@@ -483,7 +524,7 @@ class WebSocketService extends EventTarget {
 const websocketService = new WebSocketService();
 
 // Auto-connect on import (can be disabled if needed)
-if (process.env.REACT_APP_AUTO_CONNECT_WS !== 'false') {
+if (import.meta.env.VITE_AUTO_CONNECT_WS !== 'false') {
   websocketService.connect().catch(console.error);
 }
 
