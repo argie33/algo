@@ -170,7 +170,7 @@ router.get('/', async (req, res) => {
         md.bid_price,
         md.ask_price,
         md.market_state`;
-      fromClause += '\n      LEFT JOIN market_data md ON ss.symbol = md.symbol';
+      fromClause += '\n      LEFT JOIN market_data md ON ss.symbol = md.ticker';
     } else {
       selectFields += `,
         -- Market data (table missing - null values)
@@ -233,7 +233,7 @@ router.get('/', async (req, res) => {
         km.dividend_yield,
         km.five_year_avg_dividend_yield,
         km.payout_ratio`;
-      fromClause += '\n      LEFT JOIN key_metrics km ON ss.symbol = km.symbol';
+      fromClause += '\n      LEFT JOIN key_metrics km ON ss.symbol = km.ticker';
     } else {
       selectFields += `,
         -- Key financial metrics (table missing - null values)
@@ -289,7 +289,7 @@ router.get('/', async (req, res) => {
         ae.recommendation_mean,
         ae.analyst_opinion_count,
         ae.average_analyst_rating`;
-      fromClause += '\n      LEFT JOIN analyst_estimates ae ON ss.symbol = ae.symbol';
+      fromClause += '\n      LEFT JOIN analyst_estimates ae ON ss.symbol = ae.ticker';
     } else {
       selectFields += `,
         -- Analyst estimates (table missing - null values)
@@ -312,7 +312,7 @@ router.get('/', async (req, res) => {
         gs.compensation_risk,
         gs.shareholder_rights_risk,
         gs.overall_risk`;
-      fromClause += '\n      LEFT JOIN governance_scores gs ON ss.symbol = gs.symbol';
+      fromClause += '\n      LEFT JOIN governance_scores gs ON ss.symbol = gs.ticker';
     } else {
       selectFields += `,
         -- Governance scores (table missing - null values)
@@ -329,10 +329,10 @@ router.get('/', async (req, res) => {
         -- Leadership team count (subquery)
         COALESCE(lt_count.executive_count, 0) as leadership_count`;
       fromClause += `\n      LEFT JOIN (
-        SELECT symbol, COUNT(*) as executive_count 
+        SELECT ticker, COUNT(*) as executive_count 
         FROM leadership_team 
-        GROUP BY symbol
-      ) lt_count ON ss.symbol = lt_count.symbol`;
+        GROUP BY ticker
+      ) lt_count ON ss.symbol = lt_count.ticker`;
     } else {
       selectFields += `,
         -- Leadership team (table missing - zero count)
