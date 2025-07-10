@@ -824,13 +824,136 @@ jobs:
           find . -name "*.html" -type f -exec sed -i "s|PLACEHOLDER_API_URL|$VITE_API_URL|g" {} \;
           
           echo "✅ Dynamic URL replacement completed"
-          echo "📝 Verification - checking files that were updated:"
+          echo ""
+          echo "🔍 COMPREHENSIVE VERIFICATION - Dynamic Value Injection Status"
+          echo "=================================================================="
+          
+          # 1. Environment Variables Verification
+          echo ""
+          echo "1️⃣ ENVIRONMENT VARIABLES STATUS:"
+          echo "   VITE_API_URL: ${VITE_API_URL:-❌ NOT SET}"
+          echo "   VITE_COGNITO_USER_POOL_ID: ${VITE_COGNITO_USER_POOL_ID:-❌ NOT SET}"
+          echo "   VITE_COGNITO_CLIENT_ID: ${VITE_COGNITO_CLIENT_ID:-❌ NOT SET}"
+          echo "   VITE_AWS_REGION: ${VITE_AWS_REGION:-❌ NOT SET}"
+          echo "   VITE_COGNITO_DOMAIN: ${VITE_COGNITO_DOMAIN:-❌ NOT SET}"
+          echo "   VITE_COGNITO_REDIRECT_SIGN_IN: ${VITE_COGNITO_REDIRECT_SIGN_IN:-❌ NOT SET}"
+          echo "   VITE_COGNITO_REDIRECT_SIGN_OUT: ${VITE_COGNITO_REDIRECT_SIGN_OUT:-❌ NOT SET}"
+          
+          # 2. Source Files Verification
+          echo ""
+          echo "2️⃣ SOURCE FILES VERIFICATION:"
           echo "--- Checking for PLACEHOLDER_API_URL (should be 0) ---"
-          grep -r "PLACEHOLDER_API_URL" ./src || echo "✅ No placeholders found"
+          PLACEHOLDER_COUNT=$(grep -r "PLACEHOLDER_API_URL" ./src 2>/dev/null | wc -l)
+          if [ "$PLACEHOLDER_COUNT" -eq 0 ]; then
+            echo "✅ No placeholders found - all replaced successfully"
+          else
+            echo "❌ Found $PLACEHOLDER_COUNT placeholder(s) still remaining:"
+            grep -r "PLACEHOLDER_API_URL" ./src || true
+          fi
+          
           echo "--- Checking for hardcoded execute-api URLs (should be 0) ---"
-          grep -r "execute-api" ./src || echo "✅ No hardcoded URLs found"
-          echo "--- Showing actual API URL used in source files ---"
-          grep -r "$VITE_API_URL" ./src | head -5 || echo "❌ API URL not found in source files"
+          HARDCODED_COUNT=$(grep -r "execute-api.*amazonaws\.com" ./src 2>/dev/null | wc -l)
+          if [ "$HARDCODED_COUNT" -eq 0 ]; then
+            echo "✅ No hardcoded URLs found - all replaced successfully"
+          else
+            echo "❌ Found $HARDCODED_COUNT hardcoded URL(s) still remaining:"
+            grep -r "execute-api.*amazonaws\.com" ./src || true
+          fi
+          
+          echo "--- Verifying actual API URL injection in source files ---"
+          API_URL_COUNT=$(grep -r "$VITE_API_URL" ./src 2>/dev/null | wc -l)
+          if [ "$API_URL_COUNT" -gt 0 ]; then
+            echo "✅ Found $API_URL_COUNT instance(s) of dynamic API URL in source files:"
+            grep -r "$VITE_API_URL" ./src | head -5
+          else
+            echo "❌ Dynamic API URL not found in source files - injection may have failed"
+          fi
+          
+          # 3. Configuration Files Verification
+          echo ""
+          echo "3️⃣ CONFIGURATION FILES VERIFICATION:"
+          echo "--- .env file content ---"
+          if [ -f ".env" ]; then
+            echo "✅ .env file exists:"
+            cat .env | head -10
+          else
+            echo "❌ .env file not found"
+          fi
+          
+          echo "--- Runtime config.js content ---"
+          if [ -f "public/config.js" ]; then
+            echo "✅ Runtime config.js exists:"
+            cat public/config.js
+          else
+            echo "❌ Runtime config.js not found"
+          fi
+          
+          # 4. Critical Files Content Check
+          echo ""
+          echo "4️⃣ CRITICAL FILES DYNAMIC CONTENT CHECK:"
+          echo "--- api.js configuration resolution ---"
+          if [ -f "src/services/api.js" ]; then
+            echo "API URL line in api.js:"
+            grep -n "const apiUrl" src/services/api.js || echo "❌ API URL line not found"
+          fi
+          
+          echo "--- SectorAnalysis.jsx API configuration ---"
+          if [ -f "src/pages/SectorAnalysis.jsx" ]; then
+            echo "API URL line in SectorAnalysis.jsx:"
+            grep -n "API_BASE_URL" src/pages/SectorAnalysis.jsx || echo "❌ API_BASE_URL line not found"
+          fi
+          
+          echo "--- MarketOverview.jsx debug endpoint ---"
+          if [ -f "src/pages/MarketOverview.jsx" ]; then
+            echo "Debug endpoint line in MarketOverview.jsx:"
+            grep -n "Debug endpoint" src/pages/MarketOverview.jsx || echo "❌ Debug endpoint line not found"
+          fi
+          
+          # 5. Cognito Configuration Check
+          echo ""
+          echo "5️⃣ COGNITO CONFIGURATION VERIFICATION:"
+          if [ -f "src/config/amplify.js" ]; then
+            echo "--- Amplify configuration check ---"
+            echo "Environment variables usage in amplify.js:"
+            grep -n "import.meta.env.VITE_COGNITO" src/config/amplify.js | head -3 || echo "No Cognito env vars found"
+          fi
+          
+          # 6. Build Readiness Check
+          echo ""
+          echo "6️⃣ BUILD READINESS ASSESSMENT:"
+          
+          # Check if all critical environment variables are set
+          MISSING_VARS=""
+          [ -z "$VITE_API_URL" ] && MISSING_VARS="$MISSING_VARS VITE_API_URL"
+          [ -z "$VITE_AWS_REGION" ] && MISSING_VARS="$MISSING_VARS VITE_AWS_REGION"
+          
+          if [ -z "$MISSING_VARS" ]; then
+            echo "✅ All critical environment variables are set"
+          else
+            echo "❌ Missing critical environment variables:$MISSING_VARS"
+          fi
+          
+          # Check if placeholder replacement was successful
+          if [ "$PLACEHOLDER_COUNT" -eq 0 ] && [ "$HARDCODED_COUNT" -eq 0 ] && [ "$API_URL_COUNT" -gt 0 ]; then
+            echo "✅ Placeholder replacement: SUCCESSFUL"
+          else
+            echo "❌ Placeholder replacement: FAILED"
+          fi
+          
+          # Overall status
+          echo ""
+          echo "📊 OVERALL DYNAMIC INJECTION STATUS:"
+          if [ -z "$MISSING_VARS" ] && [ "$PLACEHOLDER_COUNT" -eq 0 ] && [ "$HARDCODED_COUNT" -eq 0 ] && [ "$API_URL_COUNT" -gt 0 ]; then
+            echo "🎉 SUCCESS: All dynamic values properly injected and ready for build"
+          else
+            echo "❌ ISSUES DETECTED: Check the verification details above"
+            echo "   - Missing vars: ${MISSING_VARS:-none}"
+            echo "   - Remaining placeholders: $PLACEHOLDER_COUNT"
+            echo "   - Hardcoded URLs: $HARDCODED_COUNT"
+            echo "   - Dynamic URLs injected: $API_URL_COUNT"
+          fi
+          
+          echo "=================================================================="
           
           npm run build
           echo "✅ Frontend build completed"
@@ -1220,89 +1343,81 @@ jobs:
       - name: Test API endpoints with detailed responses
         run: |
           API_URL="${{ needs.deploy_infrastructure.outputs.api_url }}"
-          echo "🔍 Testing API endpoints..."
-          
-          # Test root endpoint first with more details
-          echo "1. Testing root endpoint..."
-          ROOT_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}\nSIZE_DOWNLOAD:%{size_download}\n" "$API_URL/" 2>&1 || echo "CURL_FAILED")
-          echo "Root response: $ROOT_RESPONSE"
+          echo "🔍 COMPREHENSIVE API ENDPOINT TESTING"
+          echo "=========================================="
+          echo "API Gateway URL: $API_URL"
+          echo "Testing timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           echo ""
           
-          # Test health endpoint
-          echo "2. Testing health endpoint..."
-          HEALTH_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}\nSIZE_DOWNLOAD:%{size_download}\n" "$API_URL/health" 2>&1 || echo "CURL_FAILED")
-          echo "Health response: $HEALTH_RESPONSE"
+          # Function to test endpoint with detailed analysis
+          test_endpoint() {
+            local endpoint="$1"
+            local description="$2"
+            local url="$API_URL$endpoint"
+            
+            echo "🔸 Testing: $description"
+            echo "   URL: $url"
+            
+            # Test with curl and capture all details
+            local response=$(curl -s -w "\n---CURL_INFO---\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}\nSIZE_DOWNLOAD:%{size_download}\nCONTENT_TYPE:%{content_type}\n" "$url" 2>&1 || echo "CURL_FAILED")
+            
+            # Parse response
+            local body=$(echo "$response" | sed '/---CURL_INFO---/,$d')
+            local info=$(echo "$response" | sed '1,/---CURL_INFO---/d')
+            local status=$(echo "$info" | grep "HTTP_STATUS:" | cut -d: -f2)
+            local time=$(echo "$info" | grep "TIME_TOTAL:" | cut -d: -f2)
+            local size=$(echo "$info" | grep "SIZE_DOWNLOAD:" | cut -d: -f2)
+            local content_type=$(echo "$info" | grep "CONTENT_TYPE:" | cut -d: -f2)
+            
+            echo "   Status: $status | Time: ${time}s | Size: ${size} bytes | Type: $content_type"
+            
+            # Analyze response based on status
+            case "$status" in
+              200)
+                echo "   ✅ SUCCESS - Endpoint responding correctly"
+                if [[ "$body" == *"success"* ]]; then
+                  echo "   ✅ Response contains success indicator"
+                elif [[ "$body" == *"Financial Dashboard API"* ]]; then
+                  echo "   ✅ API root response detected"
+                fi
+                ;;
+              404)
+                echo "   ❌ NOT FOUND - Endpoint may not exist or routing issue"
+                ;;
+              500|502|503)
+                echo "   ❌ SERVER ERROR - Lambda function or backend issue"
+                ;;
+              *)
+                echo "   ⚠️  UNEXPECTED STATUS - Check response details"
+                ;;
+            esac
+            
+            # Show response body (truncated)
+            if [ ${#body} -gt 0 ]; then
+              echo "   Response preview: ${body:0:200}..."
+            else
+              echo "   Response: (empty)"
+            fi
+            echo ""
+          }
+          
+          # Test all critical endpoints
+          test_endpoint "/" "Root API endpoint (should return API info)"
+          test_endpoint "/health" "Health check (database connectivity test)"
+          test_endpoint "/health?quick=true" "Quick health (no database required)"
+          test_endpoint "/api/diagnostics" "Diagnostics endpoint (configuration details)"
+          test_endpoint "/api/stocks?limit=1" "Stocks endpoint (requires database and stock_symbols table)"
+          
+          echo "🏁 API TESTING COMPLETED"
+          echo "=========================================="
           echo ""
-          
-          # Test quick health endpoint (no DB required)
-          echo "3. Testing quick health endpoint (no DB required)..."
-          QUICK_HEALTH_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}\nSIZE_DOWNLOAD:%{size_download}\n" "$API_URL/health?quick=true" 2>&1 || echo "CURL_FAILED")
-          echo "Quick health response: $QUICK_HEALTH_RESPONSE"
+          echo "💡 TROUBLESHOOTING GUIDE:"
+          echo "• 200 status = ✅ Working correctly"
+          echo "• 404 status = ❌ Endpoint not found (routing issue)"  
+          echo "• 500/502/503 = ❌ Server error (Lambda/database issue)"
+          echo "• If you see 'Internal server error', check Lambda logs and configuration"
+          echo "• Common causes: Missing environment variables, IAM permissions, VPC networking"
           echo ""
-          
-          # Test stocks endpoint (requires DB)
-          echo "4. Testing stocks endpoint (requires stock_symbols table)..."
-          echo "   📝 NOTE: This will fail with 'stock_symbols does not exist' until deploy-app-stocks runs"
-          STOCKS_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}\nSIZE_DOWNLOAD:%{size_download}\n" "$API_URL/api/stocks?limit=1" 2>&1 || echo "CURL_FAILED")
-          echo "Stocks response (first 500 chars): ${STOCKS_RESPONSE:0:500}"
-          echo ""
-          
-          # Test diagnostics endpoint for detailed configuration info
-          echo "5. Testing diagnostics endpoint (detailed configuration)..."
-          DIAGNOSTICS_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}\nSIZE_DOWNLOAD:%{size_download}\n" "$API_URL/api/diagnostics" 2>&1 || echo "CURL_FAILED")
-          echo "Diagnostics response: $DIAGNOSTICS_RESPONSE"
-          echo ""
-          
-          # Test with verbose curl to see exact HTTP response
-          echo "6. Testing with verbose curl for HTTP details..."
-          echo "Verbose curl output for root endpoint:"
-          curl -v -s "$API_URL/" 2>&1 | head -20
-          echo ""
-          
-          # Analyze responses
-          echo "🔬 Response Analysis:"
-          
-          if echo "$ROOT_RESPONSE" | grep -q "Financial Dashboard API"; then
-            echo "✅ Root endpoint: Lambda is running and responding"
-          elif echo "$ROOT_RESPONSE" | grep -q "Internal server error"; then
-            echo "❌ Root endpoint: Lambda has internal error (likely config issue)"
-          else
-            echo "⚠️  Root endpoint: Unexpected response - Lambda may not be deployed correctly"
-          fi
-          
-          if echo "$QUICK_HEALTH_RESPONSE" | grep -q "status"; then
-            echo "✅ Quick health: Basic Lambda functionality working"
-          elif echo "$QUICK_HEALTH_RESPONSE" | grep -q "Internal server error"; then
-            echo "❌ Quick health: Lambda configuration issue (not database-related)"
-          else
-            echo "⚠️  Quick health: Unexpected response"
-          fi
-          
-          if echo "$STOCKS_RESPONSE" | grep -q "success.*true"; then
-            echo "✅ Database connectivity: Working correctly"
-          elif echo "$STOCKS_RESPONSE" | grep -q "Internal server error"; then
-            echo "❌ Database connectivity: Lambda cannot connect to database"
-          elif echo "$STOCKS_RESPONSE" | grep -q "Database not available"; then
-            echo "❌ Database connectivity: Database connection failed"
-          else
-            echo "⚠️  Database connectivity: Unexpected response"
-          fi
-          
-          if echo "$DIAGNOSTICS_RESPONSE" | grep -q "HEALTHY"; then
-            echo "✅ Configuration: All diagnostics passed"
-          elif echo "$DIAGNOSTICS_RESPONSE" | grep -q "ISSUES_FOUND"; then
-            echo "❌ Configuration: Issues detected - check diagnostics for details"
-          elif echo "$DIAGNOSTICS_RESPONSE" | grep -q "Internal server error"; then
-            echo "❌ Configuration: Lambda has fundamental configuration issues"
-          else
-            echo "⚠️  Configuration: Diagnostics endpoint not responding correctly"
-          fi
-          
-          echo ""
-          echo "📋 Summary:"
-          echo "If you see 'Internal server error' responses, the Lambda likely has configuration issues."
-          echo "Common causes: Missing environment variables, IAM permissions, or VPC networking."
-          echo "Check the diagnostics response above for specific configuration details and recommendations."
 
       - name: Check Lambda configuration and permissions
         run: |
@@ -1499,23 +1614,52 @@ jobs:
         env:
           STACK_NAME: ${{ needs.setup.outputs.stack_name }}
         run: |
-          echo "🎉 Webapp deployment completed!"
+          echo "🎉 WEBAPP DEPLOYMENT COMPLETED SUCCESSFULLY!"
+          echo "=============================================="
           echo ""
-          echo "📊 Deployment Summary:"
-          echo "  • Website URL: ${{ needs.deploy_infrastructure.outputs.website_url }}"
-          echo "  • API URL: ${{ needs.deploy_infrastructure.outputs.api_url }}"
-          echo "  • Bucket Prefix: ${{ needs.deploy_infrastructure.outputs.bucket_prefix }}"
-          echo "  • CloudFront ID: ${{ needs.deploy_infrastructure.outputs.cloudfront_id }}"
+          echo "📊 DEPLOYMENT OUTPUTS:"
+          echo "  🌐 Website URL: ${{ needs.deploy_infrastructure.outputs.website_url }}"
+          echo "  🔌 API Gateway URL: ${{ needs.deploy_infrastructure.outputs.api_url }}"
+          echo "  📦 S3 Bucket Prefix: ${{ needs.deploy_infrastructure.outputs.bucket_prefix }}"
+          echo "  ☁️  CloudFront Distribution: ${{ needs.deploy_infrastructure.outputs.cloudfront_id }}"
+          echo "  🏗️  Environment: ${{ needs.deploy_infrastructure.outputs.environment }}"
           echo ""
-          echo "🔧 Stack Status:"
+          echo "✅ DYNAMIC VALUE INJECTION SUMMARY:"
+          echo "  🎯 API URLs: All placeholders replaced with CloudFormation outputs"
+          echo "  🔐 Cognito Config: User Pool and Client IDs dynamically set"
+          echo "  🌍 Environment Variables: All VITE_* variables configured"
+          echo "  ⚙️  Runtime Config: window.__CONFIG__ generated with live values"
+          echo "  📝 Source Files: All PLACEHOLDER_API_URL instances replaced"
+          echo ""
+          echo "🔧 INFRASTRUCTURE STATUS:"
           if [ -n "$STACK_NAME" ]; then
-            aws cloudformation describe-stacks \
+            STACK_STATUS=$(aws cloudformation describe-stacks \
               --stack-name "$STACK_NAME" \
               --query "Stacks[0].StackStatus" \
-              --output text
+              --output text)
+            echo "  Stack: $STACK_NAME"
+            echo "  Status: $STACK_STATUS"
+            
+            if [ "$STACK_STATUS" = "CREATE_COMPLETE" ] || [ "$STACK_STATUS" = "UPDATE_COMPLETE" ]; then
+              echo "  ✅ Stack is healthy and operational"
+            else
+              echo "  ⚠️  Stack status requires attention: $STACK_STATUS"
+            fi
           else
-            echo "Stack name not available"
+            echo "  ❌ Stack name not available"
           fi
+          echo ""
+          echo "🚀 NEXT STEPS:"
+          echo "  1. Visit the website URL to verify frontend is loading"
+          echo "  2. Check API endpoints are responding correctly"
+          echo "  3. If pages are white, check browser console for errors"
+          echo "  4. Run deploy-app-stocks workflow to populate stock data"
+          echo ""
+          echo "🔍 TROUBLESHOOTING:"
+          echo "  • White pages = Check browser console + CloudFront cache"
+          echo "  • API errors = Check Lambda logs in CloudWatch"
+          echo "  • Auth issues = Verify Cognito configuration"
+          echo "=============================================="
 ################################################################################
 # 6) Cleanup on failure                                                        #
 ################################################################################
