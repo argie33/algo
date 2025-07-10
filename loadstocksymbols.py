@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Fixed artifact naming conflict - deploy stock_symbols table to fix white page
+# Deploy ONLY stock_symbols workflow - avoid webapp workflow conflict
 import os
 import re
 import csv
