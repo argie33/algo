@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application files
 COPY calculate_quality_metrics.py .
-COPY database.py .
+COPY database_config.py .
 
 # Set executable permissions
 RUN chmod +x calculate_quality_metrics.py
