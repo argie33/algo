@@ -1,6 +1,15 @@
 #!/usr/bin/env python3
 # Retry after dual run failure - symbols should run cleanly now
-# Trigger deploy-app-stocks workflow - fix ECS task None exit code v9
+# Trigger deploy-app-stocks workflow - fix ECS task None exit code v10
+
+print("🚀 STOCK SYMBOLS LOADER STARTING...")
+print("🔍 Python version:", sys.version)
+print("📍 Current working directory:", os.getcwd())
+print("🌍 Environment variables:")
+for key, value in os.environ.items():
+    if 'SECRET' in key or 'DB' in key:
+        print(f"   {key}={value[:50]}..." if len(value) > 50 else f"   {key}={value}")
+
 import os
 import re
 import csv
@@ -19,6 +28,7 @@ logging.basicConfig(
     format='[%(asctime)s] %(levelname)s %(name)s: %(message)s'
 )
 logger = logging.getLogger("loadstocksymbols")
+logger.info("🎯 Logger initialized successfully")
 
 # ─── Config ────────────────────────────────────────────────────────────────────
 DB_SECRET_ARN = os.environ.get("DB_SECRET_ARN")
