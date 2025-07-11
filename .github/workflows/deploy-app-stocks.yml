@@ -257,7 +257,11 @@ jobs:
           [ "${{ steps.paths.outputs.latesttechnicalsweekly }}" = "true" ] && arr="$arr,\"latesttechnicalsweekly\""
           [ "${{ steps.paths.outputs.latesttechnicalsmonthly }}" = "true" ] && arr="$arr,\"latesttechnicalsmonthly\""
           
-          echo "matrix=[${arr#,}]" >> $GITHUB_OUTPUT
+          if [ -z "$arr" ]; then
+            echo "matrix=[\"none\"]" >> $GITHUB_OUTPUT
+          else
+            echo "matrix=[${arr#,}]" >> $GITHUB_OUTPUT
+          fi
 
 ################################################################################
 # 3) Build only the changed Docker images                                      #
@@ -286,6 +290,7 @@ jobs:
 
       - id: build
         name: Build & push Docker image
+        if: ${{ matrix.loader != 'none' }}
         run: |
           REPO=stocks-app-registry
           aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 || \
