@@ -695,9 +695,20 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ -z "$EXIT" ] || [ "$EXIT" = "null" ]; then
+            echo "❌ econ-data task failed - no exit code available"
+            echo "→ This usually means the container failed to start or crashed immediately"
+            exit 1
+          elif [ "$EXIT" -eq 0 ] 2>/dev/null; then
+            echo "✅ econ-data completed successfully"
+          else
             echo "❌ econ-data failed with exit code $EXIT"
-            exit $EXIT
+            # Try to parse as integer, fallback to 1 if not numeric
+            if [ "$EXIT" -eq "$EXIT" ] 2>/dev/null; then
+              exit $EXIT
+            else
+              exit 1
+            fi
           fi
 
   run_findata:
@@ -783,9 +794,20 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ -z "$EXIT" ] || [ "$EXIT" = "null" ]; then
+            echo "❌ findata task failed - no exit code available"
+            echo "→ This usually means the container failed to start or crashed immediately"
+            exit 1
+          elif [ "$EXIT" -eq 0 ] 2>/dev/null; then
+            echo "✅ findata completed successfully"
+          else
             echo "❌ findata failed with exit code $EXIT"
-            exit $EXIT
+            # Try to parse as integer, fallback to 1 if not numeric
+            if [ "$EXIT" -eq "$EXIT" ] 2>/dev/null; then
+              exit $EXIT
+            else
+              exit 1
+            fi
           fi
 
   run_pricedaily:
@@ -1223,9 +1245,20 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          if [ "$EXIT" = "None" ] || [ -z "$EXIT" ] || [ "$EXIT" = "null" ]; then
+            echo "❌ load-info task failed - no exit code available"
+            echo "→ This usually means the container failed to start or crashed immediately"
+            exit 1
+          elif [ "$EXIT" -eq 0 ] 2>/dev/null; then
+            echo "✅ load-info completed successfully"
+          else
             echo "❌ load-info failed with exit code $EXIT"
-            exit $EXIT
+            # Try to parse as integer, fallback to 1 if not numeric
+            if [ "$EXIT" -eq "$EXIT" ] 2>/dev/null; then
+              exit $EXIT
+            else
+              exit 1
+            fi
           fi
 
   run_earningshistory:

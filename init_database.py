@@ -102,14 +102,12 @@ def create_all_tables(cursor, conn):
             description TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            is_active BOOLEAN DEFAULT TRUE,
-            UNIQUE(user_id, api_key_id)
+            is_active BOOLEAN DEFAULT TRUE
         )
         """,
         
         """
-        DROP TABLE IF EXISTS portfolio_holdings CASCADE;
-        CREATE TABLE portfolio_holdings (
+        CREATE TABLE IF NOT EXISTS portfolio_holdings (
             id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL,
             api_key_id INTEGER,
@@ -454,6 +452,50 @@ def create_all_tables(cursor, conn):
                 logger.error(f"Failed to create table {i+1}: {e}")
                 logger.error(f"Table SQL: {table_sql}")
                 raise
+        
+        # Add missing columns to existing tables if needed
+        logger.info("Checking and adding missing columns to portfolio tables")
+        
+        # Add api_key_id column to portfolio_metadata if it doesn't exist
+        try:
+            cursor.execute("""
+                ALTER TABLE portfolio_metadata 
+                ADD COLUMN IF NOT EXISTS api_key_id INTEGER
+            """)
+            logger.info("Added api_key_id column to portfolio_metadata (if missing)")
+            
+            # Add unique constraint if it doesn't exist
+            try:
+                cursor.execute("""
+                    ALTER TABLE portfolio_metadata 
+                    ADD CONSTRAINT unique_user_api_key UNIQUE (user_id, api_key_id)
+                """)
+                logger.info("Added unique constraint for user_id, api_key_id")
+            except Exception as e:
+                logger.info(f"Unique constraint may already exist: {e}")
+                
+        except Exception as e:
+            logger.warning(f"Could not add api_key_id to portfolio_metadata: {e}")
+        
+        # Add missing columns to portfolio_holdings if they don't exist
+        missing_columns = [
+            ("api_key_id", "INTEGER"),
+            ("current_price", "DECIMAL(10, 4)"),
+            ("market_value", "DECIMAL(15, 2)"),
+            ("unrealized_pl", "DECIMAL(15, 2)"),
+            ("unrealized_plpc", "DECIMAL(8, 4)"),
+            ("side", "VARCHAR(10) DEFAULT 'long'")
+        ]
+        
+        for col_name, col_type in missing_columns:
+            try:
+                cursor.execute(f"""
+                    ALTER TABLE portfolio_holdings 
+                    ADD COLUMN IF NOT EXISTS {col_name} {col_type}
+                """)
+                logger.info(f"Added {col_name} column to portfolio_holdings (if missing)")
+            except Exception as e:
+                logger.warning(f"Could not add {col_name} to portfolio_holdings: {e}")
         
         # Verify portfolio_holdings table structure before creating indexes
         cursor.execute("""
