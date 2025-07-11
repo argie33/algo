@@ -506,7 +506,7 @@ jobs:
   build:
     name: Build changed images
     needs: filter
-    if: ${{ needs.filter.outputs.any == 'true' }}
+    if: ${{ needs.filter.outputs.any == 'true' || needs.filter.outputs.symbols == 'true' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -607,7 +607,7 @@ jobs:
   deploy-tasks:
     name: Deploy ECS-tasks stack
     needs: [build, filter]
-    if: ${{ needs.filter.outputs.any == 'true' }}
+    if: ${{ needs.filter.outputs.any == 'true' || needs.filter.outputs.symbols == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
