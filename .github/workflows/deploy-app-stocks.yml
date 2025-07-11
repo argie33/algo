@@ -48,6 +48,55 @@ jobs:
       qualitymetrics: ${{ steps.filter.outputs.qualitymetrics }}
       valuemetrics: ${{ steps.filter.outputs.valuemetrics }}
       stepfunctions: ${{ steps.filter.outputs.stepfunctions }}
+      econ: ${{ steps.filter.outputs.econ }}
+      pricedaily: ${{ steps.filter.outputs.pricedaily }}
+      priceweekly: ${{ steps.filter.outputs.priceweekly }}
+      pricemonthly: ${{ steps.filter.outputs.pricemonthly }}
+      technicalsdaily: ${{ steps.filter.outputs.technicalsdaily }}
+      info: ${{ steps.filter.outputs.info }}
+      earningshistory: ${{ steps.filter.outputs.earningshistory }}
+      earningsestimate: ${{ steps.filter.outputs.earningsestimate }}
+      earningsmetrics: ${{ steps.filter.outputs.earningsmetrics }}
+      revenueestimate: ${{ steps.filter.outputs.revenueestimate }}
+      technicalsmonthly: ${{ steps.filter.outputs.technicalsmonthly }}
+      swingtrader: ${{ steps.filter.outputs.swingtrader }}
+      buyselldaily: ${{ steps.filter.outputs.buyselldaily }}
+      buysellweekly: ${{ steps.filter.outputs.buysellweekly }}
+      buysellmonthly: ${{ steps.filter.outputs.buysellmonthly }}
+      latestpricedaily: ${{ steps.filter.outputs.latestpricedaily }}
+      latestpriceweekly: ${{ steps.filter.outputs.latestpriceweekly }}
+      latestpricemonthly: ${{ steps.filter.outputs.latestpricemonthly }}
+      latesttechnicalsdaily: ${{ steps.filter.outputs.latesttechnicalsdaily }}
+      latesttechnicalsweekly: ${{ steps.filter.outputs.latesttechnicalsweekly }}
+      latesttechnicalsmonthly: ${{ steps.filter.outputs.latesttechnicalsmonthly }}
+      latestbuyselldaily: ${{ steps.filter.outputs.latestbuyselldaily }}
+      latestbuysellweekly: ${{ steps.filter.outputs.latestbuysellweekly }}
+      latestbuysellmonthly: ${{ steps.filter.outputs.latestbuysellmonthly }}
+      market: ${{ steps.filter.outputs.market }}
+      technicalpatterns: ${{ steps.filter.outputs.technicalpatterns }}
+      aaiidata: ${{ steps.filter.outputs.aaiidata }}
+      feargreed: ${{ steps.filter.outputs.feargreed }}
+      news: ${{ steps.filter.outputs.news }}
+      naaim: ${{ steps.filter.outputs.naaim }}
+      sentiment: ${{ steps.filter.outputs.sentiment }}
+      fundamentalmetrics: ${{ steps.filter.outputs.fundamentalmetrics }}
+      annualbalancesheet: ${{ steps.filter.outputs.annualbalancesheet }}
+      annualcashflow: ${{ steps.filter.outputs.annualcashflow }}
+      annualincomestatement: ${{ steps.filter.outputs.annualincomestatement }}
+      quarterlybalancesheet: ${{ steps.filter.outputs.quarterlybalancesheet }}
+      quarterlycashflow: ${{ steps.filter.outputs.quarterlycashflow }}
+      quarterlyincomestatement: ${{ steps.filter.outputs.quarterlyincomestatement }}
+      ttmcashflow: ${{ steps.filter.outputs.ttmcashflow }}
+      ttmincomestatement: ${{ steps.filter.outputs.ttmincomestatement }}
+      financials: ${{ steps.filter.outputs.financials }}
+      riskmetrics: ${{ steps.filter.outputs.riskmetrics }}
+      momentum: ${{ steps.filter.outputs.momentum }}
+      sentiment_realtime: ${{ steps.filter.outputs.sentiment_realtime }}
+      positioning: ${{ steps.filter.outputs.positioning }}
+      valuescores: ${{ steps.filter.outputs.valuescores }}
+      growthmetrics: ${{ steps.filter.outputs.growthmetrics }}
+      technicalsweekly: ${{ steps.filter.outputs.technicalsweekly }}
+      calendar: ${{ steps.filter.outputs.calendar }}
     steps:
       - uses: actions/checkout@v3
       - uses: dorny/paths-filter@v2
@@ -70,6 +119,153 @@ jobs:
               - 'scripts/value-metrics/**'
             stepfunctions:
               - 'cloudformation/template-step-functions-orchestration.yml'
+            econ:
+              - 'loadecondata.py'
+              - 'Dockerfile.econ'
+            pricedaily:
+              - 'loadpricedaily.py'
+              - 'Dockerfile.pricedaily'
+            priceweekly:
+              - 'loadpriceweekly.py'
+              - 'Dockerfile.priceweekly'
+            pricemonthly:
+              - 'loadpricemonthly.py'
+              - 'Dockerfile.pricemonthly'
+            technicalsdaily:
+              - 'loadtechnicalsdaily.py'
+              - 'Dockerfile.technicalsdaily'
+            info:
+              - 'loadinfo.py'
+              - 'Dockerfile.info'
+            earningshistory:
+              - 'loadearningshistory.py'
+              - 'Dockerfile.earningshistory'
+            earningsestimate:
+              - 'loadearningsestimate.py'
+              - 'Dockerfile.earningsestimate'
+            earningsmetrics:
+              - 'loadearningsmetrics.py'
+              - 'Dockerfile.earningsmetrics'
+            revenueestimate:
+              - 'loadrevenueestimate.py'
+              - 'Dockerfile.revenueestimate'
+            technicalsmonthly:
+              - 'loadtechnicalsmonthly.py'
+              - 'Dockerfile.technicalsmonthly'
+            swingtrader:
+              - 'loadswingtrader.py'
+              - 'Dockerfile.swingtrader'
+            buyselldaily:
+              - 'loadbuyselldaily.py'
+              - 'Dockerfile.buyselldaily'
+            buysellweekly:
+              - 'loadbuysellweekly.py'
+              - 'Dockerfile.buysellweekly'
+            buysellmonthly:
+              - 'loadbuysellmonthly.py'
+              - 'Dockerfile.buysellmonthly'
+            latestpricedaily:
+              - 'loadlatestpricedaily.py'
+              - 'Dockerfile.latestpricedaily'
+            latestpriceweekly:
+              - 'loadlatestpriceweekly.py'
+              - 'Dockerfile.latestpriceweekly'
+            latestpricemonthly:
+              - 'loadlatestpricemonthly.py'
+              - 'Dockerfile.latestpricemonthly'
+            latesttechnicalsdaily:
+              - 'loadlatesttechnicalsdaily.py'
+              - 'Dockerfile.latesttechnicalsdaily'
+            latesttechnicalsweekly:
+              - 'loadlatesttechnicalsweekly.py'
+              - 'Dockerfile.latesttechnicalsweekly'
+            latesttechnicalsmonthly:
+              - 'loadlatesttechnicalsmonthly.py'
+              - 'Dockerfile.latesttechnicalsmonthly'
+            latestbuyselldaily:
+              - 'loadlatestbuyselldaily.py'
+              - 'Dockerfile.latestbuyselldaily'
+            latestbuysellweekly:
+              - 'loadlatestbuysellweekly.py'
+              - 'Dockerfile.latestbuysellweekly'
+            latestbuysellmonthly:
+              - 'loadlatestbuysellmonthly.py'
+              - 'Dockerfile.latestbuysellmonthly'
+            market:
+              - 'loadmarket.py'
+              - 'Dockerfile.market'
+            technicalpatterns:
+              - 'loadtechnicalpatterns.py'
+              - 'Dockerfile.technicalpatterns'
+            aaiidata:
+              - 'loadaaiidata.py'
+              - 'Dockerfile.aaiidata'
+            feargreed:
+              - 'loadfeargreed.py'
+              - 'Dockerfile.feargreed'
+            news:
+              - 'loadnews.py'
+              - 'Dockerfile.news'
+            naaim:
+              - 'loadnaaim.py'
+              - 'Dockerfile.naaim'
+            sentiment:
+              - 'loadsentiment.py'
+              - 'Dockerfile.sentiment'
+            fundamentalmetrics:
+              - 'loadfundamentalmetrics.py'
+              - 'Dockerfile.fundamentalmetrics'
+            annualbalancesheet:
+              - 'loadannualbalancesheet.py'
+              - 'Dockerfile.annualbalancesheet'
+            annualcashflow:
+              - 'loadannualcashflow.py'
+              - 'Dockerfile.annualcashflow'
+            annualincomestatement:
+              - 'loadannualincomestatement.py'
+              - 'Dockerfile.annualincomestatement'
+            quarterlybalancesheet:
+              - 'loadquarterlybalancesheet.py'
+              - 'Dockerfile.quarterlybalancesheet'
+            quarterlycashflow:
+              - 'loadquarterlycashflow.py'
+              - 'Dockerfile.quarterlycashflow'
+            quarterlyincomestatement:
+              - 'loadquarterlyincomestatement.py'
+              - 'Dockerfile.quarterlyincomestatement'
+            ttmcashflow:
+              - 'loadttmcashflow.py'
+              - 'Dockerfile.ttmcashflow'
+            ttmincomestatement:
+              - 'loadttmincomestatement.py'
+              - 'Dockerfile.ttmincomestatement'
+            financials:
+              - 'loadfinancials.py'
+              - 'Dockerfile.financials'
+            riskmetrics:
+              - 'loadriskmetrics.py'
+              - 'Dockerfile.riskmetrics'
+            momentum:
+              - 'loadmomentum.py'
+              - 'Dockerfile.momentum'
+            sentiment_realtime:
+              - 'loadsentiment_realtime.py'
+              - 'Dockerfile.sentiment_realtime'
+            positioning:
+              - 'loadpositioning.py'
+              - 'Dockerfile.positioning'
+            valuescores:
+              - 'loadvaluescores.py'
+              - 'Dockerfile.valuescores'
+            growthmetrics:
+              - 'loadgrowthmetrics.py'
+              - 'Dockerfile.growthmetrics'
+            technicalsweekly:
+              - 'loadtechnicalsweekly.py'
+              - 'Dockerfile.technicalsweekly'
+            calendar:
+              - 'loadcalendar.py'
+              - 'Dockerfile.calendar'
 
 # 6) Run value-metrics loader
   run_valuemetrics:
