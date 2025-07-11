@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Revenue estimate loader - trigger v1.4 - workflow test  
+# Revenue estimate loader - trigger v1.5 - fix numpy type errors  
 import sys
 import time
 import logging
@@ -12,6 +12,8 @@ import math
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
 from datetime import datetime
+import pandas as pd
+import numpy as np
 
 import boto3
 import yfinance as yf
@@ -37,6 +39,23 @@ def get_rss_mb():
 
 def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
+
+def convert_to_python_type(value):
+    """Convert numpy/pandas types to Python native types for PostgreSQL"""
+    if value is None or pd.isna(value):
+        return None
+    if isinstance(value, (np.integer, np.int64, np.int32)):
+        return int(value)
+    if isinstance(value, (np.floating, np.float64, np.float32)):
+        return float(value)
+    if isinstance(value, np.bool_):
+        return bool(value)
+    if isinstance(value, (np.str_, np.unicode_)):
+        return str(value)
+    # Handle pandas Timestamp
+    if hasattr(value, 'to_pydatetime'):
+        return value.to_pydatetime()
+    return value
 
 # -------------------------------
 # Retry settings
@@ -117,9 +136,12 @@ def load_revenue_data(symbols, cur, conn):
                     for period, row in revenue_est.iterrows():
                         revenue_data.append((
                             orig_sym, period,
-                            row.get('avg'), row.get('low'), row.get('high'),
-                            row.get('numberOfAnalysts'),
-                            row.get('yearAgoRevenue'), row.get('growth')
+                            convert_to_python_type(row.get('avg')), 
+                            convert_to_python_type(row.get('low')), 
+                            convert_to_python_type(row.get('high')),
+                            convert_to_python_type(row.get('numberOfAnalysts')),
+                            convert_to_python_type(row.get('yearAgoRevenue')), 
+                            convert_to_python_type(row.get('growth'))
                         ))
                     
                     if revenue_data:
