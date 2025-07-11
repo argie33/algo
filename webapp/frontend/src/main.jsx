@@ -8,7 +8,7 @@ import App from './App'
 import { AuthProvider } from './contexts/AuthContext'
 import { configureAmplify } from './config/amplify'
 
-console.log('🚀 main.jsx loaded - starting React app - v1.0.1');
+console.log('🚀 main.jsx loaded - starting React app - v1.0.2 - FORCE WEBAPP DEPLOY');
 
 // Configure Amplify
 configureAmplify();
