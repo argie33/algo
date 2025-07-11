@@ -11,12 +11,27 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
-      // Load config.js with error handling
+      // Ensure config is always available with safe defaults
+      window.__CONFIG__ = window.__CONFIG__ || {
+        API_URL: 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev',
+        ENVIRONMENT: 'dev',
+        VERSION: 'fallback',
+        BUILD_TIME: new Date().toISOString(),
+        COGNITO: {
+          USER_POOL_ID: 'us-east-1_ZqooNeQtV',
+          CLIENT_ID: '243r98prucoickch12djkahrhk',
+          REGION: 'us-east-1',
+          DOMAIN: '',
+          REDIRECT_SIGN_IN: window.location.origin,
+          REDIRECT_SIGN_OUT: window.location.origin
+        }
+      };
+      
+      // Load config.js to override defaults if available
       var script = document.createElement('script');
       script.src = '/config.js';
       script.onerror = function() {
-        console.warn('⚠️ Failed to load config.js - using defaults');
-        window.__CONFIG__ = { API_URL: 'PLACEHOLDER_API_URL' };
+        console.warn('⚠️ Failed to load config.js - using fallback config');
       };
       document.head.appendChild(script);
     </script>
@@ -24,12 +39,18 @@
   <body>
     <div id="root">
       <div style="padding: 20px; text-align: center; font-family: Arial, sans-serif;">
-        <h1>Loading Financial Dashboard...</h1>
-        <p>If this message persists, check the browser console for errors.</p>
-        <div id="loading-info" style="margin-top: 20px; font-size: 12px; color: #666;">
-          <p>React app is loading...</p>
-          <p id="config-status">Config loading...</p>
+        <h2>Loading Financial Dashboard...</h2>
+        <p>Initializing React application...</p>
+        <div style="margin: 20px 0;">
+          <div style="display: inline-block; width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite;"></div>
         </div>
+        <style>
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        </style>
+        <p><small>If this message persists, check browser console for errors.</small></p>
       </div>
     </div>
     <script>
