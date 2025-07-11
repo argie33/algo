@@ -522,7 +522,7 @@ Resources:
           ELASTICACHE_ENDPOINT: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Address
           ELASTICACHE_PORT: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Port
           WEBSOCKET_API_ENDPOINT: !Sub 'https://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
-          API_ENDPOINT: !ImportValue stocks-webapp-dev-ApiGatewayUrl
+          API_ENDPOINT: https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev
       VpcConfig:
         SecurityGroupIds:
           - !Ref LambdaSecurityGroup
