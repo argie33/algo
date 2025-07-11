@@ -632,7 +632,6 @@ jobs:
         name: Any changes?
         run: |
           if [ "${{ steps.paths.outputs.symbols }}" = "true" ] || \
-             [ "${{ steps.manual-check.outputs.symbols_manual }}" = "true" ] || \
              [ "${{ steps.paths.outputs.econ }}" = "true" ] || \
              [ "${{ steps.paths.outputs.pricedaily }}" = "true" ] || \
              [ "${{ steps.paths.outputs.priceweekly }}" = "true" ] || \
@@ -696,14 +695,7 @@ jobs:
           arr=""
           symbols_added=false
           
-          # Add symbols if detected by path filter OR manual check
-          if [ "${{ steps.paths.outputs.symbols }}" = "true" ] || [ "${{ steps.manual-check.outputs.symbols_manual }}" = "true" ]; then
-            if [ "$symbols_added" = "false" ]; then
-              echo "🚨 Adding symbols to build matrix (detected: path=${{ steps.paths.outputs.symbols }}, manual=${{ steps.manual-check.outputs.symbols_manual }})"
-              arr="$arr,\"symbols\""
-              symbols_added=true
-            fi
-          fi
+          [ "${{ steps.paths.outputs.symbols }}" = "true" ]         && arr="$arr,\"symbols\""
           [ "${{ steps.paths.outputs.econ }}"    = "true" ]         && arr="$arr,\"econ\""
           [ "${{ steps.paths.outputs.pricedaily }}" = "true" ]      && arr="$arr,\"pricedaily\""
           [ "${{ steps.paths.outputs.priceweekly }}" = "true" ]     && arr="$arr,\"priceweekly\""

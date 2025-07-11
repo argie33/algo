@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# FORCE WORKFLOW RUN - Updated v21 - Fixed paths-filter git reference issue
-# Trigger deploy-app-stocks workflow - added manual fallback detection v21
+# FORCE WORKFLOW RUN - Updated v22 - Clean up workflow, use standard path detection
+# Trigger deploy-app-stocks workflow - standard detection only v22
 
 print("🚀 STOCK SYMBOLS LOADER STARTING...")
 print("🔍 Python version:", sys.version)
