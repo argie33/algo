@@ -1,297 +1,197 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { BrowserRouter } from 'react-router-dom'
-import { ThemeProvider, createTheme } from '@mui/material/styles'
-import CssBaseline from '@mui/material/CssBaseline'
-import App from './App'
-import { AuthProvider } from './contexts/AuthContext'
-import { configureAmplify } from './config/amplify'
-import ErrorBoundary from './components/ErrorBoundary'
 
-console.log('🚀 main.jsx loaded - starting React app - v1.0.9 - FORCE WEBAPP DEPLOYMENT - TEST DB FIXES');
+console.log('🚀 main.jsx loaded - MINIMAL REACT APP - v1.1.0');
 
-// Add global error handler to catch white page issues
-window.addEventListener('error', (e) => {
-  console.error('❌ Global error:', e.error);
-  console.error('❌ Error details:', e.filename, e.lineno, e.colno);
-});
+// Minimal dashboard component without any dependencies that might fail
+const MinimalDashboard = () => {
+  const [stockData, setStockData] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(null);
 
-window.addEventListener('unhandledrejection', (e) => {
-  console.error('❌ Unhandled promise rejection:', e.reason);
-});
+  React.useEffect(() => {
+    // Fetch stock data from API
+    const fetchData = async () => {
+      try {
+        const apiUrl = window.__CONFIG__?.API_URL || 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev';
+        console.log('📡 Fetching data from:', apiUrl);
+        
+        const response = await fetch(`${apiUrl}/stocks`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const data = await response.json();
+        console.log('✅ Data fetched:', data.length, 'stocks');
+        
+        setStockData(data.slice(0, 20)); // Show first 20 stocks
+        setLoading(false);
+      } catch (err) {
+        console.error('❌ API Error:', err);
+        setError(err.message);
+        setLoading(false);
+      }
+    };
 
-// Configure Amplify - TEMPORARILY DISABLED FOR DEBUGGING
-// try {
-//   configureAmplify();
-//   console.log('✅ Amplify configured successfully');
-// } catch (error) {
-//   console.warn('⚠️ Amplify configuration failed, continuing without auth:', error);
-// }
-console.log('⚠️ Amplify configuration temporarily disabled for debugging');
+    fetchData();
+  }, []);
 
-// Create a client with better error handling
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: false, // Don't retry on errors during startup
-      staleTime: 30000,
-      cacheTime: 10 * 60 * 1000, // 10 minutes
-      refetchOnWindowFocus: false,
-    },
-  },
-})
+  const containerStyle = {
+    padding: '20px',
+    fontFamily: 'Inter, Arial, sans-serif',
+    backgroundColor: '#f5f5f5',
+    minHeight: '100vh'
+  };
 
-console.log('✅ QueryClient created');
+  const headerStyle = {
+    background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)',
+    color: 'white',
+    padding: '20px',
+    borderRadius: '12px',
+    marginBottom: '20px',
+    textAlign: 'center'
+  };
 
-// Create theme
-const theme = createTheme({
-  palette: {
-    mode: 'light',
-    primary: {
-      main: '#1976d2',
-      light: '#42a5f5',
-      dark: '#1565c0',
-    },
-    secondary: {
-      main: '#dc004e',
-      light: '#ff5983',
-      dark: '#9a0036',
-    },
-    background: {
-      default: '#f5f5f5',
-      paper: '#ffffff',
-    },
-    success: {
-      main: '#2e7d32',
-      light: '#4caf50',
-      dark: '#1b5e20',
-    },
-    error: {
-      main: '#d32f2f',
-      light: '#ef5350',
-      dark: '#c62828',
-    },
-  },
-  typography: {
-    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
-    h1: {
-      fontWeight: 600,
-    },
-    h2: {
-      fontWeight: 600,
-    },
-    h3: {
-      fontWeight: 600,
-    },
-    h4: {
-      fontWeight: 600,
-    },
-    h5: {
-      fontWeight: 600,
-    },
-    h6: {
-      fontWeight: 600,
-    },
-  },
-  components: {
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          textTransform: 'none',
-          fontWeight: 500,
-        },
-      },
-    },
-    MuiCard: {
-      styleOverrides: {
-        root: {
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-          borderRadius: 12,
-        },
-      },
-    },
-    MuiPaper: {
-      styleOverrides: {
-        root: {
-          borderRadius: 12,
-        },
-      },
-    },
-  },
-})
+  const cardStyle = {
+    background: 'white',
+    padding: '15px',
+    borderRadius: '8px',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+    marginBottom: '10px',
+    display: 'grid',
+    gridTemplateColumns: '1fr 100px 100px 100px',
+    gap: '15px',
+    alignItems: 'center'
+  };
 
-console.log('✅ Theme created');
-console.log('🔍 Looking for root element...');
+  const priceStyle = (change) => ({
+    fontWeight: 'bold',
+    color: change >= 0 ? '#2e7d32' : '#d32f2f'
+  });
 
-const rootElement = document.getElementById('root');
-if (!rootElement) {
-  console.error('❌ Root element not found!');
-  alert('Root element not found!');
-} else {
-  console.log('✅ Root element found:', rootElement);
-}
-
-console.log('🚀 Creating React root and rendering app...');
-
-// Fallback component for when everything fails
-const FallbackApp = () => (
-  <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
-    <h1>Financial Dashboard</h1>
-    <p>Welcome to the financial dashboard. The application is initializing...</p>
-    <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f0f0f0', borderRadius: '5px' }}>
-      <h3>System Status</h3>
-      <p>✅ Application loaded successfully</p>
-      <p>🔄 Connecting to services...</p>
-    </div>
-  </div>
-);
-
-try {
-  console.log('🔧 Creating React root and rendering...');
-  const root = ReactDOM.createRoot(document.getElementById('root'));
-  
-  console.log('🔧 Rendering app with providers...');
-  
-  // Try each piece step by step to isolate the failure
-  console.log('🔧 Step 1: Testing basic render...');
-  try {
-    root.render(<div>Step 1: Basic render works</div>);
-    console.log('✅ Step 1: Basic render successful');
-  } catch (error) {
-    console.error('❌ Step 1 failed:', error);
-    throw error;
-  }
-
-  console.log('🔧 Step 2: Testing with ErrorBoundary...');
-  try {
-    root.render(<ErrorBoundary><div>Step 2: ErrorBoundary works</div></ErrorBoundary>);
-    console.log('✅ Step 2: ErrorBoundary successful');
-  } catch (error) {
-    console.error('❌ Step 2 failed:', error);
-    throw error;
-  }
-
-  console.log('🔧 Step 3: Testing with BrowserRouter...');
-  try {
-    root.render(
-      <ErrorBoundary>
-        <BrowserRouter>
-          <div>Step 3: BrowserRouter works</div>
-        </BrowserRouter>
-      </ErrorBoundary>
-    );
-    console.log('✅ Step 3: BrowserRouter successful');
-  } catch (error) {
-    console.error('❌ Step 3 failed:', error);
-    throw error;
-  }
-
-  console.log('🔧 Step 4: Testing with QueryClient...');
-  try {
-    root.render(
-      <ErrorBoundary>
-        <BrowserRouter>
-          <QueryClientProvider client={queryClient}>
-            <div>Step 4: QueryClient works</div>
-          </QueryClientProvider>
-        </BrowserRouter>
-      </ErrorBoundary>
-    );
-    console.log('✅ Step 4: QueryClient successful');
-  } catch (error) {
-    console.error('❌ Step 4 failed:', error);
-    throw error;
-  }
-
-  console.log('🔧 Step 5: Testing with ThemeProvider...');
-  try {
-    root.render(
-      <ErrorBoundary>
-        <BrowserRouter>
-          <QueryClientProvider client={queryClient}>
-            <ThemeProvider theme={theme}>
-              <CssBaseline />
-              <div>Step 5: ThemeProvider works</div>
-            </ThemeProvider>
-          </QueryClientProvider>
-        </BrowserRouter>
-      </ErrorBoundary>
-    );
-    console.log('✅ Step 5: ThemeProvider successful');
-  } catch (error) {
-    console.error('❌ Step 5 failed:', error);
-    throw error;
-  }
-
-  console.log('🔧 Step 6: Testing with App component...');
-  try {
-    root.render(
-      <ErrorBoundary>
-        <BrowserRouter>
-          <QueryClientProvider client={queryClient}>
-            <ThemeProvider theme={theme}>
-              <CssBaseline />
-              <App />
-            </ThemeProvider>
-          </QueryClientProvider>
-        </BrowserRouter>
-      </ErrorBoundary>
-    );
-    console.log('✅ Step 6: Full app rendered successfully!');
-  } catch (renderError) {
-    console.error('❌ Step 6 (App component) failed:', renderError);
-    console.error('❌ Error stack:', renderError.stack);
-    root.render(
-      <div style={{padding: '20px', color: 'red'}}>
-        <h1>App Component Failed</h1>
-        <p><strong>Error:</strong> {renderError.message}</p>
-        <details>
-          <summary>Error Details</summary>
-          <pre style={{fontSize: '12px', background: '#f5f5f5', padding: '10px'}}>
-            {renderError.stack}
-          </pre>
-        </details>
+  if (loading) {
+    return (
+      <div style={containerStyle}>
+        <div style={headerStyle}>
+          <h1>Financial Dashboard</h1>
+          <p>Loading market data...</p>
+        </div>
+        <div style={{textAlign: 'center', padding: '50px'}}>
+          <div style={{
+            display: 'inline-block',
+            width: '40px',
+            height: '40px',
+            border: '4px solid #f3f3f3',
+            borderTop: '4px solid #1976d2',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite'
+          }}></div>
+          <style>{`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}</style>
+        </div>
       </div>
     );
   }
-  
-  // Clear the loading message after successful render
-  setTimeout(() => {
-    const loadingInfo = document.getElementById('loading-info');
-    if (loadingInfo) {
-      loadingInfo.remove();
-    }
-  }, 1000);
-  
-} catch (error) {
-  console.error('❌ Error rendering React app:', error);
-  console.error('❌ Error stack:', error.stack);
-  
-  // Show fallback app instead of error
-  try {
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<FallbackApp />);
-    console.log('✅ Fallback app rendered after error');
-  } catch (fallbackError) {
-    console.error('❌ Even fallback failed:', fallbackError);
-    // Last resort: plain HTML
-    const rootElement = document.getElementById('root');
-    if (rootElement) {
-      rootElement.innerHTML = `
-        <div style="padding: 20px; text-align: center; font-family: Arial, sans-serif;">
+
+  if (error) {
+    return (
+      <div style={containerStyle}>
+        <div style={{...headerStyle, background: 'linear-gradient(135deg, #d32f2f 0%, #f44336 100%)'}}>
           <h1>Financial Dashboard</h1>
-          <p>Basic mode - Application loaded successfully</p>
-          <p><strong>Error:</strong> ${error.message}</p>
-          <p>Check browser console for full error details.</p>
-          <details style="margin-top: 20px; text-align: left;">
-            <summary>Error Details</summary>
-            <pre style="background: #f5f5f5; padding: 10px; border-radius: 4px; overflow: auto; font-size: 12px;">
-${error.stack || error.message}
-            </pre>
-          </details>
+          <p>Error loading data: {error}</p>
         </div>
-      `;
-    }
+        <div style={{textAlign: 'center', padding: '20px'}}>
+          <button 
+            onClick={() => window.location.reload()}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: '#1976d2',
+              color: 'white',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: 'pointer'
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
   }
+
+  return (
+    <div style={containerStyle}>
+      <div style={headerStyle}>
+        <h1>Financial Dashboard</h1>
+        <p>Real-time stock market data • {stockData.length} stocks loaded</p>
+      </div>
+      
+      <div style={{marginBottom: '20px'}}>
+        <h2 style={{color: '#333', marginBottom: '15px'}}>Top Stocks</h2>
+        <div style={{
+          ...cardStyle,
+          backgroundColor: '#1976d2',
+          color: 'white',
+          fontWeight: 'bold'
+        }}>
+          <div>Symbol</div>
+          <div>Price</div>
+          <div>Change</div>
+          <div>Volume</div>
+        </div>
+        
+        {stockData.map((stock, index) => (
+          <div key={index} style={cardStyle}>
+            <div>
+              <strong>{stock.symbol || stock.ticker}</strong>
+              <div style={{fontSize: '12px', color: '#666', marginTop: '2px'}}>
+                {stock.name || stock.company_name || 'N/A'}
+              </div>
+            </div>
+            <div style={priceStyle(stock.change || stock.price_change || 0)}>
+              ${(stock.price || stock.current_price || 0).toFixed(2)}
+            </div>
+            <div style={priceStyle(stock.change || stock.price_change || 0)}>
+              {stock.change || stock.price_change || 0 >= 0 ? '+' : ''}
+              {(stock.change || stock.price_change || 0).toFixed(2)}
+            </div>
+            <div style={{fontSize: '12px', color: '#666'}}>
+              {(stock.volume || 0).toLocaleString()}
+            </div>
+          </div>
+        ))}
+      </div>
+      
+      <div style={{textAlign: 'center', padding: '20px', color: '#666'}}>
+        <p>✅ Dashboard loaded successfully • API connection working</p>
+        <p>Last updated: {new Date().toLocaleTimeString()}</p>
+      </div>
+    </div>
+  );
+};
+
+// Render the minimal dashboard
+try {
+  console.log('🔧 Creating React root...');
+  const root = ReactDOM.createRoot(document.getElementById('root'));
+  
+  console.log('🔧 Rendering minimal dashboard...');
+  root.render(<MinimalDashboard />);
+  
+  console.log('✅ Minimal dashboard rendered successfully!');
+} catch (error) {
+  console.error('❌ Error rendering minimal dashboard:', error);
+  // Fallback to plain HTML
+  document.getElementById('root').innerHTML = `
+    <div style="padding: 20px; text-align: center; font-family: Arial, sans-serif;">
+      <h1 style="color: #d32f2f;">Dashboard Loading Failed</h1>
+      <p><strong>Error:</strong> ${error.message}</p>
+      <p>Please check browser console for details.</p>
+      <button onclick="window.location.reload()" style="padding: 10px 20px; background: #1976d2; color: white; border: none; border-radius: 5px; cursor: pointer;">
+        Reload Page
+      </button>
+    </div>
+  `;
 }
