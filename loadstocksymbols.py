@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# FORCE WORKFLOW RUN - Updated v30 - Debug S3 bucket lookup and add fallback
+# FORCE WORKFLOW RUN - Updated v31 - Fix core stack name in debug check
 # Trigger deploy-app-stocks workflow - test portfolio_id database fix
 
 import os
@@ -9,7 +9,7 @@ import json
 import sys
 import logging
 
-print("🚀 STOCK SYMBOLS LOADER STARTING - v30...")
+print("🚀 STOCK SYMBOLS LOADER STARTING - v31...")
 print("🔍 Python version:", sys.version)
 print("📍 Current working directory:", os.getcwd())
 print("🔧 Testing database foreign key fixes...")

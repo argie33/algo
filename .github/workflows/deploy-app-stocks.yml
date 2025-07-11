@@ -52,7 +52,7 @@ jobs:
           
           if [ -z "$BUCKET" ] || [ "$BUCKET" = "None" ]; then
             echo "❌ No bucket found! Checking if core stack exists..."
-            aws cloudformation describe-stacks --stack-name stocks-core || echo "Core stack does not exist"
+            aws cloudformation describe-stacks --stack-name stocks-core-stack || echo "Core stack stocks-core-stack does not exist"
             echo "❌ Creating a temporary bucket name as fallback"
             BUCKET="stocks-cf-templates-$(aws sts get-caller-identity --query Account --output text)"
             echo "Using fallback bucket: $BUCKET"
