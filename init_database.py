@@ -2,6 +2,7 @@
 """
 Database Initialization Script
 Creates all database tables needed for the financial dashboard
+Updated with enhanced debugging for portfolio_id column issue
 """
 import os
 import sys
@@ -430,13 +431,38 @@ def create_all_tables(cursor, conn):
     try:
         # Create tables
         for i, table_sql in enumerate(tables):
-            cursor.execute(table_sql)
-            logger.info(f"Created table {i+1}/{len(tables)}")
+            try:
+                cursor.execute(table_sql)
+                logger.info(f"Created table {i+1}/{len(tables)}")
+            except Exception as e:
+                logger.error(f"Failed to create table {i+1}: {e}")
+                logger.error(f"Table SQL: {table_sql}")
+                raise
+        
+        # Verify portfolio_holdings table structure before creating indexes
+        cursor.execute("""
+            SELECT column_name, data_type, is_nullable
+            FROM information_schema.columns 
+            WHERE table_name = 'portfolio_holdings'
+            ORDER BY ordinal_position
+        """)
+        columns = cursor.fetchall()
+        logger.info(f"portfolio_holdings table columns: {columns}")
         
         # Create indexes
         for i, index_sql in enumerate(indexes):
-            cursor.execute(index_sql)
-            logger.info(f"Created index {i+1}/{len(indexes)}")
+            try:
+                cursor.execute(index_sql)
+                logger.info(f"Created index {i+1}/{len(indexes)}")
+            except Exception as e:
+                logger.error(f"Failed to create index {i+1}: {e}")
+                logger.error(f"Index SQL: {index_sql}")
+                # If it's the portfolio_id index, show table structure
+                if "portfolio_id" in index_sql:
+                    cursor.execute("SELECT * FROM information_schema.columns WHERE table_name = 'portfolio_holdings'")
+                    cols = cursor.fetchall()
+                    logger.error(f"Available columns in portfolio_holdings: {cols}")
+                raise
         
         # Add foreign key constraints after all tables are created
         foreign_keys = [
