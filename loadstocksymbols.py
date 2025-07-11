@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# FORCE WORKFLOW RUN - Updated v15 - ECS exit code debug enhanced
-# Trigger deploy-app-stocks workflow - test enhanced exit code debugging v15
+# FORCE WORKFLOW RUN - Updated v16 - Force Docker build  
+# Trigger deploy-app-stocks workflow - force symbols Docker image build v16
 
 print("🚀 STOCK SYMBOLS LOADER STARTING...")
 print("🔍 Python version:", sys.version)

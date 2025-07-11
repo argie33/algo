@@ -1070,6 +1070,11 @@ jobs:
             if [[ "$STOP_REASON" == *"Essential container"* ]]; then
               echo "✅ Task completed - essential container exited (this is normal for batch jobs)"
               EXIT=0
+            elif [[ "$STOP_REASON" == *"CannotPullContainerError"* ]]; then
+              echo "❌ DOCKER IMAGE NOT FOUND - Container image doesn't exist in ECR"
+              echo "❌ This usually means the Docker build/push step failed earlier"
+              echo "❌ Check the 'Build and push Docker images' step for errors"
+              exit 1
             else
               echo "❌ stock-symbols task failed to start or exit code unavailable (EXIT=$EXIT)"
               echo "❌ Stop reason: $STOP_REASON"
