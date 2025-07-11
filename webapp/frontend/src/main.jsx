@@ -21,13 +21,14 @@ window.addEventListener('unhandledrejection', (e) => {
   console.error('❌ Unhandled promise rejection:', e.reason);
 });
 
-// Configure Amplify - but don't let it break the app
-try {
-  configureAmplify();
-  console.log('✅ Amplify configured successfully');
-} catch (error) {
-  console.warn('⚠️ Amplify configuration failed, continuing without auth:', error);
-}
+// Configure Amplify - TEMPORARILY DISABLED FOR DEBUGGING
+// try {
+//   configureAmplify();
+//   console.log('✅ Amplify configured successfully');
+// } catch (error) {
+//   console.warn('⚠️ Amplify configuration failed, continuing without auth:', error);
+// }
+console.log('⚠️ Amplify configuration temporarily disabled for debugging');
 
 // Create a client with better error handling
 const queryClient = new QueryClient({
@@ -160,9 +161,7 @@ try {
           <QueryClientProvider client={queryClient}>
             <ThemeProvider theme={theme}>
               <CssBaseline />
-              <AuthProvider>
-                <App />
-              </AuthProvider>
+              <App />
             </ThemeProvider>
           </QueryClientProvider>
         </BrowserRouter>
