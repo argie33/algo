@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Stock info loader - fetches company information and metadata
 # Enhanced data collection for comprehensive stock information analysis
-# Trigger deploy-app-stocks workflow test - loadinfo update v11 - fix critical indentation error
+# Trigger deploy-app-stocks workflow test - loadinfo update v12 - with dependency tables and foreign key fixes
 import sys
 import time
 import logging
@@ -387,7 +387,7 @@ if __name__ == "__main__":
     try:
         logging.info("🎯 LOADINFO DEPLOYMENT TEST - Starting script execution")
         logging.info(f"📅 Deployment timestamp: {datetime.now().isoformat()}")
-        logging.info("🔄 This is loadinfo update v11 - critical indentation fix")
+        logging.info("🔄 This is loadinfo update v12 - with dependency tables and foreign key fixes")
         logging.info(f"✅ Python version: {sys.version}")
         logging.info(f"✅ Current working directory: {os.getcwd()}")
         
@@ -649,7 +649,7 @@ if __name__ == "__main__":
         cur.close()
         conn.close()
         logging.info("✅ LOADINFO DEPLOYMENT TEST - All done! This confirms the deployment system is working.")
-        logging.info(f"🚀 Deployment successful - Script version: loadinfo update v11")
+        logging.info(f"🚀 Deployment successful - Script version: loadinfo update v12")
         logging.info("📊 Company information processing completed successfully.")
         
     except Exception as e:
