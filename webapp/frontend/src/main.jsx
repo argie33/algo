@@ -93,27 +93,87 @@ const theme = createTheme({
   },
 })
 
+// Step by step rendering to isolate issues
 try {
-  console.log('🔧 Creating React root...');
+  console.log('🔧 Step 1: Creating React root...');
   const root = ReactDOM.createRoot(document.getElementById('root'));
   
-  console.log('🔧 Rendering full dashboard with all your pages...');
-  root.render(
-    <ErrorBoundary>
-      <BrowserRouter>
+  console.log('🔧 Step 2: Testing basic render...');
+  root.render(<div>Basic render test successful</div>);
+  
+  setTimeout(() => {
+    console.log('🔧 Step 3: Testing with theme...');
+    root.render(
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <div>Theme render test successful</div>
+      </ThemeProvider>
+    );
+    
+    setTimeout(() => {
+      console.log('🔧 Step 4: Testing with QueryClient...');
+      root.render(
         <QueryClientProvider client={queryClient}>
           <ThemeProvider theme={theme}>
             <CssBaseline />
-            <AuthProvider>
-              <App />
-            </AuthProvider>
+            <div>QueryClient render test successful</div>
           </ThemeProvider>
         </QueryClientProvider>
-      </BrowserRouter>
-    </ErrorBoundary>
-  );
+      );
+      
+      setTimeout(() => {
+        console.log('🔧 Step 5: Testing with BrowserRouter...');
+        root.render(
+          <BrowserRouter>
+            <QueryClientProvider client={queryClient}>
+              <ThemeProvider theme={theme}>
+                <CssBaseline />
+                <div>BrowserRouter render test successful</div>
+              </ThemeProvider>
+            </QueryClientProvider>
+          </BrowserRouter>
+        );
+        
+        setTimeout(() => {
+          console.log('🔧 Step 6: Testing with AuthProvider...');
+          root.render(
+            <ErrorBoundary>
+              <BrowserRouter>
+                <QueryClientProvider client={queryClient}>
+                  <ThemeProvider theme={theme}>
+                    <CssBaseline />
+                    <AuthProvider>
+                      <div>AuthProvider render test successful</div>
+                    </AuthProvider>
+                  </ThemeProvider>
+                </QueryClientProvider>
+              </BrowserRouter>
+            </ErrorBoundary>
+          );
+          
+          setTimeout(() => {
+            console.log('🔧 Step 7: Rendering full App...');
+            root.render(
+              <ErrorBoundary>
+                <BrowserRouter>
+                  <QueryClientProvider client={queryClient}>
+                    <ThemeProvider theme={theme}>
+                      <CssBaseline />
+                      <AuthProvider>
+                        <App />
+                      </AuthProvider>
+                    </ThemeProvider>
+                  </QueryClientProvider>
+                </BrowserRouter>
+              </ErrorBoundary>
+            );
+            console.log('✅ Full financial dashboard rendered successfully!');
+          }, 500);
+        }, 500);
+      }, 500);
+    }, 500);
+  }, 500);
   
-  console.log('✅ Full financial dashboard rendered successfully!');
 } catch (error) {
   console.error('❌ Error rendering dashboard:', error);
   
