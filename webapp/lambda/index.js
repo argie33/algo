@@ -42,6 +42,7 @@ const sectorsRoutes = require('./routes/sectors');
 const watchlistRoutes = require('./routes/watchlist');
 const aiAssistantRoutes = require('./routes/ai-assistant');
 const tradesRoutes = require('./routes/trades');
+const cryptoRoutes = require('./routes/crypto');
 
 const app = express();
 
@@ -285,6 +286,7 @@ app.use('/settings', settingsRoutes);
 app.use('/watchlist', watchlistRoutes);
 app.use('/sectors', sectorsRoutes);
 app.use('/trades', tradesRoutes);
+app.use('/crypto', cryptoRoutes);
 
 // Also mount routes with /api prefix for frontend compatibility
 app.use('/api/health', healthRoutes);
@@ -310,6 +312,7 @@ app.use('/api/watchlist', watchlistRoutes);
 app.use('/api/sectors', sectorsRoutes);
 app.use('/api/ai', aiAssistantRoutes);
 app.use('/api/trades', tradesRoutes);
+app.use('/api/crypto', cryptoRoutes);
 
 // Debug route for troubleshooting API Gateway issues
 app.get('/debug', (req, res) => {
