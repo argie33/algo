@@ -1,4 +1,4 @@
-// Updated for database initialization testing - v1.3 - test safe column additions without data loss
+// Updated for database initialization testing - v1.5 - webapp-only tables in init_database.py
 import React, { useState } from 'react'
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { 
