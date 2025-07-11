@@ -4,11 +4,29 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 import { ThemeProvider, createTheme } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
-import App from './App'
+// import App from './App'
+
+// Temporary simple app to test React loading
+const TestApp = () => {
+  return (
+    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
+      <h1>✅ React App Loading Test</h1>
+      <p>If you can see this, React is working!</p>
+      <p>Time: {new Date().toLocaleString()}</p>
+      <div style={{ background: '#e3f2fd', padding: '15px', borderRadius: '8px', marginTop: '20px' }}>
+        <h2>System Status</h2>
+        <p>✅ React rendering successfully</p>
+        <p>✅ JavaScript execution working</p>
+        <p>✅ DOM manipulation working</p>
+        <p>✅ CSS styling working</p>
+      </div>
+    </div>
+  );
+};
 import ErrorBoundary from './components/ErrorBoundary'
 import { AuthProvider } from './contexts/AuthContext'
 
-console.log('🚀 main.jsx loaded - FULL DASHBOARD WITH AUTH - v1.3.0');
+console.log('🚀 main.jsx loaded - REACT LOADING TEST - v1.4.0');
 
 // Configure Amplify for authentication
 import { configureAmplify } from './config/amplify'
@@ -102,9 +120,7 @@ try {
         <QueryClientProvider client={queryClient}>
           <ThemeProvider theme={theme}>
             <CssBaseline />
-            <AuthProvider>
-              <App />
-            </AuthProvider>
+            <TestApp />
           </ThemeProvider>
         </QueryClientProvider>
       </BrowserRouter>
