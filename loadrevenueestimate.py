@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Revenue estimate loader - trigger v1.1  
+# Revenue estimate loader - trigger v1.2  
 import sys
 import time
 import logging
