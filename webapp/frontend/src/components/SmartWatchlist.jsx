@@ -147,7 +147,7 @@ const SmartWatchlist = () => {
   useEffect(() => {
     const handleConnected = () => {
       setIsConnected(true);
-      subscribeTo currentWatchlist();
+      subscribeTo(currentWatchlist);
     };
 
     const handleDisconnected = () => {

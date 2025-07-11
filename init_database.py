@@ -67,7 +67,7 @@ def create_all_tables(cursor, conn):
         """
         CREATE TABLE IF NOT EXISTS user_api_keys (
             id SERIAL PRIMARY KEY,
-            user_id VARCHAR(255) NOT NULL,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
             provider VARCHAR(50) NOT NULL,
             encrypted_api_key TEXT NOT NULL,
             key_iv VARCHAR(32) NOT NULL,

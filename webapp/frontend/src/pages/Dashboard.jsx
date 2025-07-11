@@ -599,39 +599,6 @@ function TopStocksWidget() {
   );
 }
 
-function EconomicIndicatorsWidget() {
-  const { data: marketData, isLoading } = useMarketOverview();
-  const indicators = marketData?.data?.economic || mockEconomicIndicators;
-  
-  const getTrendIcon = (trend) => {
-    if (trend === 'up') return <ArrowUpward sx={{ color: 'success.main', fontSize: 16 }} />;
-    if (trend === 'down') return <ArrowDownward sx={{ color: 'error.main', fontSize: 16 }} />;
-    return <NeutralIcon sx={{ color: 'text.secondary', fontSize: 16 }} />;
-  };
-  
-  return (
-    <Card sx={{ height: '100%' }}>
-      <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-          <Public sx={{ color: 'primary.main', mr: 1 }} />
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>Economic Indicators</Typography>
-        </Box>
-        
-        <Stack spacing={2}>
-          {indicators.map((indicator, idx) => (
-            <Box key={idx} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="body2">{indicator.name}</Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Typography variant="body2" fontWeight="bold">{indicator.value}%</Typography>
-                {getTrendIcon(indicator.trend)}
-              </Box>
-            </Box>
-          ))}
-        </Stack>
-      </CardContent>
-    </Card>
-  );
-}
 
 const Dashboard = () => {
   const { isAuthenticated, user } = useAuth();
