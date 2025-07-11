@@ -2,7 +2,7 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Install system dependencies for ARM64 compatibility
+# Install system dependencies for ARM64 compatibility  
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
