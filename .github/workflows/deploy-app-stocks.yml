@@ -44,6 +44,7 @@ jobs:
     outputs:
       app: ${{ steps.filter.outputs.app }}
       tasks: ${{ steps.filter.outputs.tasks }}
+      symbols: ${{ steps.filter.outputs.symbols }}
       qualitymetrics: ${{ steps.filter.outputs.qualitymetrics }}
       valuemetrics: ${{ steps.filter.outputs.valuemetrics }}
       stepfunctions: ${{ steps.filter.outputs.stepfunctions }}
