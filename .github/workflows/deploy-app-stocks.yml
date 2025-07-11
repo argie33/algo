@@ -97,6 +97,7 @@ jobs:
       growthmetrics: ${{ steps.filter.outputs.growthmetrics }}
       technicalsweekly: ${{ steps.filter.outputs.technicalsweekly }}
       calendar: ${{ steps.filter.outputs.calendar }}
+      any: ${{ steps.filter.outputs.any }}
     steps:
       - uses: actions/checkout@v3
       - uses: dorny/paths-filter@v2
@@ -266,6 +267,12 @@ jobs:
             calendar:
               - 'loadcalendar.py'
               - 'Dockerfile.calendar'
+            any:
+              - 'load*.py'
+              - 'Dockerfile.*'
+              - 'cloudformation/template-app-ecs-tasks.yml'
+              - 'requirements.txt'
+              - 'scripts/**'
 
 # 6) Run value-metrics loader
   run_valuemetrics:
