@@ -45,7 +45,32 @@ jobs:
           echo "CF_BUCKET=$BUCKET" >> $GITHUB_OUTPUT
           echo "Using S3 bucket: $BUCKET"
 
-      - name: Check template size and deploy WebSocket stack
+      - name: Check and handle stack state
+        id: check-stack
+        run: |
+          # Check if stack exists and its state
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-websocket-stack \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+          
+          echo "Current stack status: $STACK_STATUS"
+          echo "STACK_STATUS=$STACK_STATUS" >> $GITHUB_OUTPUT
+          
+          if [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "CREATE_FAILED" ]; then
+            echo "Stack is in failed state ($STACK_STATUS), deleting it first..."
+            aws cloudformation delete-stack --stack-name stocks-websocket-stack
+            
+            echo "Waiting for stack deletion to complete..."
+            aws cloudformation wait stack-delete-complete --stack-name stocks-websocket-stack
+            echo "Stack deleted successfully"
+          elif [ "$STACK_STATUS" = "DELETE_IN_PROGRESS" ]; then
+            echo "Stack is being deleted, waiting for completion..."
+            aws cloudformation wait stack-delete-complete --stack-name stocks-websocket-stack
+            echo "Stack deletion completed"
+          fi
+
+      - name: Deploy WebSocket stack
         run: |
           # Check if template is small enough to deploy directly
           TEMPLATE_SIZE=$(wc -c < template-realtime-websocket.yml)
