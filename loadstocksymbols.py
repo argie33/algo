@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# FORCE WORKFLOW RUN - Updated v26 - Testing S3 bucket fix
-# Trigger deploy-app-stocks workflow - test S3 CF_BUCKET fix
+# FORCE WORKFLOW RUN - Updated v27 - Testing database foreign key fix
+# Trigger deploy-app-stocks workflow - test portfolio_id database fix
 
 print("🚀 STOCK SYMBOLS LOADER STARTING...")
 print("🔍 Python version:", sys.version)

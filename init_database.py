@@ -67,7 +67,7 @@ def create_all_tables(cursor, conn):
         """
         CREATE TABLE IF NOT EXISTS user_api_keys (
             id SERIAL PRIMARY KEY,
-            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            user_id INTEGER NOT NULL,
             provider VARCHAR(50) NOT NULL,
             encrypted_api_key TEXT NOT NULL,
             key_iv VARCHAR(32) NOT NULL,
@@ -90,7 +90,7 @@ def create_all_tables(cursor, conn):
         """
         CREATE TABLE IF NOT EXISTS portfolio_metadata (
             id SERIAL PRIMARY KEY,
-            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            user_id INTEGER NOT NULL,
             name VARCHAR(255) NOT NULL,
             description TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -102,7 +102,7 @@ def create_all_tables(cursor, conn):
         """
         CREATE TABLE IF NOT EXISTS portfolio_holdings (
             id SERIAL PRIMARY KEY,
-            portfolio_id INTEGER REFERENCES portfolio_metadata(id) ON DELETE CASCADE,
+            portfolio_id INTEGER NOT NULL,
             symbol VARCHAR(10) NOT NULL,
             quantity DECIMAL(20, 8) NOT NULL,
             avg_cost DECIMAL(10, 2) NOT NULL,
@@ -437,6 +437,20 @@ def create_all_tables(cursor, conn):
         for i, index_sql in enumerate(indexes):
             cursor.execute(index_sql)
             logger.info(f"Created index {i+1}/{len(indexes)}")
+        
+        # Add foreign key constraints after all tables are created
+        foreign_keys = [
+            "ALTER TABLE user_api_keys ADD CONSTRAINT fk_user_api_keys_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
+            "ALTER TABLE portfolio_metadata ADD CONSTRAINT fk_portfolio_metadata_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE", 
+            "ALTER TABLE portfolio_holdings ADD CONSTRAINT fk_portfolio_holdings_portfolio_id FOREIGN KEY (portfolio_id) REFERENCES portfolio_metadata(id) ON DELETE CASCADE"
+        ]
+        
+        for i, fk_sql in enumerate(foreign_keys):
+            try:
+                cursor.execute(fk_sql)
+                logger.info(f"Created foreign key {i+1}/{len(foreign_keys)}")
+            except Exception as e:
+                logger.warning(f"Foreign key {i+1} may already exist: {e}")
         
         # Create update trigger function
         cursor.execute("""
