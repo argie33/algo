@@ -9,7 +9,7 @@ import { AuthProvider } from './contexts/AuthContext'
 import { configureAmplify } from './config/amplify'
 import ErrorBoundary from './components/ErrorBoundary'
 
-console.log('🚀 main.jsx loaded - starting React app - v1.0.4 - WORKFLOW TRIGGER TEST');
+console.log('🚀 main.jsx loaded - starting React app - v1.0.5 - TESTING DEPLOYMENT TRIGGER');
 
 // Add global error handler to catch white page issues
 window.addEventListener('error', (e) => {
