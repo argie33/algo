@@ -87,16 +87,23 @@ def create_all_tables(cursor, conn):
         )
         """,
         
-        # Portfolio tables
+        # Portfolio tables for webapp compatibility
         """
         CREATE TABLE IF NOT EXISTS portfolio_metadata (
             id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL,
-            name VARCHAR(255) NOT NULL,
+            api_key_id INTEGER,
+            total_equity DECIMAL(15, 2),
+            total_market_value DECIMAL(15, 2),
+            buying_power DECIMAL(15, 2),
+            cash DECIMAL(15, 2),
+            account_type VARCHAR(50),
+            name VARCHAR(255),
             description TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            is_active BOOLEAN DEFAULT TRUE
+            is_active BOOLEAN DEFAULT TRUE,
+            UNIQUE(user_id, api_key_id)
         )
         """,
         
@@ -104,10 +111,16 @@ def create_all_tables(cursor, conn):
         DROP TABLE IF EXISTS portfolio_holdings CASCADE;
         CREATE TABLE portfolio_holdings (
             id SERIAL PRIMARY KEY,
-            portfolio_id INTEGER NOT NULL,
-            symbol VARCHAR(10) NOT NULL,
+            user_id INTEGER NOT NULL,
+            api_key_id INTEGER,
+            symbol VARCHAR(20) NOT NULL,
             quantity DECIMAL(20, 8) NOT NULL,
-            avg_cost DECIMAL(10, 2) NOT NULL,
+            avg_cost DECIMAL(10, 4),
+            current_price DECIMAL(10, 4),
+            market_value DECIMAL(15, 2),
+            unrealized_pl DECIMAL(15, 2),
+            unrealized_plpc DECIMAL(8, 4),
+            side VARCHAR(10) DEFAULT 'long',
             purchase_date DATE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -423,7 +436,9 @@ def create_all_tables(cursor, conn):
         "CREATE INDEX IF NOT EXISTS idx_user_api_keys_user_id ON user_api_keys(user_id)",
         "CREATE INDEX IF NOT EXISTS idx_user_api_keys_provider ON user_api_keys(provider)",
         "CREATE INDEX IF NOT EXISTS idx_portfolio_metadata_user_id ON portfolio_metadata(user_id)",
-        "CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_portfolio_id ON portfolio_holdings(portfolio_id)",
+        "CREATE INDEX IF NOT EXISTS idx_portfolio_metadata_api_key ON portfolio_metadata(user_id, api_key_id)",
+        "CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_user_id ON portfolio_holdings(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_api_key ON portfolio_holdings(user_id, api_key_id)",
         "CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_symbol ON portfolio_holdings(symbol)",
         "CREATE INDEX IF NOT EXISTS idx_stock_symbols_sector ON stock_symbols(sector)",
         "CREATE INDEX IF NOT EXISTS idx_health_status_table_name ON health_status(table_name)"
@@ -468,8 +483,10 @@ def create_all_tables(cursor, conn):
         # Add foreign key constraints after all tables are created
         foreign_keys = [
             "ALTER TABLE user_api_keys ADD CONSTRAINT fk_user_api_keys_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
-            "ALTER TABLE portfolio_metadata ADD CONSTRAINT fk_portfolio_metadata_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE", 
-            "ALTER TABLE portfolio_holdings ADD CONSTRAINT fk_portfolio_holdings_portfolio_id FOREIGN KEY (portfolio_id) REFERENCES portfolio_metadata(id) ON DELETE CASCADE"
+            "ALTER TABLE portfolio_metadata ADD CONSTRAINT fk_portfolio_metadata_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
+            "ALTER TABLE portfolio_metadata ADD CONSTRAINT fk_portfolio_metadata_api_key FOREIGN KEY (api_key_id) REFERENCES user_api_keys(id) ON DELETE CASCADE",
+            "ALTER TABLE portfolio_holdings ADD CONSTRAINT fk_portfolio_holdings_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
+            "ALTER TABLE portfolio_holdings ADD CONSTRAINT fk_portfolio_holdings_api_key FOREIGN KEY (api_key_id) REFERENCES user_api_keys(id) ON DELETE CASCADE"
         ]
         
         for i, fk_sql in enumerate(foreign_keys):

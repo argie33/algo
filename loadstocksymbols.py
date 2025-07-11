@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Updated database schema to match webapp portfolio table requirements v43
 import os
 import re
 import csv
